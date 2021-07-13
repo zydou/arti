@@ -127,3 +127,36 @@ type SecretBytes = zeroize::Zeroizing<Vec<u8>>;
 
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Timestamp object that we update whenever we get incoming traffic.
+///
+/// Used to implement [`time_since_last_incoming_traffic`]
+#[cfg(feature = "traffic-timestamp")]
+static LAST_INCOMING_TRAFFIC: util::ts::Timestamp = util::ts::Timestamp::new();
+
+/// Called whenever we receive incoming traffic.
+///
+/// Used to implement [`time_since_last_incoming_traffic`]
+#[inline]
+pub(crate) fn note_incoming_traffic() {
+    #[cfg(feature = "traffic-timestamp")]
+    {
+        LAST_INCOMING_TRAFFIC.update();
+    }
+}
+
+/// Return the amount of time since we last received "incoming traffic".
+///
+/// Requires that the `traffic-timestamp` feature is enabled.
+///
+/// This is a global counter, and is subject to interference from
+/// other users of the `tor_proto`.  Its only permissible use is for
+/// checking how recently we have been definitely able to receive
+/// incoming traffic.
+///
+/// When enabled, this timestamp is updated whenever we receive a valid
+/// cell, and whenever we complete a channel handshake.
+#[cfg(feature = "traffic-timestamp")]
+pub fn time_since_last_incoming_traffic() -> std::time::Duration {
+    LAST_INCOMING_TRAFFIC.time_since_update().into()
+}
