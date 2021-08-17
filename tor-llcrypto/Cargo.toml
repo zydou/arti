@@ -43,5 +43,5 @@ serde_test = "1.0.124"
 # you say "cargo test".
 [dev-dependencies.cargo-husky]
 version = "1.5.0"
-features = ["precommit-hook", "run-cargo-test",
-            "run-cargo-fmt", "run-for-all" ]
+default-features = false
+features = [ "user-hooks" ]
