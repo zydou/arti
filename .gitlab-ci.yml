@@ -41,5 +41,6 @@ build-repro:
     - ./maint/reproducible_build.sh
   artifacts:
     paths:
-      - arti-bin
+      - arti-linux
+      - arti-windows.exe
     expire_in: 1 day
