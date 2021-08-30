@@ -193,6 +193,7 @@ fn calc_next_delay(now: SystemTime, when: SystemTime) -> (bool, Duration) {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::erasing_op)]
     use super::*;
 
     #[test]

@@ -652,6 +652,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::parse::macros::test::Fruit;
     use crate::{Error, Pos, Result};

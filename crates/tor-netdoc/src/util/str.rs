@@ -91,6 +91,8 @@ impl Extent {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     #[test]
     fn test_str_offset() {
         use super::str_offset;

@@ -916,6 +916,7 @@ const DROP_OLD_CONSENSUSES: &str = "
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
@@ -1151,11 +1152,11 @@ mod test {
             sk_fingerprint: [3; 20].into(),
         };
 
-        let m1 = AuthCertMeta::new(keyids.clone(), now.into(), (now + one_hour * 24).into());
+        let m1 = AuthCertMeta::new(keyids, now.into(), (now + one_hour * 24).into());
 
         store.store_authcerts(&[(m1, "Pretend this is a cert")])?;
 
-        let certs = store.authcerts(&[keyids.clone(), keyids2])?;
+        let certs = store.authcerts(&[keyids, keyids2])?;
         assert_eq!(certs.len(), 1);
         assert_eq!(certs.get(&keyids).unwrap(), "Pretend this is a cert");
 

@@ -37,6 +37,7 @@ impl<T> super::SelfSigned<T> for SignatureGated<T> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::SelfSigned;
     use tor_llcrypto::pk::ValidatableSignature;

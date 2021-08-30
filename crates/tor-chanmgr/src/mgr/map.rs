@@ -180,6 +180,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[derive(Eq, PartialEq, Debug)]
     struct FakeChannel {

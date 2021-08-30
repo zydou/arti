@@ -410,7 +410,7 @@ fn add_common_headers(req: http::request::Builder) -> http::request::Builder {
 
 #[cfg(test)]
 mod test {
-
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

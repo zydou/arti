@@ -262,6 +262,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use tor_netdir::testnet;
 

@@ -81,6 +81,7 @@ impl HalfStream {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
     use futures_await_test::async_test;

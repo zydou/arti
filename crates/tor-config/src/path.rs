@@ -114,6 +114,7 @@ fn base_dirs() -> Result<&'static BaseDirs, Error> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

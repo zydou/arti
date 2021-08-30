@@ -349,6 +349,7 @@ impl Writeable for SocksAddr {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
 
@@ -404,7 +405,7 @@ mod test {
     fn socks5_init_noauth() {
         let mut h = SocksHandshake::new();
         let a = h.handshake(&hex!("05 01 00")[..]).unwrap();
-        assert_eq!(a.finished, false);
+        assert!(!a.finished);
         assert_eq!(a.drain, 3);
         assert_eq!(a.reply, &[5, 0]);
         assert_eq!(h.state, State::Socks5Wait);
@@ -414,7 +415,7 @@ mod test {
     fn socks5_init_username() {
         let mut h = SocksHandshake::new();
         let a = h.handshake(&hex!("05 04 00023031")[..]).unwrap();
-        assert_eq!(a.finished, false);
+        assert!(!a.finished);
         assert_eq!(a.drain, 6);
         assert_eq!(a.reply, &[5, 2]);
         assert_eq!(h.state, State::Socks5Username);

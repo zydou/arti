@@ -86,6 +86,7 @@ impl super::ServerHandshake for CreateFastServer {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::crypto::handshake::{ClientHandshake, KeyGenerator, ServerHandshake};
     use hex_literal::hex;

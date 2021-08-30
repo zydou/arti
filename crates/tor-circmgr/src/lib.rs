@@ -316,6 +316,7 @@ async fn continually_expire_circuits<R: Runtime>(runtime: R, circmgr: Weak<CircM
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
@@ -326,7 +327,7 @@ mod test {
         let di: DirInfo<'_> = (&[][..]).into();
 
         let p1 = di.circ_params();
-        assert_eq!(p1.extend_by_ed25519_id(), false);
+        assert!(!p1.extend_by_ed25519_id());
         assert_eq!(p1.initial_send_window(), 1000);
 
         // Now try with a directory and configured parameters.
@@ -342,7 +343,7 @@ mod test {
         let di: DirInfo<'_> = (&netdir).into();
         let p2 = di.circ_params();
         assert_eq!(p2.initial_send_window(), 100);
-        assert_eq!(p2.extend_by_ed25519_id(), true);
+        assert!(p2.extend_by_ed25519_id());
 
         // Now try with a bogus circwindow value.
         let (consensus, microdescs) = tor_netdir::testnet::construct_network().unwrap();
@@ -357,6 +358,6 @@ mod test {
         let di: DirInfo<'_> = (&netdir).into();
         let p2 = di.circ_params();
         assert_eq!(p2.initial_send_window(), 1000); // Not 100_000
-        assert_eq!(p2.extend_by_ed25519_id(), true);
+        assert!(p2.extend_by_ed25519_id());
     }
 }

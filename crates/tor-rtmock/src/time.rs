@@ -227,6 +227,7 @@ impl Future for Sleeping {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use tor_rtcompat::test_with_all_runtimes;
 
@@ -286,21 +287,21 @@ mod test {
                 async {
                     sp.advance(one_hour * 2).await;
                     r1.await.unwrap();
-                    assert_eq!(true, b1.load(Ordering::SeqCst));
-                    assert_eq!(false, b2.load(Ordering::SeqCst));
-                    assert_eq!(false, b3.load(Ordering::SeqCst));
+                    assert!(b1.load(Ordering::SeqCst));
+                    assert!(!b2.load(Ordering::SeqCst));
+                    assert!(!b3.load(Ordering::SeqCst));
 
                     sp.advance(one_hour * 2).await;
                     r2.await.unwrap();
-                    assert_eq!(true, b1.load(Ordering::SeqCst));
-                    assert_eq!(true, b2.load(Ordering::SeqCst));
-                    assert_eq!(false, b3.load(Ordering::SeqCst));
+                    assert!(b1.load(Ordering::SeqCst));
+                    assert!(b2.load(Ordering::SeqCst));
+                    assert!(!b3.load(Ordering::SeqCst));
 
                     sp.advance(one_hour * 2).await;
                     r3.await.unwrap();
-                    assert_eq!(true, b1.load(Ordering::SeqCst));
-                    assert_eq!(true, b2.load(Ordering::SeqCst));
-                    assert_eq!(true, b3.load(Ordering::SeqCst));
+                    assert!(b1.load(Ordering::SeqCst));
+                    assert!(b2.load(Ordering::SeqCst));
+                    assert!(b3.load(Ordering::SeqCst));
                     let real_end = Instant::now();
 
                     assert!(real_end - real_start < one_hour);

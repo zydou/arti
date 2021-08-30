@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used, clippy::unnecessary_wraps)]
 use crate::Runtime;
 use crate::SleepProviderExt;
 

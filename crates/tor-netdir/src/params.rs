@@ -345,6 +345,6 @@ mod test {
         assert_eq!(p.bw_weight_scale.get(), 70);
         assert_eq!(p.min_circuit_path_threshold.as_percent().get(), 45);
         let b_val: bool = p.extend_by_ed25519_id.into();
-        assert_eq!(b_val, true);
+        assert!(b_val);
     }
 }

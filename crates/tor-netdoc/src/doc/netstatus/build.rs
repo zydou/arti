@@ -385,6 +385,7 @@ impl VoterInfoBuilder {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::doc::netstatus::RelayFlags;
 

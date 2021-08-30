@@ -159,6 +159,7 @@ static POLICY_CACHE: InternCache<PortPolicy> = InternCache::new();
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

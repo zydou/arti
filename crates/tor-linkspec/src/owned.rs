@@ -122,6 +122,7 @@ impl CircTarget for OwnedCircTarget {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[test]
     fn targetinfo() {

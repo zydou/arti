@@ -254,6 +254,7 @@ impl fmt::Display for SocksAddr {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use std::convert::TryInto;
 

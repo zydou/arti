@@ -67,6 +67,7 @@ pub fn validate_all_sigs(v: &[Box<dyn ValidatableSignature>]) -> bool {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     #[test]
     fn validatable_ed_sig() {
         use super::ed25519::{PublicKey, Signature, ValidatableEd25519Signature};

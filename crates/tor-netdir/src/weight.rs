@@ -378,6 +378,7 @@ fn log2_upper(n: u64) -> u32 {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use netstatus::RelayWeight as RW;
     use std::net::SocketAddr;

@@ -414,6 +414,7 @@ fn get_decoder<'a, S: AsyncBufRead + Unpin + Send + 'a>(
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use tor_rtmock::{io::stream_pair, time::MockSleepProvider};
 
@@ -601,7 +602,7 @@ mod test {
 
         assert!(request[..].starts_with(b"GET /tor/server/all.z HTTP/1.0\r\n"));
         assert_eq!(response.status_code(), 200);
-        assert_eq!(response.is_partial(), false);
+        assert!(!response.is_partial());
         assert!(response.error().is_none());
         assert!(response.source().is_none());
         let out = response.into_output();

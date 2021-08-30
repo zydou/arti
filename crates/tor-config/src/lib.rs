@@ -104,6 +104,7 @@ pub fn default_config_file() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use tempfile::tempdir;
 

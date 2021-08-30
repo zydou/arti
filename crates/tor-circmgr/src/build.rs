@@ -382,6 +382,7 @@ where
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::channel::oneshot;
     use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
@@ -616,8 +617,8 @@ mod test {
             let outcome = rt.wait_for(builder.build_owned(p1, &params, rng)).await;
 
             let circ = outcome.unwrap().into_inner().unwrap();
-            assert_eq!(circ.onehop, true);
-            assert_eq!(circ.hops[..], [[0x11; 32].into()]);
+            assert!(circ.onehop);
+            assert_eq!(circ.hops, [[0x11; 32].into()]);
 
             let rng =
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
@@ -625,7 +626,7 @@ mod test {
                 .wait_for(builder.build_owned(p2.clone(), &params, rng))
                 .await;
             let circ = outcome.unwrap().into_inner().unwrap();
-            assert_eq!(circ.onehop, false);
+            assert!(!circ.onehop);
             assert_eq!(
                 circ.hops[..],
                 [[0x11; 32].into(), [0x22; 32].into(), [0x33; 32].into()]
@@ -634,10 +635,10 @@ mod test {
             {
                 let mut h = timeouts.lock().unwrap();
                 assert_eq!(h.hist.len(), 2);
-                assert_eq!(h.hist[0].0, true); // completed
+                assert!(h.hist[0].0); // completed
                 assert_eq!(h.hist[0].1, 0); // last hop completed
                                             // TODO: test time elapsed, once wait_for is more reliable.
-                assert_eq!(h.hist[1].0, true); // completed
+                assert!(h.hist[1].0); // completed
                 assert_eq!(h.hist[1].1, 2); // last hop completed
                                             // TODO: test time elapsed, once wait_for is more reliable.
                 h.hist.clear();
@@ -657,7 +658,7 @@ mod test {
             {
                 let mut h = timeouts.lock().unwrap();
                 assert_eq!(h.hist.len(), 1);
-                assert_eq!(h.hist[0].0, false);
+                assert!(!h.hist[0].0);
                 assert_eq!(h.hist[0].1, 2);
                 h.hist.clear();
             }
@@ -672,14 +673,14 @@ mod test {
             assert!(outcome.is_err());
             // "wait" a while longer to make sure that we eventually
             // notice the circuit completing.
-            for _ in 0..1000u16 {
+            for _ in 0..1000_u16 {
                 rt.advance(Duration::from_millis(100)).await;
             }
             {
                 let h = timeouts.lock().unwrap();
                 dbg!(&h.hist);
                 // First we notice a circuit timeout after 2 hops
-                assert_eq!(h.hist[0].0, false);
+                assert!(!h.hist[0].0);
                 assert_eq!(h.hist[0].1, 2);
                 // TODO: check timeout more closely.
                 assert!(h.hist[0].2 < Duration::from_secs(100));
@@ -690,7 +691,7 @@ mod test {
                 {
                     assert_eq!(h.hist.len(), 2);
                     // Then we notice a circuit completing at its third hop.
-                    assert_eq!(h.hist[1].0, true);
+                    assert!(h.hist[1].0);
                     assert_eq!(h.hist[1].1, 2);
                     // TODO: check timeout more closely.
                     assert!(h.hist[1].2 < Duration::from_secs(100));

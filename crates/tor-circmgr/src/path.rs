@@ -127,6 +127,7 @@ impl OwnedPath {
 /// path.
 #[cfg(test)]
 fn assert_same_path_when_owned(path: &TorPath<'_>) {
+    #![allow(clippy::unwrap_used)]
     use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     let owned: OwnedPath = path.try_into().unwrap();

@@ -46,6 +46,7 @@ pub(crate) fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     #[test]
     fn test_bytes_eq() {
         use super::bytes_eq;

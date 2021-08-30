@@ -358,6 +358,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
@@ -427,7 +428,7 @@ pub(crate) mod test {
         let (rr_s, _) = join!(run_reactor, exit_then_check);
 
         // Now let's see. The reactor should not _still_ be running.
-        assert_eq!(rr_s, true);
+        assert!(rr_s);
     }
 
     #[async_test]

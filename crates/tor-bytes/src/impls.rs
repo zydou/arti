@@ -284,6 +284,7 @@ mod u8_array_impls {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use crate::{Reader, Writer};
     use hex_literal::hex;
     macro_rules! check_encode {
@@ -333,7 +334,7 @@ mod tests {
 
     #[test]
     fn roundtrip_u64() {
-        check_roundtrip!(u64, 0x4040111u64, [0, 0, 0, 0, 4, 4, 1, 17]);
+        check_roundtrip!(u64, 0x4040111_u64, [0, 0, 0, 0, 4, 4, 1, 17]);
     }
 
     #[test]

@@ -108,6 +108,7 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::{
         mgr::{AbstractChannel, ChannelFactory},

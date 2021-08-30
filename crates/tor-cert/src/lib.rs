@@ -618,6 +618,7 @@ impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
 

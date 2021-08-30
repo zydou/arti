@@ -162,6 +162,7 @@ impl FromStr for PortRange {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::Result;
     #[test]

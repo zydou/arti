@@ -18,6 +18,7 @@ pub(crate) fn encode_request(req: &http::Request<()>) -> String {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]

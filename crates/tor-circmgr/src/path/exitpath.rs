@@ -139,6 +139,7 @@ fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: &Subnet
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
     use std::convert::TryInto;

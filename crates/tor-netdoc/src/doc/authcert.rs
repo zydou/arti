@@ -418,6 +418,7 @@ impl<'a> Iterator for AuthCertIterator<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::{Error, Pos};
     const TESTDATA: &str = include_str!("../../testdata/authcert1.txt");
@@ -446,29 +447,29 @@ mod test {
 
     #[test]
     fn parse_bad() {
-        fn check(fname: &str, err: Error) {
+        fn check(fname: &str, err: &Error) {
             let contents = bad_data(fname);
             let cert = AuthCert::parse(&contents);
             assert!(cert.is_err());
-            assert_eq!(cert.err().unwrap(), err);
+            assert_eq!(&cert.err().unwrap(), err);
         }
 
-        check("bad-cc-tag", Error::WrongObject(Pos::from_line(27, 12)));
+        check("bad-cc-tag", &Error::WrongObject(Pos::from_line(27, 12)));
         check(
             "bad-fingerprint",
-            Error::BadArgument(
+            &Error::BadArgument(
                 Pos::from_line(2, 1),
                 "fingerprint does not match RSA identity".into(),
             ),
         );
-        check("bad-version", Error::BadDocumentVersion(4));
+        check("bad-version", &Error::BadDocumentVersion(4));
         check(
             "wrong-end",
-            Error::WrongEndingToken("dir-key-crosscert".into(), Pos::from_line(37, 1)),
+            &Error::WrongEndingToken("dir-key-crosscert".into(), Pos::from_line(37, 1)),
         );
         check(
             "wrong-start",
-            Error::WrongStartingToken("fingerprint".into(), Pos::from_line(1, 1)),
+            &Error::WrongStartingToken("fingerprint".into(), Pos::from_line(1, 1)),
         );
     }
 

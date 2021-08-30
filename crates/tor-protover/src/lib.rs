@@ -493,6 +493,7 @@ impl std::fmt::Display for Protocols {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
@@ -566,19 +567,19 @@ mod test {
     fn test_supports() -> Result<(), ParseError> {
         let p: Protocols = "Link=4,5-7 Padding=2 Lonk=1-3,5".parse()?;
 
-        assert_eq!(p.supports_known_subver(ProtoKind::Padding, 2), true);
-        assert_eq!(p.supports_known_subver(ProtoKind::Padding, 1), false);
-        assert_eq!(p.supports_known_subver(ProtoKind::Link, 6), true);
-        assert_eq!(p.supports_known_subver(ProtoKind::Link, 255), false);
-        assert_eq!(p.supports_known_subver(ProtoKind::Cons, 1), false);
-        assert_eq!(p.supports_known_subver(ProtoKind::Cons, 0), false);
-        assert_eq!(p.supports_subver("Link", 6), true);
-        assert_eq!(p.supports_subver("link", 6), false);
-        assert_eq!(p.supports_subver("Cons", 0), false);
-        assert_eq!(p.supports_subver("Lonk", 3), true);
-        assert_eq!(p.supports_subver("Lonk", 4), false);
-        assert_eq!(p.supports_subver("lonk", 3), false);
-        assert_eq!(p.supports_subver("Lonk", 64), false);
+        assert!(p.supports_known_subver(ProtoKind::Padding, 2));
+        assert!(!p.supports_known_subver(ProtoKind::Padding, 1));
+        assert!(p.supports_known_subver(ProtoKind::Link, 6));
+        assert!(!p.supports_known_subver(ProtoKind::Link, 255));
+        assert!(!p.supports_known_subver(ProtoKind::Cons, 1));
+        assert!(!p.supports_known_subver(ProtoKind::Cons, 0));
+        assert!(p.supports_subver("Link", 6));
+        assert!(!p.supports_subver("link", 6));
+        assert!(!p.supports_subver("Cons", 0));
+        assert!(p.supports_subver("Lonk", 3));
+        assert!(!p.supports_subver("Lonk", 4));
+        assert!(!p.supports_subver("lonk", 3));
+        assert!(!p.supports_subver("Lonk", 64));
 
         Ok(())
     }

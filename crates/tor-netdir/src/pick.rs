@@ -75,6 +75,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[cfg(not(feature = "stochastic_tests"))]

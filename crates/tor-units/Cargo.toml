@@ -16,6 +16,9 @@ categories = [ "rust-patterns" ]
 derive_more = "0.99.0"
 thiserror = "1.0.24"
 
+[dev-dependencies]
+float-cmp = "0.9.0"
+
 # [derive_more]
 # default-features = false
 # features = ["from"]

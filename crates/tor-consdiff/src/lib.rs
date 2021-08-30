@@ -581,6 +581,7 @@ impl<'a> Display for DiffResult<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
