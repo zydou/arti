@@ -25,17 +25,8 @@ cd /arti
 ## use tmpfs to store dependancies sources. It has been observed that what
 ## filesystem these files reside on has an impact on the resulting binary.
 ## We put these in a tmpfs as a way to stabilize the result.
-# TODO CI /dev/shm is too small to store sources, at the moment we rely on
-# a but in docker that gives a bigger than intended tmpfs in an effort to hide
-# the cgroup control fs. This does not actually interact with cgroups, but
-# should be removed as soon as /dev/shm get increased
-if mount | grep '/sys/fs/cgroup type tmpfs' > /dev/null; then
-	mkdir -p /sys/fs/cgroup/registry /usr/local/cargo/registry
-	ln -s /sys/fs/cgroup/registry /usr/local/cargo/registry/src
-else
-	mkdir -p /dev/shm/registry /usr/local/cargo/registry
-	ln -s /dev/shm/registry /usr/local/cargo/registry/src
-fi
+mkdir -p /dev/shm/registry /usr/local/cargo/registry
+ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
 ## add missing dependancies
 apk add --no-cache musl-dev perl make git mingw-w64-gcc
