@@ -386,6 +386,7 @@ where
     }
 }
 
+/// Helper: Return a boxed decoder object that wrapsthe stream  $s.
 macro_rules! decoder {
     ($dec:ident, $s:expr) => {{
         let mut decoder = $dec::new($s);

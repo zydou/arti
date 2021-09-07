@@ -1104,7 +1104,8 @@ impl<B: Body> From<B> for ChanMsg {
     }
 }
 
-// Helper: declare an Into implementation for cells that don't take a circid.
+/// Helper: declare a From<> implementation from message types for
+/// cells that don't take a circid.
 macro_rules! msg_into_cell {
     ($body:ident) => {
         impl From<$body> for super::ChanCell {

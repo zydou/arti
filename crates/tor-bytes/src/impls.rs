@@ -97,7 +97,8 @@ where
     }
 }
 
-// Implementations for reading and writing the unsigned types.
+/// Make Readable and Writeable implementations for a provided
+/// unsigned type, delegating to the `read_uNN` and `write_uNN` functions.
 macro_rules! impl_u {
     ( $t:ty, $wrfn:ident, $rdfn:ident ) => {
         impl Writeable for $t {
@@ -258,6 +259,7 @@ mod mac_impls {
 /// Implement readable and writeable for common sizes of u8 arrays.
 mod u8_array_impls {
     use super::*;
+    /// Implement encoding and decoding for an N-byte u8 array.
     macro_rules! impl_array {
         ($n:literal) => {
             impl Writeable for [u8; $n] {

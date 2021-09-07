@@ -89,6 +89,7 @@ struct GenericRouterStatus<D> {
     weight: RelayWeight,
 }
 
+/// Implement a set of accessor functions on a given routerstatus type.
 // TODO: These methods should probably become, in whole or in part,
 // methods on the RouterStatus trait.
 macro_rules! implement_accessors {

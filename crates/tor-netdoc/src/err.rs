@@ -386,6 +386,8 @@ impl Error {
     }
 }
 
+/// Create a From<> implementation to construct an Error::BadArgument
+/// from another error type.
 macro_rules! derive_from_err{
     { $etype:ty } => {
         impl From<$etype> for Error {

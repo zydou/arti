@@ -210,6 +210,9 @@ use futures::Future;
 use std::io::Result as IoResult;
 use std::time::Duration;
 
+/// Helper: Declare that a given tokio runtime object implements the
+/// prerequisites for Runtime.
+// TODO: Maybe we can do this more simply with a simpler trait?
 macro_rules! implement_traits_for {
     ($runtime:ty) => {
         impl SleepProvider for $runtime {
