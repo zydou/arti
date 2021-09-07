@@ -8,7 +8,7 @@ socks_port = 9150
 
 # Enable logging to journald where available
 
-journald = true
+journald = false
 
 # Specify filtering directives for tracing.
 #
