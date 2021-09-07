@@ -284,7 +284,7 @@ impl<R: Runtime> CircMgr<R> {
             let dirinfo = netdir.into();
             let mgr = Arc::clone(&self.mgr);
             debug!("Launching a circuit to test build times.");
-            let _ = mgr.launch_by_usage(dirinfo, &usage)?;
+            let _ = mgr.launch_by_usage(&usage, dirinfo)?;
         }
 
         Ok(())

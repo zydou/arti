@@ -938,9 +938,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     ///
     /// Return a listener that will be informed when the circuit is done.
     pub(crate) fn launch_by_usage(
-        self: Arc<Self>,
-        dir: DirInfo<'_>,
+        self: &Arc<Self>,
         usage: &<B::Spec as AbstractSpec>::Usage,
+        dir: DirInfo<'_>,
     ) -> Result<Shared<oneshot::Receiver<PendResult<B>>>> {
         let (pending, plan) = self.plan_by_usage(dir, usage)?;
 
@@ -949,7 +949,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             .expect("Poisoned lock for circuit list")
             .add_pending_circ(pending);
 
-        Ok(self.launch(usage, plan))
+        Ok(Arc::clone(self).launch(usage, plan))
     }
 
     /// Actually launch a circuit in a background task.
@@ -1057,6 +1057,13 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     pub(crate) fn n_circs(&self) -> usize {
         let list = self.circs.lock().expect("poisoned lock");
         list.open_circs.len()
+    }
+
+    /// Return the number of pending circuits tracked by this circuit manager.
+    #[cfg(test)]
+    pub(crate) fn n_pending_circs(&self) -> usize {
+        let list = self.circs.lock().expect("poisoned lock");
+        list.pending_circs.len()
     }
 
     /// Get a reference to this manager's runtime.
@@ -1302,9 +1309,14 @@ mod test {
 
             let webports = FakeSpec::new(vec![80_u16, 443]);
 
+            // Check initialization.
+            assert_eq!(mgr.n_circs(), 0);
+            assert!(mgr.peek_builder().script.lock().unwrap().is_empty());
+
             // Launch a circuit; make sure we get it.
             let c1 = rt.wait_for(mgr.get_or_launch(&webports, di())).await;
             let c1 = c1.unwrap();
+            assert_eq!(mgr.n_circs(), 1);
 
             // Make sure we get the one we already made if we ask for it.
             let port80 = FakeSpec::new(vec![80_u16]);
@@ -1312,6 +1324,7 @@ mod test {
 
             let c2 = c2.unwrap();
             assert!(Arc::ptr_eq(&c1, &c2));
+            assert_eq!(mgr.n_circs(), 1);
 
             // Now try launching two circuits "at once" to make sure that our
             // pending-circuit code works.
@@ -1331,6 +1344,7 @@ mod test {
             assert!(!Arc::ptr_eq(&c1, &c3));
             assert!(Arc::ptr_eq(&c3, &c4));
             assert_eq!(c3.id(), c4.id());
+            assert_eq!(mgr.n_circs(), 2);
 
             // Now we're going to remove c3 from consideration.  It's the
             // same as c4, so removing c4 will give us None.
@@ -1338,12 +1352,22 @@ mod test {
             let now_its_gone = mgr.take_circ(&c4.id());
             assert!(Arc::ptr_eq(&c3_taken, &c3));
             assert!(now_its_gone.is_none());
+            assert_eq!(mgr.n_circs(), 1);
+
             // Having removed them, let's launch another dnsport and make
             // sure we get a different circuit.
             let c5 = rt.wait_for(mgr.get_or_launch(&dnsport, di())).await;
             let c5 = c5.unwrap();
             assert!(!Arc::ptr_eq(&c3, &c5));
             assert!(!Arc::ptr_eq(&c4, &c5));
+            assert_eq!(mgr.n_circs(), 2);
+
+            // Now try launch_by_usage.
+            let prev = mgr.n_pending_circs();
+            assert!(mgr.launch_by_usage(&dnsport, di()).is_ok());
+            assert_eq!(mgr.n_pending_circs(), prev + 1);
+            // TODO: Actually make sure that launch_by_usage launched
+            // the right thing.
         });
     }
 
@@ -1365,7 +1389,10 @@ mod test {
                 RequestTiming::default(),
                 CircuitTiming::default(),
             ));
-            let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
+            let c1 = mgr
+                .peek_runtime()
+                .wait_for(mgr.get_or_launch(&ports, di()))
+                .await;
 
             assert!(matches!(c1, Err(Error::RequestFailed(_))));
 
@@ -1388,7 +1415,10 @@ mod test {
                 RequestTiming::default(),
                 CircuitTiming::default(),
             ));
-            let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
+            let c1 = mgr
+                .peek_runtime()
+                .wait_for(mgr.get_or_launch(&ports, di()))
+                .await;
 
             assert!(matches!(c1, Err(Error::RequestFailed(_))));
         });
