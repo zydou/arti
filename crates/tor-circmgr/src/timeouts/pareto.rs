@@ -483,10 +483,6 @@ pub(crate) struct ParetoTimeoutState {
     histogram: Vec<(MsecDuration, u16)>,
     /// The current timeout estimate: kept for reference.
     current_timeout: Option<MsecDuration>,
-    /// How many abandoned circuits have we seen "recently"
-    abandoned_circs: usize,
-    /// How many successful circuits have we seen "recently"
-    successful_circs: usize,
 }
 
 impl ParetoTimeoutEstimator {
@@ -508,22 +504,7 @@ impl ParetoTimeoutEstimator {
     /// Create a new ParetoTimeoutEstimator based on a loaded
     /// ParetoTimeoutState.
     pub(crate) fn from_state(state: ParetoTimeoutState) -> Self {
-        let mut history = History::from_sparse_histogram(state.histogram.into_iter());
-        // We cap these numbers at the largest number that could be recorded,
-        // so that we don't run away adding too much if the state file is
-        // corrupt.
-        let failed = std::cmp::max(state.abandoned_circs, SUCCESS_HISTORY_DEFAULT_LEN);
-        let succeeded = std::cmp::max(state.successful_circs, SUCCESS_HISTORY_DEFAULT_LEN);
-        // We add failures before successes so that they expire first;
-        // this is biased against throwing away data.
-        // TODO-SPEC: path-spec.txt doesn't say what order to restore this
-        // history in.
-        for _ in 0..failed {
-            history.add_success(false);
-        }
-        for _ in 0..succeeded {
-            history.add_success(true);
-        }
+        let history = History::from_sparse_histogram(state.histogram.into_iter());
         Self::from_history(history)
     }
 
@@ -540,8 +521,6 @@ impl ParetoTimeoutEstimator {
             version: 1,
             histogram: this.history.sparse_histogram().collect(),
             current_timeout: Some(cur_timeout),
-            abandoned_circs: this.history.n_recent_timeouts(),
-            successful_circs: this.history.success_history.len() - this.history.n_recent_timeouts(),
         }
     }
 
