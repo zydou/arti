@@ -45,16 +45,19 @@ impl Writeable for Vec<u8> {
     }
 }
 
-/* There is no specialization in Rust yet, or we would make an implementation
-   for this.
-
+// The GenericArray type is defined to work around a limitation in Rust's
+// typesystem.  Ideally we can get rid of GenericArray entirely at some
+// point down the line.
+//
+// For now, we only use GenericArray<u8>, so that's all we'll declare, since
+// it permits a faster implementation.
 impl<N> Readable for GenericArray<u8, N>
 where
     N: generic_array::ArrayLength<u8>,
 {
     fn take_from(b: &mut Reader) -> Result<Self> {
         // safety -- "take" returns the requested bytes or error.
-        Ok(Self::from_slice(b.take(N::to_usize())?).clone())
+        Ok(Self::clone_from_slice(b.take(N::to_usize())?))
     }
 }
 
@@ -66,10 +69,12 @@ where
         b.write_all(self.as_slice())
     }
 }
-*/
 
-/// The GenericArray type is defined to work around a limitation in Rust's
-/// typesystem.
+/*
+// We could add these as well as our implementations over GenericArray<u8>,
+// except that we don't actually need them, and Rust doesn't support
+// specialization.
+
 impl<T, N> Readable for GenericArray<T, N>
 where
     T: Readable + Clone,
@@ -96,6 +101,7 @@ where
         }
     }
 }
+*/
 
 /// Make Readable and Writeable implementations for a provided
 /// unsigned type, delegating to the `read_uNN` and `write_uNN` functions.
@@ -256,29 +262,24 @@ mod mac_impls {
     }
 }
 
-/// Implement readable and writeable for common sizes of u8 arrays.
+/// Implement readable and writeable for u8 arrays.
 mod u8_array_impls {
     use super::*;
-    /// Implement encoding and decoding for an N-byte u8 array.
-    macro_rules! impl_array {
-        ($n:literal) => {
-            impl Writeable for [u8; $n] {
-                fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-                    b.write_all(&self[..])
-                }
-            }
-            impl Readable for [u8; $n] {
-                fn take_from(r: &mut Reader<'_>) -> Result<Self> {
-                    let bytes = r.take($n)?;
-                    Ok(array_ref!(bytes, 0, $n).clone())
-                }
-            }
-        };
+    impl<const N: usize> Writeable for [u8; N] {
+        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+            b.write_all(&self[..])
+        }
     }
-    // These are the lengths we know we need right now.
-    impl_array! {16}
-    impl_array! {20}
-    impl_array! {32}
+
+    impl<const N: usize> Readable for [u8; N] {
+        fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+            // note: Conceivably this should use MaybeUninit, but let's
+            // avoid that unless there is some measurable benefit.
+            let mut array = [0_u8; N];
+            r.take_into(&mut array[..])?;
+            Ok(array)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -324,10 +325,10 @@ mod tests {
     #[test]
     fn genarray() {
         use generic_array as ga;
-        let a: ga::GenericArray<u16, ga::typenum::U7> = [4, 5, 6, 7, 8, 9, 10].into();
-        check_roundtrip!(ga::GenericArray<u16, ga::typenum::U7>,
+        let a: ga::GenericArray<u8, ga::typenum::U7> = [4, 5, 6, 7, 8, 9, 10].into();
+        check_roundtrip!(ga::GenericArray<u8, ga::typenum::U7>,
                          a,
-                         [0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10]);
+                         [4, 5, 6, 7, 8, 9, 10]);
     }
 
     #[test]

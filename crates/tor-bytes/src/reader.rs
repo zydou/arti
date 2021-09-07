@@ -147,6 +147,34 @@ impl<'a> Reader<'a> {
         self.advance(n)?;
         Ok(b)
     }
+    /// Try to fill a provided buffer with bytes consumed from this reader.
+    ///
+    /// On success, the buffer will be filled with data from the
+    /// reader, the reader will advance by the length of the buffer,
+    /// and we'll return Ok(()).  On failure the buffer will be
+    /// unchanged.
+    ///
+    /// # Example
+    /// ```
+    /// use tor_bytes::Reader;
+    /// let m = b"Hello world";
+    /// let mut v1 = vec![0; 5];
+    /// let mut v2 = vec![0; 5];
+    /// let mut r = Reader::from_slice(m);
+    /// r.take_into(&mut v1[..])?;
+    /// assert_eq!(r.take_u8()?, b' ');
+    /// r.take_into(&mut v2[..])?;
+    /// assert_eq!(&v1[..], b"Hello");
+    /// assert_eq!(&v2[..], b"world");
+    /// r.should_be_exhausted()?;
+    /// # tor_bytes::Result::Ok(())
+    /// ```
+    pub fn take_into(&mut self, buf: &mut [u8]) -> Result<()> {
+        let n = buf.len();
+        let b = self.take(n)?;
+        buf.copy_from_slice(b);
+        Ok(())
+    }
     /// Try to consume and return a u8 from this reader.
     pub fn take_u8(&mut self) -> Result<u8> {
         let b = self.take(1)?;
