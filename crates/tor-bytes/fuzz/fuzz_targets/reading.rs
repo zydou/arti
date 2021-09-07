@@ -21,7 +21,7 @@ enum Op {
     TakeUntil(u8),
     ExtractU32,
     ExtractU32N(usize),
-    TakeInto(usize),
+    TakeInto(u16),
 }
 
 #[derive(Clone, Debug, Arbitrary)]
@@ -71,8 +71,9 @@ impl Op {
                 let _ignore = r.take(n);
             }
             TakeInto(n) => {
+                let n = n as usize;
                 let mut v = vec![0; n];
-                r.take_into(&mut v[..]);
+                let _ignore = r.take_into(&mut v[..]);
             }
             TakeU8 => {
                 let _u = r.take_u8();
