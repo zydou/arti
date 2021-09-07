@@ -800,15 +800,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let parallelism = std::cmp::max(1, self.builder.launch_parallelism(usage));
         let mut plans = Vec::new();
         for _ in 0..parallelism {
-            let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
-            let (pending, sender) = PendingEntry::new(bspec);
-            let pending = Arc::new(pending);
-            list.add_pending_circ(Arc::clone(&pending));
-            let plan = CircBuildPlan {
-                plan,
-                sender,
-                pending,
-            };
+            let (pending, plan) = self.plan_by_usage(dir, usage)?;
+            list.add_pending_circ(pending);
             plans.push(plan);
         }
         Ok(Action::Build(plans))
@@ -912,6 +905,34 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         Err(retry_error)
     }
 
+    /// Given a directory and usage, compute the necessary objects to
+    /// build a circuit: A [`PendingEntry`] to keep track of the in-process
+    /// circuit, and a [`CircBuildPlan`] that we'll give to the thread
+    /// that will build the circuit.
+    ///
+    /// The caller should probably add the resulting `PendingEntry` to
+    /// `self.circs`.
+    ///
+    /// This is an internal function that we call when we're pretty sure
+    /// we want to build a circuit.
+    fn plan_by_usage(
+        &self,
+        dir: DirInfo<'_>,
+        usage: &<B::Spec as AbstractSpec>::Usage,
+    ) -> Result<(Arc<PendingEntry<B>>, CircBuildPlan<B>)> {
+        let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
+        let (pending, sender) = PendingEntry::new(bspec);
+        let pending = Arc::new(pending);
+
+        let plan = CircBuildPlan {
+            plan,
+            sender,
+            pending: Arc::clone(&pending),
+        };
+
+        Ok((pending, plan))
+    }
+
     /// Launch a managed circuit for a target usage, without checking
     /// whether one already exists or is pending.
     ///
@@ -921,21 +942,12 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         dir: DirInfo<'_>,
         usage: &<B::Spec as AbstractSpec>::Usage,
     ) -> Result<Shared<oneshot::Receiver<PendResult<B>>>> {
-        // XXXX duplicate code with prepare_action
-        let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
-        let (pending, sender) = PendingEntry::new(bspec);
-        let pending = Arc::new(pending);
+        let (pending, plan) = self.plan_by_usage(dir, usage)?;
 
         self.circs
             .lock()
             .expect("Poisoned lock for circuit list")
-            .add_pending_circ(Arc::clone(&pending));
-
-        let plan = CircBuildPlan {
-            plan,
-            sender,
-            pending,
-        };
+            .add_pending_circ(pending);
 
         Ok(self.launch(usage, plan))
     }
