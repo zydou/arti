@@ -237,14 +237,15 @@ fn setup_logging(config: &ArtiConfig) {
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
 
+    #[cfg(feature = "journald")]
     if config.journald {
-        match tracing_journald::layer() {
-            Ok(journald) => registry.with(journald).init(),
-            Err(_err) => registry.init(),
-        };
-    } else {
-        registry.init()
+        if let Ok(journald) = tracing_journald::layer() {
+            registry.with(journald).init();
+            return;
+        }
     }
+
+    registry.init();
 }
 
 fn main() -> Result<()> {
