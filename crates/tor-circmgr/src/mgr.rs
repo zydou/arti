@@ -19,7 +19,7 @@
 
 // TODO:
 // - Testing
-//    - Error from pick_action()
+//    - Error from prepare_action()
 //    - Error reported by restrict_mut?
 
 use crate::config::{CircuitTiming, RequestTiming};
@@ -689,7 +689,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 Some(t) => t,
             };
 
-            match self.pick_action(usage, dir, true) {
+            match self.prepare_action(usage, dir, true) {
                 Ok(action) => {
                     // We successfully found an action: Take that action.
                     let outcome = self
@@ -737,7 +737,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
     ) -> Result<()> {
-        let action = self.pick_action(usage, dir, false)?;
+        let action = self.prepare_action(usage, dir, false)?;
         if let Action::Build(plans) = action {
             for plan in plans {
                 let self_clone = Arc::clone(self);
@@ -754,7 +754,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// If `restrict_circ` is true, we restrict the spec of any
     /// circ we decide to use to mark that it _is_ being used for
     /// `usage`.
-    fn pick_action(
+    fn prepare_action(
         &self,
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
@@ -921,7 +921,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         dir: DirInfo<'_>,
         usage: &<B::Spec as AbstractSpec>::Usage,
     ) -> Result<Shared<oneshot::Receiver<PendResult<B>>>> {
-        // XXXX duplicate code with pick_action
+        // XXXX duplicate code with prepare_action
         let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
         let (pending, sender) = PendingEntry::new(bspec);
         let pending = Arc::new(pending);
