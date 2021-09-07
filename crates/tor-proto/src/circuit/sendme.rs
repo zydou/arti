@@ -2,7 +2,7 @@
 //!
 //! Tor maintains a separate windows on circuits and on streams.
 //! These are controlled by SENDME cells, which (confusingly) are
-//! applied either at the circuit or the steam level depending on
+//! applied either at the circuit or the stream level depending on
 //! whether they have a stream ID set.
 //!
 //! Circuit sendmes are _authenticated_: they include a cryptographic

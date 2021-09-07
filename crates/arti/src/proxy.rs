@@ -229,7 +229,7 @@ where
             let (tor_r, tor_w) = tor_stream.split();
 
             // Finally, spawn two background tasks to relay traffic between
-            // the socks steam and the tor stream.
+            // the socks stream and the tor stream.
             runtime.spawn(copy_interactive(socks_r, tor_w).map(|_| ()))?;
             runtime.spawn(copy_interactive(tor_r, socks_w).map(|_| ()))?;
         }

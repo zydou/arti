@@ -408,7 +408,7 @@ impl DataReaderImpl {
             Ok(m) => {
                 self.s.protocol_error().await;
                 Err(Error::StreamProto(format!(
-                    "Unexpected {} cell on steam",
+                    "Unexpected {} cell on stream",
                     m.cmd()
                 )))
             }

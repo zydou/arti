@@ -20,7 +20,7 @@ mod net {
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
-    /// A `Stream` of incoming TCP steams.
+    /// A `Stream` of incoming TCP streams.
     ///
     /// Differs from the output of [`TcpListener::incoming`] in that this
     /// struct is a real type, and that it returns a TCP stream and an address
