@@ -387,8 +387,7 @@ impl Default for Params {
             significant_hop: 2,
             timeout_quantile: 0.80,
             abandon_quantile: 0.99,
-            // TODO-SPEC: Document this "abandon at timeout x 1.5" rule.
-            default_thresholds: (Duration::from_secs(60), Duration::from_secs(90)),
+            default_thresholds: (Duration::from_secs(60), Duration::from_secs(60)),
             n_modes_for_xm: 10,
             success_history_len: SUCCESS_HISTORY_DEFAULT_LEN,
             reset_after_timeouts: 18,
@@ -414,8 +413,7 @@ impl From<&tor_netdir::params::NetParameters> for Params {
             significant_hop: 2,
             timeout_quantile: p.cbt_timeout_quantile.as_fraction(),
             abandon_quantile: p.cbt_abandon_quantile.as_fraction(),
-            // TODO-SPEC: the timeout*1.5 default here is unspecified.
-            default_thresholds: (timeout, (timeout * 3) / 2),
+            default_thresholds: (timeout, timeout),
             n_modes_for_xm: p.cbt_num_xm_modes.get() as usize,
             success_history_len: p.cbt_success_count.get() as usize,
             reset_after_timeouts: p.cbt_max_timeouts.get() as usize,
@@ -844,7 +842,7 @@ mod test {
 
         assert_eq!(
             est.timeouts(&b3()),
-            (Duration::from_secs(60), Duration::from_secs(90))
+            (Duration::from_secs(60), Duration::from_secs(60))
         );
         {
             // Set the parameters up to mimic the situation in
@@ -855,7 +853,7 @@ mod test {
         }
         assert_eq!(
             est.timeouts(&b3()),
-            (Duration::from_secs(60), Duration::from_secs(90))
+            (Duration::from_secs(60), Duration::from_secs(60))
         );
 
         for msec in &[300, 500, 542, 305, 543, 307, 212, 203, 617, 413] {
