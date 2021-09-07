@@ -30,7 +30,7 @@ struct Example {
     ops: Vec<Op>,
 }
 
-#[cfg(fuzzing)]
+#[cfg(not(tarpaulin_include))]
 impl Example {
     fn run(self) {
         let mut r = Reader::from_slice(&self.input[..]);
@@ -41,7 +41,7 @@ impl Example {
     }
 }
 
-#[cfg(fuzzing)]
+#[cfg(not(tarpaulin_include))]
 impl Op {
     fn run(self, r: &mut Reader) {
         use Op::*;
