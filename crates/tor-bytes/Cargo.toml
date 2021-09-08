@@ -23,3 +23,6 @@ thiserror = "1.0.24"
 [dev-dependencies]
 hex-literal = "0.3.1"
 
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.2.3", features = ["js"] }
+
