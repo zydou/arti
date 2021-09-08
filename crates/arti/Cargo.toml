@@ -15,6 +15,7 @@ default = [ "tokio" ]
 async-std = [ "tor-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell" ]
 tokio = [ "tokio-crate", "tor-client/tokio", "tor-rtcompat/tokio" ]
 static = [ "tor-rtcompat/static", "tor-dirmgr/static" ]
+journald = [ "tracing-journald" ]
 
 [dependencies]
 tor-client = { package="arti-tor-client", path = "../tor-client", version="0.0.0" }
@@ -34,3 +35,4 @@ serde = { version = "1.0.124", features = ["derive"] }
 tracing-subscriber = "0.2.19"
 tokio-crate = { package="tokio", version = "1.7.0", optional = true, features = ["signal"] }
 argh = "0.1.4"
+tracing-journald = { version = "0.1.0", optional = true }
