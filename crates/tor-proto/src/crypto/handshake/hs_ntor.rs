@@ -514,13 +514,13 @@ mod test {
     #[test]
     /// Test vectors generated with hs_ntor_ref.py from little-t-tor.
     fn ntor_mac() -> Result<()> {
-        let result = hs_ntor_mac(&"who".as_bytes(), b"knows?")?;
+        let result = hs_ntor_mac("who".as_bytes(), b"knows?")?;
         assert_eq!(
             &result,
             &hex!("5e7da329630fdaa3eab7498bb1dc625bbb9ca968f10392b6af92d51d5db17473")
         );
 
-        let result = hs_ntor_mac(&"gone".as_bytes(), b"by")?;
+        let result = hs_ntor_mac("gone".as_bytes(), b"by")?;
         assert_eq!(
             &result,
             &hex!("90071aabb06d3f7c777db41542f4790c7dd9e2e7b2b842f54c9c42bbdb37e9a0")

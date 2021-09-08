@@ -543,6 +543,8 @@ impl super::ClientHandshake for NtorV3Client {
 
 #[cfg(test)]
 #[allow(non_snake_case)] // to enable variable names matching the spec.
+#[allow(clippy::many_single_char_names)] // ibid
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use hex_literal::hex;
@@ -555,7 +557,7 @@ mod test {
 
         let B: curve25519::PublicKey = (&b).into();
         let relay_public = NtorV3PublicKey {
-            pk: B.clone(),
+            pk: B,
             id: (*id).into(),
         };
         let relay_private = NtorV3SecretKey {
@@ -568,7 +570,7 @@ mod test {
         let relay_message = &b"Greetings, client. I am a robot. Beep boop."[..];
 
         let (c_state, c_handshake) =
-            client_handshake_ntor_v3(&mut rng, &relay_public, &client_message, &verification);
+            client_handshake_ntor_v3(&mut rng, &relay_public, client_message, verification);
 
         struct Rep(Vec<u8>, Vec<u8>);
         impl MsgReply for Rep {
@@ -584,12 +586,12 @@ mod test {
             &mut rep,
             &c_handshake,
             &[relay_private],
-            &verification,
+            verification,
         )
         .unwrap();
 
         let (s_msg, mut c_keygen) =
-            client_handshake_ntor_v3_part2(&c_state, &s_handshake, &verification).unwrap();
+            client_handshake_ntor_v3_part2(&c_state, &s_handshake, verification).unwrap();
 
         assert_eq!(rep.0[..], client_message[..]);
         assert_eq!(s_msg[..], relay_message[..]);
@@ -618,10 +620,7 @@ mod test {
         let verification = hex!("78797a7a79");
         let server_message = hex!("486f6c61204d756e646f");
 
-        let relay_public = NtorV3PublicKey {
-            pk: B.clone(),
-            id: id.clone(),
-        };
+        let relay_public = NtorV3PublicKey { pk: B, id };
         let relay_private = NtorV3SecretKey {
             sk: b,
             pk: relay_public.clone(),
