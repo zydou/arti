@@ -16,12 +16,16 @@ rust-latest:
     - cargo fmt -- --check
     - cargo install cargo-audit
     - cargo audit -D warnings
+  tags:
+    - amd64
 
 rust-latest-async-std:
   stage: build
   image: rust:latest
   script:
     - cd crates/tor-client && cargo check --no-default-features --features=async-std
+  tags:
+    - amd64
 
 rust-nightly:
   stage: build
@@ -33,6 +37,8 @@ rust-nightly:
     - rustup component add clippy
     - cargo clippy --all-features
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items
+  tags:
+    - amd64
 
 build-repro:
   rules:
@@ -49,3 +55,4 @@ build-repro:
     expire_in: 1 day
   tags:
     - TPA
+    - amd64
