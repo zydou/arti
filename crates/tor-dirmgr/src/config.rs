@@ -77,27 +77,32 @@ impl NetworkConfigBuilder {
 
 /// Configuration information for how exactly we download things from the
 /// Tor directory caches.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[serde(default = "default_retry_bootstrap")]
+    #[builder(default = "default_retry_bootstrap()")]
     retry_bootstrap: RetryConfig,
 
     /// Configuration for how to retry a consensus download.
     #[serde(default)]
+    #[builder(default)]
     retry_consensus: RetryConfig,
 
     /// Configuration for how to retry an authority cert download.
     #[serde(default)]
+    #[builder(default)]
     retry_certs: RetryConfig,
 
     /// Configuration for how to retry a microdescriptor download.
     #[serde(default)]
+    #[builder(default)]
     retry_microdescs: RetryConfig,
 
     /// Number of microdescriptor downloads to attempt in parallel
     #[serde(default = "default_microdesc_parallelism")]
+    #[builder(default = "default_microdesc_parallelism()")]
     microdesc_parallelism: u8,
 }
 
@@ -125,71 +130,7 @@ impl Default for DownloadScheduleConfig {
 impl DownloadScheduleConfig {
     /// Return a new builder to make a [`DownloadScheduleConfig`]
     pub fn builder() -> DownloadScheduleConfigBuilder {
-        DownloadScheduleConfigBuilder::new()
-    }
-}
-
-/// Builder for a [`DownloadScheduleConfig`].
-#[derive(Debug, Clone, Default)]
-pub struct DownloadScheduleConfigBuilder {
-    /// The DownloadScheduleConfig we're building.
-    ///
-    /// (There aren't currently any inconsistent partially constructed
-    /// states for this object, so we can just use an internal object.
-    /// We don't precisely need a builder here, but let's keep it for
-    /// consistency.)
-    inner: DownloadScheduleConfig,
-}
-
-impl DownloadScheduleConfigBuilder {
-    /// Construct a new builder to make a [`DownloadScheduleConfig`].
-    ///
-    /// All fields are optional, and are set to reasonable defaults.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set the configuration for retrying our initial bootstrap attempt.
-    ///
-    /// Unlike other retry configurations, this should have a higher number
-    /// of attempts: if we were to 'give up' here, we would never get a
-    /// usable directory.
-    pub fn retry_bootstrap(&mut self, sched: RetryConfig) -> &mut Self {
-        self.inner.retry_bootstrap = sched;
-        self
-    }
-
-    /// Configure the schedule for retrying a consensus download.
-    pub fn retry_consensus(&mut self, sched: RetryConfig) -> &mut Self {
-        self.inner.retry_consensus = sched;
-        self
-    }
-
-    /// Configure the schedule for retrying an authority certificate
-    /// download.
-    pub fn retry_certs(&mut self, sched: RetryConfig) -> &mut Self {
-        self.inner.retry_certs = sched;
-        self
-    }
-
-    /// Configure the schedule for retrying a microdescriptor download.
-    pub fn retry_microdescs(&mut self, sched: RetryConfig) -> &mut Self {
-        self.inner.retry_microdescs = sched;
-        self
-    }
-
-    /// Set the number of microdescriptor downloads that we should be
-    /// allowed to launch in parallel.
-    ///
-    /// The default value is 4.
-    pub fn microdesc_parallelism(&mut self, parallelism: u8) -> &mut Self {
-        self.inner.microdesc_parallelism = parallelism;
-        self
-    }
-
-    /// Try to construct a download schedule configuration from this builder.
-    pub fn build(&self) -> Result<DownloadScheduleConfig> {
-        Ok(self.inner.clone())
+        DownloadScheduleConfigBuilder::default()
     }
 }
 
