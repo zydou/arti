@@ -121,10 +121,7 @@ struct Args {
 }
 
 /// Default options to use for our configuration.
-const ARTI_DEFAULTS: &str = concat!(
-    include_str!("./arti_defaults.toml"),
-    include_str!("./authorities.toml"),
-);
+const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
 /// Structure to hold our configuration options, whether from a
 /// configuration file or the command line.
@@ -148,6 +145,7 @@ pub struct ArtiConfig {
     trace_filter: String,
 
     /// Information about the Tor network we want to connect to.
+    #[serde(default)]
     network: NetworkConfig,
 
     /// Directories for storing information on disk
@@ -294,12 +292,15 @@ mod test {
     fn load_default_config() -> Result<()> {
         // TODO: this is duplicate code.
         let mut cfg = config::Config::new();
+        dbg!("AAAA");
         cfg.merge(config::File::from_str(
             ARTI_DEFAULTS,
             config::FileFormat::Toml,
         ))?;
+        dbg!("BBBB");
 
         let _parsed: ArtiConfig = cfg.try_into()?;
+        dbg!("CCCCC");
         Ok(())
     }
 }

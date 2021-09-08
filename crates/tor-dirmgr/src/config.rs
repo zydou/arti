@@ -10,14 +10,16 @@ use crate::{Error, Result};
 use tor_netdir::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
 
+use derive_builder::Builder;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
+#[builder(setter(prefix = "set"), build_fn(validate = "Self::validate"))]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information,
     /// if we don't actually have a directory yet.
@@ -25,19 +27,21 @@ pub struct NetworkConfig {
     /// (If we do have a cached directory, we use directory caches
     /// listed there instead.)
     #[serde(default = "fallbacks::default_fallbacks")]
-    fallback_cache: Vec<FallbackDir>,
+    #[builder(default = "fallbacks::default_fallbacks()")]
+    fallback_caches: Vec<FallbackDir>,
 
     /// List of directory authorities which we expect to sign
     /// consensus documents.
     #[serde(default = "crate::authority::default_authorities")]
-    authority: Vec<Authority>,
+    #[builder(default = "crate::authority::default_authorities()")]
+    authorities: Vec<Authority>,
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         NetworkConfig {
-            fallback_cache: fallbacks::default_fallbacks(),
-            authority: crate::authority::default_authorities(),
+            fallback_caches: fallbacks::default_fallbacks(),
+            authorities: crate::authority::default_authorities(),
         }
     }
 }
@@ -45,87 +49,29 @@ impl Default for NetworkConfig {
 impl NetworkConfig {
     /// Return a new builder to construct a NetworkConfig.
     pub fn builder() -> NetworkConfigBuilder {
-        NetworkConfigBuilder::new()
+        NetworkConfigBuilder::default()
     }
     /// Return the configured directory authorities
     pub fn authorities(&self) -> &[Authority] {
-        &self.authority[..]
+        &self.authorities[..]
     }
     /// Return the configured fallback directories
     pub fn fallbacks(&self) -> &[FallbackDir] {
-        &self.fallback_cache[..]
+        &self.fallback_caches[..]
     }
-}
-
-/// An object used to build a network configuration.  You shouldn't
-/// need to use one of these directly for working on the standard Tor
-/// network; the defaults are correct for use there.
-#[derive(Debug, Clone, Default)]
-pub struct NetworkConfigBuilder {
-    /// See [`NetworkConfig::fallback_cache`].  This is an option because
-    /// we need to distinguish "no fallback directories" from "default
-    /// fallback directories".
-    fallbacks: Option<Vec<FallbackDir>>,
-    /// See [`NetworkConfig::authority`].  This is an option because
-    /// we need to distinguish "no fallback directories" from "default
-    /// fallback authorities".
-    authorities: Option<Vec<Authority>>,
 }
 
 impl NetworkConfigBuilder {
-    /// Return a new NetworkConfigBuilder.
-    pub fn new() -> Self {
-        Self::default()
-    }
+    /// Check that this builder will give a reasonable network.
+    fn validate(&self) -> std::result::Result<(), String> {
+        if self.authorities.is_some() && self.fallback_caches.is_none() {
+            return Err(
+                "Non-default authorities are use, but the fallback list is not overridden"
+                    .to_string(),
+            );
+        }
 
-    /// Add `fallback` as a fallback directory.
-    ///
-    /// Fallback directories are used to reach the Tor network if the
-    /// client has not yet retrieved any other directory information.
-    ///
-    /// By default, if we are using the default set of authorities, we
-    /// use a hardcoded set of fallback directories chosen from the
-    /// Tor network.  Using this function or the `authority()`
-    /// function means that we will not be using the default set of
-    /// fallback directories.
-    pub fn fallback(&mut self, fallback: FallbackDir) -> &mut Self {
-        self.fallbacks.get_or_insert_with(Vec::new).push(fallback);
-        self
-    }
-
-    /// Add `authority` as a directory authority.
-    ///
-    /// Directory authorities are a trusted set of servers that
-    /// periodically sign documents attesting to the state of the Tor
-    /// network.
-    ///
-    /// By default, we use the set of authorities that maintains the real
-    /// Tor network.  Calling this function opts out of using that set.
-    pub fn authority(&mut self, auth: Authority) -> &mut Self {
-        self.authorities.get_or_insert_with(Vec::new).push(auth);
-        self
-    }
-
-    /// Try to build a network configuration corresponding to the
-    /// information in this builder.
-    pub fn build(&self) -> Result<NetworkConfig> {
-        let using_default_authorities = self.authorities.is_none();
-        let authority = self
-            .authorities
-            .clone()
-            .unwrap_or_else(crate::authority::default_authorities);
-        let fallback_cache = if using_default_authorities {
-            self.fallbacks
-                .clone()
-                .unwrap_or_else(fallbacks::default_fallbacks)
-        } else {
-            self.fallbacks.clone().unwrap_or_else(Vec::new)
-        };
-
-        Ok(NetworkConfig {
-            fallback_cache,
-            authority,
-        })
+        Ok(())
     }
 }
 
@@ -372,10 +318,10 @@ impl DirMgrConfigBuilder {
             .as_ref()
             .ok_or(Error::BadNetworkConfig("No cache path configured"))?;
 
-        if self.network.authority.is_empty() {
+        if self.network.authorities.is_empty() {
             return Err(Error::BadNetworkConfig("No authorities configured").into());
         }
-        if self.network.fallback_cache.is_empty() {
+        if self.network.fallback_caches.is_empty() {
             return Err(Error::BadNetworkConfig("No fallback caches configured").into());
         }
 
@@ -514,35 +460,29 @@ mod test {
         // with nothing set, we get the default.
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build()?;
-        assert_eq!(cfg.authorities().len(), dflt.authority.len());
-        assert_eq!(cfg.fallbacks().len(), dflt.fallback_cache.len());
+        assert_eq!(cfg.authorities().len(), dflt.authorities.len());
+        assert_eq!(cfg.fallbacks().len(), dflt.fallback_caches.len());
 
-        // with any authorities set, the fallback list becomes empty
-        // unless you set it.
-        bld.authority(
+        // with any authorities set, the fallback list _must_ be set
+        // or the build fails.
+        bld.set_authorities(vec![
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
                 .build()?,
-        );
-        bld.authority(
             Authority::builder()
                 .name("world")
                 .v3ident([b'!'; 20].into())
                 .build()?,
-        );
-        let cfg = bld.build()?;
-        assert_eq!(cfg.authorities().len(), 2);
-        assert!(cfg.fallbacks().is_empty());
+        ]);
+        assert!(bld.build().is_err());
 
-        bld.fallback(
-            FallbackDir::builder()
-                .rsa_identity([b'x'; 20].into())
-                .ed_identity([b'y'; 32].into())
-                .orport("127.0.0.1:99".parse().unwrap())
-                .orport("[::]:99".parse().unwrap())
-                .build()?,
-        );
+        bld.set_fallback_caches(vec![FallbackDir::builder()
+            .rsa_identity([b'x'; 20].into())
+            .ed_identity([b'y'; 32].into())
+            .orport("127.0.0.1:99".parse().unwrap())
+            .orport("[::]:99".parse().unwrap())
+            .build()?]);
         let cfg = bld.build()?;
         assert_eq!(cfg.authorities().len(), 2);
         assert_eq!(cfg.fallbacks().len(), 1);
