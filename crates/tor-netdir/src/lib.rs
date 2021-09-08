@@ -740,6 +740,7 @@ impl<'a> tor_linkspec::CircTarget for Relay<'a> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::testnet::*;
     use std::collections::HashSet;

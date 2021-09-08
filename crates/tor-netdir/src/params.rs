@@ -229,6 +229,7 @@ impl NetParameters {
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
+#[allow(clippy::unwrap_used)]
 mod test {
     use super::*;
     use std::string::String;
