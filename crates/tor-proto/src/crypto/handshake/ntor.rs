@@ -303,6 +303,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::crypto::testing::FakePRNG;
 
@@ -320,7 +321,7 @@ mod tests {
         let (state, cmsg) = NtorClient::client1(&mut rng, &relay_ntpk)?;
 
         let relay_ntsk = NtorSecretKey {
-            pk: relay_ntpk.clone(),
+            pk: relay_ntpk,
             sk: relay_secret,
         };
         let relay_ntsks = [relay_ntsk];

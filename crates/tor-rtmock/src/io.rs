@@ -158,6 +158,7 @@ impl LocalStream {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     use futures::io::{AsyncReadExt, AsyncWriteExt};

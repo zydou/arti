@@ -68,7 +68,7 @@ mod test {
 
         // Make sure we got distinct numbers
         let mut all_nums: Vec<_> = ids.iter().map(|x| x.0).collect();
-        all_nums.sort();
+        all_nums.sort_unstable();
         all_nums.dedup();
         assert_eq!(all_nums.len(), ids.len());
 

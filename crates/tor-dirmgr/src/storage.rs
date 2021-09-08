@@ -130,6 +130,7 @@ impl From<Vec<u8>> for InputString {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use tempfile::tempdir;
 

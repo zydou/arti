@@ -122,6 +122,7 @@ impl AuthorityBuilder {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[test]
     fn authority() {
@@ -136,14 +137,14 @@ mod test {
         assert_eq!(auth.v3ident(), &key1);
 
         let keyids1 = AuthCertKeyIds {
-            id_fingerprint: key1.clone(),
-            sk_fingerprint: key2.clone(),
+            id_fingerprint: key1,
+            sk_fingerprint: key2,
         };
         assert!(auth.matches_keyid(&keyids1));
 
         let keyids2 = AuthCertKeyIds {
-            id_fingerprint: key2.clone(),
-            sk_fingerprint: key2.clone(),
+            id_fingerprint: key2,
+            sk_fingerprint: key2,
         };
         assert!(!auth.matches_keyid(&keyids2));
     }

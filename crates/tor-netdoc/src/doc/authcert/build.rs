@@ -129,6 +129,7 @@ impl AuthCertBuilder {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
     use std::time::Duration;

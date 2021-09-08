@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 //! Implement a configuration source based on command-line arguments.
 
 use config::{ConfigError, Source, Value};
@@ -127,6 +128,7 @@ fn tweak_toml_bareword(s: &str) -> Option<String> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[test]
     fn bareword_expansion() {

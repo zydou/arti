@@ -449,6 +449,7 @@ impl Drop for CircDestroyHandle {
 pub(crate) mod test {
     // Most of this module is tested via tests that also check on the
     // reactor code; there are just a few more cases to examine here.
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     use crate::channel::reactor::test::new_reactor;

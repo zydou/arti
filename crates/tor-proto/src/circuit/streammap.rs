@@ -188,6 +188,7 @@ impl StreamMap {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
 

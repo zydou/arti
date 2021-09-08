@@ -1172,6 +1172,7 @@ fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::test::fake_channel;
     use chanmsg::{ChanMsg, Created2, CreatedFast};
@@ -1328,6 +1329,7 @@ mod test {
     }
     impl DummyCrypto {
         fn next_tag(&mut self) -> &[u8; 20] {
+            #![allow(clippy::identity_op)]
             self.counter_tag[0] = ((self.counter >> 0) & 255) as u8;
             self.counter_tag[1] = ((self.counter >> 8) & 255) as u8;
             self.counter_tag[2] = ((self.counter >> 16) & 255) as u8;

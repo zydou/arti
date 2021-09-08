@@ -40,6 +40,7 @@ impl futures_codec::Decoder for ChannelCodec {
 
 #[cfg(test)]
 pub(crate) mod test {
+    #![allow(clippy::unwrap_used)]
     use futures::io::{AsyncRead, AsyncWrite, Cursor, Result};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;

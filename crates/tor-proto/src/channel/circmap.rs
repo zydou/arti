@@ -174,6 +174,7 @@ impl CircMap {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::channel::{mpsc, oneshot};
 

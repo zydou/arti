@@ -12,7 +12,7 @@ rust-latest:
     - cargo build --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose
     - rustup component add clippy rustfmt
-    - cargo clippy --all-features -- -D warnings
+    - cargo clippy --all-features --tests -- -D warnings
     - cargo fmt -- --check
     - cargo install cargo-audit
     - cargo audit -D warnings

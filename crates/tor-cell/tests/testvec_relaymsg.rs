@@ -21,7 +21,7 @@ fn unhex(s: &str) -> Vec<u8> {
 }
 
 fn decode(cmd: RelayCmd, body: &[u8]) -> Result<msg::RelayMsg, BytesError> {
-    let mut r = tor_bytes::Reader::from_slice(&body[..]);
+    let mut r = tor_bytes::Reader::from_slice(body);
     msg::RelayMsg::decode_from_reader(cmd, &mut r)
 }
 

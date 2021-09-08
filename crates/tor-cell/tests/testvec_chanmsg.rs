@@ -352,7 +352,7 @@ fn test_relay() {
 
     // Try converting to/from raw bodies.
     let body = [3_u8; 509];
-    let cell = msg::Relay::from_raw(body.clone());
+    let cell = msg::Relay::from_raw(body);
     let body2 = cell.into_relay_body();
     assert_eq!(&body2[..], &body[..]);
 }

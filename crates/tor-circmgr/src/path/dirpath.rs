@@ -47,6 +47,7 @@ impl DirPathBuilder {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::path::assert_same_path_when_owned;
     use tor_netdir::fallback::FallbackDir;

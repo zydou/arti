@@ -98,6 +98,7 @@ impl<T> SharedMutArc<T> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     #[test]
     fn shared_mut_arc() {

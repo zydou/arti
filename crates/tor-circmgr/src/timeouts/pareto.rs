@@ -655,6 +655,7 @@ impl ParetoEstimatorInner {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::timeouts::TimeoutEstimator;
 
@@ -671,6 +672,7 @@ mod test {
 
     #[test]
     fn ms_partial_cmp() {
+        #![allow(clippy::eq_op)]
         let myriad: MsecDuration = 10_000.into();
         let lakh: MsecDuration = 100_000.into();
         let crore: MsecDuration = 10_000_000.into();

@@ -739,6 +739,7 @@ impl<'a> tor_linkspec::CircTarget for Relay<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::testnet::*;
     use std::collections::HashSet;
@@ -763,7 +764,7 @@ mod test {
 
         // No microdescriptors, so we don't have enough paths, and can't
         // advance.
-        assert_eq!(dir.have_enough_paths(), false);
+        assert!(!dir.have_enough_paths());
         let mut dir = match dir.unwrap_if_sufficient() {
             Ok(_) => panic!(),
             Err(d) => d,
@@ -1080,7 +1081,7 @@ mod test {
         // exits to 443 on IPv6.
         use tor_netdoc::doc::netstatus::RelayFlags;
         let netdir = construct_custom_netdir(|idx, nb| {
-            if 10 <= idx && idx < 20 {
+            if (10..20).contains(&idx) {
                 nb.rs.add_flags(RelayFlags::BAD_EXIT);
             }
             nb.md.parse_ipv6_policy("accept 443").unwrap();

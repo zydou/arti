@@ -250,6 +250,7 @@ impl From<std::io::Error> for Error {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use std::collections::HashMap;
 

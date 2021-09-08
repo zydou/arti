@@ -60,6 +60,7 @@ impl std::str::FromStr for RelayFamily {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::Result;
     #[test]

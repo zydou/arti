@@ -416,6 +416,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
 
 #[cfg(test)]
 pub(super) mod test {
+    #![allow(clippy::unwrap_used)]
     use futures_await_test::async_test;
     use hex_literal::hex;
     use std::time::{Duration, SystemTime};
@@ -733,7 +734,7 @@ pub(super) mod test {
         );
 
         let err = certs_test(
-            certs.clone(),
+            certs,
             Some(cert_timestamp()),
             certs::PEER_ED,
             certs::PEER_RSA,

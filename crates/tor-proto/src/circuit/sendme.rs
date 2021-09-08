@@ -284,6 +284,7 @@ pub(crate) fn cell_counts_towards_windows(cell: &RelayCell) -> bool {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::FutureExt;
     use futures_await_test::async_test;
@@ -307,9 +308,9 @@ mod test {
         let mut w: RecvWindow<StreamParams> = RecvWindow::new(500);
 
         for _ in 0..49 {
-            assert_eq!(w.take().unwrap(), false);
+            assert!(!w.take().unwrap());
         }
-        assert_eq!(w.take().unwrap(), true);
+        assert!(w.take().unwrap());
         assert_eq!(w.window, 450);
 
         assert!(w.decrement_n(123).is_ok());

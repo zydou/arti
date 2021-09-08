@@ -389,7 +389,7 @@ pub(crate) mod tor1 {
 
 #[cfg(test)]
 mod test {
-
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::SecretBytes;
     use rand::RngCore;
@@ -444,9 +444,9 @@ mod test {
             let mut cell = cell.into();
             let _tag = cc_out.encrypt(&mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
-            assert_eq!(false, r1.decrypt_outbound(&mut cell));
-            assert_eq!(false, r2.decrypt_outbound(&mut cell));
-            assert_eq!(true, r3.decrypt_outbound(&mut cell));
+            assert!(!r1.decrypt_outbound(&mut cell));
+            assert!(!r2.decrypt_outbound(&mut cell));
+            assert!(r3.decrypt_outbound(&mut cell));
 
             assert_eq!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
 

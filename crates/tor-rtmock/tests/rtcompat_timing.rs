@@ -78,12 +78,12 @@ fn wallclock_simple() {
             },
             async {
                 while mock_sp.wallclock() < start() + ONE_DAY {
-                    assert_eq!(false, b.load(Ordering::SeqCst));
+                    assert!(!b.load(Ordering::SeqCst));
                     mock_sp.advance(Duration::new(413, 0)).await;
                 }
             }
         );
-        assert_eq!(true, b.load(Ordering::SeqCst));
+        assert!(b.load(Ordering::SeqCst));
     });
 }
 
@@ -104,13 +104,13 @@ fn wallclock_early() {
             },
             async {
                 while mock_sp.wallclock() < start() + (ONE_DAY / 2) {
-                    assert_eq!(false, b.load(Ordering::SeqCst));
+                    assert!(!b.load(Ordering::SeqCst));
                     mock_sp.advance(Duration::new(413, 0)).await;
                 }
                 send.send(()).unwrap();
             }
         );
-        assert_eq!(false, b.load(Ordering::SeqCst));
+        assert!(!b.load(Ordering::SeqCst));
     });
 }
 
@@ -131,7 +131,7 @@ fn wallclock_jump_forward() {
                 mock_sp.advance(Duration::new(1000, 0)).await; // have to rest some.
             }
         );
-        assert_eq!(true, b.load(Ordering::SeqCst));
+        assert!(b.load(Ordering::SeqCst));
         let i2 = mock_sp.now();
         assert!(i2 - i1 < ONE_DAY);
     });
@@ -157,14 +157,14 @@ fn wallclock_jump_backwards() {
                 mock_sp.jump_to(start() - ONE_DAY);
                 let mut elapsed = Duration::new(0, 0);
                 while elapsed < (3 * ONE_DAY) / 2 {
-                    assert_eq!(false, b.load(Ordering::SeqCst));
+                    assert!(!b.load(Ordering::SeqCst));
                     mock_sp.advance(Duration::new(413, 0)).await;
                     elapsed += Duration::new(413, 0);
                 }
                 send.send(()).unwrap();
             }
         );
-        assert_eq!(false, b.load(Ordering::SeqCst));
+        assert!(!b.load(Ordering::SeqCst));
         let i2 = mock_sp.now();
         assert!(i2 - i1 > ONE_DAY);
         assert!(mock_sp.wallclock() < start() + ONE_DAY);

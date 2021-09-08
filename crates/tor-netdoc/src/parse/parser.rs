@@ -295,6 +295,7 @@ impl<T: Keyword> SectionRules<T> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::SectionRules;
     use crate::parse::keyword::Keyword;
     use crate::parse::macros::test::Fruit;
@@ -370,43 +371,43 @@ lemon
     #[test]
     fn rejected() {
         use crate::Pos;
-        fn check(s: &str, e: Error) {
+        fn check(s: &str, e: &Error) {
             let mut r: NetDocReader<'_, Fruit> = NetDocReader::new(s);
             let res = FRUIT_SALAD.parse(&mut r.iter());
             assert!(res.is_err());
-            assert_eq!(res.err().unwrap().within(s), e);
+            assert_eq!(&res.err().unwrap().within(s), e);
         }
 
         // unrecognized tokens aren't allowed here
         check(
             "orange foo\nfoobar x\n@tasty yes\n",
-            Error::UnexpectedToken("<unrecognized>", Pos::from_line(2, 1)),
+            &Error::UnexpectedToken("<unrecognized>", Pos::from_line(2, 1)),
         );
 
         // Only one orange per customer.
         check(
             "@tasty yes\norange foo\norange bar\n",
-            Error::DuplicateToken("orange", Pos::from_line(3, 1)),
+            &Error::DuplicateToken("orange", Pos::from_line(3, 1)),
         );
 
         // There needs to be a declaration of tastiness.
-        check("orange foo\n", Error::MissingToken("@tasty"));
+        check("orange foo\n", &Error::MissingToken("@tasty"));
 
         // You can't have an orange without an argument.
         check(
             "@tasty nope\norange\n",
-            Error::TooFewArguments("orange", Pos::from_line(2, 1)),
+            &Error::TooFewArguments("orange", Pos::from_line(2, 1)),
         );
         // You can't have an more than one argument on "tasty".
         check(
             "@tasty yup indeed\norange normal\n",
-            Error::TooManyArguments("@tasty", Pos::from_line(1, 1)),
+            &Error::TooManyArguments("@tasty", Pos::from_line(1, 1)),
         );
 
         // Every lemon needs an object
         check(
             "@tasty yes\nlemon\norange no\n",
-            Error::MissingObject("lemon", Pos::from_line(2, 1)),
+            &Error::MissingObject("lemon", Pos::from_line(2, 1)),
         );
     }
 }

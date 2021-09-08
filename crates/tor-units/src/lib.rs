@@ -335,6 +335,9 @@ impl SendMeVersion {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+    use float_cmp::assert_approx_eq;
+
     use super::*;
     use std::convert::TryInto;
 
@@ -431,7 +434,7 @@ mod tests {
     fn bounded_to_f64() {
         let x: BoundedInt32<-100, 100> = BoundedInt32::checked_new(77).unwrap();
         let f: f64 = x.into();
-        assert_eq!(f, 77.0);
+        assert_approx_eq!(f64, f, 77.0);
     }
 
     #[test]
@@ -453,8 +456,8 @@ mod tests {
 
         let f: bool = zero.into();
         let t: bool = one.into();
-        assert_eq!(f, false);
-        assert_eq!(t, true);
+        assert!(!f);
+        assert!(t);
     }
 
     #[test]
@@ -480,15 +483,15 @@ mod tests {
         type Pct = Percentage<u8>;
         let p = Pct::new(100);
         assert_eq!(p.as_percent(), 100);
-        assert_eq!(p.as_fraction(), 1.0);
+        assert_approx_eq!(f64, p.as_fraction(), 1.0);
 
         let p = Pct::new(0);
         assert_eq!(p.as_percent(), 0);
-        assert_eq!(p.as_fraction(), 0.0);
+        assert_approx_eq!(f64, p.as_fraction(), 0.0);
 
         let p = Pct::new(25);
         assert_eq!(p.as_percent(), 25);
-        assert_eq!(p.as_fraction(), 0.25);
+        assert_approx_eq!(f64, p.as_fraction(), 0.25);
     }
 
     #[test]

@@ -493,6 +493,7 @@ fn err(k: ErrorKind) -> IoError {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use tor_rtcompat::test_with_all_runtimes;

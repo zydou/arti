@@ -444,6 +444,7 @@ impl<'a> Iterator for MicrodescReader<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
     const TESTDATA: &str = include_str!("../../testdata/microdesc1.txt");
@@ -502,20 +503,20 @@ mod test {
     fn test_bad() {
         use crate::types::policy::PolicyError;
         use crate::Pos;
-        fn check(fname: &str, e: Error) {
+        fn check(fname: &str, e: &Error) {
             let content = read_bad(fname);
             let res = Microdesc::parse(&content);
             assert!(res.is_err());
-            assert_eq!(res.err().unwrap(), e);
+            assert_eq!(&res.err().unwrap(), e);
         }
 
         check(
             "wrong-start",
-            Error::WrongStartingToken("family".into(), Pos::from_line(1, 1)),
+            &Error::WrongStartingToken("family".into(), Pos::from_line(1, 1)),
         );
         check(
             "bogus-policy",
-            Error::BadPolicy(Pos::from_line(9, 1), PolicyError::InvalidPort),
+            &Error::BadPolicy(Pos::from_line(9, 1), PolicyError::InvalidPort),
         );
     }
 

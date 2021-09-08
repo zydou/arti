@@ -157,6 +157,7 @@ pub fn blind_pubkey(pk: &PublicKey, mut param: [u8; 32]) -> Result<PublicKey, Bl
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use std::convert::TryInto;
 

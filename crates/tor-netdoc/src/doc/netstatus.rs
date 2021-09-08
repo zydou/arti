@@ -1538,6 +1538,7 @@ impl SignatureGroup {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     use hex_literal::hex;
 
@@ -1611,8 +1612,8 @@ mod test {
             r0.rsa_identity().as_bytes(),
             &hex!("0a3057af2910415794d8ea430309d9ac5f5d524b")
         );
-        assert_eq!(r0.weight().is_measured(), false);
-        assert_eq!(r0.weight().is_nonzero(), false);
+        assert!(!r0.weight().is_measured());
+        assert!(!r0.weight().is_nonzero());
         let pv = &r0.protovers();
         assert!(pv.supports_subver("HSDir", 2));
         assert!(!pv.supports_subver("HSDir", 3));
@@ -1652,41 +1653,41 @@ mod test {
     #[test]
     fn test_bad() {
         use crate::Pos;
-        fn check(fname: &str, e: Error) {
+        fn check(fname: &str, e: &Error) {
             let content = read_bad(fname);
             let res = MdConsensus::parse(&content);
             assert!(res.is_err());
-            assert_eq!(res.err().unwrap(), e);
+            assert_eq!(&res.err().unwrap(), e);
         }
 
         check(
             "bad-flags",
-            Error::BadArgument(Pos::from_line(27, 1), "Flags out of order".into()),
+            &Error::BadArgument(Pos::from_line(27, 1), "Flags out of order".into()),
         );
         check(
             "bad-md-digest",
-            Error::BadArgument(Pos::from_line(40, 3), "Invalid base64".into()),
+            &Error::BadArgument(Pos::from_line(40, 3), "Invalid base64".into()),
         );
         check(
             "bad-weight",
-            Error::BadArgument(
+            &Error::BadArgument(
                 Pos::from_line(67, 141),
                 "invalid digit found in string".into(),
             ),
         );
         check(
             "bad-weights",
-            Error::BadArgument(
+            &Error::BadArgument(
                 Pos::from_line(51, 13),
                 "invalid digit found in string".into(),
             ),
         );
-        check("wrong-order", Error::WrongSortOrder(Pos::from_line(52, 1)));
+        check("wrong-order", &Error::WrongSortOrder(Pos::from_line(52, 1)));
         check(
             "wrong-start",
-            Error::UnexpectedToken("vote-status", Pos::from_line(1, 1)),
+            &Error::UnexpectedToken("vote-status", Pos::from_line(1, 1)),
         );
-        check("wrong-version", Error::BadDocumentVersion(10));
+        check("wrong-version", &Error::BadDocumentVersion(10));
     }
 
     fn gettok(s: &str) -> Result<Item<'_, NetstatusKwd>> {

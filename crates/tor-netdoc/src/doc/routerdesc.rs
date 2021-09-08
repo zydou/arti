@@ -765,6 +765,7 @@ impl<'a> Iterator for RouterReader<'a> {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
     const TESTDATA: &str = include_str!("../../testdata/routerdesc1.txt");
 
@@ -800,38 +801,38 @@ mod test {
     fn test_bad() {
         use crate::types::policy::PolicyError;
         use crate::Pos;
-        fn check(fname: &str, e: Error) {
+        fn check(fname: &str, e: &Error) {
             let text = read_bad(fname);
             let rd = RouterDesc::parse(&text);
             assert!(rd.is_err());
-            assert_eq!(rd.err().unwrap(), e);
+            assert_eq!(&rd.err().unwrap(), e);
         }
 
         check(
             "bad-sig-order",
-            Error::UnexpectedToken("router-sig-ed25519", Pos::from_line(50, 1)),
+            &Error::UnexpectedToken("router-sig-ed25519", Pos::from_line(50, 1)),
         );
         check(
             "bad-start1",
-            Error::MisplacedToken("identity-ed25519", Pos::from_line(1, 1)),
+            &Error::MisplacedToken("identity-ed25519", Pos::from_line(1, 1)),
         );
-        check("bad-start2", Error::MissingToken("identity-ed25519"));
+        check("bad-start2", &Error::MissingToken("identity-ed25519"));
         check(
             "mismatched-fp",
-            Error::BadArgument(
+            &Error::BadArgument(
                 Pos::from_line(12, 1),
                 "fingerprint does not match RSA identity".into(),
             ),
         );
-        check("no-ed-sk", Error::MissingToken("identity-ed25519"));
+        check("no-ed-sk", &Error::MissingToken("identity-ed25519"));
 
         check(
             "bad-cc-sign",
-            Error::BadArgument(Pos::from_line(34, 26), "not 0 or 1".into()),
+            &Error::BadArgument(Pos::from_line(34, 26), "not 0 or 1".into()),
         );
         check(
             "bad-ipv6policy",
-            Error::BadPolicy(Pos::from_line(43, 1), PolicyError::InvalidPolicy),
+            &Error::BadPolicy(Pos::from_line(43, 1), PolicyError::InvalidPolicy),
         );
     }
 

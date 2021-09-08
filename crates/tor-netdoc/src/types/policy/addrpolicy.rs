@@ -283,6 +283,7 @@ impl FromStr for IpPattern {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
