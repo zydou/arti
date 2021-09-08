@@ -473,9 +473,9 @@ impl Default for ParetoTimeoutEstimator {
 /// An object used to serialize our timeout history for persistent state.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(default)]
-#[allow(dead_code)]
 pub(crate) struct ParetoTimeoutState {
     /// A version field used to help encoding and decoding.
+    #[allow(dead_code)]
     version: usize,
     /// A record of observed timeouts, as returned by `sparse_histogram()`.
     histogram: Vec<(MsecDuration, u16)>,
@@ -877,21 +877,24 @@ mod test {
     fn pareto_estimate_clear() {
         let est = ParetoTimeoutEstimator::default();
 
-        {
-            // Set the parameters up to mimic the situation in
-            // `pareto_estimate` above.
-            let mut inner = est.est.lock().unwrap();
-            inner.p.min_observations = 1;
-            inner.p.n_modes_for_xm = 2;
-        }
+        // Set the parameters up to mimic the situation in
+        // `pareto_estimate` above.
+        let params = Params {
+            min_observations: 1,
+            n_modes_for_xm: 2,
+            ..Params::default()
+        };
+        est.update_params(params);
+
         assert_eq!(est.timeouts(&b3()).0.as_micros(), 60_000_000);
+        assert!(est.learning_timeouts());
 
         for msec in &[300, 500, 542, 305, 543, 307, 212, 203, 617, 413] {
             let d = Duration::from_millis(*msec);
             est.note_hop_completed(2, d, true);
         }
         assert_ne!(est.timeouts(&b3()).0.as_micros(), 60_000_000);
-
+        assert!(!est.learning_timeouts());
         {
             let inner = est.est.lock().unwrap();
             assert_eq!(inner.history.n_recent_timeouts(), 0);
@@ -912,6 +915,41 @@ mod test {
             est.note_circ_timeout(2, Duration::from_secs(2000));
         }
         assert_eq!(est.timeouts(&b3()).0.as_micros(), 120_000_000);
+    }
+
+    #[test]
+    fn default_params() {
+        let p1 = Params::default();
+        let p2 = Params::from(&tor_netdir::params::NetParameters::default());
+        // discount version of derive(eq)
+        assert_eq!(format!("{:?}", p1), format!("{:?}", p2));
+    }
+
+    #[test]
+    fn state_conversion() {
+        // We have tests elsewhere for converting to and from
+        // histograms, so all we really need to ddo here is make sure
+        // that the histogram conversion happens.
+
+        use rand::Rng;
+        let est = ParetoTimeoutEstimator::default();
+        let mut rng = rand::thread_rng();
+        for _ in 0..1000 {
+            let d = Duration::from_millis(rng.gen_range(10..3_000));
+            est.note_hop_completed(2, d, true);
+        }
+
+        let state = est.build_state();
+        assert_eq!(state.version, 1);
+        assert!(state.current_timeout.is_some());
+
+        let est2 = ParetoTimeoutEstimator::from_state(state);
+        let act = Action::BuildCircuit { length: 3 };
+        // This isn't going to be exact, since we're recording histogram bins
+        // instead of exact timeouts.
+        let ms1 = est.timeouts(&act).0.as_millis() as i32;
+        let ms2 = est2.timeouts(&act).0.as_millis() as i32;
+        assert!((ms1 - ms2).abs() < 50);
     }
 
     // TODO: add tests from Tor.
