@@ -252,7 +252,7 @@ impl WeightSet {
             .sum();
         let p = consensus.bandwidth_weights();
 
-        Self::from_parts(bandwidth_fn, total_bw, weight_scale, p)
+        Self::from_parts(bandwidth_fn, total_bw, weight_scale, p).validate(consensus)
     }
 
     /// Compute the correct WeightSet given a bandwidth function, a
@@ -323,6 +323,23 @@ impl WeightSet {
             shift,
             w,
         }
+    }
+
+    /// Assert that we have correctly computed our shift values so that
+    /// our total weighted bws do not exceed u64::MAX.
+    fn validate(self, consensus: &MdConsensus) -> Self {
+        use WeightRole::*;
+        for role in [Guard, Middle, Exit, BeginDir, Unweighted] {
+            let _: u64 = consensus
+                .relays()
+                .iter()
+                .map(|rs| self.weight_rs_for_role(rs, role))
+                .fold(0_u64, |a, b| {
+                    a.checked_add(b)
+                        .expect("Incorrect relay weight calculation: total exceeded u64::MAX!")
+                });
+        }
+        self
     }
 }
 
