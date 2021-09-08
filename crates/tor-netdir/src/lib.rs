@@ -56,7 +56,8 @@
 mod err;
 pub mod fallback;
 pub mod params;
-mod pick;
+#[cfg(test)]
+mod testing;
 mod weight;
 
 #[cfg(any(test, feature = "testing"))]
@@ -461,7 +462,7 @@ impl NetDir {
 
         available >= min_frac_paths
     }
-    /// Chose a relay at random.
+    /// Choose a relay at random.
     ///
     /// Each relay is chosen with probability proportional to its weight
     /// in the role `role`, and is only selected if the predicate `usable`
@@ -479,13 +480,68 @@ impl NetDir {
         R: rand::Rng,
         P: Fn(&Relay<'a>) -> bool,
     {
-        pick::pick_weighted(rng, self.relays(), |r| {
-            if usable(r) {
-                self.weights.weight_rs_for_role(r.rs, role)
-            } else {
-                0
-            }
-        })
+        use rand::seq::SliceRandom;
+        let relays: Vec<_> = self.relays().filter(usable).collect();
+        // This algorithm uses rand::distributions::WeightedIndex, and uses
+        // gives O(n) time and space  to build the index, plus O(log n)
+        // sampling time.
+        //
+        // We might be better off building a WeightedIndex in advance
+        // for each `role`, and then sampling it repeatedly until we
+        // get a relay that satisfies `usable`.  Or we might not --
+        // that depends heavily on the actual particulars of our
+        // inputs.  We probably shouldn't make any changes there
+        // unless profiling tells us that this function is in a hot
+        // path.
+        //
+        // The C Tor sampling implementation goes through some trouble
+        // here to try to make its path selection constant-time.  I
+        // believe that there is no actual remotely exploitable
+        // side-channel here however.  It could be worth analyzing in
+        // the future.
+        //
+        // This code will give the wrong result if the total of all weights
+        // can exceed u64::MAX.  We make sure that can't happen when we
+        // set up `self.weights`.
+        relays[..]
+            .choose_weighted(rng, |r| self.weights.weight_rs_for_role(r.rs, role))
+            .ok()
+            .cloned()
+    }
+
+    /// Choose `n` relay at random.
+    ///
+    /// Each relay is chosen with probability proportional to its weight
+    /// in the role `role`, and is only selected if the predicate `usable`
+    /// returns true for it.
+    ///
+    /// Relays are chosen without replacement: no relay will be
+    /// returned twice. Therefore, the resulting vector may be smaller
+    /// than `n` if we happen to have fewer than `n` appropriate relays.
+    ///
+    /// This function returns an empty vector if (and only if) there
+    /// are no relays with nonzero weight where `usable` returned
+    /// true.
+    pub fn pick_n_relays<'a, R, P>(
+        &'a self,
+        rng: &mut R,
+        n: usize,
+        role: WeightRole,
+        usable: P,
+    ) -> Vec<Relay<'a>>
+    where
+        R: rand::Rng,
+        P: Fn(&Relay<'a>) -> bool,
+    {
+        use rand::seq::SliceRandom;
+        let relays: Vec<_> = self.relays().filter(usable).collect();
+        // NOTE: See discussion in pick_relay().
+        match relays[..].choose_multiple_weighted(rng, n, |r| {
+            self.weights.weight_rs_for_role(r.rs, role) as f64
+        }) {
+            Err(_) => Vec::new(),
+            Ok(iter) => iter.map(Relay::clone).collect(),
+        }
     }
 }
 
@@ -832,7 +888,7 @@ mod test {
 
     #[test]
     fn test_pick() {
-        use crate::pick::test::*; // for stochastic testing
+        use crate::testing::*; // for stochastic testing
         use tor_linkspec::ChanTarget;
 
         let (consensus, microdescs) = construct_network().unwrap();
@@ -862,6 +918,40 @@ mod test {
         // weighted proportional to their bandwidth.
         check_close(picked[19], (total * 10) / 110);
         check_close(picked[38], (total * 9) / 110);
+        check_close(picked[39], (total * 10) / 110);
+    }
+
+    #[test]
+    fn test_pick_multiple() {
+        // This is mostly a copy of test_pick, except that it uses
+        // pick_n_relays to pick several relays at once.
+
+        use crate::testing::*; // for stochastic testing
+        use tor_linkspec::ChanTarget;
+
+        let dir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
+
+        let total = get_iters() as isize;
+        let mut picked = [0_isize; 40];
+        let mut rng = get_rng();
+        for _ in 0..get_iters() / 4 {
+            let relays = dir.pick_n_relays(&mut rng, 4, WeightRole::Middle, |r| {
+                r.supports_exit_port_ipv4(80)
+            });
+            assert_eq!(relays.len(), 4);
+            for r in relays {
+                let id_byte = r.rsa_identity().as_bytes()[0];
+                picked[id_byte as usize] += 1;
+            }
+        }
+        // non-exits should never get picked.
+        picked[0..10].iter().for_each(|x| assert_eq!(*x, 0));
+        picked[20..30].iter().for_each(|x| assert_eq!(*x, 0));
+
+        // We didn't we any non-default weights, so the other relays get
+        // weighted proportional to their bandwidth.
+        check_close(picked[19], (total * 10) / 110);
+        check_close(picked[36], (total * 8) / 110);
         check_close(picked[39], (total * 10) / 110);
     }
 
