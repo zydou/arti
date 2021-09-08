@@ -210,13 +210,16 @@ impl NetParameters {
     /// `saturating_update_override`.
     ///
     /// Return a vector of the parameter names we didn't recognize.
-    pub(crate) fn saturating_update<'a>(
+    pub(crate) fn saturating_update<'a, S>(
         &mut self,
-        iter: impl Iterator<Item = (&'a String, &'a i32)>,
-    ) -> Vec<&'a String> {
+        iter: impl Iterator<Item = (S, &'a i32)>,
+    ) -> Vec<S>
+    where
+        S: AsRef<str>,
+    {
         let mut unrecognized = Vec::new();
         for (k, v) in iter {
-            if !self.saturating_update_override(k, *v) {
+            if !self.saturating_update_override(k.as_ref(), *v) {
                 unrecognized.push(k);
             }
         }
@@ -346,5 +349,75 @@ mod test {
         assert_eq!(p.min_circuit_path_threshold.as_percent().get(), 45);
         let b_val: bool = p.extend_by_ed25519_id.into();
         assert_eq!(b_val, true);
+    }
+
+    #[test]
+    fn all_parameters() {
+        use std::convert::TryFrom;
+        use std::time::Duration;
+        let mut p = NetParameters::default();
+        let mp = [
+            ("bwweightscale", 10),
+            ("cbtdisabled", 1),
+            ("cbtnummodes", 11),
+            ("cbtrecentcount", 12),
+            ("cbtmaxtimeouts", 13),
+            ("cbtmincircs", 5),
+            ("cbtquantile", 61),
+            ("cbtclosequantile", 15),
+            ("cbtlearntimeout", 1900),
+            ("cbtmintimeout", 2020),
+            ("cbtinitialtimeout", 2050),
+            ("cbttestfreq", 110),
+            ("cbtmaxopencircs", 14),
+            ("circwindow", 999),
+            ("CircuitPriorityHalflifeMsec", 222),
+            ("ExtendByEd25519ID", 0),
+            ("min_paths_for_circs_pct", 51),
+            ("nf_conntimeout_clients", 606),
+            ("sendme_accept_min_version", 31),
+            ("sendme_emit_min_version", 32),
+        ];
+        let ignored = p.saturating_update(mp.iter().map(|(a, b)| (a, b)));
+        assert!(ignored.is_empty());
+
+        assert_eq!(p.bw_weight_scale.get(), 10);
+        assert!(bool::from(p.cbt_learning_disabled));
+        assert_eq!(p.cbt_num_xm_modes.get(), 11);
+        assert_eq!(p.cbt_success_count.get(), 12);
+        assert_eq!(p.cbt_max_timeouts.get(), 13);
+        assert_eq!(p.cbt_min_circs_for_estimate.get(), 5);
+        assert_eq!(p.cbt_timeout_quantile.as_percent().get(), 61);
+        assert_eq!(p.cbt_abandon_quantile.as_percent().get(), 15);
+        assert_eq!(
+            Duration::try_from(p.unused_client_circ_timeout_while_learning_cbt).unwrap(),
+            Duration::from_secs(1900)
+        );
+        assert_eq!(
+            Duration::try_from(p.cbt_min_timeout).unwrap(),
+            Duration::from_millis(2020)
+        );
+        assert_eq!(
+            Duration::try_from(p.cbt_initial_timeout).unwrap(),
+            Duration::from_millis(2050)
+        );
+        assert_eq!(
+            Duration::try_from(p.cbt_testing_delay).unwrap(),
+            Duration::from_secs(110)
+        );
+        assert_eq!(p.cbt_max_open_circuits_for_testing.get(), 14);
+        assert_eq!(p.circuit_window.get(), 999);
+        assert_eq!(
+            Duration::try_from(p.circuit_priority_half_life).unwrap(),
+            Duration::from_millis(222)
+        );
+        assert!(!bool::from(p.extend_by_ed25519_id));
+        assert_eq!(p.min_circuit_path_threshold.as_percent().get(), 51);
+        assert_eq!(
+            Duration::try_from(p.unused_client_circ_timeout).unwrap(),
+            Duration::from_secs(606)
+        );
+        assert_eq!(p.sendme_accept_min_version.get(), 31);
+        assert_eq!(p.sendme_emit_min_version.get(), 32);
     }
 }
