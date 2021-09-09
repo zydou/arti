@@ -950,7 +950,7 @@ impl ConsensusVoterInfo {
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<ConsensusVoterInfo> {
         use NetstatusKwd::*;
         // this unwrap should be safe because if there is not at least one
-        // token in the section, the section is unparseable.
+        // token in the section, the section is unparsable.
         #[allow(clippy::unwrap_used)]
         let first = sec.first_item().unwrap();
         if first.kwd() != DIR_SOURCE {

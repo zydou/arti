@@ -42,7 +42,7 @@ impl<T> SharedMutArc<T> {
         let mut w = self
             .dir
             .write()
-            .expect("Poisoned lock for directory refrence");
+            .expect("Poisoned lock for directory reference");
         *w = Some(Arc::new(new_val));
     }
 
@@ -52,7 +52,7 @@ impl<T> SharedMutArc<T> {
         let mut w = self
             .dir
             .write()
-            .expect("Poisoned lock for directory refrence");
+            .expect("Poisoned lock for directory reference");
         *w = None;
     }
 

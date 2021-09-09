@@ -11,7 +11,7 @@ fi
 here=$(pwd)
 
 ## fix the target architecture to get reproducible builds
-## the architecture was choosen as old enought that it should cover most usage
+## the architecture was chosen as old enough that it should cover most usage
 ## while still supporting usefull features like AES-NI. Older architectures
 ## won't be able to execute the resulting binary.
 export CFLAGS="-march=westmere"
@@ -22,21 +22,21 @@ export RUSTFLAGS="-C target-cpu=westmere"
 cp -a "$here" /arti
 cd /arti
 
-## use tmpfs to store dependancies sources. It has been observed that what
+## use tmpfs to store dependencies sources. It has been observed that what
 ## filesystem these files reside on has an impact on the resulting binary.
 ## We put these in a tmpfs as a way to stabilize the result.
 mkdir -p /dev/shm/registry /usr/local/cargo/registry
 ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
-## add missing dependancies
+## add missing dependencies
 apk add --no-cache musl-dev perl make git mingw-w64-gcc
 rustup target add x86_64-pc-windows-gnu
 
-## bring back the Cargo.lock where dependancies version are strictly defined
+## bring back the Cargo.lock where dependencies version are strictly defined
 mv misc/Cargo.lock Cargo.lock
 
 ## Build targeting x86_64-unknown-linux-musl to get a static binary
-## feature "static" enable compiling some C dependancies instead of linking
+## feature "static" enable compiling some C dependencies instead of linking
 ## to system libraries. It is required to get a well behaving result.
 cargo build -p arti --target x86_64-unknown-linux-musl --release --features static
 mv /arti/target/x86_64-unknown-linux-musl/release/arti "$here"/arti-linux

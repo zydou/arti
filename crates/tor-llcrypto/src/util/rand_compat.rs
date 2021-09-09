@@ -114,7 +114,7 @@ fn err_to_old(e: &Error) -> OldError {
     if let Some(code) = e.code() {
         code.into()
     } else {
-        // CUSTOM_START is defineed to be a nonzero value in rand_core,
+        // CUSTOM_START is defined to be a nonzero value in rand_core,
         // so this conversion will succeed, so this unwrap can't panic.
         #[allow(clippy::unwrap_used)]
         let nz: NonZeroU32 = OldError::CUSTOM_START.try_into().unwrap();

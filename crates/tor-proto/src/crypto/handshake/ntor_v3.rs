@@ -96,7 +96,7 @@ define_tweaks! {
     /// prevent hash confusion.
     PROTOID =  "ntor3-curve25519-sha3_256-1";
 
-    /// Message MAC tweak: used to compute the MAC of an encrytped client
+    /// Message MAC tweak: used to compute the MAC of an encrypted client
     /// message.
     T_MSGMAC <= "msg_mac";
     /// Message KDF tweak: used when deriving keys for encrypting and MACing
@@ -106,7 +106,7 @@ define_tweaks! {
     T_KEY_SEED <= "key_seed";
     /// Verifying tweak: used to derive 'verify' value from secret_input.
     T_VERIFY <= "verify";
-    /// Final KDF tweak: used to derive keys for encrypting relay mesage
+    /// Final KDF tweak: used to derive keys for encrypting relay message
     /// and for the actual tor circuit.
     T_FINAL <= "kdf_final";
     /// Authentication tweak: used to derive the final authentication
