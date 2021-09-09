@@ -185,14 +185,14 @@ impl ArtiConfig {
     /// Return a [`DirMgrConfig`] object based on the user's selected
     /// configuration.
     fn get_dir_config(&self) -> Result<DirMgrConfig> {
-        let mut dircfg = tor_dirmgr::DirMgrConfigBuilder::new();
+        let mut dircfg = tor_dirmgr::DirMgrConfigBuilder::default();
         dircfg.network_config(self.network.clone());
         dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(&self.storage.cache_dir.path()?);
+        dircfg.cache_path(self.storage.cache_dir.path()?);
         for (k, v) in self.override_net_params.iter() {
             dircfg.override_net_param(k.clone(), *v);
         }
-        dircfg.build()
+        Ok(dircfg.build()?)
     }
 
     /// Return a [`CircMgrConfig`] object based on the user's selected

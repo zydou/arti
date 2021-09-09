@@ -6,12 +6,12 @@
 use crate::retry::RetryConfig;
 use crate::storage::sqlite::SqliteStore;
 use crate::Authority;
-use crate::{Error, Result};
+use crate::Result;
 use tor_netdir::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
 
 use derive_builder::Builder;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::Deserialize;
 
@@ -134,6 +134,7 @@ impl DownloadScheduleConfig {
     }
 }
 
+/*
 /// Builder for a [`DirMgrConfig`]
 ///
 /// To create a directory configuration, create one of these,
@@ -165,63 +166,35 @@ pub struct DirMgrConfigBuilder {
     /// settings in the consensus.
     override_net_params: netstatus::NetParams<i32>,
 }
+*/
 
 /// Configuration type for network directory operations.
 ///
 /// This type is immutable once constructed.
 ///
 /// To create an object of this type, use DirMgrConfigBuilder.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Builder)]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
     /// directory information.
+    #[builder(setter(into))]
     cache_path: PathBuf,
 
     /// Configuration information about the network.
-    network: NetworkConfig,
+    #[builder(default)]
+    network_config: NetworkConfig,
 
     /// Configuration information about when we download things.
-    schedule: DownloadScheduleConfig,
+    #[builder(default)]
+    schedule_config: DownloadScheduleConfig,
 
     /// A map of network parameters that we're overriding from their
     /// settings in the consensus.
+    #[builder(default)]
     override_net_params: netstatus::NetParams<i32>,
 }
 
 impl DirMgrConfigBuilder {
-    /// Construct a new DirMgrConfig.
-    ///
-    /// To use this, call at least one method to set a cache directory,
-    /// then call load().
-    pub fn new() -> Self {
-        DirMgrConfigBuilder::default()
-    }
-
-    /// Set the network information (authorities and fallbacks) from `config`.
-    ///
-    /// (You shouldn't need to replace the defaults unless you are
-    /// using a private Tor network, a testing-only Tor network, or a
-    /// network that is otherwise nonstandard.)
-    pub fn network_config(&mut self, config: NetworkConfig) -> &mut Self {
-        self.network = config;
-        self
-    }
-
-    /// Set the timing information that we use for deciding when to
-    /// attempt and retry downloads.
-    ///
-    /// (The defaults should be reasonable for most use cases.)
-    pub fn schedule_config(&mut self, schedule: DownloadScheduleConfig) -> &mut Self {
-        self.schedule = schedule;
-        self
-    }
-
-    /// Use `path` as the directory to use for current directory files.
-    pub fn cache_path(&mut self, path: &Path) -> &mut Self {
-        self.cache_path = Some(path.to_path_buf());
-        self
-    }
-
     /// Overrides the network consensus parameter named `param` with a
     /// new value.
     ///
@@ -234,51 +207,17 @@ impl DirMgrConfigBuilder {
     ///
     /// By default no parameters will be overridden.
     pub fn override_net_param(&mut self, param: String, value: i32) -> &mut Self {
-        self.override_net_params.set(param, value);
+        self.override_net_params
+            .get_or_insert_with(netstatus::NetParams::default)
+            .set(param, value);
         self
-    }
-
-    /// Try to use the default cache path.
-    ///
-    /// This will be ~/.cache/arti on unix, and in other suitable
-    /// locations on other platforms.
-    pub fn use_default_cache_path(&mut self) -> Result<&mut Self> {
-        let pd = directories::ProjectDirs::from("org", "torproject", "Arti")
-            .ok_or(Error::DirectoryNotPresent)?;
-
-        self.cache_path = Some(pd.cache_dir().into());
-
-        Ok(self)
-    }
-
-    /// Use this builder to produce a DirMgrConfig that can be used
-    /// to load directories
-    pub fn build(&self) -> Result<DirMgrConfig> {
-        let cache_path = self
-            .cache_path
-            .as_ref()
-            .ok_or(Error::BadNetworkConfig("No cache path configured"))?;
-
-        if self.network.authorities.is_empty() {
-            return Err(Error::BadNetworkConfig("No authorities configured").into());
-        }
-        if self.network.fallback_caches.is_empty() {
-            return Err(Error::BadNetworkConfig("No fallback caches configured").into());
-        }
-
-        Ok(DirMgrConfig {
-            cache_path: cache_path.clone(),
-            network: self.network.clone(),
-            schedule: self.schedule.clone(),
-            override_net_params: self.override_net_params.clone(),
-        })
     }
 }
 
 impl DirMgrConfig {
     /// Return a new builder to construct a DirMgrConfig.
     pub fn builder() -> DirMgrConfigBuilder {
-        DirMgrConfigBuilder::new()
+        DirMgrConfigBuilder::default()
     }
 
     /// Create a SqliteStore from this configuration.
@@ -293,12 +232,12 @@ impl DirMgrConfig {
 
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        self.network.authorities()
+        self.network_config.authorities()
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &[FallbackDir] {
-        self.network.fallbacks()
+        self.network_config.fallbacks()
     }
 
     /// Return set of configured networkstatus parameter overrides.
@@ -309,7 +248,7 @@ impl DirMgrConfig {
     /// Return the schedule configuration we should use to decide when to
     /// attempt and retry downloads.
     pub fn schedule(&self) -> &DownloadScheduleConfig {
-        &self.schedule
+        &self.schedule_config
     }
 }
 
@@ -384,7 +323,9 @@ mod test {
     fn simplest_config() -> Result<()> {
         let tmp = tempdir().unwrap();
 
-        let dir = DirMgrConfigBuilder::new().cache_path(tmp.path()).build()?;
+        let dir = DirMgrConfigBuilder::default()
+            .cache_path(tmp.path().to_path_buf())
+            .build()?;
 
         assert!(dir.authorities().len() >= 3);
         assert!(dir.fallbacks().len() >= 3);
