@@ -19,7 +19,9 @@
 //! missing.
 
 use std::convert::TryInto;
-use tor_units::{BoundedInt32, IntegerMilliseconds, IntegerSeconds, Percentage, SendMeVersion};
+use tor_units::{
+    BoundedInt32, IntegerDays, IntegerMilliseconds, IntegerSeconds, Percentage, SendMeVersion,
+};
 
 /// An object that can be constructed from an i32, with saturating semantics.
 pub trait FromInt32Saturating {
@@ -52,6 +54,11 @@ impl<T: FromInt32Saturating + TryInto<u64>> FromInt32Saturating for IntegerMilli
     }
 }
 impl<T: FromInt32Saturating + TryInto<u64>> FromInt32Saturating for IntegerSeconds<T> {
+    fn from_saturating(val: i32) -> Self {
+        Self::new(T::from_saturating(val))
+    }
+}
+impl<T: FromInt32Saturating + TryInto<u64>> FromInt32Saturating for IntegerDays<T> {
     fn from_saturating(val: i32) -> Self {
         Self::new(T::from_saturating(val))
     }
@@ -150,7 +157,7 @@ pub struct NetParameters {
     /// with our Pareto estimator.
     ///
     /// (We continue building circuits after this timeout, but only
-    /// for build-tim measurement purposes.)
+    /// for build-time measurement purposes.)
     pub cbt_timeout_quantile: Percentage<BoundedInt32<10, 99>> = (80)
         from "cbtquantile",
     /// Quantile to use when determining when to abandon circuits completely
@@ -184,6 +191,71 @@ pub struct NetParameters {
     /// Whether to perform circuit extensions by Ed25519 ID
     pub extend_by_ed25519_id: BoundedInt32<0, 1> = (0)
         from "ExtendByEd25519ID",
+
+    // Skipping for now:
+    //    "guard-meaningful-restriction-percent"
+    //    "guard-extreme-restriction-percent"
+    // (We have not yet implemented restrictions!)
+
+    /// How long should we keep an unconfirmed guard (one we have not
+    /// contacted) before removing it from the guard sample?
+    pub guard_lifetime_unconfirmed: IntegerDays<BoundedInt32<1, 3650>> = (120)
+        from "guard-lifetime-days",
+
+    /// How long should we keep a _confirmed_ guard (one we have contacted)
+    /// before removing it from the guard sample?
+    pub guard_lifetime_confirmed: IntegerDays<BoundedInt32<1, 3650>> = (60)
+        from "guard-confirmed-min-lifetime-days",
+
+    /// If all circuits have failed for this interval, then treat the internet
+    /// as "probably down", and treat any guard failures in that interval
+    /// as unproven.
+    pub guard_internet_likely_down: IntegerSeconds<BoundedInt32<1, {i32::MAX}>> = (600)
+        from "guard-internet-likely-down-interval",
+    /// Largest number of guards that a client should try to maintain in
+    /// a sample of possible guards.
+    pub guard_max_sample_size: BoundedInt32<1, {i32::MAX}> = (60)
+        from "guard-max-sample-size",
+    /// Largest fraction of guard bandwidth on the network that a client
+    /// should try to remain in a sample of possibleguards.
+    pub guard_max_sample_threshold: Percentage<BoundedInt32<1,100>> = (20)
+        from "guard-max-sample-threshold",
+
+    /// If the client ever hase fewer than this many guards in their sample,
+    /// after filtering out unusable guards, they should try to add more guards
+    /// to the sample (if allowed).
+    pub guard_filtered_min_sample_size: BoundedInt32<1,{i32::MAX}> = (20)
+        from "guard-min-filtered-sample-size",
+
+    /// The number of confirmed guards that the client should treat as
+    /// "primary guards".
+    pub guard_n_primary: BoundedInt32<1,{i32::MAX}> = (3)
+        from "guard-n-primary-guards",
+    /// The number of primary guards that the client should use in parallel.
+    /// Other primary guards won't get used unless earlier ones are down.
+    pub guard_use_parallelism: BoundedInt32<1, {i32::MAX}> = (1)
+        from "guard-n-primary-guards-to-use",
+    /// The number of primary guards that the client should use in
+    /// parallel.  Other primary directory guards won't get used
+    /// unless earlier ones are down.
+    pub guard_dir_use_parallelism: BoundedInt32<1, {i32::MAX}> = (3)
+        from "guard-n-primary-dir-guards-to-use",
+
+    /// When trying to confirm nonprimary guards, if a guard doesn't
+    /// answer for more than this long in seconds, treat any lower-
+    /// priority guards as possibly usable.
+    pub guard_nonprimary_connect_timeout: IntegerSeconds<BoundedInt32<1,{i32::MAX}>> = (15)
+        from "guard-nonprimary-guard-connect-timeout",
+    /// When trying to confirm nonprimary guards, if a guard doesn't
+    /// answer for more than _this_ long in seconds, treat it as down.
+    pub guard_nonprimary_idle_timeout: IntegerSeconds<BoundedInt32<1,{i32::MAX}>> = (600)
+        from "guard-nonprimary-guard-idle-timeout",
+    /// If a guard has been unlisted in the consensus for at least this
+    /// long, remove it from the consensus.
+    pub guard_remove_unlisted_after: IntegerDays<BoundedInt32<1,3650>> = (20)
+        from "guard-remove-unlisted-guards-after-days",
+
+
     /// The minimum threshold for circuit patch construction
     pub min_circuit_path_threshold: Percentage<BoundedInt32<25, 95>> = (60)
         from "min_paths_for_circs_pct",
@@ -216,7 +288,7 @@ impl Default for NetParameters {
 
 impl NetParameters {
     /// Replace a list of parameters, using the logic of
-    /// `saturating_update_override`.
+    /// `set_saturating`.
     ///
     /// Return a vector of the parameter names we didn't recognize.
     pub(crate) fn saturating_update<'a, S>(
@@ -382,6 +454,18 @@ mod test {
             ("cbtmaxopencircs", 14),
             ("circwindow", 999),
             ("CircuitPriorityHalflifeMsec", 222),
+            ("guard-lifetime-days", 36),
+            ("guard-confirmed-min-lifetime-days", 37),
+            ("guard-internet-likely-down-interval", 38),
+            ("guard-max-sample-size", 39),
+            ("guard-max-sample-threshold", 40),
+            ("guard-min-filtered-sample-size", 41),
+            ("guard-n-primary-guards", 42),
+            ("guard-n-primary-guards-to-use", 43),
+            ("guard-n-primary-dir-guards-to-use", 44),
+            ("guard-nonprimary-guard-connect-timeout", 45),
+            ("guard-nonprimary-guard-idle-timeout", 46),
+            ("guard-remove-unlisted-guards-after-days", 47),
             ("ExtendByEd25519ID", 0),
             ("min_paths_for_circs_pct", 51),
             ("nf_conntimeout_clients", 606),
@@ -429,5 +513,36 @@ mod test {
         );
         assert_eq!(p.sendme_accept_min_version.get(), 31);
         assert_eq!(p.sendme_emit_min_version.get(), 32);
+
+        assert_eq!(
+            Duration::try_from(p.guard_lifetime_unconfirmed).unwrap(),
+            Duration::from_secs(86400 * 36)
+        );
+        assert_eq!(
+            Duration::try_from(p.guard_lifetime_confirmed).unwrap(),
+            Duration::from_secs(86400 * 37)
+        );
+        assert_eq!(
+            Duration::try_from(p.guard_internet_likely_down).unwrap(),
+            Duration::from_secs(38)
+        );
+        assert_eq!(p.guard_max_sample_size.get(), 39);
+        assert_eq!(p.guard_max_sample_threshold.as_percent().get(), 40);
+        assert_eq!(p.guard_filtered_min_sample_size.get(), 41);
+        assert_eq!(p.guard_n_primary.get(), 42);
+        assert_eq!(p.guard_use_parallelism.get(), 43);
+        assert_eq!(p.guard_dir_use_parallelism.get(), 44);
+        assert_eq!(
+            Duration::try_from(p.guard_nonprimary_connect_timeout).unwrap(),
+            Duration::from_secs(45)
+        );
+        assert_eq!(
+            Duration::try_from(p.guard_nonprimary_idle_timeout).unwrap(),
+            Duration::from_secs(46)
+        );
+        assert_eq!(
+            Duration::try_from(p.guard_remove_unlisted_after).unwrap(),
+            Duration::from_secs(86400 * 47)
+        );
     }
 }
