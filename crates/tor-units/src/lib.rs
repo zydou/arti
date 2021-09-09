@@ -66,6 +66,9 @@ pub enum Error {
     /// underlying type.
     #[error("Value could not be represented as an i32")]
     Unrepresentable,
+    /// We encountered some kind of integer overflow when converting a number.
+    #[error("Integer overflow")]
+    Overflow,
     /// Tried to instantiate an uninhabited type.
     #[error("No value is valid for this type")]
     Uninhabited,
@@ -336,6 +339,40 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerSeconds<BoundedInt32<H,
     }
 }
 
+#[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd)]
+/// This type represents an integer number of days.
+///
+/// The underlying type should implement TryInto<u64>.
+pub struct IntegerDays<T> {
+    /// Interior Value. Should Implement TryInto<u64> to be useful.
+    value: T,
+}
+
+impl<T> IntegerDays<T> {
+    /// Public Constructor
+    pub fn new(value: T) -> Self {
+        IntegerDays { value }
+    }
+}
+
+impl<T: TryInto<u64>> TryFrom<IntegerDays<T>> for Duration {
+    type Error = Error;
+    fn try_from(val: IntegerDays<T>) -> Result<Self, Error> {
+        /// Number of seconds in a single day.
+        const SECONDS_PER_DAY: u64 = 86400;
+        let days: u64 = val.value.try_into().map_err(|_| Error::Overflow)?;
+        let seconds = days.checked_mul(SECONDS_PER_DAY).ok_or(Error::Overflow)?;
+        Ok(Self::from_secs(seconds))
+    }
+}
+
+impl<const H: i32, const L: i32> TryFrom<i32> for IntegerDays<BoundedInt32<H, L>> {
+    type Error = Error;
+    fn try_from(v: i32) -> Result<Self, Error> {
+        Ok(IntegerDays::new(v.try_into()?))
+    }
+}
+
 /// A SendMe Version
 ///
 /// DOCDOC: Explain why this needs to have its own type, or remove it.
@@ -547,6 +584,23 @@ mod tests {
         let ms = Sec::new(-100);
         let d: Result<Duration, _> = ms.try_into();
         assert!(d.is_err());
+    }
+
+    #[test]
+    fn days() {
+        type Days = IntegerDays<i32>;
+
+        let t = Days::new(500);
+        let d: Duration = t.try_into().unwrap();
+        assert_eq!(d, Duration::from_secs(500 * 86400));
+
+        let t = Days::new(-100);
+        let d: Result<Duration, _> = t.try_into();
+        assert_eq!(d, Err(Error::Overflow));
+
+        let t = IntegerDays::<u64>::new(u64::MAX);
+        let d: Result<Duration, _> = t.try_into();
+        assert_eq!(d, Err(Error::Overflow));
     }
 
     #[test]
