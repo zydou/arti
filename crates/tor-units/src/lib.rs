@@ -265,6 +265,13 @@ impl<T: Copy + Into<f64>> Percentage<T> {
     }
 }
 
+impl<const H: i32, const L: i32> TryFrom<i32> for Percentage<BoundedInt32<H, L>> {
+    type Error = Error;
+    fn try_from(v: i32) -> Result<Self, Error> {
+        Ok(Percentage::new(v.try_into()?))
+    }
+}
+
 #[derive(
     Add, Copy, Clone, Mul, Div, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd,
 )]
@@ -287,6 +294,13 @@ impl<T: TryInto<u64>> TryFrom<IntegerMilliseconds<T>> for Duration {
     type Error = <T as TryInto<u64>>::Error;
     fn try_from(val: IntegerMilliseconds<T>) -> Result<Self, <T as TryInto<u64>>::Error> {
         Ok(Self::from_millis(val.value.try_into()?))
+    }
+}
+
+impl<const H: i32, const L: i32> TryFrom<i32> for IntegerMilliseconds<BoundedInt32<H, L>> {
+    type Error = Error;
+    fn try_from(v: i32) -> Result<Self, Error> {
+        Ok(IntegerMilliseconds::new(v.try_into()?))
     }
 }
 
@@ -315,6 +329,13 @@ impl<T: TryInto<u64>> TryFrom<IntegerSeconds<T>> for Duration {
     }
 }
 
+impl<const H: i32, const L: i32> TryFrom<i32> for IntegerSeconds<BoundedInt32<H, L>> {
+    type Error = Error;
+    fn try_from(v: i32) -> Result<Self, Error> {
+        Ok(IntegerSeconds::new(v.try_into()?))
+    }
+}
+
 /// A SendMe Version
 ///
 /// DOCDOC: Explain why this needs to have its own type, or remove it.
@@ -330,6 +351,14 @@ impl SendMeVersion {
     /// Helper
     pub fn get(&self) -> u8 {
         self.0
+    }
+}
+
+impl TryFrom<i32> for SendMeVersion {
+    type Error = Error;
+    fn try_from(v: i32) -> Result<Self, Error> {
+        let val_u8 = BoundedInt32::<0, 255>::checked_new(v)?;
+        Ok(SendMeVersion::new(val_u8.get() as u8))
     }
 }
 

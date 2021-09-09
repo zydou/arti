@@ -18,7 +18,104 @@
 //! in range, and provides default values for any parameters that are
 //! missing.
 
+use std::convert::TryInto;
 use tor_units::{BoundedInt32, IntegerMilliseconds, IntegerSeconds, Percentage, SendMeVersion};
+
+/// An object that can be constructed from an i32, with saturating semantics.
+pub trait FromInt32Saturating {
+    /// Construct an instance of this object from `val`.
+    ///
+    /// If `val` is too low, treat it as the lowest value that would be
+    /// valid.  If `val` is too high, treat it as the highest value that
+    /// would be valid.
+    fn from_saturating(val: i32) -> Self;
+}
+
+impl FromInt32Saturating for i32 {
+    fn from_saturating(val: i32) -> Self {
+        val
+    }
+}
+impl<const L: i32, const H: i32> FromInt32Saturating for BoundedInt32<L, H> {
+    fn from_saturating(val: i32) -> Self {
+        Self::saturating_new(val)
+    }
+}
+impl<T: Copy + Into<f64> + FromInt32Saturating> FromInt32Saturating for Percentage<T> {
+    fn from_saturating(val: i32) -> Self {
+        Self::new(T::from_saturating(val))
+    }
+}
+impl<T: FromInt32Saturating + TryInto<u64>> FromInt32Saturating for IntegerMilliseconds<T> {
+    fn from_saturating(val: i32) -> Self {
+        Self::new(T::from_saturating(val))
+    }
+}
+impl<T: FromInt32Saturating + TryInto<u64>> FromInt32Saturating for IntegerSeconds<T> {
+    fn from_saturating(val: i32) -> Self {
+        Self::new(T::from_saturating(val))
+    }
+}
+impl FromInt32Saturating for SendMeVersion {
+    fn from_saturating(val: i32) -> Self {
+        Self::new(val.clamp(0, 255) as u8)
+    }
+}
+
+/// A macro to help us declare the net parameters object.  It lets us
+/// put the information about each parameter in just one place, even
+/// though it will later get split between the struct declaration, the
+/// Default implementation, and the implementation of
+/// `saturating_update_override`.
+macro_rules! declare_net_parameters {
+    {
+        $(#[$s_meta:meta])* $s_v:vis struct $s_name:ident {
+            $(
+                $(#[$p_meta:meta])* $p_v:vis
+                    $p_name:ident : $p_type:ty
+                    = ($p_dflt:expr) from $p_string:literal
+            ),*
+            $( , )?
+        }
+    } =>
+    {
+        $(#[$s_meta])* $s_v struct $s_name {
+            $(
+                $(#[$p_meta])* $p_v $p_name : $p_type
+            ),*
+        }
+
+        impl $s_name {
+            /// Try to construct an instance of with its default values.
+            ///
+            /// (This should always succeed, unless one of the default values
+            /// is out-of-bounds for the type.)
+            fn default_values() -> Result<Self, tor_units::Error> {
+                Ok(Self {
+                    $( $p_name : $p_dflt.try_into()? ),*
+                })
+            }
+            /// Replace the current value for the parameter identified in the
+            /// consensus with `key` with a new value `val`.
+            ///
+            /// Uses saturating semantics if the new value is out-of-range.
+            ///
+            /// Returns true if the key was recognized, and false otherwise.
+            fn set_saturating(&mut self, key: &str, val: i32) -> bool {
+                match key {
+                    $( $p_string => self.$p_name = {
+                        type T = $p_type;
+                        T::from_saturating(val)
+                    }, )*
+                    _ => return false,
+                }
+                true
+            }
+        }
+    }
+}
+
+declare_net_parameters! {
 
 /// This structure holds recognised configuration parameters. All values are type-safe,
 /// and where applicable clamped to be within range.
@@ -26,186 +123,98 @@ use tor_units::{BoundedInt32, IntegerMilliseconds, IntegerSeconds, Percentage, S
 #[non_exhaustive]
 pub struct NetParameters {
     /// A weighting factor for bandwidth calculations
-    pub bw_weight_scale: BoundedInt32<0, { i32::MAX }>,
-
+    pub bw_weight_scale: BoundedInt32<0, { i32::MAX }> = (10_000)
+        from "bwweightscale",
     /// If true, do not attempt to learn circuit-build timeouts at all.
-    pub cbt_learning_disabled: BoundedInt32<0, 1>,
+    pub cbt_learning_disabled: BoundedInt32<0, 1> = (0)
+        from "cbtdisabled",
     /// Number of histograms bins to consider when estimating Xm for a
     /// Pareto-based circuit timeout estimator.
-    pub cbt_num_xm_modes: BoundedInt32<1, 20>,
+    pub cbt_num_xm_modes: BoundedInt32<1, 20> = (10)
+        from "cbtnummodes",
     /// How many recent circuit success/timeout statuses do we remember
     /// when trying to tell if our circuit timeouts are too low?
-    pub cbt_success_count: BoundedInt32<3, 1000>,
+    pub cbt_success_count: BoundedInt32<3, 1_000> = (20)
+        from "cbtrecentcount",
     /// How many timeouts (in the last `cbt_success_count` observations)
     /// indicates that our circuit timeouts are too low?
-    pub cbt_max_timeouts: BoundedInt32<3, 10000>, // XXXX-SPEC 10000 is greater than 1000 for cbt_success_count.
+    // XXXX-SPEC 10000 is greater than 1000 for cbt_success_count.
+    pub cbt_max_timeouts: BoundedInt32<3, 10_000> = (18)
+        from "cbtmaxtimeouts",
     /// Smallest number of circuit build times we have to view in order to use
     /// our Pareto-based circuit timeout estimator.
-    pub cbt_min_circs_for_estimate: BoundedInt32<1, 10000>, // XXXX-SPEC 10000 disables this.
+    // XXXX-SPEC 10000 disables this.
+    pub cbt_min_circs_for_estimate: BoundedInt32<1, 10_000> = (100)
+        from "cbtmincircs",
     /// Quantile to use when determining the correct circuit timeout value
     /// with our Pareto estimator.
     ///
     /// (We continue building circuits after this timeout, but only
     /// for build-tim measurement purposes.)
-    pub cbt_timeout_quantile: Percentage<BoundedInt32<10, 99>>,
+    pub cbt_timeout_quantile: Percentage<BoundedInt32<10, 99>> = (80)
+        from "cbtquantile",
     /// Quantile to use when determining when to abandon circuits completely
     /// with our Pareto estimator.
-    pub cbt_abandon_quantile: Percentage<BoundedInt32<10, 99>>,
+    pub cbt_abandon_quantile: Percentage<BoundedInt32<10, 99>> = (99)
+        from "cbtclosequantile",
     /// Lowest permissible timeout value for Pareto timeout estimator.
-    pub cbt_min_timeout: IntegerMilliseconds<BoundedInt32<10, { i32::MAX }>>,
+    pub cbt_min_timeout: IntegerMilliseconds<BoundedInt32<10, { i32::MAX }>> = (10)
+        from "cbtmintimeout",
     /// Timeout value to use for our Pareto timeout estimator when we have
     /// no initial estimate.
-    pub cbt_initial_timeout: IntegerMilliseconds<BoundedInt32<10, { i32::MAX }>>,
+    pub cbt_initial_timeout: IntegerMilliseconds<BoundedInt32<10, { i32::MAX }>> = (60_000)
+        from "cbtinitialtimeout",
     /// When we don't have a good build-time estimate yet, how long
     /// (in seconds) do we wait between trying to launch build-time
     /// testing circuits through the network?
-    pub cbt_testing_delay: IntegerSeconds<BoundedInt32<1, { i32::MAX }>>,
+    pub cbt_testing_delay: IntegerSeconds<BoundedInt32<1, { i32::MAX }>> = (10)
+        from "cbttestfreq",
     /// How many circuits can be open before we will no longer
     /// consider launching testing circuits to learn average build
     /// times?
-    pub cbt_max_open_circuits_for_testing: BoundedInt32<0, 14>,
+    pub cbt_max_open_circuits_for_testing: BoundedInt32<0, 14> = (10)
+        from "cbtmaxopencircs",
 
     /// The maximum cell window size?
-    pub circuit_window: BoundedInt32<100, 1000>,
+    pub circuit_window: BoundedInt32<100, 1000> = (1_000)
+        from "circwindow",
     /// The decay parameter for circuit priority
-    pub circuit_priority_half_life: IntegerMilliseconds<BoundedInt32<1, { i32::MAX }>>,
+    pub circuit_priority_half_life: IntegerMilliseconds<BoundedInt32<1, { i32::MAX }>> = (30_000)
+        from "CircuitPriorityHalflifeMsec",
     /// Whether to perform circuit extensions by Ed25519 ID
-    pub extend_by_ed25519_id: BoundedInt32<0, 1>,
+    pub extend_by_ed25519_id: BoundedInt32<0, 1> = (0)
+        from "ExtendByEd25519ID",
     /// The minimum threshold for circuit patch construction
-    pub min_circuit_path_threshold: Percentage<BoundedInt32<25, 95>>,
+    pub min_circuit_path_threshold: Percentage<BoundedInt32<25, 95>> = (60)
+        from "min_paths_for_circs_pct",
 
     /// The minimum sendme version to accept.
-    pub sendme_accept_min_version: SendMeVersion,
+    pub sendme_accept_min_version: SendMeVersion = (0)
+        from "sendme_accept_min_version",
     /// The minimum sendme version to transmit.
-    pub sendme_emit_min_version: SendMeVersion,
+    pub sendme_emit_min_version: SendMeVersion = (0)
+        from "sendme_emit_min_version",
 
     /// How long should never-used client circuits stay available,
     /// in the steady state?
-    pub unused_client_circ_timeout: IntegerSeconds<BoundedInt32<60, 86_400>>,
+    pub unused_client_circ_timeout: IntegerSeconds<BoundedInt32<60, 86_400>> = (30*60)
+        from "nf_conntimeout_clients",
     /// When we're learning circuit timeouts, how long should never-used client
     /// circuits stay available?
-    pub unused_client_circ_timeout_while_learning_cbt: IntegerSeconds<BoundedInt32<10, 60_000>>,
+    pub unused_client_circ_timeout_while_learning_cbt: IntegerSeconds<BoundedInt32<10, 60_000>> = (3*60)
+        from "cbtlearntimeout",
+
+}
+
 }
 
 impl Default for NetParameters {
     fn default() -> Self {
-        netparam_defaults().expect("Default parameters were out-of-bounds")
+        NetParameters::default_values().expect("Default parameters were out-of-bounds")
     }
-}
-
-/// Try to return a set of default parameters for the network parameters.
-///
-/// (An error is only possible here if one of our default parameters is somehow
-/// out-of-bounds, which would indicate a programming error.)
-fn netparam_defaults() -> Result<NetParameters, tor_units::Error> {
-    Ok(NetParameters {
-        bw_weight_scale: BoundedInt32::checked_new(10000)?,
-        cbt_abandon_quantile: Percentage::new(BoundedInt32::checked_new(99)?),
-        cbt_initial_timeout: IntegerMilliseconds::new(BoundedInt32::checked_new(60_000)?),
-        cbt_learning_disabled: BoundedInt32::checked_new(0)?,
-        cbt_max_timeouts: BoundedInt32::checked_new(18)?,
-        cbt_min_circs_for_estimate: BoundedInt32::checked_new(100)?,
-        cbt_min_timeout: IntegerMilliseconds::new(BoundedInt32::checked_new(10)?),
-        cbt_num_xm_modes: BoundedInt32::checked_new(10)?,
-        cbt_success_count: BoundedInt32::checked_new(20)?,
-        cbt_timeout_quantile: Percentage::new(BoundedInt32::checked_new(80)?),
-        cbt_testing_delay: IntegerSeconds::new(BoundedInt32::checked_new(10)?),
-        cbt_max_open_circuits_for_testing: BoundedInt32::checked_new(10)?,
-        circuit_window: BoundedInt32::checked_new(1000)?,
-        circuit_priority_half_life: IntegerMilliseconds::new(BoundedInt32::checked_new(30000)?),
-        extend_by_ed25519_id: BoundedInt32::checked_new(0)?,
-        min_circuit_path_threshold: Percentage::new(BoundedInt32::checked_new(60)?),
-        sendme_accept_min_version: SendMeVersion::new(0),
-        sendme_emit_min_version: SendMeVersion::new(0),
-        unused_client_circ_timeout: IntegerSeconds::new(BoundedInt32::checked_new(30 * 60)?),
-        unused_client_circ_timeout_while_learning_cbt: IntegerSeconds::new(
-            BoundedInt32::checked_new(3 * 60)?,
-        ),
-    })
 }
 
 impl NetParameters {
-    /// Replace the parameter whose name is `name` with the `value`,
-    /// clamping the value to be within allowable bounds.
-    ///
-    /// Return true if the parameter was recognized; false otherwise.
-    fn saturating_update_override(&mut self, name: &str, value: i32) -> bool {
-        match name {
-            "bwweightscale" => {
-                self.bw_weight_scale = BoundedInt32::saturating_from(value);
-            }
-            "cbtdisabled" => {
-                self.cbt_learning_disabled = BoundedInt32::saturating_from(value);
-            }
-            "cbtnummodes" => {
-                self.cbt_num_xm_modes = BoundedInt32::saturating_from(value);
-            }
-            "cbtrecentcount" => {
-                self.cbt_success_count = BoundedInt32::saturating_from(value);
-            }
-            "cbtmaxtimeouts" => {
-                self.cbt_max_timeouts = BoundedInt32::saturating_from(value);
-            }
-            "cbtmincircs" => {
-                self.cbt_min_circs_for_estimate = BoundedInt32::saturating_from(value);
-            }
-            "cbtquantile" => {
-                self.cbt_timeout_quantile = Percentage::new(BoundedInt32::saturating_from(value));
-            }
-            "cbtclosequantile" => {
-                self.cbt_abandon_quantile = Percentage::new(BoundedInt32::saturating_from(value));
-            }
-            "cbtlearntimeout" => {
-                self.unused_client_circ_timeout_while_learning_cbt =
-                    IntegerSeconds::new(BoundedInt32::saturating_from(value));
-            }
-            "cbtmintimeout" => {
-                self.cbt_min_timeout =
-                    IntegerMilliseconds::new(BoundedInt32::saturating_from(value));
-            }
-            "cbtinitialtimeout" => {
-                self.cbt_initial_timeout =
-                    IntegerMilliseconds::new(BoundedInt32::saturating_from(value));
-            }
-            "cbttestfreq" => {
-                self.cbt_testing_delay = IntegerSeconds::new(BoundedInt32::saturating_from(value));
-            }
-            "cbtmaxopencircs" => {
-                self.cbt_max_open_circuits_for_testing = BoundedInt32::saturating_from(value);
-            }
-            "circwindow" => {
-                self.circuit_window = BoundedInt32::saturating_from(value);
-            }
-            "CircuitPriorityHalflifeMsec" => {
-                self.circuit_priority_half_life =
-                    IntegerMilliseconds::new(BoundedInt32::saturating_from(value))
-            }
-            "ExtendByEd25519ID" => {
-                self.extend_by_ed25519_id = BoundedInt32::saturating_from(value);
-            }
-            "min_paths_for_circs_pct" => {
-                self.min_circuit_path_threshold =
-                    Percentage::new(BoundedInt32::saturating_from(value));
-            }
-            "nf_conntimeout_clients" => {
-                self.unused_client_circ_timeout =
-                    IntegerSeconds::new(BoundedInt32::saturating_from(value));
-            }
-            "sendme_accept_min_version" => {
-                self.sendme_accept_min_version =
-                    SendMeVersion::new(BoundedInt32::<0, 255>::saturating_from(value).into());
-            }
-            "sendme_emit_min_version" => {
-                self.sendme_emit_min_version =
-                    SendMeVersion::new(BoundedInt32::<0, 255>::saturating_from(value).into());
-            }
-            _ => {
-                return false;
-            } // unrecognized parameters are ignored.
-        }
-        true
-    }
-
     /// Replace a list of parameters, using the logic of
     /// `saturating_update_override`.
     ///
@@ -219,7 +228,7 @@ impl NetParameters {
     {
         let mut unrecognized = Vec::new();
         for (k, v) in iter {
-            if !self.saturating_update_override(k.as_ref(), *v) {
+            if !self.set_saturating(k.as_ref(), *v) {
                 unrecognized.push(k);
             }
         }
