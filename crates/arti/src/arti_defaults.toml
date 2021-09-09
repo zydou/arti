@@ -6,8 +6,10 @@
 # Note that only one process can listen on a given port at a time.
 socks_port = 9150
 
-# Enable logging to journald where available
+# Configure logging
+[logging]
 
+# Enable logging to journald where available
 journald = false
 
 # Specify filtering directives for tracing.
