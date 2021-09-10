@@ -5,8 +5,7 @@
 //! "Fallback Directory" to retrieve its initial information about the
 //! network.
 
-use crate::{Error, Result};
-
+use derive_builder::Builder;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -17,10 +16,11 @@ use std::net::SocketAddr;
 /// can use for bootstrapping when we don't know anything else about
 /// the network.
 //
-// Note that we do *not* set serde(deny_unknown_fields)] on this structure:
-// we want our authorities format to be future-proof against adding new info
-// about each authority.
-#[derive(Debug, Clone, Deserialize)]
+// Note that we do *not* set serde(deny_unknown_fields) on this
+// structure: we want our fallback directory configuration format to
+// be future-proof against adding new info about each fallback.
+#[derive(Debug, Clone, Deserialize, Builder)]
+#[builder(build_fn(validate = "FallbackDirBuilder::validate"))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
     rsa_identity: RsaIdentity,
@@ -30,21 +30,10 @@ pub struct FallbackDir {
     orports: Vec<SocketAddr>,
 }
 
-/// A Builder object for constructing a [`FallbackDir`].
-#[derive(Debug, Clone, Default)]
-pub struct FallbackDirBuilder {
-    /// See [`FallbackDir::rsa_identity`]
-    rsa_identity: Option<RsaIdentity>,
-    /// See [`FallbackDir::ed_identity`]
-    ed_identity: Option<Ed25519Identity>,
-    /// See [`FallbackDir::orports`]
-    orports: Vec<SocketAddr>,
-}
-
 impl FallbackDir {
     /// Return a builder that can be used to make a `FallbackDir`.
     pub fn builder() -> FallbackDirBuilder {
-        FallbackDirBuilder::new()
+        FallbackDirBuilder::default()
     }
 }
 
@@ -56,45 +45,21 @@ impl FallbackDirBuilder {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Set the RSA identity for this fallback directory.
-    ///
-    /// This field is required.
-    pub fn rsa_identity(&mut self, rsa_identity: RsaIdentity) -> &mut Self {
-        self.rsa_identity = Some(rsa_identity);
-        self
-    }
-    /// Set the Ed25519 identity for this fallback directory.
-    ///
-    /// This field is required.
-    pub fn ed_identity(&mut self, ed_identity: Ed25519Identity) -> &mut Self {
-        self.ed_identity = Some(ed_identity);
-        self
-    }
     /// Add a single OR port for this fallback directory.
     ///
     /// This field is required, and may be called more than once.
     pub fn orport(&mut self, orport: SocketAddr) -> &mut Self {
-        self.orports.push(orport);
+        self.orports.get_or_insert_with(Vec::new).push(orport);
         self
     }
-    /// Try to construct a [`FallbackDir`] from this builder.
-    pub fn build(&self) -> Result<FallbackDir> {
-        let rsa_identity = self.rsa_identity.as_ref().ok_or(Error::BadArgument(
-            "Missing RSA identity on fallback directory",
-        ))?;
-        let ed_identity = self.ed_identity.as_ref().ok_or(Error::BadArgument(
-            "Missing ed25519 identity on fallback directory",
-        ))?;
-        let orports = self.orports.clone();
-        if orports.is_empty() {
-            return Err(Error::BadArgument("No OR ports on fallback directory"));
+    /// Check whether this builder is ready to make a FallbackDir.
+    fn validate(&self) -> std::result::Result<(), String> {
+        if let Some(orports) = &self.orports {
+            if orports.is_empty() {
+                return Err("No OR ports on fallback directory".to_string());
+            }
         }
-
-        Ok(FallbackDir {
-            rsa_identity: *rsa_identity,
-            ed_identity: *ed_identity,
-            orports,
-        })
+        Ok(())
     }
 }
 

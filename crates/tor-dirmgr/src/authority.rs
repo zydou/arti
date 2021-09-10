@@ -3,7 +3,7 @@
 //! From a client's point of view, an authority's role is to to sign the
 //! consensus directory.
 
-use crate::{Error, Result};
+use derive_builder::Builder;
 use serde::Deserialize;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::authcert::{AuthCert, AuthCertKeyIds};
@@ -13,9 +13,10 @@ use tor_netdoc::doc::authcert::{AuthCert, AuthCertKeyIds};
 // Note that we do *not* set serde(deny_unknown_fields)] on this structure:
 // we want our authorities format to be future-proof against adding new info
 // about each authority.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 pub struct Authority {
     /// A memorable nickname for this authority.
+    #[builder(setter(into))]
     name: String,
     /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
     /// this authority.
@@ -29,7 +30,7 @@ impl Authority {
     /// You only need this if you're using a non-default Tor network
     /// with its own set of directory authorities.
     pub fn builder() -> AuthorityBuilder {
-        AuthorityBuilder::new()
+        AuthorityBuilder::default()
     }
     /// Return the v3 identity key of this certificate.
     ///
@@ -78,45 +79,10 @@ pub(crate) fn default_authorities() -> Vec<Authority> {
     ]
 }
 
-/// A Builder object for constructing an [`Authority`] entry.
-#[derive(Debug, Clone, Default)]
-pub struct AuthorityBuilder {
-    /// See [`Authority::name`]
-    name: Option<String>,
-    /// See [`Authority::v3ident`]
-    v3ident: Option<RsaIdentity>,
-}
-
 impl AuthorityBuilder {
     /// Make a new AuthorityBuilder with no fields set.
     pub fn new() -> Self {
         Self::default()
-    }
-    /// Set the name on this AuthorityBuilder.
-    ///
-    /// This field is required.
-    pub fn name(&mut self, name: &str) -> &mut Self {
-        self.name = Some(name.to_owned());
-        self
-    }
-    /// Set the v3 RSA identity of this AuthorityBuilder.
-    ///
-    /// This field is required.
-    pub fn v3ident(&mut self, key: RsaIdentity) -> &mut Self {
-        self.v3ident = Some(key);
-        self
-    }
-    /// Try to build an [`Authority`].
-    pub fn build(&self) -> Result<Authority> {
-        let name = self
-            .name
-            .as_ref()
-            .ok_or(Error::BadNetworkConfig("Missing authority name"))?
-            .clone();
-        let v3ident = self
-            .v3ident
-            .ok_or(Error::BadNetworkConfig("Missing v3 identity key."))?;
-        Ok(Authority { name, v3ident })
     }
 }
 

@@ -23,13 +23,14 @@ tor-llcrypto = { path="../tor-llcrypto", version="0.0.0" }
 tor-protover = { path="../tor-protover", version="0.0.0" }
 tor-units = { path="../tor-units", version="0.0.0" }
 
-tracing = "0.1.26"
+derive_builder = "0.10.2"
+hex = { version= "0.4.3", optional = true }
+hex-literal = { version= "0.3.1", optional = true }
 rand = "0.8.3"
 serde = { version = "1.0.124", features = ["derive"] }
 signature = "1.3.0"
 thiserror = "1.0.24"
-hex = { version= "0.4.3", optional = true }
-hex-literal = { version= "0.3.1", optional = true }
+tracing = "0.1.26"
 
 [dev-dependencies]
 hex = "0.4.3"

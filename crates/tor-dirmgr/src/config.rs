@@ -134,40 +134,6 @@ impl DownloadScheduleConfig {
     }
 }
 
-/*
-/// Builder for a [`DirMgrConfig`]
-///
-/// To create a directory configuration, create one of these,
-/// configure it, then call its build function.
-///
-/// # Examples
-///
-/// ```
-/// # use tor_dirmgr::*;
-/// # fn x() -> anyhow::Result<()> {
-/// let mut builder = DirMgrConfigBuilder::new();
-/// builder.use_default_cache_path()?;
-/// let config: DirMgrConfig = builder.build()?;
-/// # Ok(()) }
-/// # x().unwrap()
-/// ```
-#[derive(Debug, Clone, Default)]
-pub struct DirMgrConfigBuilder {
-    /// Path to use for current (sqlite) directory information.
-    cache_path: Option<PathBuf>,
-
-    /// Configuration information about the network.
-    network: NetworkConfig,
-
-    /// Configuration information about when to download stuff.
-    schedule: DownloadScheduleConfig,
-
-    /// A map of network parameters that we're overriding from their
-    /// settings in the consensus.
-    override_net_params: netstatus::NetParams<i32>,
-}
-*/
-
 /// Configuration type for network directory operations.
 ///
 /// This type is immutable once constructed.
