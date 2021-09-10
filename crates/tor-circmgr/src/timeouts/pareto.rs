@@ -481,6 +481,7 @@ pub(crate) struct ParetoTimeoutState {
     histogram: Vec<(MsecDuration, u16)>,
     /// The current timeout estimate: kept for reference.
     current_timeout: Option<MsecDuration>,
+    // XXXX Do we need a HashMap to represent additional fields? I think we may.
 }
 
 impl ParetoTimeoutEstimator {

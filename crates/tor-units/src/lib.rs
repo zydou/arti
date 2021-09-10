@@ -218,6 +218,17 @@ impl<const L: i32, const H: i32> TryFrom<BoundedInt32<L, H>> for u64 {
     }
 }
 
+impl<const L: i32, const H: i32> TryFrom<BoundedInt32<L, H>> for usize {
+    type Error = Error;
+    fn try_from(val: BoundedInt32<L, H>) -> Result<Self, Self::Error> {
+        if val.value < 0 {
+            Err(Error::Negative)
+        } else {
+            Ok(val.value as usize)
+        }
+    }
+}
+
 /// A percentage value represented as a number.
 ///
 /// This type wraps an underlying numeric type, and ensures that callers

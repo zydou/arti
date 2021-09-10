@@ -25,6 +25,7 @@ members = [
     "crates/tor-netdir",
     "crates/tor-persist",
     "crates/tor-chanmgr",
+    "crates/tor-guardmgr",
     "crates/tor-circmgr",
     "crates/tor-dirclient",
     "crates/tor-dirmgr",

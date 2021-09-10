@@ -1930,6 +1930,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "retain_mut"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9c17925a9027d298a4603d286befe3f9dc0e8ed02523141914eb628798d6e5b"
+
+[[package]]
 name = "retry-error"
 version = "0.0.0"
 dependencies = [
@@ -2586,6 +2592,27 @@ dependencies = [
  "tor-netdir",
  "tor-netdoc",
  "tor-rtcompat",
+ "tracing",
+]
+
+[[package]]
+name = "tor-guardmgr"
+version = "0.0.0"
+dependencies = [
+ "derive_builder",
+ "futures",
+ "humantime-serde",
+ "itertools",
+ "pin-project",
+ "rand 0.8.4",
+ "retain_mut",
+ "serde",
+ "thiserror",
+ "tor-linkspec",
+ "tor-llcrypto",
+ "tor-netdir",
+ "tor-rtcompat",
+ "tor-units",
  "tracing",
 ]
 

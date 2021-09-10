@@ -564,7 +564,7 @@ impl NetDir {
 
     /// Return a (possibly unusable) relay with a given RSA identity.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
-    fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
+    pub fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
         let rs_idx = self.rs_idx_by_rsa.get(rsa_id)?;
         let rs = self.consensus.relays().get(*rs_idx).expect("Corrupt index");
         assert_eq!(rs.rsa_identity(), rsa_id);
@@ -652,6 +652,10 @@ impl NetDir {
     /// multihop circuits.
 
     fn have_enough_paths(&self) -> bool {
+        // TODO-A001: This should check for our guards as well, and
+        // make sure that if they're listed in the consensus, we have
+        // the descriptors for them.
+
         // If we can build a randomly chosen path with at least this
         // probability, we know enough information to participate
         // on the network.
@@ -827,6 +831,10 @@ impl<'a> UncheckedRelay<'a> {
     pub fn is_flagged_guard(&self) -> bool {
         self.rs.is_flagged_guard()
     }
+    /// Return true if this relay is a potential directory cache.
+    pub fn is_dir_cache(&self) -> bool {
+        rs_is_dir_cache(self.rs)
+    }
 }
 
 impl<'a> Relay<'a> {
@@ -855,12 +863,7 @@ impl<'a> Relay<'a> {
     /// Return true if this relay is suitable for use as a directory
     /// cache.
     pub fn is_dir_cache(&self) -> bool {
-        use tor_protover::ProtoKind;
-        self.rs.is_flagged_v2dir()
-            && self
-                .rs
-                .protovers()
-                .supports_known_subver(ProtoKind::DirCache, 2)
+        rs_is_dir_cache(self.rs)
     }
     /// Return true if this relay is marked as usable as a new Guard node.
     pub fn is_flagged_guard(&self) -> bool {
@@ -980,6 +983,12 @@ impl<'a> tor_linkspec::CircTarget for Relay<'a> {
     fn protovers(&self) -> &tor_protover::Protocols {
         self.rs.protovers()
     }
+}
+
+/// Return true if `rs` is usable as a directory cache.
+fn rs_is_dir_cache(rs: &netstatus::MdConsensusRouterStatus) -> bool {
+    use tor_protover::ProtoKind;
+    rs.is_flagged_v2dir() && rs.protovers().supports_known_subver(ProtoKind::DirCache, 2)
 }
 
 #[cfg(test)]

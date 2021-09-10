@@ -74,6 +74,9 @@ directories.
 `tor-chanmgr`: Creates channels as necessary, returning existing channels
 when they already exist.
 
+`tor-guardmgr`: Manage a set of "guard nodes" that clients can use for
+connecting to the first relays on their citrcuit.
+
 `tor-circmgr`: Creates circuits as requested, returning existing circuits
 when they already exist.
 

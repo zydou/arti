@@ -192,10 +192,16 @@ pub struct NetParameters {
     pub extend_by_ed25519_id: BoundedInt32<0, 1> = (0)
         from "ExtendByEd25519ID",
 
-    // Skipping for now:
-    //    "guard-meaningful-restriction-percent"
-    //    "guard-extreme-restriction-percent"
-    // (We have not yet implemented restrictions!)
+    /// If we have excluded so many possible guards that the
+    /// available fraction is below this threshold, we should use a different
+    /// guard sample. (TODO: not actually implemented)
+    pub guard_meaningful_restriction: Percentage<BoundedInt32<1,100>> = (20)
+        from "guard-meaningful-restriction-percent",
+
+    /// We should warn the user if they have excluded so many guards
+    /// that the available fraction is below this threshold.
+    pub guard_extreme_restriction: Percentage<BoundedInt32<1,100>> = (1)
+        from "guard-extreme-restriction-percent",
 
     /// How long should we keep an unconfirmed guard (one we have not
     /// contacted) before removing it from the guard sample?
@@ -467,6 +473,8 @@ mod test {
             ("guard-nonprimary-guard-connect-timeout", 45),
             ("guard-nonprimary-guard-idle-timeout", 46),
             ("guard-remove-unlisted-guards-after-days", 47),
+            ("guard-meaningful-restriction-percent", 12),
+            ("guard-extreme-restriction-percent", 3),
             ("ExtendByEd25519ID", 0),
             ("min_paths_for_circs_pct", 51),
             ("nf_conntimeout_clients", 606),
@@ -545,5 +553,7 @@ mod test {
             Duration::try_from(p.guard_remove_unlisted_after).unwrap(),
             Duration::from_secs(86400 * 47)
         );
+        assert_eq!(p.guard_meaningful_restriction.as_percent().get(), 12);
+        assert_eq!(p.guard_extreme_restriction.as_percent().get(), 3);
     }
 }
