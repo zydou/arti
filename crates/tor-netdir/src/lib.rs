@@ -70,7 +70,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::warn;
@@ -138,12 +138,21 @@ impl SubnetConfig {
 /// HashMap.
 #[derive(Clone, Debug)]
 enum MdEntry {
-    /// The digest for a microdescriptor that is wanted
-    /// but not present.
-    // TODO: I'd like to make this a reference, but that's nontrivial.
-    Absent(MdDigest),
+    /// A microdescriptor that is wanted but not present.
+    Absent {
+        /// Index of the routerstatus entry that wants this microdesc.
+        rs_idx: usize,
+        /// Content digest of the microdescriptor.
+        // TODO: I wanted to make this a reference at first, but that's
+        // nontrival.  At this point I'm not 100% sure it would be a good
+        // idea.
+        d: MdDigest,
+    },
     /// A microdescriptor that we have.
-    Present(Arc<Microdesc>),
+    Present {
+        /// The microdescriptor itself.
+        md: Arc<Microdesc>,
+    },
 }
 
 impl std::borrow::Borrow<MdDigest> for MdEntry {
@@ -156,17 +165,12 @@ impl MdEntry {
     /// Return the digest for this entry.
     fn digest(&self) -> &MdDigest {
         match self {
-            MdEntry::Absent(d) => d,
-            MdEntry::Present(md) => md.digest(),
+            MdEntry::Absent { d, .. } => d,
+            MdEntry::Present { md, .. } => md.digest(),
         }
     }
 }
 
-impl From<Microdesc> for MdEntry {
-    fn from(md: Microdesc) -> MdEntry {
-        MdEntry::Present(Arc::new(md))
-    }
-}
 impl PartialEq for MdEntry {
     fn eq(&self, rhs: &MdEntry) -> bool {
         self.digest() == rhs.digest()
@@ -204,6 +208,27 @@ pub struct NetDir {
     /// Map from SHA256 digest of microdescriptors to the
     /// microdescriptors themselves.
     mds: HashSet<MdEntry>,
+    /// Map from ed25519 identity to index of the routerstatus within
+    /// `self.consensus.relays()`.
+    ///
+    /// Note that we don't know the ed25519 identity of a relay until
+    /// we get the microdescriptor for it, so this won't be filled in
+    /// until we get the microdescriptors.
+    ///
+    /// # Implementation note
+    ///
+    /// For this field, and for `rs_idx_by_rsa`, and for
+    /// `MdEntry::*::rsa_idx`, it might be cool to have references instead.
+    /// But that would make this into a self-referential structure,
+    /// which isn't possible in safe rust.
+    rs_idx_by_ed: HashMap<Ed25519Identity, usize>,
+    /// Map from RSA identity to index of the routerstatus within
+    /// `self.consensus.relays()`.
+    ///
+    /// This is constructed at the same time as the NetDir object, so it
+    /// can be immutable.
+    rs_idx_by_rsa: Arc<HashMap<RsaIdentity, usize>>,
+
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
     weights: weight::WeightSet,
@@ -279,16 +304,32 @@ impl PartialNetDir {
         // Compute the weights we'll want to use for these relays.
         let weights = weight::WeightSet::from_consensus(&consensus, &params);
 
-        let mut netdir = NetDir {
+        let mds = consensus
+            .relays()
+            .iter()
+            .enumerate()
+            .map(|(rs_idx, rs)| MdEntry::Absent {
+                rs_idx,
+                d: *rs.md_digest(),
+            })
+            .collect();
+
+        let rs_idx_by_rsa = consensus
+            .relays()
+            .iter()
+            .enumerate()
+            .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
+            .collect();
+
+        let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
-            mds: HashSet::new(),
+            mds,
+            rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
+            rs_idx_by_ed: HashMap::new(),
             weights,
         };
 
-        for rs in netdir.consensus.relays().iter() {
-            netdir.mds.insert(MdEntry::Absent(*rs.md_digest()));
-        }
         PartialNetDir { netdir }
     }
 
@@ -296,15 +337,16 @@ impl PartialNetDir {
     pub fn lifetime(&self) -> &netstatus::Lifetime {
         self.netdir.lifetime()
     }
+
     /// Fill in as many missing microdescriptors as possible in this
     /// netdir, using the microdescriptors from the previous netdir.
     pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
         let mut loaded = Vec::new();
         for ent in prev.mds.iter() {
-            if let MdEntry::Present(md) = ent {
+            if let MdEntry::Present { md, .. } = ent {
                 if self.netdir.mds.contains(md.digest()) {
                     loaded.push(md.digest());
-                    self.netdir.mds.replace(ent.clone());
+                    self.netdir.add_arc_microdesc(Arc::clone(md));
                 }
             }
         }
@@ -341,6 +383,34 @@ impl NetDir {
         self.consensus.lifetime()
     }
 
+    /// Add `md` to this NetDir.
+    ///
+    /// Return true if we wanted it, and false otherwise.
+    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
+    fn add_arc_microdesc(&mut self, md: Arc<Microdesc>) -> bool {
+        if let Some(prev_ent) = self.mds.take(md.digest()) {
+            if let MdEntry::Absent { rs_idx, .. } = prev_ent {
+                assert_eq!(self.consensus.relays()[rs_idx].md_digest(), md.digest());
+
+                // There should never be two approved MDs in the same
+                // consensus listing the same ID... but if there is,
+                // we'll let the most recent one win.
+                self.rs_idx_by_ed.insert(*md.ed25519_id(), rs_idx);
+
+                // Happy path: we did indeed want this one.
+                self.mds.insert(MdEntry::Present { md });
+
+                return true;
+            } else {
+                // We already had this.
+                self.mds.insert(prev_ent);
+            }
+        }
+
+        // Either we already had it, or we never wanted it at all.
+        false
+    }
+
     /// Construct a (possibly invalid) Relay object from a routerstatus and its
     /// microdescriptor (if any).
     fn relay_from_rs<'a>(
@@ -348,7 +418,7 @@ impl NetDir {
         rs: &'a netstatus::MdConsensusRouterStatus,
     ) -> UncheckedRelay<'a> {
         let md = match self.mds.get(rs.md_digest()) {
-            Some(MdEntry::Present(md)) => Some(Arc::as_ref(md)),
+            Some(MdEntry::Present { md }) => Some(Arc::as_ref(md)),
             _ => None,
         };
         UncheckedRelay { rs, md }
@@ -368,16 +438,39 @@ impl NetDir {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
     /// Return a relay matching a given Ed25519 identity, if we have a
-    /// usable relay with that key.
+    /// _usable_ relay with that key.
     ///
-    /// # Limitations
+    /// (Does not return unusable relays.)
     ///
-    /// This function is O(n) in the number of relays; we will
-    /// probably want to fix that if we use this function for anything
-    /// besides testing. (TODO)
-    #[cfg(any(test, feature = "testing"))]
+    /// Note that if a microdescriptor is subsequently added for a relay
+    /// with this ID, the ID may be come usable.
+    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     pub fn by_id(&self, id: &Ed25519Identity) -> Option<Relay<'_>> {
-        self.relays().find(|r| r.id() == id)
+        let rs_idx = self.rs_idx_by_ed.get(id)?;
+        let rs = self.consensus.relays().get(*rs_idx).expect("Corrupt index");
+
+        let relay = self.relay_from_rs(rs).into_relay()?;
+        assert_eq!(id, relay.id());
+        Some(relay)
+    }
+
+    /// Return a (possibly unusable) relay with a given RSA identity.
+    #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
+    fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
+        let rs_idx = self.rs_idx_by_rsa.get(rsa_id)?;
+        let rs = self.consensus.relays().get(*rs_idx).expect("Corrupt index");
+        assert_eq!(rs.rsa_identity(), rsa_id);
+        Some(self.relay_from_rs(rs))
+    }
+    /// Return the relay with a given RSA identity, if we have one
+    /// and it is usable.
+    pub fn by_rsa_id(&self, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
+        self.by_rsa_id_unchecked(rsa_id)?.into_relay()
+    }
+    /// Return true if `rsa_id` is listed in this directory, even if it
+    /// isn't currently usable.
+    pub fn rsa_id_is_listed(&self, rsa_id: &RsaIdentity) -> bool {
+        self.by_rsa_id_unchecked(rsa_id).is_some()
     }
     /// Return the parameters from the consensus, clamped to the
     /// correct ranges, with defaults filled in.
@@ -550,19 +643,13 @@ impl MdReceiver for NetDir {
         Box::new(self.consensus.relays().iter().filter_map(move |rs| {
             let d = rs.md_digest();
             match self.mds.get(d) {
-                Some(MdEntry::Absent(d)) => Some(d),
+                Some(MdEntry::Absent { d, .. }) => Some(d),
                 _ => None,
             }
         }))
     }
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
-        let ent = md.into();
-        if self.mds.remove(&ent) {
-            self.mds.insert(ent);
-            true
-        } else {
-            false
-        }
+        self.add_arc_microdesc(Arc::new(md))
     }
 }
 
@@ -1126,5 +1213,34 @@ mod test {
 
         assert!(!r4.rs().is_flagged_exit());
         assert!(r16.rs().is_flagged_exit());
+    }
+
+    #[test]
+    fn test_by_id() {
+        // Make a netdir that omits the microdescriptor for 0xDDDDDD...
+        let netdir = construct_custom_netdir(|idx, mut nb| {
+            nb.omit_md = idx == 13;
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        let r = netdir.by_id(&[0; 32].into()).unwrap();
+        assert_eq!(r.id().as_bytes(), &[0; 32]);
+
+        assert!(netdir.by_id(&[13; 32].into()).is_none());
+
+        let r = netdir.by_rsa_id(&[12; 20].into()).unwrap();
+        assert_eq!(r.rsa_id().as_bytes(), &[12; 20]);
+        assert!(netdir.rsa_id_is_listed(&[12; 20].into()));
+
+        assert!(netdir.by_rsa_id(&[13; 20].into()).is_none());
+
+        assert!(netdir.by_rsa_id_unchecked(&[99; 20].into()).is_none());
+        assert!(!netdir.rsa_id_is_listed(&[99; 20].into()));
+
+        let r = netdir.by_rsa_id_unchecked(&[13; 20].into()).unwrap();
+        assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
+        assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
     }
 }
