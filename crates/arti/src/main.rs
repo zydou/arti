@@ -123,6 +123,20 @@ struct Args {
 /// Default options to use for our configuration.
 const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
+/// Structure to hold our logging configuration options
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+struct LoggingConfig {
+    /// Filtering directives that determine tracing levels as described at
+    /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
+    ///
+    /// You can override this setting with the environment variable ARTI_LOG.
+    trace_filter: String,
+
+    /// Whether to log to journald
+    journald: bool,
+}
+
 /// Structure to hold our configuration options, whether from a
 /// configuration file or the command line.
 ///
@@ -135,14 +149,8 @@ pub struct ArtiConfig {
     /// connections.
     socks_port: Option<u16>,
 
-    /// Whether to log to journald
-    journald: bool,
-
-    /// Filtering directives that determine tracing levels as described at
-    /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
-    ///
-    /// You can override this setting with the environment variable ARTI_LOG.
-    trace_filter: String,
+    /// Logging configuration
+    logging: LoggingConfig,
 
     /// Information about the Tor network we want to connect to.
     #[serde(default)]
@@ -230,13 +238,13 @@ async fn run<R: Runtime>(
 fn setup_logging(config: &ArtiConfig) {
     let env_filter = match EnvFilter::try_from_env("ARTI_LOG") {
         Ok(f) => f,
-        Err(_e) => EnvFilter::new(config.trace_filter.as_str()),
+        Err(_e) => EnvFilter::new(config.logging.trace_filter.as_str()),
     };
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
 
     #[cfg(feature = "journald")]
-    if config.journald {
+    if config.logging.journald {
         if let Ok(journald) = tracing_journald::layer() {
             registry.with(journald).init();
             return;
