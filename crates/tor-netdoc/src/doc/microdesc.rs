@@ -39,7 +39,7 @@ pub use build::MicrodescBuilder;
 /// Annotations prepended to a microdescriptor that has been stored to
 /// disk.
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MicrodescAnnotation {
     /// A time at which this microdescriptor was last listed in some
     /// consensus document.
@@ -192,12 +192,6 @@ static MICRODESC_RULES: Lazy<SectionRules<MicrodescKwd>> = Lazy::new(|| {
     rules.add(UNRECOGNIZED.rule().may_repeat().obj_optional());
     rules
 });
-
-impl Default for MicrodescAnnotation {
-    fn default() -> Self {
-        MicrodescAnnotation { last_listed: None }
-    }
-}
 
 impl MicrodescAnnotation {
     /// Extract a (possibly empty) microdescriptor annotation from a

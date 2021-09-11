@@ -60,6 +60,7 @@ pub struct AnnotatedRouterDesc {
 
 /// Annotations about a router descriptor, as stored on disc.
 #[allow(dead_code)] // don't warn about fields not getting read.
+#[derive(Default)]
 pub struct RouterAnnotation {
     /// Description of where we got this router descriptor
     source: Option<String>,
@@ -283,16 +284,6 @@ static ROUTER_SIG_RULES: Lazy<SectionRules<RouterKwd>> = Lazy::new(|| {
     rules.add(ROUTER_SIGNATURE.rule().required().no_args().obj_required());
     rules
 });
-
-impl Default for RouterAnnotation {
-    fn default() -> Self {
-        RouterAnnotation {
-            source: None,
-            downloaded: None,
-            purpose: None,
-        }
-    }
-}
 
 impl RouterAnnotation {
     /// Extract a single RouterAnnotation (possibly empty) from a reader.
