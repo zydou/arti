@@ -16,6 +16,9 @@ rust-latest:
     - cargo fmt -- --check
     - cargo install cargo-audit
     - cargo audit -D warnings
+    - cp misc/Cargo.lock Cargo.lock
+    - cargo fetch
+    - diff misc/Cargo.lock Cargo.lock || (echo 'Some new dependancies were added. Please run "./maint/reproducible_update_cargolock.sh" and commit.' && false)
   tags:
     - amd64
 
