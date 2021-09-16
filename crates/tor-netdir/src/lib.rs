@@ -366,6 +366,14 @@ impl PartialNetDir {
             Err(self)
         }
     }
+    /// Return true if we are currently missing a microdescriptor for the
+    /// given RSA identity.
+    ///
+    /// A descriptor is `missing` only if it is listed in the consensus,
+    /// but we don't have it downloaded.
+    pub fn missing_descriptor_for(&self, rsa_id: &RsaIdentity) -> bool {
+        self.netdir.missing_descriptor_for(rsa_id)
+    }
 }
 
 impl MdReceiver for PartialNetDir {
@@ -463,6 +471,45 @@ impl NetDir {
     /// with this ID, the ID may become usable.
     pub fn by_id_pair(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
         self.by_id(ed_id).filter(|r| r.rs.rsa_identity() == rsa_id)
+    }
+
+    /// Return a boolean if this consensus definitely has (or does not
+    /// have) a relay matching both the given Ed25519 and RSA
+    /// identity.
+    ///
+    /// If we can't yet tell for sure, return None.
+    ///
+    /// Once function has returned `Some(b)`, it will always return that
+    /// value for the same `ed_id` and `rsa_id` on this `NetDir`.  A `None`
+    /// answer may later become `Some(b)` if a microdescriptor arrives.
+    pub fn id_pair_listed(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<bool> {
+        let r = self.by_rsa_id_unchecked(rsa_id);
+        match r {
+            Some(unchecked) => {
+                if !unchecked.rs.ed25519_id_is_usable() {
+                    return Some(false);
+                }
+                // If md is present, then it's listed iff we have the right
+                // ed id.  Otherwise we don't know if it's listed.
+                unchecked.md.map(|md| md.ed25519_id() == ed_id)
+            }
+            None => {
+                // Definitely not listed.
+                Some(false)
+            }
+        }
+    }
+
+    /// Return true if we are currently missing a micro descriptor for the
+    /// given RSA identity.
+    ///
+    /// A descriptor is `missing` only if it is listed in the consensus,
+    /// but we don't have it downloaded.
+    pub fn missing_descriptor_for(&self, rsa_id: &RsaIdentity) -> bool {
+        match self.by_rsa_id_unchecked(rsa_id) {
+            Some(unchecked) => unchecked.md.is_none(),
+            None => false,
+        }
     }
 
     /// Return a (possibly unusable) relay with a given RSA identity.
@@ -1232,9 +1279,12 @@ mod test {
         let netdir = construct_custom_netdir(|idx, mut nb| {
             nb.omit_md = idx == 13;
         })
-        .unwrap()
-        .unwrap_if_sufficient()
         .unwrap();
+
+        assert!(netdir.missing_descriptor_for(&[13; 20].into()));
+        assert!(!netdir.missing_descriptor_for(&[15; 20].into()));
+
+        let netdir = netdir.unwrap_if_sufficient().unwrap();
 
         let r = netdir.by_id(&[0; 32].into()).unwrap();
         assert_eq!(r.id().as_bytes(), &[0; 32]);
@@ -1262,5 +1312,20 @@ mod test {
             .unwrap();
         assert_eq!(r.rsa_identity(), &[14; 20].into());
         assert_eq!(r.ed_identity(), &[14; 32].into());
+        let r = netdir.by_id_pair(&[14; 32].into(), &[99; 20].into());
+        assert!(r.is_none());
+
+        assert_eq!(
+            netdir.id_pair_listed(&[13; 32].into(), &[13; 20].into()),
+            None
+        );
+        assert_eq!(
+            netdir.id_pair_listed(&[15; 32].into(), &[15; 20].into()),
+            Some(true)
+        );
+        assert_eq!(
+            netdir.id_pair_listed(&[15; 32].into(), &[99; 20].into()),
+            Some(false)
+        );
     }
 }
