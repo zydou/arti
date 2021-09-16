@@ -731,12 +731,14 @@ impl NetDir {
         use rand::seq::SliceRandom;
         let relays: Vec<_> = self.relays().filter(usable).collect();
         // NOTE: See discussion in pick_relay().
-        match relays[..].choose_multiple_weighted(rng, n, |r| {
+        let mut relays = match relays[..].choose_multiple_weighted(rng, n, |r| {
             self.weights.weight_rs_for_role(r.rs, role) as f64
         }) {
             Err(_) => Vec::new(),
             Ok(iter) => iter.map(Relay::clone).collect(),
-        }
+        };
+        relays.shuffle(rng);
+        relays
     }
 
     /// Compute the weight with which `relay` will be selected for a given
@@ -1186,7 +1188,7 @@ mod test {
         // We didn't we any non-default weights, so the other relays get
         // weighted proportional to their bandwidth.
         check_close(picked[19], (total * 10) / 110);
-        check_close(picked[36], (total * 8) / 110);
+        check_close(picked[36], (total * 7) / 110);
         check_close(picked[39], (total * 10) / 110);
     }
 
