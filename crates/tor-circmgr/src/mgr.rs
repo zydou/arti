@@ -1682,7 +1682,7 @@ mod test {
             let builder = FakeBuilder::new(&rt);
 
             let circuit_timing = CircuitTimingBuilder::default()
-                .set_max_dirtiness(Duration::from_secs(15))
+                .max_dirtiness(Duration::from_secs(15))
                 .build()
                 .unwrap();
 

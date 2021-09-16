@@ -208,9 +208,9 @@ impl ArtiConfig {
     fn get_circ_config(&self) -> Result<CircMgrConfig> {
         let mut builder = tor_circmgr::CircMgrConfigBuilder::default();
         Ok(builder
-            .set_path_config(self.path_rules.clone())
-            .set_request_timing(self.request_timing.clone())
-            .set_circuit_timing(self.circuit_timing.clone())
+            .path_config(self.path_rules.clone())
+            .request_timing(self.request_timing.clone())
+            .circuit_timing(self.circuit_timing.clone())
             .build()?)
     }
 }

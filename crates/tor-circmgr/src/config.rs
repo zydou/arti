@@ -10,7 +10,7 @@ use std::time::Duration;
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`RequestTimingBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
-#[builder(setter(prefix = "set"))]
+#[builder]
 pub struct RequestTiming {
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
@@ -48,7 +48,7 @@ impl Default for RequestTiming {
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Default)]
-#[builder(setter(prefix = "set"))]
+#[builder]
 pub struct PathConfig {
     /// Override the default required distance for two relays to share
     /// the same circuit.
@@ -61,7 +61,7 @@ pub struct PathConfig {
 /// This type is immutable once constructd. To create an object of this
 /// type, use [`CircuitTimingBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
-#[builder(setter(prefix = "set"))]
+#[builder]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
@@ -85,7 +85,7 @@ impl Default for CircuitTiming {
 /// This type is immutable once constructed.  To create an object of
 /// this type, use [`CircMgrConfigBuilder`].
 #[derive(Debug, Clone, Builder)]
-#[builder(setter(prefix = "set"))]
+#[builder]
 pub struct CircMgrConfig {
     /// Override the default required distance for two relays to share
     /// the same circuit.
