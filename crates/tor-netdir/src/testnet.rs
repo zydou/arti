@@ -104,7 +104,7 @@ pub fn construct_network() -> Result<(MdConsensus, Vec<Microdesc>)> {
 ///
 /// Every relay is given a measured weight based on its position
 /// within its group of ten.  The weights for the ten relays in each
-/// group are: 100, 200, 300, ... 10000.  There is no additional
+/// group are: 1000, 2000, 3000, ... 10000.  There is no additional
 /// flag-based bandwidth weighting.
 ///
 /// The consensus is declared as using method 34, and as being valid for
