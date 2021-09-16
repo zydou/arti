@@ -19,7 +19,7 @@ use serde::Deserialize;
 /// part of Arti's configuration.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
-#[builder(setter(prefix = "set"), build_fn(validate = "Self::validate"))]
+#[builder(build_fn(validate = "Self::validate"))]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information,
     /// if we don't actually have a directory yet.
@@ -313,7 +313,7 @@ mod test {
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
-        bld.set_authorities(vec![
+        bld.authorities(vec![
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
@@ -325,7 +325,7 @@ mod test {
         ]);
         assert!(bld.build().is_err());
 
-        bld.set_fallback_caches(vec![FallbackDir::builder()
+        bld.fallback_caches(vec![FallbackDir::builder()
             .rsa_identity([b'x'; 20].into())
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())
