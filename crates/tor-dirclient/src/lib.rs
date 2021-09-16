@@ -90,7 +90,7 @@ pub async fn get_resource<CR, R, SP>(
     dirinfo: DirInfo<'_>,
     runtime: &SP,
     circ_mgr: Arc<CircMgr<R>>,
-) -> anyhow::Result<DirResponse>
+) -> Result<DirResponse>
 where
     CR: request::Requestable + ?Sized,
     R: Runtime,

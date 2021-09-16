@@ -35,6 +35,14 @@ pub enum Error {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
+    /// A protocol error while launching a stream
+    #[error("Protocol error while launching a stream: {0}")]
+    Proto(#[from] tor_proto::Error),
+
+    /// Error while getting a circuit
+    #[error("Error while getting a circuit {0}")]
+    CircMgr(#[from] tor_circmgr::Error),
+
     /// Error when parsing http
     #[error("Couldn't parse HTTP headers")]
     HttparseError(#[from] httparse::Error),
