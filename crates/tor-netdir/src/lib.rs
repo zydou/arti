@@ -184,6 +184,50 @@ impl std::hash::Hash for MdEntry {
     }
 }
 
+/// An opaque type representing the weight with which a relay or set of
+/// relays will be selected for a given role.
+///
+/// Most users should ignore this type, and just use pick_relay instead.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    derive_more::Add,
+    derive_more::Sum,
+    derive_more::AddAssign,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+)]
+pub struct RelayWeight(u64);
+
+impl RelayWeight {
+    /// Try to divide this weight by `rhs`.
+    ///
+    /// Return a ratio on success, or None on division-by-zero.
+    pub fn checked_div(&self, rhs: RelayWeight) -> Option<f64> {
+        if rhs.0 == 0 {
+            None
+        } else {
+            Some((self.0 as f64) / (rhs.0 as f64))
+        }
+    }
+
+    /// Compute a ratio `frac` of this weight.
+    ///
+    /// Return None if frac is less than zero, since negative weights
+    /// are impossible.
+    pub fn ratio(&self, frac: f64) -> Option<RelayWeight> {
+        let product = (self.0 as f64) * frac;
+        if product >= 0.0 && product.is_finite() {
+            Some(RelayWeight(product as u64))
+        } else {
+            None
+        }
+    }
+}
+
 /// A view of the Tor directory, suitable for use in building
 /// circuits.
 ///
@@ -694,6 +738,46 @@ impl NetDir {
             Ok(iter) => iter.map(Relay::clone).collect(),
         }
     }
+
+    /// Compute the weight with which `relay` will be selected for a given
+    /// `role`.
+    pub fn relay_weight<'a>(&'a self, relay: &Relay<'a>, role: WeightRole) -> RelayWeight {
+        RelayWeight(self.weights.weight_rs_for_role(relay.rs, role))
+    }
+
+    /// Compute the total weight with which any relay matching `usable`
+    /// will be selected for a given `role`.
+    ///
+    /// Note: because this function is used to assess the total
+    /// properties of the consensus, the `usable` predicate takes a
+    /// [`RouterStatus`] rather than a [`Relay`].
+    pub fn total_weight<P>(&self, role: WeightRole, usable: P) -> RelayWeight
+    where
+        P: Fn(&netstatus::MdConsensusRouterStatus) -> bool,
+    {
+        self.all_relays()
+            .filter_map(|unchecked| {
+                if usable(unchecked.rs) {
+                    Some(RelayWeight(
+                        self.weights.weight_rs_for_role(unchecked.rs, role),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .sum()
+    }
+
+    /// Compute the weight with which a relay with ID `rsa_id` would be
+    /// selected for a given `role`.
+    ///
+    /// Note that weight returned by this function assumes that the
+    /// relay with that ID is actually usable; if it isn't usable,
+    /// then other weight-related functions will call its weight zero.
+    pub fn weight_by_rsa_id(&self, rsa_id: &RsaIdentity, role: WeightRole) -> Option<RelayWeight> {
+        self.by_rsa_id_unchecked(rsa_id)
+            .map(|unchecked| RelayWeight(self.weights.weight_rs_for_role(unchecked.rs, role)))
+    }
 }
 
 impl MdReceiver for NetDir {
@@ -765,6 +849,10 @@ impl<'a> Relay<'a> {
                 .rs
                 .protovers()
                 .supports_known_subver(ProtoKind::DirCache, 2)
+    }
+    /// Return true if this relay is marked as usable as a new Guard node.
+    pub fn is_flagged_guard(&self) -> bool {
+        self.rs.is_flagged_guard()
     }
     /// Return true if both relays are in the same subnet, as configured by
     /// `subnet_config`.
@@ -1327,5 +1415,45 @@ mod test {
             netdir.id_pair_listed(&[15; 32].into(), &[99; 20].into()),
             Some(false)
         );
+    }
+
+    #[test]
+    fn weight_type() {
+        let r0 = RelayWeight(0);
+        let r100 = RelayWeight(100);
+        let r200 = RelayWeight(200);
+        let r300 = RelayWeight(300);
+        assert_eq!(r100 + r200, r300);
+        assert_eq!(r100.checked_div(r200), Some(0.5));
+        assert!(r100.checked_div(r0).is_none());
+        assert_eq!(r200.ratio(0.5), Some(r100));
+        assert!(r200.ratio(-1.0).is_none());
+    }
+
+    #[test]
+    fn weight_accessors() {
+        // Make a netdir that omits the microdescriptor for 0xDDDDDD...
+        let netdir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
+
+        let g_total = netdir.total_weight(WeightRole::Guard, |rs| rs.is_flagged_guard());
+        // This is just the total guard weight, since all our Wxy = 1.
+        assert_eq!(g_total, RelayWeight(110_000));
+
+        let g_total = netdir.total_weight(WeightRole::Guard, |_| false);
+        assert_eq!(g_total, RelayWeight(0));
+
+        let relay = netdir.by_id(&[35; 32].into()).unwrap();
+        assert!(relay.is_flagged_guard());
+        let w = netdir.relay_weight(&relay, WeightRole::Guard);
+        assert_eq!(w, RelayWeight(6_000));
+
+        let w = netdir
+            .weight_by_rsa_id(&[33; 20].into(), WeightRole::Guard)
+            .unwrap();
+        assert_eq!(w, RelayWeight(4_000));
+
+        assert!(netdir
+            .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
+            .is_none());
     }
 }

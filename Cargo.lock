@@ -2636,6 +2636,7 @@ name = "tor-netdir"
 version = "0.0.0"
 dependencies = [
  "derive_builder",
+ "derive_more",
  "hex",
  "hex-literal",
  "rand 0.8.4",
