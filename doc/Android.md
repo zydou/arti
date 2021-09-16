@@ -3,6 +3,8 @@
 ## Limitations
 At the moment of writing this guide, Arti does not have a stable Rust API yet. For that reason, no proper bindings are provided.
 You'll need to write these bindings yourself using the Java Native Interface.
+(If this doesn't sound like something you can do, you might be better off
+waiting until Arti is more stable.)
 
 There are also rough edges, which will hopefully get polished over time. Most of these should be explained below.
 
@@ -149,3 +151,6 @@ If your code can panic, you should use `catch_unwind` to capture it before it re
 ### Async and Java
 Arti relies a lot on rust futures. There is no easy way to use these futures from Java. The easiest ways is probably to block on futures
 if you are okay with it. Otherwise you have to pass callbacks from Java to Rust, and make so they are called when the future completes.
+
+Eventually, Arti will provide a set of blocking APIs for use for embedding;
+please get in touch if you want to help design them.
