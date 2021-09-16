@@ -443,7 +443,7 @@ impl NetDir {
     /// (Does not return unusable relays.)
     ///
     /// Note that if a microdescriptor is subsequently added for a relay
-    /// with this ID, the ID may be come usable.
+    /// with this ID, the ID may become usable.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     pub fn by_id(&self, id: &Ed25519Identity) -> Option<Relay<'_>> {
         let rs_idx = self.rs_idx_by_ed.get(id)?;
@@ -452,6 +452,17 @@ impl NetDir {
         let relay = self.relay_from_rs(rs).into_relay()?;
         assert_eq!(id, relay.id());
         Some(relay)
+    }
+
+    /// Return a relay matching a given Ed25519 identity and RSA identity,
+    /// if we have a useable relay with _both_ keys.
+    ///
+    /// (Does not return unusable relays.)
+    ///
+    /// Note that if a microdescriptor is subsequently added for a relay
+    /// with this ID, the ID may become usable.
+    pub fn by_id_pair(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
+        self.by_id(ed_id).filter(|r| r.rs.rsa_identity() == rsa_id)
     }
 
     /// Return a (possibly unusable) relay with a given RSA identity.
@@ -1242,5 +1253,14 @@ mod test {
         let r = netdir.by_rsa_id_unchecked(&[13; 20].into()).unwrap();
         assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
         assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
+
+        use tor_linkspec::ChanTarget;
+        let r = netdir.by_id_pair(&[13; 32].into(), &[13; 20].into());
+        assert!(r.is_none());
+        let r = netdir
+            .by_id_pair(&[14; 32].into(), &[14; 20].into())
+            .unwrap();
+        assert_eq!(r.rsa_identity(), &[14; 20].into());
+        assert_eq!(r.ed_identity(), &[14; 32].into());
     }
 }
