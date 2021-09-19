@@ -32,7 +32,6 @@ base64 = "0.13.0"
 chrono = "0.4.19"
 derive_builder = "0.10.2"
 digest = "0.9.0"
-directories = "3.0.1"
 futures = "0.3.13"
 fslock = { version = "0.1.7", features=["multilock"] }
 hex = "0.4.3"
