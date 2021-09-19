@@ -6,3 +6,7 @@
 *~
 .#*
 \#*\#
+.cargo
+/arti-linux
+/arti-windows.exe
+/arti-macos
