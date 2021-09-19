@@ -52,7 +52,11 @@ build-repro:
     paths:
       - arti-linux
       - arti-windows.exe
+      - arti-macos
     expire_in: 1 day
+  cache:
+    paths:
+      - osxcross/target
   tags:
     - TPA
     - amd64
