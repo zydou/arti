@@ -32,9 +32,6 @@ ln -s /dev/shm/registry /usr/local/cargo/registry/src
 apk add --no-cache musl-dev perl make git mingw-w64-gcc
 rustup target add x86_64-pc-windows-gnu
 
-## bring back the Cargo.lock where dependencies version are strictly defined
-mv misc/Cargo.lock Cargo.lock
-
 ## Build targeting x86_64-unknown-linux-musl to get a static binary
 ## feature "static" enable compiling some C dependencies instead of linking
 ## to system libraries. It is required to get a well behaving result.

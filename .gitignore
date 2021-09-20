@@ -3,7 +3,6 @@
 /crates/*/target/
 /crates/*/fuzz/target/
 /crates/*/fuzz/Cargo.lock
-/Cargo.lock
 *~
 .#*
 \#*\#
