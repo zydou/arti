@@ -12,6 +12,21 @@ if [ $# -eq 0 ]; then
 	echo usage : "$0" '<linux|windows|macos...>'
 	exit 1
 fi
+linux=""
+windows=""
+macos=""
+while [ "$#" -ne 0 ]; do
+	case "$1" in
+	linux)   linux=1;;
+	windows) windows=1;;
+	macos)   macos=1;;
+	*)
+		echo "unknown target : $1" >&2
+		exit 1;;
+	esac
+	shift
+done
+
 here=$(pwd)
 
 ## fix the target architecture to get reproducible builds
@@ -33,72 +48,56 @@ mkdir -p /dev/shm/registry /usr/local/cargo/registry
 ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
 ## add missing dependencies
-apk add --no-cache perl make git musl-dev
-for target in "$@"; do
-	case "$target" in
-	linux)
-		## no additional dependancies specifically for linux
+apk add perl make git musl-dev
+if [ -n "$linux" ]; then
+	## no additional dependancies specifically for linux
 
-		## Build targeting x86_64-unknown-linux-musl to get a static binary
-		## feature "static" enable compiling some C dependencies instead of linking
-		## to system libraries. It is required to get a well behaving result.
-		cargo build -p arti --target x86_64-unknown-linux-musl --release --features static
-		mv /arti/target/x86_64-unknown-linux-musl/release/arti "$here"/arti-linux
-		;;
-	windows)
-		apk add --no-cache mingw-w64-gcc
-		rustup target add x86_64-pc-windows-gnu
+	## Build targeting x86_64-unknown-linux-musl to get a static binary
+	## feature "static" enable compiling some C dependencies instead of linking
+	## to system libraries. It is required to get a well behaving result.
+	cargo build -p arti --target x86_64-unknown-linux-musl --release --features static
+	mv /arti/target/x86_64-unknown-linux-musl/release/arti "$here"/arti-linux
+fi
+if [ -n "$windows" ]; then
+	apk add mingw-w64-gcc
+	rustup target add x86_64-pc-windows-gnu
 
-		## Same tweaks as for Linux, plus don't insert compilation timestamp into PE headers
-		RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,--no-insert-timestamp" \
-				cargo build -p arti --target x86_64-pc-windows-gnu --release --features static
-		mv /arti/target/x86_64-pc-windows-gnu/release/arti.exe "$here"/arti-windows.exe
-		;;
-	macos)
-		apk add bash cmake patch clang libc-dev libxml2-dev openssl-dev fts-dev build-base python3 bsd-compat-headers xz
-		rustup target add x86_64-apple-darwin
+	## Same tweaks as for Linux, plus don't insert compilation timestamp into PE headers
+	RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,--no-insert-timestamp" \
+		cargo build -p arti --target x86_64-pc-windows-gnu --release --features static
+	mv /arti/target/x86_64-pc-windows-gnu/release/arti.exe "$here"/arti-windows.exe
+fi
+if [ -n "$macos" ]; then
+	apk add bash cmake patch clang libc-dev libxml2-dev openssl-dev fts-dev build-base python3 bsd-compat-headers xz
+	rustup target add x86_64-apple-darwin
 
-		mkdir -p .cargo
-		cat > .cargo/config << EOF
+	mkdir -p .cargo
+	cat > .cargo/config << EOF
 [target.x86_64-apple-darwin]
 linker = "x86_64-apple-darwin15-clang"
 ar = "x86_64-apple-darwin15-ar"
 EOF
-		## don't compile clang if it's already here (CI cache?)
-		if [ ! -x "/arti/osxcross/target/bin/o64-clang" ]; then
-			git clone https://github.com/tpoechtrager/osxcross
-			cd osxcross
-			wget -nc https://s3.dockerproject.org/darwin/v2/MacOSX10.11.sdk.tar.xz -O tarballs/MacOSX10.11.sdk.tar.xz
-			UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
-			cp -r /arti/osxcross "$here"
-		fi
 
-		PATH="/arti/osxcross/target/bin:$PATH" \
-				CC=o64-clang \
-				CXX=o64-clang++ \
-				cargo build -p arti --target x86_64-apple-darwin --release --features static
-		mv /arti/target/x86_64-apple-darwin/release/arti "$here"/arti-macos
-		;;
-	*)
-		echo "unknown target : $target" >&2
-		exit 1
-		;;
-	esac
-done
+	## don't compile clang if it's already here (CI cache?)
+	if [ ! -x "/arti/osxcross/target/bin/o64-clang" ]; then
+		git clone https://github.com/tpoechtrager/osxcross
+		cd osxcross
+		wget -nc https://s3.dockerproject.org/darwin/v2/MacOSX10.11.sdk.tar.xz -O tarballs/MacOSX10.11.sdk.tar.xz
+		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
+		# copy it to gitlab build-dir so it may get cached
+		cp -r /arti/osxcross "$here"
+	fi
+
+	PATH="/arti/osxcross/target/bin:$PATH" \
+		CC=o64-clang \
+		CXX=o64-clang++ \
+		cargo build -p arti --target x86_64-apple-darwin --release --features static
+	mv /arti/target/x86_64-apple-darwin/release/arti "$here"/arti-macos
+fi
 
 set +x
 echo "branch       :" "$(git rev-parse --abbrev-ref HEAD)"
 echo "commit       :" "$(git rev-parse HEAD)"
-for target in "$@"; do
-	case "$target" in
-	linux)
-		echo "Linux hash   :" "$(sha256sum "$here"/arti-linux       | cut -d " " -f 1)"
-		;;
-	windows)
-		echo "Windows hash :" "$(sha256sum "$here"/arti-windows.exe | cut -d " " -f 1)"
-		;;
-	macos)
-		echo "MacOS hash   :" "$(sha256sum "$here"/arti-macos       | cut -d " " -f 1)"
-		;;
-	esac
-done
+[ -z "$linux" ]   || echo "Linux hash   :" "$(sha256sum "$here"/arti-linux       | cut -d " " -f 1)"
+[ -z "$windows" ] || echo "Windows hash :" "$(sha256sum "$here"/arti-windows.exe | cut -d " " -f 1)"
+[ -z "$macos" ]   || echo "MacOS hash   :" "$(sha256sum "$here"/arti-macos       | cut -d " " -f 1)"
