@@ -18,5 +18,5 @@ sanitize-filename = "0.3.0"
 thiserror = "1.0.24"
 
 [dev-dependencies]
-dirs = "3.0.1"
+dirs = "4.0.0"
 tempfile = "3.2.0"
