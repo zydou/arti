@@ -217,7 +217,7 @@ pub struct NetParameters {
     pub guard_max_sample_size: BoundedInt32<1, {i32::MAX}> = (60)
         from "guard-max-sample-size",
     /// Largest fraction of guard bandwidth on the network that a client
-    /// should try to remain in a sample of possibleguards.
+    /// should try to remain in a sample of possible guards.
     pub guard_max_sample_threshold: Percentage<BoundedInt32<1,100>> = (20)
         from "guard-max-sample-threshold",
 
