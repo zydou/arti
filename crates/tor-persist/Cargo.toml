@@ -11,7 +11,7 @@ categories = [ "config" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-fslock = { version = "0.1.7", features=["multilock"] }
+fslock = { version = "0.1.8", features=["multilock"] }
 serde = { version = "1.0.124" }
 toml = "0.5.8"
 sanitize-filename = "0.3.0"

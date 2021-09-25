@@ -905,9 +905,9 @@ dependencies = [
 
 [[package]]
 name = "fslock"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbc585f4fe7227b37ef0216444c87ca8ab6051622e4e2bc75d4bed4ea5106148"
+checksum = "57eafdd0c16f57161105ae1b98a1238f97645f2f588438b2949c99a2af9616bf"
 dependencies = [
  "libc",
  "once_cell",

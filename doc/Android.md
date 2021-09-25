@@ -113,18 +113,11 @@ It's also implementing most of the tips below.
 
 
 ### Platform support
-One of Arti dependancies does not compile on 32bit Android (x86 and arm). While not ideal, it's possible to patch this dependancy to make it work,
-by adding the following lines in your Cargo.toml.
-```toml
-[patch.crates-io]
-fslock = { path = "https://github.com/trinity-1686a/fslock/", rev="a0bd139a0392368ad0f05242f640c6ca7554c27f" }
-```
-
 By default, Arti run only on Android 7.0 and above. Versions under Android 7.0 will get a runtime exception due to a missing symbol.
 If you want to support Android 5.0 and above, it is possible to implement lockf yourself, as it is a rather simple libc function.
 It might be possible to support even lower Android version by implementing more of these methods (at least create\_epoll1). This has
 not been explored, as it seems to be harder, and with less possible gain.
-An implementation of lockf is part of the sample project linked above, its a Rust translation of Musl implementation of this function.
+An implementation of lockf is part of the sample project linked above, it's a Rust translation of Musl implementation of this function.
 
 ### Debugging and stability
 Arti log events to help debugging. By default these logs are not available on Android.
