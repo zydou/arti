@@ -1,5 +1,6 @@
 stages:
   - build
+  - test
 
 variables:
   # We don't need Husky to install the Git hooks for CI.
@@ -18,6 +19,10 @@ rust-latest:
     - cargo audit -D warnings
   tags:
     - amd64
+  artifacts:
+    paths:
+      - target/x86_64-unknown-linux-gnu/debug/arti
+    expire_in: 1 hours
 
 rust-latest-async-std:
   stage: build
@@ -59,4 +64,23 @@ build-repro:
       - osxcross/target
   tags:
     - TPA
+    - amd64
+
+
+integration:
+  stage: test
+  image: debian:stable-slim
+  script:
+    - apt update
+    - apt install -y tor git python3 curl
+    - git clone https://gitlab.torproject.org/tpo/core/chutney
+    - ./chutney/chutney configure chutney/networks/basic
+    - ./chutney/chutney start chutney/networks/basic
+    - CHUTNEY_START_TIME=180 ./chutney/chutney wait_for_bootstrap chutney/networks/basic
+    - ./chutney/chutney verify chutney/networks/basic
+    - ./target/x86_64-unknown-linux-gnu/debug/arti -f chutney/net/nodes/arti.toml & sleep 5
+    - curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+    - kill -s INT %%; wait
+    - ./chutney/chutney stop chutney/networks/basic
+  tags:
     - amd64
