@@ -183,6 +183,34 @@ impl<R: Runtime> TorClient<R> {
         })
     }
 
+    /// Validate if we are an valid hostname or not
+    fn is_valid_hostname(hostname: &str) -> bool {
+        /// Check if we have the valid characters for a hostname
+        fn is_valid_char(byte: u8) -> bool {
+            ((b'a'..=b'z').contains(&byte))
+                || ((b'A'..=b'Z').contains(&byte))
+                || ((b'0'..=b'9').contains(&byte))
+                || byte == b'-'
+                || byte == b'.'
+        }
+
+        !(hostname.bytes().any(|byte| !is_valid_char(byte))
+            || hostname.ends_with('-')
+            || hostname.starts_with('-')
+            || hostname.ends_with('.')
+            || hostname.starts_with('.')
+            || hostname.is_empty())
+    }
+
+    /// Check if the IP is internal
+    fn is_internal_ip(addr: &IpAddr) -> bool {
+        // TODO: Use is_global() when it is stable
+        match addr {
+            IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
+            IpAddr::V6(ip) => ip.is_loopback(),
+        }
+    }
+
     /// Launch an anonymized connection to the provided address and
     /// port over the Tor network.
     ///
@@ -196,6 +224,14 @@ impl<R: Runtime> TorClient<R> {
     ) -> Result<DataStream> {
         if addr.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
+        }
+        if !Self::is_valid_hostname(addr) || addr.to_lowercase().eq("localhost") {
+            return Err(anyhow!("Rejecting hostname as invalid."));
+        }
+        if let Ok(a) = IpAddr::from_str(addr) {
+            if Self::is_internal_ip(&a) {
+                return Err(anyhow!("Rejecting IP as internal."));
+            }
         }
 
         let flags = flags.unwrap_or_default();
@@ -225,6 +261,9 @@ impl<R: Runtime> TorClient<R> {
     ) -> Result<Vec<IpAddr>> {
         if hostname.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
+        }
+        if !Self::is_valid_hostname(hostname) || hostname.to_lowercase().eq("localhost") {
+            return Err(anyhow!("Rejecting hostname as invalid."));
         }
 
         let flags = flags.unwrap_or_default();
