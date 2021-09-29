@@ -228,6 +228,12 @@ impl RelayWeight {
     }
 }
 
+impl From<u64> for RelayWeight {
+    fn from(val: u64) -> Self {
+        RelayWeight(val)
+    }
+}
+
 /// A view of the Tor directory, suitable for use in building
 /// circuits.
 ///
