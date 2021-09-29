@@ -30,3 +30,4 @@ thiserror = "1.0.24"
 tracing = "0.1.26"
 
 [dev-dependencies]
+tor-netdir = { path="../tor-netdir", version="0.0.0", features=["testing"]}

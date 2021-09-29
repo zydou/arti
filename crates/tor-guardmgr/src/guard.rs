@@ -479,3 +479,298 @@ fn retry_interval(is_primary: bool, failing: Duration) -> Duration {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn crate_id() {
+        let id = CrateId::this_crate().unwrap();
+        assert_eq!(&id.crate_name, "tor-guardmgr");
+        dbg!(&id.version);
+
+        assert_eq!(Some(id.version.as_ref()), option_env!("CARGO_PKG_VERSION"));
+    }
+
+    fn basic_id() -> GuardId {
+        GuardId::new([13; 32].into(), [37; 20].into())
+    }
+    fn basic_guard() -> Guard {
+        let id = basic_id();
+        let ports = vec!["127.0.0.7:7777".parse().unwrap()];
+        let added = SystemTime::now();
+        Guard::new(id, ports, added)
+    }
+
+    #[test]
+    fn simple_accessors() {
+        let id = basic_id();
+        let g = basic_guard();
+
+        assert_eq!(g.guard_id(), &id);
+        assert_eq!(g.ed_identity(), &id.ed25519);
+        assert_eq!(g.rsa_identity(), &id.rsa);
+        assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
+        assert_eq!(g.reachable(), Reachable::Unknown);
+        assert_eq!(g.reachable(), Reachable::default());
+
+        use crate::GuardUsageBuilder;
+        let usage1 = GuardUsageBuilder::new()
+            .restriction(GuardRestriction::AvoidId([22; 32].into()))
+            .build()
+            .unwrap();
+        let usage2 = GuardUsageBuilder::new()
+            .restriction(GuardRestriction::AvoidId([13; 32].into()))
+            .build()
+            .unwrap();
+        let usage3 = GuardUsage::default();
+        assert!(g.conforms_to_usage(&usage1));
+        assert!(!g.conforms_to_usage(&usage2));
+        assert!(g.conforms_to_usage(&usage3));
+    }
+
+    #[test]
+    fn retry_interval_check() {
+        const MIN: Duration = Duration::from_secs(60);
+        const HOUR: Duration = Duration::from_secs(60 * 60);
+        const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+
+        assert_eq!(retry_interval(true, MIN), 10 * MIN);
+        assert_eq!(retry_interval(true, 5 * MIN), 10 * MIN);
+        assert_eq!(retry_interval(true, 7 * HOUR), 90 * MIN);
+        assert_eq!(retry_interval(true, 24 * HOUR), 90 * MIN);
+        assert_eq!(retry_interval(true, 5 * DAY), 4 * HOUR);
+        assert_eq!(retry_interval(true, 100 * DAY), 9 * HOUR);
+
+        assert_eq!(retry_interval(false, MIN), HOUR);
+        assert_eq!(retry_interval(false, 5 * MIN), HOUR);
+        assert_eq!(retry_interval(false, 7 * HOUR), 4 * HOUR);
+        assert_eq!(retry_interval(false, 24 * HOUR), 4 * HOUR);
+        assert_eq!(retry_interval(false, 5 * DAY), 18 * HOUR);
+        assert_eq!(retry_interval(false, 100 * DAY), 36 * HOUR);
+    }
+
+    #[test]
+    fn record_attempt() {
+        let t1 = Instant::now() - Duration::from_secs(10);
+        let t2 = Instant::now() - Duration::from_secs(5);
+        let t3 = Instant::now();
+
+        let mut g = basic_guard();
+
+        assert!(g.last_tried_to_connect_at.is_none());
+        g.record_attempt(t1);
+        assert_eq!(g.last_tried_to_connect_at, Some(t1));
+        g.record_attempt(t3);
+        assert_eq!(g.last_tried_to_connect_at, Some(t3));
+        g.record_attempt(t2);
+        assert_eq!(g.last_tried_to_connect_at, Some(t3));
+    }
+
+    #[test]
+    fn record_failure() {
+        let t1 = Instant::now() - Duration::from_secs(10);
+        let t2 = Instant::now();
+
+        let mut g = basic_guard();
+        assert!(g.failing_since.is_none());
+        g.record_failure(t1, true);
+        assert_eq!(g.failing_since, Some(t1));
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+        assert_eq!(g.retry_at, Some(t1 + Duration::from_secs(600)));
+
+        g.record_failure(t2, true);
+        assert_eq!(g.failing_since, Some(t1));
+    }
+
+    #[test]
+    fn record_success() {
+        let t1 = Instant::now() - Duration::from_secs(10);
+        // has to be in the future, since the guard's "added_at" time is based on now.
+        let t2 = SystemTime::now() + Duration::from_secs(300 * 86400);
+        let t3 = Instant::now() + Duration::from_secs(310 * 86400);
+        let t4 = SystemTime::now() + Duration::from_secs(320 * 86400);
+
+        let mut g = basic_guard();
+        g.record_failure(t1, true);
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+
+        let conf = g.record_success(t2, &GuardParams::default());
+        assert_eq!(g.reachable(), Reachable::Reachable);
+        assert_eq!(conf, NewlyConfirmed::Yes);
+        assert!(g.retry_at.is_none());
+        assert!(g.failing_since.is_none());
+        assert!(g.confirmed_at.unwrap() <= t2);
+        assert!(g.confirmed_at.unwrap() >= t2 - Duration::from_secs(12 * 86400));
+        let confirmed_at_orig = g.confirmed_at;
+
+        g.record_failure(t3, true);
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+
+        let conf = g.record_success(t4, &GuardParams::default());
+        assert_eq!(conf, NewlyConfirmed::No);
+        assert_eq!(g.reachable(), Reachable::Reachable);
+        assert!(g.retry_at.is_none());
+        assert!(g.failing_since.is_none());
+        assert_eq!(g.confirmed_at, confirmed_at_orig);
+    }
+
+    #[test]
+    fn retry() {
+        let t1 = Instant::now();
+        let mut g = basic_guard();
+
+        g.record_failure(t1, true);
+        assert!(g.retry_at.is_some());
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+
+        // Not yet retriable.
+        g.consider_retry(t1);
+        assert!(g.retry_at.is_some());
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+
+        // Not retriable right before the retry time.
+        g.consider_retry(g.retry_at.unwrap() - Duration::from_secs(1));
+        assert!(g.retry_at.is_some());
+        assert_eq!(g.reachable(), Reachable::Unreachable);
+
+        // Retriable right after the retry time.
+        g.consider_retry(g.retry_at.unwrap() + Duration::from_secs(1));
+        assert!(g.retry_at.is_none());
+        assert_eq!(g.reachable(), Reachable::Unknown);
+        assert_eq!(g.failing_since, Some(t1));
+    }
+
+    #[test]
+    fn expiration() {
+        const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+        let params = GuardParams::default();
+        let now = SystemTime::now();
+
+        let g = basic_guard();
+        assert!(!g.is_expired(&params, now));
+        assert!(!g.is_expired(&params, now + 10 * DAY));
+        assert!(!g.is_expired(&params, now + 25 * DAY));
+        assert!(!g.is_expired(&params, now + 70 * DAY));
+        assert!(g.is_expired(&params, now + 200 * DAY)); // lifetime_unconfirmed.
+
+        let mut g = basic_guard();
+        let _ = g.record_success(now, &params);
+        assert!(!g.is_expired(&params, now));
+        assert!(!g.is_expired(&params, now + 10 * DAY));
+        assert!(!g.is_expired(&params, now + 25 * DAY));
+        assert!(g.is_expired(&params, now + 70 * DAY)); // lifetime_confirmed.
+
+        let mut g = basic_guard();
+        g.mark_unlisted(now);
+        assert!(!g.is_expired(&params, now));
+        assert!(!g.is_expired(&params, now + 10 * DAY));
+        assert!(g.is_expired(&params, now + 25 * DAY)); // lifetime_unlisted
+    }
+
+    #[test]
+    fn netdir_integration() {
+        use tor_netdir::testnet;
+        let netdir = testnet::construct_netdir()
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
+        let params = GuardParams::default();
+        let now = SystemTime::now();
+
+        // Construct a guard from a relay from the netdir.
+        let relay22 = netdir.by_id(&[22; 32].into()).unwrap();
+        let guard22 = Guard::from_relay(&relay22, now, &params);
+        assert_eq!(guard22.ed_identity(), relay22.ed_identity());
+        assert_eq!(guard22.rsa_identity(), relay22.rsa_identity());
+        assert!(Some(guard22.added_at) <= Some(now));
+
+        // Can we still get the relay back?
+        let r = guard22.get_relay(&netdir).unwrap();
+        assert_eq!(r.ed_identity(), relay22.ed_identity());
+
+        // Can we check on the guard's weight?
+        let w = guard22.get_weight(&netdir).unwrap();
+        assert_eq!(w, 3000.into());
+
+        // Now try a guard that isn't in the netdir.
+        let guard255 = Guard::new(
+            GuardId::new([255; 32].into(), [255; 20].into()),
+            vec![],
+            now,
+        );
+        assert!(guard255.get_relay(&netdir).is_none());
+        assert!(guard255.get_weight(&netdir).is_none());
+    }
+
+    #[test]
+    fn update_from_netdir() {
+        use tor_netdir::testnet;
+        let netdir = testnet::construct_netdir()
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
+        // Same as above but omit [22]
+        let netdir2 = testnet::construct_custom_netdir(|idx, mut node| {
+            if idx == 22 {
+                node.omit_rs = true;
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        //let params = GuardParams::default();
+        let now = SystemTime::now();
+
+        // Try a guard that isn't in the netdir at all.
+        let mut guard255 = Guard::new(
+            GuardId::new([255; 32].into(), [255; 20].into()),
+            vec!["8.8.8.8:53".parse().unwrap()],
+            now,
+        );
+        assert_eq!(guard255.unlisted_since, None);
+        guard255.update_from_netdir(&netdir);
+        assert_eq!(
+            guard255.unlisted_since,
+            Some(netdir.lifetime().valid_after())
+        );
+        assert!(!guard255.orports.is_empty());
+
+        // Try a guard that is in netdir, but not netdir2.
+        let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
+        let relay22 = guard22.get_relay(&netdir).unwrap();
+        guard22.update_from_netdir(&netdir);
+        assert_eq!(guard22.unlisted_since, None); // It's listed.
+        assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
+        guard22.update_from_netdir(&netdir2);
+        assert_eq!(
+            guard22.unlisted_since,
+            Some(netdir2.lifetime().valid_after())
+        );
+        assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
+    }
+
+    #[test]
+    fn pending() {
+        let mut g = basic_guard();
+        let t1 = Instant::now();
+        let t2 = t1 + Duration::from_secs(100);
+        let t3 = t1 + Duration::from_secs(200);
+
+        assert!(!g.exploratory_attempt_after(t1));
+        assert!(!g.exploratory_circ_pending());
+
+        g.note_exploratory_circ(true);
+        g.record_attempt(t2);
+        assert!(g.exploratory_circ_pending());
+        assert!(g.exploratory_attempt_after(t1));
+        assert!(!g.exploratory_attempt_after(t3));
+
+        g.note_exploratory_circ(false);
+        assert!(!g.exploratory_circ_pending());
+        assert!(!g.exploratory_attempt_after(t1));
+        assert!(!g.exploratory_attempt_after(t3));
+    }
+}
