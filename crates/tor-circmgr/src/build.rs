@@ -252,20 +252,20 @@ pub struct CircuitBuilder<R: Runtime> {
     path_config: crate::PathConfig,
     /// State-manager object to use in storing current state.
     #[allow(dead_code)]
-    storage: crate::state::DynStateMgr,
+    storage: crate::TimeoutStateHandle,
 }
 
 impl<R: Runtime> CircuitBuilder<R> {
     /// Construct a new [`CircuitBuilder`].
     // TODO: eventually I'd like to make this a public function, but
-    // DynStateMgr is private.
+    // TimeoutStateHandle is private.
     pub(crate) fn new(
         runtime: R,
         chanmgr: Arc<ChanMgr<R>>,
         path_config: crate::PathConfig,
-        storage: crate::state::DynStateMgr,
+        storage: crate::TimeoutStateHandle,
     ) -> Self {
-        let timeouts = match storage.load_timeout_data() {
+        let timeouts = match storage.load() {
             Ok(Some(v)) => ParetoTimeoutEstimator::from_state(v),
             Ok(None) => ParetoTimeoutEstimator::default(),
             Err(e) => {
@@ -287,7 +287,8 @@ impl<R: Runtime> CircuitBuilder<R> {
         // changed.
         let _ignore = self.storage.try_lock()?; // XXXX don't ignore.
         let state = self.builder.timeouts.build_state();
-        self.storage.save_timeout_data(&state)
+        self.storage.store(&state)?;
+        Ok(())
     }
 
     /// Reconfigure this builder using the latest set of network parameters.

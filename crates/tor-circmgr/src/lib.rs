@@ -69,7 +69,6 @@ mod err;
 mod impls;
 mod mgr;
 pub mod path;
-mod state;
 mod timeouts;
 mod usage;
 
@@ -85,6 +84,12 @@ use usage::TargetCircUsage;
 
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Type alias for dynamic StorageHandle that can handle our timeout state.
+type TimeoutStateHandle = tor_persist::DynStorageHandle<timeouts::pareto::ParetoTimeoutState>;
+
+/// Key used to load timeout state information.
+const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 
 /// Represents what we know about the Tor network.
 ///
@@ -148,12 +153,8 @@ pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
 
-    /// A state manager for recording timeout history and guard information.
-    ///
-    /// (Right now there is only one implementation of CircStateMgr, but I
-    /// think we'll want to have more before too much time is up. In any
-    /// case I don't want to parameterize on this type.)
-    storage: state::DynStateMgr,
+    /// A handle to the state manager for recording timeout history.
+    storage: TimeoutStateHandle,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -173,7 +174,7 @@ impl<R: Runtime> CircMgr<R> {
             circuit_timing,
         } = config;
 
-        let storage: state::DynStateMgr = Arc::new(storage);
+        let storage = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
         let builder =
             build::CircuitBuilder::new(runtime.clone(), chanmgr, path_config, Arc::clone(&storage));
