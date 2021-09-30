@@ -38,6 +38,8 @@
 
 mod fs;
 mod handle;
+#[cfg(feature = "testing")]
+mod testing;
 
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
@@ -47,6 +49,8 @@ type Result<T> = std::result::Result<T, crate::Error>;
 
 pub use fs::FsStateMgr;
 pub use handle::{DynStorageHandle, StorageHandle};
+#[cfg(feature = "testing")]
+pub use testing::TestingStateMgr;
 
 /// An object that can manage persistent state.
 ///
