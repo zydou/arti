@@ -36,6 +36,8 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+mod handle;
+
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -45,6 +47,8 @@ use std::os::unix::fs::DirBuilderExt;
 
 /// Wrapper type for Results returned from this crate.
 type Result<T> = std::result::Result<T, crate::Error>;
+
+pub use handle::{DynStorageHandle, StorageHandle};
 
 /// An object that can manage persistent state.
 ///
@@ -81,6 +85,16 @@ pub trait StateMgr {
     /// This function will return `Ok(true)` if we now hold the lock,
     /// and `Ok(false)` if some other process holds the lock.
     fn try_lock(&self) -> Result<bool>;
+
+    /// Make a new [`StorageHandle`] to store values of particular type
+    /// at a particular key.
+    fn create_handle<T>(self, key: impl Into<String>) -> DynStorageHandle<T>
+    where
+        Self: Send + Sync + Sized + 'static,
+        T: Serialize + DeserializeOwned + 'static,
+    {
+        Arc::new(handle::StorageHandleImpl::new(self, key.into()))
+    }
 }
 
 /// Implementation of StateMgr that stores state as Toml files on disk.
