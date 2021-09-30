@@ -163,4 +163,38 @@ mod test {
         assert!(mgr.try_lock().unwrap()); // *can* get the lock.
         assert!(mgr.can_store()); // can't store.
     }
+
+    #[test]
+    fn typesafe_handles() {
+        use crate::DynStorageHandle;
+        let mgr = TestingStateMgr::new();
+
+        let h1: DynStorageHandle<Ex1> = mgr.clone().create_handle("foo");
+        let h2: DynStorageHandle<Ex2> = mgr.clone().create_handle("bar");
+        let h3: DynStorageHandle<Ex2> = mgr.create_handle("baz");
+
+        let v1 = Ex1 { v1: 1, v2: 2 };
+        let s1 = Ex2 {
+            s1: "aaa".into(),
+            s2: "bbb".into(),
+        };
+        let s2 = Ex2 {
+            s1: "jj".into(),
+            s2: "yrfmstbyes".into(),
+        };
+
+        assert!(matches!(h1.store(&v1), Err(Error::NoLock)));
+        assert!(h1.try_lock().unwrap());
+        assert!(h1.can_store());
+        assert!(h1.store(&v1).is_ok());
+
+        assert!(h2.can_store());
+        assert!(h2.store(&s1).is_ok());
+        assert!(h3.load().unwrap().is_none());
+        assert!(h3.store(&s2).is_ok());
+
+        assert_eq!(h1.load().unwrap(), Some(v1));
+        assert_eq!(h2.load().unwrap(), Some(s1));
+        assert_eq!(h3.load().unwrap(), Some(s2));
+    }
 }
