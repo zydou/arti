@@ -27,7 +27,13 @@ pub trait StorageHandle<T: Serialize + DeserializeOwned> {
     fn try_lock(&self) -> Result<bool>;
 }
 
-/// Type wrapper for a reference-counted "fat pointer" to a [`StorageHandle`].
+/// Type wrapper for a reference-counted `dyn` [`StorageHandle`].
+///
+/// Most users of this crate will want to access storage via a handle
+/// of this kind, so that they don't have to parameteize over
+/// [`StateMgr`].  The cost of using a fat pointer here should be
+/// pretty small compared to the overhead of persistent storage in
+/// general.
 pub type DynStorageHandle<T> = Arc<dyn StorageHandle<T> + Send + Sync + 'static>;
 
 /// Concrete implementation of [`StorageHandle`].
