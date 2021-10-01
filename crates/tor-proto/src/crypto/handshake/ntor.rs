@@ -183,11 +183,15 @@ where
     let (keygen, authcode) =
         ntor_derive(&xy, &xb, &state.relay_public, &state.my_public, &their_pk);
 
-    if authcode != auth {
-        return Err(Error::BadHandshake);
-    }
+    let okay = authcode.ct_eq(&auth)
+        & ct::bool_to_choice(xy.was_contributory())
+        & ct::bool_to_choice(xb.was_contributory());
 
-    Ok(keygen)
+    if okay.into() {
+        Ok(keygen)
+    } else {
+        Err(Error::BadHandshake)
+    }
 }
 
 /// helper: compute a key generator and an authentication code from a set
@@ -293,12 +297,20 @@ where
     let xy = ephem.diffie_hellman(&their_pk);
     let xb = keypair.sk.diffie_hellman(&their_pk);
 
+    let okay =
+        ct::bool_to_choice(xy.was_contributory()) & ct::bool_to_choice(xb.was_contributory());
+
     let (keygen, authcode) = ntor_derive(&xy, &xb, &keypair.pk, &their_pk, &ephem_pub);
 
     let mut reply: Vec<u8> = Vec::new();
     reply.write(&ephem_pub);
     reply.write_and_consume(authcode);
-    Ok((keygen, reply))
+
+    if okay.into() {
+        Ok((keygen, reply))
+    } else {
+        Err(Error::BadHandshake)
+    }
 }
 
 #[cfg(test)]

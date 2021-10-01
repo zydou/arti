@@ -394,22 +394,27 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
         mac.write(client_msg);
         mac.take().finalize().into()
     };
-    // These are ephemeral, and so non-CT comparison is safe, I believe.
-    if computed_mac != msg_mac {
-        return Err(Error::BadHandshake);
-    }
+    let y_pk: curve25519::PublicKey = (secret_key_y).into();
+    let xy = secret_key_y.diffie_hellman(&client_pk);
+
+    let mut okay = computed_mac.ct_eq(&msg_mac)
+        & ct::bool_to_choice(xy.was_contributory())
+        & ct::bool_to_choice(xb.was_contributory());
+
     let plaintext_msg = decrypt(&enc_key, client_msg);
 
     // Handle the message and decide how to reply.
-    let reply = match reply_fn.reply(&plaintext_msg) {
-        Some(r) => r,
-        None => return Err(Error::BadHandshake),
-    };
+    let reply = reply_fn.reply(&plaintext_msg);
 
-    // If we reach this point, we are actually replying!
-    let y_pk: curve25519::PublicKey = (secret_key_y).into();
+    // It's not exactly constant time to use is_some() and
+    // unwrap_or_else() here, but that should be somewhat
+    // hidden by the rest of the computation.
+    okay &= ct::bool_to_choice(reply.is_some());
+    let reply = reply.unwrap_or_else(Vec::new);
 
-    let xy = secret_key_y.diffie_hellman(&client_pk);
+    // If we reach this point, we are actually replying, or pretending
+    // that we're going to reply.
+
     let secret_input = {
         let mut si = Zeroizing::new(Vec::new());
         si.write(&xy);
@@ -460,7 +465,11 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
         reply
     };
 
-    Ok((reply, keystream))
+    if okay.into() {
+        Ok((reply, keystream))
+    } else {
+        Err(Error::BadHandshake)
+    }
 }
 
 /// Finalize the handshake on the client side.
@@ -512,9 +521,9 @@ fn client_handshake_ntor_v3_part2(
         auth.take().finalize().into()
     };
 
-    if computed_auth != auth {
-        return Err(Error::BadHandshake);
-    }
+    let okay = computed_auth.ct_eq(&auth)
+        & ct::bool_to_choice(yx.was_contributory())
+        & ct::bool_to_choice(state.shared_secret.was_contributory());
 
     let (enc_key, keystream) = {
         use digest::{ExtendableOutput, XofReader};
@@ -528,7 +537,11 @@ fn client_handshake_ntor_v3_part2(
     };
     let server_reply = decrypt(&enc_key, encrypted_msg);
 
-    Ok((server_reply, keystream))
+    if okay.into() {
+        Ok((server_reply, keystream))
+    } else {
+        Err(Error::BadHandshake)
+    }
 }
 
 /*
