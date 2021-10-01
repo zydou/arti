@@ -36,6 +36,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+#[cfg(not(target_arch = "wasm32"))]
 mod fs;
 mod handle;
 #[cfg(feature = "testing")]
@@ -47,6 +48,7 @@ use std::sync::Arc;
 /// Wrapper type for Results returned from this crate.
 type Result<T> = std::result::Result<T, crate::Error>;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub use fs::FsStateMgr;
 pub use handle::{DynStorageHandle, StorageHandle};
 #[cfg(feature = "testing")]
