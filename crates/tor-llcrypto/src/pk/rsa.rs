@@ -19,7 +19,7 @@
 use arrayref::array_ref;
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey};
 use std::fmt;
-use subtle::*;
+use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroize;
 
 /// How many bytes are in an "RSA ID"?  (This is a legacy tor
@@ -40,9 +40,15 @@ pub struct RsaIdentity {
     id: [u8; RSA_ID_LEN],
 }
 
+impl ConstantTimeEq for RsaIdentity {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.id.ct_eq(&other.id)
+    }
+}
+
 impl PartialEq<RsaIdentity> for RsaIdentity {
     fn eq(&self, rhs: &RsaIdentity) -> bool {
-        self.id.ct_eq(&rhs.id).unwrap_u8() == 1
+        self.ct_eq(rhs).unwrap_u8() == 1
     }
 }
 

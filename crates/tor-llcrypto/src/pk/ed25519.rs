@@ -12,7 +12,7 @@
 use arrayref::array_ref;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display, Formatter};
-use subtle::*; // for ct_eq
+use subtle::{Choice, ConstantTimeEq};
 
 pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature};
 
@@ -101,9 +101,15 @@ impl TryFrom<Ed25519Identity> for PublicKey {
     }
 }
 
+impl ConstantTimeEq for Ed25519Identity {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.id.ct_eq(&other.id)
+    }
+}
+
 impl PartialEq<Ed25519Identity> for Ed25519Identity {
     fn eq(&self, rhs: &Ed25519Identity) -> bool {
-        self.id.ct_eq(&rhs.id).unwrap_u8() == 1
+        self.ct_eq(rhs).unwrap_u8() == 1
     }
 }
 
