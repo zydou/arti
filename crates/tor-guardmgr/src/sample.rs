@@ -121,6 +121,7 @@ impl GuardSet {
         self.guards
             .retain(|id, g| g.guard_id() == id && sample_set.contains(id));
         let guards = &self.guards; // avoid borrow issues
+                                   // TODO: We should potentially de-duplicate these.
         self.sample.retain(|id| guards.contains_key(id));
         self.confirmed.retain(|id| guards.contains_key(id));
         self.primary.retain(|id| guards.contains_key(id));
@@ -133,7 +134,6 @@ impl GuardSet {
         let len_pre = self.inner_lengths();
         self.fix_consistency();
         let len_post = self.inner_lengths();
-
         assert_eq!(len_pre, len_post);
     }
 
@@ -687,4 +687,333 @@ pub enum PickGuardError {
     /// We had no members in the current sample.
     #[error("The current sample is empty")]
     SampleIsEmpty,
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use std::time::Duration;
+
+    fn netdir() -> NetDir {
+        use tor_netdir::testnet;
+        testnet::construct_netdir()
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap()
+    }
+
+    #[test]
+    fn sample_test() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            max_sample_bw_fraction: 1.0,
+            ..GuardParams::default()
+        };
+
+        let mut samples: Vec<HashSet<GuardId>> = Vec::new();
+        for _ in 0..3 {
+            let mut guards = GuardSet::new();
+            guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+            assert_eq!(guards.guards.len(), params.min_filtered_sample_size);
+            assert_eq!(guards.confirmed.len(), 0);
+            assert_eq!(guards.primary.len(), 0);
+            guards.assert_consistency();
+
+            // make sure all the guards are okay.
+            for (g, guard) in guards.guards.iter() {
+                let relay = g.get_relay(&netdir).unwrap();
+                assert!(relay.is_flagged_guard());
+                assert!(guards.contains_relay(&relay));
+                assert!(!guard.is_expired(&params, SystemTime::now()));
+            }
+
+            // Make sure that the sample doesn't expand any further.
+            guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+            assert_eq!(guards.guards.len(), params.min_filtered_sample_size);
+            guards.assert_consistency();
+
+            samples.push(guards.sample.into_iter().collect());
+        }
+
+        // The probability of getting the same sample every time should be
+        // pretty low, but I haven't calculated it.
+        assert!(samples[0] != samples[1] || samples[1] != samples[2]);
+    }
+
+    #[test]
+    fn persistence() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            ..GuardParams::default()
+        };
+        let t1 = SystemTime::now();
+        let t2 = SystemTime::now() + Duration::from_secs(20);
+
+        let mut guards = GuardSet::new();
+        guards.extend_sample_as_needed(t1, &params, &netdir);
+
+        // Pick a guard and mark it as confirmed.
+        let id1 = guards.sample[0].clone();
+        guards.record_success(&id1, &params, t2);
+        assert_eq!(&guards.confirmed, &[id1.clone()]);
+
+        // Encode the guards, then decode them.
+        let state: GuardSample = (&guards).into();
+        let guards2: GuardSet = state.into();
+
+        assert_eq!(&guards2.sample, &guards.sample);
+        assert_eq!(&guards2.confirmed, &guards.confirmed);
+        assert_eq!(&guards2.confirmed, &[id1]);
+        assert_eq!(
+            guards.guards.keys().collect::<HashSet<_>>(),
+            guards2.guards.keys().collect::<HashSet<_>>()
+        );
+        for (k, g) in guards.guards.iter() {
+            let g2 = guards2.guards.get(k).unwrap();
+            assert_eq!(format!("{:?}", g), format!("{:?}", g2));
+        }
+    }
+
+    #[test]
+    fn select_primary() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 4,
+            ..GuardParams::default()
+        };
+        let t1 = SystemTime::now();
+        let t2 = SystemTime::now() + Duration::from_secs(20);
+        let t3 = SystemTime::now() + Duration::from_secs(30);
+
+        let mut guards = GuardSet::new();
+        guards.extend_sample_as_needed(t1, &params, &netdir);
+
+        // Pick a guard and mark it as confirmed.
+        let id3 = guards.sample[3].clone();
+        guards.record_success(&id3, &params, t2);
+        assert_eq!(&guards.confirmed, &[id3.clone()]);
+        let id1 = guards.sample[1].clone();
+        guards.record_success(&id1, &params, t3);
+        assert_eq!(&guards.confirmed, &[id3.clone(), id1.clone()]);
+
+        // Select primary guards and make sure we're obeying the rules.
+        guards.select_primary_guards(&params);
+        assert_eq!(guards.primary.len(), 4);
+        assert_eq!(&guards.primary[0], &id3);
+        assert_eq!(&guards.primary[1], &id1);
+        let p3 = guards.primary[2].clone();
+        let p4 = guards.primary[3].clone();
+        assert_eq!(
+            [id1.clone(), id3.clone(), p3.clone(), p4.clone()]
+                .iter()
+                .unique()
+                .count(),
+            4
+        );
+
+        // Mark another guard as confirmed and see that the list changes to put
+        // that guard right after the previously confirmed guards, but we keep
+        // one of the previous unconfirmed primary guards.
+        guards.record_success(&p4, &params, t3);
+        assert_eq!(&guards.confirmed, &[id3.clone(), id1.clone(), p4.clone()]);
+        guards.select_primary_guards(&params);
+        assert_eq!(guards.primary.len(), 4);
+        assert_eq!(&guards.primary[0], &id3);
+        assert_eq!(&guards.primary[1], &id1);
+        assert_eq!(&guards.primary, &[id3, id1, p4, p3]);
+    }
+
+    #[test]
+    fn expiration() {
+        let netdir = netdir();
+        let params = GuardParams::default();
+        let t1 = SystemTime::now();
+
+        let mut guards = GuardSet::new();
+        guards.extend_sample_as_needed(t1, &params, &netdir);
+        // note that there are only 10 Guard+V2Dir nodes in the netdir().
+        assert_eq!(guards.sample.len(), 10);
+
+        // Mark one guard as confirmed; it will have a different timeout.
+        // Pick a guard and mark it as confirmed.
+        let id1 = guards.sample[0].clone();
+        guards.record_success(&id1, &params, t1);
+        assert_eq!(&guards.confirmed, &[id1.clone()]);
+
+        let one_day = Duration::from_secs(86400);
+        guards.expire_old_guards(&params, t1 + one_day * 30);
+        assert_eq!(guards.sample.len(), 10); // nothing has expired.
+
+        // This is long enough to make sure that the confirmed guard has expired.
+        guards.expire_old_guards(&params, t1 + one_day * 70);
+        assert_eq!(guards.sample.len(), 9);
+
+        guards.expire_old_guards(&params, t1 + one_day * 200);
+        assert_eq!(guards.sample.len(), 0);
+    }
+
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn sampling_and_usage() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 2,
+            ..GuardParams::default()
+        };
+        let st1 = SystemTime::now();
+        let i1 = Instant::now();
+        let sec = Duration::from_secs(1);
+
+        let mut guards = GuardSet::new();
+        guards.extend_sample_as_needed(st1, &params, &netdir);
+        guards.select_primary_guards(&params);
+
+        // First guard: try it, and let it fail.
+        let usage = crate::GuardUsageBuilder::default().build().unwrap();
+        let id1 = guards.primary[0].clone();
+        let id2 = guards.primary[1].clone();
+        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(src, ListKind::Primary);
+        assert_eq!(&id, &id1);
+
+        guards.record_attempt(&id, i1);
+        guards.record_failure(&id, i1 + sec);
+
+        // Second guard: try it, and try it again, and have it fail.
+        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(src, ListKind::Primary);
+        assert_eq!(&id, &id2);
+        guards.record_attempt(&id, i1 + sec);
+
+        let (src, id_x) = guards.pick_guard(&usage, &params).unwrap();
+        // We get the same guard this (second) time that we pick it too, since
+        // it is a primary guard, and is_pending won't block it.
+        assert_eq!(id_x, id);
+        assert_eq!(src, ListKind::Primary);
+        guards.record_attempt(&id_x, i1 + sec * 2);
+        guards.record_failure(&id_x, i1 + sec * 3);
+        guards.record_failure(&id, i1 + sec * 4);
+
+        // Third guard: this one won't be primary.
+        let (src, id3) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(src, ListKind::Sample);
+        assert!(!guards.primary.contains(&id3));
+        guards.record_attempt(&id3, i1 + sec * 5);
+
+        // Fourth guard: Third guard will be pending, so a different one gets
+        // handed out here.
+        let (src, id4) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(src, ListKind::Sample);
+        assert!(id3 != id4);
+        assert!(!guards.primary.contains(&id4));
+        guards.record_attempt(&id4, i1 + sec * 6);
+
+        // Look at usability status: primary guards should be usable
+        // immediately; third guard should be too (since primary
+        // guards are down).  Fourth should not have a known status,
+        // since third is pending.
+        assert_eq!(
+            guards.circ_usability_status(&id1, &usage, &params, i1 + sec * 6),
+            Some(true)
+        );
+        assert_eq!(
+            guards.circ_usability_status(&id2, &usage, &params, i1 + sec * 6),
+            Some(true)
+        );
+        assert_eq!(
+            guards.circ_usability_status(&id3, &usage, &params, i1 + sec * 6),
+            Some(true)
+        );
+        assert_eq!(
+            guards.circ_usability_status(&id4, &usage, &params, i1 + sec * 6),
+            None
+        );
+
+        // Have both guards succeed.
+        guards.record_success(&id3, &params, st1 + sec * 7);
+        guards.record_success(&id4, &params, st1 + sec * 8);
+
+        // Check the impact of having both guards succeed.
+        assert!(guards.primary_guards_invalidated);
+        guards.select_primary_guards(&params);
+        assert_eq!(&guards.primary, &[id3.clone(), id4.clone()]);
+
+        // Next time we ask for a guard, we get a primary guard again.
+        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(src, ListKind::Primary);
+        assert_eq!(&id, &id3);
+
+        // If we ask for a directory guard, we get one of the primaries.
+        let mut found = HashSet::new();
+        let usage = crate::GuardUsageBuilder::default()
+            .kind(crate::GuardUsageKind::OneHopDirectory)
+            .build()
+            .unwrap();
+        for _ in 0..64 {
+            let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+            assert_eq!(src, ListKind::Primary);
+            assert_eq!(
+                guards.circ_usability_status(&id, &usage, &params, i1 + sec * 10),
+                Some(true)
+            );
+            guards.record_attempt_abandoned(&id);
+            found.insert(id);
+        }
+        assert!(found.len() == 2);
+        assert!(found.contains(&id3));
+        assert!(found.contains(&id4));
+
+        // Since the primaries are now up, other guards are not usable.
+        assert_eq!(
+            guards.circ_usability_status(&id1, &usage, &params, i1 + sec * 12),
+            Some(false)
+        );
+        assert_eq!(
+            guards.circ_usability_status(&id2, &usage, &params, i1 + sec * 12),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn everybodys_down() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 2,
+            max_sample_bw_fraction: 1.0,
+            ..GuardParams::default()
+        };
+        let mut st = SystemTime::now();
+        let mut inst = Instant::now();
+        let sec = Duration::from_secs(1);
+        let usage = crate::GuardUsageBuilder::default().build().unwrap();
+
+        let mut guards = GuardSet::new();
+
+        guards.extend_sample_as_needed(st, &params, &netdir);
+        guards.select_primary_guards(&params);
+
+        assert_eq!(guards.sample.len(), 5);
+        for _ in 0..5 {
+            let (_, id) = guards.pick_guard(&usage, &params).unwrap();
+            guards.record_attempt(&id, inst);
+            guards.record_failure(&id, inst + sec);
+
+            inst += sec * 2;
+            st += sec * 2;
+        }
+
+        let e = guards.pick_guard(&usage, &params);
+        assert!(matches!(e, Err(PickGuardError::EveryoneIsDown)));
+
+        // Now in theory we should re-grow when we extend.
+        guards.extend_sample_as_needed(st, &params, &netdir);
+        guards.select_primary_guards(&params);
+        assert_eq!(guards.sample.len(), 10);
+    }
 }
