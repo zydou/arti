@@ -306,7 +306,7 @@ pub struct Relay<'a> {
 /// A relay that we haven't checked for validity or usability in
 /// routing.
 #[derive(Debug)]
-struct UncheckedRelay<'a> {
+pub struct UncheckedRelay<'a> {
     /// A router descriptor for this relay.
     rs: &'a netstatus::MdConsensusRouterStatus,
     /// A microdescriptor for this relay, if there is one.
@@ -483,7 +483,7 @@ impl NetDir {
     }
     /// Return an iterator over all Relay objects, including invalid ones
     /// that we can't use.
-    fn all_relays(&self) -> impl Iterator<Item = UncheckedRelay<'_>> {
+    pub fn all_relays(&self) -> impl Iterator<Item = UncheckedRelay<'_>> {
         // TODO: I'd like if if we could memoize this so we don't have to
         // do so many hashtable lookups.
         self.consensus
@@ -808,12 +808,12 @@ impl<'a> UncheckedRelay<'a> {
     ///
     /// This function should return `true` for every Relay we expose
     /// to the user.
-    fn is_usable(&self) -> bool {
+    pub fn is_usable(&self) -> bool {
         // No need to check for 'valid' or 'running': they are implicit.
         self.md.is_some() && self.rs.ed25519_id_is_usable()
     }
     /// If this is usable, return a corresponding Relay object.
-    fn into_relay(self) -> Option<Relay<'a>> {
+    pub fn into_relay(self) -> Option<Relay<'a>> {
         if self.is_usable() {
             Some(Relay {
                 rs: self.rs,
