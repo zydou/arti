@@ -761,11 +761,11 @@ impl NetDir {
     /// [`RouterStatus`] rather than a [`Relay`].
     pub fn total_weight<P>(&self, role: WeightRole, usable: P) -> RelayWeight
     where
-        P: Fn(&netstatus::MdConsensusRouterStatus) -> bool,
+        P: Fn(&UncheckedRelay) -> bool,
     {
         self.all_relays()
             .filter_map(|unchecked| {
-                if usable(unchecked.rs) {
+                if usable(&unchecked) {
                     Some(RelayWeight(
                         self.weights.weight_rs_for_role(unchecked.rs, role),
                     ))
@@ -822,6 +822,10 @@ impl<'a> UncheckedRelay<'a> {
         } else {
             None
         }
+    }
+    /// Return true if this relay has the guard flag.
+    pub fn is_flagged_guard(&self) -> bool {
+        self.rs.is_flagged_guard()
     }
 }
 
@@ -1443,7 +1447,7 @@ mod test {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
         let netdir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
 
-        let g_total = netdir.total_weight(WeightRole::Guard, |rs| rs.is_flagged_guard());
+        let g_total = netdir.total_weight(WeightRole::Guard, |r| r.is_flagged_guard());
         // This is just the total guard weight, since all our Wxy = 1.
         assert_eq!(g_total, RelayWeight(110_000));
 
