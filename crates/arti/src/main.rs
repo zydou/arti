@@ -91,6 +91,7 @@ mod proxy;
 use std::sync::Arc;
 
 use tor_circmgr::CircMgrConfig;
+use tor_client::ClientConfig;
 use tor_client::TorClient;
 use tor_config::CfgPath;
 use tor_dirmgr::{DirMgrConfig, DownloadScheduleConfig, NetworkConfig};
@@ -175,6 +176,9 @@ pub struct ArtiConfig {
 
     /// Information about how to expire circuits.
     circuit_timing: tor_circmgr::CircuitTiming,
+
+    /// Information about client configuration parameters.
+    client_config: tor_client::ClientConfig,
 }
 
 /// Configuration for where information should be stored on disk.
@@ -222,13 +226,14 @@ async fn run<R: Runtime>(
     statecfg: PathBuf,
     dircfg: DirMgrConfig,
     circcfg: CircMgrConfig,
+    clientcfg: ClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
             let client =
-                Arc::new(TorClient::bootstrap(runtime.clone(), statecfg, dircfg, circcfg).await?);
+                Arc::new(TorClient::bootstrap(runtime.clone(), statecfg, dircfg, circcfg, clientcfg).await?);
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
@@ -272,6 +277,7 @@ fn main() -> Result<()> {
     let statecfg = config.storage.state_dir.path()?;
     let dircfg = config.get_dir_config()?;
     let circcfg = config.get_circ_config()?;
+    let clientcfg = config.client_config;
 
     let socks_port = match config.socks_port {
         Some(s) => s,
@@ -287,7 +293,7 @@ fn main() -> Result<()> {
     let runtime = tor_rtcompat::async_std::create_runtime()?;
 
     let rt_copy = runtime.clone();
-    rt_copy.block_on(run(runtime, socks_port, statecfg, dircfg, circcfg))?;
+    rt_copy.block_on(run(runtime, socks_port, statecfg, dircfg, circcfg, clientcfg))?;
     Ok(())
 }
 

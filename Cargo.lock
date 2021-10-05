@@ -116,7 +116,9 @@ name = "arti-tor-client"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "derive_builder",
  "futures",
+ "serde",
  "thiserror",
  "tor-chanmgr",
  "tor-circmgr",

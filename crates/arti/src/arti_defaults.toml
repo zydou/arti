@@ -104,3 +104,9 @@ request_max_retries = 32
 # request is still waiting for its own circuits to complete, the request
 # will wait this long before using the unexpectedly available circuit.
 request_loyalty = "50 msec"
+
+# Rules for client configuration
+[client_config]
+
+# Are we running as localhost (e.g. on chutney)?
+is_localhost = false

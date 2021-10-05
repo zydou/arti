@@ -94,9 +94,13 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+mod config;
+
 mod client;
 
 pub use client::{ConnectPrefs, TorClient};
+
+pub use config::{ClientConfig, ClientConfigBuilder};
 
 pub use tor_circmgr::IsolationToken;
 /// An anonymized stream over the Tor network.
