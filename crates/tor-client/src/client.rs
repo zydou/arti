@@ -194,12 +194,22 @@ impl<R: Runtime> TorClient<R> {
                 || byte == b'.'
         }
 
+        /// Check if we look like an IPv6 address
+        fn is_ipv6_str(addr: &str) -> bool {
+            if let Ok(ip) = IpAddr::from_str(addr) {
+                return ip.is_ipv6();
+            }
+            return false;
+        }
+
         !(hostname.bytes().any(|byte| !is_valid_char(byte))
             || hostname.ends_with('-')
             || hostname.starts_with('-')
             || hostname.ends_with('.')
             || hostname.starts_with('.')
-            || hostname.is_empty())
+            || hostname.is_empty()
+            || hostname.to_lowercase().eq("localhost"))
+        || is_ipv6_str(hostname)
     }
 
     /// Check if the IP is internal
@@ -225,11 +235,11 @@ impl<R: Runtime> TorClient<R> {
         if addr.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
         }
-        if !Self::is_valid_hostname(addr) || addr.to_lowercase().eq("localhost") {
+        if !Self::is_valid_hostname(addr) {
             return Err(anyhow!("Rejecting hostname as invalid."));
         }
-        if let Ok(a) = IpAddr::from_str(addr) {
-            if Self::is_internal_ip(&a) {
+        if let Ok(ip) = IpAddr::from_str(addr) {
+            if Self::is_internal_ip(&ip) {
                 return Err(anyhow!("Rejecting IP as internal."));
             }
         }
@@ -262,7 +272,7 @@ impl<R: Runtime> TorClient<R> {
         if hostname.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
         }
-        if !Self::is_valid_hostname(hostname) || hostname.to_lowercase().eq("localhost") {
+        if !Self::is_valid_hostname(hostname) {
             return Err(anyhow!("Rejecting hostname as invalid."));
         }
 
