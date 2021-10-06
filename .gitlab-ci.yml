@@ -16,7 +16,7 @@ rust-latest:
     - cargo clippy --all-features --tests -- -D warnings
     - cargo fmt -- --check
     - cargo install cargo-audit
-    - cargo audit -D warnings --ignore RUSTSEC-2021-0119
+    - cargo audit -D warnings
   tags:
     - amd64
   artifacts:
