@@ -293,7 +293,9 @@ fn main() -> Result<()> {
     let runtime = tor_rtcompat::async_std::create_runtime()?;
 
     let rt_copy = runtime.clone();
-    rt_copy.block_on(run(runtime, socks_port, statecfg, dircfg, circcfg, clientcfg))?;
+    rt_copy.block_on(run(
+        runtime, socks_port, statecfg, dircfg, circcfg, clientcfg,
+    ))?;
     Ok(())
 }
 

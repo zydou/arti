@@ -40,7 +40,7 @@ pub struct TorClient<R: Runtime> {
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
     /// Client configuration
-    clientcfg: ClientConfig
+    clientcfg: ClientConfig,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -362,7 +362,7 @@ pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bo
         || hostname.starts_with('.')
         || hostname.is_empty()
         || (hostname.to_lowercase().eq("localhost") && !client_cfg.is_localhost))
-    || is_ipv6_str(hostname)
+        || is_ipv6_str(hostname)
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -470,12 +470,14 @@ impl<R: Runtime> Drop for TorClient<R> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
-    use crate::ClientConfig;
     use crate::client::is_valid_hostname;
+    use crate::ClientConfig;
 
     #[test]
     fn validate_hostname() {
-        let client_cfg = ClientConfig { is_localhost: false };
+        let client_cfg = ClientConfig {
+            is_localhost: false,
+        };
         let client_cfg_localhost = ClientConfig { is_localhost: true };
 
         // Valid hostname tests
