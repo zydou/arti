@@ -132,6 +132,7 @@ use tracing::warn;
 
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
+use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
 mod daemon;
@@ -150,7 +151,7 @@ use sample::{GuardSet, PickGuardError};
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GuardMgr<R: Runtime> {
     /// An asynchronous runtime object.
     ///
@@ -169,11 +170,12 @@ pub struct GuardMgr<R: Runtime> {
     inner: Arc<Mutex<GuardMgrInner>>,
 }
 
+// TODO: Make the above type Debug.
+
 /// Helper type that holds the data used by a [`GuardMgr`].
 ///
 /// This would just be a [`GuardMgr`], except that it needs to sit inside
 /// a `Mutex` and get accessed by daemon tasks.
-#[derive(Debug)]
 struct GuardMgrInner {
     /// Last time when we've taken note of activity that means we're
     /// online.
@@ -224,6 +226,11 @@ struct GuardMgrInner {
     /// There can be multiple waiting requests corresponding to the
     /// same guard.
     waiting: Vec<PendingRequest>,
+
+    /// Location in which to store persistent state.
+    ///
+    /// (This is only the state for the default set of guards.)
+    default_storage: DynStorageHandle<GuardSet>,
 }
 
 impl<R: Runtime> GuardMgr<R> {
@@ -233,16 +240,24 @@ impl<R: Runtime> GuardMgr<R> {
     /// [`GuardMgr::update_network`] has been called.
     ///
     /// # Limitations
-    // XXXX: Need to take a state manager.
-    pub fn new(runtime: R) -> Result<Self, SpawnError> {
+    pub fn new<S>(runtime: R, state_mgr: S) -> Result<Self, SpawnError>
+    where
+        S: StateMgr + Send + Sync + 'static,
+    {
         let (ctrl, rcv) = mpsc::channel(32);
+        let default_storage = state_mgr.create_handle("default_guards");
+        let active_guards = default_storage
+            .load()
+            .expect("Load error") //XXXX propagate this!!!
+            .unwrap_or_else(GuardSet::new);
         let inner = Arc::new(Mutex::new(GuardMgrInner {
-            active_guards: GuardSet::new(),
+            active_guards,
             last_time_on_internet: None,
             params: GuardParams::default(),
             ctrl,
             pending: HashMap::new(),
             waiting: Vec::new(),
+            default_storage,
         }));
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -259,10 +274,11 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    #[allow(clippy::missing_panics_doc)]
-    pub fn update_persistent_state(&self) {
-        // XXXX Unimplemented
-        todo!()
+    pub async fn update_persistent_state(&self) -> Result<(), tor_persist::Error> {
+        let inner = self.inner.lock().await;
+        let _ignore = inner.default_storage.try_lock()?; // TODO: Don't ignore.
+        inner.default_storage.store(&inner.active_guards)?;
+        Ok(())
     }
 
     /// Update the state of this [`GuardMgr`] based on a new or modified

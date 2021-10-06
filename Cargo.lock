@@ -2611,6 +2611,7 @@ dependencies = [
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",
+ "tor-persist",
  "tor-rtcompat",
  "tor-units",
  "tracing",
