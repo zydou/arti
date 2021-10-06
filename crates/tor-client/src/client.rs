@@ -189,35 +189,6 @@ impl<R: Runtime> TorClient<R> {
         })
     }
 
-    /// Validate if we are an valid hostname or not
-    pub fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bool {
-        /// Check if we have the valid characters for a hostname
-        fn is_valid_char(byte: u8) -> bool {
-            ((b'a'..=b'z').contains(&byte))
-                || ((b'A'..=b'Z').contains(&byte))
-                || ((b'0'..=b'9').contains(&byte))
-                || byte == b'-'
-                || byte == b'.'
-        }
-
-        /// Check if we look like an IPv6 address
-        fn is_ipv6_str(addr: &str) -> bool {
-            if let Ok(ip) = IpAddr::from_str(addr) {
-                return ip.is_ipv6();
-            }
-            return false;
-        }
-
-        !(hostname.bytes().any(|byte| !is_valid_char(byte))
-            || hostname.ends_with('-')
-            || hostname.starts_with('-')
-            || hostname.ends_with('.')
-            || hostname.starts_with('.')
-            || hostname.is_empty()
-            || (hostname.to_lowercase().eq("localhost") && !client_cfg.is_localhost))
-        || is_ipv6_str(hostname)
-    }
-
     /// Check if the IP is internal
     fn is_internal_ip(addr: &IpAddr) -> bool {
         // TODO: Use is_global() when it is stable
@@ -241,7 +212,7 @@ impl<R: Runtime> TorClient<R> {
         if addr.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
         }
-        if !Self::is_valid_hostname(&self.clientcfg, addr) {
+        if !is_valid_hostname(&self.clientcfg, addr) {
             return Err(anyhow!("Rejecting hostname as invalid."));
         }
         if let Ok(ip) = IpAddr::from_str(addr) {
@@ -278,7 +249,7 @@ impl<R: Runtime> TorClient<R> {
         if hostname.to_lowercase().ends_with(".onion") {
             return Err(anyhow!("Rejecting .onion address as unsupported."));
         }
-        if !Self::is_valid_hostname(&self.clientcfg, hostname) {
+        if !is_valid_hostname(&self.clientcfg, hostname) {
             return Err(anyhow!("Rejecting hostname as invalid."));
         }
 
@@ -362,6 +333,36 @@ impl<R: Runtime> TorClient<R> {
         self.circmgr.update_persistent_state()?;
         Ok(())
     }
+}
+
+/// Validate if we are an valid hostname or not
+pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bool {
+    /// Check if we have the valid characters for a hostname
+    fn is_valid_char(byte: u8) -> bool {
+        ((b'a'..=b'z').contains(&byte))
+            || ((b'A'..=b'Z').contains(&byte))
+            || ((b'0'..=b'9').contains(&byte))
+            || byte == b'-'
+            || byte == b'.'
+    }
+
+    /// Check if we look like an IPv6 address
+    fn is_ipv6_str(addr: &str) -> bool {
+        if let Ok(ip) = IpAddr::from_str(addr) {
+            ip.is_ipv6()
+        } else {
+            false
+        }
+    }
+
+    !(hostname.bytes().any(|byte| !is_valid_char(byte))
+        || hostname.ends_with('-')
+        || hostname.starts_with('-')
+        || hostname.ends_with('.')
+        || hostname.starts_with('.')
+        || hostname.is_empty()
+        || (hostname.to_lowercase().eq("localhost") && !client_cfg.is_localhost))
+    || is_ipv6_str(hostname)
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -469,8 +470,8 @@ impl<R: Runtime> Drop for TorClient<R> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
-    use super::*;
-    use hex_literal::hex;
+    use crate::ClientConfig;
+    use crate::client::is_valid_hostname;
 
     #[test]
     fn validate_hostname() {
@@ -478,20 +479,20 @@ mod test {
         let client_cfg_localhost = ClientConfig { is_localhost: true };
 
         // Valid hostname tests
-        assert!(TorClient::is_valid_hostname(&client_cfg, "torproject.org"));
-        assert!(TorClient::is_valid_hostname(&client_cfg, "Tor-Project.org"));
-        assert!(TorClient::is_valid_hostname(&client_cfg, "tor_project1.org"));
-        assert!(TorClient::is_valid_hostname(&client_cfg, "72.0.227.52"));
-        assert!(TorClient::is_valid_hostname(&client_cfg, "2600::1"));
+        assert!(is_valid_hostname(&client_cfg, "torproject.org"));
+        assert!(is_valid_hostname(&client_cfg, "Tor-Project.org"));
+        assert!(is_valid_hostname(&client_cfg, "72.0.227.52"));
+        assert!(is_valid_hostname(&client_cfg, "2600::1"));
 
         // Invalid hostname tests
-        assert!(!TorClient::is_valid_hostname(&client_cfg, "-torproject.org"));
-        assert!(!TorClient::is_valid_hostname(&client_cfg, "_torproject.org"));
-        assert!(!TorClient::is_valid_hostname(&client_cfg, "iwanna$money.org"));
-        assert!(!TorClient::is_valid_hostname(&client_cfg, ""));
+        assert!(!is_valid_hostname(&client_cfg, "-torproject.org"));
+        assert!(!is_valid_hostname(&client_cfg, "_torproject.org"));
+        assert!(!is_valid_hostname(&client_cfg, "tor_project1.org"));
+        assert!(!is_valid_hostname(&client_cfg, "iwanna$money.org"));
+        assert!(!is_valid_hostname(&client_cfg, ""));
 
         // localhost hostname tests
-        assert!(!TorClient::is_valid_hostname(&client_cfg, "localhost"));
-        assert!(TorClient::is_valid_hostname(&client_cfg_localhost, "localhost"));
+        assert!(!is_valid_hostname(&client_cfg, "localhost"));
+        assert!(is_valid_hostname(&client_cfg_localhost, "localhost"));
     }
 }
