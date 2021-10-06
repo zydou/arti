@@ -31,3 +31,6 @@ tracing = "0.1.26"
 
 [dev-dependencies]
 tor-netdir = { path="../tor-netdir", version="0.0.0", features=["testing"]}
+tor-persist = {  path="../tor-persist", version="0.0.0", features=["testing"]}
+tor-rtcompat = { path="../tor-rtcompat", version="0.0.0", features=["tokio"]}
+tor-rtmock = { path="../tor-rtmock", version="0.0.0" }

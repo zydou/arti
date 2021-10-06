@@ -21,6 +21,13 @@ pub enum GuardFilter {
     /// A filter representing no restrictions on the permissible guards
     /// at all.
     Unfiltered,
+
+    /// Testing only: checks whether the first byte of the rsa key is 0 modulo 4.
+    ///
+    /// TODO: remove this once real filters are implemented.
+    #[cfg(test)]
+    #[allow(dead_code)]
+    TestingLimitKeys,
 }
 
 impl Default for GuardFilter {
@@ -41,11 +48,17 @@ impl GuardFilter {
         let _ = target; // ignored for now, since only Unfiltered exists.
         match self {
             GuardFilter::Unfiltered => true,
+            #[cfg(test)]
+            GuardFilter::TestingLimitKeys => target.rsa_identity().as_bytes()[0] & 3 == 0,
         }
     }
 
     /// Return true if this filter excludes no guards at all.
     pub(crate) fn is_unfiltered(&self) -> bool {
-        true
+        match self {
+            GuardFilter::Unfiltered => true,
+            #[cfg(test)]
+            _ => false,
+        }
     }
 }

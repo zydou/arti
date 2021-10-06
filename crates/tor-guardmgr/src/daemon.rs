@@ -10,7 +10,6 @@ use futures::{
     channel::{mpsc, oneshot},
     lock::Mutex,
     stream::{self, StreamExt},
-    FutureExt,
 };
 use std::sync::Weak;
 
@@ -24,11 +23,19 @@ pub(crate) enum Msg {
     /// guard; the receiver will be notified when the requester's circuit
     /// succeeds, fails, or is abandoned.  The receiver corresponds
     /// to the sender in some [`crate::GuardMonitor`].
-    Observe(RequestId, oneshot::Receiver<GuardStatusMsg>),
+    Observe(oneshot::Receiver<Msg>),
     /// A message sent by a [`crate::GuardMonitor`] to report the status
     /// of an attempt to use a guard.
     Status(RequestId, GuardStatusMsg),
+    /// Tells the task to reply on the provided oneshot::Sender once
+    /// it has seen this message.  Used to indicate that the message
+    /// queue is flushed.
+    #[cfg(test)]
+    Ping(oneshot::Sender<()>),
 }
+
+/// Wrapper type to unify returns from mpsc and oneshots
+pub(crate) type MsgResult = Result<Msg, futures::channel::oneshot::Canceled>;
 
 /// Background task: wait for messages about guard statuses, and
 /// tell a guard manager about them.  Runs indefinitely.
@@ -41,24 +48,28 @@ pub(crate) enum Msg {
 pub(crate) async fn report_status_events(
     runtime: impl tor_rtcompat::SleepProvider,
     inner: Weak<Mutex<GuardMgrInner>>,
-    ctrl: mpsc::Receiver<Msg>,
+    ctrl: mpsc::Receiver<MsgResult>,
 ) {
-    // Multiplexes a bunch of one-shot streams containing
-    // oneshot::Receiver for guard status.
-    let notifications = stream::SelectAll::new();
+    // Multiplexes a bunch of one-shot receivers to tell us about guard
+    // status outcomes.
+    let notifications = stream::FuturesUnordered::new();
+    // If I don't put this dummy receiver into notifications, then
+    // notifications will be finished prematurely and not get polled any more.
+    // TODO: Is there a better way to do this?
+    let (_dummy_snd, rcv) = oneshot::channel();
+    notifications.push(rcv);
+
     // Multiplexes `notifications` with events from `ctrl`.
     let mut events = stream::select(notifications, ctrl);
 
     loop {
         match events.next().await {
-            Some(Msg::Observe(id, rcv)) => {
+            Some(Ok(Msg::Observe(rcv))) => {
                 // We've been told to wait for a new event; add it to
                 // `notifications`.
-                events.get_mut().0.push(stream::once(rcv.map(move |st| {
-                    Msg::Status(id, st.unwrap_or(GuardStatusMsg::AttemptAbandoned))
-                })));
+                events.get_ref().0.push(rcv);
             }
-            Some(Msg::Status(id, status)) => {
+            Some(Ok(Msg::Status(id, status))) => {
                 // We've got a report about a guard status.
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().await;
@@ -67,6 +78,16 @@ pub(crate) async fn report_status_events(
                     // The guard manager has gone away.
                     return;
                 }
+            }
+            Some(Err(_)) => {
+                // TODO: Unfortunately, we don't know which future was cancelled.
+                // It shouldn't be possible for this to occur, though, since
+                // GuardMonitor always sends a message, even on drop.
+                tracing::warn!("bug: Somehow a guard success event was dropped.");
+            }
+            #[cfg(test)]
+            Some(Ok(Msg::Ping(sender))) => {
+                let _ignore = sender.send(());
             }
             // The streams have all closed.  (I think this is impossible?)
             None => return,

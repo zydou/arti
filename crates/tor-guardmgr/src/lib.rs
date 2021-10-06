@@ -206,7 +206,7 @@ struct GuardMgrInner {
 
     /// A mpsc channel, used to tell the task running in
     /// [`daemon::report_status_events`] about a new event to monitor.
-    ctrl: mpsc::Sender<daemon::Msg>,
+    ctrl: mpsc::Sender<daemon::MsgResult>,
 
     /// Information about guards that we've given out, but where we have
     /// not yet heard whether the guard was successful.
@@ -230,6 +230,7 @@ struct GuardMgrInner {
     /// Location in which to store persistent state.
     ///
     /// (This is only the state for the default set of guards.)
+    // XXXX Make this extensible to all guard sets!
     default_storage: DynStorageHandle<GuardSet>,
 }
 
@@ -368,6 +369,9 @@ impl<R: Runtime> GuardMgr<R> {
     /// That's _usually_ what you'd want, but when we're trying to
     /// bootstrap we might want to use _all_ guards as possible
     /// directory caches.  That's not implemented yet.
+    ///
+    /// This function only looks at netdir when all of the known
+    /// guards are down; to force an update, use [`GuardMgr::update_network`].
     pub async fn select_guard(
         &self,
         usage: GuardUsage,
@@ -391,9 +395,9 @@ impl<R: Runtime> GuardMgr<R> {
             let (u, snd) = GuardUsable::new_uncertain();
             (u, Some(snd))
         };
-        let (monitor, rcv) = GuardMonitor::new();
-
         let request_id = pending::RequestId::next();
+        let (monitor, rcv) = GuardMonitor::new(request_id);
+
         let pending_request =
             pending::PendingRequest::new(guard_id.clone(), usage, usable_sender, now);
         inner.pending.insert(request_id, pending_request);
@@ -404,11 +408,28 @@ impl<R: Runtime> GuardMgr<R> {
         // TODO: I wish this function didn't have to be async.
         inner
             .ctrl
-            .send(daemon::Msg::Observe(request_id, rcv))
+            .send(Ok(daemon::Msg::Observe(rcv)))
             .await
             .expect("Guard observer task exited prematurely");
 
         Ok((guard_id, monitor, usable))
+    }
+
+    /// Ensure that the message queue is flushed before proceding to
+    /// the next step.  Used for testing.
+    #[cfg(test)]
+    async fn flush_msg_queue(&self) {
+        let (snd, rcv) = futures::channel::oneshot::channel();
+        let pingmsg = daemon::Msg::Ping(snd);
+        {
+            let mut inner = self.inner.lock().await;
+            inner
+                .ctrl
+                .send(Ok(pingmsg))
+                .await
+                .expect("Guard observer task exited permaturely.");
+        }
+        let _ = rcv.await;
     }
 }
 
@@ -606,6 +627,7 @@ impl GuardMgrInner {
 
         // That didn't work. If we have a netdir, expand the sample and try again.
         if let Some(dir) = netdir {
+            self.update(now, Some(dir));
             if self
                 .active_guards
                 .extend_sample_as_needed(now, &self.params, dir)
@@ -806,11 +828,129 @@ pub enum GuardRestriction {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_persist::TestingStateMgr;
+    use tor_rtcompat::test_with_all_runtimes;
 
     #[test]
     fn guard_param_defaults() {
         let p1 = GuardParams::default();
         let p2: GuardParams = (&NetParameters::default()).try_into().unwrap();
         assert_eq!(p1, p2);
+    }
+
+    fn init<R: Runtime>(rt: R) -> (GuardMgr<R>, TestingStateMgr, NetDir) {
+        use tor_netdir::{testnet, MdReceiver, PartialNetDir};
+        let statemgr = TestingStateMgr::new();
+        let guardmgr = GuardMgr::new(rt, statemgr.clone()).unwrap();
+        let (con, mds) = testnet::construct_network().unwrap();
+        let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"
+            .parse()
+            .unwrap();
+        let mut netdir = PartialNetDir::new(con, Some(&override_p));
+        for md in mds {
+            netdir.add_microdesc(md);
+        }
+        let netdir = netdir.unwrap_if_sufficient().unwrap();
+
+        (guardmgr, statemgr, netdir)
+    }
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn simple_case() {
+        test_with_all_runtimes!(|rt| async move {
+            let (guardmgr, statemgr, netdir) = init(rt.clone());
+            let usage = GuardUsage::default();
+
+            guardmgr.update_network(&netdir).await;
+
+            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).await.unwrap();
+            // Report that the circuit succeeded.
+            mon.succeeded();
+
+            // May we use the circuit?
+            let usable = usable.await.unwrap();
+            assert!(usable);
+
+            // Save the state...
+            guardmgr.flush_msg_queue().await;
+            guardmgr.update_persistent_state().await.unwrap();
+            drop(guardmgr);
+
+            // Try reloading from the state...
+            let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone()).unwrap();
+            guardmgr2.update_network(&netdir).await;
+
+            // Since the guard was confirmed, we should get the same one this time!
+            let usage = GuardUsage::default();
+            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).await.unwrap();
+            assert_eq!(id2, id);
+        })
+    }
+
+    #[test]
+    fn simple_waiting() {
+        test_with_all_runtimes!(|rt| async {
+            let (guardmgr, _statemgr, netdir) = init(rt);
+            let u = GuardUsage::default();
+            guardmgr.update_network(&netdir).await;
+
+            // We'll have the first two guard fail, which should make us
+            // try a non-primary guard.
+            let (id1, mon, _usable) = guardmgr
+                .select_guard(u.clone(), Some(&netdir))
+                .await
+                .unwrap();
+            mon.failed();
+            guardmgr.flush_msg_queue().await; // avoid race
+            let (id2, mon, _usable) = guardmgr
+                .select_guard(u.clone(), Some(&netdir))
+                .await
+                .unwrap();
+            mon.failed();
+            guardmgr.flush_msg_queue().await; // avoid race
+
+            assert!(id1 != id2);
+
+            // Now we should get two sampled guards. They should be different.
+            let (id3, mon3, usable3) = guardmgr
+                .select_guard(u.clone(), Some(&netdir))
+                .await
+                .unwrap();
+            let (id4, mon4, usable4) = guardmgr
+                .select_guard(u.clone(), Some(&netdir))
+                .await
+                .unwrap();
+            assert!(id3 != id4);
+
+            let (u3, u4) = futures::join!(
+                async {
+                    mon3.failed();
+                    usable3.await.unwrap()
+                },
+                async {
+                    mon4.succeeded();
+                    usable4.await.unwrap()
+                }
+            );
+
+            assert_eq!((u3, u4), (false, true));
+        })
+    }
+
+    #[test]
+    fn filtering_basics() {
+        test_with_all_runtimes!(|rt| async {
+            let (guardmgr, _statemgr, netdir) = init(rt);
+            let u = GuardUsage::default();
+            guardmgr.update_network(&netdir).await;
+            guardmgr
+                .set_filter(GuardFilter::TestingLimitKeys, &netdir)
+                .await;
+
+            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).await.unwrap();
+            // Make sure that the filter worked.
+            assert_eq!(id1.rsa.as_bytes()[0] % 4, 0);
+        })
     }
 }

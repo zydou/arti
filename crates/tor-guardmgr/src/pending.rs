@@ -7,7 +7,7 @@
 //! then the circuit manager can't know whether to use a circuit built
 //! through that guard until the guard manager tells it.  This is
 //! handled via [`GuardUsable`].
-use crate::GuardId;
+use crate::{daemon, GuardId};
 
 use futures::{channel::oneshot, Future};
 use pin_project::pin_project;
@@ -94,16 +94,18 @@ pub(crate) enum GuardStatusMsg {
 /// whether the guard is running or not.
 #[must_use = "You need to report the status of any guard that you asked for"]
 pub struct GuardMonitor {
+    /// The Id that we're going to report about.
+    id: RequestId,
     /// A sender that needs to get told when the attempt to use the guard is
     /// finished or abandoned.
-    snd: Option<oneshot::Sender<GuardStatusMsg>>,
+    snd: Option<oneshot::Sender<daemon::Msg>>,
 }
 
 impl GuardMonitor {
     /// Create a new GuardMonitor object.
-    pub(crate) fn new() -> (Self, oneshot::Receiver<GuardStatusMsg>) {
+    pub(crate) fn new(id: RequestId) -> (Self, oneshot::Receiver<daemon::Msg>) {
         let (snd, rcv) = oneshot::channel();
-        (GuardMonitor { snd: Some(snd) }, rcv)
+        (GuardMonitor { id, snd: Some(snd) }, rcv)
     }
 
     /// Report that a circuit was successfully built in a way that
@@ -118,7 +120,7 @@ impl GuardMonitor {
             .snd
             .take()
             .expect("GuardMonitor initialized with no sender")
-            .send(GuardStatusMsg::Success);
+            .send(daemon::Msg::Status(self.id, GuardStatusMsg::Success));
     }
 
     /// Report that the circuit could not be built successfully, in
@@ -131,7 +133,7 @@ impl GuardMonitor {
             .snd
             .take()
             .expect("GuardMonitor initialized with no sender")
-            .send(GuardStatusMsg::Failure);
+            .send(daemon::Msg::Status(self.id, GuardStatusMsg::Failure));
     }
 
     /// Report that we did not try to build a circuit using the guard,
@@ -147,7 +149,10 @@ impl GuardMonitor {
 impl Drop for GuardMonitor {
     fn drop(&mut self) {
         if let Some(snd) = self.snd.take() {
-            let _ignore = snd.send(GuardStatusMsg::AttemptAbandoned);
+            let _ignore = snd.send(daemon::Msg::Status(
+                self.id,
+                GuardStatusMsg::AttemptAbandoned,
+            ));
         }
     }
 }
