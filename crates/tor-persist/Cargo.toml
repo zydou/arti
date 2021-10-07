@@ -15,7 +15,7 @@ testing = []
 
 [dependencies]
 serde = { version = "1.0.124" }
-toml = "0.5.8"
+serde_json = "1.0.59"
 sanitize-filename = "0.3.0"
 thiserror = "1.0.24"
 

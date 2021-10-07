@@ -113,17 +113,19 @@ pub enum Error {
     #[error("Storage not locked")]
     NoLock,
 
-    /// Unable to serialize data as TOML.
-    #[error("Toml serialization error")]
-    TomlWriteError(#[from] toml::ser::Error),
-
-    /// Unable to deserialize data from TOML
-    #[error("Toml deserialization error")]
-    TomlReadError(#[from] toml::de::Error),
+    /// Problem when serializing or deserializing JSON data.
+    #[error("JSON serialization error")]
+    JsonError(#[source] Arc<serde_json::Error>),
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Error {
         Error::IoError(Arc::new(e))
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(e: serde_json::Error) -> Error {
+        Error::JsonError(Arc::new(e))
     }
 }

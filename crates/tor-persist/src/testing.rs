@@ -24,7 +24,7 @@ struct TestingStateMgrInner {
     /// True if we are pretending that someone else is holding the
     /// simulated write lock on the state.
     lock_blocked: bool,
-    /// Map from key to toml-encoded values.
+    /// Map from key to JSON-encoded values.
     ///
     /// We serialize our values here for conveinence (so that we don't
     /// have to use `Any`) and to try to detect any
@@ -66,7 +66,7 @@ impl StateMgr for TestingStateMgr {
     {
         let inner = self.inner.lock().expect("Lock poisoned.");
         match inner.entries.get(key) {
-            Some(value) => Ok(Some(toml::from_str(value)?)),
+            Some(value) => Ok(Some(serde_json::from_str(value)?)),
             None => Ok(None),
         }
     }
@@ -80,7 +80,8 @@ impl StateMgr for TestingStateMgr {
             return Err(Error::NoLock);
         }
 
-        let val = toml::ser::to_string(val)?;
+        let val = serde_json::to_string_pretty(val)?;
+
         inner.entries.insert(key.to_string(), val);
         Ok(())
     }

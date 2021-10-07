@@ -1,4 +1,4 @@
-//! Filesystem + Toml implementation of StateMgr.
+//! Filesystem + JSON implementation of StateMgr.
 
 use crate::{Error, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
 
-/// Implementation of StateMgr that stores state as Toml files on disk.
+/// Implementation of StateMgr that stores state as JSON files on disk.
 ///
 /// # Locking
 ///
@@ -21,10 +21,9 @@ use std::os::unix::fs::DirBuilderExt;
 ///
 /// # Limitations
 ///
-/// 1) This manager only accepts objects that can be serialized as Toml
-/// documents.  Some types (like strings or lists) serialize to Toml
-/// types that cannot appear at the head of a document.  You'll be
-/// able to store them, but reloading them later on will fail.
+/// 1) This manager only accepts objects that can be serialized as
+/// JSON documents.  Some types (like maps with non-string keys) can't
+/// be serialized as JSON.
 ///
 /// 2) This manager normalizes keys to an fs-safe format before saving
 /// data with them.  This keeps you from accidentally creating or
@@ -81,7 +80,7 @@ impl FsStateMgr {
     fn filename(&self, key: &str) -> PathBuf {
         self.inner
             .statepath
-            .join(sanitize_filename::sanitize(key) + ".toml")
+            .join(sanitize_filename::sanitize(key) + ".json")
     }
 }
 
@@ -123,7 +122,7 @@ impl StateMgr for FsStateMgr {
             }
         };
 
-        Ok(Some(toml::from_str(&string)?))
+        Ok(Some(serde_json::from_str(&string)?))
     }
 
     fn store<S>(&self, key: &str, val: &S) -> Result<()>
@@ -136,7 +135,7 @@ impl StateMgr for FsStateMgr {
 
         let fname = self.filename(key);
 
-        let output = toml::ser::to_string(val)?;
+        let output = serde_json::to_string_pretty(val)?;
 
         let fname_tmp = fname.with_extension("tmp");
         std::fs::write(&fname_tmp, (&output).as_bytes())?;

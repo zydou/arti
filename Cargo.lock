@@ -2684,9 +2684,9 @@ dependencies = [
  "fslock",
  "sanitize-filename",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
- "toml",
 ]
 
 [[package]]
