@@ -106,7 +106,7 @@ mod test {
         assert_eq!(val.get(), None);
 
         val.replace(Vec::new());
-        assert_eq!(val.get().unwrap().as_ref()[..], []);
+        assert_eq!(val.get().unwrap().as_ref()[..], Vec::<u32>::new());
 
         val.mutate(|v| {
             v.push(99);
