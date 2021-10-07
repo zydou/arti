@@ -448,16 +448,6 @@ impl GuardSet {
     /// accepted by the current active filter: the caller must apply
     /// that filter if appropriate.
     fn preference_order_ids(&self) -> impl Iterator<Item = (ListKind, &GuardId)> {
-        // XXXX: This isn't what the spec says.  It also says:
-        //
-        // * Among guards that do not appear in {CONFIRMED_GUARDS},
-        // {is_pending}==true guards have higher priority.
-        // * Among those, the guard with earlier {last_tried_connect} time
-        // has higher priority.
-        // * Finally, among guards that do not appear in
-        // {CONFIRMED_GUARDS} with {is_pending==false}, all have equal
-        // priority.
-
         self.primary
             .iter()
             .map(|id| (ListKind::Primary, id))
@@ -565,6 +555,22 @@ impl GuardSet {
         params: &GuardParams,
         now: Instant,
     ) -> Option<bool> {
+        // TODO-SPEC: This isn't what the spec says.  The spec is phrased
+        // in terms of circuits blocking circuits, whereas this algorithm is
+        // about guards blocking guards.
+        //
+        // Also notably, the spec also says:
+        //
+        // * Among guards that do not appear in {CONFIRMED_GUARDS},
+        // {is_pending}==true guards have higher priority.
+        // * Among those, the guard with earlier {last_tried_connect} time
+        // has higher priority.
+        // * Finally, among guards that do not appear in
+        // {CONFIRMED_GUARDS} with {is_pending==false}, all have equal
+        // priority.
+        //
+        // I believe this approach is fine too, but we ought to document it.
+
         if self.guard_is_primary(guard_id) {
             // Circuits built to primary guards are always usable immediately.
             //
@@ -605,7 +611,6 @@ impl GuardSet {
     /// Try to select a guard for a given `usage`.
     ///
     /// On success, returns the kind of guard that we got, and its identity.
-    // XXXX probably caller has to do other stuff too depending on the netdir.
     pub(crate) fn pick_guard(
         &self,
         usage: &GuardUsage,
@@ -650,7 +655,7 @@ pub(crate) struct GuardSample<'a> {
     guards: Vec<Cow<'a, Guard>>,
     /// The identities for the confirmed members of `guards`, in confirmed order.
     confirmed: Cow<'a, Vec<GuardId>>,
-    // XXXX Do we need a HashMap to represent additional fields? I think we may.
+    // TODO Do we need a HashMap to represent additional fields? I think we may.
 }
 use serde::Serializer;
 

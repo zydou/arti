@@ -55,10 +55,6 @@ impl GuardFilter {
 
     /// Return true if this filter excludes no guards at all.
     pub(crate) fn is_unfiltered(&self) -> bool {
-        match self {
-            GuardFilter::Unfiltered => true,
-            #[cfg(test)]
-            _ => false,
-        }
+        matches!(self, GuardFilter::Unfiltered)
     }
 }

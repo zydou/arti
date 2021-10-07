@@ -197,7 +197,9 @@ pub(crate) struct PendingRequest {
     usage: crate::GuardUsage,
     /// A oneshot channel used to tell the circuit manager that a circuit
     /// built through this guard can be used.
-    // XXXX document why this is an Option
+    ///
+    /// (This is an option so that we can safely make reply() once-only.
+    /// Otherwise we run into lifetime isseus elsewhere.)
     usable: Option<oneshot::Sender<bool>>,
     /// The time when we gave out this guard.
     started_at: Instant,
@@ -241,6 +243,8 @@ impl PendingRequest {
 
     /// Tell the circuit manager that the guard is usable (or unusable),
     /// depending on the argument.
+    ///
+    /// Does nothing if reply() has already been called.
     pub(crate) fn reply(&mut self, usable: bool) {
         if let Some(sender) = self.usable.take() {
             // If this gives us an error, then the circuit manager doesn't

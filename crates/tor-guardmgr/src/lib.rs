@@ -73,6 +73,14 @@
 //! For details on the exact algorithm, see `guard-spec.txt` (link
 //! below) and comments and internal documentation in this crate.
 //!
+//! # Limitations
+//!
+//! * Only one guard selection is currently supported: we don't allow a
+//!   "filtered" or a "bridges" selection.
+//!
+//! * Our circuit blocking algorithm is simplified from the one that Tor uses.
+//!   See comments in `GuardSet::circ_usability_status` for more information.
+//!
 //! # References
 //!
 //! Guard nodes were first proposes (as "helper nodes") in "Defending
@@ -170,8 +178,6 @@ pub struct GuardMgr<R: Runtime> {
     inner: Arc<Mutex<GuardMgrInner>>,
 }
 
-// TODO: Make the above type Debug.
-
 /// Helper type that holds the data used by a [`GuardMgr`].
 ///
 /// This would just be a [`GuardMgr`], except that it needs to sit inside
@@ -230,7 +236,6 @@ struct GuardMgrInner {
     /// Location in which to store persistent state.
     ///
     /// (This is only the state for the default set of guards.)
-    // XXXX Make this extensible to all guard sets!
     default_storage: DynStorageHandle<GuardSet>,
 }
 
@@ -239,18 +244,13 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// It won't be able to hand out any guards until
     /// [`GuardMgr::update_network`] has been called.
-    ///
-    /// # Limitations
-    pub fn new<S>(runtime: R, state_mgr: S) -> Result<Self, SpawnError>
+    pub fn new<S>(runtime: R, state_mgr: S) -> Result<Self, GuardMgrError>
     where
         S: StateMgr + Send + Sync + 'static,
     {
         let (ctrl, rcv) = mpsc::channel(32);
         let default_storage = state_mgr.create_handle("default_guards");
-        let active_guards = default_storage
-            .load()
-            .expect("Load error") //XXXX propagate this!!!
-            .unwrap_or_else(GuardSet::new);
+        let active_guards = default_storage.load()?.unwrap_or_else(GuardSet::new);
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             active_guards,
             last_time_on_internet: None,
@@ -275,9 +275,9 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    pub async fn update_persistent_state(&self) -> Result<(), tor_persist::Error> {
+    pub async fn update_persistent_state(&self) -> Result<(), GuardMgrError> {
         let inner = self.inner.lock().await;
-        let _ignore = inner.default_storage.try_lock()?; // TODO: Don't ignore.
+        let _ignore = inner.default_storage.try_lock()?;
         inner.default_storage.store(&inner.active_guards)?;
         Ok(())
     }
@@ -307,7 +307,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// # Limitations
     ///
-    /// We should really callthis every time we read a cell, but that
+    /// We should really call this every time we read a cell, but that
     /// isn't efficient or practical.  We'll probably have to refactor
     /// things somehow. (TODO)
     pub async fn note_internet_activity(&self) {
@@ -377,14 +377,13 @@ impl<R: Runtime> GuardMgr<R> {
         usage: GuardUsage,
         netdir: Option<&NetDir>,
     ) -> Result<(GuardId, GuardMonitor, GuardUsable), PickGuardError> {
-        // XXXX: Does this need to take a NetDir?
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
 
         let mut inner = self.inner.lock().await;
-        // XXXX: need to add more stuff here?
 
-        // XXXX Really have to do this?
+        // (I am not 100% sure that we need to consider_all_retries here, but
+        // it should _probably_ not hurt.)
         inner.active_guards.consider_all_retries(now);
 
         let (origin, guard_id) = inner.select_guard_with_retries(&usage, netdir, wallclock)?;
@@ -546,11 +545,6 @@ impl GuardMgrInner {
     /// Return None if we can't yet give an answer about whether such
     /// a circuit is usable.
     fn guard_usability_status(&self, pending: &PendingRequest, now: Instant) -> Option<bool> {
-        // XXXX This isn't really what the spec says. The original
-        // spec describes this rule in terms of other circuits, not in
-        // terms of other guards.  I think this is a better algorithm,
-        // though, and doesn't require us to look at circuits or at
-        // other requests.
         self.active_guards.circ_usability_status(
             pending.guard_id(),
             pending.usage(),
@@ -581,7 +575,8 @@ impl GuardMgrInner {
                 pending.reply(false);
                 return false;
             }
-            // XXXX: guard_usability_status isn't what the spec says.  It
+
+            // TODO-SPEC: guard_usability_status isn't what the spec says.  It
             // says instead that we should look at _circuit_ status, saying:
             //  "   Definition: In the algorithm above, C2 "blocks" C1 if:
             // * C2 obeys all the restrictions that C1 had to obey, AND
@@ -589,6 +584,8 @@ impl GuardMgrInner {
             // * Either C2 is <complete>, or C2 is <waiting_for_better_guard>,
             // or C2 has been <usable_if_no_better_guard> for no more than
             // {NONPRIMARY_GUARD_CONNECT_TIMEOUT} seconds."
+            //
+            // See comments in sample::GuardSet::circ_usability_status.
 
             if let Some(answer) = self.guard_usability_status(pending, now) {
                 pending.reply(answer);
@@ -604,11 +601,8 @@ impl GuardMgrInner {
     /// Run any periodic events that update guard status, and return a
     /// duration after which periodic events should next be run.
     pub(crate) fn run_periodic_events(&mut self, wallclock: SystemTime, now: Instant) -> Duration {
-        // TODO: maybe this needs to take a netdir :p
-
         self.update(wallclock, None);
         self.expire_and_answer_pending_requests(now);
-        // XXXX Anything else?
         Duration::from_secs(1) // TODO: Too aggressive.
     }
 
@@ -736,7 +730,6 @@ impl TryFrom<&NetParameters> for GuardParams {
 ///
 /// (This is implemented internally using both of the guard's Ed25519
 /// and RSA identities.)
-// TODO: should we move this structure?
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct GuardId {
     /// Ed25519 identity key for a a guard
@@ -818,10 +811,27 @@ impl GuardUsageBuilder {
 /// subprotocol version for certain kinds of requests.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-// XXXX: Should this really be public?
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.
     AvoidId(pk::ed25519::Ed25519Identity),
+}
+
+/// An error caused while creating or updating a guard manager.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum GuardMgrError {
+    /// An error derived from the state manager.
+    #[error("Problem accessing persistent state")]
+    State(#[from] tor_persist::Error),
+    /// An error that occurred while trying to spawn a daemon task.
+    #[error("Unable to spawn task")]
+    Spawn(#[source] Arc<SpawnError>),
+}
+
+impl From<SpawnError> for GuardMgrError {
+    fn from(e: SpawnError) -> GuardMgrError {
+        GuardMgrError::Spawn(Arc::new(e))
+    }
 }
 
 #[cfg(test)]
@@ -890,7 +900,7 @@ mod test {
 
     #[test]
     fn simple_waiting() {
-        test_with_all_runtimes!(|rt| async {
+        test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             guardmgr.update_network(&netdir).await;
@@ -940,7 +950,7 @@ mod test {
 
     #[test]
     fn filtering_basics() {
-        test_with_all_runtimes!(|rt| async {
+        test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             guardmgr.update_network(&netdir).await;

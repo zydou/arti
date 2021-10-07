@@ -142,7 +142,7 @@ pub(crate) struct Guard {
     // circuits?
     #[serde(skip)]
     exploratory_circ_pending: bool,
-    // XXXX Do we need a HashMap to represent additional fields? I
+    // TODO Do we need a HashMap to represent additional fields? I
     // think we may.
 }
 
