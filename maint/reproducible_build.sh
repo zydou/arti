@@ -50,7 +50,7 @@ ln -s /dev/shm/registry /usr/local/cargo/registry/src
 ## add missing dependencies
 apk add perl make git musl-dev
 if [ -n "$linux" ]; then
-	## no additional dependancies specifically for linux
+	## no additional dependencies specifically for linux
 
 	## Build targeting x86_64-unknown-linux-musl to get a static binary
 	## feature "static" enable compiling some C dependencies instead of linking

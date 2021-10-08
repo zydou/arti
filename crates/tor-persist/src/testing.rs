@@ -26,7 +26,7 @@ struct TestingStateMgrInner {
     lock_blocked: bool,
     /// Map from key to JSON-encoded values.
     ///
-    /// We serialize our values here for conveinence (so that we don't
+    /// We serialize our values here for convenience (so that we don't
     /// have to use `Any`) and to try to detect any
     /// serialization-related bugs.
     entries: HashMap<String, String>,
@@ -44,7 +44,7 @@ impl TestingStateMgr {
     ///
     /// # Panics
     ///
-    /// Panics if we've already aquired the lock.
+    /// Panics if we've already acquired the lock.
     pub fn block_lock_attempts(&self) {
         let mut inner = self.inner.lock().expect("Lock poisoned.");
         assert!(!inner.lock_held);

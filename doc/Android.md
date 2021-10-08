@@ -49,7 +49,7 @@ You'll also need to add `jni`, to allow Rust and the Java in your app to work to
 jni = { version = "0.19", default-features = false }
 ```
 
-You'll probably want to add some other dependancies, like futures, but these are not technically requirements.
+You'll probably want to add some other dependencies, like futures, but these are not technically requirements.
 
 You'll also need to specify what kind of lib this is. By default, it's a Rust lib that can only be used in the rust ecosystem.
 We want it to be a dynamic library:
@@ -64,7 +64,7 @@ You should be familiar with it if you used the JNI before, otherwise it's probab
 ```rust
 // defined the method "myMethod" on class "MyClass" in package "net.example"
 #[no_mangle]
-pub extern "C" fn Java_net_example_MyClass_myMethod( /* parameters omited */ ) {..}
+pub extern "C" fn Java_net_example_MyClass_myMethod( /* parameters omitted */ ) {..}
 ```
 
 Once you are satisfied with your code, you can compile it by running this command. And it's time to take a coffee break.
@@ -76,7 +76,7 @@ $ cargo ndk -t arm64-v8a -o ./jniLibs build
 ```
 
 ## The Java part
-Note: you can use kotlin if you prefere, the syntax is obviously slighly different, but it should work either way.
+Note: you can use kotlin if you prefere, the syntax is obviously slightly different, but it should work either way.
 
 I'll assume you already have a project setup. This can be a brand new project, or an already existing one.
 
@@ -121,10 +121,10 @@ An implementation of lockf is part of the sample project linked above, it's a Ru
 
 ### Debugging and stability
 Arti log events to help debugging. By default these logs are not available on Android.
-You can make so Arti logs are exported to logcat by adding a couple dependancies and writing a bit of code
+You can make so Arti logs are exported to logcat by adding a couple dependencies and writing a bit of code
 
 ```toml
-# in [dependancies] in Cargo.toml
+# in [dependencies] in Cargo.toml
 tracing-subscriber = "0.2.20"
 tracing-android = "0.1.3"
 ```
