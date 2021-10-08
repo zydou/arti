@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
+use tracing::{debug, info};
 
 /// A set of sampled guards, along with various orderings on subsets
 /// of the sample.
@@ -92,6 +93,7 @@ impl ListKind {
         self == &ListKind::Primary
     }
 }
+
 impl GuardSet {
     /// Return a new empty guard set.
     pub(crate) fn new() -> Self {
@@ -196,12 +198,17 @@ impl GuardSet {
         guard_set.fix_consistency();
         let len_post = guard_set.inner_lengths();
         if len_pre != len_post {
-            tracing::info!(
+            info!(
                 "Resolved a consistency issue in stored guard state. Diagnostic codes: {:?}, {:?}",
-                len_pre,
-                len_post
+                len_pre, len_post
             );
         }
+        info!(
+            n_guards = len_post.0,
+            n_confirmed = len_post.2,
+            "Guard set loaded."
+        );
+
         guard_set
     }
 
@@ -342,6 +349,7 @@ impl GuardSet {
         if self.guards.contains_key(&id) {
             return;
         }
+        debug!(guard_id=?id, "Adding guard to sample.");
         let guard = Guard::from_relay(relay, now, params);
         self.guards.insert(id.clone(), guard);
         self.sample.push(id);
@@ -370,6 +378,9 @@ impl GuardSet {
         // then from any previous primary guards, and then from maybe-reachable
         // guards in the sample.
 
+        // Only for logging.
+        let old_primary = self.primary.clone();
+
         self.primary = self
             // First, we look at the confirmed guards.
             .confirmed
@@ -393,6 +404,10 @@ impl GuardSet {
             // The first n_primary guards on that list are primary!
             .take(params.n_primary)
             .collect();
+
+        if self.primary != old_primary {
+            debug!(old=?old_primary, new=?self.primary, "Updated primary guards.");
+        }
 
         // Clear exploratory_circ_pending for all primary guards.
         for id in self.primary.iter() {
@@ -421,10 +436,8 @@ impl GuardSet {
         self.assert_consistency();
 
         if self.guards.len() < n_pre {
-            tracing::debug!(
-                "{} guards have been expired as too old.",
-                n_pre - self.guards.len()
-            );
+            let n_expired = n_pre - self.guards.len();
+            debug!(n_expired, "Expired guards as too old.");
             self.primary_guards_invalidated = true;
         }
     }

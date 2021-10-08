@@ -7,6 +7,7 @@ use tor_netdir::{NetDir, Relay, RelayWeight};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
+use tracing::trace;
 
 use crate::util::randomize_time;
 use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
@@ -209,6 +210,14 @@ impl Guard {
         self.reachable
     }
 
+    /// Change the reachability status for this guard.
+    fn set_reachable(&mut self, r: Reachable) {
+        if self.reachable != r {
+            trace!(guard_id = ?self.id, old=?self.reachable, new=?r, "Guard status changed.");
+            self.reachable = r;
+        }
+    }
+
     /// Return true if at least one exploratory circuit is pending to this
     /// guard.
     ///
@@ -247,7 +256,7 @@ impl Guard {
     /// and mark it as Unknown.
     pub(crate) fn mark_retriable(&mut self) {
         if self.reachable != Reachable::Reachable {
-            self.reachable = Reachable::Unknown;
+            self.set_reachable(Reachable::Unknown);
             self.retry_at = None;
         }
     }
@@ -302,17 +311,28 @@ impl Guard {
 
         if listed {
             // Definitely listed, so clear unlisted_since.
-            self.unlisted_since = None;
+            self.mark_listed();
         } else {
             // Unlisted or not a guard; mark it unlisted.
             self.mark_unlisted(netdir.lifetime().valid_after());
         }
     }
 
+    /// Mark this guard as currently listed in the directory.
+    fn mark_listed(&mut self) {
+        if self.unlisted_since.is_some() {
+            trace!(guard_id = ?self.id, "Guard is now listed again.");
+            self.unlisted_since = None;
+        }
+    }
+
     /// Mark this guard as having been unlisted since `now`, if it is not
     /// already so marked.
     fn mark_unlisted(&mut self, now: SystemTime) {
-        self.unlisted_since.get_or_insert(now);
+        if self.unlisted_since.is_none() {
+            trace!(guard_id = ?self.id, "Guard is now unlisted.");
+            self.unlisted_since = Some(now);
+        }
     }
 
     /// Return true if we should remove this guard from the current guard
@@ -354,7 +374,7 @@ impl Guard {
     pub(crate) fn record_failure(&mut self, now: Instant, is_primary: bool) {
         let failing_since = self.failing_since.get_or_insert(now);
         let failing_time = now.saturating_duration_since(*failing_since);
-        self.reachable = Reachable::Unreachable;
+        self.set_reachable(Reachable::Unreachable);
         self.exploratory_circ_pending = false;
 
         let connect_attempt = self.last_tried_to_connect_at.unwrap_or(now);
@@ -401,7 +421,7 @@ impl Guard {
     ) -> NewlyConfirmed {
         self.failing_since = None;
         self.retry_at = None;
-        self.reachable = Reachable::Reachable;
+        self.set_reachable(Reachable::Reachable);
         self.exploratory_circ_pending = false;
 
         if self.confirmed_at.is_none() {
@@ -415,6 +435,7 @@ impl Guard {
             );
             // TODO-SPEC: The "max" above isn't specified by guard-spec,
             // but I think it's wise.
+            trace!(guard_id = ?self.id, "Newly confirmed");
             NewlyConfirmed::Yes
         } else {
             NewlyConfirmed::No

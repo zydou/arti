@@ -136,7 +136,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use tracing::warn;
+use tracing::{debug, info, trace, warn};
 
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
@@ -275,11 +275,18 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    pub async fn update_persistent_state(&self) -> Result<(), GuardMgrError> {
+    ///
+    /// Return true if we were able to save, and false if we couldn't
+    /// get the lock.
+    pub async fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
         let inner = self.inner.lock().await;
-        let _ignore = inner.default_storage.try_lock()?;
-        inner.default_storage.store(&inner.active_guards)?;
-        Ok(())
+        if inner.default_storage.try_lock()? {
+            trace!("Flushing guard state to disk.");
+            inner.default_storage.store(&inner.active_guards)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Update the state of this [`GuardMgr`] based on a new or modified
@@ -291,6 +298,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// Call this method whenever the `NetDir` changes.
     pub async fn update_network(&self, netdir: &NetDir) {
+        trace!("Updating guard state from network directory");
         let now = self.runtime.wallclock();
 
         let mut inner = self.inner.lock().await;
@@ -343,6 +351,11 @@ impl<R: Runtime> GuardMgr<R> {
         // TODO: Once we support nontrivial filters, we might have to
         // swap out "active_guards" depending on which set it is.
         // TODO: Warn if the filter is waaaay to small according to guard params.
+        info!(
+            ?filter,
+            restrictive = restrictive_filter,
+            "Guard filter replaced."
+        );
 
         inner.active_guards.set_filter(filter, restrictive_filter);
         inner.update(now, Some(netdir));
@@ -387,6 +400,8 @@ impl<R: Runtime> GuardMgr<R> {
         inner.active_guards.consider_all_retries(now);
 
         let (origin, guard_id) = inner.select_guard_with_retries(&usage, netdir, wallclock)?;
+
+        trace!(?guard_id, ?usage, "Guard selected");
 
         let (usable, usable_sender) = if origin.is_primary() {
             (GuardUsable::new_primary(), None)
@@ -479,6 +494,7 @@ impl GuardMgrInner {
         if let Some(mut pending) = self.pending.remove(&request_id) {
             // If there was a pending request matching this RequestId, great!
             let guard_id = pending.guard_id();
+            trace!(?guard_id, ?status, "Received report of guard status");
             match status {
                 GuardStatusMsg::Success => {
                     let now = runtime.now();
@@ -493,6 +509,7 @@ impl GuardMgrInner {
                         // let timeout = self.params.internet_down_timeout;
                         let timeout = Duration::from_secs(7200); // (Fake timeout)
                         if dur >= timeout {
+                            debug!("Retrying primary guards");
                             self.active_guards.mark_primary_guards_retriable();
                         }
                     }
@@ -504,10 +521,12 @@ impl GuardMgrInner {
                     // Either tell the request whether the guard is
                     // usable, or schedule it as a "waiting" request.
                     if let Some(usable) = self.guard_usability_status(&pending, runtime.now()) {
+                        trace!(?guard_id, usable, "Known usability status");
                         pending.reply(usable);
                     } else {
                         // This is the one case where we can't use the
                         // guard yet.
+                        trace!(?guard_id, "Not able to answer right now");
                         pending.mark_waiting(runtime.now());
                         self.waiting.push(pending);
                     }
@@ -572,6 +591,7 @@ impl GuardMgrInner {
                 .map(|d| d >= self.params.np_idle_timeout)
                 == Some(true);
             if expired {
+                trace!(?pending, "Pending request expired");
                 pending.reply(false);
                 return false;
             }
@@ -588,6 +608,7 @@ impl GuardMgrInner {
             // See comments in sample::GuardSet::circ_usability_status.
 
             if let Some(answer) = self.guard_usability_status(pending, now) {
+                trace!(?pending, answer, "Pending request now ready");
                 pending.reply(answer);
                 return false;
             }
@@ -621,6 +642,7 @@ impl GuardMgrInner {
 
         // That didn't work. If we have a netdir, expand the sample and try again.
         if let Some(dir) = netdir {
+            trace!("No guards available, trying to extend the sample.");
             self.update(now, Some(dir));
             if self
                 .active_guards
@@ -634,6 +656,7 @@ impl GuardMgrInner {
         }
 
         // That didn't work either. Mark everybody as potentially retriable.
+        info!("All guards seem down. Marking them retriable and trying again.");
         self.active_guards.mark_all_guards_retriable();
         self.active_guards.pick_guard(usage, &self.params)
     }
