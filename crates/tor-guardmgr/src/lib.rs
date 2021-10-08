@@ -923,6 +923,9 @@ mod test {
 
     #[test]
     fn simple_waiting() {
+        // XXXX This test fails in rare cases; I suspect a race condition somewhere.
+        // I've doubled up on the queue flushing in order to try to make the
+        // race less likely, but we should investigate.
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
@@ -936,11 +939,13 @@ mod test {
                 .unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
+            guardmgr.flush_msg_queue().await; // avoid race
             let (id2, mon, _usable) = guardmgr
                 .select_guard(u.clone(), Some(&netdir))
                 .await
                 .unwrap();
             mon.failed();
+            guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
 
             assert!(id1 != id2);
@@ -959,6 +964,7 @@ mod test {
             let (u3, u4) = futures::join!(
                 async {
                     mon3.failed();
+                    guardmgr.flush_msg_queue().await; // avoid race
                     usable3.await.unwrap()
                 },
                 async {
