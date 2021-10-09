@@ -93,12 +93,6 @@
 //! [`guard-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/raw/main/guard-spec.txt)
 //! document.
 
-// Glossary:
-//     Primary guard
-//     Sample
-//     confirmed
-//     filtered
-
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -126,6 +120,12 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+
+// Glossary:
+//     Primary guard
+//     Sample
+//     confirmed
+//     filtered
 
 use futures::channel::mpsc;
 use futures::lock::Mutex;
