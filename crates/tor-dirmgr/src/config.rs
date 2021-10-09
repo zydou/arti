@@ -57,11 +57,11 @@ impl NetworkConfig {
         NetworkConfigBuilder::default()
     }
     /// Return the configured directory authorities
-    pub fn authorities(&self) -> &[Authority] {
+    pub(crate) fn authorities(&self) -> &[Authority] {
         &self.authorities[..]
     }
     /// Return the configured fallback directories
-    pub fn fallbacks(&self) -> &[FallbackDir] {
+    pub(crate) fn fallbacks(&self) -> &[FallbackDir] {
         &self.fallback_caches[..]
     }
 }
@@ -202,23 +202,23 @@ impl DirMgrConfig {
     }
 
     /// Return a slice of the configured authorities
-    pub fn authorities(&self) -> &[Authority] {
+    pub(crate) fn authorities(&self) -> &[Authority] {
         self.network_config.authorities()
     }
 
     /// Return the configured set of fallback directories
-    pub fn fallbacks(&self) -> &[FallbackDir] {
+    pub(crate) fn fallbacks(&self) -> &[FallbackDir] {
         self.network_config.fallbacks()
     }
 
     /// Return set of configured networkstatus parameter overrides.
-    pub fn override_net_params(&self) -> &netstatus::NetParams<i32> {
+    pub(crate) fn override_net_params(&self) -> &netstatus::NetParams<i32> {
         &self.override_net_params
     }
 
     /// Return the schedule configuration we should use to decide when to
     /// attempt and retry downloads.
-    pub fn schedule(&self) -> &DownloadScheduleConfig {
+    pub(crate) fn schedule(&self) -> &DownloadScheduleConfig {
         &self.schedule_config
     }
 }
@@ -226,27 +226,27 @@ impl DirMgrConfig {
 impl DownloadScheduleConfig {
     /// Return configuration for retrying our entire bootstrap
     /// operation at startup.
-    pub fn retry_bootstrap(&self) -> &RetryConfig {
+    pub(crate) fn retry_bootstrap(&self) -> &RetryConfig {
         &self.retry_bootstrap
     }
 
     /// Return configuration for retrying a consensus download.
-    pub fn retry_consensus(&self) -> &RetryConfig {
+    pub(crate) fn retry_consensus(&self) -> &RetryConfig {
         &self.retry_consensus
     }
 
     /// Return configuration for retrying an authority certificate download
-    pub fn retry_certs(&self) -> &RetryConfig {
+    pub(crate) fn retry_certs(&self) -> &RetryConfig {
         &self.retry_certs
     }
 
     /// Return configuration for retrying an authority certificate download
-    pub fn retry_microdescs(&self) -> &RetryConfig {
+    pub(crate) fn retry_microdescs(&self) -> &RetryConfig {
         &self.retry_microdescs
     }
 
     /// Number of microdescriptor fetches to attempt in parallel
-    pub fn microdesc_parallelism(&self) -> usize {
+    pub(crate) fn microdesc_parallelism(&self) -> usize {
         self.microdesc_parallelism.max(1).into()
     }
 }
