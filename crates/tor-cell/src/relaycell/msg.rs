@@ -7,6 +7,7 @@ use super::RelayCmd;
 use crate::chancell::msg::{DestroyReason, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN};
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
+use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
@@ -629,8 +630,11 @@ impl Body for Sendme {
             None => (),
             Some(mut x) => {
                 w.write_u8(1);
-                assert!(x.len() <= u16::MAX as usize);
-                w.write_u16(x.len() as u16);
+                let bodylen: u16 = x
+                    .len()
+                    .try_into()
+                    .expect("Too many bytes to encode in relay cell.");
+                w.write_u16(bodylen);
                 w.append(&mut x)
             }
         }
@@ -783,14 +787,14 @@ impl Body for Extend2 {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        assert!(self.linkspec.len() <= std::u8::MAX as usize);
-        w.write_u8(self.linkspec.len() as u8);
+        let n_linkspecs: u8 = self.linkspec.len().try_into().expect("Too many linkspecs");
+        w.write_u8(n_linkspecs);
         for ls in self.linkspec.iter() {
             w.write(ls);
         }
         w.write_u16(self.handshake_type);
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+        let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
     }
 }
@@ -828,8 +832,8 @@ impl Body for Extended2 {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+        let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
     }
 }
@@ -991,8 +995,8 @@ impl Writeable for ResolvedVal {
         match self {
             Hostname(h) => {
                 w.write_u8(RES_HOSTNAME);
-                assert!(h.len() <= std::u8::MAX as usize);
-                w.write_u8(h.len() as u8);
+                let h_len: u8 = h.len().try_into().expect("Hostname too long");
+                w.write_u8(h_len);
                 w.write_all(&h[..]);
             }
             Ip(IpAddr::V4(a)) => {
@@ -1015,8 +1019,11 @@ impl Writeable for ResolvedVal {
             }
             Unrecognized(tp, v) => {
                 w.write_u8(*tp);
-                assert!(v.len() <= std::u8::MAX as usize);
-                w.write_u8(v.len() as u8);
+                let v_len: u8 = v
+                    .len()
+                    .try_into()
+                    .expect("Unrecognized resolved entry too long");
+                w.write_u8(v_len);
                 w.write_all(&v[..]);
             }
         }

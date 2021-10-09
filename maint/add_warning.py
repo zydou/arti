@@ -35,11 +35,11 @@ WANT_LINTS = """
 #![deny(clippy::cast_lossless)]
 #![deny(clippy::missing_panics_doc)]
 #![deny(clippy::unwrap_used)]
+#![deny(clippy::checked_conversions)]
 """
 WANT_LINTS = [ "%s\n" % w for w in WANT_LINTS.split() ]
 
 SOON="""
-#![deny(clippy::checked_conversions)]
 """
 
 WISH_WE_COULD = """

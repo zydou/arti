@@ -14,7 +14,6 @@
 
 use bounded_vec_deque::BoundedVecDeque;
 use serde::{Deserialize, Serialize};
-use static_assertions::const_assert;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::sync::Mutex;
@@ -49,9 +48,16 @@ impl MsecDuration {
     }
 }
 
-// If this assertion is untrue, then we can't safely use u16 fields in
-// time_histogram.
-const_assert!(TIME_HISTORY_LEN <= u16::MAX as usize);
+/// Module to hold calls to const_assert.
+///
+/// This is a separate module so we can change the clippy warnings on it.
+#[allow(clippy::checked_conversions)]
+mod assertion {
+    use static_assertions::const_assert;
+    // If this assertion is untrue, then we can't safely use u16 fields in
+    // time_histogram.
+    const_assert!(super::TIME_HISTORY_LEN <= u16::MAX as usize);
+}
 
 /// A history of circuit timeout observations, used to estimate our
 /// likely circuit timeouts.
