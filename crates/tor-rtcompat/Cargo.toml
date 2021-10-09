@@ -19,7 +19,7 @@ static = [ "native-tls/vendored" ]
 
 [dependencies]
 
-async_executors = { version = "0.4.0", default_features=false }
+async_executors = { version = "0.4.2", default_features = false }
 async-trait = "0.1.48"
 futures = "0.3.13"
 pin-project = "1.0.5"

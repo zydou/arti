@@ -28,7 +28,7 @@ serde = "1.0.124"
 signature = "1.3.0"
 simple_asn1 = "0.5.1"
 subtle = "2.4.0"
-x25519-dalek = "1.1.1"
+x25519-dalek = "1.2.0"
 zeroize = "1.3.0"
 thiserror = "1.0.24"
 

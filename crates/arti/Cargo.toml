@@ -32,5 +32,5 @@ once_cell = { version = "1.7.2", optional = true }
 serde = { version = "1.0.124", features = ["derive"] }
 tracing-subscriber = "0.2.19"
 tokio-crate = { package="tokio", version = "1.7.0", optional = true, features = ["signal"] }
-argh = "0.1.4"
+argh = "0.1.6"
 tracing-journald = { version = "0.1.0", optional = true }
