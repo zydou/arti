@@ -39,19 +39,23 @@ WANT_LINTS = """
 WANT_LINTS = [ "%s\n" % w for w in WANT_LINTS.split() ]
 
 SOON="""
-#![deny(clippy::pub_enum_variant_names)]
-#![deny(clippy::future_not_send)]
-#![deny(clippy::redundant_closure_for_method_calls)]
-#![deny(clippy::panic)]
-#![deny(clippy::expect_used)]
 #![deny(clippy::checked_conversions)]
-#![deny(clippy::if_then_some_else_none)]
-#![deny(missing_debug_implementations)]
-#![deny(unused_crate_dependencies)]
+"""
+
+WISH_WE_COULD = """
+#![warn(unused_crate_dependencies)]
 """
 
 DECIDED_NOT = """
 #![deny(clippy::redundant_pub_crate)]
+#![deny(clippy::future_not_send)]
+#![deny(clippy::redundant_closure_for_method_calls)]
+#![deny(clippy::panic)]
+#![deny(clippy::if_then_some_else_none)]
+#![deny(clippy::expect_used)]
+#![deny(clippy::option_if_let_else)]
+#![deny(missing_debug_implementations)]
+#![deny(clippy::pub_enum_variant_names)]
 """
 
 
