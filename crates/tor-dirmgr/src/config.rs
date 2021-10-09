@@ -2,6 +2,11 @@
 //!
 //! Directory configuration tells us where to load and store directory
 //! information, where to fetch it from, and how to validate it.
+//!
+//! # Semver note
+//!
+//! The types in this module are re-exported from `tor-client`: any changes
+//! here must be reflected in the version of `tor-client`.
 
 use crate::retry::RetryConfig;
 use crate::storage::sqlite::SqliteStore;

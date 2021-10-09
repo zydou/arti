@@ -4,6 +4,11 @@
 //! When a client doesn't have directory information yet, it uses a
 //! "Fallback Directory" to retrieve its initial information about the
 //! network.
+//!
+//! # Semver note
+//!
+//! The types in this module are re-exported from `tor-client` and
+//! `tor-dirmgr`: any changes here must be reflected there.
 
 use derive_builder::Builder;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;

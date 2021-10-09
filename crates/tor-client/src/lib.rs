@@ -97,6 +97,8 @@
 
 mod client;
 
+pub mod config;
+
 pub use client::{ConnectPrefs, TorClient};
 
 pub use tor_circmgr::IsolationToken;

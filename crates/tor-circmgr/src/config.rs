@@ -1,4 +1,8 @@
 //! Configuration logic for launching a circuit manager.
+//!
+//! # Semver note
+//!
+//! Most types in this module are re-exported by `tor-client`.
 
 use derive_builder::Builder;
 use serde::Deserialize;

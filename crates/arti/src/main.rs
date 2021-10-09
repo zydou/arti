@@ -91,10 +91,12 @@ mod proxy;
 
 use std::sync::Arc;
 
-use tor_circmgr::CircMgrConfig;
-use tor_client::TorClient;
+use tor_client::{
+    config::circ::{CircMgrConfig, CircMgrConfigBuilder},
+    config::dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
+    TorClient,
+};
 use tor_config::CfgPath;
-use tor_dirmgr::{DirMgrConfig, DownloadScheduleConfig, NetworkConfig};
 use tor_rtcompat::{Runtime, SpawnBlocking};
 
 use anyhow::Result;
@@ -169,13 +171,13 @@ pub struct ArtiConfig {
     override_net_params: HashMap<String, i32>,
 
     /// Information about how to build paths through the network.
-    path_rules: tor_circmgr::PathConfig,
+    path_rules: tor_client::config::circ::PathConfig,
 
     /// Information about how to retry requests for circuits.
-    request_timing: tor_circmgr::RequestTiming,
+    request_timing: tor_client::config::circ::RequestTiming,
 
     /// Information about how to expire circuits.
-    circuit_timing: tor_circmgr::CircuitTiming,
+    circuit_timing: tor_client::config::circ::CircuitTiming,
 }
 
 /// Configuration for where information should be stored on disk.
@@ -194,7 +196,7 @@ impl ArtiConfig {
     /// Return a [`DirMgrConfig`] object based on the user's selected
     /// configuration.
     fn get_dir_config(&self) -> Result<DirMgrConfig> {
-        let mut dircfg = tor_dirmgr::DirMgrConfigBuilder::default();
+        let mut dircfg = DirMgrConfigBuilder::default();
         dircfg.network_config(self.network.clone());
         dircfg.schedule_config(self.download_schedule.clone());
         dircfg.cache_path(self.storage.cache_dir.path()?);
@@ -207,7 +209,7 @@ impl ArtiConfig {
     /// Return a [`CircMgrConfig`] object based on the user's selected
     /// configuration.
     fn get_circ_config(&self) -> Result<CircMgrConfig> {
-        let mut builder = tor_circmgr::CircMgrConfigBuilder::default();
+        let mut builder = CircMgrConfigBuilder::default();
         Ok(builder
             .path_config(self.path_rules.clone())
             .request_timing(self.request_timing.clone())

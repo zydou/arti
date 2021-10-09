@@ -64,6 +64,11 @@ impl TargetPort {
 /// one another, and different from tokens created with
 /// [`IsolationToken::no_isolation`]. However, tokens created with
 /// [`IsolationToken::no_isolation`] are all equal to one another.
+///
+/// # Semver note
+///
+/// This type is re-exported by `tor-client`: any changes to it must be
+/// reflected in `tor-client`'s version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IsolationToken(u64);
 

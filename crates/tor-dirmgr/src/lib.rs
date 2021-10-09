@@ -81,7 +81,7 @@ use std::sync::Arc;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
-pub use authority::Authority;
+pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
     DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, DownloadScheduleConfigBuilder,
     NetworkConfig, NetworkConfigBuilder,
@@ -90,6 +90,7 @@ pub use docid::DocId;
 pub use err::Error;
 pub use event::DirEvent;
 pub use storage::DocumentText;
+pub use tor_netdir::fallback::{FallbackDir, FallbackDirBuilder};
 
 /// A directory manager to download, fetch, and cache a Tor directory.
 ///
