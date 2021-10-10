@@ -3,8 +3,9 @@
 use crate::mgr::{self};
 use crate::path::OwnedPath;
 use crate::usage::{SupportedCircUsage, TargetCircUsage};
-use crate::{DirInfo, Result};
+use crate::{DirInfo, Error, Result};
 use async_trait::async_trait;
+use futures::future::OptionFuture;
 use rand::{rngs::StdRng, SeedableRng};
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -31,6 +32,13 @@ pub(crate) struct Plan {
     path: OwnedPath,
     /// The protocol parameters to use when constructing the circuit.
     params: CircParameters,
+    /// If this path is using a guard, we'll use this object to report
+    /// whether the circuit succeeded or failed.
+    guard_status: Option<tor_guardmgr::GuardMonitor>,
+    /// If this path is using a guard, we'll use this object to learn
+    /// whether we're allowed ot use the circuit or whether we have to
+    /// wait a while.
+    guard_usable: Option<tor_guardmgr::GuardUsable>,
 }
 
 #[async_trait]
@@ -45,12 +53,15 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         dir: DirInfo<'_>,
     ) -> Result<(Plan, SupportedCircUsage)> {
         let mut rng = rand::thread_rng();
-        let (path, final_spec) = usage.build_path(&mut rng, dir, self.path_config())?;
+        let (path, final_spec, guard_status, guard_usable) =
+            usage.build_path(&mut rng, dir, self.path_config())?;
 
         let plan = Plan {
             final_spec: final_spec.clone(),
             path: (&path).try_into()?,
             params: dir.circ_params(),
+            guard_status,
+            guard_usable,
         };
 
         Ok((plan, final_spec))
@@ -61,11 +72,50 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
             final_spec,
             path,
             params,
+            guard_status,
+            guard_usable,
         } = plan;
         let rng = StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
 
-        let circuit = self.build_owned(path, &params, rng).await?;
-        Ok((final_spec, circuit))
+        let guard_usable: OptionFuture<_> = guard_usable.into();
+
+        // TODO: We may want to lower the logic for handling
+        // guard_status and guard_usable into build.rs, so that they
+        // can be handled correctly on user-selected paths as well.
+        //
+        // This will probably require a different API for circuit
+        // construction.
+        match self.build_owned(path, &params, rng).await {
+            Ok(circuit) => {
+                if let Some(mon) = guard_status {
+                    // Report success to the guard manager, so it knows that
+                    // this guard is reachable.
+                    // TODO: We may someday want to report two-hop circuits
+                    // as successful. But not today.
+                    mon.succeeded();
+                }
+                // We have to wait for the guard manager to tell us whether
+                // this guard is actually _usable_ or not.  Possibly,
+                // it is a speculative guard that we're only trying out
+                // in case some preferable guard won't meet our needs.
+                match guard_usable.await {
+                    Some(Ok(true)) | None => (),
+                    Some(Ok(false)) => return Err(Error::GuardNotUsable),
+                    Some(Err(_)) => {
+                        return Err(Error::Internal("Guard usability status cancelled".into()))
+                    }
+                }
+                Ok((final_spec, circuit))
+            }
+            Err(e) => {
+                if let Some(mon) = guard_status {
+                    // Report failure to the guard manager, so it knows
+                    // not to use this guard in the future.
+                    mon.failed();
+                }
+                Err(e)
+            }
+        }
     }
 
     fn launch_parallelism(&self, spec: &TargetCircUsage) -> usize {

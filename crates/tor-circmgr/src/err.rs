@@ -24,6 +24,11 @@ pub enum Error {
     #[error("Circuit took too long to build")]
     CircTimeout,
 
+    /// We started building a circuit on a guard, but later decided not
+    /// to use that guard.
+    #[error("Discarded circuit because of speculative guard selection")]
+    GuardNotUsable,
+
     /// Tried to take a circuit for a purpose it doesn't support.
     #[error("Circuit usage not supported: {0}")]
     UsageNotSupported(String),

@@ -4,10 +4,10 @@ use rand::Rng;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
+use tor_guardmgr::{GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
-
-use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 
 use crate::{Error, Result};
 
@@ -173,11 +173,16 @@ impl TargetCircUsage {
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
         config: &crate::PathConfig,
-    ) -> Result<(TorPath<'a>, SupportedCircUsage)> {
+    ) -> Result<(
+        TorPath<'a>,
+        SupportedCircUsage,
+        Option<GuardMonitor>,
+        Option<GuardUsable>,
+    )> {
         match self {
             TargetCircUsage::Dir => {
                 let path = DirPathBuilder::new().pick_path(rng, netdir)?;
-                Ok((path, SupportedCircUsage::Dir))
+                Ok((path, SupportedCircUsage::Dir, None, None))
             }
             TargetCircUsage::Exit {
                 ports: p,
@@ -194,6 +199,8 @@ impl TargetCircUsage {
                         policy,
                         isolation_group: Some(*isolation_group),
                     },
+                    None,
+                    None,
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
@@ -207,7 +214,7 @@ impl TargetCircUsage {
                     _ => SupportedCircUsage::NoUsage,
                 };
 
-                Ok((path, usage))
+                Ok((path, usage, None, None))
             }
         }
     }
@@ -468,7 +475,7 @@ mod test {
         // Only doing basic tests for now.  We'll test the path
         // building code a lot more closely in the tests for TorPath
         // and friends.
-        let (p_dir, u_dir) = TargetCircUsage::Dir
+        let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
             .build_path(&mut rng, di, &config)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
@@ -479,7 +486,7 @@ mod test {
             ports: vec![TargetPort::ipv4(995)],
             isolation_group,
         };
-        let (p_exit, u_exit) = exit_usage.build_path(&mut rng, di, &config).unwrap();
+        let (p_exit, u_exit, _, _) = exit_usage.build_path(&mut rng, di, &config).unwrap();
         assert!(matches!(
             u_exit,
             SupportedCircUsage::Exit {
