@@ -251,8 +251,11 @@ pub struct CircuitBuilder<R: Runtime> {
     /// Configuration for how to choose paths for circuits.
     path_config: crate::PathConfig,
     /// State-manager object to use in storing current state.
-    #[allow(dead_code)]
     storage: crate::TimeoutStateHandle,
+    /// Guard manager to tell us which guards nodes to use for the circuits
+    /// we build.
+    #[allow(dead_code)]
+    guardmgr: tor_guardmgr::GuardMgr<R>,
 }
 
 impl<R: Runtime> CircuitBuilder<R> {
@@ -264,6 +267,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         chanmgr: Arc<ChanMgr<R>>,
         path_config: crate::PathConfig,
         storage: crate::TimeoutStateHandle,
+        guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Self {
         let timeouts = match storage.load() {
             Ok(Some(v)) => ParetoTimeoutEstimator::from_state(v),
@@ -278,6 +282,7 @@ impl<R: Runtime> CircuitBuilder<R> {
             builder: Arc::new(Builder::new(runtime, chanmgr, timeouts)),
             path_config,
             storage,
+            guardmgr,
         }
     }
 

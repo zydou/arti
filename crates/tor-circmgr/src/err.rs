@@ -52,6 +52,10 @@ pub enum Error {
     /// Problem loading or storing persistent state.
     #[error("Problem loading or storing state: {0}")]
     State(#[from] tor_persist::Error),
+
+    /// Problem creating or updating a guard manager.
+    #[error("Problem creating or updating guards list: {0}")]
+    GuardMgr(#[from] tor_guardmgr::GuardMgrError),
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {

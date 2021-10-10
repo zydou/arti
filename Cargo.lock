@@ -2496,6 +2496,7 @@ dependencies = [
  "static_assertions",
  "thiserror",
  "tor-chanmgr",
+ "tor-guardmgr",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",

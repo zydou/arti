@@ -175,10 +175,17 @@ impl<R: Runtime> CircMgr<R> {
             circuit_timing,
         } = config;
 
+        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
+
         let storage = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
-        let builder =
-            build::CircuitBuilder::new(runtime.clone(), chanmgr, path_config, Arc::clone(&storage));
+        let builder = build::CircuitBuilder::new(
+            runtime.clone(),
+            chanmgr,
+            path_config,
+            Arc::clone(&storage),
+            guardmgr,
+        );
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), request_timing, circuit_timing);
         let circmgr = Arc::new(CircMgr {

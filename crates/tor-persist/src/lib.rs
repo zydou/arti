@@ -65,7 +65,7 @@ pub use testing::TestingStateMgr;
 /// Current implementations may place additional limits on the types
 /// of objects that can be stored.  This is not a great example of OO
 /// design: eventually we should probably clarify that more.
-pub trait StateMgr {
+pub trait StateMgr: Clone {
     /// Try to load the object with key `key` from the store.
     ///
     /// Return None if no such object exists.
