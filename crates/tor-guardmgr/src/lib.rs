@@ -277,7 +277,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// Return true if we were able to save, and false if we couldn't
     /// get the lock.
-    pub async fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
+    pub fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
         let inner = self.inner.lock().expect("Poisoned lock");
         if inner.default_storage.try_lock()? {
             trace!("Flushing guard state to disk.");
@@ -296,7 +296,7 @@ impl<R: Runtime> GuardMgr<R> {
     /// potential candidate guards.
     ///
     /// Call this method whenever the `NetDir` changes.
-    pub async fn update_network(&self, netdir: &NetDir) {
+    pub fn update_network(&self, netdir: &NetDir) {
         trace!("Updating guard state from network directory");
         let now = self.runtime.wallclock();
 
@@ -317,7 +317,7 @@ impl<R: Runtime> GuardMgr<R> {
     /// We should really call this every time we read a cell, but that
     /// isn't efficient or practical.  We'll probably have to refactor
     /// things somehow. (TODO)
-    pub async fn note_internet_activity(&self) {
+    pub fn note_internet_activity(&self) {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
         inner.last_time_on_internet = Some(now);
@@ -327,7 +327,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// (Since there is only one kind of filter right now, there's no
     /// real reason to call this function, but at least it should work.
-    pub async fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
+    pub fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
         // First we have to see how much of the possible guard space
         // this new filter allows.  (We don't use this info yet, but we will
         // one we have nontrivial filters.)
@@ -384,7 +384,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// This function only looks at netdir when all of the known
     /// guards are down; to force an update, use [`GuardMgr::update_network`].
-    pub async fn select_guard(
+    pub fn select_guard(
         &self,
         usage: GuardUsage,
         netdir: Option<&NetDir>,
@@ -890,9 +890,9 @@ mod test {
             let (guardmgr, statemgr, netdir) = init(rt.clone());
             let usage = GuardUsage::default();
 
-            guardmgr.update_network(&netdir).await;
+            guardmgr.update_network(&netdir);
 
-            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).await.unwrap();
+            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).unwrap();
             // Report that the circuit succeeded.
             mon.succeeded();
 
@@ -902,16 +902,16 @@ mod test {
 
             // Save the state...
             guardmgr.flush_msg_queue().await;
-            guardmgr.update_persistent_state().await.unwrap();
+            guardmgr.update_persistent_state().unwrap();
             drop(guardmgr);
 
             // Try reloading from the state...
             let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone()).unwrap();
-            guardmgr2.update_network(&netdir).await;
+            guardmgr2.update_network(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!
             let usage = GuardUsage::default();
-            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).await.unwrap();
+            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
             assert_eq!(id2, id);
         })
     }
@@ -924,21 +924,15 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir).await;
+            guardmgr.update_network(&netdir);
 
             // We'll have the first two guard fail, which should make us
             // try a non-primary guard.
-            let (id1, mon, _usable) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id1, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
-            let (id2, mon, _usable) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id2, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
@@ -946,14 +940,8 @@ mod test {
             assert!(id1 != id2);
 
             // Now we should get two sampled guards. They should be different.
-            let (id3, mon3, usable3) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
-            let (id4, mon4, usable4) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             assert!(id3 != id4);
 
             let (u3, u4) = futures::join!(
@@ -977,12 +965,10 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir).await;
-            guardmgr
-                .set_filter(GuardFilter::TestingLimitKeys, &netdir)
-                .await;
+            guardmgr.update_network(&netdir);
+            guardmgr.set_filter(GuardFilter::TestingLimitKeys, &netdir);
 
-            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).await.unwrap();
+            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
             assert_eq!(id1.rsa.as_bytes()[0] % 4, 0);
         })
