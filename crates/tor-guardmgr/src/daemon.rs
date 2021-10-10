@@ -8,10 +8,9 @@ use crate::GuardMgrInner;
 
 use futures::{
     channel::{mpsc, oneshot},
-    lock::Mutex,
     stream::{self, StreamExt},
 };
-use std::sync::Weak;
+use std::sync::{Mutex, Weak};
 
 /// A message sent by to the [`report_status_events()`] task.
 #[derive(Debug)]
@@ -48,7 +47,7 @@ pub(crate) type MsgResult = Result<Msg, futures::channel::oneshot::Canceled>;
 pub(crate) async fn report_status_events(
     runtime: impl tor_rtcompat::SleepProvider,
     inner: Weak<Mutex<GuardMgrInner>>,
-    ctrl: mpsc::Receiver<MsgResult>,
+    ctrl: mpsc::UnboundedReceiver<MsgResult>,
 ) {
     // Multiplexes a bunch of one-shot receivers to tell us about guard
     // status outcomes.
@@ -72,7 +71,7 @@ pub(crate) async fn report_status_events(
             Some(Ok(Msg::Status(id, status))) => {
                 // We've got a report about a guard status.
                 if let Some(inner) = inner.upgrade() {
-                    let mut inner = inner.lock().await;
+                    let mut inner = inner.lock().expect("Poisoned lock");
                     inner.handle_msg(id, status, &runtime);
                 } else {
                     // The guard manager has gone away.
@@ -110,7 +109,7 @@ pub(crate) async fn run_periodic<R: tor_rtcompat::SleepProvider>(
 ) {
     loop {
         let delay = if let Some(inner) = inner.upgrade() {
-            let mut inner = inner.lock().await;
+            let mut inner = inner.lock().expect("Poisoned lock");
             let wallclock = runtime.wallclock();
             let now = runtime.now();
             inner.run_periodic_events(wallclock, now)
