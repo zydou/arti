@@ -203,7 +203,12 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Flush state to the state manager, if there is any unsaved state.
     pub fn update_persistent_state(&self) -> Result<()> {
-        self.mgr.peek_builder().save_state()
+        self.mgr.peek_builder().save_state()?;
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .update_persistent_state()?;
+        Ok(())
     }
 
     /// Reconfigure this circuit manager using the latest set of
@@ -213,6 +218,15 @@ impl<R: Runtime> CircMgr<R> {
     pub fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
         self.mgr.update_network_parameters(p);
         self.mgr.peek_builder().update_network_parameters(p);
+    }
+
+    /// Reconfigure this circuit manager using the latest network directory.
+    ///
+    /// This should be called on _any_ change to the network, as opposed to
+    /// [`CircMgr::update_network_parameters`], which should only be
+    /// called when the parameters change.
+    pub fn update_network(&self, netdir: &NetDir) {
+        self.mgr.peek_builder().guardmgr().update_network(netdir);
     }
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,

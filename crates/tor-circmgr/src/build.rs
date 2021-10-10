@@ -254,7 +254,6 @@ pub struct CircuitBuilder<R: Runtime> {
     storage: crate::TimeoutStateHandle,
     /// Guard manager to tell us which guards nodes to use for the circuits
     /// we build.
-    #[allow(dead_code)]
     guardmgr: tor_guardmgr::GuardMgr<R>,
 }
 
@@ -338,6 +337,11 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// Return true if this builder is currently learning timeout info.
     pub(crate) fn learning_timeouts(&self) -> bool {
         self.builder.timeouts.learning_timeouts()
+    }
+
+    /// Return a reference to this builder's `GuardMgr`.
+    pub(crate) fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R> {
+        &self.guardmgr
     }
 }
 

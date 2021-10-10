@@ -63,6 +63,10 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// Called to note that the consensus stored in [`Self::netdir()`] has been
     /// changed.
     fn netdir_consensus_changed(&self);
+
+    /// Called to note that the descriptors stored in
+    /// [`Self::netdir()`] have been changed.
+    fn netdir_descriptors_changed(&self);
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
@@ -75,6 +79,11 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
     fn netdir_consensus_changed(&self) {
         use std::sync::atomic::Ordering;
         self.netdir_consensus_changed.store(true, Ordering::SeqCst);
+    }
+    fn netdir_descriptors_changed(&self) {
+        use std::sync::atomic::Ordering;
+        self.netdir_descriptors_changed
+            .store(true, Ordering::SeqCst);
     }
 }
 
@@ -500,6 +509,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
                 for md in mds {
                     netdir.add_microdesc(md);
                 }
+                wd.netdir_descriptors_changed();
                 Ok(())
             });
         }
@@ -517,6 +527,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
                     if let Some(wd) = Weak::upgrade(&self.writedir) {
                         wd.netdir().replace(netdir);
                         wd.netdir_consensus_changed();
+                        wd.netdir_descriptors_changed();
                         return true;
                     }
                 }

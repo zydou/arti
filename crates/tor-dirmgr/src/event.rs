@@ -12,6 +12,9 @@ pub enum DirEvent {
     /// to be used.
     NewConsensus,
 
+    /// New descriptors have been received for the latest consensus.
+    NewDescriptors,
+
     /// A dummy event that's only used when we're testing.
     #[cfg(test)]
     Dummy,

@@ -321,13 +321,28 @@ async fn keep_circmgr_params_updated<R: Runtime>(
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
     dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
 ) {
+    use DirEvent::*;
     while let Some(event) = events.next().await {
-        if let DirEvent::NewConsensus = event {
-            if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                cm.update_network_parameters(dm.netdir().params());
-            } else {
-                debug!("Circmgr or dirmgr has disappeared; task exiting.");
-                break;
+        match event {
+            NewConsensus => {
+                if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+                    cm.update_network_parameters(dm.netdir().params());
+                    cm.update_network(&dm.netdir());
+                } else {
+                    debug!("Circmgr or dirmgr has disappeared; task exiting.");
+                    break;
+                }
+            }
+            NewDescriptors => {
+                if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+                    cm.update_network(&dm.netdir());
+                } else {
+                    debug!("Circmgr or dirmgr has disappeared; task exiting.");
+                    break;
+                }
+            }
+            _ => {
+                // Nothing we recognize.
             }
         }
     }

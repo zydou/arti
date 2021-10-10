@@ -127,6 +127,10 @@ pub struct DirMgr<R: Runtime> {
     /// changed.
     netdir_consensus_changed: AtomicBool,
 
+    /// A flag that gets set whenever the _descriptors_ part of `netdir` has
+    /// changed without adding a new consensus.
+    netdir_descriptors_changed: AtomicBool,
+
     /// A publisher handle, used to inform others about changes in the
     /// status of this directory handle.
     publisher: event::Publisher,
@@ -382,12 +386,14 @@ impl<R: Runtime> DirMgr<R> {
         let store = Mutex::new(config.open_sqlite_store(readonly)?);
         let netdir = SharedMutArc::new();
         let netdir_consensus_changed = AtomicBool::new(false);
+        let netdir_descriptors_changed = AtomicBool::new(false);
         let publisher = event::Publisher::new();
         Ok(DirMgr {
             config,
             store,
             netdir,
             netdir_consensus_changed,
+            netdir_descriptors_changed,
             publisher,
             circmgr,
             runtime,
@@ -477,6 +483,12 @@ impl<R: Runtime> DirMgr<R> {
     pub(crate) async fn notify(&self) {
         if self.netdir_consensus_changed.swap(false, Ordering::SeqCst) {
             self.publisher.send(DirEvent::NewConsensus).await;
+        }
+        if self
+            .netdir_descriptors_changed
+            .swap(false, Ordering::SeqCst)
+        {
+            self.publisher.send(DirEvent::NewDescriptors).await;
         }
     }
 
