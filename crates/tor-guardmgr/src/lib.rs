@@ -129,13 +129,11 @@
 //     filtered
 
 use futures::channel::mpsc;
-use futures::lock::Mutex;
 use futures::task::{SpawnError, SpawnExt};
-use futures::SinkExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, info, trace, warn};
 
@@ -169,13 +167,6 @@ pub struct GuardMgr<R: Runtime> {
     runtime: R,
 
     /// Internal state for the guard manager.
-    // TODO: I wish I could use a regular mutex rather than a
-    // futures::lock::Mutex, but I don't see how that's feasible.  We
-    // need to get access to inner.ctrl and then send over it, which
-    // means we need an async mutex.
-    //
-    // Conceivably, I could move ctrl out to GuardMgr, and then put it
-    // under a sync::Mutex.  Is that smart?
     inner: Arc<Mutex<GuardMgrInner>>,
 }
 
@@ -213,7 +204,14 @@ struct GuardMgrInner {
 
     /// A mpsc channel, used to tell the task running in
     /// [`daemon::report_status_events`] about a new event to monitor.
-    ctrl: mpsc::Sender<daemon::MsgResult>,
+    ///
+    /// This uses an `UnboundedSener` so that we don't have to await
+    /// while sending the message, which in turn allows the GuardMgr
+    /// API to be simpler.  The risk, however, is that there's no
+    /// backpressure in the event that the task running
+    /// [`daemon::report_status_events`] fails to read from this
+    /// channel.
+    ctrl: mpsc::UnboundedSender<daemon::MsgResult>,
 
     /// Information about guards that we've given out, but where we have
     /// not yet heard whether the guard was successful.
@@ -249,7 +247,7 @@ impl<R: Runtime> GuardMgr<R> {
     where
         S: StateMgr + Send + Sync + 'static,
     {
-        let (ctrl, rcv) = mpsc::channel(32);
+        let (ctrl, rcv) = mpsc::unbounded();
         let default_storage = state_mgr.create_handle("default_guards");
         let active_guards = default_storage.load()?.unwrap_or_else(GuardSet::new);
         let inner = Arc::new(Mutex::new(GuardMgrInner {
@@ -279,8 +277,8 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// Return true if we were able to save, and false if we couldn't
     /// get the lock.
-    pub async fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
-        let inner = self.inner.lock().await;
+    pub fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
+        let inner = self.inner.lock().expect("Poisoned lock");
         if inner.default_storage.try_lock()? {
             trace!("Flushing guard state to disk.");
             inner.default_storage.store(&inner.active_guards)?;
@@ -298,11 +296,11 @@ impl<R: Runtime> GuardMgr<R> {
     /// potential candidate guards.
     ///
     /// Call this method whenever the `NetDir` changes.
-    pub async fn update_network(&self, netdir: &NetDir) {
+    pub fn update_network(&self, netdir: &NetDir) {
         trace!("Updating guard state from network directory");
         let now = self.runtime.wallclock();
 
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("Poisoned lock");
 
         inner.update(now, Some(netdir));
     }
@@ -319,9 +317,9 @@ impl<R: Runtime> GuardMgr<R> {
     /// We should really call this every time we read a cell, but that
     /// isn't efficient or practical.  We'll probably have to refactor
     /// things somehow. (TODO)
-    pub async fn note_internet_activity(&self) {
+    pub fn note_internet_activity(&self) {
         let now = self.runtime.now();
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("Poisoned lock");
         inner.last_time_on_internet = Some(now);
     }
 
@@ -329,7 +327,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// (Since there is only one kind of filter right now, there's no
     /// real reason to call this function, but at least it should work.
-    pub async fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
+    pub fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
         // First we have to see how much of the possible guard space
         // this new filter allows.  (We don't use this info yet, but we will
         // one we have nontrivial filters.)
@@ -345,7 +343,7 @@ impl<R: Runtime> GuardMgr<R> {
         };
 
         let now = self.runtime.wallclock();
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("Poisoned lock");
 
         let restrictive_filter = frac_permitted < inner.params.filter_threshold;
 
@@ -386,7 +384,7 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// This function only looks at netdir when all of the known
     /// guards are down; to force an update, use [`GuardMgr::update_network`].
-    pub async fn select_guard(
+    pub fn select_guard(
         &self,
         usage: GuardUsage,
         netdir: Option<&NetDir>,
@@ -394,7 +392,7 @@ impl<R: Runtime> GuardMgr<R> {
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
 
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.inner.lock().expect("Poisoned lock");
 
         // (I am not 100% sure that we need to consider_all_retries here, but
         // it should _probably_ not hurt.)
@@ -419,12 +417,9 @@ impl<R: Runtime> GuardMgr<R> {
 
         inner.active_guards.record_attempt(&guard_id, now);
 
-        // Have to do this while not holding lock, since it awaits.
-        // TODO: I wish this function didn't have to be async.
         inner
             .ctrl
-            .send(Ok(daemon::Msg::Observe(rcv)))
-            .await
+            .unbounded_send(Ok(daemon::Msg::Observe(rcv)))
             .expect("Guard observer task exited prematurely");
 
         Ok((guard_id, monitor, usable))
@@ -437,11 +432,10 @@ impl<R: Runtime> GuardMgr<R> {
         let (snd, rcv) = futures::channel::oneshot::channel();
         let pingmsg = daemon::Msg::Ping(snd);
         {
-            let mut inner = self.inner.lock().await;
+            let inner = self.inner.lock().expect("Poisoned lock");
             inner
                 .ctrl
-                .send(Ok(pingmsg))
-                .await
+                .unbounded_send(Ok(pingmsg))
                 .expect("Guard observer task exited permaturely.");
         }
         let _ = rcv.await;
@@ -896,9 +890,9 @@ mod test {
             let (guardmgr, statemgr, netdir) = init(rt.clone());
             let usage = GuardUsage::default();
 
-            guardmgr.update_network(&netdir).await;
+            guardmgr.update_network(&netdir);
 
-            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).await.unwrap();
+            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).unwrap();
             // Report that the circuit succeeded.
             mon.succeeded();
 
@@ -908,16 +902,16 @@ mod test {
 
             // Save the state...
             guardmgr.flush_msg_queue().await;
-            guardmgr.update_persistent_state().await.unwrap();
+            guardmgr.update_persistent_state().unwrap();
             drop(guardmgr);
 
             // Try reloading from the state...
             let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone()).unwrap();
-            guardmgr2.update_network(&netdir).await;
+            guardmgr2.update_network(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!
             let usage = GuardUsage::default();
-            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).await.unwrap();
+            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
             assert_eq!(id2, id);
         })
     }
@@ -930,21 +924,15 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir).await;
+            guardmgr.update_network(&netdir);
 
             // We'll have the first two guard fail, which should make us
             // try a non-primary guard.
-            let (id1, mon, _usable) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id1, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
-            let (id2, mon, _usable) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id2, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
@@ -952,14 +940,8 @@ mod test {
             assert!(id1 != id2);
 
             // Now we should get two sampled guards. They should be different.
-            let (id3, mon3, usable3) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
-            let (id4, mon4, usable4) = guardmgr
-                .select_guard(u.clone(), Some(&netdir))
-                .await
-                .unwrap();
+            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             assert!(id3 != id4);
 
             let (u3, u4) = futures::join!(
@@ -983,12 +965,10 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir).await;
-            guardmgr
-                .set_filter(GuardFilter::TestingLimitKeys, &netdir)
-                .await;
+            guardmgr.update_network(&netdir);
+            guardmgr.set_filter(GuardFilter::TestingLimitKeys, &netdir);
 
-            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).await.unwrap();
+            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
             assert_eq!(id1.rsa.as_bytes()[0] % 4, 0);
         })
