@@ -2,6 +2,8 @@
 use super::TorPath;
 use crate::{DirInfo, Error, Result};
 use tor_netdir::{Relay, WeightRole};
+use tor_guardmgr::GuardMgr;
+use tor_rtcompat::Runtime;
 
 use rand::{seq::SliceRandom, Rng};
 
@@ -23,8 +25,8 @@ impl DirPathBuilder {
 
     /// Try to create and return a path corresponding to the requirements of
     /// this builder.
-    pub fn pick_path<'a, R: Rng>(&self, rng: &mut R, netdir: DirInfo<'a>) -> Result<TorPath<'a>> {
-        // TODO: this will need to learn about directory guards.
+    pub fn pick_path<'a, R: Rng, RT: Runtime>(&self, rng: &mut R, netdir: DirInfo<'a>, guards: Option<&GuardMgr<RT>>) -> Result<TorPath<'a>> {
+        let _ = guards; // XXXXX Implement me.
         match netdir {
             DirInfo::Fallbacks(f) => {
                 let relay = f.choose(rng);
@@ -63,7 +65,7 @@ mod test {
         let dirinfo = (&netdir).into();
 
         for _ in 0..1000 {
-            let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo);
+            let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo, None);
             let p = p.unwrap();
             assert!(p.exit_relay().is_none());
             assert_eq!(p.len(), 1);
@@ -96,7 +98,7 @@ mod test {
         let mut rng = rand::thread_rng();
 
         for _ in 0..10 {
-            let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo);
+            let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo, None);
             let p = p.unwrap();
             assert!(p.exit_relay().is_none());
             assert_eq!(p.len(), 1);
@@ -116,7 +118,7 @@ mod test {
         let dirinfo = DirInfo::Fallbacks(&fb[..]);
         let mut rng = rand::thread_rng();
 
-        let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo);
+        let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, None);
         assert!(matches!(err, Err(Error::NoRelays(_))));
     }
 }

@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
-use tor_guardmgr::{GuardMonitor, GuardUsable};
+use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
+use tor_rtcompat::Runtime;
 
 use crate::{Error, Result};
 
@@ -168,10 +169,11 @@ pub(crate) enum SupportedCircUsage {
 impl TargetCircUsage {
     /// Construct path for a given circuit purpose; return it and the
     /// usage that it _actually_ supports.
-    pub(crate) fn build_path<'a, R: Rng>(
+    pub(crate) fn build_path<'a, R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: crate::DirInfo<'a>,
+        guards: Option<&GuardMgr<RT>>,
         config: &crate::PathConfig,
     ) -> Result<(
         TorPath<'a>,
@@ -181,7 +183,7 @@ impl TargetCircUsage {
     )> {
         match self {
             TargetCircUsage::Dir => {
-                let path = DirPathBuilder::new().pick_path(rng, netdir)?;
+                let path = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
                 Ok((path, SupportedCircUsage::Dir, None, None))
             }
             TargetCircUsage::Exit {
@@ -189,7 +191,7 @@ impl TargetCircUsage {
                 isolation_group,
             } => {
                 let path =
-                    ExitPathBuilder::from_target_ports(p.clone()).pick_path(rng, netdir, config)?;
+                    ExitPathBuilder::from_target_ports(p.clone()).pick_path(rng, netdir, guards, config)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -204,7 +206,7 @@ impl TargetCircUsage {
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
-                let path = ExitPathBuilder::for_timeout_testing().pick_path(rng, netdir, config)?;
+                let path = ExitPathBuilder::for_timeout_testing().pick_path(rng, netdir, guards, config)?;
                 let policy = path.exit_policy();
                 let usage = match policy {
                     Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {

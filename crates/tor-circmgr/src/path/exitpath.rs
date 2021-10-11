@@ -4,6 +4,7 @@ use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
+use tor_guardmgr::GuardMgr;
 
 /// Internal representation of PathBuilder.
 enum ExitPathBuilderInner<'a> {
@@ -97,13 +98,14 @@ impl<'a> ExitPathBuilder<'a> {
 
     /// Try to create and return a path corresponding to the requirements of
     /// this builder.
-    pub fn pick_path<R: Rng>(
+    pub fn pick_path<R: Rng, RT: Runtime>(
         &self,
         rng: &mut R,
         netdir: DirInfo<'a>,
+        guards: Option<&GuardMgr<RT>>,
         config: &PathConfig,
     ) -> Result<TorPath<'a>> {
-        // TODO: implement guards
+        let _ = guards; // XXXXXX Implement me.
         let netdir = match netdir {
             DirInfo::Fallbacks(_) => return Err(Error::NeedConsensus),
             DirInfo::Directory(d) => d,
