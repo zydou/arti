@@ -39,6 +39,7 @@ thiserror = "1.0.24"
 weak-table = "0.3.0"
 
 [dev-dependencies]
+async_executors = { version = "0.4.2", default-features=false, features = [ "tokio_tp" ] }
 futures-await-test = "0.3.0"
 tor-rtmock = { path="../tor-rtmock", version="0.0.0" }
 tor-llcrypto = { path="../tor-llcrypto", version="0.0.0" }

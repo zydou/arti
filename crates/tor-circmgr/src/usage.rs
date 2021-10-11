@@ -190,8 +190,8 @@ impl TargetCircUsage {
                 ports: p,
                 isolation_group,
             } => {
-                let path =
-                    ExitPathBuilder::from_target_ports(p.clone()).pick_path(rng, netdir, guards, config)?;
+                let path = ExitPathBuilder::from_target_ports(p.clone())
+                    .pick_path(rng, netdir, guards, config)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -206,7 +206,8 @@ impl TargetCircUsage {
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
-                let path = ExitPathBuilder::for_timeout_testing().pick_path(rng, netdir, guards, config)?;
+                let path = ExitPathBuilder::for_timeout_testing()
+                    .pick_path(rng, netdir, guards, config)?;
                 let policy = path.exit_policy();
                 let usage = match policy {
                     Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {
@@ -278,6 +279,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::test::OptDummyGuardMgr;
     use tor_netdir::testnet;
 
     #[test]
@@ -473,12 +475,13 @@ mod test {
             .unwrap();
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
+        let guards: OptDummyGuardMgr<'_> = None;
 
         // Only doing basic tests for now.  We'll test the path
         // building code a lot more closely in the tests for TorPath
         // and friends.
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(&mut rng, di, &config)
+            .build_path(&mut rng, di, guards, &config)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
@@ -488,7 +491,9 @@ mod test {
             ports: vec![TargetPort::ipv4(995)],
             isolation_group,
         };
-        let (p_exit, u_exit, _, _) = exit_usage.build_path(&mut rng, di, &config).unwrap();
+        let (p_exit, u_exit, _, _) = exit_usage
+            .build_path(&mut rng, di, guards, &config)
+            .unwrap();
         assert!(matches!(
             u_exit,
             SupportedCircUsage::Exit {

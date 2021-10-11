@@ -3,8 +3,9 @@
 use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
-use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_guardmgr::GuardMgr;
+use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
+use tor_rtcompat::Runtime;
 
 /// Internal representation of PathBuilder.
 enum ExitPathBuilderInner<'a> {
@@ -144,6 +145,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
+    use crate::test::OptDummyGuardMgr;
     use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
@@ -177,10 +179,11 @@ mod test {
         let ports = vec![TargetPort::ipv4(443), TargetPort::ipv4(1119)];
         let dirinfo = (&netdir).into();
         let config = PathConfig::default();
+        let guards: OptDummyGuardMgr<'_> = None;
 
         for _ in 0..1000 {
             let path = ExitPathBuilder::from_target_ports(ports.clone())
-                .pick_path(&mut rng, dirinfo, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
 
             assert_same_path_when_owned(&path);
@@ -199,7 +202,7 @@ mod test {
         let config = PathConfig::default();
         for _ in 0..1000 {
             let path = ExitPathBuilder::from_chosen_exit(chosen.clone())
-                .pick_path(&mut rng, dirinfo, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
             assert_same_path_when_owned(&path);
             if let TorPathInner::Path(p) = path.inner {
@@ -220,11 +223,12 @@ mod test {
             .unwrap_if_sufficient()
             .unwrap();
         let dirinfo = (&netdir).into();
+        let guards: OptDummyGuardMgr<'_> = None;
 
         let config = PathConfig::default();
         for _ in 0..1000 {
             let path = ExitPathBuilder::for_any_exit()
-                .pick_path(&mut rng, dirinfo, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
             assert_same_path_when_owned(&path);
             if let TorPathInner::Path(p) = path.inner {

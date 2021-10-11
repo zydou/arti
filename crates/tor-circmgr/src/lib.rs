@@ -342,6 +342,10 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
 
+    /// Helper type used to help type inference.
+    pub(crate) type OptDummyGuardMgr<'a> =
+        Option<&'a tor_guardmgr::GuardMgr<async_executors::TokioTp>>;
+
     #[test]
     fn get_params() {
         use tor_netdir::{MdReceiver, PartialNetDir};
