@@ -524,6 +524,14 @@ impl NetDir {
         self.by_id(ed_id).filter(|r| r.rs.rsa_identity() == rsa_id)
     }
 
+    /// Return the usable relay matching a given [`ChanTarget`]'s
+    /// identities, if any.
+    ///
+    /// (Does not return unusable relays.)
+    pub fn by_chantarget(&self, chan_target: &impl tor_linkspec::ChanTarget) -> Option<Relay<'_>> {
+        self.by_id_pair(chan_target.ed_identity(), chan_target.rsa_identity())
+    }
+
     /// Return a boolean if this consensus definitely has (or does not
     /// have) a relay matching both the given Ed25519 and RSA
     /// identity.
