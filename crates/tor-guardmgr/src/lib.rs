@@ -133,6 +133,7 @@ use futures::task::{SpawnError, SpawnExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, info, trace, warn};
@@ -388,7 +389,7 @@ impl<R: Runtime> GuardMgr<R> {
         &self,
         usage: GuardUsage,
         netdir: Option<&NetDir>,
-    ) -> Result<(GuardId, GuardMonitor, GuardUsable), PickGuardError> {
+    ) -> Result<(Guard, GuardMonitor, GuardUsable), PickGuardError> {
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
 
@@ -399,6 +400,11 @@ impl<R: Runtime> GuardMgr<R> {
         inner.active_guards.consider_all_retries(now);
 
         let (origin, guard_id) = inner.select_guard_with_retries(&usage, netdir, wallclock)?;
+        let guard = inner
+            .active_guards
+            .get(&guard_id)
+            .expect("Selected guard that wasn't in our sample!?")
+            .get_external_rep();
 
         trace!(?guard_id, ?usage, "Guard selected");
 
@@ -422,7 +428,7 @@ impl<R: Runtime> GuardMgr<R> {
             .unbounded_send(Ok(daemon::Msg::Observe(rcv)))
             .expect("Guard observer task exited prematurely");
 
-        Ok((guard_id, monitor, usable))
+        Ok((guard, monitor, usable))
     }
 
     /// Ensure that the message queue is flushed before proceding to
@@ -774,6 +780,39 @@ impl GuardId {
     }
 }
 
+/// Representation of a guard, as returned by [`GuardMgr::select_guard()`].
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Guard {
+    /// The guard's identities
+    id: GuardId,
+    /// The addresses at which the guard can be contacted.
+    orports: Vec<SocketAddr>,
+}
+
+impl Guard {
+    /// Return the identities of this guard.
+    pub fn id(&self) -> &GuardId {
+        &self.id
+    }
+    /// Look up this guard in `netdir`.
+    pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
+        self.id().get_relay(netdir)
+    }
+}
+
+// This is somewhat redundant with the implementation in crate::guard::Guard.
+impl tor_linkspec::ChanTarget for Guard {
+    fn addrs(&self) -> &[SocketAddr] {
+        &self.orports[..]
+    }
+    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
+        &self.id.ed25519
+    }
+    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
+        &self.id.rsa
+    }
+}
+
 /// The purpose for which we plan to use a guard.
 ///
 /// This can affect the guard selection algorithm.
@@ -968,9 +1007,9 @@ mod test {
             guardmgr.update_network(&netdir);
             guardmgr.set_filter(GuardFilter::TestingLimitKeys, &netdir);
 
-            let (id1, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
+            let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
-            assert_eq!(id1.rsa.as_bytes()[0] % 4, 0);
+            assert_eq!(guard.id().rsa.as_bytes()[0] % 4, 0);
         })
     }
 }

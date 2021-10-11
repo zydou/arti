@@ -449,6 +449,14 @@ impl Guard {
     pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
         dir.weight_by_rsa_id(&self.id.rsa, tor_netdir::WeightRole::Guard)
     }
+
+    /// Return a [`crate::Guard`] object to represent this guard.
+    pub(crate) fn get_external_rep(&self) -> crate::Guard {
+        crate::Guard {
+            id: self.id.clone(),
+            orports: self.orports.clone(),
+        }
+    }
 }
 
 impl tor_linkspec::ChanTarget for Guard {

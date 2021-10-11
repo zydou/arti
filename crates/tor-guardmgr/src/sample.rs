@@ -139,6 +139,11 @@ impl GuardSet {
         assert_eq!(len_pre, len_post);
     }
 
+    /// Return the guard whose id is `id`, if any.
+    pub(crate) fn get(&self, id: &GuardId) -> Option<&Guard> {
+        self.guards.get(id)
+    }
+
     /// Replace the filter used by this `GuardSet` with `filter`.
     ///
     /// Removes all primary guards that the filter doesn't permit.
