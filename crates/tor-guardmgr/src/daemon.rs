@@ -3,7 +3,7 @@
 //! These background tasks keep a weak reference to the [`GuardMgrInner`]
 //! and use that to notice when they should shut down.
 
-use crate::pending::{GuardStatusMsg, RequestId};
+use crate::pending::{GuardStatus, RequestId};
 use crate::GuardMgrInner;
 
 use futures::{
@@ -25,7 +25,7 @@ pub(crate) enum Msg {
     Observe(oneshot::Receiver<Msg>),
     /// A message sent by a [`crate::GuardMonitor`] to report the status
     /// of an attempt to use a guard.
-    Status(RequestId, GuardStatusMsg),
+    Status(RequestId, GuardStatus),
     /// Tells the task to reply on the provided oneshot::Sender once
     /// it has seen this message.  Used to indicate that the message
     /// queue is flushed.

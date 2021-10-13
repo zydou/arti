@@ -77,11 +77,15 @@ impl GuardUsable {
 /// A message that we can get back from the circuit manager who asked
 /// for a guard.
 #[derive(Copy, Clone, Debug)]
-pub(crate) enum GuardStatusMsg {
+#[non_exhaustive]
+pub enum GuardStatus {
     /// The guard was used successfully.
     Success,
     /// The guard was used unsuccessfuly.
     Failure,
+    /// The circuit failed in a way that we cannot prove is the guard's
+    /// fault, but which _might_ be the guard's fault.
+    Indeterminate,
     /// Our attempt to use the guard didn't get far enough to be sure
     /// whether the guard is usable or not.
     AttemptAbandoned,
@@ -96,6 +100,8 @@ pub(crate) enum GuardStatusMsg {
 pub struct GuardMonitor {
     /// The Id that we're going to report about.
     id: RequestId,
+    /// The status that we will report if this monitor is dropped now.
+    pending_status: GuardStatus,
     /// A sender that needs to get told when the attempt to use the guard is
     /// finished or abandoned.
     snd: Option<oneshot::Sender<daemon::Msg>>,
@@ -105,7 +111,14 @@ impl GuardMonitor {
     /// Create a new GuardMonitor object.
     pub(crate) fn new(id: RequestId) -> (Self, oneshot::Receiver<daemon::Msg>) {
         let (snd, rcv) = oneshot::channel();
-        (GuardMonitor { id, snd: Some(snd) }, rcv)
+        (
+            GuardMonitor {
+                id,
+                pending_status: GuardStatus::AttemptAbandoned,
+                snd: Some(snd),
+            },
+            rcv,
+        )
     }
 
     /// Report that a circuit was successfully built in a way that
@@ -115,12 +128,8 @@ impl GuardMonitor {
     /// succeeded. For example, we might decide that extending to a
     /// second hop means that a guard is usable, even if the circuit
     /// stalled at the third hop.
-    pub fn succeeded(mut self) {
-        let _ignore = self
-            .snd
-            .take()
-            .expect("GuardMonitor initialized with no sender")
-            .send(daemon::Msg::Status(self.id, GuardStatusMsg::Success));
+    pub fn succeeded(self) {
+        self.report(GuardStatus::Success);
     }
 
     /// Report that the circuit could not be built successfully, in
@@ -128,12 +137,8 @@ impl GuardMonitor {
     ///
     /// (This either be because of a network failure, a timeout, or
     /// something else.)
-    pub fn failed(mut self) {
-        let _ignore = self
-            .snd
-            .take()
-            .expect("GuardMonitor initialized with no sender")
-            .send(daemon::Msg::Status(self.id, GuardStatusMsg::Failure));
+    pub fn failed(self) {
+        self.report(GuardStatus::Failure);
     }
 
     /// Report that we did not try to build a circuit using the guard,
@@ -142,17 +147,29 @@ impl GuardMonitor {
     /// Dropping a `GuardMonitor` is without calling `succeeded` or
     /// `failed` is equivalent to calling this function.
     pub fn attempt_abandoned(self) {
-        drop(self);
+        self.report(GuardStatus::AttemptAbandoned);
+    }
+
+    /// Configure this monitor so that, if it is dropped before use,
+    /// it sends the status `status`.
+    pub fn pending_status(&mut self, status: GuardStatus) {
+        self.pending_status = status;
+    }
+
+    /// Report a message for this guard.
+    pub fn report(mut self, msg: GuardStatus) {
+        let _ignore = self
+            .snd
+            .take()
+            .expect("GuardMonitor initialized with no sender")
+            .send(daemon::Msg::Status(self.id, msg));
     }
 }
 
 impl Drop for GuardMonitor {
     fn drop(&mut self) {
         if let Some(snd) = self.snd.take() {
-            let _ignore = snd.send(daemon::Msg::Status(
-                self.id,
-                GuardStatusMsg::AttemptAbandoned,
-            ));
+            let _ignore = snd.send(daemon::Msg::Status(self.id, self.pending_status));
         }
     }
 }

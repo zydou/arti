@@ -154,7 +154,7 @@ pub use filter::GuardFilter;
 pub use pending::{GuardMonitor, GuardUsable};
 pub use sample::PickGuardError;
 
-use pending::{GuardStatusMsg, PendingRequest, RequestId};
+use pending::{GuardStatus, PendingRequest, RequestId};
 use sample::GuardSet;
 
 /// A "guard manager" that selects and remembers a persistent set of
@@ -490,7 +490,7 @@ impl GuardMgrInner {
     pub(crate) fn handle_msg(
         &mut self,
         request_id: RequestId,
-        status: GuardStatusMsg,
+        status: GuardStatus,
         runtime: &impl tor_rtcompat::SleepProvider,
     ) {
         if let Some(mut pending) = self.pending.remove(&request_id) {
@@ -498,7 +498,7 @@ impl GuardMgrInner {
             let guard_id = pending.guard_id();
             trace!(?guard_id, ?status, "Received report of guard status");
             match status {
-                GuardStatusMsg::Success => {
+                GuardStatus::Success => {
                     let now = runtime.now();
                     // If we've been gone too long without any net activitity,
                     // and now we're seeing a circuit succeed,
@@ -533,11 +533,11 @@ impl GuardMgrInner {
                         self.waiting.push(pending);
                     }
                 }
-                GuardStatusMsg::Failure => {
+                GuardStatus::Failure => {
                     self.active_guards.record_failure(guard_id, runtime.now());
                     pending.reply(false);
                 }
-                GuardStatusMsg::AttemptAbandoned => {
+                GuardStatus::AttemptAbandoned | GuardStatus::Indeterminate => {
                     self.active_guards.record_attempt_abandoned(guard_id);
                     pending.reply(false);
                 }
