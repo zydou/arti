@@ -115,3 +115,9 @@ pub use tor_circmgr::IsolationToken;
 /// This type is a re-export from [`tor_proto::stream::DataStream`];
 /// see that crate for its documentation in a more low-level context.
 pub use tor_proto::stream::DataStream;
+
+mod err;
+pub use err::Error;
+
+/// Result type used by this crate
+type Result<T> = std::result::Result<T, Error>;

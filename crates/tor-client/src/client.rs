@@ -19,7 +19,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
-use anyhow::{anyhow, Context, Result};
+use crate::{Error, Result};
 use tracing::{debug, error, info, warn};
 
 /// An active client session on the Tor network.
@@ -195,7 +195,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
         if addr.to_lowercase().ends_with(".onion") {
-            return Err(anyhow!("Rejecting .onion address as unsupported."));
+            return Err(Error::OnionAddressNotSupported);
         }
 
         let flags = flags.unwrap_or_default();
@@ -224,7 +224,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<IpAddr>> {
         if hostname.to_lowercase().ends_with(".onion") {
-            return Err(anyhow!("Rejecting .onion address as unsupported."));
+            return Err(Error::OnionAddressNotSupported);
         }
 
         let flags = flags.unwrap_or_default();
@@ -296,7 +296,7 @@ impl<R: Runtime> TorClient<R> {
             .circmgr
             .get_or_launch_exit(dir.as_ref().into(), exit_ports, flags.isolation_group())
             .await
-            .context("Unable to launch circuit")?;
+            .map_err(|_| Error::Internal("Unable to launch circuit"))?;
         drop(dir); // This decreases the refcount on the netdir.
 
         Ok(circ)

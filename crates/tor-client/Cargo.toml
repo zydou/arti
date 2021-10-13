@@ -25,7 +25,6 @@ tor-persist = { path="../tor-persist", version="0.0.0" }
 tor-proto = { path="../tor-proto", version="0.0.0" }
 tor-rtcompat = { path="../tor-rtcompat", version="0.0.0" }
 
-anyhow = "1.0.38"
 futures = "0.3.13"
 tracing = "0.1.26"
 thiserror = "1.0.24"
