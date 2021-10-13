@@ -21,6 +21,7 @@ use anyhow::Context;
 use chrono::prelude::*;
 use chrono::Duration as CDuration;
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
+use tracing::trace;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
@@ -384,6 +385,7 @@ impl SqliteStore {
         flavor: ConsensusFlavor,
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
+        trace!(?flavor, ?pending, "Loading latest consensus from cache");
         let rv: Option<(DateTime<Utc>, DateTime<Utc>, String)>;
         rv = match pending {
             None => self
@@ -446,7 +448,8 @@ impl SqliteStore {
         let digest = format!("sha3-256-{}", d);
 
         let tx = self.conn.transaction()?;
-        tx.execute(MARK_CONSENSUS_NON_PENDING, params![digest])?;
+        let n = tx.execute(MARK_CONSENSUS_NON_PENDING, params![digest])?;
+        trace!("Marked {} consensuses usable", n);
         tx.commit()?;
 
         Ok(())

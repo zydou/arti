@@ -74,7 +74,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::{channel::oneshot, lock::Mutex, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::{info, warn};
+use tracing::{info, trace, warn};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -518,9 +518,11 @@ impl<R: Runtime> DirMgr<R> {
             } => {
                 if *cache_usage == CacheUsage::MustDownload {
                     // Do nothing: we don't want a cached consensus.
+                    trace!("MustDownload is set; not checking for cached consensus.");
                 } else if let Some(c) =
                     store.latest_consensus(*flavor, cache_usage.pending_requirement())?
                 {
+                    trace!("Found a reasonable consensus in the cache");
                     let id = DocId::LatestConsensus {
                         flavor: *flavor,
                         cache_usage: *cache_usage,

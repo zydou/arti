@@ -17,7 +17,7 @@ use futures::FutureExt;
 use futures::StreamExt;
 use tor_dirclient::DirResponse;
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::{info, warn};
+use tracing::{info, trace, warn};
 
 /// Try to read a set of documents from `dirmgr` by ID.
 async fn load_all<R: Runtime>(
@@ -91,8 +91,13 @@ async fn load_once<R: Runtime>(
 ) -> Result<bool> {
     let missing = state.missing_docs();
     let outcome = if missing.is_empty() {
+        trace!("Found no missing documents; can't advance current state");
         Ok(false)
     } else {
+        trace!(
+            "Found {} missing documents; trying to load them",
+            missing.len()
+        );
         let documents = load_all(dirmgr, missing).await?;
         state.add_from_cache(documents)
     };
@@ -110,6 +115,7 @@ pub(crate) async fn load<R: Runtime>(
 ) -> Result<Box<dyn DirState>> {
     let mut safety_counter = 0_usize;
     loop {
+        trace!(state=%state.describe(), "Loading from cache");
         let changed = load_once(&dirmgr, &mut state).await?;
 
         if state.can_advance() {
