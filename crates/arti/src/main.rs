@@ -134,6 +134,8 @@ struct LoggingConfig {
     /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
     ///
     /// You can override this setting with the environment variable ARTI_LOG.
+    ///
+    /// Example: "info,tor_proto::channel=trace"
     trace_filter: String,
 
     /// Whether to log to journald
