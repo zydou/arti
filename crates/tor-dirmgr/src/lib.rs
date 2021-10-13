@@ -353,6 +353,11 @@ impl<R: Runtime> DirMgr<R> {
                     retry_config.n_attempts()
                 );
                 return Err(Error::CantAdvanceState.into());
+            } else {
+                // Report success, if appropriate.
+                if let Some(send_done) = on_complete.take() {
+                    let _ = send_done.send(());
+                }
             }
 
             let reset_at = state.reset_time();
