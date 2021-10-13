@@ -226,10 +226,16 @@ impl<R: Runtime> DirMgr<R> {
         })?;
 
         if let Some(receiver) = receiver {
-            let _ = receiver.await;
+            match receiver.await {
+                Ok(()) => {
+                    info!("We have enough information to build circuits.");
+                }
+                Err(_) => {
+                    warn!("Bootstrapping task exited before finishing.");
+                    return Err(Error::CantAdvanceState.into());
+                }
+            }
         }
-
-        info!("We have enough information to build circuits.");
 
         Ok(dirmgr)
     }
@@ -316,7 +322,7 @@ impl<R: Runtime> DirMgr<R> {
 
             'retry_attempt: for _ in retry_config.attempts() {
                 let (newstate, recoverable_err) =
-                    bootstrap::download(Weak::clone(&weak), state, on_complete.take()).await?;
+                    bootstrap::download(Weak::clone(&weak), state, &mut on_complete).await?;
                 state = newstate;
 
                 if let Some(err) = recoverable_err {

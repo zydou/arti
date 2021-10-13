@@ -186,7 +186,7 @@ async fn download_attempt<R: Runtime>(
 pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     mut state: Box<dyn DirState>,
-    mut on_usable: Option<oneshot::Sender<()>>,
+    on_usable: &mut Option<oneshot::Sender<()>>,
 ) -> Result<(Box<dyn DirState>, Option<Error>)> {
     let runtime = upgrade_weak_ref(&dirmgr)?.runtime.clone();
 
@@ -277,6 +277,9 @@ pub(crate) async fn download<R: Runtime>(
         }
 
         // We didn't advance the state, after all the retries.
+        warn!(n_attempts=retry_config.n_attempts(),
+              state=%state.describe(),
+              "Unable to advance downloading state");
         return Ok((state, Some(Error::CantAdvanceState)));
     }
 }
