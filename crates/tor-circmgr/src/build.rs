@@ -15,10 +15,15 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 use tor_chanmgr::ChanMgr;
+use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::warn;
+
+mod guardstatus;
+
+pub(crate) use guardstatus::GuardStatusHandle;
 
 /// Represents an objects that can be constructed in a circuit-like way.
 ///
@@ -159,7 +164,11 @@ impl<
 
     /// Build a circuit, without performing any timeout operations.
     ///
-    /// After each hop is built, increments n_hops_built. (TODO: Find
+    /// After each hop is built, increments n_hops_built.  Make sure that
+    /// `guard_status` has its pending status set correctly to correspond
+    /// to a circuit failure at any given stage.
+    ///
+    /// (TODO: Find
     /// a better design there.)
     async fn build_notimeout<RNG: CryptoRng + Rng + Send>(
         self: Arc<Self>,
@@ -168,9 +177,12 @@ impl<
         start_time: Instant,
         n_hops_built: Arc<AtomicU32>,
         mut rng: RNG,
+        guard_status: Arc<GuardStatusHandle>,
     ) -> Result<C> {
         match path {
             OwnedPath::ChannelOnly(target) => {
+                // If we fail now, it's the guard's fault.
+                guard_status.pending(GuardStatus::Failure);
                 let circ =
                     C::create_chantarget(&self.chanmgr, &self.runtime, &mut rng, &target, &params)
                         .await?;
@@ -182,10 +194,15 @@ impl<
             OwnedPath::Normal(p) => {
                 assert!(!p.is_empty());
                 let n_hops = p.len() as u8;
+                // If we fail now, it's the guard's fault.
+                guard_status.pending(GuardStatus::Failure);
                 let circ =
                     C::create(&self.chanmgr, &self.runtime, &mut rng, &p[0], &params).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
+                // If we fail after this point, we can't tell whether it's
+                // the fault of the guard or some later relay.
+                guard_status.pending(GuardStatus::Indeterminate);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
                 let mut hop_num = 1;
                 for relay in p[1..].iter() {
@@ -209,6 +226,7 @@ impl<
         path: OwnedPath,
         params: &CircParameters,
         rng: RNG,
+        guard_status: Arc<GuardStatusHandle>,
     ) -> Result<C> {
         let action = Action::BuildCircuit { length: path.len() };
         let (timeout, abandon_timeout) = self.timeouts.timeouts(&action);
@@ -222,8 +240,14 @@ impl<
         let self_clone = Arc::clone(self);
         let params = params.clone();
 
-        let circuit_future =
-            self_clone.build_notimeout(path, params, start_time, Arc::clone(&hops_built), rng);
+        let circuit_future = self_clone.build_notimeout(
+            path,
+            params,
+            start_time,
+            Arc::clone(&hops_built),
+            rng,
+            guard_status,
+        );
 
         match double_timeout(&self.runtime, circuit_future, timeout, abandon_timeout).await {
             Ok(circuit) => Ok(circuit),
@@ -308,8 +332,11 @@ impl<R: Runtime> CircuitBuilder<R> {
         path: OwnedPath,
         params: &CircParameters,
         rng: RNG,
+        guard_status: Arc<GuardStatusHandle>,
     ) -> Result<Arc<ClientCirc>> {
-        self.builder.build_owned(path, params, rng).await
+        self.builder
+            .build_owned(path, params, rng, guard_status)
+            .await
     }
 
     /// Try to construct a new circuit from a given path, using appropriate
@@ -326,7 +353,8 @@ impl<R: Runtime> CircuitBuilder<R> {
     ) -> Result<Arc<ClientCirc>> {
         let rng = StdRng::from_rng(rng).expect("couldn't construct temporary rng");
         let owned = path.try_into()?;
-        self.build_owned(owned, params, rng).await
+        self.build_owned(owned, params, rng, Arc::new(None.into()))
+            .await
     }
 
     /// Return the path configuration used by this builder.
@@ -399,6 +427,11 @@ mod test {
     use std::sync::Mutex;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
+
+    /// Make a new nonfunctional `Arc<GuardStatusHandle>`
+    fn gs() -> Arc<GuardStatusHandle> {
+        Arc::new(None.into())
+    }
 
     #[test]
     #[ignore]
@@ -624,7 +657,9 @@ mod test {
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
             let params = CircParameters::default();
 
-            let outcome = rt.wait_for(builder.build_owned(p1, &params, rng)).await;
+            let outcome = rt
+                .wait_for(builder.build_owned(p1, &params, rng, gs()))
+                .await;
 
             let circ = outcome.unwrap().into_inner().unwrap();
             assert!(circ.onehop);
@@ -633,7 +668,7 @@ mod test {
             let rng =
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
             let outcome = rt
-                .wait_for(builder.build_owned(p2.clone(), &params, rng))
+                .wait_for(builder.build_owned(p2.clone(), &params, rng, gs()))
                 .await;
             let circ = outcome.unwrap().into_inner().unwrap();
             assert!(!circ.onehop);
@@ -661,7 +696,7 @@ mod test {
             let rng =
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
             let outcome = rt
-                .wait_for(builder.build_owned(p2.clone(), &params, rng))
+                .wait_for(builder.build_owned(p2.clone(), &params, rng, gs()))
                 .await;
             assert!(outcome.is_err());
 
@@ -678,7 +713,7 @@ mod test {
             let rng =
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
             let outcome = rt
-                .wait_for(builder.build_owned(p2.clone(), &params, rng))
+                .wait_for(builder.build_owned(p2.clone(), &params, rng, gs()))
                 .await;
             assert!(outcome.is_err());
             // "wait" a while longer to make sure that we eventually

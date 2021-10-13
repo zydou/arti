@@ -68,6 +68,8 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
     }
 
     async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, Arc<ClientCirc>)> {
+        use crate::build::GuardStatusHandle;
+        use tor_guardmgr::GuardStatus;
         let Plan {
             final_spec,
             path,
@@ -78,6 +80,9 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         let rng = StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
 
         let guard_usable: OptionFuture<_> = guard_usable.into();
+        let guard_status: Arc<GuardStatusHandle> = Arc::new(guard_status.into());
+
+        guard_status.pending(GuardStatus::AttemptAbandoned);
 
         // TODO: We may want to lower the logic for handling
         // guard_status and guard_usable into build.rs, so that they
@@ -85,15 +90,15 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         //
         // This will probably require a different API for circuit
         // construction.
-        match self.build_owned(path, &params, rng).await {
+        match self
+            .build_owned(path, &params, rng, Arc::clone(&guard_status))
+            .await
+        {
             Ok(circuit) => {
-                if let Some(mon) = guard_status {
-                    // Report success to the guard manager, so it knows that
-                    // this guard is reachable.
-                    // TODO: We may someday want to report two-hop circuits
-                    // as successful. But not today.
-                    mon.succeeded();
-                }
+                // Report success to the guard manager, so it knows that
+                // this guard is reachable.
+                guard_status.report(GuardStatus::Success);
+
                 // We have to wait for the guard manager to tell us whether
                 // this guard is actually _usable_ or not.  Possibly,
                 // it is a speculative guard that we're only trying out
@@ -108,11 +113,11 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
                 Ok((final_spec, circuit))
             }
             Err(e) => {
-                if let Some(mon) = guard_status {
-                    // Report failure to the guard manager, so it knows
-                    // not to use this guard in the future.
-                    mon.failed();
-                }
+                // The attempt failed; the builder should have set the
+                // pending status on the guard to some value which will
+                // tell the guard manager whether to blame the guard or not.
+                guard_status.commit();
+
                 Err(e)
             }
         }

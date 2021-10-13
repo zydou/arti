@@ -164,6 +164,12 @@ impl GuardMonitor {
             .expect("GuardMonitor initialized with no sender")
             .send(daemon::Msg::Status(self.id, msg));
     }
+
+    /// Report the pending message for his guard, whatever it is.
+    pub fn commit(self) {
+        let status = self.pending_status;
+        self.report(status);
+    }
 }
 
 impl Drop for GuardMonitor {
