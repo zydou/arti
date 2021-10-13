@@ -1,7 +1,7 @@
 //! Code to construct paths to a directory for non-anonymous downloads
 use super::TorPath;
 use crate::{DirInfo, Error, Result};
-use tor_guardmgr::GuardMgr;
+use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{Relay, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -30,19 +30,28 @@ impl DirPathBuilder {
         rng: &mut R,
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
-    ) -> Result<TorPath<'a>> {
-        let _ = guards; // XXXXX Implement me.
-        match netdir {
-            DirInfo::Fallbacks(f) => {
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
+        match (netdir, guards) {
+            (DirInfo::Fallbacks(f), _) => {
                 let relay = f.choose(rng);
                 if let Some(r) = relay {
-                    return Ok(TorPath::new_fallback_one_hop(r));
+                    return Ok((TorPath::new_fallback_one_hop(r), None, None));
                 }
             }
-            DirInfo::Directory(netdir) => {
+            (DirInfo::Directory(netdir), None) => {
                 let relay = netdir.pick_relay(rng, WeightRole::BeginDir, Relay::is_dir_cache);
                 if let Some(r) = relay {
-                    return Ok(TorPath::new_one_hop(r));
+                    return Ok((TorPath::new_one_hop(r), None, None));
+                }
+            }
+            (DirInfo::Directory(netdir), Some(guardmgr)) => {
+                let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
+                    .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
+                    .build()
+                    .expect("Unable to build directory guard usage");
+                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
+                if let Some(r) = guard.get_relay(netdir) {
+                    return Ok((TorPath::new_one_hop(r), Some(mon), Some(usable)));
                 }
             }
         }
@@ -73,7 +82,7 @@ mod test {
 
         for _ in 0..1000 {
             let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
-            let p = p.unwrap();
+            let (p, _, _) = p.unwrap();
             assert!(p.exit_relay().is_none());
             assert_eq!(p.len(), 1);
             assert_same_path_when_owned(&p);
@@ -107,7 +116,7 @@ mod test {
 
         for _ in 0..10 {
             let p = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
-            let p = p.unwrap();
+            let (p, _, _) = p.unwrap();
             assert!(p.exit_relay().is_none());
             assert_eq!(p.len(), 1);
             assert_same_path_when_owned(&p);

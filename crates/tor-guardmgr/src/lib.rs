@@ -152,9 +152,10 @@ mod util;
 
 pub use filter::GuardFilter;
 pub use pending::{GuardMonitor, GuardUsable};
+pub use sample::PickGuardError;
 
 use pending::{GuardStatusMsg, PendingRequest, RequestId};
-use sample::{GuardSet, PickGuardError};
+use sample::GuardSet;
 
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.

@@ -183,8 +183,8 @@ impl TargetCircUsage {
     )> {
         match self {
             TargetCircUsage::Dir => {
-                let path = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
-                Ok((path, SupportedCircUsage::Dir, None, None))
+                let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
+                Ok((path, SupportedCircUsage::Dir, mon, usable))
             }
             TargetCircUsage::Exit {
                 ports: p,

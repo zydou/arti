@@ -61,6 +61,10 @@ pub enum Error {
     /// Problem creating or updating a guard manager.
     #[error("Problem creating or updating guards list: {0}")]
     GuardMgr(#[from] tor_guardmgr::GuardMgrError),
+
+    /// Problem selecting a guard relay.
+    #[error("Unable to select a guard relay: {0}")]
+    Guard(#[from] tor_guardmgr::PickGuardError),
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {
