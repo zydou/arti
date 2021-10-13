@@ -3,7 +3,8 @@
 use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
-use tor_guardmgr::GuardMgr;
+use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
+use tor_linkspec::ChanTarget;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -69,11 +70,18 @@ impl<'a> ExitPathBuilder<'a> {
     }
 
     /// Find a suitable exit node from either the chosen exit or from the network directory.
-    fn pick_exit<R: Rng>(&self, rng: &mut R, netdir: &'a NetDir) -> Result<Relay<'a>> {
+    fn pick_exit<R: Rng>(
+        &self,
+        rng: &mut R,
+        netdir: &'a NetDir,
+        guard: Option<&Relay<'a>>,
+        config: &SubnetConfig,
+    ) -> Result<Relay<'a>> {
         match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
-                let exit =
-                    netdir.pick_relay(rng, WeightRole::Exit, Relay::policies_allow_some_port);
+                let exit = netdir.pick_relay(rng, WeightRole::Exit, |r| {
+                    r.policies_allow_some_port() && relays_can_share_circuit_opt(r, guard, config)
+                });
                 match (exit, strict) {
                     (Some(exit), _) => return Ok(exit),
                     (None, true) => return Err(Error::NoRelays("No exit relay found".into())),
@@ -83,17 +91,25 @@ impl<'a> ExitPathBuilder<'a> {
                 // Non-strict case.  Arguably this doesn't belong in
                 // ExitPathBuilder.
                 netdir
-                    .pick_relay(rng, WeightRole::Exit, |_| true)
+                    .pick_relay(rng, WeightRole::Exit, |r| {
+                        relays_can_share_circuit_opt(r, guard, config)
+                    })
                     .ok_or_else(|| Error::NoRelays("No relay found".into()))
             }
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
                 .pick_relay(rng, WeightRole::Exit, |r| {
-                    wantports.iter().all(|p| p.is_supported_by(r))
+                    relays_can_share_circuit_opt(r, guard, config)
+                        && wantports.iter().all(|p| p.is_supported_by(r))
                 })
                 .ok_or_else(|| Error::NoRelays("No exit relay found".into()))?),
 
-            ExitPathBuilderInner::ChosenExit(exit_relay) => Ok(exit_relay.clone()),
+            ExitPathBuilderInner::ChosenExit(exit_relay) => {
+                // NOTE that this doesn't check
+                // relays_can_share_circuit_opt(exit_relay,guard).  we
+                // already did that, sort of, in pick_path.
+                Ok(exit_relay.clone())
+            }
         }
     }
 
@@ -105,29 +121,65 @@ impl<'a> ExitPathBuilder<'a> {
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
         config: &PathConfig,
-    ) -> Result<TorPath<'a>> {
-        let _ = guards; // XXXXXX Implement me.
+    ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
             DirInfo::Fallbacks(_) => return Err(Error::NeedConsensus),
             DirInfo::Directory(d) => d,
         };
         let subnet_config = &config.enforce_distance;
-        let exit = self.pick_exit(rng, netdir)?;
+
+        let chosen_exit = if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
+            Some(e)
+        } else {
+            None
+        };
+
+        // TODO-SPEC: Because of limitations in guard selection, we have to
+        // pick the guard before the exit, which is not what our spec says.
+        let (guard, mon, usable) = match guards {
+            Some(guardmgr) => {
+                let mut b = tor_guardmgr::GuardUsageBuilder::default();
+                b.kind(tor_guardmgr::GuardUsageKind::Data);
+                guardmgr.update_network(netdir); // possibly unnecessary.
+                if let Some(exit_relay) = chosen_exit {
+                    // TODO Problem! This doesn't actually enforce a
+                    // distinct family for the guard and the exit.  It
+                    // just makes sure they're not the same relay.
+                    let id = exit_relay.ed_identity();
+                    b.restriction(tor_guardmgr::GuardRestriction::AvoidId(*id));
+                }
+                let guard_usage = b.build().expect("Failed while building guard usage!");
+                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
+                let guard = guard.get_relay(netdir).ok_or_else(|| {
+                    Error::Internal("Somehow the guardmgr gave us an unlisted guard!".to_owned())
+                })?;
+                (guard, Some(mon), Some(usable))
+            }
+            None => {
+                let entry = netdir
+                    .pick_relay(rng, WeightRole::Guard, |r| {
+                        r.is_flagged_guard()
+                            && relays_can_share_circuit_opt(r, chosen_exit, subnet_config)
+                    })
+                    .ok_or_else(|| Error::NoRelays("No entry relay found".into()))?;
+                (entry, None, None)
+            }
+        };
+
+        let exit = self.pick_exit(rng, netdir, Some(&guard), subnet_config)?;
 
         let middle = netdir
             .pick_relay(rng, WeightRole::Middle, |r| {
                 relays_can_share_circuit(r, &exit, subnet_config)
+                    && relays_can_share_circuit(r, &guard, subnet_config)
             })
             .ok_or_else(|| Error::NoRelays("No middle relay found".into()))?;
 
-        let entry = netdir
-            .pick_relay(rng, WeightRole::Guard, |r| {
-                relays_can_share_circuit(r, &middle, subnet_config)
-                    && relays_can_share_circuit(r, &exit, subnet_config)
-            })
-            .ok_or_else(|| Error::NoRelays("No entry relay found".into()))?;
-
-        Ok(TorPath::new_multihop(vec![entry, middle, exit]))
+        Ok((
+            TorPath::new_multihop(vec![guard, middle, exit]),
+            mon,
+            usable,
+        ))
     }
 }
 
@@ -138,6 +190,14 @@ fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: &Subnet
     // see: src/feature/nodelist/nodelist.c:nodes_in_same_family()
 
     !a.in_same_family(b) && !a.in_same_subnet(b, subnet_config)
+}
+
+/// Helper: wraps relays_can_share_circuit but takes an option.
+fn relays_can_share_circuit_opt(r1: &Relay<'_>, r2: Option<&Relay<'_>>, c: &SubnetConfig) -> bool {
+    match r2 {
+        Some(r2) => relays_can_share_circuit(r1, r2, c),
+        None => true,
+    }
 }
 
 #[cfg(test)]
@@ -182,7 +242,7 @@ mod test {
         let guards: OptDummyGuardMgr<'_> = None;
 
         for _ in 0..1000 {
-            let path = ExitPathBuilder::from_target_ports(ports.clone())
+            let (path, _, _) = ExitPathBuilder::from_target_ports(ports.clone())
                 .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
 
@@ -201,7 +261,7 @@ mod test {
 
         let config = PathConfig::default();
         for _ in 0..1000 {
-            let path = ExitPathBuilder::from_chosen_exit(chosen.clone())
+            let (path, _, _) = ExitPathBuilder::from_chosen_exit(chosen.clone())
                 .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
             assert_same_path_when_owned(&path);
@@ -227,7 +287,7 @@ mod test {
 
         let config = PathConfig::default();
         for _ in 0..1000 {
-            let path = ExitPathBuilder::for_any_exit()
+            let (path, _, _) = ExitPathBuilder::for_any_exit()
                 .pick_path(&mut rng, dirinfo, guards, &config)
                 .unwrap();
             assert_same_path_when_owned(&path);

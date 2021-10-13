@@ -45,6 +45,7 @@ impl DirPathBuilder {
                 }
             }
             (DirInfo::Directory(netdir), Some(guardmgr)) => {
+                guardmgr.update_network(netdir); // possibly unnecessary.
                 let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
                     .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
                     .build()

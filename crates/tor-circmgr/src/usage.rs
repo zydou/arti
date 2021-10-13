@@ -190,7 +190,7 @@ impl TargetCircUsage {
                 ports: p,
                 isolation_group,
             } => {
-                let path = ExitPathBuilder::from_target_ports(p.clone())
+                let (path, mon, usable) = ExitPathBuilder::from_target_ports(p.clone())
                     .pick_path(rng, netdir, guards, config)?;
                 let policy = path
                     .exit_policy()
@@ -201,12 +201,12 @@ impl TargetCircUsage {
                         policy,
                         isolation_group: Some(*isolation_group),
                     },
-                    None,
-                    None,
+                    mon,
+                    usable,
                 ))
             }
             TargetCircUsage::TimeoutTesting => {
-                let path = ExitPathBuilder::for_timeout_testing()
+                let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
                     .pick_path(rng, netdir, guards, config)?;
                 let policy = path.exit_policy();
                 let usage = match policy {
@@ -217,7 +217,7 @@ impl TargetCircUsage {
                     _ => SupportedCircUsage::NoUsage,
                 };
 
-                Ok((path, usage, None, None))
+                Ok((path, usage, mon, usable))
             }
         }
     }
