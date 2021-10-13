@@ -64,6 +64,7 @@ mod weight;
 #[cfg(any(test, feature = "testing"))]
 pub mod testnet;
 
+use tor_linkspec::ChanTarget;
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
@@ -973,7 +974,7 @@ impl<'a> Relay<'a> {
     }
 }
 
-impl<'a> tor_linkspec::ChanTarget for Relay<'a> {
+impl<'a> ChanTarget for Relay<'a> {
     fn addrs(&self) -> &[std::net::SocketAddr] {
         self.rs.addrs()
     }
@@ -1154,7 +1155,6 @@ mod test {
     #[test]
     fn test_pick() {
         use crate::testing::*; // for stochastic testing
-        use tor_linkspec::ChanTarget;
 
         let (consensus, microdescs) = construct_network().unwrap();
         let mut dir = PartialNetDir::new(consensus, None);
@@ -1192,7 +1192,6 @@ mod test {
         // pick_n_relays to pick several relays at once.
 
         use crate::testing::*; // for stochastic testing
-        use tor_linkspec::ChanTarget;
 
         let dir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
 
@@ -1422,7 +1421,6 @@ mod test {
         assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
         assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
 
-        use tor_linkspec::ChanTarget;
         let r = netdir.by_id_pair(&[13; 32].into(), &[13; 20].into());
         assert!(r.is_none());
         let r = netdir
