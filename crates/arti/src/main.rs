@@ -239,11 +239,31 @@ async fn run<R: Runtime>(
     )
 }
 
+/// As [`EnvFilter::new`], but print a message if any directive in the
+/// log is invalid.
+fn filt_from_str_verbose(s: &str, source: &str) -> EnvFilter {
+    match EnvFilter::try_new(s) {
+        Ok(s) => s,
+        Err(_) => {
+            eprintln!("Problem in {}:", source);
+            EnvFilter::new(s)
+        }
+    }
+}
+
 /// Set up logging
 fn setup_logging(config: &ArtiConfig) {
-    let env_filter = match EnvFilter::try_from_env("ARTI_LOG") {
+    use std::env;
+
+    let env_filter = match env::var("ARTI_LOG")
+        .as_ref()
+        .map(|s| filt_from_str_verbose(s, "ARTI_LOG environment variable"))
+    {
         Ok(f) => f,
-        Err(_e) => EnvFilter::new(config.logging.trace_filter.as_str()),
+        Err(_) => filt_from_str_verbose(
+            config.logging.trace_filter.as_str(),
+            "trace_filter configuration option",
+        ),
     };
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
