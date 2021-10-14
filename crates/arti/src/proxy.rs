@@ -4,7 +4,7 @@
 //! connections and then runs
 
 use futures::future::FutureExt;
-use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Error as IoError};
 use futures::lock::Mutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
@@ -334,6 +334,21 @@ where
     loop_result.or(flush_result)
 }
 
+/// Return true if a given IoError, when received from accept, is a fatal
+/// error.
+fn accept_err_is_fatal(err: &IoError) -> bool {
+    #![allow(clippy::match_like_matches_macro)]
+    // Currently, EMFILE and ENFILE aren't distinguished by ErrorKind;
+    // we need to use OS-specific errors. :P
+    match err.raw_os_error() {
+        #[cfg(unix)]
+        Some(libc::EMFILE) | Some(libc::ENFILE) => false,
+        #[cfg(windows)]
+        Some(winapi::shared::winerror::WSAEMFILE) => false,
+        _ => true,
+    }
+}
+
 /// Launch a SOCKS proxy to listen on a given localhost port, and run
 /// indefinitely.
 ///
@@ -386,7 +401,17 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     // Loop over all incoming connections.  For each one, call
     // handle_socks_conn() in a new task.
     while let Some((stream, sock_id)) = incoming.next().await {
-        let (stream, addr) = stream.context("Failed to receive incoming stream on SOCKS port")?;
+        let (stream, addr) = match stream {
+            Ok((s, a)) => (s, a),
+            Err(err) => {
+                if accept_err_is_fatal(&err) {
+                    return Err(err).context("Failed to receive incoming stream on SOCKS port");
+                } else {
+                    warn!("Incoming stream failed: {}", err);
+                    continue;
+                }
+            }
+        };
         let client_ref = Arc::clone(&tor_client);
         let runtime_copy = runtime.clone();
         let isolation_map_ref = Arc::clone(&isolation_map);

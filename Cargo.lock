@@ -98,6 +98,7 @@ dependencies = [
  "async-ctrlc",
  "config",
  "futures",
+ "libc",
  "once_cell",
  "serde",
  "tokio",
@@ -107,6 +108,7 @@ dependencies = [
  "tracing",
  "tracing-journald",
  "tracing-subscriber",
+ "winapi",
 ]
 
 [[package]]
