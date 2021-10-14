@@ -100,6 +100,7 @@ dependencies = [
  "futures",
  "libc",
  "once_cell",
+ "rlimit",
  "serde",
  "tokio",
  "tor-config",
@@ -1940,6 +1941,15 @@ name = "retry-error"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+]
+
+[[package]]
+name = "rlimit"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc0bf25554376fd362f54332b8410a625c71f15445bca32ffdfdf4ec9ac91726"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

@@ -87,6 +87,7 @@
 #![deny(clippy::unwrap_used)]
 
 mod exit;
+mod process;
 mod proxy;
 
 use std::sync::Arc;
@@ -305,6 +306,8 @@ fn main() -> Result<()> {
             return Ok(());
         }
     };
+
+    process::use_max_file_limit();
 
     #[cfg(feature = "tokio")]
     let runtime = tor_rtcompat::tokio::create_runtime()?;
