@@ -338,13 +338,19 @@ where
 /// error.
 fn accept_err_is_fatal(err: &IoError) -> bool {
     #![allow(clippy::match_like_matches_macro)]
+
+    /// Re-declaration of WSAEMFILE with the right type to match
+    /// `raw_os_error()`.
+    #[cfg(windows)]
+    const WSAEMFILE: i32 = winapi::shared::winerror::WSAEMFILE as i32;
+
     // Currently, EMFILE and ENFILE aren't distinguished by ErrorKind;
     // we need to use OS-specific errors. :P
     match err.raw_os_error() {
         #[cfg(unix)]
         Some(libc::EMFILE) | Some(libc::ENFILE) => false,
         #[cfg(windows)]
-        Some(winapi::shared::winerror::WSAEMFILE) => false,
+        Some(WSAEMFILE) => false,
         _ => true,
     }
 }
