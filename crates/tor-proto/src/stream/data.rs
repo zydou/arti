@@ -418,7 +418,7 @@ impl DataReaderImpl {
     }
 
     /// Add the data from `d` to the end of our pending bytes.
-    fn add_data(&mut self, d: Vec<u8>) {
+    fn add_data(&mut self, mut d: Vec<u8>) {
         if self.buf_is_empty() {
             // No data pending?  Just take d as the new pending.
             self.pending = d;
@@ -427,7 +427,7 @@ impl DataReaderImpl {
             // XXXX This has potential to grow `pending` without
             // bound.  Fortunately, we don't read data in this
             // (non-empty) case right now.
-            self.pending.extend_from_slice(&d[..]);
+            self.pending.append(&mut d);
         }
     }
 }
