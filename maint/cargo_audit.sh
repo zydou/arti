@@ -39,3 +39,22 @@ IGNORE=(
 )
 
 cargo audit -D warnings "${IGNORE[@]}"
+
+
+OBSOLETE_IGNORE=(
+    # This is a vulnerability in the `nix` crate caused by an
+    # out-of-bounds write in `getgrouplist`.  We got our `nix`
+    # dependency via `async-ctrlc`, which uses `ctrlc`, which uses
+    # `nix`.
+    #
+    # Why this didn't affect us:
+    #  * ctrlc doesn't use `getgrouplist`.
+    #
+    # Why we couldn't update to a better version of `nix`:
+    #  * ctrlc version 3.2.0 and earlier were stuck on `nix` 0.22.
+    #
+    # How it was fixed:
+    #  * ctrlc version 3.2.1 upgraded its `nix` dependency to 0.23.
+    --ignore RUSTSEC-2021-0119
+)
+_="${OBSOLETE_IGNORE[0]}"
