@@ -90,7 +90,7 @@ impl<T> SharedMutArc<T> {
             .expect("Poisoned lock for directory reference")
             .as_mut()
         {
-            None => Err(Error::DirectoryNotPresent.into()), // Kinda bogus.
+            None => Err(Error::DirectoryNotPresent), // Kinda bogus.
             Some(arc) => func(Arc::make_mut(arc)),
         }
     }

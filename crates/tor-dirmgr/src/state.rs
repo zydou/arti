@@ -121,7 +121,7 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
                 .map(|auth| *auth.v3ident())
                 .collect()
         } else {
-            return Err(Error::ManagerDropped.into());
+            return Err(Error::ManagerDropped);
         };
         Ok(GetConsensusState {
             cache_usage,
@@ -166,7 +166,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
             Ok((1, *wd.config().schedule().retry_consensus()))
         } else {
-            Err(Error::ManagerDropped.into())
+            Err(Error::ManagerDropped)
         }
     }
     fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
@@ -179,7 +179,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
                 },
                 text,
             )) => text,
-            _ => return Err(Error::Unwanted("Not an md consensus").into()),
+            _ => return Err(Error::Unwanted("Not an md consensus")),
         };
 
         self.add_consensus_text(true, text.as_str()?)
@@ -242,7 +242,7 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
 
         let id_refs: Vec<_> = self.authority_ids.iter().collect();
         if !unvalidated.authorities_are_correct(&id_refs[..]) {
-            return Err(Error::UnrecognizedAuthorities.into());
+            return Err(Error::UnrecognizedAuthorities);
         }
 
         // Make a set of all the certificates we want -- the subset of
@@ -327,7 +327,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
             Ok((1, *wd.config().schedule().retry_certs()))
         } else {
-            Err(Error::ManagerDropped.into())
+            Err(Error::ManagerDropped)
         }
     }
     fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
@@ -356,7 +356,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     ) -> Result<bool> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
-            _ => return Err(Error::BadArgument("Mismatched request").into()),
+            _ => return Err(Error::BadArgument("Mismatched request")),
         };
 
         let mut newcerts = Vec::new();
@@ -474,7 +474,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
                 }
                 dir
             }
-            None => return Err(Error::ManagerDropped.into()),
+            None => return Err(Error::ManagerDropped),
         };
 
         let missing = partial_dir.missing_microdescs().map(Clone::clone).collect();
@@ -565,7 +565,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
                 *wd.config().schedule().retry_microdescs(),
             ))
         } else {
-            Err(Error::ManagerDropped.into())
+            Err(Error::ManagerDropped)
         }
     }
     fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
@@ -600,7 +600,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
             req.digests().collect()
         } else {
-            return Err(Error::BadArgument("Mismatched request").into());
+            return Err(Error::BadArgument("Mismatched request"));
         };
         let mut new_mds = Vec::new();
         for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {

@@ -182,7 +182,7 @@ impl SqliteStore {
             tx.commit()?;
             return Ok(());
         } else if readable_by > SCHEMA_VERSION {
-            return Err(Error::UnrecognizedSchema.into());
+            return Err(Error::UnrecognizedSchema);
         }
 
         // rolls back the transaction, but nothing was done.
@@ -230,7 +230,7 @@ impl SqliteStore {
             .components()
             .all(|c| matches!(c, path::Component::Normal(_)))
         {
-            return Err(Error::CacheCorruption("Invalid path in database").into());
+            return Err(Error::CacheCorruption("Invalid path in database"));
         }
 
         let mut result = self.path.clone();
@@ -419,7 +419,9 @@ impl SqliteStore {
         {
             Ok(text)
         } else {
-            Err(Error::CacheCorruption("couldn't find a consensus we thought we had.").into())
+            Err(Error::CacheCorruption(
+                "couldn't find a consensus we thought we had.",
+            ))
         }
     }
 
@@ -671,7 +673,7 @@ impl Drop for Unlinker {
 fn digest_from_hex(s: &str) -> Result<[u8; 32]> {
     hex::decode(s)?
         .try_into()
-        .map_err(|_| Error::CacheCorruption("Invalid digest in database").into())
+        .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
 }
 
 /// Convert a hexadecimal sha3-256 "digest string" as used in the
@@ -680,9 +682,9 @@ fn digest_from_dstr(s: &str) -> Result<[u8; 32]> {
     if let Some(stripped) = s.strip_prefix("sha3-256-") {
         hex::decode(stripped)?
             .try_into()
-            .map_err(|_| Error::CacheCorruption("Invalid digest in database").into())
+            .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
     } else {
-        Err(Error::CacheCorruption("Invalid digest in database").into())
+        Err(Error::CacheCorruption("Invalid digest in database"))
     }
 }
 
