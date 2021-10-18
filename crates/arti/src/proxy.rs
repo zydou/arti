@@ -17,10 +17,10 @@ use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
 use tor_client::{ConnectPrefs, IsolationToken, TorClient};
-use tor_rtcompat::{Runtime, TcpListener, TimeoutError};
+use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 
 /// Find out which kind of address family we can/should use for a
 /// given `SocksRequest`.
@@ -198,19 +198,17 @@ where
                     // The connect attempt has failed.  We need to
                     // send an error.  See what kind it is.
                     //
-                    // TODO: Using downcast_ref() here is ugly. maybe we shouldn't
-                    // be using anyhow at this point?
-                    match e.downcast_ref::<TimeoutError>() {
-                        Some(_) => {
+                    match e {
+                        tor_client::Error::Timeout => {
                             let reply =
                                 request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None);
                             socks_w
                                 .write(&reply[..])
                                 .await
                                 .context("Couldn't write SOCKS reply")?;
-                            return Err(e);
+                            return Err(anyhow!(e));
                         }
-                        _ => return Err(e),
+                        _ => return Err(anyhow!(e)),
                     }
                 }
             };
