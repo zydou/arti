@@ -189,15 +189,6 @@ impl<R: Runtime> TorClient<R> {
         })
     }
 
-    /// Check if the IP is internal
-    fn is_internal_ip(addr: &IpAddr) -> bool {
-        // TODO: Use is_global() when it is stable
-        match addr {
-            IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
-            IpAddr::V6(ip) => ip.is_loopback(),
-        }
-    }
-
     /// Launch an anonymized connection to the provided address and
     /// port over the Tor network.
     ///
@@ -212,13 +203,11 @@ impl<R: Runtime> TorClient<R> {
         if addr.to_lowercase().ends_with(".onion") {
             return Err(Error::OnionAddressNotSupported);
         }
-        if !is_valid_hostname(&self.clientcfg, addr) {
+        if !is_valid_hostname(addr) {
             return Err(Error::InvalidHostname);
         }
-        if let Ok(ip) = IpAddr::from_str(addr) {
-            if Self::is_internal_ip(&ip) && !self.clientcfg.allow_local_addrs {
-                return Err(Error::LocalAddress);
-            }
+        if !self.clientcfg.allow_local_addrs && is_local_hostname(addr) {
+            return Err(Error::LocalAddress);
         }
 
         let flags = flags.unwrap_or_default();
@@ -249,7 +238,7 @@ impl<R: Runtime> TorClient<R> {
         if hostname.to_lowercase().ends_with(".onion") {
             return Err(Error::OnionAddressNotSupported);
         }
-        if !is_valid_hostname(&self.clientcfg, hostname) {
+        if !is_valid_hostname(hostname) {
             return Err(Error::InvalidHostname);
         }
 
@@ -336,7 +325,7 @@ impl<R: Runtime> TorClient<R> {
 }
 
 /// Validate if we are an valid hostname or not
-pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bool {
+fn is_valid_hostname(hostname: &str) -> bool {
     /// Check if we have the valid characters for a hostname
     fn is_valid_char(byte: u8) -> bool {
         ((b'a'..=b'z').contains(&byte))
@@ -360,9 +349,27 @@ pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bo
         || hostname.starts_with('-')
         || hostname.ends_with('.')
         || hostname.starts_with('.')
-        || hostname.is_empty()
-        || (hostname.to_lowercase().eq("localhost") && !client_cfg.allow_local_addrs))
+        || hostname.is_empty())
         || is_ipv6_str(hostname)
+}
+
+/// Return true if `addr` refers to a local address.
+fn is_local_hostname(addr: &str) -> bool {
+    if addr.eq_ignore_ascii_case("localhost") {
+        true
+    } else if let Ok(ip) = IpAddr::from_str(addr) {
+        is_internal_ip(&ip)
+    } else {
+        false
+    }
+}
+/// Check if the IP is internal
+fn is_internal_ip(addr: &IpAddr) -> bool {
+    // TODO: Use is_global() when it is stable
+    match addr {
+        IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
+        IpAddr::V6(ip) => ip.is_loopback(),
+    }
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -489,28 +496,28 @@ mod test {
 
     #[test]
     fn validate_hostname() {
-        let client_cfg = ClientConfig {
-            allow_local_addrs: false,
-        };
-        let client_cfg_localhost = ClientConfig {
-            allow_local_addrs: true,
-        };
-
         // Valid hostname tests
-        assert!(is_valid_hostname(&client_cfg, "torproject.org"));
-        assert!(is_valid_hostname(&client_cfg, "Tor-Project.org"));
-        assert!(is_valid_hostname(&client_cfg, "72.0.227.52"));
-        assert!(is_valid_hostname(&client_cfg, "2600::1"));
+        assert!(is_valid_hostname("torproject.org"));
+        assert!(is_valid_hostname("Tor-Project.org"));
+        assert!(is_valid_hostname("72.0.227.52"));
+        assert!(is_valid_hostname("2600::1"));
 
         // Invalid hostname tests
-        assert!(!is_valid_hostname(&client_cfg, "-torproject.org"));
-        assert!(!is_valid_hostname(&client_cfg, "_torproject.org"));
-        assert!(!is_valid_hostname(&client_cfg, "tor_project1.org"));
-        assert!(!is_valid_hostname(&client_cfg, "iwanna$money.org"));
-        assert!(!is_valid_hostname(&client_cfg, ""));
+        assert!(!is_valid_hostname("-torproject.org"));
+        assert!(!is_valid_hostname("_torproject.org"));
+        assert!(!is_valid_hostname("tor_project1.org"));
+        assert!(!is_valid_hostname("iwanna$money.org"));
+        assert!(!is_valid_hostname(""));
+    }
 
-        // localhost hostname tests
-        assert!(!is_valid_hostname(&client_cfg, "localhost"));
-        assert!(is_valid_hostname(&client_cfg_localhost, "localhost"));
+    #[test]
+    fn local_addrs() {
+        assert!(is_local_hostname("localhost"));
+        assert!(is_local_hostname("loCALHOST"));
+        assert!(is_local_hostname("127.0.0.1"));
+        assert!(is_local_hostname("::1"));
+        assert!(is_local_hostname("192.168.0.1"));
+
+        assert!(!is_local_hostname("www.example.com"));
     }
 }
