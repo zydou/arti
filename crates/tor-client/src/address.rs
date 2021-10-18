@@ -348,8 +348,8 @@ mod test {
 
         assert!(ok("[2001:db8::42]:20"));
         assert!(ok(("2001:db8::42", 20)));
-        assert!(ok(("128.66.0.42", 443)));
-        assert!(ok("128.66.0.42:443"));
+        assert!(ok(("198.151.100.42", 443)));
+        assert!(ok("198.151.100.42:443"));
         assert!(ok("www.torproject.org:443"));
         assert!(ok(("www.torproject.org", 443)));
 
