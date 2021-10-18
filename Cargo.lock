@@ -116,7 +116,6 @@ dependencies = [
 name = "arti-tor-client"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "futures",
  "thiserror",
  "tor-chanmgr",
