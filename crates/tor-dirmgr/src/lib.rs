@@ -70,7 +70,6 @@ use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
-use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::{channel::oneshot, lock::Mutex, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
@@ -91,6 +90,9 @@ pub use err::Error;
 pub use event::DirEvent;
 pub use storage::DocumentText;
 pub use tor_netdir::fallback::{FallbackDir, FallbackDirBuilder};
+
+/// A Result as returned by this crate.
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// A directory manager to download, fetch, and cache a Tor directory.
 ///
@@ -196,10 +198,7 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr = Arc::new(DirMgr::from_config(config, runtime.clone(), Some(circmgr))?);
 
         // Try to load from the cache.
-        let have_directory = dirmgr
-            .load_directory()
-            .await
-            .context("Error loading cached directory")?;
+        let have_directory = dirmgr.load_directory().await?;
 
         let (mut sender, receiver) = if have_directory {
             info!("Loaded a good directory from cache.");

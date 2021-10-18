@@ -17,7 +17,6 @@ use std::convert::TryInto;
 use std::path::{self, Path, PathBuf};
 use std::time::SystemTime;
 
-use anyhow::Context;
 use chrono::prelude::*;
 use chrono::Duration as CDuration;
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
@@ -72,10 +71,9 @@ impl SqliteStore {
             let mut builder = std::fs::DirBuilder::new();
             #[cfg(target_family = "unix")]
             builder.mode(0o700);
-            builder
-                .recursive(true)
-                .create(&blobpath)
-                .with_context(|| format!("Creating directory at {:?}", &blobpath))?;
+            builder.recursive(true).create(&blobpath).map_err(|err| {
+                Error::StorageError(format!("Creating directory at {:?}: {}", &blobpath, err))
+            })?;
         }
 
         let mut lockfile = fslock::LockFile::open_excl(&lockpath)?;
@@ -247,8 +245,12 @@ impl SqliteStore {
     {
         let path = path.as_ref();
         let full_path = self.blob_fname(path)?;
-        InputString::load(&full_path)
-            .with_context(|| format!("Loading blob {:?} from storage at {:?}", path, full_path))
+        InputString::load(&full_path).map_err(|err| {
+            Error::StorageError(format!(
+                "Loading blob {:?} from storage at {:?}: {}",
+                path, full_path, err
+            ))
+        })
     }
 
     /// Write a file to disk as a blob, and record it in the ExtDocs table.
