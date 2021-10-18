@@ -95,10 +95,12 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+mod address;
 mod client;
 
 pub mod config;
 
+pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
 pub use client::{ConnectPrefs, TorClient};
 
 pub use tor_circmgr::IsolationToken;

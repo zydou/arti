@@ -4,6 +4,7 @@
 //! Once the client is bootstrapped, you can make anonymous
 //! connections ("streams") over the Tor network using
 //! `TorClient::connect()`.
+use crate::address::IntoTorAddr;
 use crate::config::ClientConfig;
 use tor_circmgr::{CircMgrConfig, IsolationToken, TargetPort};
 use tor_dirmgr::{DirEvent, DirMgrConfig};
@@ -194,19 +195,21 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
-    pub async fn connect(
+    pub async fn connect<A: IntoTorAddr>(
         &self,
-        addr: &str,
-        port: u16,
+        target: A,
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
+        let addr = target.into_tor_addr()?;
+        let (addr, port) = addr.into_string_and_port();
+
         if addr.to_lowercase().ends_with(".onion") {
             return Err(Error::OnionAddressNotSupported);
         }
-        if !is_valid_hostname(addr) {
+        if !is_valid_hostname(&addr) {
             return Err(Error::InvalidHostname);
         }
-        if !self.clientcfg.allow_local_addrs && is_local_hostname(addr) {
+        if !self.clientcfg.allow_local_addrs && is_local_hostname(&addr) {
             return Err(Error::LocalAddress);
         }
 
@@ -218,7 +221,7 @@ impl<R: Runtime> TorClient<R> {
         // TODO: make this configurable.
         let stream_timeout = Duration::new(10, 0);
 
-        let stream_future = circ.begin_stream(addr, port, Some(flags.begin_flags()));
+        let stream_future = circ.begin_stream(&addr, port, Some(flags.begin_flags()));
         let stream = self
             .runtime
             .timeout(stream_timeout, stream_future)
@@ -227,8 +230,6 @@ impl<R: Runtime> TorClient<R> {
         Ok(stream)
     }
 
-    /// Perform a remote DNS lookup with the provided hostname.
-    ///
     /// On success, return a list of IP addresses.
     pub async fn resolve(
         &self,

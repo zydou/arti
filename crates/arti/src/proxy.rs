@@ -190,7 +190,7 @@ where
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
-            let tor_stream = tor_client.connect(&addr, port, Some(prefs)).await;
+            let tor_stream = tor_client.connect((addr.clone(), port), Some(prefs)).await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
                 // In the case of a stream timeout, send the right SOCKS reply.

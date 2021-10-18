@@ -31,6 +31,10 @@ pub enum Error {
     #[error("Rejecting .onion address as unsupported.")]
     OnionAddressNotSupported,
 
+    /// Unusable target address.
+    #[error("Could not parse target address: {0}")]
+    Address(#[from] crate::address::TorAddrError),
+
     /// Hostname not valid.
     #[error("Rejecting hostname as invalid.")]
     InvalidHostname,
