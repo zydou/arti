@@ -287,6 +287,8 @@ impl DangerouslyIntoTorAddr for SocketAddrV6 {
 
 /// Check whether `hostname` is a valid hostname or not.
 ///
+/// (Note that IPv6 addreses don't follow these rules.)
+///
 /// TODO: Check whether the rules given here are in fact the same rules
 /// as Tor follows, and whether they conform to anything.
 fn is_valid_hostname(hostname: &str) -> bool {
@@ -299,22 +301,12 @@ fn is_valid_hostname(hostname: &str) -> bool {
             || byte == b'.'
     }
 
-    /// Check if we look like an IPv6 address
-    fn is_ipv6_str(addr: &str) -> bool {
-        if let Ok(ip) = IpAddr::from_str(addr) {
-            ip.is_ipv6()
-        } else {
-            false
-        }
-    }
-
     !(hostname.bytes().any(|byte| !is_valid_char(byte))
         || hostname.ends_with('-')
         || hostname.starts_with('-')
         || hostname.ends_with('.')
         || hostname.starts_with('.')
         || hostname.is_empty())
-        || is_ipv6_str(hostname)
 }
 
 #[cfg(test)]
