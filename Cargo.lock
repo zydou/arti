@@ -2575,7 +2575,6 @@ dependencies = [
 name = "tor-dirmgr"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "async-trait",
  "base64",
  "chrono",
@@ -2594,6 +2593,7 @@ dependencies = [
  "retry-error",
  "rusqlite",
  "serde",
+ "signature",
  "tempfile",
  "thiserror",
  "tor-checkable",
