@@ -216,7 +216,7 @@ impl<R: Runtime> TorClient<R> {
             return Err(anyhow!("Rejecting hostname as invalid."));
         }
         if let Ok(ip) = IpAddr::from_str(addr) {
-            if Self::is_internal_ip(&ip) {
+            if Self::is_internal_ip(&ip) && !self.clientcfg.allow_local_addrs {
                 return Err(anyhow!("Rejecting IP as internal."));
             }
         }
@@ -361,7 +361,7 @@ pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bo
         || hostname.ends_with('.')
         || hostname.starts_with('.')
         || hostname.is_empty()
-        || (hostname.to_lowercase().eq("localhost") && !client_cfg.is_localhost))
+        || (hostname.to_lowercase().eq("localhost") && !client_cfg.allow_local_addrs))
         || is_ipv6_str(hostname)
 }
 
@@ -476,9 +476,11 @@ mod test {
     #[test]
     fn validate_hostname() {
         let client_cfg = ClientConfig {
-            is_localhost: false,
+            allow_local_addrs: false,
         };
-        let client_cfg_localhost = ClientConfig { is_localhost: true };
+        let client_cfg_localhost = ClientConfig {
+            allow_local_addrs: true,
+        };
 
         // Valid hostname tests
         assert!(is_valid_hostname(&client_cfg, "torproject.org"));

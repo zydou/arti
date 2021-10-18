@@ -10,9 +10,12 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Builder, Deserialize)]
 #[builder]
 pub struct ClientConfig {
-    /// Are we running as localhost?
+    /// Should we allow attempts to make Tor connections to local addresses?
+    ///
+    /// This option is off by default, since (by default) Tor exits will
+    /// always reject connections to such addresses.
     #[builder(default)]
-    pub(crate) is_localhost: bool,
+    pub(crate) allow_local_addrs: bool,
 }
 
 // NOTE: it seems that `unwrap` may be safe because of builder defaults

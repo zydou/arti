@@ -108,5 +108,5 @@ request_loyalty = "50 msec"
 # Rules for client configuration
 [client_config]
 
-# Are we running as localhost (e.g. on chutney)?
-is_localhost = false
+# Should we allow attempts to make Tor connections to local addresses?
+allow_local_addrs = false
