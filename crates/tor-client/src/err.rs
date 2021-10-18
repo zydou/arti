@@ -31,6 +31,14 @@ pub enum Error {
     #[error("Rejecting .onion address as unsupported.")]
     OnionAddressNotSupported,
 
+    /// Hostname not valid.
+    #[error("Rejecting hostname as invalid.")]
+    InvalidHostname,
+
+    /// Address was local, and that's not allowed.
+    #[error("Cannot connect to a local-only address without enabling allow_local_addrs")]
+    LocalAddress,
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),

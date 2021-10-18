@@ -4,6 +4,7 @@
 //! Once the client is bootstrapped, you can make anonymous
 //! connections ("streams") over the Tor network using
 //! `TorClient::connect()`.
+use crate::config::ClientConfig;
 use tor_circmgr::{CircMgrConfig, IsolationToken, TargetPort};
 use tor_dirmgr::{DirEvent, DirMgrConfig};
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
@@ -38,6 +39,8 @@ pub struct TorClient<R: Runtime> {
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
+    /// Client configuration
+    clientcfg: ClientConfig,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -136,13 +139,14 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Return a client once there is enough directory material to
     /// connect safely over the Tor network.
-    // TODO: Make a ClientConfig to combine DirMgrConfig and circ_cfg
+    // TODO: Expand ClientConfig to combine DirMgrConfig and circ_cfg
     // and state_cfg.
     pub async fn bootstrap(
         runtime: R,
         state_cfg: PathBuf,
         dir_cfg: DirMgrConfig,
         circ_cfg: CircMgrConfig,
+        client_cfg: ClientConfig,
     ) -> Result<TorClient<R>> {
         let statemgr = tor_persist::FsStateMgr::from_path(state_cfg)?;
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
@@ -154,6 +158,7 @@ impl<R: Runtime> TorClient<R> {
             Arc::clone(&circmgr),
         )
         .await?;
+        let clientcfg = client_cfg;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
@@ -180,7 +185,17 @@ impl<R: Runtime> TorClient<R> {
             runtime,
             circmgr,
             dirmgr,
+            clientcfg,
         })
+    }
+
+    /// Check if the IP is internal
+    fn is_internal_ip(addr: &IpAddr) -> bool {
+        // TODO: Use is_global() when it is stable
+        match addr {
+            IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
+            IpAddr::V6(ip) => ip.is_loopback(),
+        }
     }
 
     /// Launch an anonymized connection to the provided address and
@@ -196,6 +211,14 @@ impl<R: Runtime> TorClient<R> {
     ) -> Result<DataStream> {
         if addr.to_lowercase().ends_with(".onion") {
             return Err(Error::OnionAddressNotSupported);
+        }
+        if !is_valid_hostname(&self.clientcfg, addr) {
+            return Err(Error::InvalidHostname);
+        }
+        if let Ok(ip) = IpAddr::from_str(addr) {
+            if Self::is_internal_ip(&ip) && !self.clientcfg.allow_local_addrs {
+                return Err(Error::LocalAddress);
+            }
         }
 
         let flags = flags.unwrap_or_default();
@@ -225,6 +248,9 @@ impl<R: Runtime> TorClient<R> {
     ) -> Result<Vec<IpAddr>> {
         if hostname.to_lowercase().ends_with(".onion") {
             return Err(Error::OnionAddressNotSupported);
+        }
+        if !is_valid_hostname(&self.clientcfg, hostname) {
+            return Err(Error::InvalidHostname);
         }
 
         let flags = flags.unwrap_or_default();
@@ -307,6 +333,36 @@ impl<R: Runtime> TorClient<R> {
         self.circmgr.update_persistent_state()?;
         Ok(())
     }
+}
+
+/// Validate if we are an valid hostname or not
+pub(crate) fn is_valid_hostname(client_cfg: &ClientConfig, hostname: &str) -> bool {
+    /// Check if we have the valid characters for a hostname
+    fn is_valid_char(byte: u8) -> bool {
+        ((b'a'..=b'z').contains(&byte))
+            || ((b'A'..=b'Z').contains(&byte))
+            || ((b'0'..=b'9').contains(&byte))
+            || byte == b'-'
+            || byte == b'.'
+    }
+
+    /// Check if we look like an IPv6 address
+    fn is_ipv6_str(addr: &str) -> bool {
+        if let Ok(ip) = IpAddr::from_str(addr) {
+            ip.is_ipv6()
+        } else {
+            false
+        }
+    }
+
+    !(hostname.bytes().any(|byte| !is_valid_char(byte))
+        || hostname.ends_with('-')
+        || hostname.starts_with('-')
+        || hostname.ends_with('.')
+        || hostname.starts_with('.')
+        || hostname.is_empty()
+        || (hostname.to_lowercase().eq("localhost") && !client_cfg.allow_local_addrs))
+        || is_ipv6_str(hostname)
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -423,5 +479,38 @@ impl<R: Runtime> Drop for TorClient<R> {
         if let Err(e) = self.update_persistent_state() {
             error!("Unable to flush state on client exit: {}", e);
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn validate_hostname() {
+        let client_cfg = ClientConfig {
+            allow_local_addrs: false,
+        };
+        let client_cfg_localhost = ClientConfig {
+            allow_local_addrs: true,
+        };
+
+        // Valid hostname tests
+        assert!(is_valid_hostname(&client_cfg, "torproject.org"));
+        assert!(is_valid_hostname(&client_cfg, "Tor-Project.org"));
+        assert!(is_valid_hostname(&client_cfg, "72.0.227.52"));
+        assert!(is_valid_hostname(&client_cfg, "2600::1"));
+
+        // Invalid hostname tests
+        assert!(!is_valid_hostname(&client_cfg, "-torproject.org"));
+        assert!(!is_valid_hostname(&client_cfg, "_torproject.org"));
+        assert!(!is_valid_hostname(&client_cfg, "tor_project1.org"));
+        assert!(!is_valid_hostname(&client_cfg, "iwanna$money.org"));
+        assert!(!is_valid_hostname(&client_cfg, ""));
+
+        // localhost hostname tests
+        assert!(!is_valid_hostname(&client_cfg, "localhost"));
+        assert!(is_valid_hostname(&client_cfg_localhost, "localhost"));
     }
 }
