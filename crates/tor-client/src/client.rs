@@ -201,17 +201,8 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
+        addr.enforce_config(&self.clientcfg)?;
         let (addr, port) = addr.into_string_and_port();
-
-        if addr.to_lowercase().ends_with(".onion") {
-            return Err(Error::OnionAddressNotSupported);
-        }
-        if !is_valid_hostname(&addr) {
-            return Err(Error::InvalidHostname);
-        }
-        if !self.clientcfg.allow_local_addrs && is_local_hostname(&addr) {
-            return Err(Error::LocalAddress);
-        }
 
         let flags = flags.unwrap_or_default();
         let exit_ports = [flags.wrap_target_port(port)];
@@ -236,12 +227,8 @@ impl<R: Runtime> TorClient<R> {
         hostname: &str,
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<IpAddr>> {
-        if hostname.to_lowercase().ends_with(".onion") {
-            return Err(Error::OnionAddressNotSupported);
-        }
-        if !is_valid_hostname(hostname) {
-            return Err(Error::InvalidHostname);
-        }
+        let addr = (hostname, 0).into_tor_addr()?;
+        addr.enforce_config(&self.clientcfg)?;
 
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
@@ -322,54 +309,6 @@ impl<R: Runtime> TorClient<R> {
     fn update_persistent_state(&self) -> Result<()> {
         self.circmgr.update_persistent_state()?;
         Ok(())
-    }
-}
-
-/// Validate if we are an valid hostname or not
-fn is_valid_hostname(hostname: &str) -> bool {
-    /// Check if we have the valid characters for a hostname
-    fn is_valid_char(byte: u8) -> bool {
-        ((b'a'..=b'z').contains(&byte))
-            || ((b'A'..=b'Z').contains(&byte))
-            || ((b'0'..=b'9').contains(&byte))
-            || byte == b'-'
-            || byte == b'.'
-    }
-
-    /// Check if we look like an IPv6 address
-    fn is_ipv6_str(addr: &str) -> bool {
-        if let Ok(ip) = IpAddr::from_str(addr) {
-            ip.is_ipv6()
-        } else {
-            false
-        }
-    }
-
-    !(hostname.bytes().any(|byte| !is_valid_char(byte))
-        || hostname.ends_with('-')
-        || hostname.starts_with('-')
-        || hostname.ends_with('.')
-        || hostname.starts_with('.')
-        || hostname.is_empty())
-        || is_ipv6_str(hostname)
-}
-
-/// Return true if `addr` refers to a local address.
-fn is_local_hostname(addr: &str) -> bool {
-    if addr.eq_ignore_ascii_case("localhost") {
-        true
-    } else if let Ok(ip) = IpAddr::from_str(addr) {
-        is_internal_ip(&ip)
-    } else {
-        false
-    }
-}
-/// Check if the IP is internal
-fn is_internal_ip(addr: &IpAddr) -> bool {
-    // TODO: Use is_global() when it is stable
-    match addr {
-        IpAddr::V4(ip) => ip.is_loopback() || ip.is_private(),
-        IpAddr::V6(ip) => ip.is_loopback(),
     }
 }
 
@@ -487,38 +426,5 @@ impl<R: Runtime> Drop for TorClient<R> {
         if let Err(e) = self.update_persistent_state() {
             error!("Unable to flush state on client exit: {}", e);
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    #![allow(clippy::unwrap_used)]
-    use super::*;
-
-    #[test]
-    fn validate_hostname() {
-        // Valid hostname tests
-        assert!(is_valid_hostname("torproject.org"));
-        assert!(is_valid_hostname("Tor-Project.org"));
-        assert!(is_valid_hostname("72.0.227.52"));
-        assert!(is_valid_hostname("2600::1"));
-
-        // Invalid hostname tests
-        assert!(!is_valid_hostname("-torproject.org"));
-        assert!(!is_valid_hostname("_torproject.org"));
-        assert!(!is_valid_hostname("tor_project1.org"));
-        assert!(!is_valid_hostname("iwanna$money.org"));
-        assert!(!is_valid_hostname(""));
-    }
-
-    #[test]
-    fn local_addrs() {
-        assert!(is_local_hostname("localhost"));
-        assert!(is_local_hostname("loCALHOST"));
-        assert!(is_local_hostname("127.0.0.1"));
-        assert!(is_local_hostname("::1"));
-        assert!(is_local_hostname("192.168.0.1"));
-
-        assert!(!is_local_hostname("www.example.com"));
     }
 }

@@ -82,6 +82,33 @@ impl TorAddr {
         let port = self.port;
         (host, port)
     }
+
+    /// Return true if the `host` in this address is local.
+    fn is_local(&self) -> bool {
+        self.host.is_local()
+    }
+
+    /// Give an error if this address doesn't conform to the rules set in
+    /// `cfg`.
+    pub(crate) fn enforce_config(
+        &self,
+        cfg: &crate::config::ClientConfig,
+    ) -> Result<(), crate::Error> {
+        if !cfg.allow_local_addrs && self.is_local() {
+            return Err(crate::Error::LocalAddress);
+        }
+
+        if let Host::Hostname(addr) = &self.host {
+            if !is_valid_hostname(addr) {
+                return Err(crate::Error::InvalidHostname);
+            }
+            if addr.to_lowercase().ends_with(".onion") {
+                return Err(crate::Error::OnionAddressNotSupported);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for TorAddr {
@@ -126,6 +153,19 @@ impl FromStr for Host {
         } else {
             // XXXX: reject bad hostnames.
             Ok(Host::Hostname(s.to_owned()))
+        }
+    }
+}
+
+impl Host {
+    /// Return true if this address is one that is "internal": that is,
+    /// relative to the particular host that is resolving it.
+    fn is_local(&self) -> bool {
+        match self {
+            Host::Hostname(name) => name.eq_ignore_ascii_case("localhost"),
+            // TODO: use is_global once it's stable.
+            Host::Ip(IpAddr::V4(ip)) => ip.is_loopback() || ip.is_private(),
+            Host::Ip(IpAddr::V6(ip)) => ip.is_loopback(),
         }
     }
 }
@@ -242,5 +282,94 @@ impl DangerouslyIntoTorAddr for SocketAddrV6 {
     fn into_tor_addr_dangerously(self) -> Result<TorAddr, TorAddrError> {
         let (addr, port) = (self.ip(), self.port());
         (*addr, port).into_tor_addr_dangerously()
+    }
+}
+
+/// Check whether `hostname` is a valid hostname or not.
+///
+/// TODO: Check whether the rules given here are in fact the same rules
+/// as Tor follows, and whether they conform to anything.
+fn is_valid_hostname(hostname: &str) -> bool {
+    /// Check if we have the valid characters for a hostname
+    fn is_valid_char(byte: u8) -> bool {
+        ((b'a'..=b'z').contains(&byte))
+            || ((b'A'..=b'Z').contains(&byte))
+            || ((b'0'..=b'9').contains(&byte))
+            || byte == b'-'
+            || byte == b'.'
+    }
+
+    /// Check if we look like an IPv6 address
+    fn is_ipv6_str(addr: &str) -> bool {
+        if let Ok(ip) = IpAddr::from_str(addr) {
+            ip.is_ipv6()
+        } else {
+            false
+        }
+    }
+
+    !(hostname.bytes().any(|byte| !is_valid_char(byte))
+        || hostname.ends_with('-')
+        || hostname.starts_with('-')
+        || hostname.ends_with('.')
+        || hostname.starts_with('.')
+        || hostname.is_empty())
+        || is_ipv6_str(hostname)
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn validate_hostname() {
+        // Valid hostname tests
+        assert!(is_valid_hostname("torproject.org"));
+        assert!(is_valid_hostname("Tor-Project.org"));
+
+        // Invalid hostname tests
+        assert!(!is_valid_hostname("-torproject.org"));
+        assert!(!is_valid_hostname("_torproject.org"));
+        assert!(!is_valid_hostname("tor_project1.org"));
+        assert!(!is_valid_hostname("iwanna$money.org"));
+        assert!(!is_valid_hostname(""));
+    }
+
+    #[test]
+    fn validate_addr() {
+        fn ok<A: IntoTorAddr>(addr: A) -> bool {
+            if let Ok(toraddr) = addr.into_tor_addr() {
+                toraddr.enforce_config(&Default::default()).is_ok()
+            } else {
+                false
+            }
+        }
+
+        assert!(ok("[2001:db8::42]:20"));
+        assert!(ok(("2001:db8::42", 20)));
+        assert!(ok(("128.66.0.42", 443)));
+        assert!(ok("128.66.0.42:443"));
+        assert!(ok("www.torproject.org:443"));
+        assert!(ok(("www.torproject.org", 443)));
+
+        assert!(!ok("-foobar.net:443"));
+        assert!(!ok("www.torproject.org"));
+    }
+
+    #[test]
+    fn local_addrs() {
+        fn is_local_hostname(s: &str) -> bool {
+            let h: Host = s.parse().unwrap();
+            h.is_local()
+        }
+
+        assert!(is_local_hostname("localhost"));
+        assert!(is_local_hostname("loCALHOST"));
+        assert!(is_local_hostname("127.0.0.1"));
+        assert!(is_local_hostname("::1"));
+        assert!(is_local_hostname("192.168.0.1"));
+
+        assert!(!is_local_hostname("www.example.com"));
     }
 }
