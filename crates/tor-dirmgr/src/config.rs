@@ -287,6 +287,7 @@ mod fallbacks {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unnecessary_wraps)]
     use super::*;
     use tempfile::tempdir;
 
@@ -296,7 +297,8 @@ mod test {
 
         let dir = DirMgrConfigBuilder::default()
             .cache_path(tmp.path().to_path_buf())
-            .build()?;
+            .build()
+            .unwrap();
 
         assert!(dir.authorities().len() >= 3);
         assert!(dir.fallbacks().len() >= 3);
@@ -312,7 +314,7 @@ mod test {
 
         // with nothing set, we get the default.
         let mut bld = NetworkConfig::builder();
-        let cfg = bld.build()?;
+        let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities().len(), dflt.authorities.len());
         assert_eq!(cfg.fallbacks().len(), dflt.fallback_caches.len());
 
@@ -322,11 +324,13 @@ mod test {
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
-                .build()?,
+                .build()
+                .unwrap(),
             Authority::builder()
                 .name("world")
                 .v3ident([b'!'; 20].into())
-                .build()?,
+                .build()
+                .unwrap(),
         ]);
         assert!(bld.build().is_err());
 
@@ -335,8 +339,9 @@ mod test {
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())
             .orport("[::]:99".parse().unwrap())
-            .build()?]);
-        let cfg = bld.build()?;
+            .build()
+            .unwrap()]);
+        let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities().len(), 2);
         assert_eq!(cfg.fallbacks().len(), 1);
 
@@ -348,7 +353,7 @@ mod test {
         use std::time::Duration;
         let mut bld = DownloadScheduleConfig::builder();
 
-        let cfg = bld.build()?;
+        let cfg = bld.build().unwrap();
         assert_eq!(cfg.microdesc_parallelism(), 4);
         assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
@@ -359,7 +364,7 @@ mod test {
             .retry_certs(RetryConfig::new(5, Duration::new(3600, 0)))
             .retry_microdescs(RetryConfig::new(6, Duration::new(3600, 0)));
 
-        let cfg = bld.build()?;
+        let cfg = bld.build().unwrap();
         assert_eq!(cfg.microdesc_parallelism(), 1); // gets clamped to 1
         assert_eq!(cfg.retry_microdescs().n_attempts(), 6);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 4);
@@ -379,7 +384,8 @@ mod test {
             .cache_path(tmp.path())
             .network_config(NetworkConfig::default())
             .schedule_config(DownloadScheduleConfig::default())
-            .build()?;
+            .build()
+            .unwrap();
 
         assert_eq!(cfg.override_net_params().get("circwindow").unwrap(), &999);
 
