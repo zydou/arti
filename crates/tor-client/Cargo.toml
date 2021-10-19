@@ -13,7 +13,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = [ "tokio" ]
 async-std = [ "tor-rtcompat/async-std" ]
-tokio = [ "tor-rtcompat/tokio" ]
+tokio = [ "tor-rtcompat/tokio", "tor-proto/tokio" ]
 static = [ "tor-rtcompat/static", "tor-dirmgr/static" ]
 experimental-api = []
 
