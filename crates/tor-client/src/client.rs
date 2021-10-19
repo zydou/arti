@@ -8,6 +8,7 @@ use crate::address::IntoTorAddr;
 use crate::config::ClientConfig;
 use tor_circmgr::{CircMgrConfig, IsolationToken, TargetPort};
 use tor_dirmgr::{DirEvent, DirMgrConfig};
+use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
 use tor_proto::stream::DataStream;
 use tor_rtcompat::{Runtime, SleepProviderExt};
@@ -149,7 +150,14 @@ impl<R: Runtime> TorClient<R> {
         circ_cfg: CircMgrConfig,
         client_cfg: ClientConfig,
     ) -> Result<TorClient<R>> {
-        let statemgr = tor_persist::FsStateMgr::from_path(state_cfg)?;
+        let statemgr = FsStateMgr::from_path(state_cfg)?;
+        if statemgr.try_lock()? {
+            debug!("It appears we have the lock on our state files.");
+        } else {
+            info!(
+                "Another process has the lock on our state files. We'll proceed in read-only mode."
+            );
+        }
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr, &runtime, Arc::clone(&chanmgr))?;
