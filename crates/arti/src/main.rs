@@ -95,7 +95,6 @@ use std::sync::Arc;
 use tor_client::{
     config::circ::{CircMgrConfig, CircMgrConfigBuilder},
     config::dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
-    config::ClientAddrConfig,
     TorClient, TorClientConfig,
 };
 use tor_config::CfgPath;
@@ -105,7 +104,6 @@ use anyhow::Result;
 use argh::FromArgs;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use tracing::{info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
@@ -229,10 +227,7 @@ impl ArtiConfig {
 async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
-    statecfg: PathBuf,
-    dircfg: DirMgrConfig,
-    circcfg: CircMgrConfig,
-    addrcfg: ClientAddrConfig,
+    client_config: TorClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
     futures::select!(
@@ -241,12 +236,7 @@ async fn run<R: Runtime>(
             let client =
                 Arc::new(TorClient::bootstrap(
                     runtime.clone(),
-                    TorClientConfig {
-                        state_cfg: statecfg,
-                        dir_cfg: dircfg,
-                        circ_cfg: circcfg,
-                        addr_cfg: addrcfg
-                    }
+                    client_config,
                 ).await?);
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
@@ -321,6 +311,13 @@ fn main() -> Result<()> {
         }
     };
 
+    let client_config = TorClientConfig::builder()
+        .state_cfg(statecfg)
+        .dir_cfg(dircfg)
+        .circ_cfg(circcfg)
+        .addr_cfg(addrcfg)
+        .build()?;
+
     process::use_max_file_limit();
 
     #[cfg(feature = "tokio")]
@@ -329,7 +326,7 @@ fn main() -> Result<()> {
     let runtime = tor_rtcompat::async_std::create_runtime()?;
 
     let rt_copy = runtime.clone();
-    rt_copy.block_on(run(runtime, socks_port, statecfg, dircfg, circcfg, addrcfg))?;
+    rt_copy.block_on(run(runtime, socks_port, client_config))?;
     Ok(())
 }
 

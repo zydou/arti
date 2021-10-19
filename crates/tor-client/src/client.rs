@@ -140,13 +140,13 @@ impl Default for ConnectPrefs {
 #[derive(Clone, Debug, Builder)]
 pub struct TorClientConfig {
     /// A directory suitable for storing persistent Tor state in.
-    pub state_cfg: PathBuf,
+    state_cfg: PathBuf,
     /// Configuration for the network directory manager.
-    pub dir_cfg: DirMgrConfig,
+    dir_cfg: DirMgrConfig,
     /// Configuration for the network circuit manager.
-    pub circ_cfg: CircMgrConfig,
+    circ_cfg: CircMgrConfig,
     /// Other client configuration.
-    pub addr_cfg: ClientAddrConfig,
+    addr_cfg: ClientAddrConfig,
 }
 
 impl TorClientConfig {

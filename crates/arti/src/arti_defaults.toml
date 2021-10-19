@@ -106,7 +106,7 @@ request_max_retries = 32
 request_loyalty = "50 msec"
 
 # Rules for client configuration
-[client_config]
+[addr_config]
 
 # Should we allow attempts to make Tor connections to local addresses?
 allow_local_addrs = false
