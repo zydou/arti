@@ -160,7 +160,7 @@ impl<R: Runtime> TorClient<R> {
         }
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
-            tor_circmgr::CircMgr::new(circ_cfg, statemgr, &runtime, Arc::clone(&chanmgr))?;
+            tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
         let dirmgr = tor_dirmgr::DirMgr::bootstrap_from_config(
             dir_cfg,
             runtime.clone(),
@@ -179,9 +179,10 @@ impl<R: Runtime> TorClient<R> {
             Arc::downgrade(&dirmgr),
         ))?;
 
-        runtime.spawn(flush_state_to_disk(
+        runtime.spawn(update_persistent_state(
             runtime.clone(),
             Arc::downgrade(&circmgr),
+            statemgr,
         ))?;
 
         runtime.spawn(continually_launch_timeout_testing_circuits(
@@ -312,12 +313,6 @@ impl<R: Runtime> TorClient<R> {
 
         Ok(circ)
     }
-
-    /// Try to flush persistent state into storage.
-    fn update_persistent_state(&self) -> Result<()> {
-        self.circmgr.update_persistent_state()?;
-        Ok(())
-    }
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
@@ -365,15 +360,39 @@ async fn keep_circmgr_params_updated<R: Runtime>(
 /// Exit when we notice that `circmgr` has been dropped.
 ///
 /// This is a daemon task: it runs indefinitely in the background.
-async fn flush_state_to_disk<R: Runtime>(runtime: R, circmgr: Weak<tor_circmgr::CircMgr<R>>) {
+async fn update_persistent_state<R: Runtime>(
+    runtime: R,
+    circmgr: Weak<tor_circmgr::CircMgr<R>>,
+    statemgr: FsStateMgr,
+) {
+    #![allow(clippy::collapsible_else_if)]
     // TODO: Consider moving this into tor-circmgr after we have more
     // experience with the state system.
 
     loop {
-        if let Some(circmgr) = Weak::upgrade(&circmgr) {
-            if let Err(e) = circmgr.update_persistent_state() {
-                error!("Unable to flush circmgr state: {}", e);
+        let had_lock = statemgr.can_store();
+        let lock_acquired = match statemgr.try_lock() {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Unable to check lock status: {}", e);
                 break;
+            }
+        };
+        if !had_lock && lock_acquired {
+            info!("We now own the lock on our state files.");
+        }
+
+        if let Some(circmgr) = Weak::upgrade(&circmgr) {
+            if !had_lock {
+                if let Err(e) = circmgr.reload_persistent_state() {
+                    error!("Unable to reload circmgr state: {}", e);
+                    break;
+                }
+            } else {
+                if let Err(e) = circmgr.update_persistent_state() {
+                    error!("Unable to flush circmgr state: {}", e);
+                    break;
+                }
             }
         } else {
             debug!("Circmgr has disappeared; task exiting.");
@@ -430,9 +449,12 @@ impl<R: Runtime> Drop for TorClient<R> {
     // TODO: Consider moving this into tor-circmgr after we have more
     // experience with the state system.
     fn drop(&mut self) {
-        info!("Flushing persistent state at exit.");
-        if let Err(e) = self.update_persistent_state() {
-            error!("Unable to flush state on client exit: {}", e);
+        match self.circmgr.update_persistent_state() {
+            Ok(()) => info!("Flushed persistent state at exit."),
+            Err(tor_circmgr::Error::State(tor_persist::Error::NoLock)) => {
+                debug!("Lock not held; no state to flush.")
+            }
+            Err(e) => error!("Unable to flush state on client exit: {}", e),
         }
     }
 }

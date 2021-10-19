@@ -201,7 +201,17 @@ impl<R: Runtime> CircMgr<R> {
         Ok(circmgr)
     }
 
-    /// Flush state to the state manager, if there is any unsaved state.
+    /// Reload state from the state manager.
+    ///
+    /// We only call this method if we _don't_ have the lock on the state
+    /// files.  If we have the lock, we only want to save.
+    pub fn reload_persistent_state(&self) -> Result<()> {
+        warn!("reload_persistent_state isn't implemented.");
+        Ok(())
+    }
+
+    /// Flush state to the state manager, if there is any unsaved state and
+    /// we have the lock.
     pub fn update_persistent_state(&self) -> Result<()> {
         self.mgr.peek_builder().save_state()?;
         self.mgr

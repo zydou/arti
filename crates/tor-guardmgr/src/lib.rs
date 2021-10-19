@@ -276,18 +276,11 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    ///
-    /// Return true if we were able to save, and false if we couldn't
-    /// get the lock.
-    pub fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
+    pub fn update_persistent_state(&self) -> Result<(), GuardMgrError> {
         let inner = self.inner.lock().expect("Poisoned lock");
-        if inner.default_storage.try_lock()? {
-            trace!("Flushing guard state to disk.");
-            inner.default_storage.store(&inner.active_guards)?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        trace!("Flushing guard state to disk.");
+        inner.default_storage.store(&inner.active_guards)?;
+        Ok(())
     }
 
     /// Update the state of this [`GuardMgr`] based on a new or modified
@@ -909,6 +902,8 @@ mod test {
     fn init<R: Runtime>(rt: R) -> (GuardMgr<R>, TestingStateMgr, NetDir) {
         use tor_netdir::{testnet, MdReceiver, PartialNetDir};
         let statemgr = TestingStateMgr::new();
+        let have_lock = statemgr.try_lock().unwrap();
+        assert!(have_lock);
         let guardmgr = GuardMgr::new(rt, statemgr.clone()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
         let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"

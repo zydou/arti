@@ -313,7 +313,6 @@ impl<R: Runtime> CircuitBuilder<R> {
     pub fn save_state(&self) -> Result<()> {
         // TODO: someday we'll want to only do this if there is something
         // changed.
-        let _ignore = self.storage.try_lock()?; // XXXX don't ignore.
         let state = self.builder.timeouts.build_state();
         self.storage.store(&state)?;
         Ok(())
