@@ -11,6 +11,39 @@
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
+    # This vulnerability affects the `chrono` crate: it uses
+    # `localtime_r()`, which is not thread-safe if anybody calls
+    # `setenv()`.
+    #
+    # This is concerning!  What makes it not disasterous is:
+    #  * We don't use chrono for any local times in Arti: only Utc.
+    #  * We don't modify the environment.
+    #
+    # There is no unaffected version of chrono yet.
+    #
+    # Fortunately (?), the whole Rust ecosystem is currently freaking
+    # out about chrono, so we can hope there's a solution before too long.
+    --ignore RUSTSEC-2020-0159
+)
+
+cargo audit -D warnings "${IGNORE[@]}"
+
+
+OBSOLETE_IGNORE=(
+    # This is a vulnerability in the `nix` crate caused by an
+    # out-of-bounds write in `getgrouplist`.  We got our `nix`
+    # dependency via `async-ctrlc`, which uses `ctrlc`, which uses
+    # `nix`.
+    #
+    # Why this didn't affect us:
+    #  * ctrlc doesn't use `getgrouplist`.
+    #
+    # Why we couldn't update to a better version of `nix`:
+    #  * ctrlc version 3.2.0 and earlier were stuck on `nix` 0.22.
+    #
+    # How it was fixed:
+    #  * ctrlc version 3.2.1 upgraded its `nix` dependency to 0.23.
+    --ignore RUSTSEC-2021-0119
     # This is a vulnerability in the `time` crate.  We don't import
     # `time` directly, but inherit it through the `oldtime` feature
     # in `chrono`.  The vulnerability occurs when somebody messes
@@ -36,25 +69,5 @@ IGNORE=(
     #  * Stop using the `chrono` feature on rusqlite, and do our date
     #    conversions in `tor-dirmgr` manually.
     --ignore RUSTSEC-2020-0071
-)
-
-cargo audit -D warnings "${IGNORE[@]}"
-
-
-OBSOLETE_IGNORE=(
-    # This is a vulnerability in the `nix` crate caused by an
-    # out-of-bounds write in `getgrouplist`.  We got our `nix`
-    # dependency via `async-ctrlc`, which uses `ctrlc`, which uses
-    # `nix`.
-    #
-    # Why this didn't affect us:
-    #  * ctrlc doesn't use `getgrouplist`.
-    #
-    # Why we couldn't update to a better version of `nix`:
-    #  * ctrlc version 3.2.0 and earlier were stuck on `nix` 0.22.
-    #
-    # How it was fixed:
-    #  * ctrlc version 3.2.1 upgraded its `nix` dependency to 0.23.
-    --ignore RUSTSEC-2021-0119
 )
 _="${OBSOLETE_IGNORE[0]}"
