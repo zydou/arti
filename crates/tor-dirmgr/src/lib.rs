@@ -275,9 +275,9 @@ impl<R: Runtime> DirMgr<R> {
             if !logged {
                 logged = true;
                 if bootstrapped {
-                    info!("Another process is bootstrapping the directory. Waiting till it finishes or exits.");
-                } else {
                     info!("Another process is managing the directory. We'll use its cache.");
+                } else {
+                    info!("Another process is bootstrapping the directory. Waiting till it finishes or exits.");
                 }
             }
 
