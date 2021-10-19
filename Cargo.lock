@@ -2742,6 +2742,8 @@ dependencies = [
  "rand_core 0.6.3",
  "subtle",
  "thiserror",
+ "tokio",
+ "tokio-util",
  "tor-bytes",
  "tor-cell",
  "tor-cert",

@@ -9,6 +9,13 @@ use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::{Context, Poll};
 use futures::Future;
 
+#[cfg(feature = "tokio")]
+use tokio_crate::io::ReadBuf;
+#[cfg(feature = "tokio")]
+use tokio_crate::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite};
+#[cfg(feature = "tokio")]
+use tokio_util::compat::FuturesAsyncReadCompatExt;
+
 use std::io::Result as IoResult;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -94,6 +101,17 @@ impl AsyncRead for DataStream {
     }
 }
 
+#[cfg(feature = "tokio")]
+impl TokioAsyncRead for DataStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+        TokioAsyncRead::poll_read(Pin::new(&mut self.compat()), cx, buf)
+    }
+}
+
 impl AsyncWrite for DataStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -107,6 +125,21 @@ impl AsyncWrite for DataStream {
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         Pin::new(&mut self.w).poll_close(cx)
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl TokioAsyncWrite for DataStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+        TokioAsyncWrite::poll_write(Pin::new(&mut self.compat()), cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_flush(Pin::new(&mut self.compat()), cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        TokioAsyncWrite::poll_shutdown(Pin::new(&mut self.compat()), cx)
     }
 }
 
