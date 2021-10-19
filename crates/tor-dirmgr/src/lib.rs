@@ -249,23 +249,36 @@ impl<R: Runtime> DirMgr<R> {
         on_complete: &mut Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut logged = false;
-        let mut bootstrapped = false;
-        let runtime = upgrade_weak_ref(weak)?.runtime.clone();
+        let mut bootstrapped;
+        let runtime;
+        {
+            let dirmgr = upgrade_weak_ref(weak)?;
+            runtime = dirmgr.runtime.clone();
+            bootstrapped = dirmgr.netdir.get().is_some();
+        }
 
         loop {
             {
                 let dirmgr = upgrade_weak_ref(weak)?;
+                trace!("Trying to take ownership of the directory cache lock");
                 if dirmgr.try_upgrade_to_readwrite().await? {
                     // We now own the lock!  (Maybe we owned it before; the
                     // upgrade_to_readwrite() function is idempotent.)  We can
                     // do our own bootstrapping.
+                    if logged {
+                        info!("The previous owning process has given up the lock. We are now in charge of managing the directory.");
+                    }
                     return Ok(());
                 }
             }
 
             if !logged {
                 logged = true;
-                info!("Another process is bootstrapping. Waiting till it finishes or exits.");
+                if bootstrapped {
+                    info!("Another process is bootstrapping the directory. Waiting till it finishes or exits.");
+                } else {
+                    info!("Another process is managing the directory. We'll use its cache.");
+                }
             }
 
             // We don't own the lock.  Somebody else owns the cache.  They
@@ -281,10 +294,14 @@ impl<R: Runtime> DirMgr<R> {
             // our state functions.
             {
                 let dirmgr = upgrade_weak_ref(weak)?;
+                trace!("Trying to load from the directory cache");
                 if dirmgr.load_directory().await? {
                     // Successfully loaded a bootstrapped directory.
                     if let Some(send_done) = on_complete.take() {
                         let _ = send_done.send(());
+                    }
+                    if !bootstrapped {
+                        info!("The directory is now bootstrapped.");
                     }
                     bootstrapped = true;
                 }
