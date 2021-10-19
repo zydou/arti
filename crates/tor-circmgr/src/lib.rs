@@ -153,9 +153,6 @@ impl<'a> DirInfo<'a> {
 pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
-
-    /// A handle to the state manager for recording timeout history.
-    storage: TimeoutStateHandle,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -179,19 +176,11 @@ impl<R: Runtime> CircMgr<R> {
 
         let storage = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
-        let builder = build::CircuitBuilder::new(
-            runtime.clone(),
-            chanmgr,
-            path_config,
-            Arc::clone(&storage),
-            guardmgr,
-        );
+        let builder =
+            build::CircuitBuilder::new(runtime.clone(), chanmgr, path_config, storage, guardmgr);
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), request_timing, circuit_timing);
-        let circmgr = Arc::new(CircMgr {
-            mgr: Arc::new(mgr),
-            storage,
-        });
+        let circmgr = Arc::new(CircMgr { mgr: Arc::new(mgr) });
 
         runtime.spawn(continually_expire_circuits(
             runtime.clone(),

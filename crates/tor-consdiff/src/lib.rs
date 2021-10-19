@@ -184,6 +184,7 @@ enum DiffCommand<'a> {
 #[derive(Clone, Debug)]
 pub struct DiffResult<'a> {
     /// An expected digest of the input, before the digest is computed.
+    #[allow(dead_code)] // XXXX Check this value before applying the digest?
     d_pre: [u8; 32],
     /// An expected digest of the output, after it has been assembled.
     d_post: [u8; 32],

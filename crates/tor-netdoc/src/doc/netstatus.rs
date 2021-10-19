@@ -904,12 +904,12 @@ impl ConsensusHeader {
 
         let shared_rand_prev = sec
             .get(SHARED_RAND_PREVIOUS_VALUE)
-            .map(|i| SharedRandVal::from_item(i))
+            .map(SharedRandVal::from_item)
             .transpose()?;
 
         let shared_rand_cur = sec
             .get(SHARED_RAND_CURRENT_VALUE)
-            .map(|i| SharedRandVal::from_item(i))
+            .map(SharedRandVal::from_item)
             .transpose()?;
 
         Ok(ConsensusHeader {

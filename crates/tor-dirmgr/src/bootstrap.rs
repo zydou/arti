@@ -127,9 +127,10 @@ pub(crate) async fn load<R: Runtime>(
                 break;
             }
             safety_counter += 1;
-            if safety_counter == 100 {
-                panic!("Spent 100 iterations in the same state: this is a bug");
-            }
+            assert!(
+                safety_counter < 100,
+                "Spent 100 iterations in the same state: this is a bug"
+            );
         }
     }
 

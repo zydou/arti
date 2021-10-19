@@ -32,6 +32,10 @@ impl Authority {
     pub fn builder() -> AuthorityBuilder {
         AuthorityBuilder::default()
     }
+    /// Return the (human-readable) name for this authority.
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
     /// Return the v3 identity key of this certificate.
     ///
     /// This is the identity of the >=2048-bit RSA key that the

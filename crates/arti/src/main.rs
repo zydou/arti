@@ -272,12 +272,14 @@ fn setup_logging(config: &ArtiConfig) {
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
 
-    #[cfg(feature = "journald")]
     if config.logging.journald {
+        #[cfg(feature = "journald")]
         if let Ok(journald) = tracing_journald::layer() {
             registry.with(journald).init();
             return;
         }
+        #[cfg(not(feature = "journald"))]
+        warn!("journald logging was selected, but arti was built without journald support.");
     }
 
     registry.init();

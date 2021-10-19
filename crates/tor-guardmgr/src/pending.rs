@@ -225,6 +225,7 @@ pub(crate) struct PendingRequest {
     /// Otherwise we run into lifetime isseus elsewhere.)
     usable: Option<oneshot::Sender<bool>>,
     /// The time when we gave out this guard.
+    #[allow(dead_code)] // TODO: Remove, or use it to notice stuck requests
     started_at: Instant,
     /// The time at which the circuit manager told us that this guard was
     /// successful.

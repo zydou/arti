@@ -701,6 +701,7 @@ struct GuardParams {
     /// After how much time without successful activity does a
     /// successful circuit indicate that we should retry our primary
     /// guards?
+    #[allow(dead_code)] // XXXX not yet implemented.
     internet_down_timeout: Duration,
     /// What fraction of the guards can be can be filtered out before we
     /// decide that our filter is "very restrictive"?

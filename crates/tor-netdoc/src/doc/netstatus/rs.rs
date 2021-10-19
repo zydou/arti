@@ -68,13 +68,15 @@ struct GenericRouterStatus<D> {
     ///
     /// This value should be ignored for all purposes; see
     /// [proposal 275](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/proposals/275-md-published-time-is-silly.txt).
-    // TODO: so why not remove this?
+    #[allow(dead_code)] // TODO: remove this some day?
     published: time::SystemTime,
     /// A list of address:port values where this relay can be reached.
     addrs: Vec<net::SocketAddr>,
     /// Declared OR port for this relay.
+    #[allow(dead_code)] // This value is never used; we look at addrs instead.
     or_port: u16,
     /// Declared directory port for this relay.
+    #[allow(dead_code)] // Arti doesn't use this value.
     dir_port: u16,
     /// Digest of the document for this relay.
     doc_digest: D,

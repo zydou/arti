@@ -287,6 +287,7 @@ struct GetCertsState<DM: WriteNetDir> {
     /// The cache usage we had in mind when we began.  Used to reset.
     cache_usage: CacheUsage,
     /// True iff we loaded the consensus from our cache.
+    #[allow(dead_code)]
     from_cache: bool,
     /// The consensus that we are trying to validate.
     unvalidated: UnvalidatedMdConsensus,
