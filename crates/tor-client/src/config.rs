@@ -27,7 +27,7 @@ pub mod dir {
 /// Configuration for client behaviour relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
-/// use [`ClientConfigBuilder`].
+/// use [`ClientAddrConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
 #[builder]
 pub struct ClientAddrConfig {
