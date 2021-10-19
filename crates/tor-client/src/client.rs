@@ -5,19 +5,17 @@
 //! connections ("streams") over the Tor network using
 //! `TorClient::connect()`.
 use crate::address::IntoTorAddr;
-use crate::config::ClientAddrConfig;
-use tor_circmgr::{CircMgrConfig, IsolationToken, TargetPort};
-use tor_dirmgr::{DirEvent, DirMgrConfig};
+use crate::config::{ClientAddrConfig, TorClientConfig};
+use tor_circmgr::{IsolationToken, TargetPort};
+use tor_dirmgr::DirEvent;
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
 use tor_proto::stream::DataStream;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
-use derive_builder::Builder;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -133,61 +131,6 @@ impl Default for ConnectPrefs {
             ip_ver_pref: Default::default(),
             isolation_group: IsolationToken::no_isolation(),
         }
-    }
-}
-
-/// Configuration used to bootstrap a `TorClient`.
-#[derive(Clone, Debug, Builder)]
-pub struct TorClientConfig {
-    /// A directory suitable for storing persistent Tor state in.
-    state_cfg: PathBuf,
-    /// Configuration for the network directory manager.
-    dir_cfg: DirMgrConfig,
-    /// Configuration for the network circuit manager.
-    circ_cfg: CircMgrConfig,
-    /// Other client configuration.
-    addr_cfg: ClientAddrConfig,
-}
-
-impl TorClientConfig {
-    /// Returns a `TorClientConfig` using reasonably sane defaults.
-    ///
-    /// This uses `tor_config`'s definitions for `APP_LOCAL_DATA` and `APP_CACHE` for the state and
-    /// cache directories respectively.
-    pub fn sane_defaults() -> Result<Self> {
-        let state_dir = tor_config::CfgPath::new("${APP_LOCAL_DATA}".into())
-            .path()
-            .map_err(|e| Error::Configuration(format!("failed to find APP_LOCAL_DATA: {:?}", e)))?;
-        let cache_dir = tor_config::CfgPath::new("${APP_CACHE}".into())
-            .path()
-            .map_err(|e| Error::Configuration(format!("failed to find APP_CACHE: {:?}", e)))?;
-
-        Self::with_directories(state_dir, cache_dir)
-    }
-
-    /// Returns a `TorClientConfig` using the specified state and cache directories, with other
-    /// configuration options set to defaults.
-    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self>
-    where
-        P: Into<PathBuf>,
-        Q: Into<PathBuf>,
-    {
-        Ok(Self {
-            state_cfg: state_dir.into(),
-            dir_cfg: DirMgrConfig::builder()
-                .cache_path(cache_dir.into())
-                .build()
-                .map_err(|e| {
-                    Error::Configuration(format!("failed to build DirMgrConfig: {}", e))
-                })?,
-            circ_cfg: Default::default(),
-            addr_cfg: Default::default(),
-        })
-    }
-
-    /// Return a new builder to construct a `TorClientConfig`.
-    pub fn builder() -> TorClientConfigBuilder {
-        TorClientConfigBuilder::default()
     }
 }
 
