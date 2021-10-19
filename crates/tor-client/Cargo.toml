@@ -34,3 +34,9 @@ thiserror = "1.0.24"
 
 [dev-dependencies]
 tor-rtcompat = { path="../tor-rtcompat", version="0.0.0", features=["tokio"] }
+tokio-crate = { package = "tokio", version = "1.7.0", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+hyper = { version = "0.14.13", features = ["http1", "client", "runtime"] }
+pin-project = { version = "1.0" }
+tokio-util = { version = "0.6", features = ["compat"] }
+anyhow = { version = "1.0" }
+tracing-subscriber = "0.2"
