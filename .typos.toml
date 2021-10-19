@@ -1,9 +1,9 @@
 
 [files]
-extend-exclude = [ "arti-corpora", "testdata", "fallback_dirs.inc" ]
+extend-exclude = [ "Cargo.lock", "arti-corpora", "testdata", "fallback_dirs.inc" ]
 
 
 [default.extend-identifiers]
 
-# This shows up in sere crates.
+# This shows up in serde crates.
 ser = "ser"

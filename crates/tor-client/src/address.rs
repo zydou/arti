@@ -287,7 +287,7 @@ impl DangerouslyIntoTorAddr for SocketAddrV6 {
 
 /// Check whether `hostname` is a valid hostname or not.
 ///
-/// (Note that IPv6 addreses don't follow these rules.)
+/// (Note that IPv6 addresses don't follow these rules.)
 ///
 /// TODO: Check whether the rules given here are in fact the same rules
 /// as Tor follows, and whether they conform to anything.

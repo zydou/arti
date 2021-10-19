@@ -15,7 +15,7 @@ IGNORE=(
     # `localtime_r()`, which is not thread-safe if anybody calls
     # `setenv()`.
     #
-    # This is concerning!  What makes it not disasterous is:
+    # This is concerning!  What makes it not disastrous is:
     #  * We don't use chrono for any local times in Arti: only Utc.
     #  * We don't modify the environment.
     #

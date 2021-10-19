@@ -69,7 +69,7 @@ pub enum Error {
     /// An error given by the checkable crate.
     #[error("checkable error: {0}")]
     SignatureError(#[from] signature::Error),
-    /// An IO error occured while manipulating storage on disk.
+    /// An IO error occurred while manipulating storage on disk.
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 }
