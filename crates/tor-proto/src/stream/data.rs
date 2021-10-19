@@ -27,6 +27,13 @@ use tor_cell::relaycell::msg::{Data, RelayMsg};
 ///
 /// It's suitable for use with BEGIN or BEGIN_DIR streams.
 ///
+/// # Note for tokio users
+///
+/// By default, this type implements only the versions of `AsyncRead`
+/// and `AsyncWrite` traits from the [`futures`] crate.  If you need
+/// it to implement the `tokio` versions of those traits, make sure
+/// this crate is built with the `tokio` feature.
+///
 /// # Semver note:
 ///
 /// Note that this type is re-exported as a part of the public API of
