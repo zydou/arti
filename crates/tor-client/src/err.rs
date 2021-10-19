@@ -46,6 +46,10 @@ pub enum Error {
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),
+
+    /// Building configuration for the client failed.
+    #[error("Configuration failed: {0}")]
+    Configuration(String),
 }
 
 impl From<TimeoutError> for Error {

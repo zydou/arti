@@ -5,13 +5,14 @@
 //! connections ("streams") over the Tor network using
 //! `TorClient::connect()`.
 use crate::address::IntoTorAddr;
-use crate::config::ClientConfig;
+use crate::config::ClientAddrConfig;
 use tor_circmgr::{CircMgrConfig, IsolationToken, TargetPort};
 use tor_dirmgr::{DirEvent, DirMgrConfig};
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
 use tor_proto::stream::DataStream;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
+use derive_builder::Builder;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
@@ -40,8 +41,8 @@ pub struct TorClient<R: Runtime> {
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
-    /// Client configuration
-    clientcfg: ClientConfig,
+    /// Client address configuration
+    addrcfg: ClientAddrConfig,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -135,19 +136,74 @@ impl Default for ConnectPrefs {
     }
 }
 
+/// Configuration used to bootstrap a `TorClient`.
+#[derive(Clone, Debug, Builder)]
+pub struct TorClientConfig {
+    /// A directory suitable for storing persistent Tor state in.
+    pub state_cfg: PathBuf,
+    /// Configuration for the network directory manager.
+    pub dir_cfg: DirMgrConfig,
+    /// Configuration for the network circuit manager.
+    pub circ_cfg: CircMgrConfig,
+    /// Other client configuration.
+    pub addr_cfg: ClientAddrConfig,
+}
+
+impl TorClientConfig {
+    /// Returns a `TorClientConfig` using reasonably sane defaults.
+    ///
+    /// This uses `tor_config`'s definitions for `APP_LOCAL_DATA` and `APP_CACHE` for the state and
+    /// cache directories respectively.
+    pub fn sane_defaults() -> Result<Self> {
+        let state_dir = tor_config::CfgPath::new("${APP_LOCAL_DATA}".into())
+            .path()
+            .map_err(|e| Error::Configuration(format!("failed to find APP_LOCAL_DATA: {:?}", e)))?;
+        let cache_dir = tor_config::CfgPath::new("${APP_CACHE}".into())
+            .path()
+            .map_err(|e| Error::Configuration(format!("failed to find APP_CACHE: {:?}", e)))?;
+
+        Self::with_directories(state_dir, cache_dir)
+    }
+
+    /// Returns a `TorClientConfig` using the specified state and cache directories, with other
+    /// configuration options set to defaults.
+    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self>
+    where
+        P: Into<PathBuf>,
+        Q: Into<PathBuf>,
+    {
+        Ok(Self {
+            state_cfg: state_dir.into(),
+            dir_cfg: DirMgrConfig::builder()
+                .cache_path(cache_dir.into())
+                .build()
+                .map_err(|e| {
+                    Error::Configuration(format!("failed to build DirMgrConfig: {}", e))
+                })?,
+            circ_cfg: Default::default(),
+            addr_cfg: Default::default(),
+        })
+    }
+
+    /// Return a new builder to construct a `TorClientConfig`.
+    pub fn builder() -> TorClientConfigBuilder {
+        TorClientConfigBuilder::default()
+    }
+}
+
 impl<R: Runtime> TorClient<R> {
     /// Bootstrap a network connection configured by `dir_cfg` and `circ_cfg`.
     ///
     /// Return a client once there is enough directory material to
     /// connect safely over the Tor network.
-    // TODO: Expand ClientConfig to combine DirMgrConfig and circ_cfg
-    // and state_cfg.
     pub async fn bootstrap(
         runtime: R,
-        state_cfg: PathBuf,
-        dir_cfg: DirMgrConfig,
-        circ_cfg: CircMgrConfig,
-        client_cfg: ClientConfig,
+        TorClientConfig {
+            state_cfg,
+            dir_cfg,
+            circ_cfg,
+            addr_cfg,
+        }: TorClientConfig,
     ) -> Result<TorClient<R>> {
         let statemgr = tor_persist::FsStateMgr::from_path(state_cfg)?;
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
@@ -159,7 +215,6 @@ impl<R: Runtime> TorClient<R> {
             Arc::clone(&circmgr),
         )
         .await?;
-        let clientcfg = client_cfg;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
@@ -186,7 +241,7 @@ impl<R: Runtime> TorClient<R> {
             runtime,
             circmgr,
             dirmgr,
-            clientcfg,
+            addrcfg: addr_cfg,
         })
     }
 
@@ -201,7 +256,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
-        addr.enforce_config(&self.clientcfg)?;
+        addr.enforce_config(&self.addrcfg)?;
         let (addr, port) = addr.into_string_and_port();
 
         let flags = flags.unwrap_or_default();
@@ -228,7 +283,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
-        addr.enforce_config(&self.clientcfg)?;
+        addr.enforce_config(&self.addrcfg)?;
 
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;

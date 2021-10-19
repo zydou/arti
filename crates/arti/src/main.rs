@@ -95,8 +95,8 @@ use std::sync::Arc;
 use tor_client::{
     config::circ::{CircMgrConfig, CircMgrConfigBuilder},
     config::dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
-    config::ClientConfig,
-    TorClient,
+    config::ClientAddrConfig,
+    TorClient, TorClientConfig,
 };
 use tor_config::CfgPath;
 use tor_rtcompat::{Runtime, SpawnBlocking};
@@ -183,8 +183,8 @@ pub struct ArtiConfig {
     /// Information about how to expire circuits.
     circuit_timing: tor_client::config::circ::CircuitTiming,
 
-    /// Information about client configuration parameters.
-    client_config: tor_client::config::ClientConfig,
+    /// Information about client address configuration parameters.
+    addr_config: tor_client::config::ClientAddrConfig,
 }
 
 /// Configuration for where information should be stored on disk.
@@ -232,14 +232,22 @@ async fn run<R: Runtime>(
     statecfg: PathBuf,
     dircfg: DirMgrConfig,
     circcfg: CircMgrConfig,
-    clientcfg: ClientConfig,
+    addrcfg: ClientAddrConfig,
 ) -> Result<()> {
     use futures::FutureExt;
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
             let client =
-                Arc::new(TorClient::bootstrap(runtime.clone(), statecfg, dircfg, circcfg, clientcfg).await?);
+                Arc::new(TorClient::bootstrap(
+                    runtime.clone(),
+                    TorClientConfig {
+                        state_cfg: statecfg,
+                        dir_cfg: dircfg,
+                        circ_cfg: circcfg,
+                        addr_cfg: addrcfg
+                    }
+                ).await?);
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
@@ -303,7 +311,7 @@ fn main() -> Result<()> {
     let statecfg = config.storage.state_dir.path()?;
     let dircfg = config.get_dir_config()?;
     let circcfg = config.get_circ_config()?;
-    let clientcfg = config.client_config;
+    let addrcfg = config.addr_config;
 
     let socks_port = match config.socks_port {
         Some(s) => s,
@@ -321,9 +329,7 @@ fn main() -> Result<()> {
     let runtime = tor_rtcompat::async_std::create_runtime()?;
 
     let rt_copy = runtime.clone();
-    rt_copy.block_on(run(
-        runtime, socks_port, statecfg, dircfg, circcfg, clientcfg,
-    ))?;
+    rt_copy.block_on(run(runtime, socks_port, statecfg, dircfg, circcfg, addrcfg))?;
     Ok(())
 }
 

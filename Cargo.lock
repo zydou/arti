@@ -122,6 +122,7 @@ dependencies = [
  "thiserror",
  "tor-chanmgr",
  "tor-circmgr",
+ "tor-config",
  "tor-dirmgr",
  "tor-persist",
  "tor-proto",

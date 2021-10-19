@@ -92,7 +92,7 @@ impl TorAddr {
     /// `cfg`.
     pub(crate) fn enforce_config(
         &self,
-        cfg: &crate::config::ClientConfig,
+        cfg: &crate::config::ClientAddrConfig,
     ) -> Result<(), crate::Error> {
         if !cfg.allow_local_addrs && self.is_local() {
             return Err(crate::Error::LocalAddress);

@@ -101,7 +101,7 @@ mod client;
 pub mod config;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
-pub use client::{ConnectPrefs, TorClient};
+pub use client::{ConnectPrefs, TorClient, TorClientConfig};
 
 pub use tor_circmgr::IsolationToken;
 /// An anonymized stream over the Tor network.

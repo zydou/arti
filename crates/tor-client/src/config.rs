@@ -22,13 +22,13 @@ pub mod dir {
     };
 }
 
-/// Configuration for clients
+/// Configuration for client behaviour relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
 #[builder]
-pub struct ClientConfig {
+pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///
     /// This option is off by default, since (by default) Tor exits will
@@ -41,8 +41,8 @@ pub struct ClientConfig {
 // check `derive_builder` documentation for details
 // https://docs.rs/derive_builder/0.10.2/derive_builder/#default-values
 #[allow(clippy::unwrap_used)]
-impl Default for ClientConfig {
+impl Default for ClientAddrConfig {
     fn default() -> Self {
-        ClientConfigBuilder::default().build().unwrap()
+        ClientAddrConfigBuilder::default().build().unwrap()
     }
 }

@@ -88,7 +88,7 @@ impl Default for CircuitTiming {
 ///
 /// This type is immutable once constructed.  To create an object of
 /// this type, use [`CircMgrConfigBuilder`].
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Default)]
 #[builder]
 pub struct CircMgrConfig {
     /// Override the default required distance for two relays to share

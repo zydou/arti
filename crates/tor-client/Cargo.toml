@@ -20,6 +20,7 @@ experimental-api = []
 [dependencies]
 tor-circmgr = { path="../tor-circmgr", version="0.0.0" }
 tor-chanmgr = { path="../tor-chanmgr", version="0.0.0" }
+tor-config = { path="../tor-config", version="0.0.0" }
 tor-dirmgr = { path="../tor-dirmgr", version="0.0.0" }
 tor-persist = { path="../tor-persist", version="0.0.0" }
 tor-proto = { path="../tor-proto", version="0.0.0" }
