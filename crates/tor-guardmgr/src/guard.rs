@@ -196,15 +196,6 @@ impl Guard {
         &self.id
     }
 
-    /// Given a NetDir, look up the Relay corresponding to this guard,
-    /// if there is one and it is marked as a guard.
-    pub(crate) fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
-        match self.id.get_relay(netdir) {
-            Some(r) if r.is_flagged_guard() => Some(r),
-            _ => None,
-        }
-    }
-
     /// Return the reachability status for this guard.
     pub(crate) fn reachable(&self) -> Reachable {
         self.reachable
@@ -296,6 +287,7 @@ impl Guard {
             Some(true) => {
                 // Definitely listed.
                 let relay = self
+                    .id
                     .get_relay(netdir)
                     .expect("Couldn't get a listed relay?!");
                 // Update address information.
@@ -717,7 +709,7 @@ mod test {
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
-        let r = guard22.get_relay(&netdir).unwrap();
+        let r = guard22.id.get_relay(&netdir).unwrap();
         assert_eq!(r.ed_identity(), relay22.ed_identity());
 
         // Can we check on the guard's weight?
@@ -730,7 +722,7 @@ mod test {
             vec![],
             now,
         );
-        assert!(guard255.get_relay(&netdir).is_none());
+        assert!(guard255.id.get_relay(&netdir).is_none());
         assert!(guard255.get_weight(&netdir).is_none());
     }
 
@@ -769,7 +761,7 @@ mod test {
 
         // Try a guard that is in netdir, but not netdir2.
         let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
-        let relay22 = guard22.get_relay(&netdir).unwrap();
+        let relay22 = guard22.id.get_relay(&netdir).unwrap();
         guard22.update_from_netdir(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
