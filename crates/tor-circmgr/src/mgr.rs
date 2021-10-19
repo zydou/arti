@@ -1013,8 +1013,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // delay will give the circuits that were originally
                     // specifically intended for a request a little more time
                     // to finish, before we offer it this circuit instead.
-                    // TODO: make this configurable.
-                    let briefly = Duration::from_millis(50);
+                    let briefly = self.request_timing.request_loyalty;
                     runtime_copy.sleep(briefly).await;
 
                     let pending = {
