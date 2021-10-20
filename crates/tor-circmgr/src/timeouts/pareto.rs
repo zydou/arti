@@ -16,8 +16,8 @@ use bounded_vec_deque::BoundedVecDeque;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::sync::Mutex;
 use std::time::Duration;
+use tor_netdir::params::NetParameters;
 
 use super::Action;
 
@@ -402,8 +402,8 @@ impl Default for Params {
     }
 }
 
-impl From<&tor_netdir::params::NetParameters> for Params {
-    fn from(p: &tor_netdir::params::NetParameters) -> Params {
+impl From<&NetParameters> for Params {
+    fn from(p: &NetParameters) -> Params {
         // Because of the underlying bounds, the "unwrap_or_else"
         // conversions here should be impossible, and the "as"
         // conversions should always be in-range.
@@ -431,10 +431,15 @@ impl From<&tor_netdir::params::NetParameters> for Params {
     }
 }
 
-/// Implementation type for [`ParetoTimeoutEstimator`]
+/// Tor's default circuit build timeout estimator.
 ///
-/// (This type hides behind a mutex to allow concurrent modification.)
-struct ParetoEstimatorInner {
+/// This object records a set of observed circuit build times, and
+/// uses it to determine good values for how long we should allow
+/// circuits to build.
+///
+/// For full details of the algorithms used, see
+/// [`path-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/path-spec.txt).
+pub(crate) struct ParetoTimeoutEstimator {
     /// Our observations for circuit build times and success/failure
     /// history.
     history: History,
@@ -455,19 +460,6 @@ struct ParetoEstimatorInner {
     /// A set of parameters to use in computing circuit build timeout
     /// estimates.
     p: Params,
-}
-
-/// Tor's default circuit build timeout estimator.
-///
-/// This object records a set of observed circuit build times, and
-/// uses it to determine good values for how long we should allow
-/// circuits to build.
-///
-/// For full details of the algorithms used, see
-/// [`path-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/path-spec.txt).
-pub(crate) struct ParetoTimeoutEstimator {
-    /// The actual data inside this estimator.
-    est: Mutex<ParetoEstimatorInner>,
 }
 
 impl Default for ParetoTimeoutEstimator {
@@ -495,14 +487,11 @@ impl ParetoTimeoutEstimator {
     /// object.
     fn from_history(history: History) -> Self {
         let p = Params::default();
-        let inner = ParetoEstimatorInner {
+        ParetoTimeoutEstimator {
             history,
             timeouts: None,
             fallback_timeouts: p.default_thresholds,
             p,
-        };
-        ParetoTimeoutEstimator {
-            est: Mutex::new(inner),
         }
     }
 
@@ -513,114 +502,6 @@ impl ParetoTimeoutEstimator {
         Self::from_history(history)
     }
 
-    /// Construct a new ParetoTimeoutState to represent the current state
-    /// of this estimator.
-    pub(crate) fn build_state(&self) -> ParetoTimeoutState {
-        let mut this = self
-            .est
-            .lock()
-            .expect("Poisoned lock for ParetoTimeoutEstimator");
-
-        let cur_timeout = MsecDuration::new_saturating(&this.base_timeouts().0);
-        ParetoTimeoutState {
-            version: 1,
-            histogram: this.history.sparse_histogram().collect(),
-            current_timeout: Some(cur_timeout),
-        }
-    }
-
-    /// Change the parameters used for this estimator.
-    pub(crate) fn update_params(&self, parameters: Params) {
-        let mut this = self
-            .est
-            .lock()
-            .expect("Poisoned lock for ParetoTimeoutEstimator");
-
-        this.p = parameters;
-        let new_success_len = this.p.success_history_len;
-        this.history.set_success_history_len(new_success_len);
-    }
-}
-
-impl super::TimeoutEstimator for ParetoTimeoutEstimator {
-    fn note_hop_completed(&self, hop: u8, delay: Duration, is_last: bool) {
-        let mut this = self
-            .est
-            .lock()
-            .expect("Poisoned lock for ParetoTimeoutEstimator");
-
-        if hop == this.p.significant_hop {
-            let time = MsecDuration::new_saturating(&delay);
-            this.history.add_time(time);
-            this.timeouts.take();
-        }
-        if is_last {
-            this.history.add_success(true);
-        }
-    }
-
-    fn note_circ_timeout(&self, hop: u8, _delay: Duration) {
-        // XXXXX This only counts if we have recent-enough
-        // activity.  See circuit_build_times_network_check_live.
-        if hop > 0 {
-            let mut this = self
-                .est
-                .lock()
-                .expect("Poisoned lock for ParetoTimeoutEstimator");
-            this.history.add_success(false);
-            if this.history.n_recent_timeouts() > this.p.reset_after_timeouts {
-                let base_timeouts = this.base_timeouts();
-                this.history.clear();
-                this.timeouts.take();
-                // If we already had a timeout that was at least the
-                // length of our fallback timeouts, we should double
-                // those fallback timeouts.
-                if base_timeouts.0 >= this.fallback_timeouts.0 {
-                    this.fallback_timeouts.0 *= 2;
-                    this.fallback_timeouts.1 *= 2;
-                }
-            }
-        }
-    }
-
-    fn timeouts(&self, action: &Action) -> (Duration, Duration) {
-        let mut this = self
-            .est
-            .lock()
-            .expect("Poisoned lock for ParetoTimeoutEstimator");
-
-        let (base_t, base_a) = if this.p.use_estimates {
-            this.base_timeouts()
-        } else {
-            // If we aren't using this estimator, then just return the
-            // default thresholds from our parameters.
-            return this.p.default_thresholds;
-        };
-
-        let reference_action = Action::BuildCircuit {
-            length: this.p.significant_hop as usize + 1,
-        };
-        debug_assert!(reference_action.timeout_scale() > 0);
-
-        let multiplier =
-            (action.timeout_scale() as f64) / (reference_action.timeout_scale() as f64);
-
-        // TODO-SPEC The spec define any of this.  Tor doesn't multiply the
-        // abandon timeout.
-        // XXXX `mul_f64()` can panic if we overflow Duration.
-        (base_t.mul_f64(multiplier), base_a.mul_f64(multiplier))
-    }
-
-    fn learning_timeouts(&self) -> bool {
-        let this = self
-            .est
-            .lock()
-            .expect("Poisoned lock for ParetoTimeoutEstimator");
-        this.p.use_estimates && this.history.n_times() < this.p.min_observations.into()
-    }
-}
-
-impl ParetoEstimatorInner {
     /// Compute an unscaled basic pair of timeouts for a circuit of
     /// the "normal" length.
     ///
@@ -657,6 +538,82 @@ impl ParetoEstimatorInner {
         self.timeouts = Some(timeouts);
 
         timeouts
+    }
+}
+
+impl super::TimeoutEstimator for ParetoTimeoutEstimator {
+    fn update_params(&mut self, p: &NetParameters) {
+        let parameters = p.into();
+        self.p = parameters;
+        let new_success_len = self.p.success_history_len;
+        self.history.set_success_history_len(new_success_len);
+    }
+
+    fn note_hop_completed(&mut self, hop: u8, delay: Duration, is_last: bool) {
+        if hop == self.p.significant_hop {
+            let time = MsecDuration::new_saturating(&delay);
+            self.history.add_time(time);
+            self.timeouts.take();
+        }
+        if is_last {
+            self.history.add_success(true);
+        }
+    }
+
+    fn note_circ_timeout(&mut self, hop: u8, _delay: Duration) {
+        // XXXXX This only counts if we have recent-enough
+        // activity.  See circuit_build_times_network_check_live.
+        if hop > 0 {
+            self.history.add_success(false);
+            if self.history.n_recent_timeouts() > self.p.reset_after_timeouts {
+                let base_timeouts = self.base_timeouts();
+                self.history.clear();
+                self.timeouts.take();
+                // If we already had a timeout that was at least the
+                // length of our fallback timeouts, we should double
+                // those fallback timeouts.
+                if base_timeouts.0 >= self.fallback_timeouts.0 {
+                    self.fallback_timeouts.0 *= 2;
+                    self.fallback_timeouts.1 *= 2;
+                }
+            }
+        }
+    }
+
+    fn timeouts(&mut self, action: &Action) -> (Duration, Duration) {
+        let (base_t, base_a) = if self.p.use_estimates {
+            self.base_timeouts()
+        } else {
+            // If we aren't using this estimator, then just return the
+            // default thresholds from our parameters.
+            return self.p.default_thresholds;
+        };
+
+        let reference_action = Action::BuildCircuit {
+            length: self.p.significant_hop as usize + 1,
+        };
+        debug_assert!(reference_action.timeout_scale() > 0);
+
+        let multiplier =
+            (action.timeout_scale() as f64) / (reference_action.timeout_scale() as f64);
+
+        // TODO-SPEC The spec define any of self.  Tor doesn't multiply the
+        // abandon timeout.
+        // XXXX `mul_f64()` can panic if we overflow Duration.
+        (base_t.mul_f64(multiplier), base_a.mul_f64(multiplier))
+    }
+
+    fn learning_timeouts(&self) -> bool {
+        self.p.use_estimates && self.history.n_times() < self.p.min_observations.into()
+    }
+
+    fn build_state(&mut self) -> Option<ParetoTimeoutState> {
+        let cur_timeout = MsecDuration::new_saturating(&self.base_timeouts().0);
+        Some(ParetoTimeoutState {
+            version: 1,
+            histogram: self.history.sparse_histogram().collect(),
+            current_timeout: Some(cur_timeout),
+        })
     }
 }
 
@@ -847,19 +804,16 @@ mod test {
 
     #[test]
     fn pareto_estimate_timeout() {
-        let est = ParetoTimeoutEstimator::default();
+        let mut est = ParetoTimeoutEstimator::default();
 
         assert_eq!(
             est.timeouts(&b3()),
             (Duration::from_secs(60), Duration::from_secs(60))
         );
-        {
-            // Set the parameters up to mimic the situation in
-            // `pareto_estimate` above.
-            let mut inner = est.est.lock().unwrap();
-            inner.p.min_observations = 0;
-            inner.p.n_modes_for_xm = 2;
-        }
+        // Set the parameters up to mimic the situation in
+        // `pareto_estimate` above.
+        est.p.min_observations = 0;
+        est.p.n_modes_for_xm = 2;
         assert_eq!(
             est.timeouts(&b3()),
             (Duration::from_secs(60), Duration::from_secs(60))
@@ -884,16 +838,12 @@ mod test {
 
     #[test]
     fn pareto_estimate_clear() {
-        let est = ParetoTimeoutEstimator::default();
+        let mut est = ParetoTimeoutEstimator::default();
 
         // Set the parameters up to mimic the situation in
         // `pareto_estimate` above.
-        let params = Params {
-            min_observations: 1,
-            n_modes_for_xm: 2,
-            ..Params::default()
-        };
-        est.update_params(params);
+        let params = NetParameters::from_map(&"cbtmincircs=1 cbtnummodes=2".parse().unwrap());
+        est.update_params(&params);
 
         assert_eq!(est.timeouts(&b3()).0.as_micros(), 60_000_000);
         assert!(est.learning_timeouts());
@@ -904,10 +854,7 @@ mod test {
         }
         assert_ne!(est.timeouts(&b3()).0.as_micros(), 60_000_000);
         assert!(!est.learning_timeouts());
-        {
-            let inner = est.est.lock().unwrap();
-            assert_eq!(inner.history.n_recent_timeouts(), 0);
-        }
+        assert_eq!(est.history.n_recent_timeouts(), 0);
 
         // 17 timeouts happen and we're still getting real numbers...
         for _ in 0..18 {
@@ -941,18 +888,18 @@ mod test {
         // that the histogram conversion happens.
 
         use rand::Rng;
-        let est = ParetoTimeoutEstimator::default();
+        let mut est = ParetoTimeoutEstimator::default();
         let mut rng = rand::thread_rng();
         for _ in 0..1000 {
             let d = Duration::from_millis(rng.gen_range(10..3_000));
             est.note_hop_completed(2, d, true);
         }
 
-        let state = est.build_state();
+        let state = est.build_state().unwrap();
         assert_eq!(state.version, 1);
         assert!(state.current_timeout.is_some());
 
-        let est2 = ParetoTimeoutEstimator::from_state(state);
+        let mut est2 = ParetoTimeoutEstimator::from_state(state);
         let act = Action::BuildCircuit { length: 3 };
         // This isn't going to be exact, since we're recording histogram bins
         // instead of exact timeouts.
