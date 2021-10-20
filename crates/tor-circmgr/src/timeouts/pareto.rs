@@ -482,6 +482,14 @@ pub(crate) struct ParetoTimeoutState {
     // XXXX Do we need a HashMap to represent additional fields? I think we may.
 }
 
+impl ParetoTimeoutState {
+    /// Return the latest base timeout estimate, as recorded in this state.
+    pub(crate) fn latest_estimate(&self) -> Option<Duration> {
+        self.current_timeout
+            .map(|m| Duration::from_millis(m.0.into()))
+    }
+}
+
 impl ParetoTimeoutEstimator {
     /// Construct a new ParetoTimeoutEstimator from the provided history
     /// object.

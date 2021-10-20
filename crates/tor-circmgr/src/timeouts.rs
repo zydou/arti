@@ -12,6 +12,7 @@ use std::time::Duration;
 
 pub(crate) mod estimator;
 pub(crate) mod pareto;
+pub(crate) mod readonly;
 
 pub(crate) use estimator::Estimator;
 
