@@ -1,9 +1,15 @@
 //! Declarations for a [`TimeoutEstimator`] type that can change implementation.
 
-use crate::timeouts::{Action, TimeoutEstimator};
+use crate::timeouts::{
+    pareto::{ParetoTimeoutEstimator, ParetoTimeoutState},
+    readonly::ReadonlyTimeoutEstimator,
+    Action, TimeoutEstimator,
+};
+use crate::TimeoutStateHandle;
 use std::sync::Mutex;
 use std::time::Duration;
 use tor_netdir::params::NetParameters;
+use tracing::{debug, warn};
 
 /// A timeout estimator that can change its inner implementation and share its
 /// implementation among multiple threads.
@@ -17,6 +23,37 @@ impl Estimator {
     pub(crate) fn new(est: impl TimeoutEstimator + Send + 'static) -> Self {
         Self {
             inner: Mutex::new(Box::new(est)),
+        }
+    }
+
+    /// Create this estimator based on the values stored in `storage`, and whether
+    /// this storage is read-only.
+    pub(crate) fn from_storage(storage: &TimeoutStateHandle) -> Self {
+        let (_, est) = estimator_from_storage(storage);
+        Self {
+            inner: Mutex::new(est),
+        }
+    }
+
+    /// Assuming that we can read and write to `storage`, replace our state with
+    /// a new state that estimates timeouts.
+    pub(crate) fn upgrade_to_owning_storage(&self, storage: &TimeoutStateHandle) {
+        let (readonly, est) = estimator_from_storage(storage);
+        if readonly {
+            warn!("Unable to upgrade to owned persistent storage.");
+            return;
+        }
+        *self.inner.lock().expect("Timeout estimator lock poisoned") = est;
+    }
+
+    /// Replace the contents of this estimator with a read-only state estimator
+    /// based on the contents of `storage`.
+    pub(crate) fn reload_readonly_from_storage(&self, storage: &TimeoutStateHandle) {
+        if let Ok(Some(v)) = storage.load() {
+            let est = ReadonlyTimeoutEstimator::from_state(&v);
+            *self.inner.lock().expect("Timeout estimator lock poisoned") = Box::new(est);
+        } else {
+            debug!("Unable to reload timeout state.")
         }
     }
 
@@ -76,7 +113,7 @@ impl Estimator {
     }
 
     /// Store any state associated with this timeout esimator into `storage`.
-    pub(crate) fn save_state(&self, storage: &crate::TimeoutStateHandle) -> crate::Result<()> {
+    pub(crate) fn save_state(&self, storage: &TimeoutStateHandle) -> crate::Result<()> {
         let state = {
             let mut inner = self.inner.lock().expect("Timeout estimator lock poisoned.");
             inner.build_state()
@@ -85,5 +122,29 @@ impl Estimator {
             storage.store(&state)?;
         }
         Ok(())
+    }
+}
+
+/// Try to construct a new boxed TimeoutEstimator based on the contents of
+/// storage, and whether it is read-only.
+///
+/// Returns true on a read-only state.
+fn estimator_from_storage(
+    storage: &TimeoutStateHandle,
+) -> (bool, Box<dyn TimeoutEstimator + Send + 'static>) {
+    let state = match storage.load() {
+        Ok(Some(v)) => v,
+        Ok(None) => ParetoTimeoutState::default(),
+        Err(e) => {
+            warn!("Unable to load timeout state: {}", e);
+            return (true, Box::new(ReadonlyTimeoutEstimator::new()));
+        }
+    };
+
+    if storage.can_store() {
+        // We own the lock, so we're going to use a full estimator.
+        (false, Box::new(ParetoTimeoutEstimator::from_state(state)))
+    } else {
+        (true, Box::new(ReadonlyTimeoutEstimator::from_state(&state)))
     }
 }

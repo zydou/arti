@@ -276,10 +276,27 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    pub fn update_persistent_state(&self) -> Result<(), GuardMgrError> {
+    pub fn store_persistent_state(&self) -> Result<(), GuardMgrError> {
         let inner = self.inner.lock().expect("Poisoned lock");
         trace!("Flushing guard state to disk.");
         inner.default_storage.store(&inner.active_guards)?;
+        Ok(())
+    }
+
+    /// Reload state from the state manager.
+    ///
+    /// We only call this method if we _don't_ have the lock on the state
+    /// files.  If we have the lock, we only want to save.
+    pub fn reload_persistent_state(&self) -> Result<(), GuardMgrError> {
+        warn!("Not yet implemented");
+        Ok(())
+    }
+
+    /// Switch from having an unowned persistent state to having an owned one.
+    ///
+    /// Requires that we hold the lock on the state files.
+    pub fn upgrade_to_owned_persistent_state(&self) -> Result<(), GuardMgrError> {
+        warn!("Not yet implemented");
         Ok(())
     }
 
@@ -937,7 +954,7 @@ mod test {
 
             // Save the state...
             guardmgr.flush_msg_queue().await;
-            guardmgr.update_persistent_state().unwrap();
+            guardmgr.store_persistent_state().unwrap();
             drop(guardmgr);
 
             // Try reloading from the state...

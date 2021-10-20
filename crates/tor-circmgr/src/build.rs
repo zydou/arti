@@ -1,7 +1,7 @@
 //! Facilities to build circuits directly, instead of via a circuit manager.
 
 use crate::path::{OwnedPath, TorPath};
-use crate::timeouts::{self, pareto::ParetoTimeoutEstimator, Action};
+use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -19,7 +19,6 @@ use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::warn;
 
 mod guardstatus;
 
@@ -283,15 +282,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         storage: crate::TimeoutStateHandle,
         guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Self {
-        let timeouts = match storage.load() {
-            Ok(Some(v)) => ParetoTimeoutEstimator::from_state(v),
-            Ok(None) => ParetoTimeoutEstimator::default(),
-            Err(e) => {
-                warn!("Unable to load timeout state: {}", e);
-                ParetoTimeoutEstimator::default()
-            }
-        };
-        let timeouts = timeouts::Estimator::new(timeouts);
+        let timeouts = timeouts::Estimator::from_storage(&storage);
 
         CircuitBuilder {
             builder: Arc::new(Builder::new(runtime, chanmgr, timeouts)),
@@ -302,10 +293,32 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 
     /// Flush state to the state manager.
-    pub fn save_state(&self) -> Result<()> {
+    pub(crate) fn save_state(&self) -> Result<()> {
         // TODO: someday we'll want to only do this if there is something
         // changed.
-        self.builder.timeouts.save_state(&self.storage)
+        self.builder.timeouts.save_state(&self.storage)?;
+        self.guardmgr.store_persistent_state()?;
+        Ok(())
+    }
+
+    /// Replace our state with a new owning state, assuming we have
+    /// storage permission.
+    pub(crate) fn upgrade_to_owned_state(&self) -> Result<()> {
+        self.builder
+            .timeouts
+            .upgrade_to_owning_storage(&self.storage);
+        self.guardmgr.upgrade_to_owned_persistent_state()?;
+        Ok(())
+    }
+    /// Reload persistent state from disk, if we don't have storage permission.
+    pub(crate) fn reload_state(&self) -> Result<()> {
+        if !self.storage.can_store() {
+            self.builder
+                .timeouts
+                .reload_readonly_from_storage(&self.storage);
+        }
+        self.guardmgr.reload_persistent_state()?;
+        Ok(())
     }
 
     /// Reconfigure this builder using the latest set of network parameters.
