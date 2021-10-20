@@ -903,7 +903,7 @@ mod test {
         use tor_netdir::{testnet, MdReceiver, PartialNetDir};
         let statemgr = TestingStateMgr::new();
         let have_lock = statemgr.try_lock().unwrap();
-        assert!(have_lock);
+        assert!(have_lock.held());
         let guardmgr = GuardMgr::new(rt, statemgr.clone()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
         let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"

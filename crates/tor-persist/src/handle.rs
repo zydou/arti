@@ -70,7 +70,7 @@ where
         self.mgr.can_store()
     }
     fn try_lock(&self) -> Result<bool> {
-        self.mgr.try_lock()
+        Ok(self.mgr.try_lock()?.held())
     }
 }
 

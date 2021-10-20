@@ -1,6 +1,6 @@
 //! Testing-only StateMgr that stores values in a hash table.
 
-use crate::{Error, Result, StateMgr};
+use crate::{Error, LockStatus, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -92,13 +92,15 @@ impl StateMgr for TestingStateMgr {
         inner.lock_held
     }
 
-    fn try_lock(&self) -> Result<bool> {
+    fn try_lock(&self) -> Result<LockStatus> {
         let mut inner = self.inner.lock().expect("Lock poisoned.");
         if inner.lock_blocked {
-            Ok(false)
+            Ok(LockStatus::NoLock)
+        } else if inner.lock_held {
+            Ok(LockStatus::AlreadyHeld)
         } else {
             inner.lock_held = true;
-            Ok(true)
+            Ok(LockStatus::NewlyAcquired)
         }
     }
 }
@@ -133,7 +135,7 @@ mod test {
         assert!(matches!(mgr.store("item1", &v1), Err(Error::NoLock)));
 
         assert!(!mgr.can_store());
-        assert!(mgr.try_lock().unwrap());
+        assert_eq!(mgr.try_lock().unwrap(), LockStatus::NewlyAcquired);
         assert!(mgr.can_store());
 
         assert!(mgr.store("item1", &v1).is_ok());
@@ -156,13 +158,15 @@ mod test {
         assert!(!mgr.can_store());
 
         mgr.block_lock_attempts();
-        assert!(!mgr.try_lock().unwrap()); // can't get the lock.
+        assert_eq!(mgr.try_lock().unwrap(), LockStatus::NoLock);
         assert!(!mgr.can_store()); // can't store.
 
         mgr.unblock_lock_attempts();
         assert!(!mgr.can_store()); // can't store.
-        assert!(mgr.try_lock().unwrap()); // *can* get the lock.
-        assert!(mgr.can_store()); // can't store.
+        assert_eq!(mgr.try_lock().unwrap(), LockStatus::NewlyAcquired);
+        assert!(mgr.can_store()); // can store.
+
+        assert_eq!(mgr.try_lock().unwrap(), LockStatus::AlreadyHeld);
     }
 
     #[test]

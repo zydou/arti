@@ -87,9 +87,11 @@ pub trait StateMgr: Clone {
     /// Try to become a read-write state manager if possible, without
     /// blocking.
     ///
-    /// This function will return `Ok(true)` if we now hold the lock,
-    /// and `Ok(false)` if some other process holds the lock.
-    fn try_lock(&self) -> Result<bool>;
+    /// This function will return an error only if something really
+    /// unexpected went wrong.  It may return `Ok(_)` even if we don't
+    /// acquire the lock: check the return value or call
+    /// `[StateMgr::can_store()`] to see if the lock is held.
+    fn try_lock(&self) -> Result<LockStatus>;
 
     /// Make a new [`StorageHandle`] to store values of particular type
     /// at a particular key.
@@ -99,6 +101,25 @@ pub trait StateMgr: Clone {
         T: Serialize + DeserializeOwned + 'static,
     {
         Arc::new(handle::StorageHandleImpl::new(self, key.into()))
+    }
+}
+
+/// A possible outcome from calling [`StateMgr::try_lock()`]
+#[allow(clippy::exhaustive_enums)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum LockStatus {
+    /// We didn't have the lock and were unable to acquire it.
+    NoLock,
+    /// We already held the lock, and didn't have anything to do.
+    AlreadyHeld,
+    /// We successfully acquired the lock for the first time.
+    NewlyAcquired,
+}
+
+impl LockStatus {
+    /// Return true if this status indicates that we hold the lock.
+    pub fn held(&self) -> bool {
+        !matches!(self, LockStatus::NoLock)
     }
 }
 

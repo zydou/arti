@@ -210,9 +210,17 @@ impl<R: Runtime> CircMgr<R> {
         Ok(())
     }
 
+    /// Switch from having an unowned persistent state to having an owned one.
+    ///
+    /// Requires that we hold the lock on the state files.
+    pub fn upgrade_to_owned_persistent_state(&self) -> Result<()> {
+        warn!("upgrade_to_owned_persistent_state isn't implemented.");
+        Ok(())
+    }
+
     /// Flush state to the state manager, if there is any unsaved state and
     /// we have the lock.
-    pub fn update_persistent_state(&self) -> Result<()> {
+    pub fn store_persistent_state(&self) -> Result<()> {
         self.mgr.peek_builder().save_state()?;
         self.mgr
             .peek_builder()

@@ -1,6 +1,6 @@
 //! Filesystem + JSON implementation of StateMgr.
 
-use crate::{Error, Result, StateMgr};
+use crate::{Error, LockStatus, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -93,16 +93,18 @@ impl StateMgr for FsStateMgr {
             .expect("Poisoned lock on state lockfile");
         lockfile.owns_lock()
     }
-    fn try_lock(&self) -> Result<bool> {
+    fn try_lock(&self) -> Result<LockStatus> {
         let mut lockfile = self
             .inner
             .lockfile
             .lock()
             .expect("Poisoned lock on state lockfile");
         if lockfile.owns_lock() {
-            Ok(true)
+            Ok(LockStatus::AlreadyHeld)
+        } else if lockfile.try_lock()? {
+            Ok(LockStatus::NewlyAcquired)
         } else {
-            Ok(lockfile.try_lock()?)
+            Ok(LockStatus::NoLock)
         }
     }
     fn load<D>(&self, key: &str) -> Result<Option<D>>
@@ -156,7 +158,7 @@ mod test {
         let dir = tempfile::TempDir::new().unwrap();
         let store = FsStateMgr::from_path(dir.path())?;
 
-        assert!(store.try_lock()?);
+        assert_eq!(store.try_lock()?, LockStatus::NewlyAcquired);
         let stuff: HashMap<_, _> = vec![("hello".to_string(), "world".to_string())]
             .into_iter()
             .collect();
@@ -179,7 +181,7 @@ mod test {
 
         assert!(matches!(store.store("xyz", &stuff4), Err(Error::NoLock)));
 
-        assert!(store.try_lock()?);
+        assert_eq!(store.try_lock()?, LockStatus::NewlyAcquired);
         store.store("xyz", &stuff4)?;
 
         let stuff5: Option<HashMap<String, String>> = store.load("xyz")?;
