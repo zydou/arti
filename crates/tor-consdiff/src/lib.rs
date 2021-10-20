@@ -70,9 +70,9 @@ pub fn looks_like_diff(s: &str) -> bool {
 #[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
 pub fn apply_diff_trivial<'a>(input: &'a str, diff: &'a str) -> Result<DiffResult<'a>> {
     let mut diff_lines = diff.lines();
-    let (d1, d2) = parse_diff_header(&mut diff_lines)?;
+    let (_, d2) = parse_diff_header(&mut diff_lines)?;
 
-    let mut diffable = DiffResult::from_str(input, d1, d2);
+    let mut diffable = DiffResult::from_str(input, d2);
 
     for command in DiffCommandIter::new(diff_lines) {
         command?.apply_to(&mut diffable)?;
@@ -91,7 +91,7 @@ pub fn apply_diff<'a>(
     diff: &'a str,
     check_digest_in: Option<[u8; 32]>,
 ) -> Result<DiffResult<'a>> {
-    let mut input = DiffResult::from_str(input, [0; 32], [0; 32]);
+    let mut input = DiffResult::from_str(input, [0; 32]);
 
     let mut diff_lines = diff.lines();
     let (d1, d2) = parse_diff_header(&mut diff_lines)?;
@@ -101,7 +101,7 @@ pub fn apply_diff<'a>(
         }
     }
 
-    let mut output = DiffResult::new(d1, d2);
+    let mut output = DiffResult::new(d2);
 
     for command in DiffCommandIter::new(diff_lines) {
         command?.apply_transformation(&mut input, &mut output)?;
@@ -183,9 +183,6 @@ enum DiffCommand<'a> {
 /// avoid copying.
 #[derive(Clone, Debug)]
 pub struct DiffResult<'a> {
-    /// An expected digest of the input, before the digest is computed.
-    #[allow(dead_code)] // XXXX Check this value before applying the digest?
-    d_pre: [u8; 32],
     /// An expected digest of the output, after it has been assembled.
     d_post: [u8; 32],
     /// The lines in the output.
@@ -485,26 +482,20 @@ where
 
 impl<'a> DiffResult<'a> {
     /// Construct a new DiffResult containing the provided string
-    /// split into lines, and a pair of expected pre- and post-
-    /// transformation digests.
-    fn from_str(s: &'a str, d_pre: [u8; 32], d_post: [u8; 32]) -> Self {
+    /// split into lines, and an expected post-transformation digests.
+    fn from_str(s: &'a str, d_post: [u8; 32]) -> Self {
         // I'd like to use str::split_inclusive here, but that isn't stable yet
         // as of rust 1.48.
 
         let lines: Vec<_> = s.lines().collect();
 
-        DiffResult {
-            d_pre,
-            d_post,
-            lines,
-        }
+        DiffResult { d_post, lines }
     }
 
-    /// Return a new empty DiffResult with a pair of expected pre- and
+    /// Return a new empty DiffResult with an expected
     /// post-transformation digests
-    fn new(d_pre: [u8; 32], d_post: [u8; 32]) -> Self {
+    fn new(d_post: [u8; 32]) -> Self {
         DiffResult {
-            d_pre,
             d_post,
             lines: Vec::new(),
         }
@@ -588,7 +579,7 @@ mod test {
 
     #[test]
     fn remove() -> Result<()> {
-        let example = DiffResult::from_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n", [0; 32], [0; 32]);
+        let example = DiffResult::from_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n", [0; 32]);
 
         let mut d = example.clone();
         d.remove_lines(5, 7)?;
@@ -616,7 +607,7 @@ mod test {
 
     #[test]
     fn insert() -> Result<()> {
-        let example = DiffResult::from_str("1\n2\n3\n4\n5\n", [0; 32], [0; 32]);
+        let example = DiffResult::from_str("1\n2\n3\n4\n5\n", [0; 32]);
         let mut d = example.clone();
         d.insert_at(3, &["hello", "world"])?;
         assert_eq!(d.to_string(), "1\n2\nhello\nworld\n3\n4\n5\n");
@@ -633,7 +624,7 @@ mod test {
 
     #[test]
     fn push_reversed() {
-        let mut d = DiffResult::new([0; 32], [0; 32]);
+        let mut d = DiffResult::new([0; 32]);
         d.push_reversed(&["7", "8", "9"]);
         assert_eq!(d.to_string(), "9\n8\n7\n");
         d.push_reversed(&["world", "hello", ""]);
@@ -642,7 +633,7 @@ mod test {
 
     #[test]
     fn apply_command_simple() {
-        let example = DiffResult::from_str("a\nb\nc\nd\ne\nf\n", [0; 32], [0; 32]);
+        let example = DiffResult::from_str("a\nb\nc\nd\ne\nf\n", [0; 32]);
 
         let mut d = example.clone();
         assert_eq!(d.to_string(), "a\nb\nc\nd\ne\nf\n".to_string());
@@ -751,8 +742,8 @@ mod test {
 
     #[test]
     fn apply_transformation() -> Result<()> {
-        let example = DiffResult::from_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n", [0; 32], [0; 32]);
-        let empty = DiffResult::new([1; 32], [1; 32]);
+        let example = DiffResult::from_str("1\n2\n3\n4\n5\n6\n7\n8\n9\n", [0; 32]);
+        let empty = DiffResult::new([1; 32]);
 
         let mut inp = example.clone();
         let mut out = empty.clone();
