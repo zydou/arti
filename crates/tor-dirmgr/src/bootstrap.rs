@@ -99,7 +99,7 @@ async fn load_once<R: Runtime>(
             missing.len()
         );
         let documents = load_all(dirmgr, missing)?;
-        state.add_from_cache(documents)
+        state.add_from_cache(documents, dirmgr.store_if_rw())
     };
     dirmgr.notify().await;
     outcome

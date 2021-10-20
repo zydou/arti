@@ -166,7 +166,11 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
             Err(Error::ManagerDropped)
         }
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+        _storage: Option<&Mutex<SqliteStore>>,
+    ) -> Result<bool> {
         let text = match docs.into_iter().next() {
             None => return Ok(false),
             Some((
@@ -326,7 +330,11 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
             Err(Error::ManagerDropped)
         }
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+        _storage: Option<&Mutex<SqliteStore>>,
+    ) -> Result<bool> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
@@ -563,7 +571,11 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
             Err(Error::ManagerDropped)
         }
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+        storage: Option<&Mutex<SqliteStore>>,
+    ) -> Result<bool> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
@@ -582,7 +594,15 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         }
 
         let changed = !microdescs.is_empty();
-        self.register_microdescs(microdescs);
+        if self.register_microdescs(microdescs) {
+            if let Some(store) = storage {
+                let mut store = store.lock().expect("Directory storage lock poisoned");
+                info!("Marked consensus usable.");
+                store.mark_consensus_usable(&self.meta)?;
+                // DOCDOC: explain why we're doing this here.
+                store.expire_all()?;
+            }
+        }
 
         Ok(changed)
     }

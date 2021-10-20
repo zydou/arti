@@ -399,6 +399,21 @@ impl<R: Runtime> DirMgr<R> {
             .upgrade_to_readwrite()
     }
 
+    /// Return a reference to the store, if it is currently read-write.
+    fn store_if_rw(&self) -> Option<&Mutex<SqliteStore>> {
+        let rw = !self
+            .store
+            .lock()
+            .expect("Directory storage lock poisoned")
+            .is_readonly();
+        // A race-condition is possible here, but I believe it's harmless.
+        if rw {
+            Some(&self.store)
+        } else {
+            None
+        }
+    }
+
     /// Construct a DirMgr from a DirMgrConfig.
     fn from_config(
         config: DirMgrConfig,
@@ -428,8 +443,6 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// Return false if there is no such consensus.
     async fn load_directory(self: &Arc<Self>) -> Result<bool> {
-        //let store = &self.store;
-
         let state = state::GetConsensusState::new(Arc::downgrade(self), CacheUsage::CacheOnly)?;
         let _ = bootstrap::load(Arc::clone(self), Box::new(state)).await?;
 
@@ -690,7 +703,14 @@ trait DirState: Send {
     fn can_advance(&self) -> bool;
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool>;
+    ///
+    /// If `storage` is provided, then we should write any state changes into
+    /// it.
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+        storage: Option<&Mutex<SqliteStore>>,
+    ) -> Result<bool>;
 
     /// Add information that we have just downloaded to this state; returns
     /// 'true' if there as any change in this state.
