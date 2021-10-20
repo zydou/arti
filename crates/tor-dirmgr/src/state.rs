@@ -10,13 +10,11 @@
 //! [`bootstrap`](crate::bootstrap) module for functions that actually
 //! load or download directory information.
 
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::lock::Mutex;
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::sync::Weak;
+use std::sync::{Mutex, Weak};
 use std::time::{Duration, SystemTime};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
@@ -132,7 +130,6 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
     }
 }
 
-#[async_trait]
 impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     fn describe(&self) -> String {
         if self.next.is_some() {
@@ -185,7 +182,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
         self.add_consensus_text(true, text.as_str()?)
             .map(|meta| meta.is_some())
     }
-    async fn add_from_download(
+    fn add_from_download(
         &mut self,
         text: &str,
         _request: &ClientRequest,
@@ -193,7 +190,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     ) -> Result<bool> {
         if let Some(meta) = self.add_consensus_text(false, text)? {
             if let Some(store) = storage {
-                let mut w = store.lock().await;
+                let mut w = store.lock().expect("Directory storage lock poisoned");
                 w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
             }
             Ok(true)
@@ -301,7 +298,6 @@ struct GetCertsState<DM: WriteNetDir> {
     writedir: Weak<DM>,
 }
 
-#[async_trait]
 impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     fn describe(&self) -> String {
         let total = self.certs.len() + self.missing_certs.len();
@@ -348,7 +344,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         }
         Ok(changed)
     }
-    async fn add_from_download(
+    fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
@@ -397,7 +393,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
                 .iter()
                 .map(|(cert, s)| (AuthCertMeta::from_authcert(cert), *s))
                 .collect();
-            let mut w = store.lock().await;
+            let mut w = store.lock().expect("Directory storage lock poisoned");
             w.store_authcerts(&v[..])?;
         }
 
@@ -538,7 +534,6 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     }
 }
 
-#[async_trait]
 impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn describe(&self) -> String {
         format!(
@@ -591,7 +586,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
 
         Ok(changed)
     }
-    async fn add_from_download(
+    fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
@@ -621,7 +616,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
 
         let mark_listed = self.meta.lifetime().valid_after();
         if let Some(store) = storage {
-            let mut s = store.lock().await;
+            let mut s = store.lock().expect("Directory storage lock poisoned");
             if !self.newly_listed.is_empty() {
                 s.update_microdescs_listed(self.newly_listed.iter(), mark_listed)?;
                 self.newly_listed.clear();
@@ -636,7 +631,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         if self.register_microdescs(new_mds.into_iter().map(|(_, md)| md)) {
             // oh hey, this is no longer pending.
             if let Some(store) = storage {
-                let mut store = store.lock().await;
+                let mut store = store.lock().expect("Directory storage lock poisoned");
                 info!("Marked consensus usable.");
                 store.mark_consensus_usable(&self.meta)?;
                 // DOCDOC: explain why we're doing this here.

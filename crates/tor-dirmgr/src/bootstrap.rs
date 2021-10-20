@@ -20,13 +20,13 @@ use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{info, trace, warn};
 
 /// Try to read a set of documents from `dirmgr` by ID.
-async fn load_all<R: Runtime>(
+fn load_all<R: Runtime>(
     dirmgr: &DirMgr<R>,
     missing: Vec<DocId>,
 ) -> Result<HashMap<DocId, DocumentText>> {
     let mut loaded = HashMap::new();
     for query in docid::partition_by_type(missing.into_iter()).values() {
-        dirmgr.load_documents_into(query, &mut loaded).await?;
+        dirmgr.load_documents_into(query, &mut loaded)?;
     }
     Ok(loaded)
 }
@@ -60,7 +60,7 @@ async fn fetch_multiple<R: Runtime>(
 ) -> Result<Vec<(ClientRequest, DirResponse)>> {
     let mut requests = Vec::new();
     for (_type, query) in docid::partition_by_type(missing.into_iter()) {
-        requests.extend(dirmgr.query_into_requests(query).await?);
+        requests.extend(dirmgr.query_into_requests(query)?);
     }
 
     // TODO: instead of waiting for all the queries to finish, we
@@ -98,7 +98,7 @@ async fn load_once<R: Runtime>(
             "Found {} missing documents; trying to load them",
             missing.len()
         );
-        let documents = load_all(dirmgr, missing).await?;
+        let documents = load_all(dirmgr, missing)?;
         state.add_from_cache(documents)
     };
     dirmgr.notify().await;
@@ -153,11 +153,9 @@ async fn download_attempt<R: Runtime>(
     let fetched = fetch_multiple(Arc::clone(dirmgr), missing, parallelism).await?;
     for (client_req, dir_response) in fetched {
         let text = String::from_utf8(dir_response.into_output())?;
-        match dirmgr.expand_response_text(&client_req, text).await {
+        match dirmgr.expand_response_text(&client_req, text) {
             Ok(text) => {
-                let outcome = state
-                    .add_from_download(&text, &client_req, Some(&dirmgr.store))
-                    .await;
+                let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
                 dirmgr.notify().await;
                 match outcome {
                     Ok(b) => changed |= b,

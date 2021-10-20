@@ -70,13 +70,12 @@ use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
-use async_trait::async_trait;
-use futures::{channel::oneshot, lock::Mutex, task::SpawnExt};
+use futures::{channel::oneshot, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{info, trace, warn};
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
@@ -114,10 +113,6 @@ pub struct DirMgr<R: Runtime> {
     /// Handle to our sqlite cache.
     // XXXX I'd like to use an rwlock, but that's not feasible, since
     // rusqlite::Connection isn't Sync.
-    // TODO: Does this have to be a futures::Mutex?  I would rather have
-    // a rule that we never hold the guard for this mutex across an async
-    // suspend point.  But that will be hard to enforce until the
-    // `must_not_suspend` lint is in stable.
     store: Mutex<SqliteStore>,
     /// Our latest sufficiently bootstrapped directory, if we have one.
     ///
@@ -261,7 +256,7 @@ impl<R: Runtime> DirMgr<R> {
             {
                 let dirmgr = upgrade_weak_ref(weak)?;
                 trace!("Trying to take ownership of the directory cache lock");
-                if dirmgr.try_upgrade_to_readwrite().await? {
+                if dirmgr.try_upgrade_to_readwrite()? {
                     // We now own the lock!  (Maybe we owned it before; the
                     // upgrade_to_readwrite() function is idempotent.)  We can
                     // do our own bootstrapping.
@@ -397,8 +392,11 @@ impl<R: Runtime> DirMgr<R> {
     /// Return true if we got the lock, or if we already had it.
     ///
     /// Return false if another process has the lock
-    async fn try_upgrade_to_readwrite(&self) -> Result<bool> {
-        self.store.lock().await.upgrade_to_readwrite()
+    fn try_upgrade_to_readwrite(&self) -> Result<bool> {
+        self.store
+            .lock()
+            .expect("Directory storage lock poisoned")
+            .upgrade_to_readwrite()
     }
 
     /// Construct a DirMgr from a DirMgrConfig.
@@ -464,11 +462,11 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Try to load the text of a single document described by `doc` from
     /// storage.
-    pub async fn text(&self, doc: &DocId) -> Result<Option<DocumentText>> {
+    pub fn text(&self, doc: &DocId) -> Result<Option<DocumentText>> {
         use itertools::Itertools;
         let mut result = HashMap::new();
         let query = (*doc).into();
-        self.load_documents_into(&query, &mut result).await?;
+        self.load_documents_into(&query, &mut result)?;
         let item = result.into_iter().at_most_one().map_err(|_| {
             Error::CacheCorruption("Found more than one entry in storage for given docid")
         })?;
@@ -488,14 +486,14 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// If many of the documents have the same type, this can be more
     /// efficient than calling [`text`](Self::text).
-    pub async fn texts<T>(&self, docs: T) -> Result<HashMap<DocId, DocumentText>>
+    pub fn texts<T>(&self, docs: T) -> Result<HashMap<DocId, DocumentText>>
     where
         T: IntoIterator<Item = DocId>,
     {
         let partitioned = docid::partition_by_type(docs);
         let mut result = HashMap::new();
         for (_, query) in partitioned.into_iter() {
-            self.load_documents_into(&query, &mut result).await?
+            self.load_documents_into(&query, &mut result)?;
         }
         Ok(result)
     }
@@ -518,13 +516,13 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// Load all the documents for a single DocumentQuery from the store.
-    async fn load_documents_into(
+    fn load_documents_into(
         &self,
         query: &DocQuery,
         result: &mut HashMap<DocId, DocumentText>,
     ) -> Result<()> {
         use DocQuery::*;
-        let store = self.store.lock().await;
+        let store = self.store.lock().expect("Directory storage lock poisoned");
         match query {
             LatestConsensus {
                 flavor,
@@ -573,12 +571,12 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// This conversion has to be a function of the dirmgr, since it may
     /// require knowledge about our current state.
-    async fn query_into_requests(&self, q: DocQuery) -> Result<Vec<ClientRequest>> {
+    fn query_into_requests(&self, q: DocQuery) -> Result<Vec<ClientRequest>> {
         let mut res = Vec::new();
         for q in q.split_for_download() {
             match q {
                 DocQuery::LatestConsensus { flavor, .. } => {
-                    res.push(self.make_consensus_request(flavor).await?);
+                    res.push(self.make_consensus_request(flavor)?);
                 }
                 DocQuery::AuthCert(ids) => {
                     res.push(ClientRequest::AuthCert(ids.into_iter().collect()));
@@ -596,10 +594,11 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Construct an appropriate ClientRequest to download a consensus
     /// of the given flavor.
-    async fn make_consensus_request(&self, flavor: ConsensusFlavor) -> Result<ClientRequest> {
+    fn make_consensus_request(&self, flavor: ConsensusFlavor) -> Result<ClientRequest> {
+        #![allow(clippy::unnecessary_wraps)]
         let mut request = tor_dirclient::request::ConsensusRequest::new(flavor);
 
-        let r = self.store.lock().await;
+        let r = self.store.lock().expect("Directory storage lock poisoned");
         match r.latest_consensus_meta(flavor) {
             Ok(Some(meta)) => {
                 request.set_last_consensus_date(meta.lifetime().valid_after());
@@ -621,12 +620,12 @@ impl<R: Runtime> DirMgr<R> {
     /// Currently, this handles expanding consensus diffs, and nothing
     /// else.  We do it at this stage of our downloading operation
     /// because it requires access to the store.
-    async fn expand_response_text(&self, req: &ClientRequest, text: String) -> Result<String> {
+    fn expand_response_text(&self, req: &ClientRequest, text: String) -> Result<String> {
         if let ClientRequest::Consensus(req) = req {
             if tor_consdiff::looks_like_diff(&text) {
                 if let Some(old_d) = req.old_consensus_digests().next() {
                     let db_val = {
-                        let s = self.store.lock().await;
+                        let s = self.store.lock().expect("Directory storage lock poisoned");
                         s.consensus_by_sha3_digest_of_signed_part(old_d)?
                     };
                     if let Some((old_consensus, meta)) = db_val {
@@ -672,7 +671,6 @@ enum Readiness {
 /// Resetting happens when this state needs to go back to an initial
 /// state in order to start over -- either because of an error or
 /// because the information it has downloaded is no longer timely.
-#[async_trait]
 trait DirState: Send {
     /// Return a human-readable description of this state.
     fn describe(&self) -> String;
@@ -707,7 +705,7 @@ trait DirState: Send {
     // TODO: It would be better to not have this function be async,
     // once the `must_not_suspend` lint is stable.
     // TODO: this should take a "DirSource" too.
-    async fn add_from_download(
+    fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
