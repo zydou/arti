@@ -22,9 +22,6 @@ pub trait StorageHandle<T: Serialize + DeserializeOwned> {
 
     /// Return true if we have the lock; see [`StateMgr::can_store`].
     fn can_store(&self) -> bool;
-
-    /// Try to acquire the lock; see [`StateMgr::can_store`].
-    fn try_lock(&self) -> Result<bool>;
 }
 
 /// Type wrapper for a reference-counted `dyn` [`StorageHandle`].
@@ -68,9 +65,6 @@ where
     }
     fn can_store(&self) -> bool {
         self.mgr.can_store()
-    }
-    fn try_lock(&self) -> Result<bool> {
-        Ok(self.mgr.try_lock()?.held())
     }
 }
 
