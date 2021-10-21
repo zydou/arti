@@ -20,6 +20,7 @@ pub(crate) struct Estimator {
 
 impl Estimator {
     /// Construct a new estimator from some variant.
+    #[cfg(test)]
     pub(crate) fn new(est: impl TimeoutEstimator + Send + 'static) -> Self {
         Self {
             inner: Mutex::new(Box::new(est)),
