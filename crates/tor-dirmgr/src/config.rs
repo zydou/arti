@@ -5,8 +5,8 @@
 //!
 //! # Semver note
 //!
-//! The types in this module are re-exported from `tor-client`: any changes
-//! here must be reflected in the version of `tor-client`.
+//! The types in this module are re-exported from `arti-client`: any changes
+//! here must be reflected in the version of `arti-client`.
 
 use crate::retry::RetryConfig;
 use crate::storage::sqlite::SqliteStore;

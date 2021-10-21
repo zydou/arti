@@ -68,8 +68,8 @@ impl TargetPort {
 ///
 /// # Semver note
 ///
-/// This type is re-exported by `tor-client`: any changes to it must be
-/// reflected in `tor-client`'s version.
+/// This type is re-exported by `arti-client`: any changes to it must be
+/// reflected in `arti-client`'s version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IsolationToken(u64);
 

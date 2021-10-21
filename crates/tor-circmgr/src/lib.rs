@@ -288,7 +288,7 @@ impl<R: Runtime> CircMgr<R> {
     /// # Note
     ///
     /// This function is invoked periodically from the
-    /// `arti-tor-client` crate, based on timings from the network
+    /// `arti-arti-client` crate, based on timings from the network
     /// parameters.  Please don't invoke it on your own; I hope we can
     /// have this API go away in the future.
     ///

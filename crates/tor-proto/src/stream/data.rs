@@ -37,7 +37,7 @@ use tor_cell::relaycell::msg::{Data, RelayMsg};
 /// # Semver note:
 ///
 /// Note that this type is re-exported as a part of the public API of
-/// the `tor-client` crate.  Any changes to its API here in
+/// the `arti-client` crate.  Any changes to its API here in
 /// `tor-proto` need to be reflected above.
 pub struct DataStream {
     /// Underlying writer for this stream

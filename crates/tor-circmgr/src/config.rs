@@ -2,7 +2,7 @@
 //!
 //! # Semver note
 //!
-//! Most types in this module are re-exported by `tor-client`.
+//! Most types in this module are re-exported by `arti-client`.
 
 use derive_builder::Builder;
 use serde::Deserialize;

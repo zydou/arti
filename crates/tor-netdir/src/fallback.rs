@@ -7,7 +7,7 @@
 //!
 //! # Semver note
 //!
-//! The types in this module are re-exported from `tor-client` and
+//! The types in this module are re-exported from `arti-client` and
 //! `tor-dirmgr`: any changes here must be reflected there.
 
 use derive_builder::Builder;
