@@ -1,7 +1,5 @@
 //! Utility module to safely refer to a mutable Arc.
 
-#![allow(unreachable_pub)]
-
 use std::sync::{Arc, RwLock};
 
 use crate::{Error, Result};
@@ -31,14 +29,14 @@ impl<T> Default for SharedMutArc<T> {
 
 impl<T> SharedMutArc<T> {
     /// Construct a new empty SharedMutArc.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         SharedMutArc {
             dir: RwLock::new(None),
         }
     }
 
     /// Replace the current value with `new_val`.
-    pub fn replace(&self, new_val: T) {
+    pub(crate) fn replace(&self, new_val: T) {
         let mut w = self
             .dir
             .write()
@@ -48,7 +46,7 @@ impl<T> SharedMutArc<T> {
 
     /// Remove the current value of this SharedMutArc.
     #[allow(unused)]
-    pub fn clear(&self) {
+    pub(crate) fn clear(&self) {
         let mut w = self
             .dir
             .write()
@@ -57,7 +55,7 @@ impl<T> SharedMutArc<T> {
     }
 
     /// Return a new reference to the current value, if there is one.
-    pub fn get(&self) -> Option<Arc<T>> {
+    pub(crate) fn get(&self) -> Option<Arc<T>> {
         let r = self
             .dir
             .read()
@@ -79,7 +77,7 @@ impl<T> SharedMutArc<T> {
     /// and future attempts to use it will panic. (TODO: Fix this.)
     // Note: If we decide to make this type public, we'll probably
     // want to fiddle with how we handle the return type.
-    pub fn mutate<F, U>(&self, func: F) -> Result<U>
+    pub(crate) fn mutate<F, U>(&self, func: F) -> Result<U>
     where
         F: FnOnce(&mut T) -> Result<U>,
         T: Clone,
