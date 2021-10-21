@@ -174,10 +174,15 @@ impl<R: Runtime> CircMgr<R> {
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
 
-        let storage = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
+        let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
-        let builder =
-            build::CircuitBuilder::new(runtime.clone(), chanmgr, path_config, storage, guardmgr);
+        let builder = build::CircuitBuilder::new(
+            runtime.clone(),
+            chanmgr,
+            path_config,
+            storage_handle,
+            guardmgr,
+        );
         let mgr =
             mgr::AbstractCircMgr::new(builder, runtime.clone(), request_timing, circuit_timing);
         let circmgr = Arc::new(CircMgr { mgr: Arc::new(mgr) });
@@ -190,13 +195,27 @@ impl<R: Runtime> CircMgr<R> {
         Ok(circmgr)
     }
 
-    /// Flush state to the state manager, if there is any unsaved state.
-    pub fn update_persistent_state(&self) -> Result<()> {
+    /// Reload state from the state manager.
+    ///
+    /// We only call this method if we _don't_ have the lock on the state
+    /// files.  If we have the lock, we only want to save.
+    pub fn reload_persistent_state(&self) -> Result<()> {
+        self.mgr.peek_builder().reload_state()?;
+        Ok(())
+    }
+
+    /// Switch from having an unowned persistent state to having an owned one.
+    ///
+    /// Requires that we hold the lock on the state files.
+    pub fn upgrade_to_owned_persistent_state(&self) -> Result<()> {
+        self.mgr.peek_builder().upgrade_to_owned_state()?;
+        Ok(())
+    }
+
+    /// Flush state to the state manager, if there is any unsaved state and
+    /// we have the lock.
+    pub fn store_persistent_state(&self) -> Result<()> {
         self.mgr.peek_builder().save_state()?;
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .update_persistent_state()?;
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 //! Facilities to build circuits directly, instead of via a circuit manager.
 
 use crate::path::{OwnedPath, TorPath};
-use crate::timeouts::{pareto::ParetoTimeoutEstimator, Action, TimeoutEstimator};
+use crate::timeouts::{self, Action};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -19,7 +19,6 @@ use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::warn;
 
 mod guardstatus;
 
@@ -130,30 +129,21 @@ impl Buildable for Arc<ClientCirc> {
 ///
 /// In general, you should not need to construct or use this object yourself,
 /// unless you are choosing your own paths.
-struct Builder<
-    R: Runtime,
-    C: Buildable + Sync + Send + 'static,
-    T: TimeoutEstimator + Send + Sync + 'static,
-> {
+struct Builder<R: Runtime, C: Buildable + Sync + Send + 'static> {
     /// The runtime used by this circuit builder.
     runtime: R,
     /// A channel manager that this circuit builder uses to make channels.
     chanmgr: Arc<ChanMgr<R>>,
     /// An estimator to determine the correct timeouts for circuit building.
-    timeouts: T,
+    timeouts: timeouts::Estimator,
     /// We don't actually hold any clientcircs, so we need to put this
     /// type here so the compiler won't freak out.
     _phantom: std::marker::PhantomData<C>,
 }
 
-impl<
-        R: Runtime,
-        C: Buildable + Sync + Send + 'static,
-        T: TimeoutEstimator + Send + Sync + 'static,
-    > Builder<R, C, T>
-{
+impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     /// Construct a new [`Builder`].
-    fn new(runtime: R, chanmgr: Arc<ChanMgr<R>>, timeouts: T) -> Self {
+    fn new(runtime: R, chanmgr: Arc<ChanMgr<R>>, timeouts: timeouts::Estimator) -> Self {
         Builder {
             runtime,
             chanmgr,
@@ -271,7 +261,7 @@ impl<
 /// unless you are choosing your own paths.
 pub struct CircuitBuilder<R: Runtime> {
     /// The underlying [`Builder`] object
-    builder: Arc<Builder<R, Arc<ClientCirc>, ParetoTimeoutEstimator>>,
+    builder: Arc<Builder<R, Arc<ClientCirc>>>,
     /// Configuration for how to choose paths for circuits.
     path_config: crate::PathConfig,
     /// State-manager object to use in storing current state.
@@ -292,14 +282,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         storage: crate::TimeoutStateHandle,
         guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Self {
-        let timeouts = match storage.load() {
-            Ok(Some(v)) => ParetoTimeoutEstimator::from_state(v),
-            Ok(None) => ParetoTimeoutEstimator::default(),
-            Err(e) => {
-                warn!("Unable to load timeout state: {}", e);
-                ParetoTimeoutEstimator::default()
-            }
-        };
+        let timeouts = timeouts::Estimator::from_storage(&storage);
 
         CircuitBuilder {
             builder: Arc::new(Builder::new(runtime, chanmgr, timeouts)),
@@ -310,12 +293,31 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 
     /// Flush state to the state manager.
-    pub fn save_state(&self) -> Result<()> {
+    pub(crate) fn save_state(&self) -> Result<()> {
         // TODO: someday we'll want to only do this if there is something
         // changed.
-        let _ignore = self.storage.try_lock()?; // XXXX don't ignore.
-        let state = self.builder.timeouts.build_state();
-        self.storage.store(&state)?;
+        self.builder.timeouts.save_state(&self.storage)?;
+        self.guardmgr.store_persistent_state()?;
+        Ok(())
+    }
+
+    /// Replace our state with a new owning state, assuming we have
+    /// storage permission.
+    pub(crate) fn upgrade_to_owned_state(&self) -> Result<()> {
+        self.builder
+            .timeouts
+            .upgrade_to_owning_storage(&self.storage);
+        self.guardmgr.upgrade_to_owned_persistent_state()?;
+        Ok(())
+    }
+    /// Reload persistent state from disk, if we don't have storage permission.
+    pub(crate) fn reload_state(&self) -> Result<()> {
+        if !self.storage.can_store() {
+            self.builder
+                .timeouts
+                .reload_readonly_from_storage(&self.storage);
+        }
+        self.guardmgr.reload_persistent_state()?;
         Ok(())
     }
 
@@ -323,7 +325,7 @@ impl<R: Runtime> CircuitBuilder<R> {
     ///
     /// (NOTE: for now, this only affects circuit timeout estimation.)
     pub fn update_network_parameters(&self, p: &tor_netdir::params::NetParameters) {
-        self.builder.timeouts.update_params(p.into());
+        self.builder.timeouts.update_params(p);
     }
 
     /// DOCDOC
@@ -422,6 +424,7 @@ where
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::timeouts::TimeoutEstimator;
     use futures::channel::oneshot;
     use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
     use std::sync::Mutex;
@@ -603,23 +606,27 @@ mod test {
         }
     }
     impl TimeoutEstimator for Arc<Mutex<TimeoutRecorder>> {
-        fn note_hop_completed(&self, hop: u8, delay: Duration, is_last: bool) {
+        fn note_hop_completed(&mut self, hop: u8, delay: Duration, is_last: bool) {
             if !is_last {
                 return;
             }
-
-            let mut h = self.lock().unwrap();
-            h.hist.push((true, hop, delay));
+            let mut this = self.lock().unwrap();
+            this.hist.push((true, hop, delay));
         }
-        fn note_circ_timeout(&self, hop: u8, delay: Duration) {
-            let mut h = self.lock().unwrap();
-            h.hist.push((false, hop, delay));
+        fn note_circ_timeout(&mut self, hop: u8, delay: Duration) {
+            let mut this = self.lock().unwrap();
+            this.hist.push((false, hop, delay));
         }
-        fn timeouts(&self, _action: &Action) -> (Duration, Duration) {
+        fn timeouts(&mut self, _action: &Action) -> (Duration, Duration) {
             (Duration::from_secs(3), Duration::from_secs(100))
         }
         fn learning_timeouts(&self) -> bool {
             false
+        }
+        fn update_params(&mut self, _params: &tor_netdir::params::NetParameters) {}
+
+        fn build_state(&mut self) -> Option<crate::timeouts::pareto::ParetoTimeoutState> {
+            None
         }
     }
 
@@ -650,8 +657,11 @@ mod test {
             ]);
             let chanmgr = Arc::new(ChanMgr::new(rt.clone()));
             let timeouts = Arc::new(Mutex::new(TimeoutRecorder::new()));
-            let builder: Builder<_, Mutex<FakeCirc>, _> =
-                Builder::new(rt.clone(), chanmgr, Arc::clone(&timeouts));
+            let builder: Builder<_, Mutex<FakeCirc>> = Builder::new(
+                rt.clone(),
+                chanmgr,
+                timeouts::Estimator::new(Arc::clone(&timeouts)),
+            );
             let builder = Arc::new(builder);
             let rng =
                 StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
@@ -678,15 +688,14 @@ mod test {
             );
 
             {
-                let mut h = timeouts.lock().unwrap();
-                assert_eq!(h.hist.len(), 2);
-                assert!(h.hist[0].0); // completed
-                assert_eq!(h.hist[0].1, 0); // last hop completed
-                                            // TODO: test time elapsed, once wait_for is more reliable.
-                assert!(h.hist[1].0); // completed
-                assert_eq!(h.hist[1].1, 2); // last hop completed
-                                            // TODO: test time elapsed, once wait_for is more reliable.
-                h.hist.clear();
+                let timeouts = timeouts.lock().unwrap();
+                assert_eq!(timeouts.hist.len(), 2);
+                assert!(timeouts.hist[0].0); // completed
+                assert_eq!(timeouts.hist[0].1, 0); // last hop completed
+                                                   // TODO: test time elapsed, once wait_for is more reliable.
+                assert!(timeouts.hist[1].0); // completed
+                assert_eq!(timeouts.hist[1].1, 2); // last hop completed
+                                                   // TODO: test time elapsed, once wait_for is more reliable.
             }
 
             // Try a very long timeout.
@@ -701,11 +710,10 @@ mod test {
             assert!(outcome.is_err());
 
             {
-                let mut h = timeouts.lock().unwrap();
-                assert_eq!(h.hist.len(), 1);
-                assert!(!h.hist[0].0);
-                assert_eq!(h.hist[0].1, 2);
-                h.hist.clear();
+                let timeouts = timeouts.lock().unwrap();
+                assert_eq!(timeouts.hist.len(), 3);
+                assert!(!timeouts.hist[2].0);
+                assert_eq!(timeouts.hist[2].1, 2);
             }
 
             // Now try a recordable timeout.
@@ -722,26 +730,27 @@ mod test {
                 rt.advance(Duration::from_millis(100)).await;
             }
             {
-                let h = timeouts.lock().unwrap();
-                dbg!(&h.hist);
+                let timeouts = timeouts.lock().unwrap();
+                dbg!(&timeouts.hist);
+                assert!(timeouts.hist.len() >= 4);
                 // First we notice a circuit timeout after 2 hops
-                assert!(!h.hist[0].0);
-                assert_eq!(h.hist[0].1, 2);
+                assert!(!timeouts.hist[3].0);
+                assert_eq!(timeouts.hist[3].1, 2);
                 // TODO: check timeout more closely.
-                assert!(h.hist[0].2 < Duration::from_secs(100));
-                assert!(h.hist[0].2 >= Duration::from_secs(3));
+                assert!(timeouts.hist[3].2 < Duration::from_secs(100));
+                assert!(timeouts.hist[3].2 >= Duration::from_secs(3));
 
                 // This test is not reliable under test coverage; see arti#149.
                 #[cfg(not(tarpaulin))]
                 {
-                    assert_eq!(h.hist.len(), 2);
+                    assert_eq!(timeouts.hist.len(), 5);
                     // Then we notice a circuit completing at its third hop.
-                    assert!(h.hist[1].0);
-                    assert_eq!(h.hist[1].1, 2);
+                    assert!(timeouts.hist[4].0);
+                    assert_eq!(timeouts.hist[4].1, 2);
                     // TODO: check timeout more closely.
-                    assert!(h.hist[1].2 < Duration::from_secs(100));
-                    assert!(h.hist[1].2 >= Duration::from_secs(5));
-                    assert!(h.hist[0].2 < h.hist[1].2);
+                    assert!(timeouts.hist[4].2 < Duration::from_secs(100));
+                    assert!(timeouts.hist[4].2 >= Duration::from_secs(5));
+                    assert!(timeouts.hist[3].2 < timeouts.hist[4].2);
                 }
             }
             HOP3_DELAY.store(300, SeqCst); // undo previous run.

@@ -19,8 +19,8 @@ pub enum Error {
     #[error("Protocol error while launching a stream: {0}")]
     Proto(#[from] tor_proto::Error),
 
-    /// A protocol error while launching a stream
-    #[error("Persist error while launching a stream: {0}")]
+    /// An error while interfacing with the persistent data layer.
+    #[error("Error from state manager: {0}")]
     Persist(#[from] tor_persist::Error),
 
     /// The directory cache took too long to reply to us.

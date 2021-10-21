@@ -60,7 +60,7 @@ pub enum Error {
 
     /// Problem creating or updating a guard manager.
     #[error("Problem creating or updating guards list: {0}")]
-    GuardMgr(#[from] tor_guardmgr::GuardMgrError),
+    GuardMgr(#[source] tor_guardmgr::GuardMgrError),
 
     /// Problem selecting a guard relay.
     #[error("Unable to select a guard relay: {0}")]
@@ -82,5 +82,14 @@ impl From<futures::task::SpawnError> for Error {
 impl From<tor_rtcompat::TimeoutError> for Error {
     fn from(_: tor_rtcompat::TimeoutError) -> Error {
         Error::CircTimeout
+    }
+}
+
+impl From<tor_guardmgr::GuardMgrError> for Error {
+    fn from(err: tor_guardmgr::GuardMgrError) -> Error {
+        match err {
+            tor_guardmgr::GuardMgrError::State(e) => Error::State(e),
+            _ => Error::GuardMgr(err),
+        }
     }
 }

@@ -10,7 +10,11 @@
 
 use std::time::Duration;
 
+pub(crate) mod estimator;
 pub(crate) mod pareto;
+pub(crate) mod readonly;
+
+pub(crate) use estimator::Estimator;
 
 /// An object that calculates circuit timeout thresholds from the history
 /// of circuit build times.
@@ -23,7 +27,7 @@ pub(crate) trait TimeoutEstimator {
     /// circuit.
     ///
     /// If this is the last hop of the circuit, then `is_last` is true.
-    fn note_hop_completed(&self, hop: u8, delay: Duration, is_last: bool);
+    fn note_hop_completed(&mut self, hop: u8, delay: Duration, is_last: bool);
 
     /// Record that a circuit failed to complete because it took too long.
     ///
@@ -32,7 +36,7 @@ pub(crate) trait TimeoutEstimator {
     ///
     /// The `delay` number is the amount of time after we first launched the
     /// circuit.
-    fn note_circ_timeout(&self, hop: u8, delay: Duration);
+    fn note_circ_timeout(&mut self, hop: u8, delay: Duration);
 
     /// Return the current estimation for how long we should wait for a given
     /// [`Action`] to complete.
@@ -43,11 +47,21 @@ pub(crate) trait TimeoutEstimator {
     /// building it in order see how long it takes.  After `abandon`
     /// has elapsed since circuit launch, the circuit should be
     /// abandoned completely.
-    fn timeouts(&self, action: &Action) -> (Duration, Duration);
+    fn timeouts(&mut self, action: &Action) -> (Duration, Duration);
 
     /// Return true if we're currently trying to learn more timeouts
     /// by launching testing circuits.
     fn learning_timeouts(&self) -> bool;
+
+    /// Replace the network parameters used by this estimator (if any)
+    /// with ones derived from `params`.
+    fn update_params(&mut self, params: &tor_netdir::params::NetParameters);
+
+    /// Construct a new ParetoTimeoutState to represent the current state
+    /// of this estimator, if it is possible to store the state to disk.
+    ///
+    /// TODO: change the type used for the state.
+    fn build_state(&mut self) -> Option<pareto::ParetoTimeoutState>;
 }
 
 /// A possible action for which we can try to estimate a timeout.

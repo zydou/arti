@@ -163,6 +163,15 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
+    /// Copy non-persistent status from every guard shared with `other`.
+    pub(crate) fn copy_status_from(&mut self, other: &GuardSet) {
+        for (id, guard) in self.guards.iter_mut() {
+            if let Some(other_guard) = other.get(id) {
+                guard.copy_status_from(other_guard);
+            }
+        }
+    }
+
     /// Return a serializable state object that can be stored to disk
     /// to capture the current state of this GuardSet.
     fn get_state(&self) -> GuardSample<'_> {

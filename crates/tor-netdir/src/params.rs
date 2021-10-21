@@ -293,6 +293,15 @@ impl Default for NetParameters {
 }
 
 impl NetParameters {
+    /// Construct a new NetParameters from a given list of key=value parameters.
+    ///
+    /// Unrecognized parameters are ignored.
+    pub fn from_map(p: &tor_netdoc::doc::netstatus::NetParams<i32>) -> Self {
+        let mut params = NetParameters::default();
+        let _ = params.saturating_update(p.iter());
+        params
+    }
+
     /// Replace a list of parameters, using the logic of
     /// `set_saturating`.
     ///

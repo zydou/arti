@@ -276,18 +276,36 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
-    ///
-    /// Return true if we were able to save, and false if we couldn't
-    /// get the lock.
-    pub fn update_persistent_state(&self) -> Result<bool, GuardMgrError> {
+    pub fn store_persistent_state(&self) -> Result<(), GuardMgrError> {
         let inner = self.inner.lock().expect("Poisoned lock");
-        if inner.default_storage.try_lock()? {
-            trace!("Flushing guard state to disk.");
-            inner.default_storage.store(&inner.active_guards)?;
-            Ok(true)
-        } else {
-            Ok(false)
+        trace!("Flushing guard state to disk.");
+        inner.default_storage.store(&inner.active_guards)?;
+        Ok(())
+    }
+
+    /// Reload state from the state manager.
+    ///
+    /// We only call this method if we _don't_ have the lock on the state
+    /// files.  If we have the lock, we only want to save.
+    pub fn reload_persistent_state(&self) -> Result<(), GuardMgrError> {
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        if let Some(new_guards) = inner.default_storage.load()? {
+            let now = self.runtime.wallclock();
+            inner.replace_guards_with(new_guards, now);
         }
+        Ok(())
+    }
+
+    /// Switch from having an unowned persistent state to having an owned one.
+    ///
+    /// Requires that we hold the lock on the state files.
+    pub fn upgrade_to_owned_persistent_state(&self) -> Result<(), GuardMgrError> {
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        debug_assert!(inner.default_storage.can_store());
+        let new_guards = inner.default_storage.load()?.unwrap_or_else(GuardSet::new);
+        let now = self.runtime.wallclock();
+        inner.replace_guards_with(new_guards, now);
+        Ok(())
     }
 
     /// Update the state of this [`GuardMgr`] based on a new or modified
@@ -480,6 +498,14 @@ impl GuardMgrInner {
         }
 
         self.active_guards.select_primary_guards(&self.params);
+    }
+
+    /// Replace the active guard set with `new_guards`, preserving
+    /// non-persistent state for any guards that are retained.
+    fn replace_guards_with(&mut self, mut new_guards: GuardSet, now: SystemTime) {
+        new_guards.copy_status_from(&self.active_guards);
+        self.active_guards = new_guards;
+        self.update(now, None);
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
@@ -910,6 +936,8 @@ mod test {
     fn init<R: Runtime>(rt: R) -> (GuardMgr<R>, TestingStateMgr, NetDir) {
         use tor_netdir::{testnet, MdReceiver, PartialNetDir};
         let statemgr = TestingStateMgr::new();
+        let have_lock = statemgr.try_lock().unwrap();
+        assert!(have_lock.held());
         let guardmgr = GuardMgr::new(rt, statemgr.clone()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
         let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"
@@ -943,7 +971,7 @@ mod test {
 
             // Save the state...
             guardmgr.flush_msg_queue().await;
-            guardmgr.update_persistent_state().unwrap();
+            guardmgr.store_persistent_state().unwrap();
             drop(guardmgr);
 
             // Try reloading from the state...
