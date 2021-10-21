@@ -88,7 +88,7 @@ network view as an instance of `tor-netdir::NetDir`.
 
 `tor-config`: Support for loading and managing configuration files.
 
-`tor-client`: A client library that can be used to connect to the Tor network
+`arti-client`: A client library that can be used to connect to the Tor network
 and make connections.
 
 `arti`:  A simple command-line client program that can run as a SOCKS proxy.

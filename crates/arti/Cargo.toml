@@ -12,13 +12,13 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = [ "tokio" ]
-async-std = [ "tor-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell" ]
-tokio = [ "tokio-crate", "tor-client/tokio", "tor-rtcompat/tokio" ]
-static = [ "tor-client/static" ]
+async-std = [ "arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell" ]
+tokio = [ "tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio" ]
+static = [ "arti-client/static" ]
 journald = [ "tracing-journald" ]
 
 [dependencies]
-tor-client = { package="arti-tor-client", path = "../tor-client", version="0.0.0" }
+arti-client = { package="arti-client", path = "../arti-client", version="0.0.0" }
 tor-rtcompat = { path="../tor-rtcompat", version="0.0.0", default-features=false }
 tor-socksproto = { path="../tor-socksproto", version="0.0.0" }
 tor-config = { path="../tor-config", version="0.0.0" }

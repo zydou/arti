@@ -1,5 +1,5 @@
 [package]
-name = "arti-tor-client"
+name = "arti-client"
 version = "0.0.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"

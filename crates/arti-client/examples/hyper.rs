@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Result};
-use arti_tor_client::{DataStream, IntoTorAddr, TorClient, TorClientConfig};
+use arti_client::{DataStream, IntoTorAddr, TorClient, TorClientConfig};
 use hyper::client::connect::{Connected, Connection};
 use hyper::http::uri::Scheme;
 use hyper::http::Uri;

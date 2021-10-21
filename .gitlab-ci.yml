@@ -28,7 +28,7 @@ rust-latest-async-std:
   stage: build
   image: rust:latest
   script:
-    - cd crates/tor-client && cargo check --no-default-features --features=async-std
+    - cd crates/arti-client && cargo check --no-default-features --features=async-std
   tags:
     - amd64
 

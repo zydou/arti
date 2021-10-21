@@ -10,7 +10,7 @@ Arti is **not ready for production use**; [see below](#status) for more informat
 
    * [Official source repository](https://gitlab.torproject.org/tpo/core/arti)
 
-   * [API-level developer documentation](https://tpo.pages.torproject.net/core/doc/rust/tor_client/index.html)
+   * [API-level developer documentation](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html)
 
    * [Guidelines for contributors](./CONTRIBUTING.md)
 

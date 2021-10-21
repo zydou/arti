@@ -94,7 +94,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "argh",
- "arti-tor-client",
+ "arti-client",
  "async-ctrlc",
  "config",
  "futures",
@@ -113,7 +113,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "arti-tor-client"
+name = "arti-client"
 version = "0.0.0"
 dependencies = [
  "anyhow",

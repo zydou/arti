@@ -92,7 +92,7 @@ mod proxy;
 
 use std::sync::Arc;
 
-use tor_client::{
+use arti_client::{
     config::circ::{CircMgrConfig, CircMgrConfigBuilder},
     config::dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
     TorClient, TorClientConfig,
@@ -173,16 +173,16 @@ pub struct ArtiConfig {
     override_net_params: HashMap<String, i32>,
 
     /// Information about how to build paths through the network.
-    path_rules: tor_client::config::circ::PathConfig,
+    path_rules: arti_client::config::circ::PathConfig,
 
     /// Information about how to retry requests for circuits.
-    request_timing: tor_client::config::circ::RequestTiming,
+    request_timing: arti_client::config::circ::RequestTiming,
 
     /// Information about how to expire circuits.
-    circuit_timing: tor_client::config::circ::CircuitTiming,
+    circuit_timing: arti_client::config::circ::CircuitTiming,
 
     /// Information about client address configuration parameters.
-    addr_config: tor_client::config::ClientAddrConfig,
+    addr_config: arti_client::config::ClientAddrConfig,
 }
 
 /// Configuration for where information should be stored on disk.

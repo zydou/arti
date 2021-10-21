@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
-use tor_client::{ConnectPrefs, IsolationToken, TorClient};
+use arti_client::{ConnectPrefs, IsolationToken, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -199,7 +199,7 @@ where
                     // send an error.  See what kind it is.
                     //
                     match e {
-                        tor_client::Error::Timeout => {
+                        arti_client::Error::Timeout => {
                             let reply =
                                 request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None);
                             socks_w

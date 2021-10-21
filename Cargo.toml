@@ -30,7 +30,7 @@ members = [
     "crates/tor-dirclient",
     "crates/tor-dirmgr",
     "crates/tor-config",
-    "crates/tor-client",
+    "crates/arti-client",
     "crates/arti"
 ]
 

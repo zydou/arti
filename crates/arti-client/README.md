@@ -1,14 +1,10 @@
-# arti-tor-client
+# arti-client
 
 High-level functionality for accessing the Tor network as a client.
 
-(Note that this crate is called `tor-client` in some other places,
-since we didn't know about the conflict with `tor_client`. We will
-clean all of this up somehow before the next release.)
-
 ## Overview
 
-The `arti-tor-client` crate aims to provide a safe, easy-to-use API for
+The `arti-arti-client` crate aims to provide a safe, easy-to-use API for
 applications that want to use Tor network to anonymize their
 traffic.  It hides most of the underlying detail, letting other
 crates decide how exactly to use the Tor crate.
@@ -43,7 +39,7 @@ software to break on a regular basis.
 
 As we build the APIs for this crate, we've been aiming for
 simplicity and safety: we want it to be as easy as possible to use
-`tor-client`, while trying to make certain kinds of privacy or security
+`arti-client`, while trying to make certain kinds of privacy or security
 violation hard to write accidentally.
 
 Privacy isn't just a drop-in feature, however.  There are still
@@ -51,9 +47,9 @@ plenty of ways to accidentally leak information, even if you're
 anonymizing your connections over Tor.  We'll try to document
 those in a user's guide at some point as Arti becomes more mature.
 
-## Using `tor-client`
+## Using `arti-client`
 
-The `tor-client` crate provides an async Rust API.  It is
+The `arti-client` crate provides an async Rust API.  It is
 compatible with the `tokio` and `async_std` asynchronous backends.
 
 TODO: Good examples here once the crate setup API is more simple.
