@@ -1,4 +1,3 @@
-#![allow(clippy::unwrap_used)]
 //! Implement a configuration source based on command-line arguments.
 
 use config::{ConfigError, Source, Value};
