@@ -201,6 +201,20 @@ impl Guard {
         self.reachable
     }
 
+    /// Copy all _non-persistent_ status from `other` to self.
+    ///
+    /// Requires that the two `Guard`s have the same ID.
+    pub(crate) fn copy_status_from(&mut self, other: &Guard) {
+        debug_assert_eq!(self.id, other.id);
+
+        self.last_tried_to_connect_at = other.last_tried_to_connect_at;
+        self.retry_at = other.retry_at;
+        self.reachable = other.reachable;
+        self.failing_since = other.failing_since;
+        self.is_dir_cache = other.is_dir_cache;
+        self.exploratory_circ_pending = other.exploratory_circ_pending;
+    }
+
     /// Change the reachability status for this guard.
     fn set_reachable(&mut self, r: Reachable) {
         if self.reachable != r {
