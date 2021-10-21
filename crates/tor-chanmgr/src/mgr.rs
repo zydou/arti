@@ -1,6 +1,5 @@
 //! Abstract implementation of a channel manager
 
-#![allow(dead_code)]
 use crate::err::PendingChanError;
 use crate::{Error, Result};
 
@@ -85,6 +84,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     }
 
     /// Remove every unusable entry from this channel manager.
+    #[cfg(test)]
     pub(crate) fn remove_unusable_entries(&self) -> Result<()> {
         self.channels.remove_unusable()
     }

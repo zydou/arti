@@ -46,6 +46,7 @@ pub(crate) enum ChannelState<C> {
 
 impl<C> ChannelState<C> {
     /// Create a new shallow copy of this ChannelState.
+    #[cfg(test)]
     fn clone_ref(&self) -> Result<Self> {
         use ChannelState::*;
         match self {
@@ -93,6 +94,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     }
 
     /// Return the channel state for the given identity, if any.
+    #[cfg(test)]
     pub(crate) fn get(&self, ident: &C::Ident) -> Result<Option<ChannelState<C>>> {
         let map = self.channels.lock()?;
         map.get(ident).map(ChannelState::clone_ref).transpose()
@@ -117,6 +119,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     }
 
     /// Remove every unusable state from the map.
+    #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut map = self.channels.lock()?;
         map.retain(|_, state| match state {
