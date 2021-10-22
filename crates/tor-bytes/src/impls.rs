@@ -55,7 +55,7 @@ impl<N> Readable for GenericArray<u8, N>
 where
     N: generic_array::ArrayLength<u8>,
 {
-    fn take_from(b: &mut Reader) -> Result<Self> {
+    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
         // safety -- "take" returns the requested bytes or error.
         Ok(Self::clone_from_slice(b.take(N::to_usize())?))
     }

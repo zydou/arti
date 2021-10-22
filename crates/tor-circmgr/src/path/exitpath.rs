@@ -210,7 +210,7 @@ mod test {
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
 
-    fn assert_exit_path_ok(relays: &[Relay]) {
+    fn assert_exit_path_ok(relays: &[Relay<'_>]) {
         assert_eq!(relays.len(), 3);
 
         // TODO: Eventually assert that r1 has Guard, once we enforce that.

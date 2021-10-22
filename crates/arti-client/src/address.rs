@@ -112,7 +112,7 @@ impl TorAddr {
 }
 
 impl std::fmt::Display for TorAddr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.host {
             Host::Ip(IpAddr::V6(addr)) => write!(f, "[{}]:{}", addr, self.port),
             _ => write!(f, "{}:{}", self.host, self.port),
@@ -171,7 +171,7 @@ impl Host {
 }
 
 impl std::fmt::Display for Host {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Host::Hostname(s) => write!(f, "{}", s),
             Host::Ip(ip) => write!(f, "{}", ip),

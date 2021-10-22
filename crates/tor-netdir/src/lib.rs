@@ -775,7 +775,7 @@ impl NetDir {
     /// [`RouterStatus`] rather than a [`Relay`].
     pub fn total_weight<P>(&self, role: WeightRole, usable: P) -> RelayWeight
     where
-        P: Fn(&UncheckedRelay) -> bool,
+        P: Fn(&UncheckedRelay<'_>) -> bool,
     {
         self.all_relays()
             .filter_map(|unchecked| {
