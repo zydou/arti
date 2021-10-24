@@ -11,19 +11,6 @@
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # This vulnerability affects the `chrono` crate: it uses
-    # `localtime_r()`, which is not thread-safe if anybody calls
-    # `setenv()`.
-    #
-    # This is concerning!  What makes it not disastrous is:
-    #  * We don't use chrono for any local times in Arti: only Utc.
-    #  * We don't modify the environment.
-    #
-    # There is no unaffected version of chrono yet.
-    #
-    # Fortunately (?), the whole Rust ecosystem is currently freaking
-    # out about chrono, so we can hope there's a solution before too long.
-    --ignore RUSTSEC-2020-0159
 )
 
 cargo audit -D warnings "${IGNORE[@]}"
@@ -68,6 +55,23 @@ OBSOLETE_IGNORE=(
     #    (PR: https://github.com/rusqlite/rusqlite/pull/1031 )
     #  * Stop using the `chrono` feature on rusqlite, and do our date
     #    conversions in `tor-dirmgr` manually.
+    #
+    # Eventual resolution: we migrated to use time 0.3 instead of chrono.
     --ignore RUSTSEC-2020-0071
+    # This vulnerability affects the `chrono` crate: it uses
+    # `localtime_r()`, which is not thread-safe if anybody calls
+    # `setenv()`.
+    #
+    # This is concerning!  What makes it not disastrous is:
+    #  * We don't use chrono for any local times in Arti: only Utc.
+    #  * We don't modify the environment.
+    #
+    # There is no unaffected version of chrono yet.
+    #
+    # Fortunately (?), the whole Rust ecosystem is currently freaking
+    # out about chrono, so we can hope there's a solution before too long.
+    #
+    # Eventual resolution: we migrated to use time 0.3 instead of chrono.
+    --ignore RUSTSEC-2020-0159
 )
 _="${OBSOLETE_IGNORE[0]}"
