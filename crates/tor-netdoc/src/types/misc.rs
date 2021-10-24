@@ -175,6 +175,7 @@ mod ed25519impl {
 mod timeimpl {
     use crate::{Error, Pos, Result};
     use std::time::SystemTime;
+    use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
 
     /// A wall-clock time, encoded in Iso8601 format with an intervening
     /// space between the date and time.
@@ -182,14 +183,16 @@ mod timeimpl {
     /// (Example: "2020-10-09 17:38:12")
     pub(crate) struct Iso8601TimeSp(SystemTime);
 
+    /// Formatting object for parsing the space-separated Iso8601 format.
+    const ISO_8601SP_FMT: &[FormatItem] =
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+
     impl std::str::FromStr for Iso8601TimeSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeSp> {
-            use chrono::{DateTime, NaiveDateTime, Utc};
-            let d = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+            let d = PrimitiveDateTime::parse(s, &ISO_8601SP_FMT)
                 .map_err(|e| Error::BadArgument(Pos::at(s), format!("invalid time: {}", e)))?;
-            let dt = DateTime::<Utc>::from_utc(d, Utc);
-            Ok(Iso8601TimeSp(dt.into()))
+            Ok(Iso8601TimeSp(d.assume_utc().into()))
         }
     }
 

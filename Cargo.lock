@@ -2780,7 +2780,6 @@ version = "0.0.0"
 dependencies = [
  "base64",
  "bitflags",
- "chrono",
  "digest",
  "hex",
  "hex-literal",
@@ -2790,6 +2789,7 @@ dependencies = [
  "serde",
  "signature",
  "thiserror",
+ "time 0.3.3",
  "tor-bytes",
  "tor-cert",
  "tor-checkable",
