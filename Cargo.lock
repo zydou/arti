@@ -484,19 +484,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "chrono"
-version = "0.4.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
-dependencies = [
- "libc",
- "num-integer",
- "num-traits",
- "time 0.1.44",
- "winapi",
-]
-
-[[package]]
 name = "cipher"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2030,13 +2017,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e2aebd07fccf5c0d3f1458219965b0861d45f5db9f9b2617277fa7f85179213"
 dependencies = [
  "bitflags",
- "chrono",
  "fallible-iterator",
  "fallible-streaming-iterator",
  "hashlink",
  "libsqlite3-sys",
  "memchr",
  "smallvec",
+ "time",
 ]
 
 [[package]]
@@ -2260,7 +2247,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "thiserror",
- "time 0.3.3",
+ "time",
 ]
 
 [[package]]
@@ -2388,17 +2375,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8018d24e04c95ac8790716a5987d0fec4f8b27249ffa0f7d33f1369bdfb88cbd"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "time"
-version = "0.1.44"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db9e6914ab8b1ae1c260a4ae7a49b6c5611b40328a735b21862567685e73255"
-dependencies = [
- "libc",
- "wasi 0.10.0+wasi-snapshot-preview1",
- "winapi",
 ]
 
 [[package]]
@@ -2658,7 +2634,6 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "base64",
- "chrono",
  "derive_builder",
  "digest",
  "fslock",
@@ -2677,6 +2652,7 @@ dependencies = [
  "signature",
  "tempfile",
  "thiserror",
+ "time",
  "tor-checkable",
  "tor-circmgr",
  "tor-consdiff",
@@ -2789,7 +2765,7 @@ dependencies = [
  "serde",
  "signature",
  "thiserror",
- "time 0.3.3",
+ "time",
  "tor-bytes",
  "tor-cert",
  "tor-checkable",

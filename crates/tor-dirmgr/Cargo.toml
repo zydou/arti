@@ -28,7 +28,6 @@ tor-rtcompat = { path="../tor-rtcompat", version="0.0.0" }
 
 async-trait = "0.1.48"
 base64 = "0.13.0"
-chrono = { version = "0.4.19", default-features = false }
 derive_builder = "0.10.2"
 digest = "0.9.0"
 futures = "0.3.13"
@@ -39,10 +38,11 @@ tracing = "0.1.26"
 memmap2 = { version = "0.5.0", optional = true }
 postage = { version="0.4.1", default-features=false, features=["futures-traits"] }
 rand = "0.8.3"
-rusqlite = { version = "0.26.0", features = ["chrono"] }
+rusqlite = { version = "0.26.0", features = ["time"] }
 serde = { version = "1.0.124", features = ["derive"] }
 signature = "1.3.1"
 thiserror = "1.0.24"
+time = { version = "0.3.3", features = ["formatting", "parsing"] }
 humantime-serde = "1.0.1"
 
 [dev-dependencies]

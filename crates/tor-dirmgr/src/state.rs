@@ -10,12 +10,12 @@
 //! [`bootstrap`](crate::bootstrap) module for functions that actually
 //! load or download directory information.
 
-use chrono::{DateTime, Utc};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::{Mutex, Weak};
 use std::time::{Duration, SystemTime};
+use time::OffsetDateTime;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
@@ -682,9 +682,9 @@ fn pick_download_time(lifetime: &Lifetime) -> SystemTime {
     let zero = Duration::new(0, 0);
     let t = lowbound + rand::thread_rng().gen_range(zero..uncertainty);
     info!("The current consensus is fresh until {}, and valid until {}. I've picked {} as the earliest time to replace it.",
-          DateTime::<Utc>::from(lifetime.fresh_until()),
-          DateTime::<Utc>::from(lifetime.valid_until()),
-          DateTime::<Utc>::from(t));
+          OffsetDateTime::from(lifetime.fresh_until()),
+          OffsetDateTime::from(lifetime.valid_until()),
+          OffsetDateTime::from(t));
     t
 }
 

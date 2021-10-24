@@ -17,9 +17,8 @@ use std::convert::TryInto;
 use std::path::{self, Path, PathBuf};
 use std::time::SystemTime;
 
-use chrono::prelude::*;
-use chrono::Duration as CDuration;
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
+use time::OffsetDateTime;
 use tracing::trace;
 
 #[cfg(target_family = "unix")]
@@ -263,7 +262,7 @@ impl SqliteStore {
         doctype: &str,
         dtype: &str,
         digest: &[u8],
-        expires: DateTime<Utc>,
+        expires: OffsetDateTime,
     ) -> Result<SavedBlobHandle<'_>> {
         let digest = hex::encode(digest);
         let digeststr = format!("{}-{}", dtype, digest);
@@ -292,7 +291,7 @@ impl SqliteStore {
         doctype: &str,
         dtype: &str,
         digest: &[u8],
-        expires: DateTime<Utc>,
+        expires: OffsetDateTime,
     ) -> Result<String> {
         let h = self.save_blob_internal(contents, doctype, dtype, digest, expires)?;
         let SavedBlobHandle {
@@ -318,13 +317,16 @@ impl SqliteStore {
         let lifetime = cmeta.lifetime();
         let sha3_of_signed = cmeta.sha3_256_of_signed();
         let sha3_of_whole = cmeta.sha3_256_of_whole();
-        let valid_after: DateTime<Utc> = lifetime.valid_after().into();
-        let fresh_until: DateTime<Utc> = lifetime.fresh_until().into();
-        let valid_until: DateTime<Utc> = lifetime.valid_until().into();
+        let valid_after: OffsetDateTime = lifetime.valid_after().into();
+        let fresh_until: OffsetDateTime = lifetime.fresh_until().into();
+        let valid_until: OffsetDateTime = lifetime.valid_until().into();
+
+        /// How long to keep a consensus around after it has expired
+        const CONSENSUS_LIFETIME: time::Duration = time::Duration::days(4);
 
         // After a few days have passed, a consensus is no good for
         // anything at all, not even diffs.
-        let expires = valid_until + CDuration::days(4);
+        let expires = valid_until + CONSENSUS_LIFETIME;
 
         let doctype = format!("con:{}", flavor.name());
 
@@ -370,7 +372,7 @@ impl SqliteStore {
     /// Return the valid-after time for the latest non non-pending consensus,
     #[cfg(test)]
     // We should revise the tests to use latest_consensus_meta instead.
-    fn latest_consensus_time(&self, flavor: ConsensusFlavor) -> Result<Option<DateTime<Utc>>> {
+    fn latest_consensus_time(&self, flavor: ConsensusFlavor) -> Result<Option<OffsetDateTime>> {
         Ok(self
             .latest_consensus_meta(flavor)?
             .map(|m| m.lifetime().valid_after().into()))
@@ -388,7 +390,7 @@ impl SqliteStore {
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
         trace!(?flavor, ?pending, "Loading latest consensus from cache");
-        let rv: Option<(DateTime<Utc>, DateTime<Utc>, String)>;
+        let rv: Option<(OffsetDateTime, OffsetDateTime, String)>;
         rv = match pending {
             None => self
                 .conn
@@ -482,8 +484,8 @@ impl SqliteStore {
             let ids = meta.key_ids();
             let id_digest = hex::encode(ids.id_fingerprint.as_bytes());
             let sk_digest = hex::encode(ids.sk_fingerprint.as_bytes());
-            let published: DateTime<Utc> = meta.published().into();
-            let expires: DateTime<Utc> = meta.expires().into();
+            let published: OffsetDateTime = meta.published().into();
+            let expires: OffsetDateTime = meta.expires().into();
             stmt.execute(params![id_digest, sk_digest, published, expires, content])?;
         }
         stmt.finalize()?;
@@ -572,7 +574,7 @@ impl SqliteStore {
     {
         let tx = self.conn.transaction()?;
         let mut stmt = tx.prepare(UPDATE_MD_LISTED)?;
-        let when: DateTime<Utc> = when.into();
+        let when: OffsetDateTime = when.into();
 
         for md_digest in input.into_iter() {
             let h_digest = hex::encode(md_digest);
@@ -590,7 +592,7 @@ impl SqliteStore {
     where
         I: IntoIterator<Item = (&'a str, &'a MdDigest)>,
     {
-        let when: DateTime<Utc> = when.into();
+        let when: OffsetDateTime = when.into();
 
         let tx = self.conn.transaction()?;
         let mut stmt = tx.prepare(INSERT_MD)?;
@@ -614,7 +616,7 @@ impl SqliteStore {
         let mut stmt = tx.prepare(INSERT_RD)?;
 
         for (content, when, rd_digest) in input.into_iter() {
-            let when: DateTime<Utc> = when.into();
+            let when: OffsetDateTime = when.into();
             let h_digest = hex::encode(rd_digest);
             stmt.execute(params![h_digest, when, content])?;
         }
@@ -691,9 +693,9 @@ fn digest_from_dstr(s: &str) -> Result<[u8; 32]> {
 /// Create a ConsensusMeta from a `Row` returned by one of
 /// `FIND_LATEST_CONSENSUS_META` or `FIND_CONSENSUS_AND_META_BY_DIGEST`.
 fn cmeta_from_row(row: &rusqlite::Row<'_>) -> Result<ConsensusMeta> {
-    let va: DateTime<Utc> = row.get(0)?;
-    let fu: DateTime<Utc> = row.get(1)?;
-    let vu: DateTime<Utc> = row.get(2)?;
+    let va: OffsetDateTime = row.get(0)?;
+    let fu: OffsetDateTime = row.get(1)?;
+    let vu: OffsetDateTime = row.get(2)?;
     let d_signed: String = row.get(3)?;
     let d_all: String = row.get(4)?;
     let lifetime = Lifetime::new(va.into(), fu.into(), vu.into())?;
@@ -927,6 +929,7 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
+    use time::ext::NumericalDuration;
 
     fn new_empty() -> Result<(TempDir, SqliteStore)> {
         let tmp_dir = tempdir().unwrap();
@@ -988,8 +991,8 @@ mod test {
     fn blobs() -> Result<()> {
         let (tmp_dir, mut store) = new_empty()?;
 
-        let now = Utc::now();
-        let one_week = CDuration::weeks(1);
+        let now = OffsetDateTime::now_utc();
+        let one_week = 1.weeks();
 
         let fname1 = store.save_blob(
             b"Hello world",
@@ -1049,8 +1052,8 @@ mod test {
         use tor_netdoc::doc::netstatus;
 
         let (_tmp_dir, mut store) = new_empty()?;
-        let now = Utc::now();
-        let one_hour = CDuration::hours(1);
+        let now = OffsetDateTime::now_utc();
+        let one_hour = 1.hours();
 
         assert_eq!(
             store.latest_consensus_time(ConsensusFlavor::Microdesc)?,
@@ -1147,8 +1150,8 @@ mod test {
     #[test]
     fn authcerts() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
-        let now = Utc::now();
-        let one_hour = CDuration::hours(1);
+        let now = OffsetDateTime::now_utc();
+        let one_hour = 1.hours();
 
         let keyids = AuthCertKeyIds {
             id_fingerprint: [3; 20].into(),
@@ -1174,21 +1177,22 @@ mod test {
     fn microdescs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = Utc::now();
-        let one_day = CDuration::days(1);
+        let now = OffsetDateTime::now_utc();
+        let one_day = 1.days();
 
         let d1 = [5_u8; 32];
         let d2 = [7; 32];
         let d3 = [42; 32];
         let d4 = [99; 32];
 
+        let long_ago: OffsetDateTime = now - one_day * 100;
         store.store_microdescs(
             vec![
                 ("Fake micro 1", &d1),
                 ("Fake micro 2", &d2),
                 ("Fake micro 3", &d3),
             ],
-            (now - one_day * 100).into(),
+            long_ago.into(),
         )?;
 
         store.update_microdescs_listed(&[d2], now.into())?;
@@ -1213,9 +1217,9 @@ mod test {
     fn routerdescs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 
-        let now = Utc::now();
-        let one_day = CDuration::days(1);
-        let long_ago = now - one_day * 100;
+        let now = OffsetDateTime::now_utc();
+        let one_day = 1.days();
+        let long_ago: OffsetDateTime = now - one_day * 100;
         let recently = now - one_day;
 
         let d1 = [5_u8; 20];
