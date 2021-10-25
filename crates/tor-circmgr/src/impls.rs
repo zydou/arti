@@ -36,7 +36,7 @@ pub(crate) struct Plan {
     /// whether the circuit succeeded or failed.
     guard_status: Option<tor_guardmgr::GuardMonitor>,
     /// If this path is using a guard, we'll use this object to learn
-    /// whether we're allowed ot use the circuit or whether we have to
+    /// whether we're allowed to use the circuit or whether we have to
     /// wait a while.
     guard_usable: Option<tor_guardmgr::GuardUsable>,
 }
