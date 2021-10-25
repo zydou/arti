@@ -578,6 +578,16 @@ impl GuardSet {
         }
     }
 
+    /// Record that an attempt to use the guard with `guard_id` has
+    /// just failed in a way that we could not definitively attribute to
+    /// the guard.
+    pub(crate) fn record_indeterminate_result(&mut self, guard_id: &GuardId) {
+        if let Some(guard) = (&mut self.guards).get_mut(guard_id) {
+            guard.note_exploratory_circ(false);
+            guard.record_indeterminate_result();
+        }
+    }
+
     /// Return whether the circuit manager can be allowed to use a
     /// circuit with the `guard_id`.
     ///

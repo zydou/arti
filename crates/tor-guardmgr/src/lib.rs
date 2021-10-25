@@ -563,8 +563,12 @@ impl GuardMgrInner {
                     self.active_guards.record_failure(guard_id, runtime.now());
                     pending.reply(false);
                 }
-                GuardStatus::AttemptAbandoned | GuardStatus::Indeterminate => {
+                GuardStatus::AttemptAbandoned => {
                     self.active_guards.record_attempt_abandoned(guard_id);
+                    pending.reply(false);
+                }
+                GuardStatus::Indeterminate => {
+                    self.active_guards.record_indeterminate_result(guard_id);
                     pending.reply(false);
                 }
             };
