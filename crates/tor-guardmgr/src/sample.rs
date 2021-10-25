@@ -157,8 +157,12 @@ impl GuardSet {
 
         let guards = &self.guards; // avoid borrow issues
         let filt = &self.active_filter;
-        self.primary
-            .retain(|id| guards.get(id).map(|g| filt.permits(g)).unwrap_or(false));
+        self.primary.retain(|id| {
+            guards
+                .get(id)
+                .map(|g| g.usable() && filt.permits(g))
+                .unwrap_or(false)
+        });
 
         self.primary_guards_invalidated = true;
     }
@@ -262,7 +266,11 @@ impl GuardSet {
         let n_filtered_usable = self
             .guards
             .values()
-            .filter(|g| self.active_filter.permits(*g) && g.reachable() != Reachable::Unreachable)
+            .filter(|g| {
+                g.usable()
+                    && self.active_filter.permits(*g)
+                    && g.reachable() != Reachable::Unreachable
+            })
             .count();
         if n_filtered_usable >= params.min_filtered_sample_size {
             return false; // We have enough usage guards in our sample.
@@ -406,10 +414,10 @@ impl GuardSet {
             .chain(self.reachable_sample_ids())
             // We only consider each guard the first time it appears.
             .unique()
-            // We only consider guards that the filter allows.
+            // We only consider usable guards that the filter allows.
             .filter_map(|id| {
                 let g = self.guards.get(id).expect("Inconsistent guard state");
-                if self.active_filter.permits(g) {
+                if g.usable() && self.active_filter.permits(g) {
                     Some(id.clone())
                 } else {
                     None
@@ -617,7 +625,8 @@ impl GuardSet {
             if guard.guard_id() == guard_id {
                 return Some(true);
             }
-            if self.active_filter.permits(guard) && guard.conforms_to_usage(usage) {
+            if guard.usable() && self.active_filter.permits(guard) && guard.conforms_to_usage(usage)
+            {
                 match (src, guard.reachable()) {
                     (_, Reachable::Reachable) => return Some(false),
                     (_, Reachable::Unreachable) => (),
@@ -652,7 +661,8 @@ impl GuardSet {
         let mut options: Vec<_> = self
             .preference_order()
             .filter(|(_, g)| {
-                self.active_filter.permits(*g)
+                g.usable()
+                    && self.active_filter.permits(*g)
                     && g.reachable() != Reachable::Unreachable
                     && !g.exploratory_circ_pending()
                     && g.conforms_to_usage(usage)

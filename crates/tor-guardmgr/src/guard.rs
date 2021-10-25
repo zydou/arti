@@ -201,6 +201,11 @@ impl Guard {
         self.reachable
     }
 
+    /// Return true if this guard is listed in the latest NetDir.
+    pub(crate) fn usable(&self) -> bool {
+        self.unlisted_since.is_none()
+    }
+
     /// Copy all _non-persistent_ status from `other` to self.
     ///
     /// Requires that the two `Guard`s have the same ID.
