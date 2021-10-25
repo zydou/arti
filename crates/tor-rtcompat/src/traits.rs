@@ -68,6 +68,22 @@ pub trait SleepProvider {
     fn wallclock(&self) -> SystemTime {
         SystemTime::now()
     }
+
+    /// Signify that a test running under mock time shouldn't advance time yet, with a given
+    /// unique reason string. This is useful for making sure (mock) time doesn't advance while
+    /// things that might require some (real-world) time to complete do so, such as spawning a task
+    /// on another thread.
+    ///
+    /// Call `release_advance` with the same reason string in order to unblock.
+    fn block_advance<T: Into<String>>(&self, _reason: T) {}
+
+    /// Signify that the reason to withhold time advancing provided in a call to `block_advance` no
+    /// longer exists, and it's fine to move time forward if nothing else is blocking advances.
+    fn release_advance<T: Into<String>>(&self, _reason: T) {}
+
+    /// Allow a test running under mock time to advance time by the provided duration, even if the
+    /// above `block_advance` API has been used.
+    fn allow_one_advance(&self, _dur: Duration) {}
 }
 
 /// Trait for a runtime that can block on a future.

@@ -47,12 +47,32 @@ impl<R: Runtime> MockSleepRuntime<R> {
     pub fn jump_to(&self, new_wallclock: SystemTime) {
         self.sleep.jump_to(new_wallclock);
     }
-    /// Advance time one millisecond at a time until the provided
-    /// future is ready.
+    /// Run a future under mock time, advancing time forward where necessary until it completes.
+    /// Users of this function should read the whole of this documentation before using!
+    ///
+    /// The returned future will run `fut`, expecting it to create `Sleeping` futures (as returned
+    /// by `MockSleepProvider::sleep()` and similar functions). When all such created futures have
+    /// been polled (indicating the future is waiting on them), time will be advanced in order that
+    /// the first (or only) of said futures returns `Ready`. This process then repeats until `fut`
+    /// returns `Ready` itself (as in, the returned wrapper future will wait for all created
+    /// `Sleeping` futures to be polled, and advance time again).
+    ///
+    /// **Note:** The above described algorithm interacts poorly with futures that spawn
+    /// asynchronous background tasks, or otherwise expect work to complete in the background
+    /// before time is advanced. These futures will need to make use of the
+    /// `SleepProvider::block_advance` (and similar) APIs in order to prevent time advancing while
+    /// said tasks complete; see the documentation for those APIs for more detail.
+    ///
+    /// # Panics
+    ///
+    /// Panics if another `WaitFor` future is already running. (If two ran simultaneously, they
+    /// would both try and advance the same mock time clock, which would be bad.)
     pub fn wait_for<F: futures::Future>(&self, fut: F) -> WaitFor<F> {
+        if self.sleep.has_waitfor_waker() {
+            panic!("attempted to call MockSleepRuntime::wait_for while another WaitFor is active");
+        }
         WaitFor {
             sleep: self.sleep.clone(),
-            yielding: 0,
             fut,
         }
     }
@@ -102,16 +122,23 @@ impl<R: Runtime> SleepProvider for MockSleepRuntime<R> {
     fn wallclock(&self) -> SystemTime {
         self.sleep.wallclock()
     }
+    fn block_advance<T: Into<String>>(&self, reason: T) {
+        self.sleep.block_advance(reason)
+    }
+    fn release_advance<T: Into<String>>(&self, reason: T) {
+        self.sleep.release_advance(reason)
+    }
+    fn allow_one_advance(&self, dur: Duration) {
+        self.sleep.allow_one_advance(dur)
+    }
 }
 
 /// A future that advances time until another future is ready to complete.
 #[pin_project]
-pub struct WaitFor<F: Future> {
+pub struct WaitFor<F> {
     /// A reference to the sleep provider that's simulating time for us.
+    #[pin]
     sleep: MockSleepProvider,
-    /// Nonzero if we just found that this inner future is pending, and we
-    /// should yield to give other futures a chance to run.
-    yielding: u8,
     /// The future that we're waiting for.
     #[pin]
     fut: F,
@@ -124,42 +151,31 @@ impl<F: Future> Future for WaitFor<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        eprintln!("waitfor poll");
+        let mut this = self.project();
+        this.sleep.register_waitfor_waker(cx.waker().clone());
 
-        if *this.yielding > 0 {
-            *this.yielding -= 1;
-            cx.waker().wake_by_ref();
-            return Poll::Pending;
-        }
         if let Poll::Ready(r) = this.fut.poll(cx) {
+            eprintln!("waitfor done!");
+            this.sleep.clear_waitfor_waker();
             return Poll::Ready(r);
         }
+        eprintln!("waitfor poll complete");
 
-        // TODO: This increment is unpleasantly short, and slows down
-        // the tests that run this future.  But if I increase it, this
-        // future doesn't yield enough for other futures to run, and
-        // some of the tests in tor-circmgr give bad results.
-        //
-        // We should resolve this issue; see ticket #149.
-        #[cfg(tarpaulin)]
-        let high_bound = Duration::from_micros(100);
-        #[cfg(tarpaulin)]
-        let yield_count = 100;
-        #[cfg(not(tarpaulin))]
-        let high_bound = Duration::from_millis(1);
-        #[cfg(not(tarpaulin))]
-        let yield_count = 3;
-
-        let low_bound = Duration::from_micros(10);
-        let duration = this
-            .sleep
-            .time_until_next_timeout()
-            .map(|dur| (dur / 10).clamp(low_bound, high_bound))
-            .unwrap_or(low_bound);
-
-        this.sleep.advance_noyield(duration);
-        *this.yielding = yield_count;
-        cx.waker().wake_by_ref();
+        if this.sleep.should_advance() {
+            if let Some(duration) = this.sleep.time_until_next_timeout() {
+                eprintln!("Advancing by {:?}", duration);
+                this.sleep.advance_noyield(duration);
+            } else {
+                // If we get here, something's probably wedged and the test isn't going to complete
+                // anyway: we were expecting to advance in order to make progress, but we can't.
+                // If we don't panic, the test will just run forever, which is really annoying, so
+                // just panic and fail quickly.
+                panic!("WaitFor told to advance, but didn't have any duration to advance by");
+            }
+        } else {
+            eprintln!("waiting for sleepers to advance");
+        }
         Poll::Pending
     }
 }
