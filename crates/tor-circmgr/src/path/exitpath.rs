@@ -133,6 +133,7 @@ impl<'a> ExitPathBuilder<'a> {
         } else {
             None
         };
+        let path_is_fully_random = chosen_exit.is_none();
 
         // TODO-SPEC: Because of limitations in guard selection, we have to
         // pick the guard before the exit, which is not what our spec says.
@@ -149,10 +150,19 @@ impl<'a> ExitPathBuilder<'a> {
                     b.restriction(tor_guardmgr::GuardRestriction::AvoidId(*id));
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
-                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
+                let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
                 let guard = guard.get_relay(netdir).ok_or_else(|| {
                     Error::Internal("Somehow the guardmgr gave us an unlisted guard!".to_owned())
                 })?;
+                if !path_is_fully_random {
+                    // We were given a specific exit relay to use, and
+                    // the choice of exit relay might be forced by
+                    // something outside of our control.
+                    //
+                    // Therefore, we must not blame the guard for any failure
+                    // to complete the circuit.
+                    mon.ignore_indeterminate_status();
+                }
                 (guard, Some(mon), Some(usable))
             }
             None => {
