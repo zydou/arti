@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # This script is run inside a docker container as part of our
-# reporoducible build process.
+# reproducible build process.
 #
 set -xeu
 if [ ! -f /.dockerenv ]; then
@@ -31,12 +31,12 @@ here=$(pwd)
 
 ## fix the target architecture to get reproducible builds
 ## the architecture was chosen as old enough that it should cover most usage
-## while still supporting usefull features like AES-NI. Older architectures
+## while still supporting useful features like AES-NI. Older architectures
 ## won't be able to execute the resulting binary.
 export CFLAGS="-march=westmere"
 export RUSTFLAGS="-C target-cpu=westmere"
 
-## force build to run in a fixed location. Ncessesary because the build path
+## force build to run in a fixed location. Necessary because the build path
 ## is somehow captured when compiling.
 cp -a "$here" /arti
 cd /arti
@@ -50,7 +50,7 @@ ln -s /dev/shm/registry /usr/local/cargo/registry/src
 ## add missing dependencies
 apk add perl make git musl-dev
 if [ -n "$linux" ]; then
-	## no additional dependencies specifically for linux
+	## no additional dependencies specifically for Linux
 
 	## Build targeting x86_64-unknown-linux-musl to get a static binary
 	## feature "static" enable compiling some C dependencies instead of linking

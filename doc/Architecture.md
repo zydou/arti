@@ -75,7 +75,7 @@ directories.
 when they already exist.
 
 `tor-guardmgr`: Manage a set of "guard nodes" that clients can use for
-connecting to the first relays on their citrcuit.
+connecting to the first relays on their circuit.
 
 `tor-circmgr`: Creates circuits as requested, returning existing circuits
 when they already exist.

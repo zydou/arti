@@ -30,7 +30,7 @@ working Git installation to fetch the code.
   check the
   [Other Installation Methods](https://forge.rust-lang.org/infra/other-installation-methods.html)
 
-- [Git](https://git-scm.com/downloads) note, for Linux, MacOS, and some
+- [Git](https://git-scm.com/downloads) note, for Linux, macOS, and some
   Unix-like devices Git may be available via a package manager; `apt`, `brew`,
   `yum`, `pacman`, etc.
 

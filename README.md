@@ -125,7 +125,7 @@ get our project manager to sign off on them.
    * [ ] More performance work
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/8)
 
- * Arti 1.1.0: Anti-censorship features (Goal: End of october, 2022?)
+ * Arti 1.1.0: Anti-censorship features (Goal: End of October, 2022?)
    * Target audience: **censored users**
    * [ ] Bridges
    * [ ] Pluggable transports
@@ -142,7 +142,7 @@ get our project manager to sign off on them.
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for a few ideas for how to get
 started.
 
-## Licence
+## License
 
 This code is licensed under either of
 
