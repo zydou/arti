@@ -14,7 +14,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 aes = { version = "0.7.0", features = ["ctr"] }
 arrayref = "0.3.6"
 base64 = "0.13.0"
-curve25519-dalek = "3.1.0"
+curve25519-dalek = "3.2.0"
 digest = "0.9.0"
 ed25519-dalek = { version = "1.0.1", features = ["batch"] }
 hex = "0.4.3"
