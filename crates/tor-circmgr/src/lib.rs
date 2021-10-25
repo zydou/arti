@@ -74,7 +74,7 @@ mod timeouts;
 mod usage;
 
 pub use err::Error;
-pub use usage::{IsolationToken, TargetPort};
+pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort};
 
 pub use config::{
     CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
@@ -254,14 +254,11 @@ impl<R: Runtime> CircMgr<R> {
         &self,
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
         ports: &[TargetPort],
-        isolation_group: IsolationToken,
+        isolation: StreamIsolation,
     ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
         let ports = ports.iter().map(Clone::clone).collect();
-        let usage = TargetCircUsage::Exit {
-            ports,
-            isolation_group,
-        };
+        let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await
     }
 

@@ -7,7 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, TorClientConfig};
-use tor_circmgr::{IsolationToken, TargetPort};
+use tor_circmgr::{IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
@@ -318,9 +318,17 @@ impl<R: Runtime> TorClient<R> {
     ) -> Result<Arc<ClientCirc>> {
         let dir = self.dirmgr.netdir();
 
-        // XXXX: this isn't what we really want.  We'd like to have _both_
-        // of these tokens considered.
-        let isolation = flags.isolation_group().unwrap_or(self.client_isolation);
+        let isolation = {
+            let mut b = StreamIsolationBuilder::new();
+            // Always consider our client_isolation.
+            b.owner_token(self.client_isolation);
+            // Consider stream isolation too, if it's set.
+            if let Some(tok) = flags.isolation_group() {
+                b.stream_token(tok);
+            }
+            // Failure should be impossible with this builder.
+            b.build().expect("Failed to construct StreamIsolation")
+        };
 
         let circ = self
             .circmgr
