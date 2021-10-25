@@ -2,7 +2,7 @@
 //!
 //! # Overview
 //!
-//! The `arti-arti-client` crate aims to provide a safe, easy-to-use API for
+//! The `arti-client` crate aims to provide a safe, easy-to-use API for
 //! applications that want to use Tor network to anonymize their
 //! traffic.  It hides most of the underlying detail, letting other
 //! crates decide how exactly to use the Tor crate.

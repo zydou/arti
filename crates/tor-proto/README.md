@@ -11,7 +11,7 @@ Most people shouldn't use this crate directly,
 since its APIs are needlessly low-level for most purposes, and it is
 easy to misuse them in an insecure or privacy-violating way.
 
-Most people should use the [`tor-client`] crate instead.  This crate is
+Most people should use the [`arti-client`] crate instead.  This crate is
 of interest mainly for those that want to access the Tor protocols at
 a low level.
 
@@ -50,7 +50,7 @@ about some Tor relays, and expose their information via
 [`tor_linkspec::ChanTarget`] and [`tor_linkspec::CircTarget`].
 Currently, the [`tor-netdir`] crate is the easiest way to do so.
 
-For an example of this crate in action, see the [`tor-client`]
+For an example of this crate in action, see the [`arti-client`]
 library, or the `arti` CLI.
 
 ## Design notes

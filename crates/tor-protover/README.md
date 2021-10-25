@@ -32,7 +32,7 @@ themselves depend on one another.  (For example, [`tor-proto`]
 needs to know which variant of a subprotocol can be used with a
 given relay, whereas [`tor-netdoc`] needs to parse lists of
 subprotocol versions from directory documents.  Eventually,
-[`tor-client`] will need to check its own list of supported
+[`arti-client`] will need to check its own list of supported
 protocols against the required list in the consensus.)
 
 License: MIT OR Apache-2.0
