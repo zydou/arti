@@ -7,7 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, TorClientConfig};
-use tor_circmgr::{IsolationToken, TargetPort};
+use tor_circmgr::{IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::{ClientCirc, IpVersionPreference};
@@ -36,6 +36,8 @@ use tracing::{debug, error, info, warn};
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
+    /// Default isolation token for streams through this client.
+    client_isolation: IsolationToken,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -46,12 +48,12 @@ pub struct TorClient<R: Runtime> {
 }
 
 /// Preferences for how to route a stream over the Tor network.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConnectPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
     /// Id of the isolation group the connection should be part of
-    isolation_group: IsolationToken,
+    isolation_group: Option<IsolationToken>,
 }
 
 impl ConnectPrefs {
@@ -114,26 +116,17 @@ impl ConnectPrefs {
     /// Indicate which other connections might use the same circuit
     /// as this one.
     pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
-        self.isolation_group = isolation_group;
+        self.isolation_group = Some(isolation_group);
         self
     }
 
-    /// Return a u64 to describe which connections might use
+    /// Return a token to describe which connections might use
     /// the same circuit as this one.
-    fn isolation_group(&self) -> IsolationToken {
+    fn isolation_group(&self) -> Option<IsolationToken> {
         self.isolation_group
     }
 
     // TODO: Add some way to be IPFlexible, and require exit to support both.
-}
-
-impl Default for ConnectPrefs {
-    fn default() -> Self {
-        ConnectPrefs {
-            ip_ver_pref: Default::default(),
-            isolation_group: IsolationToken::no_isolation(),
-        }
-    }
 }
 
 impl<R: Runtime> TorClient<R> {
@@ -190,12 +183,33 @@ impl<R: Runtime> TorClient<R> {
             Arc::downgrade(&dirmgr),
         ))?;
 
+        let client_isolation = IsolationToken::new();
+
         Ok(TorClient {
             runtime,
+            client_isolation,
             circmgr,
             dirmgr,
             addrcfg: addr_cfg,
         })
+    }
+
+    /// Return a new isolated `TorClient` instance.
+    ///
+    /// The two `TorClient`s will share some internal state, but their
+    /// streams will haver share circuits with one another.
+    ///
+    /// Use this function when you want separate parts of your program to
+    /// each have a TorClient handle, but where you don't want their
+    /// activities to be linkable to one another over the Tor network.
+    ///
+    /// Calling this function is usually preferable to creating a
+    /// completely separate TorClient instance, since it can share its
+    /// internals with the existing `TorClient`.
+    pub fn isolated_client(&self) -> TorClient<R> {
+        let mut result = self.clone();
+        result.client_isolation = IsolationToken::new();
+        result
     }
 
     /// Launch an anonymized connection to the provided address and
@@ -303,9 +317,22 @@ impl<R: Runtime> TorClient<R> {
         flags: &ConnectPrefs,
     ) -> Result<Arc<ClientCirc>> {
         let dir = self.dirmgr.netdir();
+
+        let isolation = {
+            let mut b = StreamIsolationBuilder::new();
+            // Always consider our client_isolation.
+            b.owner_token(self.client_isolation);
+            // Consider stream isolation too, if it's set.
+            if let Some(tok) = flags.isolation_group() {
+                b.stream_token(tok);
+            }
+            // Failure should be impossible with this builder.
+            b.build().expect("Failed to construct StreamIsolation")
+        };
+
         let circ = self
             .circmgr
-            .get_or_launch_exit(dir.as_ref().into(), exit_ports, flags.isolation_group())
+            .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
             .await
             .map_err(|_| Error::Internal("Unable to launch circuit"))?;
         drop(dir); // This decreases the refcount on the netdir.
