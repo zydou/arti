@@ -17,6 +17,7 @@ use std::{
 
 use futures::Future;
 
+use std::collections::HashSet;
 use tor_rtcompat::SleepProvider;
 
 /// A dummy [`SleepProvider`] instance for testing.
@@ -43,6 +44,19 @@ struct SleepSchedule {
     wallclock: SystemTime,
     /// Priority queue of events, in the order that we should wake them.
     sleepers: BinaryHeap<SleepEntry>,
+    /// If the mock time system is being driven by a `WaitFor`, holds a `Waker` to wake up that
+    /// `WaitFor` in order for it to make more progress.
+    waitfor_waker: Option<Waker>,
+    /// Number of sleepers instantiated.
+    sleepers_made: usize,
+    /// Number of sleepers polled.
+    sleepers_polled: usize,
+    /// Whether an advance is needed.
+    should_advance: bool,
+    /// A set of reasons why advances shouldn't be allowed right now.
+    blocked_advance: HashSet<String>,
+    /// A time up to which advances are allowed, irrespective of them being blocked.
+    allowed_advance: Duration,
 }
 
 /// An entry telling us when to wake which future up.
@@ -72,6 +86,12 @@ impl MockSleepProvider {
             instant,
             wallclock,
             sleepers,
+            waitfor_waker: None,
+            sleepers_made: 0,
+            sleepers_polled: 0,
+            should_advance: false,
+            blocked_advance: HashSet::new(),
+            allowed_advance: Duration::from_nanos(0),
         };
         MockSleepProvider {
             state: Arc::new(Mutex::new(state)),
@@ -133,6 +153,96 @@ impl MockSleepProvider {
             .peek()
             .map(|sleepent| sleepent.when.saturating_duration_since(now))
     }
+
+    /// Return true if a `WaitFor` driving this sleep provider should advance time in order for
+    /// futures blocked on sleeping to make progress.
+    ///
+    /// NOTE: This function has side-effects; if it returns true, the caller is expected to do an
+    /// advance before calling it again.
+    pub(crate) fn should_advance(&mut self) -> bool {
+        let mut state = self.state.lock().expect("Poisoned lock for state");
+        if !state.blocked_advance.is_empty() && state.allowed_advance == Duration::from_nanos(0) {
+            // We've had advances blocked, and don't have any quota for doing allowances while
+            // blocked left.
+            eprintln!(
+                "should_advance = false: blocked by {:?}",
+                state.blocked_advance
+            );
+            return false;
+        }
+        if !state.should_advance {
+            // The advance flag wasn't set.
+            eprintln!("should_advance = false; bit not previously set");
+            return false;
+        }
+        // Clear the advance flag; we'll either return true and cause an advance to happen,
+        // or the reasons to return false below also imply that the advance flag will be set again
+        // later on.
+        state.should_advance = false;
+        if state.sleepers_polled < state.sleepers_made {
+            // Something did set the advance flag before, but it's not valid any more now because
+            // more unpolled sleepers were created.
+            eprintln!("should_advance = false; advancing no longer valid");
+            return false;
+        }
+        if !state.blocked_advance.is_empty() && state.allowed_advance > Duration::from_nanos(0) {
+            // If we're here, we would've returned earlier due to having advances blocked, but
+            // we have quota to advance up to a certain time while advances are blocked.
+            // Let's see when the next timeout is, and whether it falls within that quota.
+            let next_timeout = {
+                let now = state.instant;
+                state
+                    .sleepers
+                    .peek()
+                    .map(|sleepent| sleepent.when.saturating_duration_since(now))
+            };
+            if next_timeout.is_none() {
+                // There's no timeout set, so we really shouldn't be here anyway.
+                eprintln!("should_advance = false; allow_one set but no timeout yet");
+                return false;
+            }
+            let next_timeout = next_timeout.unwrap();
+            if next_timeout <= state.allowed_advance {
+                // We can advance up to the next timeout, since it's in our quota.
+                // Subtract the amount we're going to advance by from said quota.
+                state.allowed_advance -= next_timeout;
+                eprintln!(
+                    "WARNING: allowing advance due to allow_one; new allowed is {:?}",
+                    state.allowed_advance
+                );
+            } else {
+                // The next timeout is too far in the future.
+                eprintln!(
+                    "should_advance = false; allow_one set but only up to {:?}, next is {:?}",
+                    state.allowed_advance, next_timeout
+                );
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Register a `Waker` to be woken up when an advance in time is required to make progress.
+    ///
+    /// This is used by `WaitFor`.
+    pub(crate) fn register_waitfor_waker(&mut self, waker: Waker) {
+        let mut state = self.state.lock().expect("Poisoned lock for state");
+        state.waitfor_waker = Some(waker);
+    }
+
+    /// Remove a previously registered `Waker` registered with `register_waitfor_waker()`.
+    pub(crate) fn clear_waitfor_waker(&mut self) {
+        let mut state = self.state.lock().expect("Poisoned lock for state");
+        state.waitfor_waker = None;
+    }
+
+    /// Returns true if a `Waker` has been registered with `register_waitfor_waker()`.
+    ///
+    /// This is used to ensure that you don't have two concurrent `WaitFor`s running.
+    pub(crate) fn has_waitfor_waker(&self) -> bool {
+        let state = self.state.lock().expect("Poisoned lock for state");
+        state.waitfor_waker.is_some()
+    }
 }
 
 impl SleepSchedule {
@@ -155,18 +265,76 @@ impl SleepSchedule {
     fn push(&mut self, ent: SleepEntry) {
         self.sleepers.push(ent);
     }
+
+    /// If all sleepers made have been polled, set the advance flag and wake up any `WaitFor` that
+    /// might be waiting.
+    fn maybe_advance(&mut self) {
+        if self.sleepers_polled >= self.sleepers_made {
+            if let Some(ref waker) = self.waitfor_waker {
+                eprintln!("setting advance flag");
+                self.should_advance = true;
+                waker.wake_by_ref();
+            } else {
+                eprintln!("would advance, but no waker");
+            }
+        }
+    }
+
+    /// Register a sleeper as having been polled, and advance if necessary.
+    fn increment_poll_count(&mut self) {
+        self.sleepers_polled += 1;
+        eprintln!(
+            "sleeper polled, {}/{}",
+            self.sleepers_polled, self.sleepers_made
+        );
+        self.maybe_advance();
+    }
 }
 
 impl SleepProvider for MockSleepProvider {
     type SleepFuture = Sleeping;
     fn sleep(&self, duration: Duration) -> Self::SleepFuture {
-        let when = self.state.lock().expect("Poisoned lock for state").instant + duration;
+        let mut provider = self.state.lock().expect("Poisoned lock for state");
+        let when = provider.instant + duration;
+        // We're making a new sleeper, so register this in the state.
+        provider.sleepers_made += 1;
+        eprintln!(
+            "sleeper made for {:?}, {}/{}",
+            duration, provider.sleepers_polled, provider.sleepers_made
+        );
 
         Sleeping {
             when,
             inserted: false,
             provider: Arc::downgrade(&self.state),
         }
+    }
+
+    fn block_advance<T: Into<String>>(&self, reason: T) {
+        let mut provider = self.state.lock().expect("Poisoned lock for state");
+        let reason = reason.into();
+        eprintln!("advancing blocked: {}", reason);
+        provider.blocked_advance.insert(reason);
+    }
+
+    fn release_advance<T: Into<String>>(&self, reason: T) {
+        let mut provider = self.state.lock().expect("Poisoned lock for state");
+        let reason = reason.into();
+        eprintln!("advancing released: {}", reason);
+        provider.blocked_advance.remove(&reason);
+        if provider.blocked_advance.is_empty() {
+            provider.maybe_advance();
+        }
+    }
+
+    fn allow_one_advance(&self, dur: Duration) {
+        let mut provider = self.state.lock().expect("Poisoned lock for state");
+        provider.allowed_advance = Duration::max(provider.allowed_advance, dur);
+        println!(
+            "** allow_one_advance fired; may advance up to {:?} **",
+            provider.allowed_advance
+        );
+        provider.maybe_advance();
     }
 
     fn now(&self) -> Instant {
@@ -198,6 +366,21 @@ impl Ord for SleepEntry {
     }
 }
 
+impl Drop for Sleeping {
+    fn drop(&mut self) {
+        if let Some(provider) = Weak::upgrade(&self.provider) {
+            let mut provider = provider.lock().expect("Poisoned lock for provider");
+            if !self.inserted {
+                // A sleeper being dropped will never be polled, so there's no point waiting;
+                // act as if it's been polled in order to avoid waiting forever.
+                eprintln!("sleeper dropped, incrementing count");
+                provider.increment_poll_count();
+                self.inserted = true;
+            }
+        }
+    }
+}
+
 impl Future for Sleeping {
     type Output = ();
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
@@ -206,6 +389,20 @@ impl Future for Sleeping {
             let now = provider.instant;
 
             if now >= self.when {
+                // The sleep time's elapsed.
+                if !self.inserted {
+                    // If we never registered this sleeper as being polled, do so now.
+                    provider.increment_poll_count();
+                    self.inserted = true;
+                }
+                if !provider.should_advance {
+                    // The first advance during a `WaitFor` gets triggered by all sleepers that
+                    // have been created being polled.
+                    // However, this only happens once.
+                    // What we do to get around this is have sleepers that return Ready kick off
+                    // another advance, in order to wake the next waiting sleeper.
+                    provider.maybe_advance();
+                }
                 return Poll::Ready(());
             }
             // dbg!("sleep check with", self.when-now);
@@ -218,6 +415,8 @@ impl Future for Sleeping {
 
                 provider.push(entry);
                 self.inserted = true;
+                // Register this sleeper as having been polled.
+                provider.increment_poll_count();
             }
             // dbg!(provider.sleepers.len());
         }

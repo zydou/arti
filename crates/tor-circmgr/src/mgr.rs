@@ -112,6 +112,15 @@ pub(crate) trait AbstractCirc: Debug {
     fn usable(&self) -> bool;
 }
 
+/// A plan for an `AbstractCircBuilder` that can maybe be mutated by tests.
+///
+/// You should implement this trait using all default methods for all code that isn't test code.
+pub(crate) trait MockablePlan {
+    /// Add a reason string that was passed to `SleepProvider::block_advance()` to this object
+    /// so that it knows what to pass to `::release_advance()`.
+    fn add_blocked_advance_reason(&mut self, _reason: String) {}
+}
+
 /// An object that knows how to build circuits.
 ///
 /// AbstractCircBuilder creates circuits in two phases.  First, a plan is
@@ -133,7 +142,9 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     // TODO: It would be nice to have this parameterized on a lifetime,
     // and have that lifetime depend on the lifetime of the directory.
     // But I don't think that rust can do that.
-    type Plan: Send;
+
+    // HACK(eta): I don't like the fact that `MockablePlan` is necessary here.
+    type Plan: Send + MockablePlan;
 
     // TODO: I'd like to have a Dir type here to represent
     // create::DirInfo, but that would need to be parameterized too,
@@ -816,7 +827,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     ) -> std::result::Result<Arc<B::Circ>, RetryError<Box<Error>>> {
         // Get or make a stream of futures to wait on.
         let wait_on_stream = match act {
-            Action::Open(c) => return Ok(c),
+            Action::Open(c) => {
+                return Ok(c);
+            }
             Action::Wait(f) => f,
             Action::Build(plans) => {
                 let futures = FuturesUnordered::new();
@@ -963,7 +976,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     ) -> Shared<oneshot::Receiver<PendResult<B>>> {
         let _ = usage; // Currently unused.
         let CircBuildPlan {
-            plan,
+            mut plan,
             sender,
             pending,
         } = plan;
@@ -972,9 +985,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let runtime = self.runtime.clone();
         let runtime_copy = self.runtime.clone();
 
+        let tid = rand::random::<u64>();
+        // We release this block when the circuit builder task terminates.
+        let reason = format!("circuit builder task {}", tid);
+        runtime.block_advance(reason.clone());
+        // During tests, the `FakeBuilder` will need to release the block in order to fake a timeout
+        // correctly.
+        plan.add_blocked_advance_reason(reason);
+
         runtime
             .spawn(async move {
                 let outcome = self.builder.build_circuit(plan).await;
+
                 let (new_spec, reply) = match outcome {
                     Err(e) => (None, Err(e)),
                     Ok((new_spec, circ)) => {
@@ -1014,7 +1036,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // specifically intended for a request a little more time
                     // to finish, before we offer it this circuit instead.
                     let briefly = self.request_timing.request_loyalty;
-                    runtime_copy.sleep(briefly).await;
+                    let sl = runtime_copy.sleep(briefly);
+                    runtime_copy.allow_one_advance(briefly);
+                    sl.await;
 
                     let pending = {
                         let list = self.circs.lock().expect("poisoned lock");
@@ -1024,6 +1048,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         let _ = pending_request.notify.clone().try_send(reply.clone());
                     }
                 }
+                runtime_copy.release_advance(format!("circuit builder task {}", tid));
             })
             .expect("Couldn't spawn circuit-building task");
 
@@ -1210,8 +1235,17 @@ mod test {
         Fail,
         Delay(Duration),
         Timeout,
+        TimeoutReleaseAdvance(String),
         NoPlan,
         WrongSpec(FakeSpec),
+    }
+
+    impl MockablePlan for FakePlan {
+        fn add_blocked_advance_reason(&mut self, reason: String) {
+            if let FakeOp::Timeout = self.op {
+                self.op = FakeOp::TimeoutReleaseAdvance(reason);
+            }
+        }
     }
 
     const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
@@ -1242,16 +1276,23 @@ mod test {
 
         async fn build_circuit(&self, plan: FakePlan) -> Result<(FakeSpec, Arc<FakeCirc>)> {
             let op = plan.op;
-            self.runtime.sleep(FAKE_CIRC_DELAY).await;
+            let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
+            self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
+            sl.await;
             match op {
                 FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
                 FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
                 FakeOp::Fail => Err(Error::PendingFailed),
                 FakeOp::Delay(d) => {
-                    self.runtime.sleep(d).await;
+                    let sl = self.runtime.sleep(d);
+                    self.runtime.allow_one_advance(d);
+                    sl.await;
                     Err(Error::PendingFailed)
                 }
-                FakeOp::Timeout => {
+                FakeOp::Timeout => unreachable!(), // should be converted to the below
+                FakeOp::TimeoutReleaseAdvance(reason) => {
+                    eprintln!("releasing advance to fake a timeout");
+                    self.runtime.release_advance(reason);
                     let () = futures::future::pending().await;
                     unreachable!()
                 }
@@ -1513,6 +1554,9 @@ mod test {
                 RequestTiming::default(),
                 CircuitTiming::default(),
             ));
+
+            // This test doesn't exercise any timeout behaviour.
+            rt.block_advance("test doesn't require advancing");
 
             let (c1, c2) = rt
                 .wait_for(futures::future::join(
