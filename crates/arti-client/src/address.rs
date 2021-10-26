@@ -213,6 +213,13 @@ impl IntoTorAddr for String {
     }
 }
 
+impl FromStr for TorAddr {
+    type Err = TorAddrError;
+    fn from_str(s: &str) -> Result<Self, TorAddrError> {
+        s.into_tor_addr()
+    }
+}
+
 impl IntoTorAddr for (&str, u16) {
     fn into_tor_addr(self) -> Result<TorAddr, TorAddrError> {
         let (host, port) = self;
@@ -330,23 +337,34 @@ mod test {
 
     #[test]
     fn validate_addr() {
-        fn ok<A: IntoTorAddr>(addr: A) -> bool {
-            if let Ok(toraddr) = addr.into_tor_addr() {
-                toraddr.enforce_config(&Default::default()).is_ok()
-            } else {
-                false
-            }
+        use crate::Error;
+        fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, Error> {
+            let toraddr = addr.into_tor_addr()?;
+            toraddr.enforce_config(&Default::default())?;
+            Ok(toraddr)
         }
 
-        assert!(ok("[2001:db8::42]:20"));
-        assert!(ok(("2001:db8::42", 20)));
-        assert!(ok(("198.151.100.42", 443)));
-        assert!(ok("198.151.100.42:443"));
-        assert!(ok("www.torproject.org:443"));
-        assert!(ok(("www.torproject.org", 443)));
+        assert!(val("[2001:db8::42]:20").is_ok());
+        assert!(val(("2001:db8::42", 20)).is_ok());
+        assert!(val(("198.151.100.42", 443)).is_ok());
+        assert!(val("198.151.100.42:443").is_ok());
+        assert!(val("www.torproject.org:443").is_ok());
+        assert!(val(("www.torproject.org", 443)).is_ok());
 
-        assert!(!ok("-foobar.net:443"));
-        assert!(!ok("www.torproject.org"));
+        assert!(matches!(
+            val("-foobar.net:443"),
+            Err(Error::InvalidHostname)
+        ));
+        assert!(matches!(
+            val("www.torproject.org"),
+            Err(Error::Address(TorAddrError::NoPort))
+        ));
+
+        assert!(matches!(val("192.168.0.1:80"), Err(Error::LocalAddress)));
+        assert!(matches!(
+            val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443"),
+            Err(Error::OnionAddressNotSupported)
+        ));
     }
 
     #[test]
@@ -363,5 +381,78 @@ mod test {
         assert!(is_local_hostname("192.168.0.1"));
 
         assert!(!is_local_hostname("www.example.com"));
+    }
+
+    #[test]
+    fn is_ip_address() {
+        fn ip(s: &str) -> bool {
+            TorAddr::from(s).unwrap().is_ip_address()
+        }
+
+        assert!(ip("192.168.0.1:80"));
+        assert!(ip("[::1]:80"));
+        assert!(ip("[2001:db8::42]:65535"));
+        assert!(!ip("example.com:80"));
+        assert!(!ip("example.onion:80"));
+    }
+
+    #[test]
+    fn string_and_port() {
+        fn sap(s: &str) -> (String, u16) {
+            TorAddr::from(s).unwrap().into_string_and_port()
+        }
+
+        assert_eq!(
+            sap("[2001:db8::42]:9001"),
+            ("2001:db8::42".to_owned(), 9001)
+        );
+        assert_eq!(sap("example.com:80"), ("example.com".to_owned(), 80));
+    }
+
+    #[test]
+    fn convert_safe() {
+        fn check<A: IntoTorAddr>(a: A, s: &str) {
+            let a1 = TorAddr::from(a).unwrap();
+            let a2 = s.parse().unwrap();
+            assert_eq!(a1, a2);
+            assert_eq!(&a1.to_string(), s);
+        }
+
+        check(("www.example.com", 8000), "www.example.com:8000");
+        check(
+            TorAddr::from(("www.example.com", 8000)).unwrap(),
+            "www.example.com:8000",
+        );
+        check(
+            &TorAddr::from(("www.example.com", 8000)).unwrap(),
+            "www.example.com:8000",
+        );
+        check("[2001:db8::0042]:9001".to_owned(), "[2001:db8::42]:9001");
+        check(("2001:db8::0042".to_owned(), 9001), "[2001:db8::42]:9001");
+    }
+
+    #[test]
+    fn convert_dangerous() {
+        fn check<A: DangerouslyIntoTorAddr>(a: A, s: &str) {
+            let a1 = TorAddr::dangerously_from(a).unwrap();
+            let a2 = TorAddr::from(s).unwrap();
+            assert_eq!(a1, a2);
+            assert_eq!(&a1.to_string(), s);
+        }
+
+        let ip: IpAddr = "203.0.133.6".parse().unwrap();
+        let ip4: Ipv4Addr = "203.0.133.7".parse().unwrap();
+        let ip6: Ipv6Addr = "2001:db8::42".parse().unwrap();
+        let sa: SocketAddr = "203.0.133.8:80".parse().unwrap();
+        let sa4: SocketAddrV4 = "203.0.133.8:81".parse().unwrap();
+        let sa6: SocketAddrV6 = "[2001:db8::43]:82".parse().unwrap();
+
+        check(&(ip, 443), "203.0.133.6:443");
+        check((ip, 443), "203.0.133.6:443");
+        check((ip4, 444), "203.0.133.7:444");
+        check((ip6, 445), "[2001:db8::42]:445");
+        check(sa, "203.0.133.8:80");
+        check(sa4, "203.0.133.8:81");
+        check(sa6, "[2001:db8::43]:82");
     }
 }
