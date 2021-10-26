@@ -68,9 +68,10 @@ impl<R: Runtime> MockSleepRuntime<R> {
     /// Panics if another `WaitFor` future is already running. (If two ran simultaneously, they
     /// would both try and advance the same mock time clock, which would be bad.)
     pub fn wait_for<F: futures::Future>(&self, fut: F) -> WaitFor<F> {
-        if self.sleep.has_waitfor_waker() {
-            panic!("attempted to call MockSleepRuntime::wait_for while another WaitFor is active");
-        }
+        assert!(
+            !self.sleep.has_waitfor_waker(),
+            "attempted to call MockSleepRuntime::wait_for while another WaitFor is active"
+        );
         WaitFor {
             sleep: self.sleep.clone(),
             fut,

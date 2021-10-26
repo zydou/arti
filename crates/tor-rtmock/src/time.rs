@@ -196,12 +196,14 @@ impl MockSleepProvider {
                     .peek()
                     .map(|sleepent| sleepent.when.saturating_duration_since(now))
             };
-            if next_timeout.is_none() {
-                // There's no timeout set, so we really shouldn't be here anyway.
-                eprintln!("should_advance = false; allow_one set but no timeout yet");
-                return false;
-            }
-            let next_timeout = next_timeout.unwrap();
+            let next_timeout = match next_timeout {
+                Some(x) => x,
+                None => {
+                    // There's no timeout set, so we really shouldn't be here anyway.
+                    eprintln!("should_advance = false; allow_one set but no timeout yet");
+                    return false;
+                }
+            };
             if next_timeout <= state.allowed_advance {
                 // We can advance up to the next timeout, since it's in our quota.
                 // Subtract the amount we're going to advance by from said quota.

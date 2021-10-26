@@ -264,9 +264,8 @@ mod edcert {
 
     impl super::FromBytes for UnvalidatedEdCert {
         fn from_bytes(b: &[u8], p: Pos) -> Result<Self> {
-            let cert = Ed25519Cert::decode(b).map_err(|e| {
-                Error::BadObjectVal(p, format!("Bad certificate: {}", e.to_string()))
-            })?;
+            let cert = Ed25519Cert::decode(b)
+                .map_err(|e| Error::BadObjectVal(p, format!("Bad certificate: {}", e)))?;
             Ok(Self(cert, p))
         }
         fn from_vec(v: Vec<u8>, p: Pos) -> Result<Self> {

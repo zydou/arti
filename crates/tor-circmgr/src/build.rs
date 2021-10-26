@@ -448,6 +448,7 @@ mod test {
         }
 
         test_with_all_runtimes!(|rto| async move {
+            #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that's ready immediately.
@@ -456,6 +457,7 @@ mod test {
             assert_eq!(x.unwrap(), 3_u32);
 
             eprintln!("acquiesce after test1");
+            #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that's ready after a short delay.
@@ -482,6 +484,7 @@ mod test {
             assert_eq!(x.unwrap(), 4_u32);
 
             eprintln!("acquiesce after test2");
+            #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that passes the first timeout, and make sure that
@@ -511,6 +514,7 @@ mod test {
             assert_eq!(waited, Ok(()));
 
             eprintln!("acquiesce after test3");
+            #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
             // Try a future that times out and gets abandoned.
