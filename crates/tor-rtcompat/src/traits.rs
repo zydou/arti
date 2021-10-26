@@ -75,14 +75,23 @@ pub trait SleepProvider {
     /// on another thread.
     ///
     /// Call `release_advance` with the same reason string in order to unblock.
+    ///
+    /// This method is only for testing: it should never have any
+    /// effect when invoked on non-testing runtimes.
     fn block_advance<T: Into<String>>(&self, _reason: T) {}
 
     /// Signify that the reason to withhold time advancing provided in a call to `block_advance` no
     /// longer exists, and it's fine to move time forward if nothing else is blocking advances.
+    ///
+    /// This method is only for testing: it should never have any
+    /// effect when invoked on non-testing runtimes.
     fn release_advance<T: Into<String>>(&self, _reason: T) {}
 
     /// Allow a test running under mock time to advance time by the provided duration, even if the
     /// above `block_advance` API has been used.
+    ///
+    /// This method is only for testing: it should never have any
+    /// effect when invoked on non-testing runtimes.
     fn allow_one_advance(&self, _dur: Duration) {}
 }
 
