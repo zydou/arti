@@ -1436,6 +1436,13 @@ mod test {
                 .await;
 
             assert!(matches!(c1, Err(Error::RequestFailed(_))));
+        });
+    }
+
+    #[test]
+    fn request_timeout2() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let rt = MockSleepRuntime::new(rt);
 
             // Now try a more complicated case: we'll try to get things so
             // that we wait for a little over our predicted time because
