@@ -63,9 +63,3 @@ impl From<futures::task::SpawnError> for Error {
         Error::Internal("Couldn't spawn channel reactor")
     }
 }
-
-impl From<std::net::AddrParseError> for Error {
-    fn from(_: std::net::AddrParseError) -> Error {
-        Error::Internal("Couldn't parse IP address")
-    }
-}

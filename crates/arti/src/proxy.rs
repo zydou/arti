@@ -249,7 +249,19 @@ where
         SocksCmd::RESOLVE_PTR => {
             // We've been asked to perform a reverse hostname lookup.
             // (This is a tor-specific SOCKS extension.)
-            let hosts = tor_client.resolve_ptr(&addr, Some(prefs)).await?;
+            let addr: IpAddr = match addr.parse() {
+                Ok(ip) => ip,
+                Err(e) => {
+                    let reply =
+                        request.reply(tor_socksproto::SocksStatus::ADDRTYPE_NOT_SUPPORTED, None);
+                    socks_w
+                        .write(&reply[..])
+                        .await
+                        .context("Couldn't write SOCKS reply")?;
+                    return Err(anyhow!(e));
+                }
+            };
+            let hosts = tor_client.resolve_ptr(addr, Some(prefs)).await?;
             if let Some(host) = hosts.into_iter().next() {
                 let reply = request.reply(
                     tor_socksproto::SocksStatus::SUCCEEDED,

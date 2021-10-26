@@ -18,7 +18,6 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
-use std::str::FromStr;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
@@ -272,12 +271,11 @@ impl<R: Runtime> TorClient<R> {
     /// On success, return a list of hostnames.
     pub async fn resolve_ptr(
         &self,
-        addr: &str,
+        addr: IpAddr,
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<String>> {
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
-        let addr = IpAddr::from_str(addr)?;
 
         // TODO: make this configurable.
         let resolve_ptr_timeout = Duration::new(10, 0);
