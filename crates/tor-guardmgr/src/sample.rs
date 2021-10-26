@@ -565,7 +565,7 @@ impl GuardSet {
     pub(crate) fn record_failure(&mut self, guard_id: &GuardId, now: Instant) {
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
-        if let Some(guard) = (&mut self.guards).get_mut(guard_id) {
+        if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.record_failure(now, is_primary);
         }
     }
@@ -573,7 +573,7 @@ impl GuardSet {
     /// Record that an attempt to use the guard with `guard_id` has
     /// just been abandoned, without learning whether it succeeded or failed.
     pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &GuardId) {
-        if let Some(guard) = (&mut self.guards).get_mut(guard_id) {
+        if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.note_exploratory_circ(false)
         }
     }
@@ -582,7 +582,7 @@ impl GuardSet {
     /// just failed in a way that we could not definitively attribute to
     /// the guard.
     pub(crate) fn record_indeterminate_result(&mut self, guard_id: &GuardId) {
-        if let Some(guard) = (&mut self.guards).get_mut(guard_id) {
+        if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.note_exploratory_circ(false);
             guard.record_indeterminate_result();
         }
