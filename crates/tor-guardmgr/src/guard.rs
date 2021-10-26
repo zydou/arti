@@ -7,7 +7,7 @@ use tor_netdir::{NetDir, Relay, RelayWeight};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::util::randomize_time;
 use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
@@ -95,6 +95,13 @@ pub(crate) struct Guard {
     /// What version of this crate added this guard to our sample?
     added_by: Option<CrateId>,
 
+    /// If present, this guard is permanently disabled, and this
+    /// object tells us why.
+    // TODO: Wrap this in some kind of a future-proofing wrapper so that
+    // we can safely add more variants to GuardDisabled.
+    #[serde(default)]
+    disabled: Option<GuardDisabled>,
+
     /// When, approximately, did we first successfully use this guard?
     ///
     /// (We call a guard "confirmed" if we have successfully used it at
@@ -108,7 +115,7 @@ pub(crate) struct Guard {
     /// A guard counts as "unlisted" if it is absent, unusable, or
     /// doesn't have the Guard flag.
     #[serde(with = "humantime_serde")]
-    unlisted_since: Option<SystemTime>, // is_listed derived from this.
+    unlisted_since: Option<SystemTime>,
 
     /// When did we last give out this guard in response to a request?
     #[serde(skip)]
@@ -143,6 +150,16 @@ pub(crate) struct Guard {
     // circuits?
     #[serde(skip)]
     exploratory_circ_pending: bool,
+
+    /// A count of all the circuit statuses we've seen on this guard.
+    ///
+    /// Used to implement a lightweight version of path-bias detection.
+    #[serde(skip)]
+    circ_history: CircHistory,
+
+    /// True if we have warned about this guard behaving suspiciously.
+    #[serde(skip)]
+    suspicious_behavior_warned: bool,
     // TODO Do we need a HashMap to represent additional fields? I
     // think we may.
 }
@@ -179,6 +196,7 @@ impl Guard {
             orports,
             added_at,
             added_by: CrateId::this_crate(),
+            disabled: None,
 
             confirmed_at: None,
             unlisted_since: None,
@@ -188,6 +206,8 @@ impl Guard {
             retry_at: None,
             is_dir_cache: true,
             exploratory_circ_pending: false,
+            circ_history: CircHistory::default(),
+            suspicious_behavior_warned: false,
         }
     }
 
@@ -201,9 +221,10 @@ impl Guard {
         self.reachable
     }
 
-    /// Return true if this guard is listed in the latest NetDir.
+    /// Return true if this guard is listed in the latest NetDir, and hasn't
+    /// been turned off for some other reason.
     pub(crate) fn usable(&self) -> bool {
-        self.unlisted_since.is_none()
+        self.unlisted_since.is_none() && self.disabled.is_none()
     }
 
     /// Copy all _non-persistent_ status from `other` to self.
@@ -362,6 +383,11 @@ impl Guard {
                 false
             }
         }
+        if self.disabled.is_some() {
+            // We never forget a guard that we've disabled: we've disabled
+            // it for a reason.
+            return false;
+        }
         if let Some(confirmed_at) = self.confirmed_at {
             if expired_by(confirmed_at, params.lifetime_confirmed, now) {
                 return true;
@@ -395,6 +421,8 @@ impl Guard {
 
         // TODO-SPEC: Oughtn't we randomize this?
         self.retry_at = Some(connect_attempt + retry_interval);
+
+        self.circ_history.n_failures += 1;
     }
 
     /// Note that we have launch an attempted use of this guard.
@@ -434,6 +462,7 @@ impl Guard {
         self.retry_at = None;
         self.set_reachable(Reachable::Reachable);
         self.exploratory_circ_pending = false;
+        self.circ_history.n_successes += 1;
 
         if self.confirmed_at.is_none() {
             self.confirmed_at = Some(
@@ -450,6 +479,36 @@ impl Guard {
             NewlyConfirmed::Yes
         } else {
             NewlyConfirmed::No
+        }
+    }
+
+    /// Note that a cicuit through this guard died in a way that we couldn't
+    /// necessarily attribute to the guard.
+    pub(crate) fn record_indeterminate_result(&mut self) {
+        self.circ_history.n_indeterminate += 1;
+
+        if let Some(ratio) = self.circ_history.indeterminate_ratio() {
+            // TODO: These should not be hardwired, and they may be set
+            // too high.
+            /// If this fraction of circs are suspcious, we should disable
+            /// the guard.
+            const DISABLE_THRESHOLD: f64 = 0.7;
+            /// If this fractino of circuits are suspicious, we should
+            /// warn.
+            const WARN_THRESHOLD: f64 = 0.5;
+
+            if ratio > DISABLE_THRESHOLD {
+                let reason = GuardDisabled::TooManyIndeterminateFailures {
+                    history: self.circ_history.clone(),
+                    failure_ratio: ratio,
+                    threshold_ratio: DISABLE_THRESHOLD,
+                };
+                warn!(guard=?self.id, "Disabling guard: {:.1}% of circuits died under mysterious circumstances, exceeding threshold of {:.1}%", ratio*100.0, (DISABLE_THRESHOLD*100.0));
+                self.disabled = Some(reason);
+            } else if ratio > WARN_THRESHOLD && !self.suspicious_behavior_warned {
+                warn!(guard=?self.id, "Questionable guard: {:.1}% of circuits died under mysterious circumstances.", ratio*100.0);
+                self.suspicious_behavior_warned = true;
+            }
         }
     }
 
@@ -480,6 +539,21 @@ impl tor_linkspec::ChanTarget for Guard {
     fn rsa_identity(&self) -> &RsaIdentity {
         &self.id.rsa
     }
+}
+
+/// A reason for permanently disabling a guard.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum GuardDisabled {
+    /// Too many attempts to use this guard failed for indeterminate reasons.
+    TooManyIndeterminateFailures {
+        /// Observed count of status reports about this guard.
+        history: CircHistory,
+        /// Observed fraction of indeterminate status reports.
+        failure_ratio: f64,
+        /// Threshold that was exceeded.
+        threshold_ratio: f64,
+    },
 }
 
 /// Return the interval after which we should retry a guard that has
@@ -517,6 +591,59 @@ fn retry_interval(is_primary: bool, failing: Duration) -> Duration {
         } else {
             36 * HOUR
         }
+    }
+}
+
+/// The recent history of circuit activity on this guard.
+///
+/// We keep this information so that we can tell if too many circuits are
+/// winding up in "indeterminate" status.
+///
+/// # What's this for?
+///
+/// Recall that an "indeterminate" circuit failure is one that might
+/// or might not be the guard's fault.  For example, if the second hop
+/// of the circuit fails, we can't tell whether to blame the guard,
+/// the second hop, or the internet between them.
+///
+/// But we don't want to allow an unbounded number of indeterminate
+/// failures: if we did, it would allow a malicious guard to simply
+/// reject any circuit whose second hop it didn't like, and thereby
+/// filter the client's paths down to a hostile subset.
+///
+/// So as a workaround, and to discourage this kind of behavior, we
+/// track the fraction of indeterminate circuits, and disable any guard
+/// where the fraction is too high.
+//
+// TODO: We may eventually want to make this structure persistent.  If we
+// do, however, we'll need a way to make ancient history expire.  We might
+// want that anyway, to make attacks harder.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct CircHistory {
+    /// How many times have we seen this guard succeed?
+    n_successes: u32,
+    /// How many times have we seen this guard fail?
+    #[allow(dead_code)] // not actually used yet.
+    n_failures: u32,
+    /// How many times has this guard given us indeterminate results?
+    n_indeterminate: u32,
+}
+
+impl CircHistory {
+    /// If we hae seen enough, return the fraction of circuits that have
+    /// "died under mysterious circumstances".
+    fn indeterminate_ratio(&self) -> Option<f64> {
+        // TODO: This should probably not be hardwired
+
+        /// Don't try to give a ratio unless we've seen this many observations.
+        const MIN_OBSERVATIONS: u32 = 15;
+
+        let total = self.n_successes + self.n_indeterminate;
+        if total < MIN_OBSERVATIONS {
+            return None;
+        }
+
+        Some(f64::from(self.n_indeterminate) / f64::from(total))
     }
 }
 
@@ -812,5 +939,52 @@ mod test {
         assert!(!g.exploratory_circ_pending());
         assert!(!g.exploratory_attempt_after(t1));
         assert!(!g.exploratory_attempt_after(t3));
+    }
+
+    #[test]
+    fn circ_history() {
+        let mut h = CircHistory {
+            n_successes: 3,
+            n_failures: 4,
+            n_indeterminate: 3,
+        };
+        assert!(h.indeterminate_ratio().is_none());
+
+        h.n_successes = 20;
+        assert!((h.indeterminate_ratio().unwrap() - 3.0 / 23.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn disable_on_failure() {
+        let mut g = basic_guard();
+        let params = GuardParams::default();
+
+        let now = SystemTime::now();
+
+        let _ignore = g.record_success(now, &params);
+        for _ in 0..13 {
+            g.record_indeterminate_result();
+        }
+        // We're still under the observation threshold.
+        assert!(g.disabled.is_none());
+
+        // This crosses the threshold.
+        g.record_indeterminate_result();
+        assert!(g.disabled.is_some());
+
+        #[allow(unreachable_patterns)]
+        match g.disabled.unwrap() {
+            GuardDisabled::TooManyIndeterminateFailures {
+                history: _,
+                failure_ratio,
+                threshold_ratio,
+            } => {
+                assert!((failure_ratio - 0.933).abs() < 0.01);
+                assert!((threshold_ratio - 0.7).abs() < 0.01);
+            }
+            other => {
+                panic!("Wrong variant: {:?}", other);
+            }
+        }
     }
 }

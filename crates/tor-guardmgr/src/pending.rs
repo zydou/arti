@@ -102,6 +102,13 @@ pub struct GuardMonitor {
     id: RequestId,
     /// The status that we will report if this monitor is dropped now.
     pending_status: GuardStatus,
+    /// If set, we change `Indeterminate` to `AttemptAbandoned` before
+    /// reporting it to the guard manager.
+    ///
+    /// We do this when a failure to finish the circuit doesn't reflect
+    /// badly against the guard at all: typically, because the circuit's
+    /// path is not random.
+    ignore_indeterminate: bool,
     /// A sender that needs to get told when the attempt to use the guard is
     /// finished or abandoned.
     snd: Option<oneshot::Sender<daemon::Msg>>,
@@ -115,6 +122,7 @@ impl GuardMonitor {
             GuardMonitor {
                 id,
                 pending_status: GuardStatus::AttemptAbandoned,
+                ignore_indeterminate: false,
                 snd: Some(snd),
             },
             rcv,
@@ -145,7 +153,8 @@ impl GuardMonitor {
     /// or that we can't tell whether the guard is working.
     ///
     /// Dropping a `GuardMonitor` is without calling `succeeded` or
-    /// `failed` is equivalent to calling this function.
+    /// `failed` or `pending_status` is equivalent to calling this
+    /// function.
     pub fn attempt_abandoned(self) {
         self.report(GuardStatus::AttemptAbandoned);
     }
@@ -156,8 +165,26 @@ impl GuardMonitor {
         self.pending_status = status;
     }
 
+    /// Configure this monitor to ignore any indeterminate status
+    /// values, and treat them as abandoned attempts.
+    ///
+    /// We should use this whenever the path being built with this guard
+    /// is not randomly generated.
+    pub fn ignore_indeterminate_status(&mut self) {
+        self.ignore_indeterminate = true;
+    }
+
     /// Report a message for this guard.
     pub fn report(mut self, msg: GuardStatus) {
+        self.report_impl(msg);
+    }
+
+    /// As [`GuardMonitor::report`], but take a &mut reference.
+    fn report_impl(&mut self, msg: GuardStatus) {
+        let msg = match (msg, self.ignore_indeterminate) {
+            (GuardStatus::Indeterminate, true) => GuardStatus::AttemptAbandoned,
+            (m, _) => m,
+        };
         let _ignore = self
             .snd
             .take()
@@ -174,8 +201,8 @@ impl GuardMonitor {
 
 impl Drop for GuardMonitor {
     fn drop(&mut self) {
-        if let Some(snd) = self.snd.take() {
-            let _ignore = snd.send(daemon::Msg::Status(self.id, self.pending_status));
+        if self.snd.is_some() {
+            self.report_impl(self.pending_status);
         }
     }
 }
