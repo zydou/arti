@@ -45,53 +45,28 @@ pub use path::CfgPath;
 
 use std::path::{Path, PathBuf};
 
-/// Load a Config object based on a set of files and/or command-line
-/// arguments.
+/// Load configuration into an existing `Config` object from configuration files on disk (`files`),
+/// and/or command-line arguments (`opts`).
 ///
-/// The files should be toml; the command-line arguments have the extended
-/// syntax of [`CmdLine`].
+/// `files` should be a list of TOML config file paths to read, with the boolean specifying whether
+/// a failure to read this file should be an error or not.
 ///
-/// If `default_path` is present, and there is no list of files, then use a
-/// default file if it exists.
-//
-// XXXX Add an error type for this crate.
-pub fn load<'a, P1, C1, P2, C2>(
+/// `opts` are passed into a [`CmdLine`], and use the extended syntax of that mechanism.
+pub fn load<P: AsRef<Path>>(
     cfg: &mut config::Config,
-    default_path: &Option<P1>,
-    files: C1,
-    opts: C2,
-) -> Result<(), config::ConfigError>
-where
-    P1: AsRef<Path> + 'a,
-    C1: IntoIterator<Item = &'a P2>,
-    P2: AsRef<Path> + 'a,
-    C2: IntoIterator,
-    C2::Item: AsRef<str>,
-{
-    let mut search_path = Vec::new();
-    for f in files {
-        search_path.push(f.as_ref());
-    }
-    let mut missing_ok = false;
-    if search_path.is_empty() {
-        if let Some(f) = default_path {
-            // XXXX shouldn't be println, but no logs exist yet.
-            println!("looking for default configuration in {:?}", f.as_ref());
-            search_path.push(f.as_ref());
-            missing_ok = true;
-        }
-    }
-
-    for p in search_path {
+    files: &[(P, bool)],
+    opts: Vec<String>,
+) -> Result<(), config::ConfigError> {
+    for (path, required) in files {
         // Not going to use File::with_name here, since it doesn't
         // quite do what we want.
-        let f: config::File<_> = p.into();
-        cfg.merge(f.format(config::FileFormat::Toml).required(!missing_ok))?;
+        let f: config::File<_> = path.as_ref().into();
+        cfg.merge(f.format(config::FileFormat::Toml).required(*required))?;
     }
 
     let mut cmdline = CmdLine::new();
     for opt in opts {
-        cmdline.push_toml_line(opt.as_ref().to_string());
+        cmdline.push_toml_line(opt);
     }
     cfg.merge(cmdline)?;
 
@@ -116,16 +91,12 @@ friends = 4242
 ";
 
     #[test]
-    fn load_default() {
+    fn non_required_file() {
         let td = tempdir().unwrap();
         let dflt = td.path().join("a_file");
+        let files = vec![(dflt, false)];
         let mut c = config::Config::new();
-        let v: Vec<&'static str> = Vec::new();
-        std::fs::write(&dflt, EX_TOML).unwrap();
-        load(&mut c, &Some(dflt), &v, &v).unwrap();
-
-        assert_eq!(c.get_str("hello.friends").unwrap(), "4242".to_string());
-        assert_eq!(c.get_str("hello.world").unwrap(), "stuff".to_string());
+        load(&mut c, &files, Default::default()).unwrap();
     }
 
     static EX2_TOML: &str = "
@@ -134,16 +105,14 @@ world = \"nonsense\"
 ";
 
     #[test]
-    fn load_one_file() {
+    fn both_required_and_not() {
         let td = tempdir().unwrap();
         let dflt = td.path().join("a_file");
         let cf = td.path().join("other_file");
         let mut c = config::Config::new();
-        std::fs::write(&dflt, EX_TOML).unwrap();
         std::fs::write(&cf, EX2_TOML).unwrap();
-        let v = vec![cf];
-        let v2: Vec<&'static str> = Vec::new();
-        load(&mut c, &Some(dflt), &v, &v2).unwrap();
+        let files = vec![(dflt, false), (cf, true)];
+        load(&mut c, &files, Default::default()).unwrap();
 
         assert!(c.get_str("hello.friends").is_err());
         assert_eq!(c.get_str("hello.world").unwrap(), "nonsense".to_string());
@@ -157,10 +126,9 @@ world = \"nonsense\"
         let mut c = config::Config::new();
         std::fs::write(&cf1, EX_TOML).unwrap();
         std::fs::write(&cf2, EX2_TOML).unwrap();
-        let v = vec![cf1, cf2];
-        let v2 = vec!["other.var=present"];
-        let d: Option<String> = None;
-        load(&mut c, &d, &v, &v2).unwrap();
+        let v = vec![(cf1, true), (cf2, true)];
+        let v2 = vec!["other.var=present".to_string()];
+        load(&mut c, &v, v2).unwrap();
 
         assert_eq!(c.get_str("hello.friends").unwrap(), "4242".to_string());
         assert_eq!(c.get_str("hello.world").unwrap(), "nonsense".to_string());

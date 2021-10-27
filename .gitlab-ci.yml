@@ -78,7 +78,7 @@ integration:
     - ./chutney/chutney start chutney/networks/basic
     - CHUTNEY_START_TIME=180 ./chutney/chutney wait_for_bootstrap chutney/networks/basic
     - ./chutney/chutney verify chutney/networks/basic
-    - ./target/x86_64-unknown-linux-gnu/debug/arti -f chutney/net/nodes/arti.toml & sleep 5
+    - ./target/x86_64-unknown-linux-gnu/debug/arti proxy -c chutney/net/nodes/arti.toml & sleep 5
     - curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
     - kill -s INT %%; wait
     - ./chutney/chutney stop chutney/networks/basic

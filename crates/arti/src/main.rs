@@ -14,16 +14,15 @@
 //! It will listen on port 9150 by default, but you can override this in
 //! the configuration.
 //!
-//! # Command-line arguments
+//! # Command-line interface
 //!
 //! (This is not stable; future versions will break this.)
 //!
-//! `-f <filename>` overrides the location to search for a
-//! configuration file to the list of configuration file.  You can use
-//! this multiple times: All files will be loaded and merged.
+//! `arti` uses the [`clap`](https://docs.rs/clap/) crate for command-line
+//! argument parsing; run `arti help` to get it to print its documentation.
 //!
-//! `-c <key>=<value>` sets a configuration option to be applied after all
-//! configuration files are loaded.
+//! The only currently implemented subcommand is `arti proxy`; try
+//! `arti help proxy` for a list of options you can pass to it.
 //!
 //! # Configuration
 //!
@@ -99,27 +98,14 @@ use tor_config::CfgPath;
 use tor_rtcompat::{Runtime, SpawnBlocking};
 
 use anyhow::Result;
-use argh::FromArgs;
+use clap::{App, AppSettings, Arg, SubCommand};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use tracing::{info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, registry, EnvFilter};
-
-#[derive(FromArgs, Debug, Clone)]
-/// Connect to the Tor network, open a SOCKS port, and proxy
-/// traffic.
-///
-/// This is a demo; you get no stability guarantee.
-struct Args {
-    /// override the default location(s) for the configuration file
-    #[argh(option, short = 'f')]
-    rc: Vec<String>,
-    /// override a configuration option (uses toml syntax)
-    #[argh(option, short = 'c')]
-    cfg: Vec<String>,
-}
 
 /// Default options to use for our configuration.
 const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
@@ -131,7 +117,7 @@ struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
     ///
-    /// You can override this setting with the environment variable ARTI_LOG.
+    /// You can override this setting with the -l, --log-level command line parameter.
     ///
     /// Example: "info,tor_proto::channel=trace"
     trace_filter: String,
@@ -254,19 +240,15 @@ fn filt_from_str_verbose(s: &str, source: &str) -> EnvFilter {
 }
 
 /// Set up logging
-fn setup_logging(config: &ArtiConfig) {
-    use std::env;
-
-    let env_filter = match env::var("ARTI_LOG")
-        .as_ref()
-        .map(|s| filt_from_str_verbose(s, "ARTI_LOG environment variable"))
-    {
-        Ok(f) => f,
-        Err(_) => filt_from_str_verbose(
-            config.logging.trace_filter.as_str(),
-            "trace_filter configuration option",
-        ),
-    };
+fn setup_logging(config: &ArtiConfig, cli: Option<&str>) {
+    let env_filter =
+        match cli.map(|s| filt_from_str_verbose(s, "--log-level command line parameter")) {
+            Some(f) => f,
+            None => filt_from_str_verbose(
+                config.logging.trace_filter.as_str(),
+                "trace_filter configuration option",
+            ),
+        };
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
 
@@ -284,50 +266,135 @@ fn setup_logging(config: &ArtiConfig) {
 }
 
 fn main() -> Result<()> {
-    let args: Args = argh::from_env();
-    let dflt_config = tor_config::default_config_file();
+    let dflt_config = tor_config::default_config_file().unwrap_or_else(|| "./config.toml".into());
+
+    let matches =
+        App::new("Arti")
+            .version(env!("CARGO_PKG_VERSION"))
+            .author("The Tor Project Developers")
+            .about("A Rust Tor implementation.")
+            // HACK(eta): clap generates "arti [OPTIONS] <SUBCOMMAND>" for this usage string by
+            //            default, but then fails to parse options properly if you do put them
+            //            before the subcommand.
+            //            We just declare all options as `global` and then require them to be
+            //            put after the subcommand, hence this new usage string.
+            .usage("arti <SUBCOMMAND> [OPTIONS]")
+            .arg(
+                Arg::with_name("config-files")
+                    .short("c")
+                    .long("config")
+                    .takes_value(true)
+                    .value_name("FILE")
+                    .default_value_os(dflt_config.as_ref())
+                    .multiple(true)
+                    // NOTE: don't forget the `global` flag on all arguments declared at this level!
+                    .global(true)
+                    .help("Specify which config file(s) to read."),
+            )
+            .arg(
+                Arg::with_name("option")
+                    .short("o")
+                    .takes_value(true)
+                    .value_name("KEY=VALUE")
+                    .multiple(true)
+                    .global(true)
+                    .help("Override config file parameters, using TOML-like syntax."),
+            )
+            .arg(
+                Arg::with_name("loglevel")
+                    .short("l")
+                    .long("log-level")
+                    .global(true)
+                    .takes_value(true)
+                    .value_name("LEVEL")
+                    .help("Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error')."),
+            )
+            .subcommand(
+                SubCommand::with_name("proxy")
+                    .about(
+                        "Run Arti in SOCKS proxy mode, proxying connections through the Tor network.",
+                    )
+                    .arg(
+                        Arg::with_name("socks-port")
+                            .short("p")
+                            .takes_value(true)
+                            .value_name("PORT")
+                            .help("Port to listen on for SOCKS connections (overrides the port in the config if specified).")
+                    )
+            )
+            .setting(AppSettings::SubcommandRequiredElseHelp)
+            .get_matches();
 
     let mut cfg = config::Config::new();
     cfg.merge(config::File::from_str(
         ARTI_DEFAULTS,
         config::FileFormat::Toml,
     ))?;
-    tor_config::load(&mut cfg, &dflt_config, &args.rc, &args.cfg)?;
+
+    let config_files = matches
+        .values_of_os("config-files")
+        // This shouldn't actually be possible given we specify a default.
+        .expect("no config files provided")
+        .into_iter()
+        // The second value in this 2-tuple specifies whether the config file is "required" (as in,
+        // failure to load it is an error). All config files that aren't the default are required.
+        .map(|x| (PathBuf::from(x), x != dflt_config))
+        .collect::<Vec<_>>();
+
+    let additional_opts = matches
+        .values_of("option")
+        .map(|x| x.into_iter().map(ToOwned::to_owned).collect::<Vec<_>>())
+        .unwrap_or_else(Vec::new);
+
+    tor_config::load(&mut cfg, &config_files, additional_opts)?;
 
     let config: ArtiConfig = cfg.try_into()?;
 
-    setup_logging(&config);
+    setup_logging(&config, matches.value_of("loglevel"));
 
-    let statecfg = config.storage.state_dir.path()?;
-    let dircfg = config.get_dir_config()?;
-    let circcfg = config.get_circ_config()?;
-    let addrcfg = config.addr_config;
+    if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
+        let statecfg = config.storage.state_dir.path()?;
+        let dircfg = config.get_dir_config()?;
+        let circcfg = config.get_circ_config()?;
+        let addrcfg = config.addr_config;
 
-    let socks_port = match config.socks_port {
-        Some(s) => s,
-        None => {
-            info!("Nothing to do: no socks_port configured.");
-            return Ok(());
-        }
-    };
+        let socks_port = match (proxy_matches.value_of("socks-port"), config.socks_port) {
+            (Some(p), _) => p.parse().expect("Invalid port specified"),
+            (None, Some(s)) => s,
+            (None, None) => {
+                warn!(
+                "No SOCKS port set; specify -p PORT or use the `socks_port` configuration option."
+            );
+                return Ok(());
+            }
+        };
 
-    let client_config = TorClientConfig::builder()
-        .state_cfg(statecfg)
-        .dir_cfg(dircfg)
-        .circ_cfg(circcfg)
-        .addr_cfg(addrcfg)
-        .build()?;
+        info!(
+            "Starting Arti {} in SOCKS proxy mode on port {}...",
+            env!("CARGO_PKG_VERSION"),
+            socks_port
+        );
 
-    process::use_max_file_limit();
+        let client_config = TorClientConfig::builder()
+            .state_cfg(statecfg)
+            .dir_cfg(dircfg)
+            .circ_cfg(circcfg)
+            .addr_cfg(addrcfg)
+            .build()?;
 
-    #[cfg(feature = "tokio")]
-    let runtime = tor_rtcompat::tokio::create_runtime()?;
-    #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-    let runtime = tor_rtcompat::async_std::create_runtime()?;
+        process::use_max_file_limit();
 
-    let rt_copy = runtime.clone();
-    rt_copy.block_on(run(runtime, socks_port, client_config))?;
-    Ok(())
+        #[cfg(feature = "tokio")]
+        let runtime = tor_rtcompat::tokio::create_runtime()?;
+        #[cfg(all(feature = "async-std", not(feature = "tokio")))]
+        let runtime = tor_rtcompat::async_std::create_runtime()?;
+
+        let rt_copy = runtime.clone();
+        rt_copy.block_on(run(runtime, socks_port, client_config))?;
+        Ok(())
+    } else {
+        panic!("Subcommand added to clap subcommand list, but not yet implemented")
+    }
 }
 
 #[cfg(test)]

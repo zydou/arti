@@ -101,7 +101,7 @@ To do so, we will launch arti independently from Tor Browser. Build arti with
 `cargo build --release`.  After that launch it with some basic
 configuration parameters:
 
-    $ ./target/release/arti -c "socks_port = 9150" -c "logging.trace_filter = 'debug'"
+    $ ./target/release/arti proxy -l debug -p 9150
 
 This will ensure that arti sets its SOCKS port on 9150. Now we need to launch
 Tor Browser and instruct it to use that SOCKS port.

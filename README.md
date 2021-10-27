@@ -68,7 +68,7 @@ download more than one directory per run.
 To try it out, run the demo program in `arti` as follows.  It will open a
 SOCKS proxy on port 9150.
 
-    % cargo run --release
+    % cargo run --release -- proxy
 
 Again, do not use this program yet if you seriously need anonymity, privacy,
 security, or stability.
