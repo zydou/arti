@@ -12,7 +12,7 @@ use tracing::{trace, warn};
 
 use crate::util::randomize_time;
 use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
-use tor_persist::JsonValue;
+use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -99,10 +99,8 @@ pub(crate) struct Guard {
 
     /// If present, this guard is permanently disabled, and this
     /// object tells us why.
-    // TODO: Wrap this in some kind of a future-proofing wrapper so that
-    // we can safely add more variants to GuardDisabled.
     #[serde(default)]
-    disabled: Option<GuardDisabled>,
+    disabled: Option<Futureproof<GuardDisabled>>,
 
     /// When, approximately, did we first successfully use this guard?
     ///
@@ -510,7 +508,7 @@ impl Guard {
                     threshold_ratio: DISABLE_THRESHOLD,
                 };
                 warn!(guard=?self.id, "Disabling guard: {:.1}% of circuits died under mysterious circumstances, exceeding threshold of {:.1}%", ratio*100.0, (DISABLE_THRESHOLD*100.0));
-                self.disabled = Some(reason);
+                self.disabled = Some(reason.into());
             } else if ratio > WARN_THRESHOLD && !self.suspicious_behavior_warned {
                 warn!(guard=?self.id, "Questionable guard: {:.1}% of circuits died under mysterious circumstances.", ratio*100.0);
                 self.suspicious_behavior_warned = true;
@@ -979,7 +977,7 @@ mod test {
         assert!(g.disabled.is_some());
 
         #[allow(unreachable_patterns)]
-        match g.disabled.unwrap() {
+        match g.disabled.unwrap().into_option().unwrap() {
             GuardDisabled::TooManyIndeterminateFailures {
                 history: _,
                 failure_ratio,

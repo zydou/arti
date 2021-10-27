@@ -43,7 +43,7 @@ mod handle;
 #[cfg(feature = "testing")]
 mod testing;
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Wrapper type for Results returned from this crate.
@@ -150,5 +150,35 @@ impl From<std::io::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(e: serde_json::Error) -> Error {
         Error::JsonError(Arc::new(e))
+    }
+}
+
+/// A wrapper type for types whose representation may change in future versions of Arti.
+///
+/// This uses `#[serde(untagged)]` to attempt deserializing as a type `T` first, and falls back
+/// to a generic JSON value representation if that fails.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+#[allow(clippy::exhaustive_enums)]
+pub enum Futureproof<T> {
+    /// A successfully-deserialized `T`.
+    Understandable(T),
+    /// A generic JSON value, representing a failure to deserialize a `T`.
+    Unknown(JsonValue),
+}
+
+impl<T> Futureproof<T> {
+    /// Convert the `Futureproof` into an `Option<T>`, throwing away an `Unknown` value.
+    pub fn into_option(self) -> Option<T> {
+        match self {
+            Futureproof::Understandable(x) => Some(x),
+            Futureproof::Unknown(_) => None,
+        }
+    }
+}
+
+impl<T> From<T> for Futureproof<T> {
+    fn from(inner: T) -> Self {
+        Self::Understandable(inner)
     }
 }

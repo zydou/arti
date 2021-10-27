@@ -121,6 +121,15 @@ mod test {
         s1: String,
         s2: String,
     }
+    #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
+    enum OldEnum {
+        Variant1,
+    }
+    #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
+    enum NewEnum {
+        Variant1,
+        Variant2,
+    }
 
     #[test]
     fn basic_tests() {
@@ -201,5 +210,38 @@ mod test {
         assert_eq!(h1.load().unwrap(), Some(v1));
         assert_eq!(h2.load().unwrap(), Some(s1));
         assert_eq!(h3.load().unwrap(), Some(s2));
+    }
+
+    #[test]
+    fn futureproof() {
+        use crate::Futureproof;
+
+        let v1 = Ex1 { v1: 8, v2: 99 };
+
+        let v1_ser = serde_json::to_string(&v1).unwrap();
+
+        let v1_as_ex1: Futureproof<Ex1> = serde_json::from_str(&v1_ser).unwrap();
+        let v1_as_ex2: Futureproof<Ex2> = serde_json::from_str(&v1_ser).unwrap();
+        assert!(v1_as_ex1.clone().into_option().is_some());
+        assert!(v1_as_ex2.into_option().is_none());
+
+        assert_eq!(serde_json::to_string(&v1_as_ex1).unwrap(), v1_ser);
+    }
+
+    #[test]
+    fn futureproof_enums() {
+        use crate::Futureproof;
+
+        let new1 = NewEnum::Variant1;
+        let new2 = NewEnum::Variant2;
+
+        let new1_ser = serde_json::to_string(&new1).unwrap();
+        let new2_ser = serde_json::to_string(&new2).unwrap();
+
+        let old1: Futureproof<OldEnum> = serde_json::from_str(&new1_ser).unwrap();
+        let old2: Futureproof<OldEnum> = serde_json::from_str(&new2_ser).unwrap();
+
+        assert!(old1.into_option().is_some());
+        assert!(old2.into_option().is_none());
     }
 }
