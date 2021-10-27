@@ -5,12 +5,14 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::util::randomize_time;
 use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
+use tor_persist::JsonValue;
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -160,8 +162,11 @@ pub(crate) struct Guard {
     /// True if we have warned about this guard behaving suspiciously.
     #[serde(skip)]
     suspicious_behavior_warned: bool,
-    // TODO Do we need a HashMap to represent additional fields? I
-    // think we may.
+
+    /// Fields from the state file that was used to make this `Guard` that
+    /// this version of Arti doesn't understand.
+    #[serde(flatten)]
+    unknown_fields: HashMap<String, JsonValue>,
 }
 
 /// Wrapper to declare whether a given successful use of a guard is the
@@ -208,6 +213,7 @@ impl Guard {
             exploratory_circ_pending: false,
             circ_history: CircHistory::default(),
             suspicious_behavior_warned: false,
+            unknown_fields: Default::default(),
         }
     }
 

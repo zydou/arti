@@ -74,6 +74,10 @@ pub(crate) struct GuardSet {
     /// Set to 'true' whenever something changes that would force us
     /// to call 'select_primary_guards()', and cleared whenever we call it.
     primary_guards_invalidated: bool,
+
+    /// Fields from the state file that was used to make this `GuardSet` that
+    /// this version of Arti doesn't understand.
+    unknown_fields: HashMap<String, JsonValue>,
 }
 
 /// Which of our lists did a given guard come from?
@@ -188,6 +192,7 @@ impl GuardSet {
         GuardSample {
             guards,
             confirmed: Cow::Borrowed(&self.confirmed),
+            remaining: self.unknown_fields.clone(),
         }
     }
 
@@ -209,6 +214,7 @@ impl GuardSet {
             active_filter: GuardFilter::default(),
             filter_is_restrictive: false,
             primary_guards_invalidated: true,
+            unknown_fields: state.remaining,
         };
 
         // Fix any inconsistencies in the stored representation.
@@ -695,6 +701,9 @@ impl GuardSet {
     }
 }
 
+use serde::Serializer;
+use tor_persist::JsonValue;
+
 /// State object used to serialize and deserialize a [`GuardSet`].
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GuardSample<'a> {
@@ -702,9 +711,10 @@ pub(crate) struct GuardSample<'a> {
     guards: Vec<Cow<'a, Guard>>,
     /// The identities for the confirmed members of `guards`, in confirmed order.
     confirmed: Cow<'a, Vec<GuardId>>,
-    // TODO Do we need a HashMap to represent additional fields? I think we may.
+    /// Other data from the state file that this version of Arti doesn't recognize.
+    #[serde(flatten)]
+    remaining: HashMap<String, JsonValue>,
 }
-use serde::Serializer;
 
 impl Serialize for GuardSet {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

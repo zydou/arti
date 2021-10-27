@@ -14,12 +14,13 @@
 
 use bounded_vec_deque::BoundedVecDeque;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
 use std::time::Duration;
 use tor_netdir::params::NetParameters;
 
 use super::Action;
+use tor_persist::JsonValue;
 
 /// How many circuit build time observations do we record?
 const TIME_HISTORY_LEN: usize = 1000;
@@ -479,7 +480,11 @@ pub(crate) struct ParetoTimeoutState {
     histogram: Vec<(MsecDuration, u16)>,
     /// The current timeout estimate: kept for reference.
     current_timeout: Option<MsecDuration>,
-    // XXXX Do we need a HashMap to represent additional fields? I think we may.
+
+    /// Fields from the state file that was used to make this `ParetoTimeoutState` that
+    /// this version of Arti doesn't understand.
+    #[serde(flatten)]
+    unknown_fields: HashMap<String, JsonValue>,
 }
 
 impl ParetoTimeoutState {
@@ -621,6 +626,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
             version: 1,
             histogram: self.history.sparse_histogram().collect(),
             current_timeout: Some(cur_timeout),
+            unknown_fields: Default::default(),
         })
     }
 }

@@ -52,6 +52,7 @@ type Result<T> = std::result::Result<T, crate::Error>;
 #[cfg(not(target_arch = "wasm32"))]
 pub use fs::FsStateMgr;
 pub use handle::{DynStorageHandle, StorageHandle};
+pub use serde_json::Value as JsonValue;
 #[cfg(feature = "testing")]
 pub use testing::TestingStateMgr;
 
