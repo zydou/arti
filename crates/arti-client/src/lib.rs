@@ -14,24 +14,15 @@
 //! Arti, and the one that nearly all client-only programs should use.
 //! Most of its functionality is provided by lower-level crates in Arti.
 //!
-//! ## ⚠️️ Warnings ⚠️
-//! ️
-//! **Do not expect ANY privacy from this code yet.**
+//! ## ⚠ Warnings ⚠
 //!
-//! Arti is a work in progress, and there are currently certain
-//! missing features that _will_ make it far less private than the
-//! standard Tor implementation.  In fact, the absence of these makes
-//! Arti clients vulnerable to certain classes of well known attacks
-//! that the standard Tor implementation defends against.
+//! Note that Arti is a work in progress; although we've tried to
+//! write all the critical security components, you probably shouldn't
+//! use Arti in production until it's a bit more mature.
 //!
-//! At present, do not expect Arti to give you _any privacy at all_.  (We'll
-//! remove or soften this warning once we're more confident in our privacy.)
-//!
-//! **Do not use this code in production yet.**
-//!
-//! All of the APIs for this crate, and for Arti in general, are not
-//! the least bit stable.  If you use this code, please expect your
-//! software to break on a regular basis.
+//! Also note that all of the APIs for this crate, and for Arti in
+//! general, are not the least bit stable.  If you use this code,
+//! please expect your software to break on a regular basis.
 //!
 //! ## Design considerations, privacy considerations.
 //!

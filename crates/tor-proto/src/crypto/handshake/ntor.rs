@@ -1,9 +1,4 @@
 //! Implements the ntor handshake, as used in modern Tor.
-//!
-//! # Limitations
-//!
-//! These functions should be extensible to work with the ntor variant
-//! used in v3 hidden services; but right now they aren't.
 
 use super::KeyGenerator;
 use crate::util::ct;

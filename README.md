@@ -50,18 +50,18 @@ needlessly hard to understand and improve.
 Arti is a work-in-progress.  It can connect to the Tor network, bootstrap a
 view of the Tor directory, and make anonymized connections over the network.
 
-Arti is currently missing some features that are required for good privacy,
-and is therefore vulnerable to a lot of attacks that do not yet affect the
-Tor network.  Therefore, **you should probably not use Arti in production**
-if you want any kind of privacy at all.
+We're not _aware_ of any critical security features missing in Arti; but
+however, since Arti is comparatively new software, you should probably be
+cautious about using it in production.
 
-There are absolutely no guarantees about API stability yet: if you write code
-that uses Arti, you should expect that
+There are no guarantees about API stability yet: if you write code
+that uses Arti, you should expect it to break with future versions.  If you
+write an a configuration file for Arti, it might stop working in the future.
 
 ## Trying it out today
 
-Arti can act as a SOCKS proxy that uses the Tor network.  (Not a very
-secure or anonymous one!)  It knows how to download directory
+Arti can act as a SOCKS proxy that uses the Tor network.
+It knows how to download directory
 information and how to load it from cache, but it doesn't try to
 download more than one directory per run.
 
@@ -70,8 +70,8 @@ SOCKS proxy on port 9150.
 
     % cargo run --release
 
-Again, do not use this program yet if you need anonymity, privacy, security,
-or stability.
+Again, do not use this program yet if you seriously need anonymity, privacy,
+security, or stability.
 
 ## Minimum supported Rust Version
 
@@ -99,11 +99,11 @@ get our project manager to sign off on them.
 
  * Arti 0.0.1: Minimal Secure Client (Goal: end of October 2021??)
    * Target audience: **developers**
-   * [ ] Guard support
-   * [ ] Stream Isolation
-   * [ ] High test coverage
-   * [ ] Draft APIs for basic usage
-   * [ ] Code cleanups
+   * [x] Guard support
+   * [x] Stream Isolation
+   * [x] High test coverage
+   * [x] Draft APIs for basic usage
+   * [x] Code cleanups
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/6)
 
  * Arti 0.1.0: Okay for experimental embedding (Goal: Mid March, 2022??)

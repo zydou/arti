@@ -22,8 +22,4 @@ But for now, this `tor-circmgr` code is extremely preliminary; its
 data structures are all pretty bad, and it's likely that the API
 is wrong too.
 
-The path generation code in this crate is missing a colossal
-number of features that you'd probably want in production: the
-paths it generates should not be considered secure.
-
 License: MIT OR Apache-2.0

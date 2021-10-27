@@ -59,13 +59,4 @@ packed into a single RELAY cell.
 The distinction between RelayCell and RelayMsg is meant in part
 to future-proof arti against these proposals if they are adopted.
 
-## Limitations
-
-There aren't any tests.
-
-There isn't enough documentation.
-
-This is the first part of the project I started working on, and
-probably reflects the most naive understanding of Rust.
-
 License: MIT OR Apache-2.0

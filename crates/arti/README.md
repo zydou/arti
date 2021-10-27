@@ -7,10 +7,9 @@ This crate is the primary command-line interface for
 implement [Tor](https://www.torproject.org/) in Rust.
 Many other crates in Arti depend on it.
 
-⚠️**WARNING**: Arti is not yet a secure or complete Tor implementation!
-If you use it, you should expect that it _will_ harm your privacy.
-For now, if you have actual privacy or security needs, please use
-the C implementation of Tor instead. ⚠️
+Note that Arti is a work in progress; although we've tried to
+write all the critical security components, you probably shouldn't
+use Arti in production until it's a bit more mature.
 
 More documentation will follow as this program improves.  For now,
 just know that it can run as a simple SOCKS proxy over the Tor network.
@@ -52,7 +51,6 @@ to disable tokio.
 There are many missing features.  Among them: there's no onion
 service support yet. There's no anti-censorship support.  You
 can't be a relay.  There isn't any kind of proxy besides SOCKS.
-Resolve-over-SOCKS isn't implemented yet.
 
 See the [README
 file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md)
