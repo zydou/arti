@@ -20,7 +20,7 @@ sanitize-filename = "0.3.0"
 thiserror = "1.0.24"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-fslock = { version = "0.1.8", features=["multilock"] }
+fslock = { version = "0.2.0" }
 
 [dev-dependencies]
 dirs = "4.0.0"

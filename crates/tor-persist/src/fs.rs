@@ -65,7 +65,7 @@ impl FsStateMgr {
             builder.recursive(true).create(&statepath)?;
         }
 
-        let lockfile = Mutex::new(fslock::LockFile::open_excl(&lockpath)?);
+        let lockfile = Mutex::new(fslock::LockFile::open(&lockpath)?);
 
         Ok(FsStateMgr {
             inner: Arc::new(FsStateMgrInner {

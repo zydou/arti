@@ -75,7 +75,7 @@ impl SqliteStore {
             })?;
         }
 
-        let mut lockfile = fslock::LockFile::open_excl(&lockpath)?;
+        let mut lockfile = fslock::LockFile::open(&lockpath)?;
         if !readonly && !lockfile.try_lock()? {
             readonly = true; // we couldn't get the lock!
         };

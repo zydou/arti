@@ -31,7 +31,7 @@ base64 = "0.13.0"
 derive_builder = "0.10.2"
 digest = "0.9.0"
 futures = "0.3.13"
-fslock = { version = "0.1.8", features=["multilock"] }
+fslock = { version = "0.2.0" }
 hex = "0.4.3"
 itertools = "0.10.1"
 tracing = "0.1.26"
