@@ -23,12 +23,17 @@ The current crates are:
 `caret`: A utility for generating enumerations with helpful trait
 implementations
 
+`retry-error`: A utility type for handling errors from operations that are
+tried multiple times, and which can fail differently each time.
+
 `tor-units`: Utilities for wrapping bounded and/or meaningful numeric types.
 
 `tor-llcrypto`: Wrappers and re-exports of cryptographic code that Tor needs in
 various ways.  Other crates should use this crate, and not actually
 use any crypto implementation crates directly.  (It's okay to use crates that
 define cryptographic traits.)
+
+`tor-persist`: Types and traits for handling persistent data in Arti.
 
 `tor-rtcompat`: Traits to expose a common interface for asynchronous runtime
 code. Currently it supports async-std and tokio.
