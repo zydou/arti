@@ -17,5 +17,5 @@ relay or for using onion services.
 
 ## Should I use Arti?
 
-As of mid-June 2021: probably not yet.
+As of mid-October 2021: only if you are interested in helping us find bugs!
 
