@@ -16,16 +16,15 @@ just know that it can run as a simple SOCKS proxy over the Tor network.
 It will listen on port 9150 by default, but you can override this in
 the configuration.
 
-## Command-line arguments
+## Command-line interface
 
 (This is not stable; future versions will break this.)
 
-`-f <filename>` overrides the location to search for a
-configuration file to the list of configuration file.  You can use
-this multiple times: All files will be loaded and merged.
+`arti` uses the [`clap`](https://docs.rs/clap/) crate for command-line
+argument parsing; run `arti help` to get it to print its documentation.
 
-`-c <key>=<value>` sets a configuration option to be applied after all
-configuration files are loaded.
+The only currently implemented subcommand is `arti proxy`; try
+`arti help proxy` for a list of options you can pass to it.
 
 ## Configuration
 
