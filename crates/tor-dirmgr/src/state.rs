@@ -747,6 +747,29 @@ mod test {
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
 
+    #[test]
+    fn download_schedule() {
+        let va = datetime!(2008-08-02 20:00 UTC).into();
+        let fu = datetime!(2008-08-02 21:00 UTC).into();
+        let vu = datetime!(2008-08-02 23:00 UTC).into();
+        let lifetime = Lifetime::new(va, fu, vu).unwrap();
+
+        let expected_start: SystemTime = datetime!(2008-08-02 21:45 UTC).into();
+        let expected_range = Duration::from_millis((75 * 60 * 1000) * 7 / 8);
+
+        let (start, range) = client_download_range(&lifetime);
+        assert_eq!(start, expected_start);
+        assert_eq!(range, expected_range);
+
+        for _ in 0..100 {
+            let when = pick_download_time(&lifetime);
+            assert!(when > va);
+            assert!(when >= expected_start);
+            assert!(when < vu);
+            assert!(when <= expected_start + range);
+        }
+    }
+
     struct DirRcv {
         cfg: DirMgrConfig,
         netdir: SharedMutArc<NetDir>,
