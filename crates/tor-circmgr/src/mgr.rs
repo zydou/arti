@@ -1545,6 +1545,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // This test is unreliable; see arti#210
     fn request_retried() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let rt = MockSleepRuntime::new(rt);
