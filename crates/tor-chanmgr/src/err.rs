@@ -30,10 +30,6 @@ pub enum Error {
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),
-
-    /// We were waiting for a channel to complete, but it failed.
-    #[error("Pending channel failed to open: {0}")]
-    PendingChanFailed(#[from] PendingChanError),
 }
 
 impl From<futures::task::SpawnError> for Error {
@@ -57,20 +53,5 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Error {
         Error::Io(Arc::new(e))
-    }
-}
-
-/// An error transmitted by a future that trying to build a channel.
-#[derive(Debug, Clone)]
-pub struct PendingChanError(String);
-impl std::error::Error for PendingChanError {}
-impl std::fmt::Display for PendingChanError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl From<&Error> for PendingChanError {
-    fn from(e: &Error) -> PendingChanError {
-        PendingChanError(e.to_string())
     }
 }

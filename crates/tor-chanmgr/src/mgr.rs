@@ -1,6 +1,5 @@
 //! Abstract implementation of a channel manager
 
-use crate::err::PendingChanError;
 use crate::{Error, Result};
 
 use async_trait::async_trait;
@@ -61,18 +60,13 @@ pub(crate) struct AbstractChanMgr<CF: ChannelFactory> {
     channels: map::ChannelMap<CF::Channel>,
 }
 
-/// A Result whose error is a [`PendingChanError`].
-///
-/// We need a separate type here because [`Error`] doesn't implement `Clone`.
-type PendResult<T> = std::result::Result<T, PendingChanError>;
-
 /// Type alias for a future that we wait on to see when a pending
 /// channel is done or failed.
-type Pending<C> = Shared<oneshot::Receiver<PendResult<Arc<C>>>>;
+type Pending<C> = Shared<oneshot::Receiver<Result<Arc<C>>>>;
 
 /// Type alias for the sender we notify when we complete a channel (or
 /// fail to complete it).
-type Sending<C> = oneshot::Sender<PendResult<Arc<C>>>;
+type Sending<C> = oneshot::Sender<Result<Arc<C>>>;
 
 impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
@@ -182,7 +176,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                 Action::Wait(pend) => match pend.await {
                     Ok(Ok(chan)) => return Ok(chan),
                     Ok(Err(e)) => {
-                        last_err = Err(e.into());
+                        last_err = Err(e);
                     }
                     Err(_) => {
                         last_err = Err(Error::Internal("channel build task disappeared"));
@@ -205,7 +199,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         // others, and set the error.
                         self.channels.remove(&ident)?;
                         // (As above)
-                        let _ignore_err = send.send(Err((&e).into()));
+                        let _ignore_err = send.send(Err(e.clone()));
                         last_err = Err(e);
                     }
                 },
@@ -361,14 +355,8 @@ mod test {
             assert!(Arc::ptr_eq(&ch44a, &ch44b));
             assert!(!Arc::ptr_eq(&ch44a, &ch3a));
 
-            assert!(matches!(
-                err_a,
-                Error::UnusableTarget(_) | Error::PendingChanFailed(_)
-            ));
-            assert!(matches!(
-                err_b,
-                Error::UnusableTarget(_) | Error::PendingChanFailed(_)
-            ));
+            assert!(matches!(err_a, Error::UnusableTarget(_)));
+            assert!(matches!(err_b, Error::UnusableTarget(_)));
         });
     }
 
