@@ -594,6 +594,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
                 if !self.missing.remove(&digest) {
+                    // XXXX BUG:
                     // we didn't want this.
                     continue;
                 }
@@ -633,6 +634,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         };
         let mut new_mds = Vec::new();
         for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {
+            dbg!("Adding 1 from download");
             let txt = anno
                 .within(text)
                 .expect("annotation not from within text as expected");
@@ -740,6 +742,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::Authority;
+    use std::convert::TryInto;
     use std::sync::{
         atomic::{self, AtomicBool},
         Arc,
@@ -821,6 +824,7 @@ mod test {
 
     // Test data
     const CONSENSUS: &str = include_str!("../testdata/mdconsensus1.txt");
+    const CONSENSUS2: &str = include_str!("../testdata/mdconsensus2.txt");
     const AUTHCERT_5696: &str = include_str!("../testdata/cert-5696.txt");
     const AUTHCERT_5A23: &str = include_str!("../testdata/cert-5A23.txt");
     #[allow(unused)]
@@ -867,6 +871,18 @@ mod test {
             id_fingerprint: rsa("7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE"),
             sk_fingerprint: rsa("D3C013E0E6C82E246090D1C0798B75FCB7ACF120"),
         }
+    }
+    fn microdescs() -> HashMap<MdDigest, String> {
+        const MICRODESCS: &str = include_str!("../testdata/microdescs.txt");
+        let text = MICRODESCS;
+        MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed)
+            .map(|res| {
+                let anno = res.unwrap();
+                let text = anno.within(text).unwrap();
+                let md = anno.into_microdesc();
+                (*md.digest(), text.to_owned())
+            })
+            .collect()
     }
 
     #[test]
@@ -1013,5 +1029,89 @@ mod test {
 
         // TODO: I'd like even more tests to make sure that we never
         // accept a certificate for an authority we don't believe in.
+    }
+
+    #[test]
+    fn get_microdescs_state() {
+        /// Construct a GetCertsState with our test data
+        fn new_getmicrodescs_state() -> (Arc<DirRcv>, GetMicrodescsState<DirRcv>) {
+            let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+            let (signed, rest, consensus) = MdConsensus::parse(CONSENSUS2).unwrap();
+            let consensus = consensus
+                .dangerously_assume_timely()
+                .dangerously_assume_wellsigned();
+            let meta = ConsensusMeta::from_consensus(signed, rest, &consensus);
+            let state = GetMicrodescsState::new(consensus, meta, Arc::downgrade(&rcv)).unwrap();
+
+            (rcv, state)
+        }
+        fn d64(s: &str) -> MdDigest {
+            base64::decode(s).unwrap().try_into().unwrap()
+        }
+
+        let (_rcv, mut state) = new_getmicrodescs_state();
+
+        // Check the basics.
+        assert_eq!(
+            &state.describe(),
+            "Downloading microdescriptors (we are missing 4)."
+        );
+        assert!(!state.can_advance());
+        assert!(!state.is_ready(Readiness::Complete));
+        assert!(!state.is_ready(Readiness::Usable));
+        {
+            let reset_time = state.reset_time().unwrap();
+            let fresh_until: SystemTime = datetime!(2021-10-27 21:27:00 UTC).into();
+            let valid_until: SystemTime = datetime!(2021-10-27 21:27:20 UTC).into();
+            assert!(reset_time >= fresh_until);
+            assert!(reset_time <= valid_until);
+        }
+
+        // Now check whether we're missing all the right microdescs.
+        let missing = state.missing_docs();
+        let md_text = microdescs();
+        assert_eq!(missing.len(), 4);
+        assert_eq!(md_text.len(), 4);
+        let md1 = d64("LOXRj8YZP0kwpEAsYOvBZWZWGoWv5b/Bp2Mz2Us8d8g");
+        let md2 = d64("iOhVp33NyZxMRDMHsVNq575rkpRViIJ9LN9yn++nPG0");
+        let md3 = d64("/Cd07b3Bl0K0jX2/1cAvsYXJJMi5d8UBU+oWKaLxoGo");
+        let md4 = d64("z+oOlR7Ga6cg9OoC/A3D3Ey9Rtc4OldhKlpQblMfQKo");
+        for md_digest in [md1, md2, md3, md4] {
+            assert!(missing.contains(&DocId::Microdesc(md_digest)));
+            assert!(md_text.contains_key(&md_digest));
+        }
+
+        // Try adding a microdesc from the cache.
+        let doc1: crate::storage::InputString = md_text.get(&md1).unwrap().clone().into();
+        let docs = vec![(DocId::Microdesc(md1), doc1.into())]
+            .into_iter()
+            .collect();
+        let outcome = state.add_from_cache(docs, None);
+        assert!(outcome.unwrap()); // successfully loaded one MD.
+        assert!(!state.can_advance());
+        assert!(!state.is_ready(Readiness::Complete));
+        assert!(!state.is_ready(Readiness::Usable));
+
+        // Now we should be missing 3.
+        let missing = state.missing_docs();
+        assert_eq!(missing.len(), 3);
+        assert!(!missing.contains(&DocId::Microdesc(md1)));
+
+        // Try adding the rest as if from a download.
+        let mut req = tor_dirclient::request::MicrodescRequest::new();
+        let mut response = "".to_owned();
+        for md_digest in [md2, md3, md4] {
+            response.push_str(md_text.get(&md_digest).unwrap());
+            req.push(md_digest);
+        }
+        let req = ClientRequest::Microdescs(req);
+        print!("{}", &response);
+        let outcome = state.add_from_download(response.as_str(), &req, None);
+        assert!(outcome.unwrap()); // successfully loaded MDs
+        assert!(state.is_ready(Readiness::Complete));
+        assert!(state.is_ready(Readiness::Usable));
+
+        let missing = state.missing_docs();
+        assert!(missing.is_empty());
     }
 }
