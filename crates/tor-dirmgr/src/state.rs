@@ -65,6 +65,13 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// Called to note that the descriptors stored in
     /// [`Self::netdir()`] have been changed.
     fn netdir_descriptors_changed(&self);
+
+    /// Called to find the current time.
+    ///
+    /// This is just `SystemTime::now()` in production, but for
+    /// testing it is helpful to be able to mock our our current view
+    /// of the time.
+    fn now(&self) -> SystemTime;
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
@@ -82,6 +89,9 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
         use std::sync::atomic::Ordering;
         self.netdir_descriptors_changed
             .store(true, Ordering::SeqCst);
+    }
+    fn now(&self) -> SystemTime {
+        SystemTime::now()
     }
 }
 
@@ -228,7 +238,8 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) = MdConsensus::parse(text)?;
-            if let Ok(timely) = parsed.check_valid_now() {
+            let now = current_time(&self.writedir)?;
+            if let Ok(timely) = parsed.check_valid_at(&now) {
                 let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
                 (meta, timely)
             } else {
@@ -342,7 +353,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         for id in self.missing_docs().iter() {
             if let Some(cert) = docs.get(id) {
                 let parsed = AuthCert::parse(cert.as_str()?)?.check_signature()?;
-                if let Ok(cert) = parsed.check_valid_now() {
+                let now = current_time(&self.writedir)?;
+                if let Ok(cert) = parsed.check_valid_at(&now) {
                     self.missing_certs.remove(cert.key_ids());
                     self.certs.push(cert);
                     changed = true;
@@ -371,7 +383,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
                     .within(text)
                     .expect("Certificate was not in input as expected");
                 if let Ok(wellsigned) = parsed.check_signature() {
-                    if let Ok(timely) = wellsigned.check_valid_now() {
+                    let now = current_time(&self.writedir)?;
+                    if let Ok(timely) = wellsigned.check_valid_at(&now) {
                         newcerts.push((timely, s));
                     }
                 } else {
@@ -711,4 +724,271 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     let uncertainty = (remainder * 7) / 8;
 
     (valid_after + lowbound, uncertainty)
+}
+
+/// Helper: call `now` on a Weak<WriteNetDir>.
+fn current_time<DM: WriteNetDir>(writedir: &Weak<DM>) -> Result<SystemTime> {
+    if let Some(writedir) = Weak::upgrade(writedir) {
+        Ok(writedir.now())
+    } else {
+        Err(Error::ManagerDropped)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::Authority;
+    use std::sync::{
+        atomic::{self, AtomicBool},
+        Arc,
+    };
+    use time::macros::datetime;
+    use tor_netdoc::doc::authcert::AuthCertKeyIds;
+
+    struct DirRcv {
+        cfg: DirMgrConfig,
+        netdir: SharedMutArc<NetDir>,
+        consensus_changed: AtomicBool,
+        descriptors_changed: AtomicBool,
+        now: SystemTime,
+    }
+
+    impl DirRcv {
+        fn new(now: SystemTime, authorities: Option<Vec<Authority>>) -> Self {
+            let mut netcfg = crate::NetworkConfig::builder();
+            netcfg.fallback_caches(vec![]);
+            if let Some(a) = authorities {
+                netcfg.authorities(a);
+            }
+            let cfg = DirMgrConfig::builder()
+                .cache_path("/we_will_never_use_this/")
+                .network_config(netcfg.build().unwrap())
+                .build()
+                .unwrap();
+            DirRcv {
+                now,
+                cfg,
+                netdir: Default::default(),
+                consensus_changed: false.into(),
+                descriptors_changed: false.into(),
+            }
+        }
+    }
+
+    impl WriteNetDir for DirRcv {
+        fn config(&self) -> &DirMgrConfig {
+            &self.cfg
+        }
+        fn netdir(&self) -> &SharedMutArc<NetDir> {
+            &self.netdir
+        }
+        fn netdir_consensus_changed(&self) {
+            self.consensus_changed.store(true, atomic::Ordering::SeqCst);
+        }
+        fn netdir_descriptors_changed(&self) {
+            self.descriptors_changed
+                .store(true, atomic::Ordering::SeqCst);
+        }
+        fn now(&self) -> SystemTime {
+            self.now
+        }
+    }
+
+    // Test data
+    const CONSENSUS: &str = include_str!("../testdata/mdconsensus1.txt");
+    const AUTHCERT_5696: &str = include_str!("../testdata/cert-5696.txt");
+    const AUTHCERT_5A23: &str = include_str!("../testdata/cert-5A23.txt");
+    #[allow(unused)]
+    const AUTHCERT_7C47: &str = include_str!("../testdata/cert-7C47.txt");
+    fn test_time() -> SystemTime {
+        datetime!(2020-08-07 12:42:45 UTC).into()
+    }
+    fn rsa(s: &str) -> RsaIdentity {
+        let k = hex::decode(s).unwrap();
+        RsaIdentity::from_bytes(&k[..]).unwrap()
+    }
+    fn test_authorities() -> Vec<Authority> {
+        fn a(s: &str) -> Authority {
+            Authority::builder()
+                .name("ignore")
+                .v3ident(rsa(s))
+                .build()
+                .unwrap()
+        }
+        vec![
+            a("5696AB38CB3852AFA476A5C07B2D4788963D5567"),
+            a("5A23BA701776C9C1AB1C06E734E92AB3D5350D64"),
+            // This is an authority according to the consensus, but we'll
+            // pretend we don't recognize it, to make sure that we
+            // don't fetch or accept it.
+            // a("7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE"),
+        ]
+    }
+    fn authcert_id_5696() -> AuthCertKeyIds {
+        AuthCertKeyIds {
+            id_fingerprint: rsa("5696ab38cb3852afa476a5c07b2d4788963d5567"),
+            sk_fingerprint: rsa("f6ed4aa64d83caede34e19693a7fcf331aae8a6a"),
+        }
+    }
+    fn authcert_id_5a23() -> AuthCertKeyIds {
+        AuthCertKeyIds {
+            id_fingerprint: rsa("5a23ba701776c9c1ab1c06e734e92ab3d5350d64"),
+            sk_fingerprint: rsa("d08e965cc6dcb6cb6ed776db43e616e93af61177"),
+        }
+    }
+    // remember, we're saying that we don't recognize this one as an authority.
+    fn authcert_id_7c47() -> AuthCertKeyIds {
+        AuthCertKeyIds {
+            id_fingerprint: rsa("7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE"),
+            sk_fingerprint: rsa("D3C013E0E6C82E246090D1C0798B75FCB7ACF120"),
+        }
+    }
+
+    #[test]
+    fn get_consensus_state() {
+        let rcv = Arc::new(DirRcv::new(test_time(), None));
+
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+
+        // Is description okay?
+        assert_eq!(&state.describe(), "Looking for a consensus.");
+
+        // Basic properties: without a consensus it is not ready to advance.
+        assert!(!state.can_advance());
+        assert!(!state.is_ready(Readiness::Complete));
+        assert!(!state.is_ready(Readiness::Usable));
+
+        // Basic properties: it doesn't want to reset.
+        assert!(state.reset_time().is_none());
+
+        // Do we know what we want?
+        let docs = state.missing_docs();
+        assert_eq!(docs.len(), 1);
+        let docid = docs[0];
+
+        assert!(matches!(
+            docid,
+            DocId::LatestConsensus {
+                flavor: ConsensusFlavor::Microdesc,
+                cache_usage: CacheUsage::CacheOkay,
+            }
+        ));
+
+        // Now suppose that we get some complete junk from a download.
+        let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
+        let req = crate::docid::ClientRequest::Consensus(req);
+        let outcome = state.add_from_download("this isn't a consensus", &req, None);
+        assert!(matches!(outcome, Err(Error::NetDocError(_))));
+
+        // Now try again, with a real consensus... but the wrong authorities.
+        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
+
+        // Great. Change the receiver to use a configuration where these test
+        // authorities are recognized.
+        let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        assert!(outcome.unwrap());
+
+        // And with that, we should be asking for certificates
+        assert!(state.can_advance());
+        let next = Box::new(state).advance().unwrap();
+        assert_eq!(
+            &next.describe(),
+            "Downloading certificates for consensus (we are missing 2/2)."
+        );
+
+        // Try again, but this time get the state from the cache.
+        let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+        let text: crate::storage::InputString = CONSENSUS.to_owned().into();
+        let map = vec![(docid, text.into())].into_iter().collect();
+        let outcome = state.add_from_cache(map, None);
+        assert!(outcome.unwrap());
+        assert!(state.can_advance());
+    }
+
+    #[test]
+    fn get_certs_state() {
+        /// Construct a GetCertsState with our test data
+        fn new_getcerts_state() -> (Arc<DirRcv>, Box<dyn DirState>) {
+            let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+            let mut state =
+                GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+            let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
+            let req = crate::docid::ClientRequest::Consensus(req);
+            let outcome = state.add_from_download(CONSENSUS, &req, None);
+            assert!(outcome.unwrap());
+            (rcv, Box::new(state).advance().unwrap())
+        }
+
+        let (_rcv, mut state) = new_getcerts_state();
+        // Basic properties: description, status, reset time.
+        assert_eq!(
+            &state.describe(),
+            "Downloading certificates for consensus (we are missing 2/2)."
+        );
+        assert!(!state.can_advance());
+        assert!(!state.is_ready(Readiness::Complete));
+        assert!(!state.is_ready(Readiness::Usable));
+        let consensus_expires = datetime!(2020-08-07 12:43:20 UTC).into();
+        assert_eq!(state.reset_time(), Some(consensus_expires));
+
+        // Check that we get the right list of missing docs.
+        let missing = state.missing_docs();
+        assert_eq!(missing.len(), 2); // We are missing two certificates.
+        assert!(missing.contains(&DocId::AuthCert(authcert_id_5696())));
+        assert!(missing.contains(&DocId::AuthCert(authcert_id_5a23())));
+        // we don't ask for this one because we don't recognize its authority
+        assert!(!missing.contains(&DocId::AuthCert(authcert_id_7c47())));
+
+        // Add one from the cache; make sure the list is still right
+        let text1: crate::storage::InputString = AUTHCERT_5696.to_owned().into();
+        // let text2: crate::storage::InputString = AUTHCERT_5A23.to_owned().into();
+        let docs = vec![(DocId::AuthCert(authcert_id_5696()), text1.into())]
+            .into_iter()
+            .collect();
+        let outcome = state.add_from_cache(docs, None);
+        assert!(outcome.unwrap()); // no error, and something changed.
+        assert!(!state.can_advance()); // But we aren't done yet.
+        let missing = state.missing_docs();
+        assert_eq!(missing.len(), 1); // Now we're only missing one!
+        assert!(missing.contains(&DocId::AuthCert(authcert_id_5a23())));
+
+        // Now try to add the other from a download ... but fail
+        // because we didn't ask for it.
+        let mut req = tor_dirclient::request::AuthCertRequest::new();
+        req.push(authcert_id_5696()); // it's the wrong id.
+        let req = ClientRequest::AuthCert(req);
+        let outcome = state.add_from_download(AUTHCERT_5A23, &req, None);
+        assert!(!outcome.unwrap()); // no error, but nothing changed.
+        let missing2 = state.missing_docs();
+        assert_eq!(missing, missing2); // No change.
+
+        // Now try to add the other from a download ... for real!
+        let mut req = tor_dirclient::request::AuthCertRequest::new();
+        req.push(authcert_id_5a23()); // Right idea this time!
+        let req = ClientRequest::AuthCert(req);
+        let outcome = state.add_from_download(AUTHCERT_5A23, &req, None);
+        assert!(outcome.unwrap()); // No error, _and_ something changed!
+        let missing3 = state.missing_docs();
+        assert!(missing3.is_empty());
+        assert!(state.can_advance());
+
+        let next = state.advance().unwrap();
+        assert_eq!(
+            &next.describe(),
+            "Downloading microdescriptors (we are missing 6)."
+        );
+
+        // TODO: I'd like even more tests to make sure that we never
+        // accept a certificate for an authority we don't believe in.
+    }
 }
