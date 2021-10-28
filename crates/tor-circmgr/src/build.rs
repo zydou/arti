@@ -782,7 +782,7 @@ mod test {
             assert_eq!(circ.hops, [id_100ms]);
 
             assert_eq!(timeouts.len(), 1);
-            assert_eq!(timeouts[0].0, true); // success
+            assert!(timeouts[0].0); // success
             assert_eq!(timeouts[0].1, 0); // one-hop
             assert_eq!(timeouts[0].2, Duration::from_millis(100));
         })
@@ -807,7 +807,7 @@ mod test {
             assert_eq!(circ.hops, [id_100ms, id_200ms, id_300ms]);
 
             assert_eq!(timeouts.len(), 1);
-            assert_eq!(timeouts[0].0, true); // success
+            assert!(timeouts[0].0); // success
             assert_eq!(timeouts[0].1, 2); // three-hop
             assert_eq!(timeouts[0].2, Duration::from_millis(600));
         })
@@ -830,7 +830,7 @@ mod test {
             assert!(matches!(outcome, Err(Error::CircTimeout)));
 
             assert_eq!(timeouts.len(), 1);
-            assert_eq!(timeouts[0].0, false); // timeout
+            assert!(!timeouts[0].0); // timeout
 
             // BUG: Sometimes this is 1 and sometimes this is 2.
             // assert_eq!(timeouts[0].1, 2); // at third hop.
@@ -863,13 +863,13 @@ mod test {
 
             dbg!(&timeouts);
             assert_eq!(timeouts.len(), 2);
-            assert_eq!(timeouts[0].0, false); // timeout
+            assert!(!timeouts[0].0); // timeout
 
             // BUG: Sometimes this is 1 and sometimes this is 2.
             //assert_eq!(timeouts[0].1, 2); // at third hop.
             assert_eq!(timeouts[0].2, Duration::from_millis(3000));
 
-            assert_eq!(timeouts[1].0, true); // success
+            assert!(timeouts[1].0); // success
             assert_eq!(timeouts[1].1, 2); // three-hop
                                           // BUG: This timer is not always reliable, due to races.
                                           //assert_eq!(timeouts[1].2, Duration::from_millis(3300));
