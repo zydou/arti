@@ -65,6 +65,13 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// Called to note that the descriptors stored in
     /// [`Self::netdir()`] have been changed.
     fn netdir_descriptors_changed(&self);
+
+    /// Called to find the current time.
+    ///
+    /// This is just `SystemTime::now()` in production, but for
+    /// testing it is helpful to be able to mock our our current view
+    /// of the time.
+    fn now(&self) -> SystemTime;
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
@@ -82,6 +89,9 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
         use std::sync::atomic::Ordering;
         self.netdir_descriptors_changed
             .store(true, Ordering::SeqCst);
+    }
+    fn now(&self) -> SystemTime {
+        SystemTime::now()
     }
 }
 
@@ -228,7 +238,8 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) = MdConsensus::parse(text)?;
-            if let Ok(timely) = parsed.check_valid_now() {
+            let now = current_time(&self.writedir)?;
+            if let Ok(timely) = parsed.check_valid_at(&now) {
                 let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
                 (meta, timely)
             } else {
@@ -342,7 +353,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         for id in self.missing_docs().iter() {
             if let Some(cert) = docs.get(id) {
                 let parsed = AuthCert::parse(cert.as_str()?)?.check_signature()?;
-                if let Ok(cert) = parsed.check_valid_now() {
+                let now = current_time(&self.writedir)?;
+                if let Ok(cert) = parsed.check_valid_at(&now) {
                     self.missing_certs.remove(cert.key_ids());
                     self.certs.push(cert);
                     changed = true;
@@ -371,7 +383,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
                     .within(text)
                     .expect("Certificate was not in input as expected");
                 if let Ok(wellsigned) = parsed.check_signature() {
-                    if let Ok(timely) = wellsigned.check_valid_now() {
+                    let now = current_time(&self.writedir)?;
+                    if let Ok(timely) = wellsigned.check_valid_at(&now) {
                         newcerts.push((timely, s));
                     }
                 } else {
@@ -711,4 +724,13 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     let uncertainty = (remainder * 7) / 8;
 
     (valid_after + lowbound, uncertainty)
+}
+
+/// Helper: call `now` on a Weak<WriteNetDir>.
+fn current_time<DM: WriteNetDir>(writedir: &Weak<DM>) -> Result<SystemTime> {
+    if let Some(writedir) = Weak::upgrade(writedir) {
+        Ok(writedir.now())
+    } else {
+        Err(Error::ManagerDropped)
+    }
 }
