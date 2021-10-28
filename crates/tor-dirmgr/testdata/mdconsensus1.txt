@@ -1,0 +1,94 @@
+network-status-version 3 microdesc
+vote-status consensus
+consensus-method 28
+valid-after 2020-08-07 12:42:40
+fresh-until 2020-08-07 12:43:00
+valid-until 2020-08-07 12:43:20
+voting-delay 4 4
+client-versions 
+server-versions 
+known-flags Authority Exit Fast Guard HSDir NoEdConsensus Running Stable V2Dir Valid
+recommended-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 Microdesc=1-2 Relay=2
+recommended-relay-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 Microdesc=1-2 Relay=2
+required-client-protocols Cons=1-2 Desc=1-2 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=4 Microdesc=1-2 Relay=2
+required-relay-protocols Cons=1 Desc=1 DirCache=1 HSDir=1 HSIntro=3 HSRend=1 Link=3-4 Microdesc=1 Relay=1-2
+dir-source test001a 5696AB38CB3852AFA476A5C07B2D4788963D5567 127.0.0.1 127.0.0.1 7001 5001
+contact auth1@test.test
+vote-digest 32902D6653D3CBD4F709C1E788E7188A4514B469
+dir-source test000a 5A23BA701776C9C1AB1C06E734E92AB3D5350D64 127.0.0.1 127.0.0.1 7000 5000
+contact auth0@test.test
+vote-digest BD69154582ADD167985FBA5B6BEF39A48FCF57E4
+dir-source test002a 7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE 127.0.0.1 127.0.0.1 7002 5002
+contact auth2@test.test
+vote-digest 279F105B47E08D18391BC83CA862AD7E949BF16B
+r test002a CjBXrykQQVeU2OpDAwnZrF9dUks 2020-08-07 12:40:41 127.0.0.1 5002 7002
+a [::1]:5002
+m c9q+CgRo9PemeBChjRHjZzG7HS7DY020WRAGCfOz9TU
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+r test005r H5UFqVFxddqiKglhjS1a0IO534A 2020-08-07 12:40:27 127.0.0.1 5005 7005
+a [::1]:5005
+m 0PzCUr40s+j2dkL8QhiOQdO+mcOVM//TMuErDAV/V8A
+s Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+r test001a RjuldU/uZiFnywOINM/Bo/Jl2XQ 2020-08-07 12:40:45 127.0.0.1 5001 7001
+a [::1]:5001
+m PyZmS8i3xBSMI92mxrIOzreeQVBjszo6gQM6sE4su7g
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+r test003r WxID2gau2vvHyK7RhgmBHA/esoc 2020-08-07 12:40:27 127.0.0.1 5003 7003
+a [::1]:5003
+m rJ6+6FvO35iW0UQjPz/3V9B4zmVVAJjMzkXStJ9p0uE
+s Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+r test004r odYQPeDLKV7J7EpWd8eUAoV4eSI 2020-08-07 12:40:27 127.0.0.1 5004 7004
+a [::1]:5004
+m r5XiWKH7oSILBJQl8sst/DGFJ5/TYc6cv0kf1yKHbuI
+s Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+r test000a 3uQGx/h8HZl6EZOMag6DKbRwbKY 2020-08-07 12:40:41 127.0.0.1 5000 7000
+a [::1]:5000
+m l7OtNY+5akUSlwrElozHUCWC9LljbAYM5RTCWcA/Dr0
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.3.5.11-dev
+pr Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-4 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2
+w Bandwidth=0 Unmeasured=1
+directory-footer
+bandwidth-weights Wbd=3333 Wbe=0 Wbg=0 Wbm=10000 Wdb=10000 Web=10000 Wed=3333 Wee=10000 Weg=3333 Wem=10000 Wgb=10000 Wgd=3333 Wgg=10000 Wgm=10000 Wmb=10000 Wmd=3333 Wme=0 Wmg=0 Wmm=10000
+directory-signature sha256 5696AB38CB3852AFA476A5C07B2D4788963D5567 F6ED4AA64D83CAEDE34E19693A7FCF331AAE8A6A
+-----BEGIN SIGNATURE-----
+UUu8VroTU5iELNuh9sQAep3KIBmB8foN4Vil3pC6m+1G+iJFxCeMotXW5pQANLwu
+WT5rX8wI3w5YT8MX2xADUN0PlG7YRBirBVeE6i/C42D5AN6ecqWLF78h1+CyktNb
+g09SHub48vyjTJw+17HpVrhS+UzhF5s9C9yVpoRSr9vizxX2pV2o6e6XeIsQjOmd
+6QjjA/8YHrXTshYr6baeZGh8ApeqLsuG+4YZMABkxVlRWo5Fmk4vJbd6MRRsLJwK
+ePPyjBmSpRINJsBSTsgbz5YaIqtXVp+78F1VnlY1/4v9K+EUV90+y7HHsJKZnhIX
+YooJRkMOJVWj37PDRVJ+1g==
+-----END SIGNATURE-----
+directory-signature sha256 5A23BA701776C9C1AB1C06E734E92AB3D5350D64 D08E965CC6DCB6CB6ED776DB43E616E93AF61177
+-----BEGIN SIGNATURE-----
+IiG1SB9sgKg3+NIhFFCojLXD8VuI4DKAKMaFM+sURDhxP9sVHLwoIRYcZM85DuUV
+OaDs8aF+Y6Nfji7Kvqp7OYsRC3WgGVdmsexfwSmXgDuxnVbYVI/aG77jj8qIf5wh
+wRTufBn7fFevTwz8HIGJyGHrebICzrtWKAvcxWV6vJLnfAKON957xGdutY3xjE5E
+/NWZ3Ags/2MwaF1D7lsEjvPnRNWbZEz1GW6BcGVtbiszqWNlJp77ywSFIMbbIyOC
+Vy6WxOrn/c5xhqoQxvzfSCCfWzDUOX9guebd1SApC249PsyhSIu1oSBfAN+GI/UN
+qLHpjfj58pN8uknQU+aSIw==
+-----END SIGNATURE-----
+directory-signature sha256 7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE D3C013E0E6C82E246090D1C0798B75FCB7ACF120
+-----BEGIN SIGNATURE-----
+IIVukYddJQH8dsLmHGL8Nbdr9QRvDl0ngf79j3qCd9NnEnWKSf7b09kEdAAv57JZ
+aVleTAiLev5Sa+CW4aXsrfCJp92t9S4Lm2YLYfuTwcn7DjDpLXJsl8VDO0iXF4Uc
+yMk4os1FS5We/LVFs9+O9LfsN6y9OI+JlRT2EDmUi3Nm7Trjamjv658h3CdXZQ/L
+7kvEAmZ8/CAR+cDUrsPwR2dWWrtmWhz0fiE3IvnwwCd/FzQyAvCW2TcySK50pvT2
+wCI6+ZEYCk8+REjoHhEEhIaAOUeVd4XEe0EOtttivhoi+WNX5iNgl5F0SDRtX9jr
+2iiMtFT1LaX/e8A7Ti681Q==
+-----END SIGNATURE-----

@@ -734,3 +734,151 @@ fn current_time<DM: WriteNetDir>(writedir: &Weak<DM>) -> Result<SystemTime> {
         Err(Error::ManagerDropped)
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::Authority;
+    use std::sync::{
+        atomic::{self, AtomicBool},
+        Arc,
+    };
+
+    struct DirRcv {
+        cfg: DirMgrConfig,
+        netdir: SharedMutArc<NetDir>,
+        consensus_changed: AtomicBool,
+        descriptors_changed: AtomicBool,
+        now: SystemTime,
+    }
+
+    impl DirRcv {
+        fn new(now: SystemTime, authorities: Option<Vec<Authority>>) -> Self {
+            let mut netcfg = crate::NetworkConfig::builder();
+            netcfg.fallback_caches(vec![]);
+            if let Some(a) = authorities {
+                netcfg.authorities(a);
+            }
+            let cfg = DirMgrConfig::builder()
+                .cache_path("/we_will_never_use_this/")
+                .network_config(netcfg.build().unwrap())
+                .build()
+                .unwrap();
+            DirRcv {
+                now,
+                cfg,
+                netdir: Default::default(),
+                consensus_changed: false.into(),
+                descriptors_changed: false.into(),
+            }
+        }
+    }
+
+    impl WriteNetDir for DirRcv {
+        fn config(&self) -> &DirMgrConfig {
+            &self.cfg
+        }
+        fn netdir(&self) -> &SharedMutArc<NetDir> {
+            &self.netdir
+        }
+        fn netdir_consensus_changed(&self) {
+            self.consensus_changed.store(true, atomic::Ordering::SeqCst);
+        }
+        fn netdir_descriptors_changed(&self) {
+            self.descriptors_changed
+                .store(true, atomic::Ordering::SeqCst);
+        }
+        fn now(&self) -> SystemTime {
+            self.now
+        }
+    }
+
+    // Test data
+    const CONSENSUS: &str = include_str!("../testdata/mdconsensus1.txt");
+    fn test_time() -> SystemTime {
+        time::macros::datetime!(2020-08-07 12:42:45 UTC).into()
+    }
+    fn test_authorities() -> Vec<Authority> {
+        fn a(s: &str) -> Authority {
+            let k = hex::decode(s).unwrap();
+            Authority::builder()
+                .name("ignore")
+                .v3ident(RsaIdentity::from_bytes(&k[..]).unwrap())
+                .build()
+                .unwrap()
+        }
+        vec![
+            a("5696AB38CB3852AFA476A5C07B2D4788963D5567"),
+            a("5A23BA701776C9C1AB1C06E734E92AB3D5350D64"),
+            a("7C47DCB4A90E2C2B7C7AD27BD641D038CF5D7EBE"),
+        ]
+    }
+
+    #[test]
+    fn get_consensus_state() {
+        let rcv = Arc::new(DirRcv::new(test_time(), None));
+
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+
+        // Is description okay?
+        assert_eq!(&state.describe(), "Looking for a consensus.");
+
+        // Basic properties: without a consensus it is not ready to advance.
+        assert!(!state.can_advance());
+        assert!(!state.is_ready(Readiness::Complete));
+        assert!(!state.is_ready(Readiness::Usable));
+
+        // Basic properties: it doesn't want to reset.
+        assert!(state.reset_time().is_none());
+
+        // Do we know what we want?
+        let docs = state.missing_docs();
+        assert_eq!(docs.len(), 1);
+        let docid = docs[0];
+
+        assert!(matches!(
+            docid,
+            DocId::LatestConsensus {
+                flavor: ConsensusFlavor::Microdesc,
+                cache_usage: CacheUsage::CacheOkay,
+            }
+        ));
+
+        // Now suppose that we get some complete junk from a download.
+        let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
+        let req = crate::docid::ClientRequest::Consensus(req);
+        let outcome = state.add_from_download("this isn't a consensus", &req, None);
+        assert!(matches!(outcome, Err(Error::NetDocError(_))));
+
+        // Now try again, with a real consensus... but the wrong authorities.
+        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
+
+        // Great. Change the receiver to use a configuration where these test
+        // authorities are recognized.
+        let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        assert!(outcome.unwrap());
+
+        // And with that, we should be asking for certificates
+        let next = Box::new(state).advance().unwrap();
+        assert_eq!(
+            &next.describe(),
+            "Downloading certificates for consensus (we are missing 3/3)."
+        );
+
+        // Try again, but this time get the state from the cache.
+        let rcv = Arc::new(DirRcv::new(test_time(), Some(test_authorities())));
+        let mut state =
+            GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
+        let text: crate::storage::InputString = CONSENSUS.to_owned().into();
+        let map = vec![(docid, text.into())].into_iter().collect();
+        let outcome = state.add_from_cache(map, None);
+        assert!(outcome.unwrap());
+    }
+}
