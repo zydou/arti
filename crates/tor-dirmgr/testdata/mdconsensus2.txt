@@ -1,0 +1,76 @@
+network-status-version 3 microdesc
+vote-status consensus
+consensus-method 31
+valid-after 2021-10-27 21:26:40
+fresh-until 2021-10-27 21:27:00
+valid-until 2021-10-27 21:27:20
+voting-delay 4 4
+client-versions 
+server-versions 
+known-flags Authority Exit Fast Guard HSDir NoEdConsensus Running Stable StaleDesc Sybil V2Dir Valid
+recommended-client-protocols Cons=2 Desc=2 DirCache=2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 Microdesc=2 Relay=2
+recommended-relay-protocols Cons=2 Desc=2 DirCache=2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 LinkAuth=3 Microdesc=2 Relay=2
+required-client-protocols Cons=2 Desc=2 Link=4 Microdesc=2 Relay=2
+required-relay-protocols Cons=2 Desc=2 DirCache=2 HSDir=2 HSIntro=4 HSRend=2 Link=4-5 LinkAuth=3 Microdesc=2 Relay=2
+dir-source test002a 17447C92250D02BF17EA127F4BFED73EDC351025 127.0.0.1 127.0.0.1 7002 5002
+contact auth2@test.test
+vote-digest EC550860EAD4FE604200E5FBFB0097AB6776E3F7
+dir-source test000a 80091EF12DCDF803E87AE7114E77E05C3FC3A61D 127.0.0.1 127.0.0.1 7000 5000
+contact auth0@test.test
+vote-digest 1A52442F7F9E1B19FF163B75AD25C29BD7D96EF0
+dir-source test001a FB73296E2241B835A3ACBD4D2FC58A1864362779 127.0.0.1 127.0.0.1 7001 5001
+contact auth1@test.test
+vote-digest DF9524C6E5808B18208630C3568167E4A3E2B1A6
+r test002a diKSzSk9+Su/fPN5Sj9py311VeM 2021-10-27 21:26:04 127.0.0.1 5002 7002
+m LOXRj8YZP0kwpEAsYOvBZWZWGoWv5b/Bp2Mz2Us8d8g
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.4.7.1-alpha
+pr Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-3
+w Bandwidth=2 Unmeasured=1
+r test001a hUn9IS1TLOcWrs2zUELj46krJ38 2021-10-27 21:26:04 127.0.0.1 5001 7001
+m iOhVp33NyZxMRDMHsVNq575rkpRViIJ9LN9yn++nPG0
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.4.7.1-alpha
+pr Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-3
+w Bandwidth=2 Unmeasured=1
+r test000a uFr6V8majx2wI98SmV0efsXeQro 2021-10-27 21:26:06 127.0.0.1 5000 7000
+m /Cd07b3Bl0K0jX2/1cAvsYXJJMi5d8UBU+oWKaLxoGo
+s Authority Exit Fast Guard HSDir Running Stable V2Dir Valid
+v Tor 0.4.7.1-alpha
+pr Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-3
+w Bandwidth=2 Unmeasured=1
+r test006r u8v+BBfnmH5ZEV5VNDGZ0fHQ0Dk 2021-10-27 21:26:24 127.0.0.1 5006 0
+m z+oOlR7Ga6cg9OoC/A3D3Ey9Rtc4OldhKlpQblMfQKo
+s Exit Fast Guard HSDir Running V2Dir Valid
+v Tor 0.4.7.1-alpha
+pr Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Padding=2 Relay=1-3
+w Bandwidth=54 Unmeasured=1
+directory-footer
+bandwidth-weights Wbd=3333 Wbe=0 Wbg=0 Wbm=10000 Wdb=10000 Web=10000 Wed=3333 Wee=10000 Weg=3333 Wem=10000 Wgb=10000 Wgd=3333 Wgg=10000 Wgm=10000 Wmb=10000 Wmd=3333 Wme=0 Wmg=0 Wmm=10000
+directory-signature sha256 17447C92250D02BF17EA127F4BFED73EDC351025 51A181354A79F930A1B150598F4C757F4FB91821
+-----BEGIN SIGNATURE-----
+Q90rG+xvz7M+qaFGydeTNVfWtpqDNIpbHglbc2IVYYrUdfrzqZtnF/vjzNrCY6Q3
+hiN/b+YvxrwrCfodRslCYC/9WgRllKNNw3vT87d6XDHyIDexCgMkQ9oS0fcpECZA
+iDVpLloITsWc1RHrM/JGbqbfifCcwgA4/IVKV+E3mNtT3S9zin68WE3Q5idVFzs/
+4+dIUEpk9Bxi7cIt14T5PoK9ZAX2ePyYftqCtyFFnoy4irkhigEW3jBJcWYVm2bJ
+kWsaohelNt6uVacGE41qmEHrHPvULOJfTfwSsbq63gqmeM/ABwlEgf67IGbJAybC
+kubVMLJGgpVgLHDwy4CC1A==
+-----END SIGNATURE-----
+directory-signature sha256 80091EF12DCDF803E87AE7114E77E05C3FC3A61D DFF0C48E3102FCF8B8B5DB21D2633685E1CCB6A4
+-----BEGIN SIGNATURE-----
+UBNC6rxsP9wxLNZrEZQ+A0kfHOCAVqC/YLhejtHuYHQQIQ8GlifAAkqFzhxuKiV7
++yhGO5JB1LguQCXdEFCFao6AKDu15vbZm1SCp0pIdNQYCX5aqvy8ilcN00We4XAp
+Oa1bINFMq+pomtmil9Ta0Iz2x3SbRXpkygHV+yGK07g3JHsMU0iCb7o9WXHCnaGe
+hws5HVfe0iLMRWjeiyQMYGZZaHdWd2OBFI8dhio/WaglRiEVthXvK7tHA8qJwjZ1
+tohVk3iVEkEzQ3fdkaNorpzSemyUWsgCAXS9SgE3hF+fUtHWVOVerYZeYRd2UR6m
+SuY4C8nwj4ja5WS0KcuwEA==
+-----END SIGNATURE-----
+directory-signature sha256 FB73296E2241B835A3ACBD4D2FC58A1864362779 B7A0EAC29765412160D9B5DB5A9731EB459A9448
+-----BEGIN SIGNATURE-----
+RuCupP4i380TfowIM4/IUI3iJUZSWBSWXX1jYvPPcF2GovoEl1rdr2/38SSZCfJ6
+Lpv2dCJPExlReseMy8Sy9NFDNh7MNj5XOXefLVD1vjq4HxksvmayQR+kUBPYZkT2
+L6tKkSYPeWC85i3b3USM6gDCwgIRsBot9T9tatfU0SxtUc907UCbTFqNNwbzOJ3M
+BqAl2g3n3kPkZwKm2e64/cB87DV8/i/Iat80xg3rnnOhsKGpDpDtRg/kGEDA/1AW
+4rEhKZBDn/7J44XBDy7QuZrXN7g5POhRFB3nGGixw5ZZwzMxXjSRydsWSDeK7ehP
+LOeqPGoK68aPHStQg+bK0w==
+-----END SIGNATURE-----
