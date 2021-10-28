@@ -3,7 +3,7 @@
 use thiserror::Error;
 use tor_rtcompat::TimeoutError;
 
-/// An error originating from the tor-dirclient crate.
+/// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
