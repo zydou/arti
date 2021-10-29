@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ -z "${1-}" ]; then
+	echo "Usage: $0 [revision]"
+	echo "Script will print thanks for all contributors since [revision]."
+	exit 1
+fi
+
+TEMPDIR=$(mktemp -d)
+TO_EXCLUDE="$(dirname $BASH_SOURCE)/exclude_contributors.txt"
+LAST_REV=$1
+
+echo "[*] Finding contributors since $LAST_REV..."
+git log --pretty="%an%n%cn" HEAD "^$LAST_REV" | sort | uniq > "$TEMPDIR/contributors.txt"
+echo "[*] Found $(wc -l < $TEMPDIR/contributors.txt) contributors!"
+
+echo "[*] Removing contributors listed in $TO_EXCLUDE..."
+comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" | sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
+echo "[*] Ended up with $(wc -l < $TEMPDIR/final.txt) contributors remaining."
+
+readarray -t CONTRIBUTORS < "$TEMPDIR/final.txt"
+
+# from https://stackoverflow.com/a/17841619/4739163
+function join_by { local d=${1-} f=${2-}; if shift 2; then printf %s "$f" "${@/#/$d}"; fi; }
+OUTPUT=$(join_by ", " "${CONTRIBUTORS[@]}")
+
+echo "Contributors: $OUTPUT"
+
