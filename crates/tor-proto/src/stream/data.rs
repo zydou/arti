@@ -40,7 +40,7 @@ use tor_cell::relaycell::msg::{Data, RelayMsg};
 /// as possible onto the network.  In order to make sure that your
 /// data has actually been sent, you need to call make sure that
 /// `poll_flush` runs to completion: probably via
-/// [`AsyncWrite::flush`].
+/// [`AsyncWriteExt::flush`](futures::io::AsyncWriteExt::flush).
 ///
 /// # Semver note
 ///
