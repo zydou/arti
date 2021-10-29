@@ -45,8 +45,9 @@ impl<T> Runtime for T where
 
 /// Trait for a runtime that can wait until a timer has expired.
 ///
-/// Every `SleepProvider` also implements [`crate::SleepProviderExt`];
-/// see that trait for other useful functions.
+/// Every `SleepProvider` also implements
+/// [`SleepProviderExt`](crate::SleepProviderExt); see that trait
+/// for other useful functions.
 pub trait SleepProvider {
     /// A future returned by [`SleepProvider::sleep()`]
     type SleepFuture: Future<Output = ()> + Send + 'static;

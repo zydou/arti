@@ -1,4 +1,5 @@
-//! Stream utilities to help implement [`super::AbstractCircMgr.`]
+//! Stream utilities to help implement
+//! [`AbstractCircMgr`](`super::AbstractCircMgr.`)
 
 use futures::stream::{Fuse, FusedStream, Stream, StreamExt};
 use futures::task::{Context, Poll};

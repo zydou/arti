@@ -31,8 +31,8 @@ pub const RSA_ID_LEN: usize = 20;
 /// key.  These are used all over the Tor protocol.
 ///
 /// Note that for modern purposes, you should almost always identify a
-/// relay by its [`crate::pk::ed25519::Ed25519Identity`] instead of
-/// by this kind of identity key.
+/// relay by its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity)
+/// instead of by this kind of identity key.
 #[derive(Clone, Copy, Hash, Zeroize, Ord, PartialOrd)]
 #[allow(clippy::derive_hash_xor_eq)]
 pub struct RsaIdentity {

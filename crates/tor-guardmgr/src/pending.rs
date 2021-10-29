@@ -18,7 +18,7 @@ use std::time::Instant;
 
 /// A future used to see if we have "permission" to use a guard.
 ///
-/// For efficiency, the [`crate::GuardMgr`] implementation sometimes gives
+/// For efficiency, the [`GuardMgr`](crate::GuardMgr) implementation sometimes gives
 /// out lower-priority guards when it is not certain whether
 /// higher-priority guards are running.  After having built a circuit
 /// with such a guard, the caller must wait on this future to see whether
@@ -31,7 +31,7 @@ use std::time::Instant;
 /// eventually become unusable (if we find a higher-priority guard
 /// that works).
 ///
-/// Any [`crate::GuardRestriction`]s that were used to select this guard
+/// Any [`GuardRestriction`](crate::GuardRestriction)s that were used to select this guard
 /// may influence whether it is usable: if higher priority guards were
 /// ignored because of a restriction, then we might use a guard that we
 /// otherwise wouldn't.
@@ -91,7 +91,7 @@ pub enum GuardStatus {
     AttemptAbandoned,
 }
 
-/// An object used to tell the [`crate::GuardMgr`] about the result of
+/// An object used to tell the [`GuardMgr`](crate::GuardMgr) about the result of
 /// trying to build a circuit through a guard.
 ///
 /// The `GuardMgr` needs to know about these statuses, so that it can tell

@@ -21,10 +21,10 @@ pub(crate) enum Msg {
     /// This message is sent by guard manager whenever it hands out a
     /// guard; the receiver will be notified when the requester's circuit
     /// succeeds, fails, or is abandoned.  The receiver corresponds
-    /// to the sender in some [`crate::GuardMonitor`].
+    /// to the sender in some [`GuardMonitor`](crate::GuardMonitor).
     Observe(oneshot::Receiver<Msg>),
-    /// A message sent by a [`crate::GuardMonitor`] to report the status
-    /// of an attempt to use a guard.
+    /// A message sent by a [`GuardMonitor`](crate::GuardMonitor) to
+    /// report the status of an attempt to use a guard.
     Status(RequestId, GuardStatus),
     /// Tells the task to reply on the provided oneshot::Sender once
     /// it has seen this message.  Used to indicate that the message
