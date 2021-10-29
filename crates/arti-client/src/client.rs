@@ -30,7 +30,8 @@ use tracing::{debug, error, info, warn};
 /// circuits, and make connections for you.
 ///
 /// Cloning this object makes a new reference to the same underlying
-/// handles.
+/// handles: it's usually better to clone the `TorClient` than it is to
+/// create a new one.
 #[derive(Clone)]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
