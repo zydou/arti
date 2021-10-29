@@ -1,3 +1,5 @@
+[![Crates.io](https://img.shields.io/crates/v/arti.svg)](https://crates.io/crates/arti)
+
 # Arti: reimplementing Tor in Rust
 
 Arti is a project to produce an embeddable, production-quality implementation
