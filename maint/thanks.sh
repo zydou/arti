@@ -8,16 +8,16 @@ if [ -z "${1-}" ]; then
 fi
 
 TEMPDIR=$(mktemp -d)
-TO_EXCLUDE="$(dirname $BASH_SOURCE)/exclude_contributors.txt"
+TO_EXCLUDE="$(dirname "$0")/exclude_contributors.txt"
 LAST_REV=$1
 
 echo "[*] Finding contributors since $LAST_REV..."
 git log --pretty="%an%n%cn" HEAD "^$LAST_REV" | sort | uniq > "$TEMPDIR/contributors.txt"
-echo "[*] Found $(wc -l < $TEMPDIR/contributors.txt) contributors!"
+echo "[*] Found $(wc -l < "$TEMPDIR/contributors.txt") contributors!"
 
 echo "[*] Removing contributors listed in $TO_EXCLUDE..."
 comm -13 "$TO_EXCLUDE" "$TEMPDIR/contributors.txt" | sed 's/^[[:space:]]*\|[[:space:]]*$//g' > "$TEMPDIR/final.txt"
-echo "[*] Ended up with $(wc -l < $TEMPDIR/final.txt) contributors remaining."
+echo "[*] Ended up with $(wc -l < "$TEMPDIR/final.txt") contributors remaining."
 
 readarray -t CONTRIBUTORS < "$TEMPDIR/final.txt"
 
