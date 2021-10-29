@@ -9,6 +9,8 @@ use thiserror::Error;
 
 /// An object that can be converted to a [`TorAddr`] with a minimum
 /// of risk.
+///
+/// [*See also: the `TorAddr` documentation.*](TorAddr)
 pub trait IntoTorAddr {
     /// Try to make a [`TorAddr`] to represent connecting to this
     /// address.
@@ -24,6 +26,8 @@ pub trait IntoTorAddr {
 /// where did you get the [`SocketAddr`] in the first place?  If it
 /// comes from a local DNS lookup, then you have leaked the address
 /// you were resolving to your DNS resolver, and probably your ISP.
+///
+/// [*See also: the `TorAddr` documentation.*](TorAddr)
 pub trait DangerouslyIntoTorAddr {
     /// Try to make a [`TorAddr`] to represent connecting to this
     /// address.
@@ -45,6 +49,47 @@ pub trait DangerouslyIntoTorAddr {
 /// In order to discourage local hostname lookups, the functions that
 /// construct a [`TorAddr`] from [`IpAddr`], [`SocketAddr`], and so
 /// forth are labeled as "dangerous".
+///
+/// # Examples
+///
+/// Making a `TorAddr` from various "safe" sources:
+///
+/// ```rust
+/// # use anyhow::Result;
+/// # fn main() -> Result<()> {
+/// use arti_client::IntoTorAddr;
+///
+/// let example_from_tuple = ("example.com", 80).into_tor_addr()?;
+/// let example_from_string = "example.com:80".into_tor_addr()?;
+///
+/// assert_eq!(example_from_tuple, example_from_string);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Making a `TorAddr` from an IP address and port:
+///
+/// > **Warning:** This example is only safe because we're not doing a DNS lookup; rather, the
+/// > intent is to connect to a hardcoded IP address.
+/// > If you're using [`DangerouslyIntoTorAddr`], pay careful attention to where your IP addresses
+/// > are coming from, and whether there's a risk of information leakage.
+///
+/// ```rust
+/// # use anyhow::Result;
+/// # fn main() -> Result<()> {
+/// use arti_client::DangerouslyIntoTorAddr;
+/// use std::net::{IpAddr, SocketAddr};
+///
+/// let quad_one_dns: SocketAddr = "1.1.1.1:53".parse()?;
+/// let addr_from_socketaddr = quad_one_dns.into_tor_addr_dangerously()?;
+///
+/// let quad_one_ip: IpAddr = "1.1.1.1".parse()?;
+/// let addr_from_tuple = (quad_one_ip, 53).into_tor_addr_dangerously()?;
+///
+/// assert_eq!(addr_from_socketaddr, addr_from_tuple);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TorAddr {
     /// The target host.
