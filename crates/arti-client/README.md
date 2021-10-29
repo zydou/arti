@@ -52,14 +52,16 @@ If you really want to connect to a raw IP address and know what you're doing, ta
 ### Example: making connections over Tor
 
 ```rust
-// The client config includes things like where to store persistent Tor network state.
+// The client configuration describes how to connect to the Tor network,
+// and what directories to use for storing persistent state.
 let config = TorClientConfig::sane_defaults()?;
-// Arti needs a handle to an async runtime in order to spawn async tasks.
-// (See "Multiple runtime support" below.)
+// Arti needs a handle to an async runtime in order to spawn tasks and use the
+// network. (See "Multiple runtime support" below.)
 let rt = tor_rtcompat::tokio::current_runtime()?;
 
 // Start the Arti client, and let it bootstrap a connection to the Tor network.
-// (This takes a while to gather the necessary consensus state, etc.)
+// (This takes a while to gather the necessary directory information.
+// It uses cached information when possible.)
 let tor_client = TorClient::bootstrap(rt, config).await?;
 
 // Initiate a connection over Tor to example.com, port 80.
@@ -73,8 +75,7 @@ stream
     .await?;
 
 // IMPORTANT: Make sure the request was written.
-// Arti buffers data by default due to the design of the Tor protocol, so flushing the
-// buffer is usually required.
+// Arti buffers data, so flushing the buffer is usually required.
 stream.flush().await?;
 
 // Read and print the result.
@@ -127,6 +128,9 @@ will expect a type that implements [`tor_rtcompat::Runtime`], which can be obtai
 `tokio` -- (Default) Build with support for the Tokio backend.
 
 `async-std` -- Build with support for the `async_std` backend.
+
+`static` -- Link with static versions of your system dependencies,
+including sqlite and/or openssl.
 
 `experimental-api` -- Build with experimental, unstable API support.
 Note that these APIs are NOT covered by semantic versioning guarantees:
