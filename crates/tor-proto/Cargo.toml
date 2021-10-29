@@ -1,6 +1,6 @@
 [package]
 name = "tor-proto"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -17,13 +17,13 @@ ntor_v3 = []
 tokio = [ "tokio-crate", "tokio-util" ]
 
 [dependencies]
-tor-llcrypto = { path="../tor-llcrypto", version="0.0.0" }
-tor-bytes = { path="../tor-bytes", version="0.0.0" }
-tor-cert = { path="../tor-cert", version="0.0.0" }
-tor-linkspec = { path="../tor-linkspec", version="0.0.0" }
-tor-checkable = { path="../tor-checkable", version="0.0.0" }
-tor-protover = { path="../tor-protover", version="0.0.0" }
-tor-cell = { path="../tor-cell", version="0.0.0" }
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
+tor-bytes = { path="../tor-bytes", version = "0.0.1"}
+tor-cert = { path="../tor-cert", version = "0.0.1"}
+tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}
+tor-checkable = { path="../tor-checkable", version = "0.0.1"}
+tor-protover = { path="../tor-protover", version = "0.0.1"}
+tor-cell = { path="../tor-cell", version = "0.0.1"}
 
 arrayref = "0.3.6"
 bytes = "1.0.1"

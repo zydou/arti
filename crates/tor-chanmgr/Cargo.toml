@@ -1,6 +1,6 @@
 [package]
 name = "tor-chanmgr"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -13,10 +13,10 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 [dependencies]
-tor-rtcompat = { path="../tor-rtcompat", version="0.0.0" }
-tor-proto = { path="../tor-proto", version="0.0.0" }
-tor-linkspec = { path="../tor-linkspec", version="0.0.0" }
-tor-llcrypto = { path="../tor-llcrypto", version="0.0.0" }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.1"}
+tor-proto = { path="../tor-proto", version = "0.0.1"}
+tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
 
 async-trait = "0.1.48"
 futures = "0.3.13"
@@ -26,5 +26,5 @@ thiserror = "1.0.24"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 hex-literal = "0.3.1"
-tor-rtmock = { path="../tor-rtmock", version="0.0.0" }
-tor-rtcompat = { path="../tor-rtcompat", version="0.0.0", features=["tokio"] }
+tor-rtmock = { path="../tor-rtmock", version = "0.0.1"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.1", features=["tokio"] }
