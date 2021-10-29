@@ -34,7 +34,15 @@ use tor_cell::relaycell::msg::{Data, RelayMsg};
 /// it to implement the `tokio` versions of those traits, make sure
 /// this crate is built with the `tokio` feature.
 ///
-/// # Semver note:
+/// # Remember to call `flush`!
+///
+/// DataStream buffers data internally, in order to write as few cells
+/// as possible onto the network.  In order to make sure that your
+/// data has actually been sent, you need to call make sure that
+/// `poll_flush` runs to completion: probably via
+/// [`AsyncWrite::flush`].
+///
+/// # Semver note
 ///
 /// Note that this type is re-exported as a part of the public API of
 /// the `arti-client` crate.  Any changes to its API here in
@@ -48,8 +56,9 @@ pub struct DataStream {
 
 /// Wrapper for the Write part of a DataStream.
 ///
-/// Note that this implementation writes Tor cells lazily, so it is essential to
-/// flush the stream when you need the data to do out right away.
+/// Note that this implementation writes Tor cells lazily, so it is
+/// essential to flush the stream when you need the data to be sent
+/// out right away.
 pub struct DataWriter {
     /// Internal state for this writer
     ///
