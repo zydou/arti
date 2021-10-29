@@ -22,31 +22,63 @@ use std::sync::Arc;
 
 use tor_cell::relaycell::msg::{Data, RelayMsg};
 
-/// A DataStream is a Tor stream packaged so as to be useful for
-/// byte-oriented IO.
+/// An anonymized stream over the Tor network.
 ///
-/// It's suitable for use with BEGIN or BEGIN_DIR streams.
+/// For most purposes, you can think of this type as an anonymized
+/// TCP stream: it can read and write data, and get closed when it's done.
 ///
-/// # Note for tokio users
+/// [`DataStream`] implements [`futures::io::AsyncRead`] and
+/// [`futures::io::AsyncWrite`], so you can use it anywhere that those
+/// traits are expected.
 ///
-/// By default, this type implements only the versions of `AsyncRead`
-/// and `AsyncWrite` traits from the [`futures`] crate.  If you need
-/// it to implement the `tokio` versions of those traits, make sure
-/// this crate is built with the `tokio` feature.
+/// # Examples
+///
+/// Connecting to an HTTP server and sending a request, using
+/// [`AsyncWriteExt::write_all`](futures::io::AsyncWriteExt::write_all):
+///
+/// ```ignore
+/// let mut stream = tor_client.connect(("icanhazip.com", 80), None).await?;
+///
+/// use futures::io::AsyncWriteExt;
+///
+/// stream
+///     .write_all(b"GET / HTTP/1.1\r\nHost: icanhazip.com\r\nConnection: close\r\n\r\n")
+///     .await?;
+///
+/// // Flushing the stream is important; see below!
+/// stream.flush().await?;
+/// ```
+///
+/// Reading the result, using [`AsyncReadExt::read_to_end`](futures::io::AsyncReadExt::read_to_end):
+///
+/// ```ignore
+/// use futures::io::AsyncReadExt;
+///
+/// let mut buf = Vec::new();
+/// stream.read_to_end(&mut buf).await?;
+///
+/// println!("{}", String::from_utf8_lossy(&buf));
+/// ```
+///
+/// # Usage with Tokio
+///
+/// If the `tokio` crate feature is enabled, this type also implements
+/// [`tokio::io::AsyncRead`](tokio_crate::io::AsyncRead) and
+/// [`tokio::io::AsyncWrite`](tokio_crate::io::AsyncWrite) for easier integration
+/// with code that expects those traits.
 ///
 /// # Remember to call `flush`!
 ///
 /// DataStream buffers data internally, in order to write as few cells
 /// as possible onto the network.  In order to make sure that your
-/// data has actually been sent, you need to call make sure that
-/// `poll_flush` runs to completion: probably via
+/// data has actually been sent, you need to make sure that
+/// [`AsyncWrite::poll_flush`] runs to completion: probably via
 /// [`AsyncWriteExt::flush`](futures::io::AsyncWriteExt::flush).
-///
-/// # Semver note
-///
-/// Note that this type is re-exported as a part of the public API of
-/// the `arti-client` crate.  Any changes to its API here in
-/// `tor-proto` need to be reflected above.
+// # Semver note
+//
+// Note that this type is re-exported as a part of the public API of
+// the `arti-client` crate.  Any changes to its API here in
+// `tor-proto` need to be reflected above.
 pub struct DataStream {
     /// Underlying writer for this stream
     w: DataWriter,

@@ -66,10 +66,44 @@ impl TargetPort {
 /// [`IsolationToken::no_isolation`]. However, tokens created with
 /// [`IsolationToken::no_isolation`] are all equal to one another.
 ///
-/// # Semver note
+/// # Examples
 ///
-/// This type is re-exported by `arti-client`: any changes to it must be
-/// reflected in `arti-client`'s version.
+/// Creating distinct isolation tokens:
+///
+/// ```rust
+/// # use tor_circmgr::IsolationToken;
+/// let token_1 = IsolationToken::new();
+/// let token_2 = IsolationToken::new();
+///
+/// assert_ne!(token_1, token_2);
+///
+/// // Demonstrating the behaviour of no_isolation() tokens:
+/// assert_ne!(token_1, IsolationToken::no_isolation());
+/// assert_eq!(IsolationToken::no_isolation(), IsolationToken::no_isolation());
+/// ```
+///
+/// Using an isolation token to route streams differently over the Tor network:
+///
+/// ```ignore
+/// use arti_client::ConnectPrefs;
+///
+/// let token_1 = IsolationToken::new();
+/// let token_2 = IsolationToken::new();
+///
+/// let mut prefs_1 = ConnectPrefs::new();
+/// prefs_1.set_isolation_group(token_1);
+///
+/// let mut prefs_2 = ConnectPrefs::new();
+/// prefs_2.set_isolation_group(token_2);
+///
+/// // These two connections will come from different source IP addresses.
+/// tor_client.connect(("example.com", 80), Some(prefs_1)).await?;
+/// tor_client.connect(("example.com", 80), Some(prefs_2)).await?;
+/// ```
+// # Semver note
+//
+// This type is re-exported by `arti-client`: any changes to it must be
+// reflected in `arti-client`'s version.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IsolationToken(u64);
 
