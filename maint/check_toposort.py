@@ -1,0 +1,91 @@
+#!/usr/bin/python
+#
+# Helper script: makes sure that the crates as listed in Cargo.toml are
+# topologically sorted from lowest-level to highest level.
+
+import toml.decoder
+import sys, os.path,os
+
+TOPDIR = os.path.split(os.path.dirname(sys.argv[0]))[0]
+CRATEDIR = os.path.join(TOPDIR, "crates")
+WORKSPACE_TOML = os.path.join(TOPDIR, "Cargo.toml")
+
+def crate_dirs():
+    return set(name for name in os.listdir(CRATEDIR) if not name.startswith("."))
+
+def strip_prefix(s, prefix):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    else:
+        return s
+
+def crate_list():
+    t = toml.decoder.load(WORKSPACE_TOML)
+    return list(strip_prefix(name, "crates/") for name in t['workspace']['members'])
+
+CRATE_LIST = crate_list()
+CRATE_DIRS = crate_dirs()
+
+
+def check_disjoint():
+    listed_crates = set(crate_list())
+    if listed_crates != CRATE_DIRS:
+        print("The crates in the crates/ directory do not match the ones in Cargo.toml!")
+        print("Problem crates", listed_crates ^ CRATE_DIRS)
+        return True
+    else:
+        return False
+
+
+def get_path(dep):
+    try:
+        return dep['path']
+    except (KeyError,TypeError):
+        return None
+
+def get_dependencies(cratename):
+    fname = os.path.join(CRATEDIR, cratename, "Cargo.toml")
+    t = toml.decoder.load(fname)
+    deps = set()
+    for secname in ['dependencies', 'dev-dependencies']:
+        sec = t.get(secname)
+        if not sec:
+            continue
+        for (key,val) in sec.items():
+            path = get_path(val)
+            if path:
+                d,p = os.path.split(val['path'])
+                if d == "..":
+                    assert(p in CRATE_DIRS)
+                    deps.add(p)
+    return deps
+
+def get_dependency_graph():
+    all_deps = {}
+    for crate in CRATE_DIRS:
+        all_deps[crate] = get_dependencies(crate)
+    return all_deps
+
+GRAPH = get_dependency_graph()
+
+def check_consistency(order, graph):
+    """Make sure that `order` is topologically sorted from bottom to
+       top, according to `graph`.
+    """
+    seen_so_far = set()
+    problems = False
+    for crate in order:
+        for dependent in graph[crate]:
+            if dependent not in seen_so_far:
+                print(f"{crate} dependency on {dependent} is not reflected in Cargo.toml")
+                problems = True
+        seen_so_far.add(crate)
+
+    return problems
+
+if __name__ == '__main__':
+    if check_disjoint():
+        sys.exit(1)
+    if check_consistency(CRATE_LIST, GRAPH):
+        sys.exit(1)
+    print("Everything seems okay")
