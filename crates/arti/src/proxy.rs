@@ -82,7 +82,7 @@ impl IsolationMap {
     ///
     /// Every 30 minutes, on next call to this functions, entry older than 30 minutes are removed
     fn get_or_create(&self, key: IsolationKey, now: Instant) -> IsolationToken {
-        let mut inner = self.inner.lock().expect("Posioned lock on isolation map.");
+        let mut inner = self.inner.lock().expect("Poisoned lock on isolation map.");
         if inner.next_gc < now {
             inner.next_gc = now + ISOMAP_GC_INTERVAL;
 
