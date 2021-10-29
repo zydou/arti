@@ -50,7 +50,7 @@ basic privacy.
 
 ### Acknowledgments
 
-Thanks to everbody who's contributed to this release, including Ben
+Thanks to everybody who's contributed to this release, including Ben
 Armstead, Daniel Eades, Dimitris Apostolou, Eugene Lomov, Felipe
 Lema, Jani Monoses, Lennart Kloock, Neel Chauhan, S0AndS0, Smitty,
 Trinity Pointard, Yuan Lyu, dagger, and rls!
