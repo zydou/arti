@@ -11,6 +11,8 @@ TEMPDIR=$(mktemp -d)
 TO_EXCLUDE="$(dirname "$0")/exclude_contributors.txt"
 LAST_REV=$1
 
+trap 'rm -rf "$TEMPDIR"' 0
+
 echo "[*] Finding contributors since $LAST_REV..."
 git log --pretty="%an%n%cn" HEAD "^$LAST_REV" | sort | uniq > "$TEMPDIR/contributors.txt"
 echo "[*] Found $(wc -l < "$TEMPDIR/contributors.txt") contributors!"
