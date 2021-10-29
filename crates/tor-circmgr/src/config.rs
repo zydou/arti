@@ -12,7 +12,7 @@ use std::time::Duration;
 /// Configuration for circuit timeouts and retries.
 ///
 /// This type is immutable once constructed. To create an object of this type,
-/// use [`RequestTimingBuilder`].
+/// use [`RequestTimingBuilder`], or deserialize it from a string.
 #[derive(Debug, Clone, Builder, Deserialize)]
 #[builder]
 pub struct RequestTiming {
@@ -50,7 +50,7 @@ impl Default for RequestTiming {
 /// Rules for building paths over the network.
 ///
 /// This type is immutable once constructed.  To build one, use
-/// [`PathConfigBuilder`].
+/// [`PathConfigBuilder`], or deserialize it from a string.
 #[derive(Debug, Clone, Builder, Deserialize, Default)]
 #[builder]
 pub struct PathConfig {
@@ -86,8 +86,14 @@ impl Default for CircuitTiming {
 
 /// Configuration for a circuit manager.
 ///
+/// This configuration includes information about how to build paths
+/// on the Tor network, and rules for timeouts and retries on Tor
+/// circuits.
+///
 /// This type is immutable once constructed.  To create an object of
-/// this type, use [`CircMgrConfigBuilder`].
+/// this type, use [`CircMgrConfigBuilder`], or deserialize it from a
+/// string.  (Arti generally uses Toml for configuration, but you can
+/// use other formats if you prefer.)
 #[derive(Debug, Clone, Builder, Default)]
 #[builder]
 pub struct CircMgrConfig {

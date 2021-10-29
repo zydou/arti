@@ -49,24 +49,57 @@ impl Default for ClientAddrConfig {
     }
 }
 
-/// Configuration used to bootstrap a `TorClient`.
+/// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
+///
+/// In order to connect to the Tor network, Arti needs to know a few
+/// well-known directories on the network, and the public keys of the
+/// network's directory authorities.  It also needs a place on disk to
+/// store persistent state and cached directory information.
+///
+/// Most users will create a TorClientConfig by running
+/// [`TorClientConfig::sane_defaults`].
+///
+/// If you need to override the locations where Arti stores its information,
+/// you can make a TorClientConfig with [`TorClientConfig::with_directories`].
+///
+/// Finally, you can get fine-grained control over the members of a a
+/// TorClientConfig using [`TorClientConfigBuilder`].
 #[derive(Clone, Debug, Builder)]
 pub struct TorClientConfig {
     /// A directory suitable for storing persistent Tor state in.
+    ///
+    /// This is distinct from the cache directory set in `dir_cfg`:
+    /// it is _not_ safe to delete this information regularly.
+    ///
+    /// Multiple instances of Arti may share the same state directory.
     pub(crate) state_cfg: PathBuf,
+
     /// Configuration for the network directory manager.
+    ///
+    /// This includes information on how to find and authenticate the
+    /// Tor network, how to frequently to retry directory downloads,
+    /// and where to store cached directory information.
     pub(crate) dir_cfg: dir::DirMgrConfig,
+
     /// Configuration for the network circuit manager.
+    ///
+    /// This includes information about how to build paths through the
+    /// Tor network, and how to retry failed circuits.
     pub(crate) circ_cfg: circ::CircMgrConfig,
-    /// Other client configuration.
+
+    /// Configures how the client interprets addresses on the network.
     pub(crate) addr_cfg: ClientAddrConfig,
 }
 
 impl TorClientConfig {
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
-    /// This uses `tor_config`'s definitions for `APP_LOCAL_DATA` and `APP_CACHE` for the state and
-    /// cache directories respectively.
+    /// This uses `tor_config`'s definitions for `APP_LOCAL_DATA` and
+    /// `APP_CACHE` for the state and cache directories respectively.
+    ///
+    /// (On unix, this usually works out to `~/.local/share/arti` and
+    /// `~/.cache/arti`, depending on your environment.  We use the
+    /// `directories` crate for reasonable defaults on other platforms.)
     pub fn sane_defaults() -> Result<Self> {
         let state_dir = tor_config::CfgPath::new("${APP_LOCAL_DATA}".into())
             .path()
@@ -78,8 +111,9 @@ impl TorClientConfig {
         Self::with_directories(state_dir, cache_dir)
     }
 
-    /// Returns a `TorClientConfig` using the specified state and cache directories, with other
-    /// configuration options set to defaults.
+    /// Returns a `TorClientConfig` using the specified state and cache directories.
+    ///
+    /// All other configuration options are set to their defaults.
     pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self>
     where
         P: Into<PathBuf>,

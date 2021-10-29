@@ -22,6 +22,9 @@ use serde::Deserialize;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
+///
+/// This type is immutable once constructed. To make one, use
+/// [`NetworkConfigBuilder`], or deserialize it from a string.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate"))]
@@ -37,6 +40,9 @@ pub struct NetworkConfig {
 
     /// List of directory authorities which we expect to sign
     /// consensus documents.
+    ///
+    /// (If none are specified, we use a default list of authorities
+    /// shippedwith Arti.)
     #[serde(default = "crate::authority::default_authorities")]
     #[builder(default = "crate::authority::default_authorities()")]
     authorities: Vec<Authority>,
@@ -80,8 +86,11 @@ impl NetworkConfigBuilder {
     }
 }
 
-/// Configuration information for how exactly we download things from the
+/// Configuration information for how exactly we download documents from the
 /// Tor directory caches.
+///
+/// This type is immutable once constructed. To make one, use
+/// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct DownloadScheduleConfig {
@@ -143,7 +152,9 @@ impl DownloadScheduleConfig {
 ///
 /// This type is immutable once constructed.
 ///
-/// To create an object of this type, use DirMgrConfigBuilder.
+/// To create an object of this type, use [`DirMgrConfigBuilder`], or
+/// deserialize it from a string. (Arti generally uses Toml for
+/// configuration, but you can use other formats if you prefer.)
 #[derive(Debug, Clone, Builder)]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
