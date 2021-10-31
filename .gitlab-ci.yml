@@ -45,6 +45,18 @@ rust-nightly:
   tags:
     - amd64
 
+minimal-versions:
+  stage: test
+  image: rust:1.56
+  script:
+    - rustup install nightly
+    - cargo +nightly update -Z minimal-versions
+    - cargo update -p crc32fast -p lexical-core -p synstructure:0.12.0 # failing deps of deps
+    - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
+    - cargo test --verbose --all-features
+  tags:
+    - amd64
+
 build-repro:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
