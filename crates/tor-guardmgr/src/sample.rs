@@ -526,6 +526,15 @@ impl GuardSet {
         }
     }
 
+    /// Return true if all of our primary guards are currently marked
+    /// unreachable.
+    pub(crate) fn all_primary_guards_are_unreachable(&mut self) -> bool {
+        self.primary
+            .iter()
+            .flat_map(|id| self.guards.get(id))
+            .all(|g| g.reachable() == Reachable::Unreachable)
+    }
+
     /// Mark every `Unreachable` guard as `Unknown`.
     pub(crate) fn mark_all_guards_retriable(&mut self) {
         for (_, g) in self.guards.iter_mut() {

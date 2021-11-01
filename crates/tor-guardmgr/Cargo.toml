@@ -15,6 +15,7 @@ tor-netdir = { path="../tor-netdir", version = "0.0.1"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
 tor-persist = {  path="../tor-persist", version = "0.0.1"}
+tor-proto = {  path="../tor-proto", version = "0.0.1", features=["traffic-timestamp"] }
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.1"}
 tor-units = { path="../tor-units", version = "0.0.1"}
 

@@ -178,16 +178,11 @@ pub struct GuardMgr<R: Runtime> {
 /// This would just be a [`GuardMgr`], except that it needs to sit inside
 /// a `Mutex` and get accessed by daemon tasks.
 struct GuardMgrInner {
-    /// Last time when we've taken note of activity that means we're
-    /// online.
+    /// Last time when marked all of our primary guards as retriable.
     ///
-    /// We use this timestamp when a low-priority guard is discovered
-    /// to be online.  If it happens when we've been _offline_ for a
-    /// while, then we retry our primary guards before using the low
-    /// priority guard, so that we can be sure that they're really
-    /// down (and didn't just _seem_ to be down because we were
-    /// offline).
-    last_time_on_internet: Option<Instant>,
+    /// We keep track of this time so that we can rate-limit
+    /// these attempts.
+    last_primary_retry_time: Instant,
 
     /// The currently active [`GuardSet`] object.
     ///
@@ -255,7 +250,7 @@ impl<R: Runtime> GuardMgr<R> {
         let active_guards = default_storage.load()?.unwrap_or_else(GuardSet::new);
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             active_guards,
-            last_time_on_internet: None,
+            last_primary_retry_time: runtime.now(),
             params: GuardParams::default(),
             ctrl,
             pending: HashMap::new(),
@@ -324,24 +319,6 @@ impl<R: Runtime> GuardMgr<R> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
         inner.update(now, Some(netdir));
-    }
-
-    /// Record that some internet activity has happened that tells us
-    /// we're online.
-    ///
-    /// We can use this information to determine when we should retry
-    /// our primary guards on the basis of having been down for a long
-    /// time.
-    ///
-    /// # Limitations
-    ///
-    /// We should really call this every time we read a cell, but that
-    /// isn't efficient or practical.  We'll probably have to refactor
-    /// things somehow. (TODO)
-    pub fn note_internet_activity(&self) {
-        let now = self.runtime.now();
-        let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.last_time_on_internet = Some(now);
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
@@ -437,8 +414,16 @@ impl<R: Runtime> GuardMgr<R> {
         let request_id = pending::RequestId::next();
         let (monitor, rcv) = GuardMonitor::new(request_id);
 
-        let pending_request =
-            pending::PendingRequest::new(guard_id.clone(), usage, usable_sender, now);
+        let net_has_been_down = inner.active_guards.all_primary_guards_are_unreachable()
+            && tor_proto::time_since_last_incoming_traffic() >= inner.params.internet_down_timeout;
+
+        let pending_request = pending::PendingRequest::new(
+            guard_id.clone(),
+            usage,
+            usable_sender,
+            now,
+            net_has_been_down,
+        );
         inner.pending.insert(request_id, pending_request);
 
         inner.active_guards.record_attempt(&guard_id, now);
@@ -509,6 +494,25 @@ impl GuardMgrInner {
         self.update(now, None);
     }
 
+    /// Mark all of our primary guards as retriable, if we haven't done
+    /// so since long enough before `now`.
+    ///
+    /// We want to call this function whenever a guard attempt succeeds,
+    /// if the internet seemed to be down when the guard attempt was
+    /// first launched.
+    fn maybe_retry_primary_guards(&mut self, now: Instant) {
+        // We don't actually want to mark our primary guards as
+        // retriable more than once per internet_down_timeout: after
+        // the first time, we would just be noticing the same "coming
+        // back online" event more than once.
+        let interval = self.params.internet_down_timeout;
+        if self.last_primary_retry_time + interval <= now {
+            debug!("Successfully reached a guard after a while off the internet; marking all primary guards retriable.");
+            self.active_guards.mark_primary_guards_retriable();
+            self.last_primary_retry_time = now;
+        }
+    }
+
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
     /// a guard succeeded or failed.
     ///
@@ -526,23 +530,13 @@ impl GuardMgrInner {
             trace!(?guard_id, ?status, "Received report of guard status");
             match status {
                 GuardStatus::Success => {
-                    let now = runtime.now();
-                    // If we've been gone too long without any net activitity,
-                    // and now we're seeing a circuit succeed,
-                    // tell the primary guards that they might be retriable.
-                    if let Some(last_time) = self.last_time_on_internet {
-                        let dur = now.saturating_duration_since(last_time);
-                        // TODO: we should use the actual timeout for this, but
-                        // we can't do it yet, since we don't have anything reliable
-                        // calling note_internet_activity.
-                        // let timeout = self.params.internet_down_timeout;
-                        let timeout = Duration::from_secs(7200); // (Fake timeout)
-                        if dur >= timeout {
-                            debug!("Retrying primary guards");
-                            self.active_guards.mark_primary_guards_retriable();
-                        }
+                    // If we had gone too long without any net activity when we
+                    // gave out this guard, and now we're seeing a circuit
+                    // succeed, tell the primary guards that they might be
+                    // retriable.
+                    if pending.net_has_been_down() {
+                        self.maybe_retry_primary_guards(runtime.now());
                     }
-                    self.last_time_on_internet = Some(now);
 
                     // The guard succeeded.  Tell the GuardSet.
                     self.active_guards
@@ -732,7 +726,6 @@ struct GuardParams {
     /// After how much time without successful activity does a
     /// successful circuit indicate that we should retry our primary
     /// guards?
-    #[allow(dead_code)] // XXXX not yet implemented.
     internet_down_timeout: Duration,
     /// What fraction of the guards can be can be filtered out before we
     /// decide that our filter is "very restrictive"?
