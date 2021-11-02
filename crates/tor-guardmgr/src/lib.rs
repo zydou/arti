@@ -414,6 +414,11 @@ impl<R: Runtime> GuardMgr<R> {
         let request_id = pending::RequestId::next();
         let (monitor, rcv) = GuardMonitor::new(request_id);
 
+        // Note that the network can be down even if all the primary guards
+        // are not yet marked as unreachable.  But according to guard-spec we
+        // don't want to acknowledge the net as down before that point, since
+        // we don't mark all the primary guards as retriable unless
+        // we've been forced to non-primary guards.
         let net_has_been_down = inner.active_guards.all_primary_guards_are_unreachable()
             && tor_proto::time_since_last_incoming_traffic() >= inner.params.internet_down_timeout;
 
