@@ -444,7 +444,8 @@ mod test {
                 .unwrap();
             assert_eq!(path.len(), 3);
             if let TorPathInner::Path(p) = path.inner {
-                assert_exit_path_ok(&p[..]);
+                // This is no longer guaranteed; see arti#183 :(
+                // assert_exit_path_ok(&p[..]);
                 // We get our chosen exit, and a different guard.
                 assert_ne!(p[0].ed_identity(), guard_relay.ed_identity());
                 assert_eq!(p[2].ed_identity(), guard_relay.ed_identity());
