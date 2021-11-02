@@ -142,6 +142,7 @@ where
                     None => return Err(ReactorError::Shutdown), // the TLS connection closed.
                     Some(r) => r.map_err(Error::CellErr)?, // it's a cell.
                 };
+                crate::note_incoming_traffic();
                 self.handle_cell(item).await?;
 
             }

@@ -526,6 +526,15 @@ impl GuardSet {
         }
     }
 
+    /// Return true if all of our primary guards are currently marked
+    /// unreachable.
+    pub(crate) fn all_primary_guards_are_unreachable(&mut self) -> bool {
+        self.primary
+            .iter()
+            .flat_map(|id| self.guards.get(id))
+            .all(|g| g.reachable() == Reachable::Unreachable)
+    }
+
     /// Mark every `Unreachable` guard as `Unknown`.
     pub(crate) fn mark_all_guards_retriable(&mut self) {
         for (_, g) in self.guards.iter_mut() {
@@ -1077,5 +1086,44 @@ mod test {
         guards.extend_sample_as_needed(st, &params, &netdir);
         guards.select_primary_guards(&params);
         assert_eq!(guards.sample.len(), 10);
+    }
+
+    #[test]
+    fn retry_primary() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 2,
+            max_sample_bw_fraction: 1.0,
+            ..GuardParams::default()
+        };
+        let usage = crate::GuardUsageBuilder::default().build().unwrap();
+
+        let mut guards = GuardSet::new();
+
+        guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+        guards.select_primary_guards(&params);
+
+        assert_eq!(guards.primary.len(), 2);
+        assert!(!guards.all_primary_guards_are_unreachable());
+
+        // Let one primary guard fail.
+        let (kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(kind, ListKind::Primary);
+        guards.record_failure(&p_id1, Instant::now());
+        assert!(!guards.all_primary_guards_are_unreachable());
+
+        // Now let the other one fail.
+        let (kind, p_id2) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(kind, ListKind::Primary);
+        guards.record_failure(&p_id2, Instant::now());
+        assert!(guards.all_primary_guards_are_unreachable());
+
+        // Now mark the guards retriable.
+        guards.mark_primary_guards_retriable();
+        assert!(!guards.all_primary_guards_are_unreachable());
+        let (kind, p_id3) = guards.pick_guard(&usage, &params).unwrap();
+        assert_eq!(kind, ListKind::Primary);
+        assert_eq!(p_id3, p_id1);
     }
 }

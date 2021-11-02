@@ -257,6 +257,12 @@ pub(crate) struct PendingRequest {
     /// The time at which the circuit manager told us that this guard was
     /// successful.
     waiting_since: Option<Instant>,
+    /// If true, then the network has been down for a long time when we
+    /// launched this request.
+    ///
+    /// If this request succeeds, it probably means that the net has
+    /// come back up.
+    net_has_been_down: bool,
 }
 
 impl PendingRequest {
@@ -266,6 +272,7 @@ impl PendingRequest {
         usage: crate::GuardUsage,
         usable: Option<oneshot::Sender<bool>>,
         started_at: Instant,
+        net_has_been_down: bool,
     ) -> Self {
         PendingRequest {
             guard_id,
@@ -273,6 +280,7 @@ impl PendingRequest {
             usable,
             started_at,
             waiting_since: None,
+            net_has_been_down,
         }
     }
 
@@ -290,6 +298,12 @@ impl PendingRequest {
     /// was successful.
     pub(crate) fn waiting_since(&self) -> Option<Instant> {
         self.waiting_since
+    }
+
+    /// Return true if the network had been down for a long time when
+    /// this guard was handed out.
+    pub(crate) fn net_has_been_down(&self) -> bool {
+        self.net_has_been_down
     }
 
     /// Tell the circuit manager that the guard is usable (or unusable),

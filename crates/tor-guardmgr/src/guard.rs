@@ -991,4 +991,22 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn mark_retriable() {
+        let mut g = basic_guard();
+        use super::Reachable::*;
+
+        assert_eq!(g.reachable(), Unknown);
+
+        for (pre, post) in &[
+            (Unknown, Unknown),
+            (Unreachable, Unknown),
+            (Reachable, Reachable),
+        ] {
+            g.reachable = *pre;
+            g.mark_retriable();
+            assert_eq!(g.reachable(), *post);
+        }
+    }
 }

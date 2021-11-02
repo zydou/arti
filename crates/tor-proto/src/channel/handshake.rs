@@ -392,6 +392,14 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
         Arc<super::Channel>,
         super::reactor::Reactor<stream::SplitStream<CellFrame<T>>>,
     )> {
+        // We treat a completed channel -- that is to say, one where the
+        // authentication is finished -- as incoming traffic.
+        //
+        // TODO: conceivably we should remember the time when we _got_ the
+        // final cell on the handshake, and update the channel completion
+        // time to be no earlier than _that_ timestamp.
+        crate::note_incoming_traffic();
+
         trace!("{}: Sending netinfo cell.", self.unique_id);
         let netinfo = msg::Netinfo::for_client(self.target_addr.as_ref().map(SocketAddr::ip));
         self.tls.send(netinfo.into()).await?;

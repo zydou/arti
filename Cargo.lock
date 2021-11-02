@@ -499,6 +499,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "coarsetime"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b6ec6f6e80e839eb22bd61b18f19a8f2ae3f8bda9cf0fdce9dd96c9c5df8393"
+dependencies = [
+ "libc",
+ "once_cell",
+ "wasi 0.10.2+wasi-snapshot-preview1",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2692,6 +2704,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-netdir",
  "tor-persist",
+ "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
  "tor-units",
@@ -2806,6 +2819,7 @@ dependencies = [
  "asynchronous-codec",
  "bytes",
  "cipher",
+ "coarsetime",
  "crypto-mac",
  "digest",
  "event-listener",
