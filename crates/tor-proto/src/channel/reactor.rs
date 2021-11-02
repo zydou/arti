@@ -14,7 +14,7 @@ use crate::{Error, Result};
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::lock::Mutex;
 use futures::select_biased;
 use futures::sink::SinkExt;
@@ -31,24 +31,9 @@ use tracing::{debug, trace};
 pub(super) enum CtrlMsg {
     /// Shut down the reactor.
     Shutdown,
-    /// Register a new one-shot receiver that can send a CtrlMsg to the
-    /// reactor.
-    Register(oneshot::Receiver<CtrlMsg>),
     /// Tell the reactor that a given circuit has gone away.
     CloseCircuit(CircId),
 }
-
-/// Type returned by a oneshot channel for a CtrlMsg.
-///
-/// TODO: copy documentation from circuit::reactor if we don't unify
-/// these types somehow.
-pub(super) type CtrlResult = std::result::Result<CtrlMsg, oneshot::Canceled>;
-
-/// A stream to multiplex over a bunch of oneshot CtrlMsg replies.
-///
-/// TODO: copy documentation from circuit::reactor if we don't unify
-/// these types somehow.
-type OneshotStream = stream::FuturesUnordered<oneshot::Receiver<CtrlMsg>>;
 
 /// Object to handle incoming cells and background tasks on a channel.
 ///
@@ -64,7 +49,7 @@ where
     ///
     /// TODO: copy documentation from circuit::reactor if we don't unify
     /// these types somehow.
-    control: stream::Fuse<stream::Select<mpsc::Receiver<CtrlResult>, OneshotStream>>,
+    control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A Stream from which we can read ChanCells.  This should be backed
     /// by a TLS connection.
     input: stream::Fuse<T>,
@@ -95,16 +80,12 @@ where
     pub(super) fn new(
         channel: &Arc<super::Channel>,
         circmap: Arc<Mutex<CircMap>>,
-        control: mpsc::Receiver<CtrlResult>,
-        closeflag: oneshot::Receiver<CtrlMsg>,
+        control: mpsc::UnboundedReceiver<CtrlMsg>,
         input: T,
         unique_id: UniqId,
     ) -> Self {
-        let oneshots = stream::FuturesUnordered::new();
-        oneshots.push(closeflag);
-        let control = stream::select(control, oneshots);
         Reactor {
-            control: control.fuse(),
+            control,
             input: input.fuse(),
             channel: Arc::downgrade(channel),
             circs: circmap,
@@ -150,11 +131,9 @@ where
             // we got a control message!
             ctrl = self.control.next() => {
                 match ctrl {
-                    Some(Ok(CtrlMsg::Shutdown)) =>
-                        return Err(ReactorError::Shutdown),
-                    Some(Ok(msg)) => self.handle_control(msg).await?,
-                    Some(Err(_)) => (), // sender cancelled; ignore.
-                    None => panic!() // should be impossible.
+                    Some(CtrlMsg::Shutdown) => return Err(ReactorError::Shutdown),
+                    Some(msg) => self.handle_control(msg).await?,
+                    None => return Err(ReactorError::Shutdown),
                 }
             }
             // we got a cell or a close.
@@ -176,16 +155,9 @@ where
         trace!("{}: reactor received {:?}", self.unique_id, msg);
         match msg {
             CtrlMsg::Shutdown => panic!(), // was handled in reactor loop.
-            CtrlMsg::Register(ch) => self.register(ch),
             CtrlMsg::CloseCircuit(id) => self.outbound_destroy_circ(id).await?,
         }
         Ok(())
-    }
-
-    /// Ensure that we get a message on self.control when `ch` fires.
-    fn register(&mut self, ch: oneshot::Receiver<CtrlMsg>) {
-        let (_, stream) = self.control.get_mut().get_mut();
-        stream.push(ch);
     }
 
     /// Helper: process a cell on a channel.  Most cell types get ignored
@@ -438,8 +410,6 @@ pub(crate) mod test {
 
         let (pending, _circr) = chan.new_circ(&mut rng).await.unwrap();
 
-        reactor.run_once().await.unwrap();
-
         let id = pending.peek_circid().await;
 
         {
@@ -472,8 +442,6 @@ pub(crate) mod test {
         let (pending, _circr) = chan.new_circ(&mut rng).await.unwrap();
 
         let circparams = CircParameters::default();
-
-        reactor.run_once().await.unwrap();
 
         let id = pending.peek_circid().await;
 
@@ -587,6 +555,7 @@ pub(crate) mod test {
     #[async_test]
     async fn deliver_relay() {
         use crate::circuit::celltypes::ClientCircChanMsg;
+        use futures::channel::oneshot;
         use tor_cell::chancell::msg;
 
         let (_chan, mut reactor, _output, mut input) = new_reactor();
@@ -664,6 +633,7 @@ pub(crate) mod test {
     #[async_test]
     async fn deliver_destroy() {
         use crate::circuit::celltypes::*;
+        use futures::channel::oneshot;
         use tor_cell::chancell::msg;
 
         let (_chan, mut reactor, _output, mut input) = new_reactor();

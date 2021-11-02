@@ -59,7 +59,7 @@ mod handshake;
 mod reactor;
 mod unique_id;
 
-use crate::channel::reactor::{CtrlMsg, CtrlResult};
+use crate::channel::reactor::CtrlMsg;
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
@@ -135,10 +135,7 @@ struct ChannelImpl {
     // it all the time.
     circmap: Weak<Mutex<circmap::CircMap>>,
     /// A stream used to send control messages to the Reactor.
-    sendctrl: mpsc::Sender<CtrlResult>,
-    /// A oneshot sender used to tell the Reactor task to shut down.
-    sendclosed: Option<oneshot::Sender<CtrlMsg>>,
-
+    control: mpsc::UnboundedSender<CtrlMsg>,
     /// Context for allocating unique circuit log identifiers.
     circ_unique_id_ctx: unique_id::CircUniqIdContext,
 }
@@ -209,15 +206,13 @@ impl Channel {
         use circmap::{CircIdRange, CircMap};
         let circmap = Arc::new(Mutex::new(CircMap::new(CircIdRange::High)));
 
-        let (sendctrl, recvctrl) = mpsc::channel::<CtrlResult>(128);
-        let (sendclosed, recvclosed) = oneshot::channel::<CtrlMsg>();
+        let (control_tx, control_rx) = mpsc::unbounded();
 
         let inner = ChannelImpl {
             tls: tls_sink,
             link_protocol,
             circmap: Arc::downgrade(&circmap),
-            sendctrl,
-            sendclosed: Some(sendclosed),
+            control: control_tx,
             circ_unique_id_ctx: unique_id::CircUniqIdContext::new(),
         };
         let inner = Mutex::new(inner);
@@ -233,8 +228,7 @@ impl Channel {
         let reactor = reactor::Reactor::new(
             &Arc::clone(&channel),
             circmap,
-            recvctrl,
-            recvclosed,
+            control_rx,
             tls_stream,
             unique_id,
         );
@@ -346,27 +340,25 @@ impl Channel {
         // TODO: blocking is risky, but so is unbounded.
         let (sender, receiver) = mpsc::channel(128);
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
-        let (send_circ_destroy, recv_circ_destroy) = oneshot::channel();
 
-        let (circ_unique_id, id) = {
+        let (circ_unique_id, id, reactor_tx) = {
             let mut inner = self.inner.lock().await;
-            inner
-                .sendctrl
-                .send(Ok(CtrlMsg::Register(recv_circ_destroy)))
-                .await
-                .map_err(|_| Error::InternalError("Can't queue circuit closer".into()))?;
             if let Some(circmap) = inner.circmap.upgrade() {
                 let my_unique_id = self.unique_id;
                 let circ_unique_id = inner.circ_unique_id_ctx.next(my_unique_id);
                 let mut cmap = circmap.lock().await;
-                (circ_unique_id, cmap.add_ent(rng, createdsender, sender)?)
+                (
+                    circ_unique_id,
+                    cmap.add_ent(rng, createdsender, sender)?,
+                    inner.control.clone(),
+                )
             } else {
                 return Err(Error::ChannelClosed);
             }
         };
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        let destroy_handle = CircDestroyHandle::new(id, send_circ_destroy);
+        let destroy_handle = CircDestroyHandle::new(id, reactor_tx);
 
         Ok(circuit::PendingClientCirc::new(
             id,
@@ -411,9 +403,8 @@ impl ChannelImpl {
     /// Shut down this channel's reactor; causes all circuits using
     /// this channel to become unusable.
     fn shutdown_reactor(&mut self) {
-        if let Some(sender) = self.sendclosed.take() {
-            let _ignore = sender.send(CtrlMsg::Shutdown);
-        }
+        // FIXME(eta): this shouldn't be required
+        let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
     }
 }
 
@@ -422,26 +413,20 @@ impl ChannelImpl {
 pub(crate) struct CircDestroyHandle {
     /// The circuit ID in question
     id: CircId,
-    /// A oneshot sender to tell the reactor.  This has to be a oneshot,
-    /// so that we can send to it on drop.
-    sender: Option<oneshot::Sender<CtrlMsg>>,
+    /// A sender to tell the reactor.
+    sender: mpsc::UnboundedSender<CtrlMsg>,
 }
 
 impl CircDestroyHandle {
     /// Create a new CircDestroyHandle
-    fn new(id: CircId, sender: oneshot::Sender<CtrlMsg>) -> Self {
-        CircDestroyHandle {
-            id,
-            sender: Some(sender),
-        }
+    fn new(id: CircId, sender: mpsc::UnboundedSender<CtrlMsg>) -> Self {
+        CircDestroyHandle { id, sender }
     }
 }
 
 impl Drop for CircDestroyHandle {
     fn drop(&mut self) {
-        if let Some(s) = self.sender.take() {
-            let _ignore_cancel = s.send(CtrlMsg::CloseCircuit(self.id));
-        }
+        let _ignore_cancel = self.sender.unbounded_send(CtrlMsg::CloseCircuit(self.id));
     }
 }
 
@@ -463,7 +448,7 @@ pub(crate) mod test {
     pub(crate) struct FakeChanHandle {
         pub(crate) cells: mpsc::Receiver<ChanCell>,
         circmap: Arc<Mutex<circmap::CircMap>>,
-        ignore_control_msgs: mpsc::Receiver<CtrlResult>,
+        ignore_control_msgs: mpsc::UnboundedReceiver<CtrlMsg>,
     }
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -471,7 +456,7 @@ pub(crate) mod test {
     /// This function is used for testing _circuits_, not channels.
     pub(crate) fn fake_channel() -> (Arc<Channel>, FakeChanHandle) {
         let (cell_send, cell_recv) = mpsc::channel(64);
-        let (ctrl_send, ctrl_recv) = mpsc::channel(64);
+        let (control_tx, control_rx) = mpsc::unbounded();
 
         let cell_send = cell_send.sink_map_err(|_| {
             tor_cell::Error::InternalError("Error from mpsc stream while testing".into())
@@ -484,8 +469,7 @@ pub(crate) mod test {
             link_protocol: 4,
             tls: Box::new(cell_send),
             circmap: Arc::downgrade(&circmap),
-            sendctrl: ctrl_send,
-            sendclosed: None,
+            control: control_tx,
             circ_unique_id_ctx: unique_id::CircUniqIdContext::new(),
         };
         let channel = Channel {
@@ -498,7 +482,7 @@ pub(crate) mod test {
         let handle = FakeChanHandle {
             cells: cell_recv,
             circmap,
-            ignore_control_msgs: ctrl_recv,
+            ignore_control_msgs: control_rx,
         };
 
         (Arc::new(channel), handle)
