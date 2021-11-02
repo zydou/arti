@@ -67,6 +67,7 @@ impl DirPathBuilder {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::clone_on_copy)]
     use super::*;
     use crate::path::assert_same_path_when_owned;
     use crate::test::OptDummyGuardMgr;
