@@ -48,7 +48,7 @@ mod unique_id;
 
 use crate::channel::{Channel, CircDestroyHandle};
 use crate::circuit::celltypes::*;
-use crate::circuit::reactor::{CtrlMsg, CtrlResult};
+use crate::circuit::reactor::CtrlMsg;
 pub use crate::circuit::unique_id::UniqId;
 use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientLayer, OutboundClientCrypt, OutboundClientLayer,
@@ -67,7 +67,6 @@ pub use tor_cell::relaycell::msg::IpVersionPreference;
 
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
-use futures::sink::SinkExt;
 
 use std::net::IpAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -188,10 +187,8 @@ struct ClientCircImpl {
     ///
     /// Note that hops.len() must be the same as crypto.n_layers().
     hops: Vec<CircHop>,
-    /// A stream that can be used to register streams with the reactor.
-    control: mpsc::Sender<CtrlResult>,
-    /// A oneshot sender that can be used to tell the reactor to shut down.
-    sendshutdown: Option<oneshot::Sender<CtrlMsg>>,
+    /// Control channel to send messages to the reactor.
+    control: mpsc::UnboundedSender<CtrlMsg>,
     /// A oneshot sender that can be used by the reactor to report a
     /// meta-cell to an owning task.
     ///
@@ -225,9 +222,8 @@ pub(crate) struct StreamTarget {
     circ: Arc<ClientCirc>,
     /// Window for sending cells on this circuit.
     window: sendme::StreamSendWindow,
-    /// One-shot sender that should get a message once this stream
-    /// is dropped.
-    stream_closed: Option<oneshot::Sender<CtrlMsg>>,
+    /// Control sender, for notifying the reactor when this stream gets dropped.
+    control: mpsc::UnboundedSender<CtrlMsg>,
     /// Window to track incoming cells and SENDMEs.
     // XXXX Putting this field here in this object means that this
     // object isn't really so much a "target", since a "target"
@@ -404,10 +400,9 @@ impl ClientCirc {
         let inbound_hop = crate::circuit::reactor::InboundHop::new();
         let (snd, rcv) = oneshot::channel();
         {
-            let mut c = self.c.lock().await;
+            let c = self.c.lock().await;
             c.control
-                .send(Ok(CtrlMsg::AddHop(inbound_hop, rev, snd)))
-                .await
+                .unbounded_send(CtrlMsg::AddHop(inbound_hop, rev, snd))
                 .map_err(|_| Error::InternalError("Can't queue AddHop request".into()))?;
         }
 
@@ -480,24 +475,17 @@ impl ClientCirc {
         // XXXX Both a bound and a lack of bound are scary here :/
         let (sender, receiver) = mpsc::channel(128);
 
-        let (send_close, recv_close) = oneshot::channel::<CtrlMsg>();
         let window = sendme::StreamSendWindow::new(StreamTarget::SEND_WINDOW_INIT);
 
         let (id_snd, id_rcv) = oneshot::channel();
         let hopnum;
         {
-            let mut c = self.c.lock().await;
+            let c = self.c.lock().await;
             let h = c.hops.len() - 1;
             hopnum = (h as u8).into();
 
             c.control
-                .send(Ok(CtrlMsg::AddStream(
-                    hopnum,
-                    sender,
-                    window.new_ref(),
-                    id_snd,
-                )))
-                .await
+                .unbounded_send(CtrlMsg::AddStream(hopnum, sender, window.new_ref(), id_snd))
                 .map_err(|_| Error::InternalError("Can't queue new-stream request.".into()))?;
         }
 
@@ -508,14 +496,11 @@ impl ClientCirc {
 
         let relaycell = RelayCell::new(id, begin_msg);
 
-        {
+        let control_tx = {
             let mut c = self.c.lock().await;
             c.send_relay_cell(hopnum, false, relaycell).await?;
-            c.control
-                .send(Ok(CtrlMsg::Register(recv_close)))
-                .await
-                .map_err(|_| Error::InternalError("Can't queue stream closer".into()))?;
-        }
+            c.control.clone()
+        };
 
         /// Initial value for inbound flow-control window on streams.
         const STREAM_RECV_INIT: u16 = 500;
@@ -526,7 +511,7 @@ impl ClientCirc {
             hop: hopnum,
             window,
             recvwindow: sendme::StreamRecvWindow::new(STREAM_RECV_INIT),
-            stream_closed: Some(send_close),
+            control: control_tx,
         };
 
         Ok(RawCellStream::new(target, receiver))
@@ -857,10 +842,7 @@ impl ClientCircImpl {
     ///
     /// This is idempotent and safe to call more than once.
     fn shutdown_reactor(&mut self) {
-        if let Some(sender) = self.sendshutdown.take() {
-            // ignore the error, since it can only be canceled.
-            let _ = sender.send(CtrlMsg::Shutdown);
-        }
+        let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
         // Drop the circuit destroy handle now so that a DESTROY cell
         // gets sent.
         drop(self.circ_closed.take());
@@ -882,9 +864,7 @@ impl PendingClientCirc {
         unique_id: UniqId,
     ) -> (PendingClientCirc, reactor::Reactor) {
         let crypto_out = OutboundClientCrypt::new();
-        let (sendclosed, recvclosed) = oneshot::channel::<CtrlMsg>();
-        // Should this be bounded, really? XXX
-        let (sendctrl, recvctrl) = mpsc::channel::<CtrlResult>(128);
+        let (control_tx, control_rx) = mpsc::unbounded();
         let hops = Vec::new();
 
         let circuit_impl = ClientCircImpl {
@@ -893,8 +873,7 @@ impl PendingClientCirc {
             crypto_out,
             hops,
             circ_closed,
-            control: sendctrl,
-            sendshutdown: Some(sendclosed),
+            control: control_tx,
             sendmeta: None,
             unique_id,
         };
@@ -908,7 +887,7 @@ impl PendingClientCirc {
             recvcreated: createdreceiver,
             circ: Arc::clone(&circuit),
         };
-        let reactor = reactor::Reactor::new(&circuit, recvctrl, recvclosed, input, unique_id);
+        let reactor = reactor::Reactor::new(&circuit, control_rx, input, unique_id);
         (pending, reactor)
     }
 
@@ -1143,14 +1122,14 @@ impl Drop for ClientCircImpl {
 
 impl Drop for StreamTarget {
     fn drop(&mut self) {
-        if let Some(sender) = self.stream_closed.take() {
-            // This "clone" call is a bit dangerous: it means that we might
-            // allow the other side to send a couple of cells that get
-            // decremented from self.recvwindow but don't get reflected
-            // in the circuit-owned view of the window.
-            let window = self.recvwindow.clone();
-            let _ = sender.send(CtrlMsg::CloseStream(self.hop, self.stream_id, window));
-        }
+        // This "clone" call is a bit dangerous: it means that we might
+        // allow the other side to send a couple of cells that get
+        // decremented from self.recvwindow but don't get reflected
+        // in the circuit-owned view of the window.
+        let window = self.recvwindow.clone();
+        let _ = self
+            .control
+            .unbounded_send(CtrlMsg::CloseStream(self.hop, self.stream_id, window));
         // If there's an error, no worries: it's hard-cancel, and we
         // can just ignore it. XXXX (I hope?)
     }
@@ -1177,6 +1156,7 @@ mod test {
     use crate::channel::test::fake_channel;
     use chanmsg::{ChanMsg, Created2, CreatedFast};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
+    use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures_await_test::async_test;
     use hex_literal::hex;
@@ -1690,7 +1670,6 @@ mod test {
         };
         let reactor_fut = async move {
             reactor.run_once().await.unwrap(); // AddStream
-            reactor.run_once().await.unwrap(); // Register stream closer
             reactor.run_once().await.unwrap(); // Connected cell
             reactor.run_once().await.unwrap(); // Data cell
             reactor.run_once().await.unwrap(); // End cell

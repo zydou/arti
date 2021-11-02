@@ -33,12 +33,6 @@ pub(super) enum CtrlMsg {
     Shutdown,
     /// Register a new one-shot receiver that can send a CtrlMsg to the
     /// reactor.
-    ///
-    /// IMPORTANT: we can't just let everybody use the mpsc control stream,
-    /// since we need to be able to send messages to the reactor from drop().
-    /// One-shot senders can be activated synchronously, but mpsc senders
-    /// require the sender to .await.
-    Register(oneshot::Receiver<CtrlMsg>),
     /// Tell the reactor that a given stream has gone away.
     CloseStream(HopNum, StreamId, sendme::StreamRecvWindow),
     /// Ask the reactor for a new stream ID, and allocate a circuit for it.
@@ -62,26 +56,12 @@ impl std::fmt::Debug for CtrlMsg {
         use CtrlMsg::*;
         match self {
             Shutdown => write!(f, "Shutdown"),
-            Register(_) => write!(f, "Register(_)"),
             CloseStream(h, s, _) => write!(f, "CloseStream({:?}, {:?}, _)", h, s),
             AddStream(h, _, _, _) => write!(f, "AddStream({:?}, _, _, _)", h),
             AddHop(_, _, _) => write!(f, "AddHop(_, _, _)"),
         }
     }
 }
-
-/// Type returned by a oneshot channel for a controlmsg.  For convenience,
-/// we also use this as the type for the control mpsc channel, so we can
-/// join them.
-pub(super) type CtrlResult = std::result::Result<CtrlMsg, oneshot::Canceled>;
-
-/// A stream to multiplex over a bunch of oneshot CtrlMsg replies.
-///
-/// We use oneshot channels to handle stream shutdowns, since oneshot
-/// senders can be sent from within a non-async function.  We wrap
-/// them in a stream so we can learn about them as they fire.
-type OneshotStream = stream::FuturesUnordered<oneshot::Receiver<CtrlMsg>>;
-
 /// Represents the reactor's view of a single hop.
 pub(super) struct InboundHop {
     /// Map from stream IDs to streams.
@@ -117,7 +97,7 @@ pub struct Reactor {
     //
     // See documentation of CtrlMsg and CtrlResult for info about why
     // we're using this ugly type.
-    control: stream::Fuse<stream::Select<mpsc::Receiver<CtrlResult>, OneshotStream>>,
+    control: mpsc::UnboundedReceiver<CtrlMsg>,
 
     /// Input Stream, on which we receive ChanMsg objects from this circuit's
     /// channel.
@@ -144,17 +124,13 @@ impl Reactor {
     /// Construct a new Reactor.
     pub(super) fn new(
         circuit: &Arc<super::ClientCirc>,
-        control: mpsc::Receiver<CtrlResult>,
-        closeflag: oneshot::Receiver<CtrlMsg>,
+        control: mpsc::UnboundedReceiver<CtrlMsg>,
         input: mpsc::Receiver<ClientCircChanMsg>,
         unique_id: UniqId,
     ) -> Self {
-        let oneshots = stream::FuturesUnordered::new();
-        oneshots.push(closeflag);
-        let control = stream::select(control, oneshots);
         Reactor {
             input: input.fuse(),
-            control: control.fuse(),
+            control,
             circuit: Arc::downgrade(circuit),
             crypto_in: InboundClientCrypt::new(),
             hops: Vec::new(),
@@ -208,10 +184,8 @@ impl Reactor {
             // Got a control message!
             ctrl = self.control.next() => {
                 match ctrl {
-                    Some(Ok(CtrlMsg::Shutdown)) => return Err(ReactorError::Shutdown),
-                    Some(Ok(msg)) => self.handle_control(msg).await?,
-                    Some(Err(_)) => (), // sender was cancelled; ignore.
-                    None => panic!(), // This should be impossible.
+                    Some(CtrlMsg::Shutdown) | None => return Err(ReactorError::Shutdown),
+                    Some(msg) => self.handle_control(msg).await?,
                 }
                 return Ok(());
             }
@@ -240,7 +214,6 @@ impl Reactor {
             CtrlMsg::CloseStream(hop, id, recvwindow) => {
                 self.close_stream(hop, id, recvwindow).await?
             }
-            CtrlMsg::Register(ch) => self.register(ch),
             CtrlMsg::AddStream(hop, sink, window, sender) => {
                 let hop = self.hop_mut(hop);
                 if let Some(hop) = hop {
@@ -294,12 +267,6 @@ impl Reactor {
             }
         }
         Ok(())
-    }
-
-    /// Ensure that we get a message on self.control when `ch` fires.
-    fn register(&mut self, ch: oneshot::Receiver<CtrlMsg>) {
-        let (_, stream) = self.control.get_mut().get_mut();
-        stream.push(ch);
     }
 
     /// Helper: process a cell on a channel.  Most cells get ignored
