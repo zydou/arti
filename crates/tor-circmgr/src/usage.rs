@@ -439,6 +439,8 @@ mod test {
             policy,
             isolation: None,
         };
+        let supp_none = SupportedCircUsage::NoUsage;
+
         let targ_80_v4 = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation,
@@ -459,6 +461,7 @@ mod test {
             ports: vec![TargetPort::ipv6(999)],
             isolation,
         };
+        let targ_testing = TargetCircUsage::TimeoutTesting;
 
         assert!(supp_dir.supports(&targ_dir));
         assert!(!supp_dir.supports(&targ_80_v4));
@@ -473,6 +476,14 @@ mod test {
         assert!(supp_exit_no_iso.supports(&targ_80_v4));
         assert!(supp_exit_no_iso.supports(&targ_80_v4_iso2));
         assert!(!supp_exit_no_iso.supports(&targ_80_23_v4));
+        assert!(!supp_none.supports(&targ_dir));
+        assert!(!supp_none.supports(&targ_80_23_v4));
+        assert!(!supp_none.supports(&targ_80_v4_iso2));
+        assert!(!supp_dir.supports(&targ_testing));
+        assert!(supp_exit.supports(&targ_testing));
+        assert!(supp_exit_no_iso.supports(&targ_testing));
+        assert!(supp_exit_iso2.supports(&targ_testing));
+        assert!(supp_none.supports(&targ_testing));
     }
 
     #[test]
@@ -509,6 +520,7 @@ mod test {
             policy,
             isolation: None,
         };
+        let supp_none = SupportedCircUsage::NoUsage;
         let targ_exit = TargetCircUsage::Exit {
             ports: vec![TargetPort::ipv4(80)],
             isolation,
@@ -517,10 +529,12 @@ mod test {
             ports: vec![TargetPort::ipv4(80)],
             isolation: isolation2,
         };
+        let targ_testing = TargetCircUsage::TimeoutTesting;
 
         // not allowed, do nothing
         let mut supp_dir_c = supp_dir.clone();
         assert!(supp_dir_c.restrict_mut(&targ_exit).is_err());
+        assert!(supp_dir_c.restrict_mut(&targ_testing).is_err());
         assert_eq!(supp_dir, supp_dir_c);
 
         let mut supp_exit_c = supp_exit.clone();
@@ -535,6 +549,11 @@ mod test {
         assert!(supp_exit_iso2_c.restrict_mut(&targ_exit).is_err());
         assert_eq!(supp_exit_iso2, supp_exit_iso2_c);
 
+        let mut supp_none_c = supp_none.clone();
+        assert!(supp_none_c.restrict_mut(&targ_exit).is_err());
+        assert!(supp_none_c.restrict_mut(&targ_dir).is_err());
+        assert_eq!(supp_none_c, supp_none);
+
         // allowed but nothing to do
         let mut supp_dir_c = supp_dir.clone();
         supp_dir_c.restrict_mut(&targ_dir).unwrap();
@@ -546,7 +565,12 @@ mod test {
 
         let mut supp_exit_iso2_c = supp_exit_iso2.clone();
         supp_exit_iso2_c.restrict_mut(&targ_exit_iso2).unwrap();
+        supp_none_c.restrict_mut(&targ_testing).unwrap();
         assert_eq!(supp_exit_iso2, supp_exit_iso2_c);
+
+        let mut supp_none_c = supp_none.clone();
+        supp_none_c.restrict_mut(&targ_testing).unwrap();
+        assert_eq!(supp_none_c, supp_none);
 
         // allowed, do something
         let mut supp_exit_no_iso_c = supp_exit_no_iso.clone();
