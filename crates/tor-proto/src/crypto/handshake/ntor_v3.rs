@@ -194,8 +194,6 @@ fn kdf_msgkdf(
 
     r.read(&mut enc_key[..]);
     r.read(&mut mac_key[..]);
-    dbg!(&enc_key);
-    dbg!(&mac_key);
     let mut mac = DigestWriter(Sha3_256::default());
     {
         mac.write(&T_MSGMAC);

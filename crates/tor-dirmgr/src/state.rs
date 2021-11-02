@@ -634,7 +634,6 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         };
         let mut new_mds = Vec::new();
         for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {
-            dbg!("Adding 1 from download");
             let txt = anno
                 .within(text)
                 .expect("annotation not from within text as expected");

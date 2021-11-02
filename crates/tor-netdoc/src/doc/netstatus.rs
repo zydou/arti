@@ -1644,7 +1644,7 @@ mod test {
         assert!(consensus.authorities_are_correct(&auth_ids[0..1]));
 
         assert!(consensus.key_is_correct(&certs).is_ok());
-        dbg!("FOO");
+
         let _consensus = consensus.check_signature(&certs)?;
 
         Ok(())
