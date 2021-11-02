@@ -165,6 +165,12 @@ impl StreamIsolation {
     pub fn builder() -> StreamIsolationBuilder {
         StreamIsolationBuilder::new()
     }
+
+    /// Return true if this StreamIsolation can share a circuit with
+    /// `other`.
+    fn may_share_circuit(&self, other: &StreamIsolation) -> bool {
+        self == other
+    }
 }
 
 impl StreamIsolationBuilder {
@@ -311,7 +317,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     isolation: i2,
                 },
             ) => {
-                i1.map(|i1| i1 == *i2).unwrap_or(true)
+                i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => true,
@@ -330,7 +336,9 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     ..
                 },
                 TargetCircUsage::Exit { isolation: i2, .. },
-            ) if i1.map(|i1| i1 == *i2).unwrap_or(true) => {
+            ) if i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true) => {
+                // Once we have more complex isolation, this assignment
+                // won't be correct.
                 *i1 = Some(*i2);
                 Ok(())
             }
@@ -347,7 +355,10 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::path::OwnedPath;
     use crate::test::OptDummyGuardMgr;
+    use std::convert::TryFrom;
+    use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
 
     #[test]
@@ -564,12 +575,15 @@ mod test {
         // Only doing basic tests for now.  We'll test the path
         // building code a lot more closely in the tests for TorPath
         // and friends.
+
+        // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
             .build_path(&mut rng, di, guards, &config)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
 
+        // Now an exit circuit, to port 995.
         let tok1 = IsolationToken::new();
         let isolation = StreamIsolationBuilder::new()
             .owner_token(tok1)
@@ -592,5 +606,55 @@ mod test {
         ));
         assert!(u_exit.supports(&exit_usage));
         assert_eq!(p_exit.len(), 3);
+
+        // Now try testing circuits.
+        for _ in 1..50 {
+            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+                .build_path(&mut rng, di, guards, &config)
+                .unwrap();
+            let path = match OwnedPath::try_from(&path).unwrap() {
+                OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
+                OwnedPath::Normal(p) => p,
+            };
+            assert_eq!(path.len(), 3);
+
+            // Make sure that the usage is correct.
+            let last_relay = netdir.by_id(path[2].ed_identity()).unwrap();
+            let policy = ExitPolicy::from_relay(&last_relay);
+            // We'll always get exits for these, since we try to build
+            // paths with an exit if there are any exits.
+            assert!(policy.allows_some_port());
+            assert!(last_relay.policies_allow_some_port());
+            assert_eq!(
+                usage,
+                SupportedCircUsage::Exit {
+                    policy,
+                    isolation: None
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn build_isolation() {
+        let no_isolation = StreamIsolation::no_isolation();
+        let no_isolation2 = StreamIsolation::builder()
+            .owner_token(IsolationToken::no_isolation())
+            .stream_token(IsolationToken::no_isolation())
+            .build()
+            .unwrap();
+        assert_eq!(no_isolation, no_isolation2);
+        assert!(no_isolation.may_share_circuit(&no_isolation2));
+
+        let tok = IsolationToken::new();
+        let some_isolation = StreamIsolation::builder().owner_token(tok).build().unwrap();
+        let some_isolation2 = StreamIsolation::builder()
+            .stream_token(tok)
+            .build()
+            .unwrap();
+        assert!(!no_isolation.may_share_circuit(&some_isolation));
+        assert!(!no_isolation.may_share_circuit(&some_isolation2));
+        assert!(!some_isolation.may_share_circuit(&some_isolation2));
+        assert!(some_isolation.may_share_circuit(&some_isolation));
     }
 }
