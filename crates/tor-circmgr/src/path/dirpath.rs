@@ -45,6 +45,8 @@ impl DirPathBuilder {
                 }
             }
             (DirInfo::Directory(netdir), Some(guardmgr)) => {
+                // TODO: We might want to use the guardmgr even if
+                // we don't have a netdir.  See arti#220.
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
                     .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
@@ -68,6 +70,8 @@ mod test {
     use super::*;
     use crate::path::assert_same_path_when_owned;
     use crate::test::OptDummyGuardMgr;
+    use std::collections::HashSet;
+    use tor_linkspec::ChanTarget;
     use tor_netdir::fallback::FallbackDir;
     use tor_netdir::testnet;
 
@@ -139,5 +143,41 @@ mod test {
 
         let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
         assert!(matches!(err, Err(Error::NoRelays(_))));
+    }
+
+    #[test]
+    fn dirpath_with_guards() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let netdir = testnet::construct_netdir()
+                .unwrap()
+                .unwrap_if_sufficient()
+                .unwrap();
+            let mut rng = rand::thread_rng();
+            let dirinfo = (&netdir).into();
+            let statemgr = tor_persist::TestingStateMgr::new();
+            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr).unwrap();
+            guards.update_network(&netdir);
+
+            let mut distinct_guards = HashSet::new();
+
+            // This is a nice easy case, since we tested the harder cases
+            // in guard-spec.  We'll just have every path succeed.
+            for _ in 0..40 {
+                let (path, mon, usable) = DirPathBuilder::new()
+                    .pick_path(&mut rng, dirinfo, Some(&guards))
+                    .unwrap();
+                if let crate::path::TorPathInner::OneHop(relay) = path.inner {
+                    distinct_guards.insert(relay.ed_identity().clone());
+                    mon.unwrap().succeeded();
+                    assert!(usable.unwrap().await.unwrap());
+                } else {
+                    panic!("Generated the wrong kind of path.");
+                }
+            }
+            assert_eq!(
+                distinct_guards.len(),
+                netdir.params().guard_dir_use_parallelism.get() as usize
+            );
+        })
     }
 }

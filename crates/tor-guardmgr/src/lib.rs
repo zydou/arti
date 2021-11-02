@@ -378,7 +378,8 @@ impl<R: Runtime> GuardMgr<R> {
     /// the [`NetDir`] most recently passed to [`GuardMgr::update_network`].
     /// That's _usually_ what you'd want, but when we're trying to
     /// bootstrap we might want to use _all_ guards as possible
-    /// directory caches.  That's not implemented yet.
+    /// directory caches.  That's not implemented yet. (See ticket
+    /// [#220](https://gitlab.torproject.org/tpo/core/arti/-/issues/220)).
     ///
     /// This function only looks at netdir when all of the known
     /// guards are down; to force an update, use [`GuardMgr::update_network`].
