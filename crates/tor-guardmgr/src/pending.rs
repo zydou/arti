@@ -9,7 +9,10 @@
 //! handled via [`GuardUsable`].
 use crate::{daemon, GuardId};
 
-use futures::{channel::oneshot, Future};
+use futures::{
+    channel::{mpsc::UnboundedSender, oneshot},
+    Future,
+};
 use pin_project::pin_project;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -111,22 +114,22 @@ pub struct GuardMonitor {
     ignore_indeterminate: bool,
     /// A sender that needs to get told when the attempt to use the guard is
     /// finished or abandoned.
-    snd: Option<oneshot::Sender<daemon::Msg>>,
+    ///
+    /// TODO: This doesn't really need to be an Option, but we use None
+    /// here to indicate that we've already used the sender, and it can't
+    /// be used again.
+    snd: Option<UnboundedSender<daemon::Msg>>,
 }
 
 impl GuardMonitor {
     /// Create a new GuardMonitor object.
-    pub(crate) fn new(id: RequestId) -> (Self, oneshot::Receiver<daemon::Msg>) {
-        let (snd, rcv) = oneshot::channel();
-        (
-            GuardMonitor {
-                id,
-                pending_status: GuardStatus::AttemptAbandoned,
-                ignore_indeterminate: false,
-                snd: Some(snd),
-            },
-            rcv,
-        )
+    pub(crate) fn new(id: RequestId, snd: UnboundedSender<daemon::Msg>) -> Self {
+        GuardMonitor {
+            id,
+            pending_status: GuardStatus::AttemptAbandoned,
+            ignore_indeterminate: false,
+            snd: Some(snd),
+        }
     }
 
     /// Report that a circuit was successfully built in a way that
@@ -196,7 +199,7 @@ impl GuardMonitor {
             .snd
             .take()
             .expect("GuardMonitor initialized with no sender")
-            .send(daemon::Msg::Status(self.id, msg));
+            .unbounded_send(daemon::Msg::Status(self.id, msg));
     }
 
     /// Report the pending message for his guard, whatever it is.

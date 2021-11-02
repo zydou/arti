@@ -209,7 +209,7 @@ struct GuardMgrInner {
     /// backpressure in the event that the task running
     /// [`daemon::report_status_events`] fails to read from this
     /// channel.
-    ctrl: mpsc::UnboundedSender<daemon::MsgResult>,
+    ctrl: mpsc::UnboundedSender<daemon::Msg>,
 
     /// Information about guards that we've given out, but where we have
     /// not yet heard whether the guard was successful.
@@ -413,7 +413,8 @@ impl<R: Runtime> GuardMgr<R> {
             (u, Some(snd))
         };
         let request_id = pending::RequestId::next();
-        let (monitor, rcv) = GuardMonitor::new(request_id);
+        let ctrl = inner.ctrl.clone();
+        let monitor = GuardMonitor::new(request_id, ctrl);
 
         // Note that the network can be down even if all the primary guards
         // are not yet marked as unreachable.  But according to guard-spec we
@@ -434,11 +435,6 @@ impl<R: Runtime> GuardMgr<R> {
 
         inner.active_guards.record_attempt(&guard_id, now);
 
-        inner
-            .ctrl
-            .unbounded_send(Ok(daemon::Msg::Observe(rcv)))
-            .expect("Guard observer task exited prematurely");
-
         Ok((guard, monitor, usable))
     }
 
@@ -452,7 +448,7 @@ impl<R: Runtime> GuardMgr<R> {
             let inner = self.inner.lock().expect("Poisoned lock");
             inner
                 .ctrl
-                .unbounded_send(Ok(pingmsg))
+                .unbounded_send(pingmsg)
                 .expect("Guard observer task exited permaturely.");
         }
         let _ = rcv.await;
