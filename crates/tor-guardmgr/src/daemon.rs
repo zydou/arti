@@ -6,23 +6,15 @@
 use crate::pending::{GuardStatus, RequestId};
 use crate::GuardMgrInner;
 
-use futures::{
-    channel::{mpsc, oneshot},
-    stream::{self, StreamExt},
-};
+#[cfg(test)]
+use futures::channel::oneshot;
+use futures::{channel::mpsc, stream::StreamExt};
+
 use std::sync::{Mutex, Weak};
 
 /// A message sent by to the [`report_status_events()`] task.
 #[derive(Debug)]
 pub(crate) enum Msg {
-    /// Tells the task to add another [`oneshot::Receiver`] to the list
-    /// of receivers it's listening to.
-    ///
-    /// This message is sent by guard manager whenever it hands out a
-    /// guard; the receiver will be notified when the requester's circuit
-    /// succeeds, fails, or is abandoned.  The receiver corresponds
-    /// to the sender in some [`GuardMonitor`](crate::GuardMonitor).
-    Observe(oneshot::Receiver<Msg>),
     /// A message sent by a [`GuardMonitor`](crate::GuardMonitor) to
     /// report the status of an attempt to use a guard.
     Status(RequestId, GuardStatus),
@@ -32,9 +24,6 @@ pub(crate) enum Msg {
     #[cfg(test)]
     Ping(oneshot::Sender<()>),
 }
-
-/// Wrapper type to unify returns from mpsc and oneshots
-pub(crate) type MsgResult = Result<Msg, futures::channel::oneshot::Canceled>;
 
 /// Background task: wait for messages about guard statuses, and
 /// tell a guard manager about them.  Runs indefinitely.
@@ -47,28 +36,11 @@ pub(crate) type MsgResult = Result<Msg, futures::channel::oneshot::Canceled>;
 pub(crate) async fn report_status_events(
     runtime: impl tor_rtcompat::SleepProvider,
     inner: Weak<Mutex<GuardMgrInner>>,
-    ctrl: mpsc::UnboundedReceiver<MsgResult>,
+    mut events: mpsc::UnboundedReceiver<Msg>,
 ) {
-    // Multiplexes a bunch of one-shot receivers to tell us about guard
-    // status outcomes.
-    let notifications = stream::FuturesUnordered::new();
-    // If I don't put this dummy receiver into notifications, then
-    // notifications will be finished prematurely and not get polled any more.
-    // TODO: Is there a better way to do this?
-    let (_dummy_snd, rcv) = oneshot::channel();
-    notifications.push(rcv);
-
-    // Multiplexes `notifications` with events from `ctrl`.
-    let mut events = stream::select(notifications, ctrl);
-
     loop {
         match events.next().await {
-            Some(Ok(Msg::Observe(rcv))) => {
-                // We've been told to wait for a new event; add it to
-                // `notifications`.
-                events.get_ref().0.push(rcv);
-            }
-            Some(Ok(Msg::Status(id, status))) => {
+            Some(Msg::Status(id, status)) => {
                 // We've got a report about a guard status.
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
@@ -78,14 +50,8 @@ pub(crate) async fn report_status_events(
                     return;
                 }
             }
-            Some(Err(_)) => {
-                // TODO: Unfortunately, we don't know which future was cancelled.
-                // It shouldn't be possible for this to occur, though, since
-                // GuardMonitor always sends a message, even on drop.
-                tracing::warn!("bug: Somehow a guard success event was dropped.");
-            }
             #[cfg(test)]
-            Some(Ok(Msg::Ping(sender))) => {
+            Some(Msg::Ping(sender)) => {
                 let _ignore = sender.send(());
             }
             // The streams have all closed.  (I think this is impossible?)
