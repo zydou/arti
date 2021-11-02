@@ -165,6 +165,13 @@ impl GuardMonitor {
         self.pending_status = status;
     }
 
+    /// Return the current pending status and "ignore indeterminate"
+    /// status for this guard monitor.
+    #[cfg(feature = "testing")]
+    pub fn inspect_pending_status(&self) -> (GuardStatus, bool) {
+        (self.pending_status, self.ignore_indeterminate)
+    }
+
     /// Configure this monitor to ignore any indeterminate status
     /// values, and treat them as abandoned attempts.
     ///

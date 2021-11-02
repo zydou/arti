@@ -10,6 +10,10 @@ keywords = [ "tor", "arti", "async" ]
 categories = [ "network-programming", "cryptography" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = []
+testing = []
+
 [dependencies]
 tor-netdir = { path="../tor-netdir", version = "0.0.1"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}

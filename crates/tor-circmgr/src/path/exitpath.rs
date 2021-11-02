@@ -216,6 +216,7 @@ mod test {
     use super::*;
     use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
     use crate::test::OptDummyGuardMgr;
+    use std::collections::HashSet;
     use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
@@ -356,5 +357,107 @@ mod test {
         let outcome =
             ExitPathBuilder::for_timeout_testing().pick_path(&mut rng, dirinfo, guards, &config);
         assert!(outcome.is_ok());
+    }
+
+    #[test]
+    fn exitpath_with_guards() {
+        use tor_guardmgr::GuardStatus;
+
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let netdir = testnet::construct_netdir()
+                .unwrap()
+                .unwrap_if_sufficient()
+                .unwrap();
+            let mut rng = rand::thread_rng();
+            let dirinfo = (&netdir).into();
+            let statemgr = tor_persist::TestingStateMgr::new();
+            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr).unwrap();
+            let config = PathConfig::default();
+            guards.update_network(&netdir);
+            let port443 = TargetPort::ipv4(443);
+
+            // We're going to just have these all succeed and make sure
+            // that they pick the same guard.  We won't test failing
+            // cases here, since those are tested in guardmgr.
+            let mut distinct_guards = HashSet::new();
+            let mut distinct_mid = HashSet::new();
+            let mut distinct_exit = HashSet::new();
+            for _ in 0..20 {
+                let (path, mon, usable) = ExitPathBuilder::from_target_ports(vec![port443])
+                    .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                    .unwrap();
+                assert_eq!(path.len(), 3);
+                assert_same_path_when_owned(&path);
+                if let TorPathInner::Path(p) = path.inner {
+                    assert_exit_path_ok(&p[..]);
+                    distinct_guards.insert(p[0].ed_identity().clone());
+                    distinct_mid.insert(p[1].ed_identity().clone());
+                    distinct_exit.insert(p[2].ed_identity().clone());
+                } else {
+                    panic!("Wrong kind of path");
+                }
+                let mon = mon.unwrap();
+                assert!(matches!(
+                    mon.inspect_pending_status(),
+                    (GuardStatus::AttemptAbandoned, false)
+                ));
+                mon.succeeded();
+                assert!(usable.unwrap().await.unwrap());
+            }
+            assert_eq!(distinct_guards.len(), 1);
+            assert_ne!(distinct_mid.len(), 1);
+            assert_ne!(distinct_exit.len(), 1);
+
+            let guard_relay = netdir
+                .by_id(distinct_guards.iter().next().unwrap())
+                .unwrap();
+            let exit_relay = netdir.by_id(distinct_exit.iter().next().unwrap()).unwrap();
+
+            // Now we'll try a forced exit that is not the same same as our
+            // actual guard.
+            let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(exit_relay.clone())
+                .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                .unwrap();
+            assert_eq!(path.len(), 3);
+            if let TorPathInner::Path(p) = path.inner {
+                assert_exit_path_ok(&p[..]);
+                // We get our regular guard and our chosen exit.
+                assert_eq!(p[0].ed_identity(), guard_relay.ed_identity());
+                assert_eq!(p[2].ed_identity(), exit_relay.ed_identity());
+            } else {
+                panic!("Wrong kind of path");
+            }
+            let mon = mon.unwrap();
+            // This time, "ignore indeterminate status" was set to true.
+            assert!(matches!(
+                mon.inspect_pending_status(),
+                (GuardStatus::AttemptAbandoned, true)
+            ));
+            mon.succeeded();
+            assert!(usable.unwrap().await.unwrap());
+
+            // Finally, try with our exit forced to be our regular guard,
+            // and make sure we get a different guard.
+            let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(guard_relay.clone())
+                .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                .unwrap();
+            assert_eq!(path.len(), 3);
+            if let TorPathInner::Path(p) = path.inner {
+                assert_exit_path_ok(&p[..]);
+                // We get our chosen exit, and a different guard.
+                assert_ne!(p[0].ed_identity(), guard_relay.ed_identity());
+                assert_eq!(p[2].ed_identity(), guard_relay.ed_identity());
+            } else {
+                panic!("Wrong kind of path");
+            }
+            let mon = mon.unwrap();
+            // This time, "ignore indeterminate status" was set to true.
+            assert!(matches!(
+                mon.inspect_pending_status(),
+                (GuardStatus::AttemptAbandoned, true)
+            ));
+            mon.succeeded();
+            assert!(usable.unwrap().await.unwrap());
+        })
     }
 }

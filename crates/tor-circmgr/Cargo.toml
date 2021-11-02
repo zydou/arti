@@ -42,6 +42,7 @@ weak-table = "0.3.0"
 async_executors = { version = "0.4.2", default-features=false, features = [ "tokio_tp" ] }
 futures-await-test = "0.3.0"
 tor-rtmock = { path="../tor-rtmock", version = "0.0.1"}
+tor-guardmgr = { path="../tor-guardmgr", version = "0.0.1", features=["testing"]}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
 tor-netdir = { path="../tor-netdir", version = "0.0.1", features=["testing"] }
 tor-persist = { path="../tor-persist", version = "0.0.1", features=["testing"] }
