@@ -61,8 +61,13 @@ impl TimeoutEstimator for ReadonlyTimeoutEstimator {
 
         // XXXX `mul_f64()` can panic if we overflow Duration.
         let timeout = base.mul_f64(multiplier);
-        // We use the same timeout twice here, since we don't have separate
-        // abandon and timeout thresholds here.
+
+        // We use the same timeout twice here, since we don't need
+        // separate abandon and timeout thresholds when we are not
+        // recording timeout info.
+        //
+        // TODO: decide whether it is a problem that this might let an
+        // observer know whether our stat is read-only.
         (timeout, timeout)
     }
 

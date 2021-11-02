@@ -149,3 +149,88 @@ fn estimator_from_storage(
         (true, Box::new(ReadonlyTimeoutEstimator::from_state(&state)))
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use tor_persist::StateMgr;
+
+    #[test]
+    fn load_estimator() {
+        let params = NetParameters::default();
+
+        // Construct an estimator with write access to a state manager.
+        let storage = tor_persist::TestingStateMgr::new();
+        assert!(storage.try_lock().unwrap().held());
+        let handle = storage.clone().create_handle("paretorama");
+
+        let est = Estimator::from_storage(&handle);
+        assert!(est.learning_timeouts());
+        est.save_state(&handle).unwrap();
+
+        // Construct another estimator that is looking at the same data,
+        // but which only gets read-only access
+        let storage2 = storage.new_manager();
+        assert!(!storage2.try_lock().unwrap().held());
+        let handle2 = storage2.clone().create_handle("paretorama");
+
+        let est2 = Estimator::from_storage(&handle2);
+        assert!(!est2.learning_timeouts());
+
+        est.update_params(&params);
+        est2.update_params(&params);
+
+        // Initial timeouts, since no data is present yet.
+        let act = Action::BuildCircuit { length: 3 };
+        assert_eq!(
+            est.timeouts(&act),
+            (Duration::from_secs(60), Duration::from_secs(60))
+        );
+        assert_eq!(
+            est2.timeouts(&act),
+            (Duration::from_secs(60), Duration::from_secs(60))
+        );
+
+        // Pretend both estimators have gotten a bunch of observations...
+        for _ in 0..500 {
+            est.note_hop_completed(2, Duration::from_secs(7), true);
+            est.note_hop_completed(2, Duration::from_secs(2), true);
+            est2.note_hop_completed(2, Duration::from_secs(4), true);
+        }
+        assert!(!est.learning_timeouts());
+
+        // Have est save and est2 load.
+        est.save_state(&handle).unwrap();
+        let to_1 = est.timeouts(&act);
+        assert_ne!(
+            est.timeouts(&act),
+            (Duration::from_secs(60), Duration::from_secs(60))
+        );
+        assert_eq!(
+            est2.timeouts(&act),
+            (Duration::from_secs(60), Duration::from_secs(60))
+        );
+        est2.reload_readonly_from_storage(&handle2);
+        let v = Duration::from_millis(to_1.0.as_millis() as u64);
+        assert_eq!(est2.timeouts(&act), (v, v));
+
+        drop(est);
+        drop(handle);
+        drop(storage);
+
+        // Now storage2 can upgrade...
+        assert!(storage2.try_lock().unwrap().held());
+        est2.upgrade_to_owning_storage(&handle2);
+        let to_2 = est2.timeouts(&act);
+        // This will be similar but not the same.
+        assert!(to_2.0 > to_1.0 - Duration::from_secs(1));
+        assert!(to_2.0 < to_1.0 + Duration::from_secs(1));
+        // Make sure est2 is now mutable...
+        for _ in 0..200 {
+            est2.note_hop_completed(2, Duration::from_secs(1), true);
+        }
+        let to_3 = est2.timeouts(&act);
+        assert!(to_3.0 < to_2.0);
+    }
+}
