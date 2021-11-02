@@ -326,4 +326,35 @@ mod test {
         let owned: Result<OwnedPath> = (&bogus_path).try_into();
         assert!(owned.is_err());
     }
+
+    #[test]
+    fn no_exits() {
+        // Construct a netdirwith no exits.
+        let netdir = testnet::construct_custom_netdir(|_idx, bld| {
+            bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        let mut rng = rand::thread_rng();
+        let dirinfo = (&netdir).into();
+        let guards: OptDummyGuardMgr<'_> = None;
+        let config = PathConfig::default();
+
+        // With target ports
+        let outcome = ExitPathBuilder::from_target_ports(vec![TargetPort::ipv4(80)])
+            .pick_path(&mut rng, dirinfo, guards, &config);
+        assert!(outcome.is_err());
+        assert!(matches!(outcome, Err(Error::NoRelays(_))));
+
+        // For any exit
+        let outcome = ExitPathBuilder::for_any_exit().pick_path(&mut rng, dirinfo, guards, &config);
+        assert!(outcome.is_err());
+        assert!(matches!(outcome, Err(Error::NoRelays(_))));
+
+        // For any exit (non-strict, so this will work).
+        let outcome =
+            ExitPathBuilder::for_timeout_testing().pick_path(&mut rng, dirinfo, guards, &config);
+        assert!(outcome.is_ok());
+    }
 }

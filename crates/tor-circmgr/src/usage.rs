@@ -608,31 +608,51 @@ mod test {
         assert_eq!(p_exit.len(), 3);
 
         // Now try testing circuits.
-        for _ in 1..50 {
-            let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-                .build_path(&mut rng, di, guards, &config)
-                .unwrap();
-            let path = match OwnedPath::try_from(&path).unwrap() {
-                OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
-                OwnedPath::Normal(p) => p,
-            };
-            assert_eq!(path.len(), 3);
+        let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+            .build_path(&mut rng, di, guards, &config)
+            .unwrap();
+        let path = match OwnedPath::try_from(&path).unwrap() {
+            OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
+            OwnedPath::Normal(p) => p,
+        };
+        assert_eq!(path.len(), 3);
 
-            // Make sure that the usage is correct.
-            let last_relay = netdir.by_id(path[2].ed_identity()).unwrap();
-            let policy = ExitPolicy::from_relay(&last_relay);
-            // We'll always get exits for these, since we try to build
-            // paths with an exit if there are any exits.
-            assert!(policy.allows_some_port());
-            assert!(last_relay.policies_allow_some_port());
-            assert_eq!(
-                usage,
-                SupportedCircUsage::Exit {
-                    policy,
-                    isolation: None
-                }
-            );
-        }
+        // Make sure that the usage is correct.
+        let last_relay = netdir.by_id(path[2].ed_identity()).unwrap();
+        let policy = ExitPolicy::from_relay(&last_relay);
+        // We'll always get exits for these, since we try to build
+        // paths with an exit if there are any exits.
+        assert!(policy.allows_some_port());
+        assert!(last_relay.policies_allow_some_port());
+        assert_eq!(
+            usage,
+            SupportedCircUsage::Exit {
+                policy,
+                isolation: None
+            }
+        );
+    }
+
+    #[test]
+    fn build_testing_noexit() {
+        // Here we'll try to build paths for testing circuits on a network
+        // with no exits.
+        let mut rng = rand::thread_rng();
+        let netdir = testnet::construct_custom_netdir(|_idx, bld| {
+            bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        let di = (&netdir).into();
+        let config = crate::PathConfig::default();
+        let guards: OptDummyGuardMgr<'_> = None;
+
+        let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
+            .build_path(&mut rng, di, guards, &config)
+            .unwrap();
+        assert_eq!(path.len(), 3);
+        assert_eq!(usage, SupportedCircUsage::NoUsage);
     }
 
     #[test]
