@@ -72,17 +72,24 @@ if [ -n "$macos" ]; then
 	rustup target add x86_64-apple-darwin
 
 	mkdir -p .cargo
+	# (note: "ar" seems to be unused here. We could probably remove it?)
 	cat > .cargo/config << EOF
 [target.x86_64-apple-darwin]
-linker = "x86_64-apple-darwin15-clang"
-ar = "x86_64-apple-darwin15-ar"
+linker = "x86_64-apple-darwin16-clang"
+ar = "x86_64-apple-darwin16-ar"
 EOF
+	OSX_SDK_URL=https://github.com/phracker/MacOSX-SDKs/releases/download/11.3/MacOSX10.12.sdk.tar.xz
+	OSX_SDK_VERSION=10.12
+	OSX_SDK_SHA256=b314704d85934481c9927a0450db1768baf9af9efe649562fcb1a503bb44512f
+	OSX_SDK="MacOSX${OSX_SDK_VERSION}.sdk.tar.xz"
 
 	## don't compile clang if it's already here (CI cache?)
 	if [ ! -x "/arti/osxcross/target/bin/o64-clang" ]; then
 		git clone https://github.com/tpoechtrager/osxcross
 		cd osxcross
-		wget -nc https://s3.dockerproject.org/darwin/v2/MacOSX10.11.sdk.tar.xz -O tarballs/MacOSX10.11.sdk.tar.xz
+		wget -nc "${OSX_SDK_URL}" -O tarballs/${OSX_SDK}
+		echo "${OSX_SDK_SHA256}  tarballs/${OSX_SDK}" > ./sdk-checksum
+		sha256sum -c ./sdk-checksum
 		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
 		# copy it to gitlab build-dir so it may get cached
 		cp -r /arti/osxcross "$here"
