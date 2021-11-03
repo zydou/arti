@@ -59,7 +59,7 @@ mod handshake;
 mod reactor;
 mod unique_id;
 
-use crate::channel::reactor::CtrlMsg;
+use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
@@ -72,17 +72,14 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::lock::Mutex;
-use futures::sink::{Sink, SinkExt};
-use futures::stream::Stream;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
-use rand::Rng;
 use tracing::trace;
 
 // reexport
+use crate::channel::unique_id::CircUniqIdContext;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
 /// Type alias: A Sink and Stream that transforms a TLS connection into
@@ -92,6 +89,7 @@ type CellFrame<T> = futures_codec::Framed<T, crate::channel::codec::ChannelCodec
 /// An open client channel, ready to send and receive Tor cells.
 ///
 /// A channel is a direct connection to a Tor relay, implemented using TLS.
+#[derive(Clone, Debug)]
 pub struct Channel {
     /// A unique identifier for this channel.
     unique_id: UniqId,
@@ -100,44 +98,9 @@ pub struct Channel {
     /// Validated RSA identity for this peer.
     rsa_id: RsaIdentity,
     /// If true, this channel is closing.
-    closed: AtomicBool,
-
-    /// reference-counted locked wrapper around the channel object
-    inner: Mutex<ChannelImpl>,
-}
-
-impl std::fmt::Debug for Channel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Channel")
-            .field("unique_id", &self.unique_id)
-            .field("ed25519_id", &self.ed25519_id)
-            .field("rsa_id", &self.rsa_id)
-            .field("closed", &self.closed)
-            .finish()
-    }
-}
-
-/// Main implementation type for a channel.
-struct ChannelImpl {
-    /// What link protocol is the channel using?
-    #[allow(dead_code)] // We don't support protocols where this would matter
-    link_protocol: u16,
-    /// The underlying channel, as a Sink of ChanCell.  Writing
-    /// a ChanCell onto this sink sends it over the TLS channel.
-    tls: Box<dyn Sink<ChanCell, Error = tor_cell::Error> + Send + Unpin + 'static>,
-    /// A circuit map, to translate circuit IDs into circuits.
-    ///
-    /// The ChannelImpl side of this object only needs to use this
-    /// when creating circuits; it's shared with the reactor, which uses
-    /// it for dispatch.
-    // This uses a separate mutex from the channel, since we only need
-    // the circmap when we're making a new circuit, the reactor needs
-    // it all the time.
-    circmap: Weak<Mutex<circmap::CircMap>>,
+    closed: Arc<AtomicBool>,
     /// A stream used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
-    /// Context for allocating unique circuit log identifiers.
-    circ_unique_id_ctx: unique_id::CircUniqIdContext,
 }
 
 /// Structure for building and launching a Tor channel.
@@ -192,46 +155,38 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
-    fn new<T>(
+    fn new(
         link_protocol: u16,
-        tls_sink: Box<dyn Sink<ChanCell, Error = tor_cell::Error> + Send + Unpin + 'static>,
-        tls_stream: T,
+        sink: BoxedChannelSink,
+        stream: BoxedChannelStream,
         unique_id: UniqId,
         ed25519_id: Ed25519Identity,
         rsa_id: RsaIdentity,
-    ) -> (Arc<Self>, reactor::Reactor<T>)
-    where
-        T: Stream<Item = std::result::Result<ChanCell, tor_cell::Error>> + Send + Unpin + 'static,
-    {
+    ) -> (Self, reactor::Reactor) {
         use circmap::{CircIdRange, CircMap};
-        let circmap = Arc::new(Mutex::new(CircMap::new(CircIdRange::High)));
+        let circmap = CircMap::new(CircIdRange::High);
 
         let (control_tx, control_rx) = mpsc::unbounded();
+        let closed = Arc::new(AtomicBool::new(false));
 
-        let inner = ChannelImpl {
-            tls: tls_sink,
-            link_protocol,
-            circmap: Arc::downgrade(&circmap),
-            control: control_tx,
-            circ_unique_id_ctx: unique_id::CircUniqIdContext::new(),
-        };
-        let inner = Mutex::new(inner);
         let channel = Channel {
             unique_id,
             ed25519_id,
             rsa_id,
-            closed: AtomicBool::new(false),
-            inner,
+            closed: Arc::clone(&closed),
+            control: control_tx,
         };
-        let channel = Arc::new(channel);
 
-        let reactor = reactor::Reactor::new(
-            &Arc::clone(&channel),
-            circmap,
-            control_rx,
-            tls_stream,
+        let reactor = Reactor {
+            control: control_rx,
+            input: futures::StreamExt::fuse(stream),
+            output: sink,
+            circs: circmap,
             unique_id,
-        );
+            closed,
+            circ_unique_id_ctx: CircUniqIdContext::new(),
+            link_protocol,
+        };
 
         (channel, reactor)
     }
@@ -316,8 +271,12 @@ impl Channel {
             }
         }
 
-        let inner = &mut self.inner.lock().await;
-        inner.tls.send(cell).await?; // XXXX I don't like holding the lock here.
+        let (tx, rx) = oneshot::channel();
+        self.control
+            .unbounded_send(CtrlMsg::Send { cell, tx })
+            .map_err(|_| Error::InternalError("Reactor not alive to receive cells".into()))?;
+        rx.await
+            .map_err(|_| Error::InternalError("Reactor went away while sending".into()))??;
 
         Ok(())
     }
@@ -329,9 +288,8 @@ impl Channel {
     /// To use the results of this method, call Reactor::run() in a
     /// new task, then use the methods of
     /// [crate::circuit::PendingClientCirc] to build the circuit.
-    pub async fn new_circ<R: Rng>(
-        self: &Arc<Self>,
-        rng: &mut R,
+    pub async fn new_circ(
+        &self,
     ) -> Result<(circuit::PendingClientCirc, circuit::reactor::Reactor)> {
         if self.is_closing() {
             return Err(Error::ChannelClosed);
@@ -341,28 +299,23 @@ impl Channel {
         let (sender, receiver) = mpsc::channel(128);
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 
-        let (circ_unique_id, id, reactor_tx) = {
-            let mut inner = self.inner.lock().await;
-            if let Some(circmap) = inner.circmap.upgrade() {
-                let my_unique_id = self.unique_id;
-                let circ_unique_id = inner.circ_unique_id_ctx.next(my_unique_id);
-                let mut cmap = circmap.lock().await;
-                (
-                    circ_unique_id,
-                    cmap.add_ent(rng, createdsender, sender)?,
-                    inner.control.clone(),
-                )
-            } else {
-                return Err(Error::ChannelClosed);
-            }
-        };
+        let (tx, rx) = oneshot::channel();
+        self.control
+            .unbounded_send(CtrlMsg::AllocateCircuit {
+                created_sender: createdsender,
+                sender,
+                tx,
+            })
+            .map_err(|_| Error::ChannelClosed)?;
+        let (id, circ_unique_id) = rx.await.map_err(|_| Error::ChannelClosed)??;
+
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        let destroy_handle = CircDestroyHandle::new(id, reactor_tx);
+        let destroy_handle = CircDestroyHandle::new(id, self.control.clone());
 
         Ok(circuit::PendingClientCirc::new(
             id,
-            Arc::clone(self),
+            self.clone(),
             createdreceiver,
             Some(destroy_handle),
             receiver,
@@ -379,31 +332,7 @@ impl Channel {
     /// It's not necessary to call this method if you're just done
     /// with a channel: the channel should close on its own once nothing
     /// is using it any more.
-    pub async fn terminate(&self) {
-        let outcome = self
-            .closed
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
-        if outcome == Ok(false) {
-            // The old value was false and the new value is true.
-            let mut inner = self.inner.lock().await;
-            inner.shutdown_reactor();
-            // ignore any failure to flush; we can't do anything about it.
-            let _ignore = inner.tls.flush().await;
-        }
-    }
-}
-
-impl Drop for ChannelImpl {
-    fn drop(&mut self) {
-        self.shutdown_reactor();
-    }
-}
-
-impl ChannelImpl {
-    /// Shut down this channel's reactor; causes all circuits using
-    /// this channel to become unusable.
-    fn shutdown_reactor(&mut self) {
-        // FIXME(eta): this shouldn't be required
+    pub fn terminate(&self) {
         let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
     }
 }
@@ -437,70 +366,36 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::channel::codec::test::MsgBuf;
-    use crate::channel::reactor::test::new_reactor;
-    use futures::stream::StreamExt;
-    use futures_await_test::async_test;
-    use tor_cell::chancell::{msg, msg::ChanMsg, ChanCell};
-
-    /// Type returned along with a fake channel: used to impersonate a
-    /// reactor and a network.
-    #[allow(unused)]
-    pub(crate) struct FakeChanHandle {
-        pub(crate) cells: mpsc::Receiver<ChanCell>,
-        circmap: Arc<Mutex<circmap::CircMap>>,
-        ignore_control_msgs: mpsc::UnboundedReceiver<CtrlMsg>,
-    }
+    pub(crate) use crate::channel::reactor::test::new_reactor;
+    use tokio_crate as tokio;
+    use tokio_crate::test as async_test;
+    use tor_cell::chancell::{msg, ChanCell};
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
-    ///
-    /// This function is used for testing _circuits_, not channels.
-    pub(crate) fn fake_channel() -> (Arc<Channel>, FakeChanHandle) {
-        let (cell_send, cell_recv) = mpsc::channel(64);
-        let (control_tx, control_rx) = mpsc::unbounded();
-
-        let cell_send = cell_send.sink_map_err(|_| {
-            tor_cell::Error::InternalError("Error from mpsc stream while testing".into())
-        });
-
-        let circmap = circmap::CircMap::new(circmap::CircIdRange::High);
-        let circmap = Arc::new(Mutex::new(circmap));
+    pub(crate) fn fake_channel() -> Channel {
         let unique_id = UniqId::new();
-        let inner = ChannelImpl {
-            link_protocol: 4,
-            tls: Box::new(cell_send),
-            circmap: Arc::downgrade(&circmap),
-            control: control_tx,
-            circ_unique_id_ctx: unique_id::CircUniqIdContext::new(),
-        };
-        let channel = Channel {
+        Channel {
             unique_id,
             ed25519_id: [6_u8; 32].into(),
             rsa_id: [10_u8; 20].into(),
-            closed: AtomicBool::new(false),
-            inner: Mutex::new(inner),
-        };
-        let handle = FakeChanHandle {
-            cells: cell_recv,
-            circmap,
-            ignore_control_msgs: control_rx,
-        };
-
-        (Arc::new(channel), handle)
+            closed: Arc::new(AtomicBool::new(false)),
+            control: mpsc::unbounded().0,
+        }
     }
 
     #[async_test]
     async fn send_bad() {
-        let (chan, _reactor, mut output, _input) = new_reactor();
+        let chan = fake_channel();
 
         let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
-        let e = chan.send_cell(cell).await;
+        let e = chan.check_cell(&cell);
         assert!(e.is_err());
         assert_eq!(
             format!("{}", e.unwrap_err()),
             "Internal programming error: Can't send CREATED2 cell on client channel"
         );
         let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
-        let e = chan.send_cell(cell).await;
+        let e = chan.check_cell(&cell);
         assert!(e.is_err());
         assert_eq!(
             format!("{}", e.unwrap_err()),
@@ -508,10 +403,11 @@ pub(crate) mod test {
         );
 
         let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
-        let e = chan.send_cell(cell).await;
+        let e = chan.check_cell(&cell);
         assert!(e.is_ok());
-        let got = output.next().await.unwrap();
-        assert!(matches!(got.msg(), ChanMsg::Create2(_)));
+        // FIXME(eta): more difficult to test that sending works now that it has to go via reactor
+        // let got = output.next().await.unwrap();
+        // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
     }
 
     #[test]
@@ -525,12 +421,13 @@ pub(crate) mod test {
     #[test]
     fn check_match() {
         use std::net::SocketAddr;
-        let (chan, _reactor, _output, _input) = new_reactor();
+        let chan = fake_channel();
 
         struct ChanT {
             ed_id: Ed25519Identity,
             rsa_id: RsaIdentity,
         }
+
         impl ChanTarget for ChanT {
             fn ed_identity(&self) -> &Ed25519Identity {
                 &self.ed_id
@@ -544,8 +441,8 @@ pub(crate) mod test {
         }
 
         let t1 = ChanT {
-            ed_id: [0x1; 32].into(),
-            rsa_id: [0x2; 20].into(),
+            ed_id: [6; 32].into(),
+            rsa_id: [10; 20].into(),
         };
         let t2 = ChanT {
             ed_id: [0x1; 32].into(),
@@ -563,8 +460,8 @@ pub(crate) mod test {
 
     #[test]
     fn unique_id() {
-        let (ch1, _handle1) = fake_channel();
-        let (ch2, _handle2) = fake_channel();
-        assert!(ch1.unique_id() != ch2.unique_id());
+        let ch1 = fake_channel();
+        let ch2 = fake_channel();
+        assert_ne!(ch1.unique_id(), ch2.unique_id());
     }
 }

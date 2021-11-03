@@ -287,7 +287,8 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::FutureExt;
-    use futures_await_test::async_test;
+    use tokio::test as async_test;
+    use tokio_crate as tokio;
     use tor_cell::relaycell::{msg, RelayCell};
 
     #[test]

@@ -2824,7 +2824,6 @@ dependencies = [
  "digest",
  "event-listener",
  "futures",
- "futures-await-test",
  "generic-array",
  "hex",
  "hex-literal",

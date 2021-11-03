@@ -4,7 +4,7 @@ use arrayref::array_ref;
 use asynchronous_codec as futures_codec;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures::sink::SinkExt;
-use futures::stream::{self, StreamExt};
+use futures::stream::StreamExt;
 
 use crate::channel::codec::ChannelCodec;
 use crate::channel::UniqId;
@@ -12,7 +12,7 @@ use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd};
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+
 use tor_bytes::Reader;
 use tor_linkspec::ChanTarget;
 use tor_llcrypto as ll;
@@ -386,12 +386,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
     /// The channel is used to send cells, and to create outgoing circuits.
     /// The reactor is used to route incoming messages to their appropriate
     /// circuit.
-    pub async fn finish(
-        mut self,
-    ) -> Result<(
-        Arc<super::Channel>,
-        super::reactor::Reactor<stream::SplitStream<CellFrame<T>>>,
-    )> {
+    pub async fn finish(mut self) -> Result<(super::Channel, super::reactor::Reactor)> {
         // We treat a completed channel -- that is to say, one where the
         // authentication is finished -- as incoming traffic.
         //
@@ -399,7 +394,6 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
         // final cell on the handshake, and update the channel completion
         // time to be no earlier than _that_ timestamp.
         crate::note_incoming_traffic();
-
         trace!("{}: Sending netinfo cell.", self.unique_id);
         let netinfo = msg::Netinfo::for_client(self.target_addr.as_ref().map(SocketAddr::ip));
         self.tls.send(netinfo.into()).await?;
@@ -414,7 +408,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
         Ok(super::Channel::new(
             self.link_protocol,
             Box::new(tls_sink),
-            tls_stream,
+            Box::new(tls_stream),
             self.unique_id,
             self.ed25519_id,
             self.rsa_id,
@@ -425,9 +419,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
 #[cfg(test)]
 pub(super) mod test {
     #![allow(clippy::unwrap_used)]
-    use futures_await_test::async_test;
     use hex_literal::hex;
     use std::time::{Duration, SystemTime};
+    use tokio::test as async_test;
+    use tokio_crate as tokio;
 
     use super::*;
     use crate::channel::codec::test::MsgBuf;

@@ -75,11 +75,13 @@ pub(crate) trait Buildable: Sized {
 async fn create_common<RNG: CryptoRng + Rng + Send, RT: Runtime, CT: ChanTarget>(
     chanmgr: &ChanMgr<RT>,
     rt: &RT,
-    rng: &mut RNG,
+    // FIXME(eta): remove this unused RNG parameter!
+    //             (new_circ() used to take it)
+    _rng: &mut RNG,
     target: &CT,
 ) -> Result<PendingClientCirc> {
     let chan = chanmgr.get_or_launch(target).await?;
-    let (pending_circ, reactor) = chan.new_circ(rng).await?;
+    let (pending_circ, reactor) = chan.new_circ().await?;
 
     rt.spawn(async {
         let _ = reactor.run().await;

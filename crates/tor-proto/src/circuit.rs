@@ -175,7 +175,7 @@ struct ClientCircImpl {
     id: CircId,
     /// The channel that this circuit uses to send its cells to the
     /// next hop.
-    channel: Arc<Channel>,
+    channel: Channel,
     /// The cryptographic state for this circuit for outbound cells.
     /// This object is divided into multiple layers, each of which is
     /// shared with one hop of the circuit
@@ -857,7 +857,7 @@ impl PendingClientCirc {
     ///
     pub(crate) fn new(
         id: CircId,
-        channel: Arc<Channel>,
+        channel: Channel,
         createdreceiver: oneshot::Receiver<CreateResponse>,
         circ_closed: Option<CircDestroyHandle>,
         input: mpsc::Receiver<ClientCircChanMsg>,
@@ -1152,14 +1152,18 @@ fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+
     use super::*;
-    use crate::channel::test::fake_channel;
+    use crate::channel::test::new_reactor;
     use chanmsg::{ChanMsg, Created2, CreatedFast};
+    use futures::channel::mpsc::{Receiver, Sender};
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use futures_await_test::async_test;
     use hex_literal::hex;
+    use tokio::runtime::Handle;
+    use tokio_crate as tokio;
+    use tokio_crate::test as async_test;
     use tor_cell::chancell::msg as chanmsg;
     use tor_cell::relaycell::msg as relaymsg;
     use tor_llcrypto::pk;
@@ -1219,6 +1223,16 @@ mod test {
         )
     }
 
+    fn working_fake_channel() -> (
+        Channel,
+        Receiver<ChanCell>,
+        Sender<std::result::Result<ChanCell, tor_cell::Error>>,
+    ) {
+        let (channel, chan_reactor, rx, tx) = new_reactor();
+        Handle::current().spawn(chan_reactor.run());
+        (channel, rx, tx)
+    }
+
     async fn test_create(fast: bool) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
@@ -1226,7 +1240,7 @@ mod test {
         use crate::crypto::handshake::{fast::CreateFastServer, ntor::NtorServer, ServerHandshake};
         use futures::future::FutureExt;
 
-        let (chan, mut ch) = fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel();
         let circid = 128.into();
         let (created_send, created_recv) = oneshot::channel();
         let (_circmsg_send, circmsg_recv) = mpsc::channel(64);
@@ -1244,7 +1258,7 @@ mod test {
         // Future to pretend to be a relay on the other end of the circuit.
         let simulate_relay_fut = async move {
             let mut rng = rand::thread_rng();
-            let create_cell = ch.cells.next().await.unwrap();
+            let create_cell = rx.next().await.unwrap();
             assert_eq!(create_cell.circid(), 128.into());
             let reply = if fast {
                 let cf = match create_cell.msg() {
@@ -1269,13 +1283,17 @@ mod test {
             let mut rng = rand::thread_rng();
             let target = example_target();
             let params = CircParameters::default();
-            if fast {
+            let ret = if fast {
+                eprintln!("doing fast create");
                 pending.create_firsthop_fast(&mut rng, &params).await
             } else {
+                eprintln!("doing ntor create");
                 pending
                     .create_firsthop_ntor(&mut rng, &target, &params)
                     .await
-            }
+            };
+            eprintln!("create done: result {:?}", ret);
+            ret
         };
         // Future to run the reactor.
         let reactor_fut = reactor.run_once().map(|_| ());
@@ -1347,7 +1365,7 @@ mod test {
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc_ext(
-        chan: Arc<Channel>,
+        chan: Channel,
         next_msg_from: HopNum,
     ) -> (
         Arc<ClientCirc>,
@@ -1361,7 +1379,7 @@ mod test {
 
         let (pending, mut reactor) = PendingClientCirc::new(
             circid,
-            Arc::clone(&chan),
+            chan,
             created_recv,
             None, // circ_closed.
             circmsg_recv,
@@ -1394,7 +1412,7 @@ mod test {
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
     async fn newcirc(
-        chan: Arc<Channel>,
+        chan: Channel,
     ) -> (
         Arc<ClientCirc>,
         reactor::Reactor,
@@ -1406,7 +1424,7 @@ mod test {
     // Try sending a cell via send_relay_cell
     #[async_test]
     async fn send_simple() {
-        let (chan, mut ch) = fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel();
         let (circ, _reactor, _send) = newcirc(chan).await;
         let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir);
         circ.send_relay_cell(2.into(), false, begindir)
@@ -1415,7 +1433,7 @@ mod test {
 
         // Here's what we tried to put on the TLS channel.  Note that
         // we're using dummy relay crypto for testing convenience.
-        let rcvd = ch.cells.next().await.unwrap();
+        let rcvd = rx.next().await.unwrap();
         assert_eq!(rcvd.circid(), 128.into());
         let m = match rcvd.into_circid_and_msg().1 {
             ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
@@ -1428,7 +1446,7 @@ mod test {
     // for a specific circuit.
     #[async_test]
     async fn recv_meta() {
-        let (chan, _ch) = fake_channel();
+        let (chan, _, _sink) = working_fake_channel();
         let (circ, mut reactor, mut sink) = newcirc(chan).await;
 
         // 1: Try doing it via handle_meta_cell directly.
@@ -1488,7 +1506,7 @@ mod test {
     async fn extend() {
         use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
 
-        let (chan, mut ch) = fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel();
         let (circ, mut reactor, mut sink) = newcirc(chan).await;
         let params = CircParameters::default();
 
@@ -1501,7 +1519,7 @@ mod test {
         let reply_fut = async move {
             // We've disabled encryption on this circuit, so we can just
             // read the extend2 cell.
-            let (id, chmsg) = ch.cells.next().await.unwrap().into_circid_and_msg();
+            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             assert_eq!(id, 128.into());
             let rmsg = match chmsg {
                 ChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
@@ -1530,7 +1548,7 @@ mod test {
     }
 
     async fn bad_extend_test_impl(reply_hop: HopNum, bad_reply: ClientCircChanMsg) -> Error {
-        let (chan, _ch) = fake_channel();
+        let (chan, _rx, _sink) = working_fake_channel();
         let (circ, mut reactor, mut sink) = newcirc_ext(chan, reply_hop).await;
         let params = CircParameters::default();
 
@@ -1571,7 +1589,7 @@ mod test {
             Error::CircDestroy(s) => {
                 assert_eq!(s, "Circuit closed while waiting for EXTENDED2");
             }
-            _ => panic!(),
+            x => panic!("got other error: {}", x),
         }
     }
 
@@ -1609,7 +1627,7 @@ mod test {
 
     #[async_test]
     async fn begindir() {
-        let (chan, mut ch) = fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel();
         let (circ, mut reactor, mut sink) = newcirc(chan).await;
 
         let begin_and_send_fut = async move {
@@ -1628,7 +1646,7 @@ mod test {
         let reply_fut = async move {
             // We've disabled encryption on this circuit, so we can just
             // read the begindir cell.
-            let (id, chmsg) = ch.cells.next().await.unwrap().into_circid_and_msg();
+            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             assert_eq!(id, 128.into()); // hardcoded circid.
             let rmsg = match chmsg {
                 ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
@@ -1642,7 +1660,7 @@ mod test {
             sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
 
             // Now read a DATA cell...
-            let (id, chmsg) = ch.cells.next().await.unwrap().into_circid_and_msg();
+            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             assert_eq!(id, 128.into());
             let rmsg = match chmsg {
                 ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
@@ -1690,7 +1708,7 @@ mod test {
         crate::circuit::reactor::Reactor,
         usize,
     ) {
-        let (chan, mut ch) = fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel();
         let (circ, mut reactor, mut sink) = newcirc(chan).await;
         let (snd_done, mut rcv_done) = oneshot::channel::<()>();
 
@@ -1714,7 +1732,7 @@ mod test {
 
         let receive_fut = async move {
             // Read the begindir cell.
-            let (_id, chmsg) = ch.cells.next().await.unwrap().into_circid_and_msg();
+            let (_id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
             let rmsg = match chmsg {
                 ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
                 _ => panic!(),
@@ -1729,7 +1747,7 @@ mod test {
             let mut cells_received = 0_usize;
             while bytes_received < n_to_send {
                 // Read a data cell, and remember how much we got.
-                let (id, chmsg) = ch.cells.next().await.unwrap().into_circid_and_msg();
+                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
                 assert_eq!(id, 128.into());
 
                 let rmsg = match chmsg {

@@ -14,17 +14,28 @@ use crate::{Error, Result};
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 
-use futures::channel::mpsc;
-use futures::lock::Mutex;
-use futures::select_biased;
+use futures::channel::{mpsc, oneshot};
+
 use futures::sink::SinkExt;
-use futures::stream::{self, Stream, StreamExt};
+use futures::stream::{Stream, StreamExt};
+use futures::{select_biased, Sink};
 
 use std::convert::TryInto;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, Weak};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
+use crate::channel::unique_id;
+use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
+
+/// A boxed trait object that can provide `ChanCell`s.
+pub(super) type BoxedChannelStream =
+    Box<dyn Stream<Item = std::result::Result<ChanCell, tor_cell::Error>> + Send + Unpin + 'static>;
+/// A boxed trait object that can sink `ChanCell`s.
+pub(super) type BoxedChannelSink =
+    Box<dyn Sink<ChanCell, Error = tor_cell::Error> + Send + Unpin + 'static>;
+/// The type of a oneshot channel used to inform reactor users of the result of an operation.
+pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
 /// A message telling the channel reactor to do something.
 #[derive(Debug)]
@@ -33,6 +44,23 @@ pub(super) enum CtrlMsg {
     Shutdown,
     /// Tell the reactor that a given circuit has gone away.
     CloseCircuit(CircId),
+    /// Send a cell on the channel.
+    Send {
+        /// The cell to send.
+        cell: ChanCell,
+        /// Oneshot channel to send the result down.
+        tx: ReactorResultChannel<()>,
+    },
+    /// Allocate a new circuit in this channel's circuit map, generating an ID for it
+    /// and registering senders for messages received for the circuit.
+    AllocateCircuit {
+        /// Channel to send the circuit's `CreateResponse` down.
+        created_sender: oneshot::Sender<CreateResponse>,
+        /// Channel to send other messages from this circuit down.
+        sender: mpsc::Sender<ClientCircChanMsg>,
+        /// Oneshot channel to send the new circuit's identifiers down.
+        tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
+    },
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -40,70 +68,39 @@ pub(super) enum CtrlMsg {
 /// This type is returned when you finish a channel; you need to spawn a
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
-pub struct Reactor<T>
-where
-    T: Stream<Item = std::result::Result<ChanCell, tor_cell::Error>> + Unpin + Send + 'static,
-{
+pub struct Reactor {
     /// A stream of oneshot receivers that this reactor can use to get
     /// control messages.
+    pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
+    /// A Stream from which we can read `ChanCell`s.
     ///
-    /// TODO: copy documentation from circuit::reactor if we don't unify
-    /// these types somehow.
-    control: mpsc::UnboundedReceiver<CtrlMsg>,
-    /// A Stream from which we can read ChanCells.  This should be backed
-    /// by a TLS connection.
-    input: stream::Fuse<T>,
-    // TODO: This lock is used pretty asymmetrically.  The reactor
-    // task needs to use the circmap all the time, whereas other tasks
-    // only need the circmap when dealing with circuit creation.
-    // Maybe it would be better to use some kind of channel to tell
-    // the reactor about new circuits?
+    /// This should be backed by a TLS connection if you want it to be secure.
+    pub(super) input: futures::stream::Fuse<BoxedChannelStream>,
+    /// A Sink to which we can write `ChanCell`s.
+    ///
+    /// This should also be backed by a TLS connection if you want it to be secure.
+    pub(super) output: BoxedChannelSink,
     /// A map from circuit ID to Sinks on which we can deliver cells.
-    circs: Arc<Mutex<CircMap>>,
-
-    /// Channel pointer -- used to send DESTROY cells.
-    channel: Weak<super::Channel>,
-
+    pub(super) circs: CircMap,
     /// Logging identifier for this channel
-    unique_id: UniqId,
+    pub(super) unique_id: UniqId,
+    /// If true, this channel is closing.
+    pub(super) closed: Arc<AtomicBool>,
+    /// Context for allocating unique circuit log identifiers.
+    pub(super) circ_unique_id_ctx: unique_id::CircUniqIdContext,
+    /// What link protocol is the channel using?
+    #[allow(dead_code)] // We don't support protocols where this would matter
+    pub(super) link_protocol: u16,
 }
 
-impl<T> Reactor<T>
-where
-    T: Stream<Item = std::result::Result<ChanCell, tor_cell::Error>> + Unpin + Send + 'static,
-{
-    /// Construct a new Reactor.
-    ///
-    /// Cells should be taken from input and routed according to circmap.
-    ///
-    /// When closeflag fires, the reactor should shut down.
-    pub(super) fn new(
-        channel: &Arc<super::Channel>,
-        circmap: Arc<Mutex<CircMap>>,
-        control: mpsc::UnboundedReceiver<CtrlMsg>,
-        input: T,
-        unique_id: UniqId,
-    ) -> Self {
-        Reactor {
-            control,
-            input: input.fuse(),
-            channel: Arc::downgrade(channel),
-            circs: circmap,
-            unique_id,
-        }
-    }
-
+impl Reactor {
     /// Launch the reactor, and run until the channel closes or we
     /// encounter an error.
     ///
     /// Once this function returns, the channel is dead, and can't be
     /// used again.
     pub async fn run(mut self) -> Result<()> {
-        if let Some(chan) = self.channel.upgrade() {
-            if chan.closed.load(Ordering::SeqCst) {
-                return Err(Error::ChannelClosed);
-            }
-        } else {
+        if self.closed.load(Ordering::SeqCst) {
             return Err(Error::ChannelClosed);
         }
         debug!("{}: Running reactor", self.unique_id);
@@ -115,9 +112,7 @@ where
             }
         };
         debug!("{}: Reactor stopped: {:?}", self.unique_id, result);
-        if let Some(chan) = self.channel.upgrade() {
-            chan.closed.store(true, Ordering::SeqCst);
-        }
+        self.closed.store(true, Ordering::SeqCst);
         result
     }
 
@@ -157,6 +152,24 @@ where
         match msg {
             CtrlMsg::Shutdown => panic!(), // was handled in reactor loop.
             CtrlMsg::CloseCircuit(id) => self.outbound_destroy_circ(id).await?,
+            CtrlMsg::Send { cell, tx } => {
+                let ret = self.send_cell(cell).await;
+                let _ = tx.send(ret); // don't care about other side going away
+            }
+            CtrlMsg::AllocateCircuit {
+                created_sender,
+                sender,
+                tx,
+            } => {
+                let mut rng = rand::thread_rng();
+                let my_unique_id = self.unique_id;
+                let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
+                let ret: Result<_> = self
+                    .circs
+                    .add_ent(&mut rng, created_sender, sender)
+                    .map(|id| (id, circ_unique_id));
+                let _ = tx.send(ret); // don't care about other side going away
+            }
         }
         Ok(())
     }
@@ -213,9 +226,7 @@ where
 
     /// Give the RELAY cell `msg` to the appropriate circuit.
     async fn deliver_relay(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
-        let mut map = self.circs.lock().await;
-
-        match map.get_mut(circid) {
+        match self.circs.get_mut(circid) {
             Some(CircEnt::Open(s)) => {
                 // There's an open circuit; we can give it the RELAY cell.
                 // XXXX I think that this one actually means the other side
@@ -235,8 +246,7 @@ where
     /// Handle a CREATED{,_FAST,2} cell by passing it on to the appropriate
     /// circuit, if that circuit is waiting for one.
     async fn deliver_created(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
-        let mut map = self.circs.lock().await;
-        let target = map.advance_from_opening(circid)?;
+        let target = self.circs.advance_from_opening(circid)?;
         let created = msg.try_into()?;
         // XXXX I think that this one actually means the other side
         // is closed
@@ -250,9 +260,8 @@ where
     /// Handle a DESTROY cell by removing the corresponding circuit
     /// from the map, and passing the destroy cell onward to the circuit.
     async fn deliver_destroy(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
-        let mut map = self.circs.lock().await;
         // Remove the circuit from the map: nothing more can be done with it.
-        let entry = map.remove(circid);
+        let entry = self.circs.remove(circid);
         match entry {
             // If the circuit is waiting for CREATED, tell it that it
             // won't get one.
@@ -301,6 +310,12 @@ where
         }
     }
 
+    /// Helper: send a cell on the outbound sink.
+    async fn send_cell(&mut self, cell: ChanCell) -> Result<()> {
+        self.output.send(cell).await?;
+        Ok(())
+    }
+
     /// Called when a circuit goes away: sends a DESTROY cell and removes
     /// the circuit.
     async fn outbound_destroy_circ(&mut self, id: CircId) -> Result<()> {
@@ -309,21 +324,14 @@ where
             self.unique_id,
             id
         );
-        {
-            let mut map = self.circs.lock().await;
-            // Remove the circuit's entry from the map: nothing more
-            // can be done with it.
-            // TODO: It would be great to have a tighter upper bound for
-            // the number of relay cells we'll receive.
-            map.destroy_sent(id, HalfCirc::new(3000));
-        }
-        {
-            let destroy = Destroy::new(DestroyReason::NONE).into();
-            let cell = ChanCell::new(id, destroy);
-            if let Some(chan) = self.channel.upgrade() {
-                chan.send_cell(cell).await?;
-            }
-        }
+        // Remove the circuit's entry from the map: nothing more
+        // can be done with it.
+        // TODO: It would be great to have a tighter upper bound for
+        // the number of relay cells we'll receive.
+        self.circs.destroy_sent(id, HalfCirc::new(3000));
+        let destroy = Destroy::new(DestroyReason::NONE).into();
+        let cell = ChanCell::new(id, destroy);
+        self.send_cell(cell).await?;
 
         Ok(())
     }
@@ -335,15 +343,16 @@ pub(crate) mod test {
     use super::*;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use futures_await_test::async_test;
+    use tokio::test as async_test;
+    use tokio_crate as tokio;
 
     use crate::circuit::CircParameters;
 
     type CodecResult = std::result::Result<ChanCell, tor_cell::Error>;
 
     pub(crate) fn new_reactor() -> (
-        Arc<crate::channel::Channel>,
-        Reactor<mpsc::Receiver<CodecResult>>,
+        crate::channel::Channel,
+        Reactor,
         mpsc::Receiver<ChanCell>,
         mpsc::Sender<CodecResult>,
     ) {
@@ -351,13 +360,16 @@ pub(crate) mod test {
         let (send1, recv1) = mpsc::channel(32);
         let (send2, recv2) = mpsc::channel(32);
         let unique_id = UniqId::new();
-        let ed_id = [0x1; 32].into();
-        let rsa_id = [0x2; 20].into();
-        let send1 = send1.sink_map_err(|_| tor_cell::Error::ChanProto("dummy message".into()));
+        let ed_id = [6; 32].into();
+        let rsa_id = [10; 20].into();
+        let send1 = send1.sink_map_err(|e| {
+            eprintln!("got sink error: {}", e);
+            tor_cell::Error::ChanProto("dummy message".into())
+        });
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,
             Box::new(send1),
-            recv2,
+            Box::new(recv2),
             unique_id,
             ed_id,
             rsa_id,
@@ -370,13 +382,9 @@ pub(crate) mod test {
     async fn shutdown() {
         let (chan, mut reactor, _output, _input) = new_reactor();
 
-        chan.terminate().await;
+        chan.terminate();
         let r = reactor.run_once().await;
         assert!(matches!(r, Err(ReactorError::Shutdown)));
-
-        // This "run" won't even start.
-        let r = reactor.run().await;
-        assert!(matches!(r, Err(Error::ChannelClosed)));
     }
 
     // Try shutdown while reactor is running.
@@ -395,7 +403,7 @@ pub(crate) mod test {
         let exit_then_check = async {
             assert!(rr.peek().is_none());
             // ... and terminate the channel while that's happening.
-            chan.terminate().await;
+            chan.terminate();
         };
 
         let (rr_s, _) = join!(run_reactor, exit_then_check);
@@ -406,28 +414,23 @@ pub(crate) mod test {
 
     #[async_test]
     async fn new_circ_closed() {
-        let mut rng = rand::thread_rng();
         let (chan, mut reactor, mut output, _input) = new_reactor();
 
-        let (pending, _circr) = chan.new_circ(&mut rng).await.unwrap();
+        let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
+        let (pending, _circr) = ret.unwrap();
+        assert!(reac.is_ok());
 
         let id = pending.peek_circid().await;
 
-        {
-            let mut circs = reactor.circs.lock().await;
-            let ent = circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
-        }
+        let ent = reactor.circs.get_mut(id);
+        assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
         // Now drop the circuit; this should tell the reactor to remove
         // the circuit from the map.
         drop(pending);
 
         reactor.run_once().await.unwrap();
-        {
-            let mut circs = reactor.circs.lock().await;
-            let ent = circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
-        }
+        let ent = reactor.circs.get_mut(id);
+        assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
         let cell = output.next().await.unwrap();
         assert_eq!(cell.circid(), id);
         assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
@@ -440,25 +443,26 @@ pub(crate) mod test {
         let mut rng = rand::thread_rng();
         let (chan, mut reactor, mut output, mut input) = new_reactor();
 
-        let (pending, _circr) = chan.new_circ(&mut rng).await.unwrap();
+        let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
+        let (pending, _circr) = ret.unwrap();
+        assert!(reac.is_ok());
 
         let circparams = CircParameters::default();
 
         let id = pending.peek_circid().await;
 
-        {
-            let mut circs = reactor.circs.lock().await;
-            let ent = circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
-        }
+        let ent = reactor.circs.get_mut(id);
+        assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
         // We'll get a bad handshake result from this createdfast cell.
         let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
         input.send(Ok(created_cell)).await.unwrap();
 
-        let (circ, reac) = futures::join!(
-            pending.create_firsthop_fast(&mut rng, &circparams),
-            reactor.run_once()
-        );
+        let (circ, reac) =
+            futures::join!(pending.create_firsthop_fast(&mut rng, &circparams), async {
+                reactor.run_once().await?;
+                reactor.run_once().await?;
+                Ok::<(), ReactorError>(())
+            });
         // Make sure statuses are as expected.
         assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
         assert!(reac.is_ok());
@@ -469,19 +473,13 @@ pub(crate) mod test {
 
         // The circid now counts as open, since as far as the reactor knows,
         // it was accepted.  (TODO: is this a bug?)
-        {
-            let mut circs = reactor.circs.lock().await;
-            let ent = circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Open(_))));
-        }
+        let ent = reactor.circs.get_mut(id);
+        assert!(matches!(ent, Some(CircEnt::Open(_))));
 
         // But the next run if the reactor will make the circuit get closed.
         reactor.run_once().await.unwrap();
-        {
-            let mut circs = reactor.circs.lock().await;
-            let ent = circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
-        }
+        let ent = reactor.circs.get_mut(id);
+        assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
     }
 
     // Try incoming cells that shouldn't arrive on channels.
@@ -562,15 +560,18 @@ pub(crate) mod test {
         let (_chan, mut reactor, _output, mut input) = new_reactor();
 
         let (_circ_stream_7, mut circ_stream_13) = {
-            let mut circmap = reactor.circs.lock().await;
             let (snd1, _rcv1) = oneshot::channel();
             let (snd2, rcv2) = mpsc::channel(64);
-            circmap.put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+            reactor
+                .circs
+                .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
 
             let (snd3, rcv3) = mpsc::channel(64);
-            circmap.put_unchecked(13.into(), CircEnt::Open(snd3));
+            reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
 
-            circmap.put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+            reactor
+                .circs
+                .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
             (rcv2, rcv3)
         };
 
@@ -640,15 +641,18 @@ pub(crate) mod test {
         let (_chan, mut reactor, _output, mut input) = new_reactor();
 
         let (circ_oneshot_7, mut circ_stream_13) = {
-            let mut circmap = reactor.circs.lock().await;
             let (snd1, rcv1) = oneshot::channel();
             let (snd2, _rcv2) = mpsc::channel(64);
-            circmap.put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+            reactor
+                .circs
+                .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
 
             let (snd3, rcv3) = mpsc::channel(64);
-            circmap.put_unchecked(13.into(), CircEnt::Open(snd3));
+            reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
 
-            circmap.put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+            reactor
+                .circs
+                .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
             (rcv1, rcv3)
         };
 

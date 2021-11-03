@@ -43,9 +43,11 @@ impl<R: Runtime> crate::mgr::ChannelFactory for ChanBuilder<R> {
         // TODO: make this an option.  And make a better value.
         let five_seconds = std::time::Duration::new(5, 0);
 
+        // FIXME(eta): there doesn't need to be an `Arc` here; `Channel` implements `Clone`!
         self.runtime
             .timeout(five_seconds, self.build_channel_notimeout(target))
             .await?
+            .map(Arc::new)
     }
 }
 
@@ -54,7 +56,7 @@ impl<R: Runtime> ChanBuilder<R> {
     async fn build_channel_notimeout(
         &self,
         target: &OwnedChanTarget,
-    ) -> crate::Result<Arc<tor_proto::channel::Channel>> {
+    ) -> crate::Result<tor_proto::channel::Channel> {
         use tor_proto::channel::ChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
 

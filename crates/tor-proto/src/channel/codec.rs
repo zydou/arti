@@ -11,7 +11,7 @@ use bytes::BytesMut;
 /// This type lets us wrap a TLS channel (or some other secure
 /// AsyncRead+AsyncWrite type) as a Sink and a Stream of ChanCell, so we
 /// can forget about byte-oriented communication.
-pub struct ChannelCodec(codec::ChannelCodec);
+pub(crate) struct ChannelCodec(codec::ChannelCodec);
 
 impl ChannelCodec {
     /// Create a new ChannelCodec with a given link protocol.
@@ -45,9 +45,10 @@ pub(crate) mod test {
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures::task::{Context, Poll};
-    use futures_await_test::async_test;
     use hex_literal::hex;
     use std::pin::Pin;
+    use tokio::test as async_test;
+    use tokio_crate as tokio;
 
     use super::{futures_codec, ChannelCodec};
     use tor_cell::chancell::{msg, ChanCell, ChanCmd, CircId};
