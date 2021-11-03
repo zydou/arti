@@ -9,21 +9,29 @@ use std::sync::{Arc, Mutex};
 /// without having to store anything to disk.
 ///
 /// Only available when this crate is built with the `testing` feature.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct TestingStateMgr {
     /// Inner reference-counted storage.
     inner: Arc<Mutex<TestingStateMgrInner>>,
 }
 
-/// Implementation type for [`TestingStateMgr`]
-#[derive(Default, Debug)]
+/// The inner state of a TestingStateMgr.
+#[derive(Debug)]
 struct TestingStateMgrInner {
-    /// True if we currently hold the simulated write lock on the
-    /// state. Only one process is supposed to hold this at a time,
+    /// True if this manager, and all references to it, hold the lock on
+    /// the storage.
     lock_held: bool,
-    /// True if we are pretending that someone else is holding the
-    /// simulated write lock on the state.
-    lock_blocked: bool,
+    /// The underlying shared storage object.
+    storage: Arc<Mutex<TestingStateMgrStorage>>,
+}
+
+/// Implementation type for [`TestingStateMgr`]: represents an underlying
+/// storage system that can be shared by multiple TestingStateMgr instances
+/// at a time, only one of which can hold the lock.
+#[derive(Debug)]
+struct TestingStateMgrStorage {
+    /// True if nobody currently holds the lock for this storage.
+    lock_available: bool,
     /// Map from key to JSON-encoded values.
     ///
     /// We serialize our values here for convenience (so that we don't
@@ -32,30 +40,39 @@ struct TestingStateMgrInner {
     entries: HashMap<String, String>,
 }
 
+impl Default for TestingStateMgr {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestingStateMgr {
-    /// Create a new empty [`TestingStateMgr`].
+    /// Create a new empty unlocked [`TestingStateMgr`].
     pub fn new() -> Self {
-        Self::default()
+        let storage = TestingStateMgrStorage {
+            lock_available: true,
+            entries: HashMap::new(),
+        };
+        let inner = TestingStateMgrInner {
+            lock_held: false,
+            storage: Arc::new(Mutex::new(storage)),
+        };
+        TestingStateMgr {
+            inner: Arc::new(Mutex::new(inner)),
+        }
     }
 
-    /// Simulate another process holding the lock.
-    ///
-    /// Subsequent attempts to acquire the lock will fail.
-    ///
-    /// # Panics
-    ///
-    /// Panics if we've already acquired the lock.
-    pub fn block_lock_attempts(&self) {
-        let mut inner = self.inner.lock().expect("Lock poisoned.");
-        assert!(!inner.lock_held);
-        inner.lock_blocked = true;
-    }
-
-    /// Simulate another process releasing the lock.
-    ///
-    /// Subsequent attempts to acquire the lock will succeed.
-    pub fn unblock_lock_attempts(&self) {
-        self.inner.lock().expect("Lock poisoned.").lock_blocked = false;
+    /// Create a new unlocked [`TestingStateMgr`] that shares the same
+    /// underlying storage with this one.
+    pub fn new_manager(&self) -> Self {
+        let inner = self.inner.lock().expect("Lock poisoned.");
+        let new_inner = TestingStateMgrInner {
+            lock_held: false,
+            storage: Arc::clone(&inner.storage),
+        };
+        TestingStateMgr {
+            inner: Arc::new(Mutex::new(new_inner)),
+        }
     }
 }
 
@@ -65,7 +82,8 @@ impl StateMgr for TestingStateMgr {
         D: DeserializeOwned,
     {
         let inner = self.inner.lock().expect("Lock poisoned.");
-        match inner.entries.get(key) {
+        let storage = inner.storage.lock().expect("Lock poisoned.");
+        match storage.entries.get(key) {
             Some(value) => Ok(Some(serde_json::from_str(value)?)),
             None => Ok(None),
         }
@@ -75,14 +93,15 @@ impl StateMgr for TestingStateMgr {
     where
         S: Serialize,
     {
-        let mut inner = self.inner.lock().expect("Lock poisoned.");
+        let inner = self.inner.lock().expect("Lock poisoned.");
         if !inner.lock_held {
             return Err(Error::NoLock);
         }
+        let mut storage = inner.storage.lock().expect("Lock poisoned.");
 
         let val = serde_json::to_string_pretty(val)?;
 
-        inner.entries.insert(key.to_string(), val);
+        storage.entries.insert(key.to_string(), val);
         Ok(())
     }
 
@@ -94,13 +113,28 @@ impl StateMgr for TestingStateMgr {
 
     fn try_lock(&self) -> Result<LockStatus> {
         let mut inner = self.inner.lock().expect("Lock poisoned.");
-        if inner.lock_blocked {
-            Ok(LockStatus::NoLock)
-        } else if inner.lock_held {
-            Ok(LockStatus::AlreadyHeld)
-        } else {
+        if inner.lock_held {
+            return Ok(LockStatus::AlreadyHeld);
+        }
+
+        let mut storage = inner.storage.lock().expect("Lock poisoned");
+        if storage.lock_available {
+            storage.lock_available = false;
+            drop(storage); // release borrow
             inner.lock_held = true;
             Ok(LockStatus::NewlyAcquired)
+        } else {
+            Ok(LockStatus::NoLock)
+        }
+    }
+}
+
+impl Drop for TestingStateMgrInner {
+    fn drop(&mut self) {
+        if self.lock_held {
+            self.lock_held = false;
+            let mut storage = self.storage.lock().expect("Lock poisoned");
+            storage.lock_available = true;
         }
     }
 }
@@ -166,16 +200,19 @@ mod test {
 
         assert!(!mgr.can_store());
 
-        mgr.block_lock_attempts();
-        assert_eq!(mgr.try_lock().unwrap(), LockStatus::NoLock);
-        assert!(!mgr.can_store()); // can't store.
+        let mgr2 = mgr.new_manager();
 
-        mgr.unblock_lock_attempts();
-        assert!(!mgr.can_store()); // can't store.
         assert_eq!(mgr.try_lock().unwrap(), LockStatus::NewlyAcquired);
-        assert!(mgr.can_store()); // can store.
-
         assert_eq!(mgr.try_lock().unwrap(), LockStatus::AlreadyHeld);
+        assert!(mgr.can_store());
+
+        assert!(!mgr2.can_store());
+        assert_eq!(mgr2.try_lock().unwrap(), LockStatus::NoLock);
+        assert!(!mgr2.can_store());
+
+        drop(mgr);
+        assert_eq!(mgr2.try_lock().unwrap(), LockStatus::NewlyAcquired);
+        assert!(mgr2.can_store());
     }
 
     #[test]
