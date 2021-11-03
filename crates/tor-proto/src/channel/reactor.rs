@@ -17,12 +17,14 @@ use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 use futures::channel::{mpsc, oneshot};
 
 use futures::sink::SinkExt;
-use futures::stream::{Stream, StreamExt};
-use futures::{select_biased, Sink};
+use futures::stream::Stream;
+use futures::Sink;
 
 use std::convert::TryInto;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::task::Poll;
 
 use crate::channel::unique_id;
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
@@ -44,13 +46,6 @@ pub(super) enum CtrlMsg {
     Shutdown,
     /// Tell the reactor that a given circuit has gone away.
     CloseCircuit(CircId),
-    /// Send a cell on the channel.
-    Send {
-        /// The cell to send.
-        cell: ChanCell,
-        /// Oneshot channel to send the result down.
-        tx: ReactorResultChannel<()>,
-    },
     /// Allocate a new circuit in this channel's circuit map, generating an ID for it
     /// and registering senders for messages received for the circuit.
     AllocateCircuit {
@@ -69,9 +64,12 @@ pub(super) enum CtrlMsg {
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
 pub struct Reactor {
-    /// A stream of oneshot receivers that this reactor can use to get
-    /// control messages.
+    /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
+    /// A receiver for cells to be sent on this reactor's sink.
+    ///
+    /// `Channel` objects have a sender that can send cells here.
+    pub(super) cells: mpsc::Receiver<ChanCell>,
     /// A Stream from which we can read `ChanCell`s.
     ///
     /// This should be backed by a TLS connection if you want it to be secure.
@@ -119,30 +117,88 @@ impl Reactor {
     /// Helper for run(): handles only one action, and doesn't mark
     /// the channel closed on finish.
     async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
-        // Let's see what's next: maybe we got a cell, maybe the TLS
-        // connection got closed, or maybe we've been told to shut
-        // down.
-        select_biased! {
-            // we got a control message!
-            ctrl = self.control.next() => {
-                match ctrl {
-                    Some(CtrlMsg::Shutdown) => return Err(ReactorError::Shutdown),
-                    Some(msg) => self.handle_control(msg).await?,
-                    None => return Err(ReactorError::Shutdown),
+        // This is written this way (manually calling poll) for a bunch of reasons:
+        //
+        // - We can only send things onto self.output if poll_ready has returned Ready, so
+        //   we need some custom logic to implement that.
+        // - We probably want to call poll_flush on every reactor iteration, to ensure it continues
+        //   to make progress flushing.
+        // - We also need to do the equivalent of select! between self.cells, self.control, and
+        //   self.input, but with the extra logic bits added above.
+        //
+        // In Rust 2021, it would theoretically be possible to do this with a hybrid mix of select!
+        // and manually implemented poll_fn, but we aren't using that yet. (also, arguably doing
+        // it this way is both less confusing and more flexible).
+        let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
+            // We've potentially got three types of thing to deal with in this reactor iteration:
+            let mut cell_to_send = None;
+            let mut control_message = None;
+            let mut input = None;
+
+            // See if the output sink can have cells written to it yet.
+            if let Poll::Ready(ret) = Pin::new(&mut self.output).poll_ready(cx) {
+                let _ = ret.map_err(Error::CellErr)?;
+                // If it can, check whether we have any cells to send it from `Channel` senders.
+                if let Poll::Ready(msg) = Pin::new(&mut self.cells).poll_next(cx) {
+                    match msg {
+                        x @ Some(..) => cell_to_send = x,
+                        None => {
+                            // cells sender dropped, shut down the reactor!
+                            return Poll::Ready(Err(ReactorError::Shutdown));
+                        }
+                    }
                 }
             }
-            // we got a cell or a close.
-            item = self.input.next() => {
-                let item = match item {
-                    None => return Err(ReactorError::Shutdown), // the TLS connection closed.
-                    Some(r) => r.map_err(Error::CellErr)?, // it's a cell.
-                };
-                crate::note_incoming_traffic();
-                self.handle_cell(item).await?;
 
+            // Check whether we've got a control message pending.
+            if let Poll::Ready(ret) = Pin::new(&mut self.control).poll_next(cx) {
+                match ret {
+                    None | Some(CtrlMsg::Shutdown) => {
+                        return Poll::Ready(Err(ReactorError::Shutdown))
+                    }
+                    x @ Some(..) => control_message = x,
+                }
             }
-        };
 
+            // Check whether we've got any incoming cells.
+            if let Poll::Ready(ret) = Pin::new(&mut self.input).poll_next(cx) {
+                match ret {
+                    None => return Poll::Ready(Err(ReactorError::Shutdown)),
+                    Some(r) => input = Some(r.map_err(Error::CellErr)?),
+                }
+            }
+
+            // Flush the output sink. We don't actually care about whether it's ready or not;
+            // we just want to keep flushing it (hence the _).
+            let _ = Pin::new(&mut self.output)
+                .poll_flush(cx)
+                .map_err(Error::CellErr)?;
+
+            // If all three values aren't present, return Pending and wait to get polled again
+            // so that one of them is present.
+            if cell_to_send.is_none() && control_message.is_none() && input.is_none() {
+                return Poll::Pending;
+            }
+            // Otherwise, return the three Options, one of which is going to be Some.
+            Poll::Ready(Ok((cell_to_send, control_message, input)))
+        });
+        let (cell_to_send, control_message, input) = fut.await?;
+        if let Some(ctrl) = control_message {
+            self.handle_control(ctrl).await?;
+        }
+        if let Some(item) = input {
+            crate::note_incoming_traffic();
+            self.handle_cell(item).await?;
+        }
+        if let Some(cts) = cell_to_send {
+            Pin::new(&mut self.output)
+                .start_send(cts)
+                .map_err(Error::CellErr)?;
+            // Give the sink a little flush, to make sure it actually starts doing things.
+            futures::future::poll_fn(|cx| Pin::new(&mut self.output).poll_flush(cx))
+                .await
+                .map_err(Error::CellErr)?;
+        }
         Ok(()) // Run again.
     }
 
@@ -152,10 +208,6 @@ impl Reactor {
         match msg {
             CtrlMsg::Shutdown => panic!(), // was handled in reactor loop.
             CtrlMsg::CloseCircuit(id) => self.outbound_destroy_circ(id).await?,
-            CtrlMsg::Send { cell, tx } => {
-                let ret = self.send_cell(cell).await;
-                let _ = tx.send(ret); // don't care about other side going away
-            }
             CtrlMsg::AllocateCircuit {
                 created_sender,
                 sender,
@@ -457,12 +509,10 @@ pub(crate) mod test {
         let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
         input.send(Ok(created_cell)).await.unwrap();
 
-        let (circ, reac) =
-            futures::join!(pending.create_firsthop_fast(&mut rng, &circparams), async {
-                reactor.run_once().await?;
-                reactor.run_once().await?;
-                Ok::<(), ReactorError>(())
-            });
+        let (circ, reac) = futures::join!(
+            pending.create_firsthop_fast(&mut rng, &circparams),
+            reactor.run_once()
+        );
         // Make sure statuses are as expected.
         assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
         assert!(reac.is_ok());

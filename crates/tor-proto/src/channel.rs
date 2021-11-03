@@ -53,6 +53,9 @@
 //! TODO: There is no flow control, rate limiting, queueing, or
 //! fairness.
 
+/// The size of the channel buffer for communication between `Channel` and its reactor.
+pub const CHANNEL_BUFFER_SIZE: usize = 128;
+
 mod circmap;
 mod codec;
 mod handshake;
@@ -73,6 +76,7 @@ use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
 
+use futures::SinkExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -99,8 +103,10 @@ pub struct Channel {
     rsa_id: RsaIdentity,
     /// If true, this channel is closing.
     closed: Arc<AtomicBool>,
-    /// A stream used to send control messages to the Reactor.
+    /// A channel used to send control messages to the Reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
+    /// A channel used to send cells to the Reactor.
+    cell_tx: mpsc::Sender<ChanCell>,
 }
 
 /// Structure for building and launching a Tor channel.
@@ -167,6 +173,7 @@ impl Channel {
         let circmap = CircMap::new(CircIdRange::High);
 
         let (control_tx, control_rx) = mpsc::unbounded();
+        let (cell_tx, cell_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         let closed = Arc::new(AtomicBool::new(false));
 
         let channel = Channel {
@@ -175,10 +182,12 @@ impl Channel {
             rsa_id,
             closed: Arc::clone(&closed),
             control: control_tx,
+            cell_tx,
         };
 
         let reactor = Reactor {
             control: control_rx,
+            cells: cell_rx,
             input: futures::StreamExt::fuse(stream),
             output: sink,
             circs: circmap,
@@ -253,7 +262,7 @@ impl Channel {
     }
 
     /// Transmit a single cell on a channel.
-    pub async fn send_cell(&self, cell: ChanCell) -> Result<()> {
+    pub async fn send_cell(&mut self, cell: ChanCell) -> Result<()> {
         if self.closed.load(Ordering::SeqCst) {
             return Err(Error::ChannelClosed);
         }
@@ -271,12 +280,10 @@ impl Channel {
             }
         }
 
-        let (tx, rx) = oneshot::channel();
-        self.control
-            .unbounded_send(CtrlMsg::Send { cell, tx })
+        self.cell_tx
+            .send(cell)
+            .await
             .map_err(|_| Error::InternalError("Reactor not alive to receive cells".into()))?;
-        rx.await
-            .map_err(|_| Error::InternalError("Reactor went away while sending".into()))??;
 
         Ok(())
     }
@@ -380,6 +387,7 @@ pub(crate) mod test {
             rsa_id: [10_u8; 20].into(),
             closed: Arc::new(AtomicBool::new(false)),
             control: mpsc::unbounded().0,
+            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
         }
     }
 
