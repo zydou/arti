@@ -469,18 +469,15 @@ mod test {
                 .wait_for(double_timeout(
                     &rt,
                     async move {
-                        dbg!("A");
                         let sl = rt_clone.sleep(Duration::from_millis(100));
                         rt_clone.allow_one_advance(Duration::from_millis(100));
                         sl.await;
-                        dbg!("B");
                         Ok(4_u32)
                     },
                     t1,
                     t10,
                 ))
                 .await;
-            dbg!(&x);
             assert!(x.is_ok());
             assert_eq!(x.unwrap(), 4_u32);
 
@@ -545,7 +542,6 @@ mod test {
             assert!(waited.is_err());
             let end2 = rt.now();
             assert!(duration_close_to(end - start, Duration::from_secs(1)));
-            dbg!(end2, start, end2 - start);
             assert!(duration_close_to(end2 - start, Duration::from_secs(10)));
         });
     }
@@ -863,7 +859,6 @@ mod test {
             .await;
             assert!(matches!(outcome, Err(Error::CircTimeout)));
 
-            dbg!(&timeouts);
             assert_eq!(timeouts.len(), 2);
             assert!(!timeouts[0].0); // timeout
 

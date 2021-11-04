@@ -406,15 +406,12 @@ mod test {
     fn load_default_config() -> Result<()> {
         // TODO: this is duplicate code.
         let mut cfg = config::Config::new();
-        dbg!("AAAA");
         cfg.merge(config::File::from_str(
             ARTI_DEFAULTS,
             config::FileFormat::Toml,
         ))?;
-        dbg!("BBBB");
 
         let _parsed: ArtiConfig = cfg.try_into()?;
-        dbg!("CCCCC");
         Ok(())
     }
 }

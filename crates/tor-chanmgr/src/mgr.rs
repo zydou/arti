@@ -319,7 +319,6 @@ mod test {
             // This is set up to always fail.
             let target = (999, '❌');
             let res1 = mgr.get_or_launch(999, target).await;
-            dbg!(&res1);
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
             let chan3 = mgr.get_nowait(&999);
