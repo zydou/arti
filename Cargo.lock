@@ -2883,6 +2883,7 @@ dependencies = [
  "rand 0.8.4",
  "thiserror",
  "tor-rtcompat",
+ "tracing",
 ]
 
 [[package]]

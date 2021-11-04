@@ -1135,6 +1135,7 @@ mod test {
     use std::sync::atomic::{self, AtomicUsize};
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockSleepRuntime;
+    use tracing::trace;
 
     #[derive(Debug, Clone, Eq, PartialEq, Hash, Copy)]
     struct FakeId {
@@ -1291,7 +1292,7 @@ mod test {
                 }
                 FakeOp::Timeout => unreachable!(), // should be converted to the below
                 FakeOp::TimeoutReleaseAdvance(reason) => {
-                    eprintln!("releasing advance to fake a timeout");
+                    trace!("releasing advance to fake a timeout");
                     self.runtime.release_advance(reason);
                     let () = futures::future::pending().await;
                     unreachable!()

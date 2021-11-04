@@ -10,6 +10,7 @@ use pin_project::pin_project;
 use std::io::Result as IoResult;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
+use tracing::trace;
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.
@@ -152,20 +153,20 @@ impl<F: Future> Future for WaitFor<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        eprintln!("waitfor poll");
+        trace!("waitfor poll");
         let mut this = self.project();
         this.sleep.register_waitfor_waker(cx.waker().clone());
 
         if let Poll::Ready(r) = this.fut.poll(cx) {
-            eprintln!("waitfor done!");
+            trace!("waitfor done!");
             this.sleep.clear_waitfor_waker();
             return Poll::Ready(r);
         }
-        eprintln!("waitfor poll complete");
+        trace!("waitfor poll complete");
 
         if this.sleep.should_advance() {
             if let Some(duration) = this.sleep.time_until_next_timeout() {
-                eprintln!("Advancing by {:?}", duration);
+                trace!("Advancing by {:?}", duration);
                 this.sleep.advance_noyield(duration);
             } else {
                 // If we get here, something's probably wedged and the test isn't going to complete
@@ -175,7 +176,7 @@ impl<F: Future> Future for WaitFor<F> {
                 panic!("WaitFor told to advance, but didn't have any duration to advance by");
             }
         } else {
-            eprintln!("waiting for sleepers to advance");
+            trace!("waiting for sleepers to advance");
         }
         Poll::Pending
     }

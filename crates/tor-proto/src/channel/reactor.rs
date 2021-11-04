@@ -415,7 +415,7 @@ pub(crate) mod test {
         let ed_id = [6; 32].into();
         let rsa_id = [10; 20].into();
         let send1 = send1.sink_map_err(|e| {
-            eprintln!("got sink error: {}", e);
+            trace!("got sink error: {}", e);
             tor_cell::Error::ChanProto("dummy message".into())
         });
         let (chan, reactor) = crate::channel::Channel::new(

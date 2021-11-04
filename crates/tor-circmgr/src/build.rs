@@ -431,6 +431,7 @@ mod test {
     use std::sync::Mutex;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
+    use tracing::trace;
 
     /// Make a new nonfunctional `Arc<GuardStatusHandle>`
     fn gs() -> Arc<GuardStatusHandle> {
@@ -457,7 +458,7 @@ mod test {
             assert!(x.is_ok());
             assert_eq!(x.unwrap(), 3_u32);
 
-            eprintln!("acquiesce after test1");
+            trace!("acquiesce after test1");
             #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
@@ -481,7 +482,7 @@ mod test {
             assert!(x.is_ok());
             assert_eq!(x.unwrap(), 4_u32);
 
-            eprintln!("acquiesce after test2");
+            trace!("acquiesce after test2");
             #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 
@@ -511,7 +512,7 @@ mod test {
             let waited = rt.wait_for(rcv).await;
             assert_eq!(waited, Ok(()));
 
-            eprintln!("acquiesce after test3");
+            trace!("acquiesce after test3");
             #[allow(clippy::clone_on_copy)]
             let rt = tor_rtmock::MockSleepRuntime::new(rto.clone());
 

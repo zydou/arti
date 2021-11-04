@@ -1284,15 +1284,15 @@ mod test {
             let target = example_target();
             let params = CircParameters::default();
             let ret = if fast {
-                eprintln!("doing fast create");
+                trace!("doing fast create");
                 pending.create_firsthop_fast(&mut rng, &params).await
             } else {
-                eprintln!("doing ntor create");
+                trace!("doing ntor create");
                 pending
                     .create_firsthop_ntor(&mut rng, &target, &params)
                     .await
             };
-            eprintln!("create done: result {:?}", ret);
+            trace!("create done: result {:?}", ret);
             ret
         };
         // Future to run the reactor.

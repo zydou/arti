@@ -15,6 +15,7 @@ async-trait = "0.1.48"
 futures = "0.3.13"
 pin-project = "1.0.5"
 thiserror = "1.0.24"
+tracing = "0.1.26"
 
 tor-rtcompat = { version = "0.0.1", path = "../tor-rtcompat" }
 

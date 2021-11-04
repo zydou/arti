@@ -16,6 +16,7 @@ use std::{
 };
 
 use futures::Future;
+use tracing::trace;
 
 use std::collections::HashSet;
 use tor_rtcompat::SleepProvider;
@@ -164,7 +165,7 @@ impl MockSleepProvider {
         if !state.blocked_advance.is_empty() && state.allowed_advance == Duration::from_nanos(0) {
             // We've had advances blocked, and don't have any quota for doing allowances while
             // blocked left.
-            eprintln!(
+            trace!(
                 "should_advance = false: blocked by {:?}",
                 state.blocked_advance
             );
@@ -172,7 +173,7 @@ impl MockSleepProvider {
         }
         if !state.should_advance {
             // The advance flag wasn't set.
-            eprintln!("should_advance = false; bit not previously set");
+            trace!("should_advance = false; bit not previously set");
             return false;
         }
         // Clear the advance flag; we'll either return true and cause an advance to happen,
@@ -182,7 +183,7 @@ impl MockSleepProvider {
         if state.sleepers_polled < state.sleepers_made {
             // Something did set the advance flag before, but it's not valid any more now because
             // more unpolled sleepers were created.
-            eprintln!("should_advance = false; advancing no longer valid");
+            trace!("should_advance = false; advancing no longer valid");
             return false;
         }
         if !state.blocked_advance.is_empty() && state.allowed_advance > Duration::from_nanos(0) {
@@ -200,7 +201,7 @@ impl MockSleepProvider {
                 Some(x) => x,
                 None => {
                     // There's no timeout set, so we really shouldn't be here anyway.
-                    eprintln!("should_advance = false; allow_one set but no timeout yet");
+                    trace!("should_advance = false; allow_one set but no timeout yet");
                     return false;
                 }
             };
@@ -208,15 +209,16 @@ impl MockSleepProvider {
                 // We can advance up to the next timeout, since it's in our quota.
                 // Subtract the amount we're going to advance by from said quota.
                 state.allowed_advance -= next_timeout;
-                eprintln!(
+                trace!(
                     "WARNING: allowing advance due to allow_one; new allowed is {:?}",
                     state.allowed_advance
                 );
             } else {
                 // The next timeout is too far in the future.
-                eprintln!(
+                trace!(
                     "should_advance = false; allow_one set but only up to {:?}, next is {:?}",
-                    state.allowed_advance, next_timeout
+                    state.allowed_advance,
+                    next_timeout
                 );
                 return false;
             }
@@ -273,11 +275,11 @@ impl SleepSchedule {
     fn maybe_advance(&mut self) {
         if self.sleepers_polled >= self.sleepers_made {
             if let Some(ref waker) = self.waitfor_waker {
-                eprintln!("setting advance flag");
+                trace!("setting advance flag");
                 self.should_advance = true;
                 waker.wake_by_ref();
             } else {
-                eprintln!("would advance, but no waker");
+                trace!("would advance, but no waker");
             }
         }
     }
@@ -285,9 +287,10 @@ impl SleepSchedule {
     /// Register a sleeper as having been polled, and advance if necessary.
     fn increment_poll_count(&mut self) {
         self.sleepers_polled += 1;
-        eprintln!(
+        trace!(
             "sleeper polled, {}/{}",
-            self.sleepers_polled, self.sleepers_made
+            self.sleepers_polled,
+            self.sleepers_made
         );
         self.maybe_advance();
     }
@@ -300,9 +303,11 @@ impl SleepProvider for MockSleepProvider {
         let when = provider.instant + duration;
         // We're making a new sleeper, so register this in the state.
         provider.sleepers_made += 1;
-        eprintln!(
+        trace!(
             "sleeper made for {:?}, {}/{}",
-            duration, provider.sleepers_polled, provider.sleepers_made
+            duration,
+            provider.sleepers_polled,
+            provider.sleepers_made
         );
 
         Sleeping {
@@ -315,14 +320,14 @@ impl SleepProvider for MockSleepProvider {
     fn block_advance<T: Into<String>>(&self, reason: T) {
         let mut provider = self.state.lock().expect("Poisoned lock for state");
         let reason = reason.into();
-        eprintln!("advancing blocked: {}", reason);
+        trace!("advancing blocked: {}", reason);
         provider.blocked_advance.insert(reason);
     }
 
     fn release_advance<T: Into<String>>(&self, reason: T) {
         let mut provider = self.state.lock().expect("Poisoned lock for state");
         let reason = reason.into();
-        eprintln!("advancing released: {}", reason);
+        trace!("advancing released: {}", reason);
         provider.blocked_advance.remove(&reason);
         if provider.blocked_advance.is_empty() {
             provider.maybe_advance();
@@ -332,7 +337,7 @@ impl SleepProvider for MockSleepProvider {
     fn allow_one_advance(&self, dur: Duration) {
         let mut provider = self.state.lock().expect("Poisoned lock for state");
         provider.allowed_advance = Duration::max(provider.allowed_advance, dur);
-        println!(
+        trace!(
             "** allow_one_advance fired; may advance up to {:?} **",
             provider.allowed_advance
         );
@@ -375,7 +380,7 @@ impl Drop for Sleeping {
             if !self.inserted {
                 // A sleeper being dropped will never be polled, so there's no point waiting;
                 // act as if it's been polled in order to avoid waiting forever.
-                eprintln!("sleeper dropped, incrementing count");
+                trace!("sleeper dropped, incrementing count");
                 provider.increment_poll_count();
                 self.inserted = true;
             }
