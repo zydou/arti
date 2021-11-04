@@ -1104,7 +1104,6 @@ mod test {
             req.push(md_digest);
         }
         let req = ClientRequest::Microdescs(req);
-        print!("{}", &response);
         let outcome = state.add_from_download(response.as_str(), &req, None);
         assert!(outcome.unwrap()); // successfully loaded MDs
         assert!(state.is_ready(Readiness::Complete));
