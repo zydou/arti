@@ -119,7 +119,7 @@ impl CacheUsage {
 /// together.
 ///
 /// TODO: Perhaps this should be the same as ClientRequest?
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum DocQuery {
     /// A request for the latest consensus
     LatestConsensus {
@@ -211,4 +211,159 @@ where
             .push(item);
     }
     result
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn doctype() {
+        assert_eq!(
+            DocId::LatestConsensus {
+                flavor: ConsensusFlavor::Microdesc,
+                cache_usage: CacheUsage::CacheOkay,
+            }
+            .doctype(),
+            DocType::Consensus(ConsensusFlavor::Microdesc)
+        );
+
+        let auth_id = AuthCertKeyIds {
+            id_fingerprint: [10; 20].into(),
+            sk_fingerprint: [12; 20].into(),
+        };
+        assert_eq!(DocId::AuthCert(auth_id).doctype(), DocType::AuthCert);
+
+        assert_eq!(DocId::Microdesc([22; 32]).doctype(), DocType::Microdesc);
+        assert_eq!(DocId::RouterDesc([42; 20]).doctype(), DocType::RouterDesc);
+    }
+
+    #[test]
+    fn partition_ids() {
+        let mut ids = Vec::new();
+        for byte in 0..=255 {
+            ids.push(DocId::Microdesc([byte; 32]));
+            ids.push(DocId::RouterDesc([byte; 20]));
+            ids.push(DocId::AuthCert(AuthCertKeyIds {
+                id_fingerprint: [byte; 20].into(),
+                sk_fingerprint: [33; 20].into(),
+            }));
+        }
+        let consensus_q = DocId::LatestConsensus {
+            flavor: ConsensusFlavor::Microdesc,
+            cache_usage: CacheUsage::CacheOkay,
+        };
+        ids.push(consensus_q);
+
+        let split = partition_by_type(ids);
+        assert_eq!(split.len(), 4); // 4 distinct types.
+
+        let q = split
+            .get(&DocType::Consensus(ConsensusFlavor::Microdesc))
+            .unwrap();
+        assert!(matches!(q, DocQuery::LatestConsensus { .. }));
+
+        let q = split.get(&DocType::Microdesc).unwrap();
+        assert!(matches!(q, DocQuery::Microdesc(v) if v.len() == 256));
+
+        let q = split.get(&DocType::RouterDesc).unwrap();
+        assert!(matches!(q, DocQuery::RouterDesc(v) if v.len() == 256));
+
+        let q = split.get(&DocType::AuthCert).unwrap();
+        assert!(matches!(q, DocQuery::AuthCert(v) if v.len() == 256));
+    }
+
+    #[test]
+    fn split_into_chunks() {
+        use std::collections::HashSet;
+        //use itertools::Itertools;
+        use rand::Rng;
+
+        // Construct a big query.
+        let mut rng = rand::thread_rng();
+        let ids: HashSet<MdDigest> = (0..3400).into_iter().map(|_| rng.gen()).collect();
+
+        // Test microdescs.
+        let split = DocQuery::Microdesc(ids.clone().into_iter().collect()).split_for_download();
+        assert_eq!(split.len(), 7);
+        let mut found_ids = HashSet::new();
+        for q in split {
+            match q {
+                DocQuery::Microdesc(ids) => ids.into_iter().for_each(|id| {
+                    found_ids.insert(id);
+                }),
+                _ => panic!("Wrong type."),
+            }
+        }
+        assert_eq!(found_ids.len(), 3400);
+        assert_eq!(found_ids, ids);
+
+        // Test routerdescs.
+        let ids: HashSet<RdDigest> = (0..1001).into_iter().map(|_| rng.gen()).collect();
+        let split = DocQuery::RouterDesc(ids.clone().into_iter().collect()).split_for_download();
+        assert_eq!(split.len(), 3);
+        let mut found_ids = HashSet::new();
+        for q in split {
+            match q {
+                DocQuery::RouterDesc(ids) => ids.into_iter().for_each(|id| {
+                    found_ids.insert(id);
+                }),
+                _ => panic!("Wrong type."),
+            }
+        }
+        assert_eq!(found_ids.len(), 1001);
+        assert_eq!(&found_ids, &ids);
+
+        // Test authcerts.
+        let ids: HashSet<AuthCertKeyIds> = (0..2500)
+            .into_iter()
+            .map(|_| {
+                let id_fingerprint = rng.gen::<[u8; 20]>().into();
+                let sk_fingerprint = rng.gen::<[u8; 20]>().into();
+                AuthCertKeyIds {
+                    id_fingerprint,
+                    sk_fingerprint,
+                }
+            })
+            .collect();
+        let split = DocQuery::AuthCert(ids.clone().into_iter().collect()).split_for_download();
+        assert_eq!(split.len(), 5);
+        let mut found_ids = HashSet::new();
+        for q in split {
+            match q {
+                DocQuery::AuthCert(ids) => ids.into_iter().for_each(|id| {
+                    found_ids.insert(id);
+                }),
+                _ => panic!("Wrong type."),
+            }
+        }
+        assert_eq!(found_ids.len(), 2500);
+        assert_eq!(&found_ids, &ids);
+
+        // Consensus is trivial?
+        let query = DocQuery::LatestConsensus {
+            flavor: ConsensusFlavor::Microdesc,
+            cache_usage: CacheUsage::CacheOkay,
+        };
+        let split = query.clone().split_for_download();
+        assert_eq!(split, vec![query]);
+    }
+
+    #[test]
+    fn into_query() {
+        let q: DocQuery = DocId::Microdesc([99; 32]).into();
+        assert_eq!(q, DocQuery::Microdesc(vec![[99; 32]]));
+    }
+
+    #[test]
+    fn pending_requirement() {
+        // If we want to keep all of our activity within the cache,
+        // we must request a non-pending consensus from the cache.
+        assert_eq!(CacheUsage::CacheOnly.pending_requirement(), Some(false));
+        // Otherwise, any cached consensus, pending or not, will meet
+        // our needs.
+        assert_eq!(CacheUsage::CacheOkay.pending_requirement(), None);
+        assert_eq!(CacheUsage::MustDownload.pending_requirement(), None);
+    }
 }
