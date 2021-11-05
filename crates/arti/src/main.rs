@@ -82,6 +82,9 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+// These are allowed in this crate only.
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
 
 mod exit;
 mod process;
