@@ -705,7 +705,7 @@ trait DirState: Send {
     /// was any change in this state.
     ///
     /// If `storage` is provided, then we should write any state changes into
-    /// it.
+    /// it.  (We don't read from it in this method.)
     fn add_from_cache(
         &mut self,
         docs: HashMap<DocId, DocumentText>,

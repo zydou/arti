@@ -111,7 +111,7 @@ impl Default for RetryDelay {
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
-#[derive(Debug, Copy, Clone, Deserialize)]
+#[derive(Debug, Copy, Clone, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RetryConfig {
     /// How many times to retry before giving up?

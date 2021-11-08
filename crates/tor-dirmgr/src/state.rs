@@ -554,6 +554,22 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         }
         false
     }
+
+    /// Mark the consensus that we're getting MDs for as non-pending in the
+    /// storage.
+    ///
+    /// Called when a consensus is no longer pending.
+    fn mark_consensus_usable(&self, storage: Option<&Mutex<SqliteStore>>) -> Result<()> {
+        if let Some(store) = storage {
+            let mut store = store.lock().expect("Directory storage lock poisoned");
+            info!("Marked consensus usable.");
+            store.mark_consensus_usable(&self.meta)?;
+            // Now that a consensus is usable, older consensuses may
+            // need to expire.
+            store.expire_all()?;
+        }
+        Ok(())
+    }
 }
 
 impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
@@ -610,17 +626,13 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
 
         let changed = !microdescs.is_empty();
         if self.register_microdescs(microdescs) {
-            if let Some(store) = storage {
-                let mut store = store.lock().expect("Directory storage lock poisoned");
-                info!("Marked consensus usable.");
-                store.mark_consensus_usable(&self.meta)?;
-                // DOCDOC: explain why we're doing this here.
-                store.expire_all()?;
-            }
+            // Just stopped being pending.
+            self.mark_consensus_usable(storage)?;
         }
 
         Ok(changed)
     }
+
     fn add_from_download(
         &mut self,
         text: &str,
@@ -664,14 +676,8 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
             }
         }
         if self.register_microdescs(new_mds.into_iter().map(|(_, md)| md)) {
-            // oh hey, this is no longer pending.
-            if let Some(store) = storage {
-                let mut store = store.lock().expect("Directory storage lock poisoned");
-                info!("Marked consensus usable.");
-                store.mark_consensus_usable(&self.meta)?;
-                // DOCDOC: explain why we're doing this here.
-                store.expire_all()?;
-            }
+            // Just stopped being pending.
+            self.mark_consensus_usable(storage)?;
         }
         Ok(true)
     }
@@ -684,7 +690,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(Box::new(GetConsensusState::new(
             self.writedir,
-            CacheUsage::MustDownload,
+            CacheUsage::MustDownload, // XXXX I believe this is wrong?
         )?))
     }
 }
@@ -739,13 +745,15 @@ fn current_time<DM: WriteNetDir>(writedir: &Weak<DM>) -> Result<SystemTime> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::cognitive_complexity)]
     use super::*;
-    use crate::Authority;
+    use crate::{Authority, DownloadScheduleConfig};
     use std::convert::TryInto;
     use std::sync::{
         atomic::{self, AtomicBool},
         Arc,
     };
+    use tempfile::TempDir;
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
 
@@ -770,6 +778,14 @@ mod test {
             assert!(when < vu);
             assert!(when <= expected_start + range);
         }
+    }
+
+    /// Makes a memory-backed SqliteStore.
+    fn temp_store() -> (TempDir, Mutex<SqliteStore>) {
+        let tempdir = TempDir::new().unwrap();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let store = SqliteStore::from_conn(conn, tempdir.path()).unwrap();
+        (tempdir, Mutex::new(store))
     }
 
     struct DirRcv {
@@ -888,6 +904,8 @@ mod test {
     fn get_consensus_state() {
         let rcv = Arc::new(DirRcv::new(test_time(), None));
 
+        let (_tempdir, store) = temp_store();
+
         let mut state =
             GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
 
@@ -901,6 +919,12 @@ mod test {
 
         // Basic properties: it doesn't want to reset.
         assert!(state.reset_time().is_none());
+
+        // Download configuration is simple: only 1 request can be done in
+        // parallel.  It uses a consensus retry schedule.
+        let (par, retry) = state.dl_config().unwrap();
+        assert_eq!(par, 1);
+        assert_eq!(&retry, DownloadScheduleConfig::default().retry_consensus());
 
         // Do we know what we want?
         let docs = state.missing_docs();
@@ -918,12 +942,25 @@ mod test {
         // Now suppose that we get some complete junk from a download.
         let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
         let req = crate::docid::ClientRequest::Consensus(req);
-        let outcome = state.add_from_download("this isn't a consensus", &req, None);
+        let outcome = state.add_from_download("this isn't a consensus", &req, Some(&store));
         assert!(matches!(outcome, Err(Error::NetDocError(_))));
+        // make sure it wasn't stored...
+        assert!(store
+            .lock()
+            .unwrap()
+            .latest_consensus(ConsensusFlavor::Microdesc, None)
+            .unwrap()
+            .is_none());
 
         // Now try again, with a real consensus... but the wrong authorities.
-        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
         assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
+        assert!(store
+            .lock()
+            .unwrap()
+            .latest_consensus(ConsensusFlavor::Microdesc, None)
+            .unwrap()
+            .is_none());
 
         // Great. Change the receiver to use a configuration where these test
         // authorities are recognized.
@@ -931,11 +968,19 @@ mod test {
 
         let mut state =
             GetConsensusState::new(Arc::downgrade(&rcv), CacheUsage::CacheOkay).unwrap();
-        let outcome = state.add_from_download(CONSENSUS, &req, None);
+        let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
         assert!(outcome.unwrap());
+        assert!(store
+            .lock()
+            .unwrap()
+            .latest_consensus(ConsensusFlavor::Microdesc, None)
+            .unwrap()
+            .is_some());
 
         // And with that, we should be asking for certificates
         assert!(state.can_advance());
+        assert_eq!(&state.describe(), "About to fetch certificates.");
+        assert_eq!(state.missing_docs(), Vec::new());
         let next = Box::new(state).advance().unwrap();
         assert_eq!(
             &next.describe(),
@@ -967,6 +1012,7 @@ mod test {
             (rcv, Box::new(state).advance().unwrap())
         }
 
+        let (_tempdir, store) = temp_store();
         let (_rcv, mut state) = new_getcerts_state();
         // Basic properties: description, status, reset time.
         assert_eq!(
@@ -978,6 +1024,9 @@ mod test {
         assert!(!state.is_ready(Readiness::Usable));
         let consensus_expires = datetime!(2020-08-07 12:43:20 UTC).into();
         assert_eq!(state.reset_time(), Some(consensus_expires));
+        let (par, retry) = state.dl_config().unwrap();
+        assert_eq!(par, 1);
+        assert_eq!(&retry, DownloadScheduleConfig::default().retry_certs());
 
         // Check that we get the right list of missing docs.
         let missing = state.missing_docs();
@@ -1005,26 +1054,43 @@ mod test {
         let mut req = tor_dirclient::request::AuthCertRequest::new();
         req.push(authcert_id_5696()); // it's the wrong id.
         let req = ClientRequest::AuthCert(req);
-        let outcome = state.add_from_download(AUTHCERT_5A23, &req, None);
+        let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
         assert!(!outcome.unwrap()); // no error, but nothing changed.
         let missing2 = state.missing_docs();
         assert_eq!(missing, missing2); // No change.
+        assert!(store
+            .lock()
+            .unwrap()
+            .authcerts(&[authcert_id_5a23()])
+            .unwrap()
+            .is_empty());
 
         // Now try to add the other from a download ... for real!
         let mut req = tor_dirclient::request::AuthCertRequest::new();
         req.push(authcert_id_5a23()); // Right idea this time!
         let req = ClientRequest::AuthCert(req);
-        let outcome = state.add_from_download(AUTHCERT_5A23, &req, None);
+        let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
         assert!(outcome.unwrap()); // No error, _and_ something changed!
         let missing3 = state.missing_docs();
         assert!(missing3.is_empty());
         assert!(state.can_advance());
+        assert!(!store
+            .lock()
+            .unwrap()
+            .authcerts(&[authcert_id_5a23()])
+            .unwrap()
+            .is_empty());
 
         let next = state.advance().unwrap();
         assert_eq!(
             &next.describe(),
             "Downloading microdescriptors (we are missing 6)."
         );
+
+        // If we start from scratch and reset, we're back in GetConsensus.
+        let (_rcv, state) = new_getcerts_state();
+        let state = state.reset().unwrap();
+        assert_eq!(&state.describe(), "Looking for a consensus.");
 
         // TODO: I'd like even more tests to make sure that we never
         // accept a certificate for an authority we don't believe in.
@@ -1048,9 +1114,13 @@ mod test {
             base64::decode(s).unwrap().try_into().unwrap()
         }
 
-        let (_rcv, mut state) = new_getmicrodescs_state();
+        // If we start from scratch and reset, we're back in GetConsensus.
+        let (_rcv, state) = new_getmicrodescs_state();
+        let state = Box::new(state).reset().unwrap();
+        assert_eq!(&state.describe(), "Downloading a consensus.");
 
         // Check the basics.
+        let (_rcv, mut state) = new_getmicrodescs_state();
         assert_eq!(
             &state.describe(),
             "Downloading microdescriptors (we are missing 4)."
@@ -1065,6 +1135,12 @@ mod test {
             assert!(reset_time >= fresh_until);
             assert!(reset_time <= valid_until);
         }
+        let (par, retry) = state.dl_config().unwrap();
+        assert_eq!(
+            par,
+            DownloadScheduleConfig::default().microdesc_parallelism()
+        );
+        assert_eq!(&retry, DownloadScheduleConfig::default().retry_microdescs());
 
         // Now check whether we're missing all the right microdescs.
         let missing = state.missing_docs();
@@ -1081,11 +1157,12 @@ mod test {
         }
 
         // Try adding a microdesc from the cache.
+        let (_tempdir, store) = temp_store();
         let doc1: crate::storage::InputString = md_text.get(&md1).unwrap().clone().into();
         let docs = vec![(DocId::Microdesc(md1), doc1.into())]
             .into_iter()
             .collect();
-        let outcome = state.add_from_cache(docs, None);
+        let outcome = state.add_from_cache(docs, Some(&store));
         assert!(outcome.unwrap()); // successfully loaded one MD.
         assert!(!state.can_advance());
         assert!(!state.is_ready(Readiness::Complete));
@@ -1104,10 +1181,19 @@ mod test {
             req.push(md_digest);
         }
         let req = ClientRequest::Microdescs(req);
-        let outcome = state.add_from_download(response.as_str(), &req, None);
+        let outcome = state.add_from_download(response.as_str(), &req, Some(&store));
         assert!(outcome.unwrap()); // successfully loaded MDs
         assert!(state.is_ready(Readiness::Complete));
         assert!(state.is_ready(Readiness::Usable));
+        assert_eq!(
+            store
+                .lock()
+                .unwrap()
+                .microdescs(&[md2, md3, md4])
+                .unwrap()
+                .len(),
+            3
+        );
 
         let missing = state.missing_docs();
         assert!(missing.is_empty());
