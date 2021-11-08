@@ -35,3 +35,22 @@ members = [
 ]
 
 resolver = "2"
+
+[profile.release]
+# By default we'd like to get good performance and a small download size.
+# (Assuming xz compression on the binary.)
+#
+# The biggest win is to run `strip --strip-debug` on the binary after
+# generating it, to through out debugging symbols that we inherited from
+# other libraries.  Don't do `strip --strip-unused`, though, or you'll
+# break backtraces.  That saves about 21% download size.
+
+# Using LTO saves a further 14% of download size, and improves performance,
+# at the cost of compile time.
+lto = true
+# Setting codegen-units=1 saves a further 7% download size.  It also
+# improves performance at the cost of compile time.
+codegen-units = 1
+# Optimize for size.  [Actually this is even smaller than 'z' on rust
+# 1.56.  It saves about 11% download size over the default value of '3'.]
+opt-level = 's'
