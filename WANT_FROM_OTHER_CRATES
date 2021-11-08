@@ -52,9 +52,6 @@ native-tls:
 bitvec
 * more efficient bitwise operations.
 
-coarsetime:
-* Officially supported conversion to/from u64, OR an AtomicInstant type.
-
 ring:
 * static curve25519
 
