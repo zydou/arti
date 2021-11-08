@@ -326,9 +326,11 @@ struct ConsensusHeader {
 struct DirSource {
     /// human-readable nickname for this authority.
     nickname: String,
-    /// DOCDOC -- I forget.  Is this the identity fingerprint for the
-    /// authority identity key, or for the identity key of the authority
-    /// when it's running as a relay?
+    /// Fingerprint for the _authority_ identity key of this
+    /// authority.
+    ///
+    /// This is the same key as the one that signs the authority's
+    /// certificates.
     identity: RsaIdentity,
     /// Address of the authority in string form.
     // XXXX why do we have this _and_ IP?

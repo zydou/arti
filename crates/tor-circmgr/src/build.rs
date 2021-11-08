@@ -330,7 +330,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         self.builder.timeouts.update_params(p);
     }
 
-    /// DOCDOC
+    /// Like `build`, but construct a new circuit from an [`OwnedPath`].
     pub(crate) async fn build_owned<RNG: CryptoRng + Rng + Send + 'static>(
         &self,
         path: OwnedPath,
