@@ -50,7 +50,7 @@ impl super::ServerHandshake for NtorServer {
 }
 
 /// A set of public keys used by a client to initiate an ntor handshake.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct NtorPublicKey {
     /// Public RSA identity fingerprint for the relay; used in authentication
     /// calculation.

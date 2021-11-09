@@ -90,6 +90,7 @@ async fn create_common<RNG: CryptoRng + Rng + Send, RT: Runtime, CT: ChanTarget>
     Ok(pending_circ)
 }
 
+// FIXME(eta): de-Arc-ify this
 #[async_trait]
 impl Buildable for Arc<ClientCirc> {
     async fn create_chantarget<RNG: CryptoRng + Rng + Send, RT: Runtime>(
@@ -100,7 +101,8 @@ impl Buildable for Arc<ClientCirc> {
         params: &CircParameters,
     ) -> Result<Self> {
         let circ = create_common(chanmgr, rt, rng, ct).await?;
-        Ok(circ.create_firsthop_fast(rng, params).await?)
+        // FIXME(eta): don't clone the params?
+        Ok(Arc::new(circ.create_firsthop_fast(params.clone()).await?))
     }
     async fn create<RNG: CryptoRng + Rng + Send, RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
@@ -110,16 +112,19 @@ impl Buildable for Arc<ClientCirc> {
         params: &CircParameters,
     ) -> Result<Self> {
         let circ = create_common(chanmgr, rt, rng, ct).await?;
-        Ok(circ.create_firsthop_ntor(rng, ct, params).await?)
+        Ok(Arc::new(
+            circ.create_firsthop_ntor(ct, params.clone()).await?,
+        ))
     }
     async fn extend<RNG: CryptoRng + Rng + Send, RT: Runtime>(
         &self,
         _rt: &RT,
-        rng: &mut RNG,
+        // FIXME(eta): get rid of this RNG parameter?
+        _rng: &mut RNG,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
-        ClientCirc::extend_ntor(self, rng, ct, params).await?;
+        ClientCirc::extend_ntor(self, ct, params).await?;
         Ok(())
     }
 }

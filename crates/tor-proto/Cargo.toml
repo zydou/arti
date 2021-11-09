@@ -31,7 +31,6 @@ bytes = "1.0.1"
 cipher = "0.3.0"
 crypto-mac = "0.11.0"
 digest = "0.9.0"
-event-listener = "2.5.1"
 futures = "0.3.13"
 asynchronous-codec = "0.6.0"
 generic-array = "0.14.4"
@@ -51,6 +50,6 @@ tokio-util = { version = "0.6", features = ["compat"], optional = true }
 coarsetime = { version = "0.1.20", optional = true }
 
 [dev-dependencies]
-tokio-crate = { package = "tokio", version = "1.7.0", features = ["macros", "rt"] }
+tokio-crate = { package = "tokio", version = "1.7.0", features = ["macros", "rt", "time"] }
 hex-literal = "0.3.1"
 hex = "0.4.3"

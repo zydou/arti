@@ -1,9 +1,9 @@
 //! Declare the lowest level of stream: a stream that operates on raw
 //! cells.
 
-use crate::circuit::{sendme, StreamTarget};
+use crate::circuit::StreamTarget;
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::{RelayMsg, Sendme};
+use tor_cell::relaycell::msg::RelayMsg;
 
 use futures::channel::mpsc;
 use futures::lock::Mutex;
@@ -20,7 +20,9 @@ pub struct RawCellStream {
     target: Mutex<StreamTarget>,
     /// A Stream over which we receive relay messages.  Only relay messages
     /// that can be associated with a stream ID will be received.
-    receiver: Mutex<mpsc::Receiver<RelayMsg>>,
+    ///
+    /// FIXME(eta): ideally, this shouldn't be wrapped in a mutex / shared
+    receiver: Mutex<mpsc::UnboundedReceiver<RelayMsg>>,
     /// Have we been informed that this stream is closed, or received a fatal
     /// error?
     stream_ended: AtomicBool,
@@ -28,7 +30,7 @@ pub struct RawCellStream {
 
 impl RawCellStream {
     /// Internal: build a new RawCellStream.
-    pub(crate) fn new(target: StreamTarget, receiver: mpsc::Receiver<RelayMsg>) -> Self {
+    pub(crate) fn new(target: StreamTarget, receiver: mpsc::UnboundedReceiver<RelayMsg>) -> Self {
         RawCellStream {
             target: Mutex::new(target),
             receiver: Mutex::new(receiver),
@@ -49,15 +51,6 @@ impl RawCellStream {
             .ok_or_else(|| {
                 Error::StreamProto("stream channel disappeared without END cell?".into())
             })?;
-
-        // Possibly decrement the window for the cell we just received, and
-        // send a SENDME if doing so took us under the threshold.
-        if sendme::msg_counts_towards_windows(&msg) {
-            let mut target = self.target.lock().await;
-            if target.recvwindow.take()? {
-                self.send_sendme(&mut target).await?;
-            }
-        }
 
         Ok(msg)
     }
@@ -93,15 +86,7 @@ impl RawCellStream {
     /// Inform the circuit-side of this stream about a protocol error
     pub async fn protocol_error(&self) {
         // TODO: Should this call note_ended?
-        self.target.lock().await.protocol_error().await
-    }
-
-    /// Send a SENDME cell and adjust the receive window.
-    async fn send_sendme(&self, target: &mut StreamTarget) -> Result<()> {
-        let sendme = Sendme::new_empty();
-        target.send(sendme.into()).await?;
-        target.recvwindow.put();
-        Ok(())
+        self.target.lock().await.protocol_error()
     }
 
     /// Ensure that all the data in this stream has been flushed in to
