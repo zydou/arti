@@ -140,22 +140,25 @@ impl DataStream {
         (self.r, self.w)
     }
 
-    /// Wait till a CONNECTED cell is received.
-    pub async fn wait_for_connection(&mut self) -> Result<()> {
+    /// Wait until a CONNECTED cell is received, or some other cell
+    /// is received to indicate an error.
+    ///
+    /// Does nothing if this stream is already connected.
+    pub(crate) async fn wait_for_connection(&mut self) -> Result<()> {
         // We must put state back before returning
         let state = self.r.state.take().expect("Missing state in DataReader");
 
         if let DataReaderState::Ready(imp) = state {
-            let (imp, result) = imp.read_cell().await;
-            if result.is_ok() {
-                // imp is marked as connected by reading the first CONNECTED cell
-                self.r.state = Some(DataReaderState::Ready(imp));
-                Ok(())
+            let (imp, result) = if imp.connected {
+                (imp, Ok(()))
             } else {
-                result
-            }
+                // This succeeds if the cell is CONNECTED, and fails otherwise.
+                imp.read_cell().await
+            };
+            self.r.state = Some(DataReaderState::Ready(imp));
+            result
         } else {
-            Err(Error::StreamProto(
+            Err(Error::InternalError(
                 "Expected ready state of a new stream.".to_owned(),
             ))
         }
@@ -432,8 +435,7 @@ struct DataReaderImpl {
     /// Index into pending to show what we've already read.
     offset: usize,
 
-    /// This flag indicates that a CONNECTED cell has been received,
-    /// when set to true.
+    /// If true, we have received a CONNECTED cell on this stream.
     connected: bool,
 }
 
