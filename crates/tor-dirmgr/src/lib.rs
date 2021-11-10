@@ -897,4 +897,129 @@ mod test {
             );
         })
     }
+
+    #[test]
+    fn make_consensus_request() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            let now = SystemTime::now();
+            let tomorrow = now + Duration::from_secs(86400);
+            let later = tomorrow + Duration::from_secs(86400);
+
+            // Try with an empty store.
+            let req = mgr
+                .make_consensus_request(ConsensusFlavor::Microdesc)
+                .unwrap();
+            match req {
+                ClientRequest::Consensus(r) => {
+                    assert_eq!(r.old_consensus_digests().count(), 0);
+                    assert_eq!(r.last_consensus_date(), None);
+                }
+                _ => panic!("Wrong request type"),
+            }
+
+            // Add a fake consensus record.
+            let d_prev = [42; 32];
+            {
+                let mut store = mgr.store.lock().unwrap();
+
+                let cmeta = ConsensusMeta::new(
+                    Lifetime::new(now, tomorrow, later).unwrap(),
+                    d_prev,
+                    [103; 32],
+                );
+                store
+                    .store_consensus(&cmeta, ConsensusFlavor::Microdesc, false, "Fake consensus!")
+                    .unwrap();
+            }
+
+            // Now try again.
+            let req = mgr
+                .make_consensus_request(ConsensusFlavor::Microdesc)
+                .unwrap();
+            match req {
+                ClientRequest::Consensus(r) => {
+                    let ds: Vec<_> = r.old_consensus_digests().collect();
+                    assert_eq!(ds.len(), 1);
+                    assert_eq!(ds[0], &d_prev);
+                    assert_eq!(r.last_consensus_date(), Some(now));
+                }
+                _ => panic!("Wrong request type"),
+            }
+        })
+    }
+
+    #[test]
+    fn expand_response() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            // Try a simple request: nothing should happen.
+            let q = DocId::Microdesc([99; 32]).into();
+            let r = &mgr.query_into_requests(q).unwrap()[0];
+            let expanded = mgr.expand_response_text(r, "ABC".to_string());
+            assert_eq!(&expanded.unwrap(), "ABC");
+
+            // Try a consensus response that doesn't look like a diff in
+            // response to a query that doesn't ask for one.
+            let latest_id = DocId::LatestConsensus {
+                flavor: ConsensusFlavor::Microdesc,
+                cache_usage: CacheUsage::CacheOkay,
+            };
+            let q: DocQuery = latest_id.into();
+            let r = &mgr.query_into_requests(q.clone()).unwrap()[0];
+            let expanded = mgr.expand_response_text(r, "DEF".to_string());
+            assert_eq!(&expanded.unwrap(), "DEF");
+
+            // Now stick some metadata and a string into the storage so that
+            // we can ask for a diff.
+            {
+                let mut store = mgr.store.lock().unwrap();
+                let now = SystemTime::now();
+                let day = Duration::from_secs(86400);
+                let d_in = [0x99; 32]; // This one, we can fake.
+                let cmeta = ConsensusMeta::new(
+                    Lifetime::new(now, now + day, now + 2 * day).unwrap(),
+                    d_in,
+                    d_in,
+                );
+                store
+                    .store_consensus(
+                        &cmeta,
+                        ConsensusFlavor::Microdesc,
+                        false,
+                        "line 1\nline2\nline 3\n",
+                    )
+                    .unwrap();
+            }
+
+            // Try expanding something that isn't a consensus, even if we'd like
+            // one.
+            let r = &mgr.query_into_requests(q).unwrap()[0];
+            let expanded = mgr.expand_response_text(r, "hello".to_string());
+            assert_eq!(&expanded.unwrap(), "hello");
+
+            // Finally, try "expanding" a diff (by applying it and checking the digest.
+            let diff = "network-status-diff-version 1
+hash 9999999999999999999999999999999999999999999999999999999999999999 8382374ca766873eb0d2530643191c6eaa2c5e04afa554cbac349b5d0592d300
+2c
+replacement line
+.
+".to_string();
+            let expanded = mgr.expand_response_text(r, diff);
+
+            assert_eq!(expanded.unwrap(), "line 1\nreplacement line\nline 3\n");
+
+            // If the digest is wrong, that should get rejected.
+            let diff = "network-status-diff-version 1
+hash 9999999999999999999999999999999999999999999999999999999999999999 9999999999999999999999999999999999999999999999999999999999999999
+2c
+replacement line
+.
+".to_string();
+            let expanded = mgr.expand_response_text(r, diff);
+            assert!(expanded.is_err());
+        })
+    }
 }
