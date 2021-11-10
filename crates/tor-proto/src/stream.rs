@@ -10,9 +10,13 @@
 //! There is no fairness, rate-limiting, or flow control.
 
 mod data;
+mod params;
 mod raw;
 mod resolve;
 
 pub use data::DataStream;
+pub use params::StreamParameters;
 pub use raw::RawCellStream;
 pub use resolve::ResolveStream;
+
+pub use tor_cell::relaycell::msg::IpVersionPreference;

@@ -10,8 +10,8 @@ use crate::config::{ClientAddrConfig, TorClientConfig};
 use tor_circmgr::{IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
-use tor_proto::circuit::{ClientCirc, IpVersionPreference};
-use tor_proto::stream::DataStream;
+use tor_proto::circuit::ClientCirc;
+use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use futures::stream::StreamExt;
@@ -54,7 +54,7 @@ pub struct ConnectPrefs {
     ip_ver_pref: IpVersionPreference,
     /// Id of the isolation group the connection should be part of
     isolation_group: Option<IsolationToken>,
-    /// Whether to use optimistic data stream
+    /// Whether to return the stream optimistically.
     optimistic_stream: bool,
 }
 
@@ -100,15 +100,24 @@ impl ConnectPrefs {
         self
     }
 
-    /// Get the begin_flags fields that we should use for the BEGIN
-    /// cell for this stream.
-    fn begin_flags(&self) -> IpVersionPreference {
-        self.ip_ver_pref
-    }
-
-    /// Get the optimistic_stream flag
-    fn optimistic_stream(&self) -> bool {
-        self.optimistic_stream
+    /// Indicate that the stream should be opened "optimistically".
+    ///
+    /// By default, streams are not "optimistic". When you call
+    /// [`TorClient::connect()`], it won't give you a stream until the
+    /// exit node has confirmed that it has successfully opened a
+    /// connection to your target address.  It's safer to wait in this
+    /// way, but it is slower: it takes an entire round trip to get
+    /// your confirmation.
+    ///
+    /// If a stream _is_ configured to be "optimistic", on the other
+    /// hand, then `TorClient::connect()` will return the stream
+    /// immediately, without waiting for an answer from the exit.  You
+    /// can start sending data on the stream right away, though of
+    /// course this data will be lost if the connection is not
+    /// actually successful.
+    pub fn optimistic(&mut self) -> &mut Self {
+        self.optimistic_stream = true;
+        self
     }
 
     /// Return a TargetPort to describe what kind of exit policy our
@@ -118,6 +127,15 @@ impl ConnectPrefs {
             IpVersionPreference::Ipv6Only => TargetPort::ipv6(port),
             _ => TargetPort::ipv4(port),
         }
+    }
+
+    /// Return a new StreamParameters based on this configuration.
+    fn stream_parameters(&self) -> StreamParameters {
+        let mut params = StreamParameters::default();
+        params
+            .ip_version(self.ip_ver_pref)
+            .optimistic(self.optimistic_stream);
+        params
     }
 
     /// Indicate which other connections might use the same circuit
@@ -241,12 +259,8 @@ impl<R: Runtime> TorClient<R> {
         // TODO: make this configurable.
         let stream_timeout = Duration::new(10, 0);
 
-        let stream_future = circ.begin_stream(
-            &addr,
-            port,
-            Some(flags.begin_flags()),
-            flags.optimistic_stream(),
-        );
+        let stream_future = circ.begin_stream(&addr, port, Some(flags.stream_parameters()));
+        // This timout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
             .timeout(stream_timeout, stream_future)

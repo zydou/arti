@@ -55,15 +55,13 @@ use crate::crypto::cell::{
     RelayCellBody,
 };
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
-use crate::stream::{DataStream, RawCellStream, ResolveStream};
+use crate::stream::{DataStream, RawCellStream, ResolveStream, StreamParameters};
 use crate::{Error, Result};
 use tor_cell::chancell::{self, msg::ChanMsg, ChanCell, CircId};
 use tor_cell::relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal, Sendme};
 use tor_cell::relaycell::{RelayCell, RelayCmd, StreamId};
 
 use tor_linkspec::{ChanTarget, CircTarget, LinkSpec};
-
-pub use tor_cell::relaycell::msg::IpVersionPreference;
 
 use futures::channel::{mpsc, oneshot};
 use futures::lock::Mutex;
@@ -541,10 +539,11 @@ impl ClientCirc {
         self: Arc<Self>,
         target: &str,
         port: u16,
-        begin_flags: Option<IpVersionPreference>,
-        optimistic: bool,
+        parameters: Option<StreamParameters>,
     ) -> Result<DataStream> {
-        let begin_flags = begin_flags.unwrap_or_default();
+        let parameters = parameters.unwrap_or_default();
+        let begin_flags = parameters.begin_flags();
+        let optimistic = parameters.is_optimistic();
         let beginmsg = Begin::new(target, port, begin_flags)?;
         self.begin_data_stream(beginmsg.into(), optimistic).await
     }
@@ -1712,7 +1711,7 @@ mod test {
         let begin_and_send_fut = async move {
             // Take our circuit and make a stream on it.
             let mut stream = circ_clone
-                .begin_stream("www.example.com", 443, None, false)
+                .begin_stream("www.example.com", 443, None)
                 .await
                 .unwrap();
             let junk = [0_u8; 1024];
