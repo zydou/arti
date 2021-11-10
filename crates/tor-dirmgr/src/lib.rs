@@ -150,7 +150,7 @@ impl<R: Runtime> DirMgr<R> {
     /// program; it's only suitable for command-line or batch tools.
     // TODO: I wish this function didn't have to be async or take a runtime.
     pub async fn load_once(runtime: R, config: DirMgrConfig) -> Result<Arc<NetDir>> {
-        let dirmgr = Arc::new(Self::from_config(config, runtime, None)?);
+        let dirmgr = Arc::new(Self::from_config(config, runtime, None, true)?);
 
         // TODO: add some way to return a directory that isn't up-to-date
         let _success = dirmgr.load_directory().await?;
@@ -188,7 +188,12 @@ impl<R: Runtime> DirMgr<R> {
         runtime: R,
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<Self>> {
-        let dirmgr = Arc::new(DirMgr::from_config(config, runtime.clone(), Some(circmgr))?);
+        let dirmgr = Arc::new(DirMgr::from_config(
+            config,
+            runtime.clone(),
+            Some(circmgr),
+            false,
+        )?);
 
         // Try to load from the cache.
         let have_directory = dirmgr.load_directory().await?;
@@ -419,8 +424,8 @@ impl<R: Runtime> DirMgr<R> {
         config: DirMgrConfig,
         runtime: R,
         circmgr: Option<Arc<CircMgr<R>>>,
+        readonly: bool,
     ) -> Result<Self> {
-        let readonly = circmgr.is_none();
         let store = Mutex::new(config.open_sqlite_store(readonly)?);
         let netdir = SharedMutArc::new();
         let netdir_consensus_changed = AtomicBool::new(false);
@@ -748,4 +753,148 @@ trait DirState: Send {
 /// failure.
 fn upgrade_weak_ref<T>(weak: &Weak<T>) -> Result<Arc<T>> {
     Weak::upgrade(weak).ok_or(Error::ManagerDropped)
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use crate::docmeta::{AuthCertMeta, ConsensusMeta};
+    use std::time::Duration;
+    use tempfile::TempDir;
+    use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
+
+    fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
+        let dir = TempDir::new().unwrap();
+        let config = DirMgrConfig::builder()
+            .cache_path(dir.path())
+            .build()
+            .unwrap();
+        let dirmgr = DirMgr::from_config(config, runtime, None, false).unwrap();
+
+        (dir, dirmgr)
+    }
+
+    #[test]
+    fn failing_accessors() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            assert!(mgr.circmgr().is_err());
+            assert!(mgr.opt_netdir().is_none());
+        })
+    }
+
+    #[test]
+    fn load_and_store_internals() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            let now = SystemTime::now();
+            let tomorrow = now + Duration::from_secs(86400);
+            let later = tomorrow + Duration::from_secs(86400);
+
+            // Seed the storage with a bunch of junk.
+            let d1 = [5_u8; 32];
+            let d2 = [7; 32];
+            let d3 = [42; 32];
+            let d4 = [99; 20];
+            let d5 = [12; 20];
+            let certid1 = AuthCertKeyIds {
+                id_fingerprint: d4.into(),
+                sk_fingerprint: d5.into(),
+            };
+            let certid2 = AuthCertKeyIds {
+                id_fingerprint: d5.into(),
+                sk_fingerprint: d4.into(),
+            };
+
+            {
+                let mut store = mgr.store.lock().unwrap();
+
+                store
+                    .store_microdescs(
+                        vec![
+                            ("Fake micro 1", &d1),
+                            ("Fake micro 2", &d2),
+                            ("Fake micro 3", &d3),
+                        ],
+                        now,
+                    )
+                    .unwrap();
+
+                store
+                    .store_routerdescs(vec![("Fake rd1", now, &d4), ("Fake rd2", now, &d5)])
+                    .unwrap();
+
+                store
+                    .store_authcerts(&[
+                        (
+                            AuthCertMeta::new(certid1, now, tomorrow),
+                            "Fake certificate one",
+                        ),
+                        (
+                            AuthCertMeta::new(certid2, now, tomorrow),
+                            "Fake certificate two",
+                        ),
+                    ])
+                    .unwrap();
+
+                let cmeta = ConsensusMeta::new(
+                    Lifetime::new(now, tomorrow, later).unwrap(),
+                    [102; 32],
+                    [103; 32],
+                );
+                store
+                    .store_consensus(&cmeta, ConsensusFlavor::Microdesc, false, "Fake consensus!")
+                    .unwrap();
+            }
+
+            // Try to get it with text().
+            let t1 = mgr.text(&DocId::Microdesc(d1)).unwrap().unwrap();
+            assert_eq!(t1.as_str(), Ok("Fake micro 1"));
+
+            let t2 = mgr
+                .text(&DocId::LatestConsensus {
+                    flavor: ConsensusFlavor::Microdesc,
+                    cache_usage: CacheUsage::CacheOkay,
+                })
+                .unwrap()
+                .unwrap();
+            assert_eq!(t2.as_str(), Ok("Fake consensus!"));
+
+            let t3 = mgr.text(&DocId::Microdesc([255; 32])).unwrap();
+            assert!(t3.is_none());
+
+            // Now try texts()
+            let d_bogus = DocId::Microdesc([255; 32]);
+            let res = mgr
+                .texts(vec![
+                    DocId::Microdesc(d2),
+                    DocId::Microdesc(d3),
+                    d_bogus,
+                    DocId::AuthCert(certid2),
+                    DocId::RouterDesc(d5),
+                ])
+                .unwrap();
+            assert_eq!(res.len(), 4);
+            assert_eq!(
+                res.get(&DocId::Microdesc(d2)).unwrap().as_str(),
+                Ok("Fake micro 2")
+            );
+            assert_eq!(
+                res.get(&DocId::Microdesc(d3)).unwrap().as_str(),
+                Ok("Fake micro 3")
+            );
+            assert!(res.get(&d_bogus).is_none());
+            assert_eq!(
+                res.get(&DocId::AuthCert(certid2)).unwrap().as_str(),
+                Ok("Fake certificate two")
+            );
+            assert_eq!(
+                res.get(&DocId::RouterDesc(d5)).unwrap().as_str(),
+                Ok("Fake rd2")
+            );
+        })
+    }
 }
