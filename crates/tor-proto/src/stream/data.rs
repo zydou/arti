@@ -113,7 +113,8 @@ pub struct DataReader {
 impl DataStream {
     /// Wrap a RawCellStream as a DataStream.
     ///
-    /// Call only after a CONNECTED cell has been received.
+    /// For non-optimistic stream, function `wait_for_connection`
+    /// must be called after to make sure CONNECTED is received.
     pub(crate) fn new(s: RawCellStream) -> Self {
         let s = Arc::new(s);
         let r = DataReader {
@@ -121,6 +122,7 @@ impl DataStream {
                 s: Arc::clone(&s),
                 pending: Vec::new(),
                 offset: 0,
+                connected: false,
             })),
         };
         let w = DataWriter {
@@ -136,6 +138,27 @@ impl DataStream {
     /// Divide this DataStream into its constituent parts.
     pub fn split(self) -> (DataReader, DataWriter) {
         (self.r, self.w)
+    }
+
+    /// Wait till a CONNECTED cell is received.
+    pub async fn wait_for_connection(&mut self) -> Result<()> {
+        // We must put state back before returning
+        let state = self.r.state.take().expect("Missing state in DataReader");
+
+        if let DataReaderState::Ready(imp) = state {
+            let (imp, result) = imp.read_cell().await;
+            if result.is_ok() {
+                // imp is marked as connected by reading the first CONNECTED cell
+                self.r.state = Some(DataReaderState::Ready(imp));
+                Ok(())
+            } else {
+                result
+            }
+        } else {
+            Err(Error::StreamProto(
+                "Expected ready state of a new stream.".to_owned(),
+            ))
+        }
     }
 }
 
@@ -408,6 +431,10 @@ struct DataReaderImpl {
 
     /// Index into pending to show what we've already read.
     offset: usize,
+
+    /// This flag indicates that a CONNECTED cell has been received,
+    /// when set to true.
+    connected: bool,
 }
 
 impl AsyncRead for DataReader {
@@ -506,7 +533,11 @@ impl DataReaderImpl {
         let cell = self.s.recv().await;
 
         let result = match cell {
-            Ok(RelayMsg::Data(d)) => {
+            Ok(RelayMsg::Connected(_)) if !self.connected => {
+                self.connected = true;
+                Ok(())
+            }
+            Ok(RelayMsg::Data(d)) if self.connected => {
                 self.add_data(d.into());
                 Ok(())
             }

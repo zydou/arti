@@ -519,22 +519,17 @@ impl ClientCirc {
 
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(self: Arc<Self>, msg: RelayMsg) -> Result<DataStream> {
-        let stream = self.begin_stream_impl(msg).await?;
-        // TODO: waiting for a response here precludes optimistic data.
-
-        let response = stream.recv().await?;
-        match response {
-            RelayMsg::Connected(_) => Ok(DataStream::new(stream)),
-            RelayMsg::End(cell) => Err(Error::EndReceived(cell.reason())),
-            _ => {
-                self.protocol_error().await;
-                Err(Error::StreamProto(format!(
-                    "Received {} while waiting for connection",
-                    response.cmd()
-                )))
-            }
+    async fn begin_data_stream(
+        self: Arc<Self>,
+        msg: RelayMsg,
+        optimistic: bool,
+    ) -> Result<DataStream> {
+        let raw_s = self.begin_stream_impl(msg).await?;
+        let mut stream = DataStream::new(raw_s);
+        if !optimistic {
+            stream.wait_for_connection().await?;
         }
+        Ok(stream)
     }
 
     /// Start a stream to the given address and port, using a BEGIN
@@ -546,17 +541,18 @@ impl ClientCirc {
         self: Arc<Self>,
         target: &str,
         port: u16,
-        flags: Option<IpVersionPreference>,
+        begin_flags: Option<IpVersionPreference>,
+        optimistic: bool,
     ) -> Result<DataStream> {
-        let flags = flags.unwrap_or_default();
-        let beginmsg = Begin::new(target, port, flags)?;
-        self.begin_data_stream(beginmsg.into()).await
+        let begin_flags = begin_flags.unwrap_or_default();
+        let beginmsg = Begin::new(target, port, begin_flags)?;
+        self.begin_data_stream(beginmsg.into(), optimistic).await
     }
 
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
     pub async fn begin_dir_stream(self: Arc<Self>) -> Result<DataStream> {
-        self.begin_data_stream(RelayMsg::BeginDir).await
+        self.begin_data_stream(RelayMsg::BeginDir, false).await
     }
 
     /// Perform a DNS lookup, using a RESOLVE cell with the last relay
@@ -1716,7 +1712,7 @@ mod test {
         let begin_and_send_fut = async move {
             // Take our circuit and make a stream on it.
             let mut stream = circ_clone
-                .begin_stream("www.example.com", 443, None)
+                .begin_stream("www.example.com", 443, None, false)
                 .await
                 .unwrap();
             let junk = [0_u8; 1024];
