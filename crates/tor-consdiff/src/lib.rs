@@ -124,7 +124,7 @@ where
         return Err(Error::BadDiff("unrecognized or missing header"));
     }
     let line2 = iter.next().ok_or(Error::BadDiff("header truncated"))?;
-    if !line2.starts_with("hash") {
+    if !line2.starts_with("hash ") {
         return Err(Error::BadDiff("missing 'hash' line"));
     }
     let elts: Vec<_> = line2.split_ascii_whitespace().collect();
