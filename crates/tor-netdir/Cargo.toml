@@ -12,6 +12,11 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
 experimental-api = []
 
 # Enable testing-only APIs.  APIs under this feature are not
