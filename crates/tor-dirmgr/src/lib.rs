@@ -951,6 +951,45 @@ mod test {
     }
 
     #[test]
+    fn make_other_requests() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            use rand::Rng;
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            let certid1 = AuthCertKeyIds {
+                id_fingerprint: [99; 20].into(),
+                sk_fingerprint: [100; 20].into(),
+            };
+            let mut rng = rand::thread_rng();
+            let rd_ids: Vec<[u8; 20]> = (0..1000).map(|_| rng.gen()).collect();
+            let md_ids: Vec<[u8; 32]> = (0..1000).map(|_| rng.gen()).collect();
+
+            // Try an authcert.
+            let query = DocQuery::AuthCert(vec![certid1]);
+            let reqs = mgr.query_into_requests(query).unwrap();
+            assert_eq!(reqs.len(), 1);
+            let req = &reqs[0];
+            if let ClientRequest::AuthCert(r) = req {
+                assert_eq!(r.keys().next(), Some(&certid1));
+            } else {
+                panic!();
+            }
+
+            // Try a bunch of mds.
+            let query = DocQuery::Microdesc(md_ids);
+            let reqs = mgr.query_into_requests(query).unwrap();
+            assert_eq!(reqs.len(), 2);
+            assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
+
+            // Try a bunch of rds.
+            let query = DocQuery::RouterDesc(rd_ids);
+            let reqs = mgr.query_into_requests(query).unwrap();
+            assert_eq!(reqs.len(), 2);
+            assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
+        })
+    }
+
+    #[test]
     fn expand_response() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let (_tempdir, mgr) = new_mgr(rt);
