@@ -473,7 +473,6 @@ mod test {
     }
 
     #[test]
-    #[tracing_test::traced_test]
     fn all_in_cache() {
         // Let's try bootstrapping when everything is in the cache.
         tor_rtcompat::test_with_one_runtime!(|rt| async {
@@ -506,7 +505,6 @@ mod test {
     }
 
     #[test]
-    #[tracing_test::traced_test]
     fn partly_in_cache() {
         // Let's try bootstrapping with all of phase1 and part of
         // phase 2 in cache.
