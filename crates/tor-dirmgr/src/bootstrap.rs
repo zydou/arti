@@ -19,6 +19,11 @@ use tor_dirclient::DirResponse;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{info, trace, warn};
 
+#[cfg(test)]
+use once_cell::sync::Lazy;
+#[cfg(test)]
+use std::sync::Mutex;
+
 /// Try to read a set of documents from `dirmgr` by ID.
 fn load_all<R: Runtime>(
     dirmgr: &DirMgr<R>,
@@ -31,11 +36,26 @@ fn load_all<R: Runtime>(
     Ok(loaded)
 }
 
+/// Testing helper: if this is Some, then we retun it in place of any
+/// response to fetch_single.
+///
+/// Note that only one test uses this: otherwise there would be a race
+/// condition. :p
+#[cfg(test)]
+static CANNED_RESPONSE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
 /// Launch a single client request and get an associated response.
 async fn fetch_single<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
     request: ClientRequest,
 ) -> Result<(ClientRequest, DirResponse)> {
+    #[cfg(test)]
+    {
+        let m = CANNED_RESPONSE.lock().expect("Poisoned mutex");
+        if let Some(s) = m.as_ref() {
+            return Ok((request, DirResponse::from_body(s)));
+        }
+    }
     let circmgr = dirmgr.circmgr()?;
     let cur_netdir = dirmgr.opt_netdir();
     let dirinfo = match cur_netdir {
@@ -305,7 +325,14 @@ fn no_more_than_a_week_from(now: SystemTime, v: Option<SystemTime>) -> SystemTim
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::test::new_mgr;
+    use crate::{RetryConfig, SqliteStore};
+    use std::convert::TryInto;
+    use std::sync::Mutex;
+    use tor_netdoc::doc::microdesc::MdDigest;
+
     #[test]
     fn week() {
         let now = SystemTime::now();
@@ -324,5 +351,193 @@ mod test {
             no_more_than_a_week_from(now, Some(now + 30 * one_day)),
             now + one_day * 7
         );
+    }
+
+    /// A fake implementation of DirState that just wants a fixed set
+    /// of microdescriptors.  It doesn't care if it gets them: it just
+    /// wnats to be told that the IDs exist.
+    #[derive(Debug, Clone)]
+    struct DemoState {
+        second_time_around: bool,
+        got_items: HashMap<MdDigest, bool>,
+    }
+
+    // Constants from Lou Reed
+    const H1: MdDigest = *b"satellite's gone up to the skies";
+    const H2: MdDigest = *b"things like that drive me out of";
+    const H3: MdDigest = *b"my mind i watched it for a littl";
+    const H4: MdDigest = *b"while i like to watch things on ";
+    const H5: MdDigest = *b"TV Satellite of love Satellite--";
+
+    impl DemoState {
+        fn new1() -> Self {
+            DemoState {
+                second_time_around: false,
+                got_items: vec![(H1, false), (H2, false)].into_iter().collect(),
+            }
+        }
+        fn new2() -> Self {
+            DemoState {
+                second_time_around: true,
+                got_items: vec![(H3, false), (H4, false), (H5, false)]
+                    .into_iter()
+                    .collect(),
+            }
+        }
+        fn n_ready(&self) -> usize {
+            self.got_items.values().filter(|x| **x).count()
+        }
+    }
+
+    impl DirState for DemoState {
+        fn describe(&self) -> String {
+            format!("{:?}", &self)
+        }
+        fn is_ready(&self, ready: Readiness) -> bool {
+            match (ready, self.second_time_around) {
+                (_, false) => false,
+                (Readiness::Complete, true) => self.n_ready() == self.got_items.len(),
+                (Readiness::Usable, true) => self.n_ready() >= self.got_items.len() - 1,
+            }
+        }
+        fn can_advance(&self) -> bool {
+            if self.second_time_around {
+                false
+            } else {
+                self.n_ready() == self.got_items.len()
+            }
+        }
+        fn missing_docs(&self) -> Vec<DocId> {
+            self.got_items
+                .iter()
+                .filter_map(|(id, have)| {
+                    if *have {
+                        None
+                    } else {
+                        Some(DocId::Microdesc(*id))
+                    }
+                })
+                .collect()
+        }
+        fn add_from_cache(
+            &mut self,
+            docs: HashMap<DocId, DocumentText>,
+            _storage: Option<&Mutex<SqliteStore>>,
+        ) -> Result<bool> {
+            let mut changed = false;
+            for (id, _ignore) in docs.iter() {
+                if let DocId::Microdesc(id) = id {
+                    if self.got_items.get(id) == Some(&false) {
+                        self.got_items.insert(*id, true);
+                        changed = true;
+                    }
+                }
+            }
+            Ok(changed)
+        }
+        fn add_from_download(
+            &mut self,
+            text: &str,
+            _request: &ClientRequest,
+            _storage: Option<&Mutex<SqliteStore>>,
+        ) -> Result<bool> {
+            let mut changed = false;
+            for token in text.split_ascii_whitespace() {
+                if let Ok(v) = hex::decode(token) {
+                    if let Ok(id) = v.try_into() {
+                        if self.got_items.get(&id) == Some(&false) {
+                            self.got_items.insert(id, true);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            Ok(changed)
+        }
+        fn dl_config(&self) -> Result<(usize, RetryConfig)> {
+            Ok((1, RetryConfig::default()))
+        }
+        fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
+            if self.can_advance() {
+                Ok(Box::new(Self::new2()))
+            } else {
+                Ok(self)
+            }
+        }
+        fn reset_time(&self) -> Option<SystemTime> {
+            None
+        }
+        fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
+            Ok(Box::new(Self::new1()))
+        }
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn all_in_cache() {
+        // Let's try bootstrapping when everything is in the cache.
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            {
+                let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
+                for h in [H1, H2, H3, H4, H5] {
+                    store
+                        .store_microdescs(vec![("ignore", &h)], SystemTime::now())
+                        .unwrap();
+                }
+            }
+            let mgr = Arc::new(mgr);
+
+            // Try just a load.
+            let state = Box::new(DemoState::new1());
+            let result = super::load(Arc::clone(&mgr), state).await.unwrap();
+            assert!(result.is_ready(Readiness::Complete));
+
+            // Try a bootstrap that could (but won't!) download.
+            let state = Box::new(DemoState::new1());
+
+            let mut on_usable = None;
+            let result = super::download(Arc::downgrade(&mgr), state, &mut on_usable)
+                .await
+                .unwrap();
+            assert!(result.0.is_ready(Readiness::Complete));
+        })
+    }
+
+    #[test]
+    #[tracing_test::traced_test]
+    fn partly_in_cache() {
+        // Let's try bootstrapping with all of phase1 and part of
+        // phase 2 in cache.
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let (_tempdir, mgr) = new_mgr(rt);
+
+            {
+                let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
+                for h in [H1, H2, H3] {
+                    store
+                        .store_microdescs(vec![("ignore", &h)], SystemTime::now())
+                        .unwrap();
+                }
+            }
+            {
+                let mut resp = CANNED_RESPONSE.lock().unwrap();
+                // H4 and H5.
+                *resp = Some(
+                    "7768696c652069206c696b6520746f207761746368207468696e6773206f6e20
+                     545620536174656c6c697465206f66206c6f766520536174656c6c6974652d2d"
+                        .to_owned(),
+                );
+            }
+            let mgr = Arc::new(mgr);
+            let mut on_usable = None;
+
+            let state = Box::new(DemoState::new1());
+            let result = super::download(Arc::downgrade(&mgr), state, &mut on_usable)
+                .await
+                .unwrap();
+            assert!(result.0.is_ready(Readiness::Complete));
+        })
     }
 }

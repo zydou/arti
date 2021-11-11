@@ -764,7 +764,7 @@ mod test {
     use tempfile::TempDir;
     use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
 
-    fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
+    pub(crate) fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
         let dir = TempDir::new().unwrap();
         let config = DirMgrConfig::builder()
             .cache_path(dir.path())

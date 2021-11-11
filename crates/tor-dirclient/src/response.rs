@@ -47,6 +47,11 @@ impl DirResponse {
         }
     }
 
+    /// Construct a new successful DirResponse from its body.
+    pub fn from_body(body: impl AsRef<[u8]>) -> Self {
+        Self::new(200, None, body.as_ref().to_vec(), None)
+    }
+
     /// Return the HTTP status code for this response.
     pub fn status_code(&self) -> u16 {
         self.status
