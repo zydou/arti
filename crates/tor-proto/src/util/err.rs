@@ -55,6 +55,9 @@ pub enum Error {
     /// Circuit is closed.
     #[error("circuit closed")]
     CircuitClosed,
+    /// Stream has ended.
+    #[error("stream ended")]
+    StreamEnded,
     /// Can't allocate any more circuit or stream IDs on a channel.
     #[error("too many entries in map: can't allocate ID")]
     IdRangeFull,
@@ -115,7 +118,9 @@ impl From<Error> for std::io::Error {
 
             EndReceived(end_reason) => end_reason.into(),
 
-            CircDestroy(_) | ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
+            CircDestroy(_) | ChannelClosed | CircuitClosed | StreamEnded => {
+                ErrorKind::ConnectionReset
+            }
 
             BytesErr(_) | MissingKey | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_)
             | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,

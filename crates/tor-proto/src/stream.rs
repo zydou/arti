@@ -16,7 +16,7 @@ mod resolve;
 
 pub use data::DataStream;
 pub use params::StreamParameters;
-pub use raw::RawCellStream;
+pub use raw::StreamReader;
 pub use resolve::ResolveStream;
 
 pub use tor_cell::relaycell::msg::IpVersionPreference;

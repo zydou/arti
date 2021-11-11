@@ -281,7 +281,7 @@ impl Reactor {
         match self.circs.get_mut(circid) {
             Some(CircEnt::Open(s)) => {
                 // There's an open circuit; we can give it the RELAY cell.
-                if let Err(_) = s.send(msg.try_into()?).await {
+                if s.send(msg.try_into()?).await.is_err() {
                     // The circuit's receiver went away, so we should destroy the circuit.
                     self.outbound_destroy_circ(circid).await?;
                 }

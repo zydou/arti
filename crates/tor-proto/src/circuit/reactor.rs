@@ -1,3 +1,4 @@
+//! Code to handle incoming cells on a circuit.
 use super::streammap::{ShouldSendEnd, StreamEnt};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use crate::circuit::unique_id::UniqId;
@@ -28,7 +29,7 @@ use std::task::{Context, Poll};
 use crate::channel::Channel;
 #[cfg(test)]
 use crate::circuit::sendme::CircTag;
-use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
+use crate::circuit::sendme::StreamSendWindow;
 use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::chancell;
@@ -41,6 +42,12 @@ use tracing::{debug, trace, warn};
 pub(super) const SEND_WINDOW_INIT: u16 = 500;
 /// Initial value for inbound flow-control window on streams.
 pub(super) const RECV_WINDOW_INIT: u16 = 500;
+/// Size of the buffer used between the reactor and a `StreamReader`.
+///
+/// FIXME(eta): We pick 2× the receive window, which is very conservative (we arguably shouldn't
+///             get sent more than the receive window anyway!). We might do due to things that
+///             don't count towards the window though.
+pub(super) const STREAM_READER_BUFFER: usize = (2 * RECV_WINDOW_INIT) as usize;
 
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
@@ -99,14 +106,22 @@ pub(super) enum CtrlMsg {
         message: RelayMsg,
         /// A channel to send messages on this stream down.
         ///
-        /// This sender is unbounded in order to not block the reactor: if it had to wait for other
-        /// code to read from the channel, it wouldn't be able to process other messages while it
-        /// did so.
-        sender: mpsc::UnboundedSender<RelayMsg>,
+        /// This sender shouldn't ever block, because we use congestion control and only send
+        /// SENDME cells once we've read enough out of the other end. If it *does* block, we
+        /// can assume someone is trying to send us more cells than they should, and abort
+        /// the stream.
+        sender: mpsc::Sender<RelayMsg>,
         /// A channel to receive messages to send on this stream from.
         rx: mpsc::Receiver<RelayMsg>,
         /// Oneshot channel to notify on completion, with the allocated stream ID.
         done: ReactorResultChannel<StreamId>,
+    },
+    /// Send a SENDME cell (used to ask for more data to be sent) on the given stream.
+    SendSendme {
+        /// The stream ID to send a SENDME for.
+        stream_id: StreamId,
+        /// The hop number the stream is on.
+        hop_num: HopNum,
     },
     /// Shut down the reactor.
     Shutdown,
@@ -199,11 +214,15 @@ struct CircuitExtender<H, L, FWD, REV>
 where
     H: ClientHandshake,
 {
+    /// Handshake state.
     state: Option<H::StateType>,
+    /// Whether the hop supports authenticated SENDME cells.
     supports_flowctrl_1: bool,
+    /// Parameters used for this extension.
     params: CircParameters,
     /// An identifier for logging about this reactor's circuit.
     unique_id: UniqId,
+    /// The hop we're expecting the EXTENDED2 cell to come back from.
     expected_hop: HopNum,
     /// `PhantomData` used to make the other type parameters required for a circuit extension
     /// part of the `struct`, instead of having them be provided during a function call.
@@ -239,25 +258,25 @@ where
         reactor: &mut Reactor,
     ) -> Result<Self> {
         let mut rng = rand::thread_rng();
-        let unique_id = reactor.unique_id.clone();
+        let unique_id = reactor.unique_id;
 
         use tor_cell::relaycell::msg::{Body, Extend2};
         // Perform the first part of the cryptographic handshake
         let (state, msg) = H::client1(&mut rng, key)?;
-        // Cloning linkspecs is only necessary because of the log
-        // below. Would be nice to fix that.
-        let extend_msg = Extend2::new(linkspecs.clone(), handshake_id, msg);
-        let cell = RelayCell::new(0.into(), extend_msg.into_message());
 
-        // Now send the EXTEND2 cell to the the last hop...
         let n_hops = reactor.crypto_out.n_layers();
         let hop = ((n_hops - 1) as u8).into();
+
         debug!(
             "{}: Extending circuit to hop {} with {:?}",
             unique_id,
             n_hops + 1,
             linkspecs
         );
+
+        let extend_msg = Extend2::new(linkspecs, handshake_id, msg);
+        let cell = RelayCell::new(0.into(), extend_msg.into_message());
+
         // Send the message to the last hop...
         reactor.send_relay_cell(
             cx, hop, true, // use a RELAY_EARLY cell
@@ -322,7 +341,12 @@ where
         );
         // Now perform the second part of the handshake, and see if it
         // succeeded.
-        let keygen = H::client2(self.state.take().unwrap(), relay_handshake)?;
+        let keygen = H::client2(
+            self.state
+                .take()
+                .expect("CircuitExtender::finish() called twice"),
+            relay_handshake,
+        )?;
         let layer = L::construct(keygen)?;
 
         debug!("{}: Handshake complete; circuit extended.", self.unique_id);
@@ -398,6 +422,7 @@ impl Reactor {
     /// Helper for run: doesn't mark the circuit closed on finish.  Only
     /// processes one cell or control message.
     pub(super) async fn run_once(&mut self) -> std::result::Result<(), ReactorError> {
+        #[allow(clippy::cognitive_complexity)]
         let fut = futures::future::poll_fn(|cx| -> Poll<std::result::Result<_, ReactorError>> {
             let mut create_message = None;
             let mut did_things = false;
@@ -458,6 +483,7 @@ impl Reactor {
             // Is the channel ready to receive anything at all?
             if self.channel.poll_ready(cx)? {
                 // (using this as a named block for early returns; not actually a loop)
+                #[allow(clippy::never_loop)]
                 'outer: loop {
                     // First, drain our queue of things we tried to send earlier, but couldn't.
                     while let Some(msg) = self.outbound.pop_front() {
@@ -761,7 +787,11 @@ impl Reactor {
             if handler.expected_hop() == hopnum {
                 // Somebody was waiting for a message -- maybe this message
                 let ret = handler.finish(msg, self);
-                eprintln!("meta handler completed with result: {:?}", ret);
+                trace!(
+                    "{}: meta handler completed with result: {:?}",
+                    self.unique_id,
+                    ret
+                );
                 let _ = done.send(ret); // don't care if sender goes away
                 Ok(())
             } else {
@@ -949,6 +979,11 @@ impl Reactor {
                 let ret = self.begin_stream(cx, hop_num, message, sender, rx);
                 let _ = done.send(ret); // don't care if sender goes away
             }
+            CtrlMsg::SendSendme { stream_id, hop_num } => {
+                let sendme = Sendme::new_empty();
+                let cell = RelayCell::new(stream_id, sendme.into());
+                self.send_relay_cell(cx, hop_num, false, cell)?;
+            }
             #[cfg(test)]
             CtrlMsg::AddFakeHop {
                 supports_flowctrl_1,
@@ -982,20 +1017,21 @@ impl Reactor {
         Ok(())
     }
 
+    /// Start a stream. Creates an entry in the stream map with the given channels, and sends the
+    /// `message` to the provided hop.
     fn begin_stream(
         &mut self,
         cx: &mut Context<'_>,
         hopnum: HopNum,
         message: RelayMsg,
-        sender: mpsc::UnboundedSender<RelayMsg>,
+        sender: mpsc::Sender<RelayMsg>,
         rx: mpsc::Receiver<RelayMsg>,
     ) -> Result<StreamId> {
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::InternalError(format!("No such hop {:?}", hopnum)))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
-        let recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
-        let r = hop.map.add_ent(sender, rx, send_window, recv_window)?;
+        let r = hop.map.add_ent(sender, rx, send_window)?;
         let cell = RelayCell::new(r, message);
         self.send_relay_cell(cx, hopnum, false, cell)?;
         Ok(r)
@@ -1032,7 +1068,7 @@ impl Reactor {
     ///
     /// Return true if we should exit.
     fn handle_cell(&mut self, cx: &mut Context<'_>, cell: ClientCircChanMsg) -> Result<bool> {
-        eprintln!("handling cell: {:?}", cell);
+        trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
             Relay(r) => {
@@ -1109,8 +1145,6 @@ impl Reactor {
             return self.handle_meta_cell(hopnum, msg);
         }
 
-        let mut send_stream_sendme = false;
-
         let hop = self
             .hop_mut(hopnum)
             .ok_or_else(|| Error::CircProto("Cell from nonexistent hop!".into()))?;
@@ -1118,7 +1152,6 @@ impl Reactor {
             Some(StreamEnt::Open {
                 sink,
                 send_window,
-                recv_window,
                 dropped,
                 ..
             }) => {
@@ -1138,20 +1171,24 @@ impl Reactor {
                 // close the stream.
                 let is_end_cell = matches!(msg, RelayMsg::End(_));
 
-                if c_t_w && recv_window.take()? {
-                    send_stream_sendme = true;
-                    recv_window.put(); // assume it's going to be sent successfully
-                }
-
                 // TODO: Add a wrapper type here to reject cells that should
                 // never go to a client, like BEGIN.
-                let result = sink.unbounded_send(msg);
-                if result.is_err() && c_t_w {
-                    // the other side of the stream has gone away; remember
-                    // that we received a cell that we couldn't queue for it.
-                    //
-                    // Later this value will be recorded in a half-stream.
-                    *dropped += 1;
+                if let Err(e) = sink.try_send(msg) {
+                    if e.is_full() {
+                        // If we get here, we either have a logic bug (!), or an attacker
+                        // is sending us more cells than we asked for via congestion control.
+                        return Err(Error::CircProto(format!(
+                            "Stream sink would block; received too many cells on stream ID {}",
+                            streamid,
+                        )));
+                    }
+                    if e.is_disconnected() && c_t_w {
+                        // the other side of the stream has gone away; remember
+                        // that we received a cell that we couldn't queue for it.
+                        //
+                        // Later this value will be recorded in a half-stream.
+                        *dropped += 1;
+                    }
                 }
                 if is_end_cell {
                     hop.map.end_received(streamid)?;
@@ -1172,11 +1209,6 @@ impl Reactor {
                     "Cell received on nonexistent stream!?".into(),
                 ));
             }
-        }
-        if send_stream_sendme {
-            let sendme = Sendme::new_empty();
-            let cell = RelayCell::new(streamid, sendme.into());
-            self.send_relay_cell(cx, hopnum, false, cell)?;
         }
         Ok(())
     }

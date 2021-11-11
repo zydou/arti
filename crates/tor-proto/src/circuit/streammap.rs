@@ -14,6 +14,8 @@ use std::collections::HashMap;
 
 use rand::Rng;
 
+use crate::circuit::reactor::RECV_WINDOW_INIT;
+use crate::circuit::sendme::StreamRecvWindow;
 use tracing::info;
 
 /// The entry for a stream.
@@ -21,13 +23,11 @@ pub(super) enum StreamEnt {
     /// An open stream.
     Open {
         /// Sink to send relay cells tagged for this stream into.
-        sink: mpsc::UnboundedSender<RelayMsg>,
+        sink: mpsc::Sender<RelayMsg>,
         /// Stream for cells that should be sent down this stream.
         rx: mpsc::Receiver<RelayMsg>,
         /// Send window, for congestion control purposes.
         send_window: sendme::StreamSendWindow,
-        /// Receive window, for congestion control purposes.
-        recv_window: sendme::StreamRecvWindow,
         /// Number of cells dropped due to the stream disappearing before we can
         /// transform this into an `EndSent`.
         dropped: u16,
@@ -79,6 +79,7 @@ impl StreamMap {
         }
     }
 
+    /// Get the `HashMap` inside this stream map.
     pub(super) fn inner(&mut self) -> &mut HashMap<StreamId, StreamEnt> {
         &mut self.m
     }
@@ -86,16 +87,14 @@ impl StreamMap {
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
-        sink: mpsc::UnboundedSender<RelayMsg>,
+        sink: mpsc::Sender<RelayMsg>,
         rx: mpsc::Receiver<RelayMsg>,
         send_window: sendme::StreamSendWindow,
-        recv_window: sendme::StreamRecvWindow,
     ) -> Result<StreamId> {
         let stream_ent = StreamEnt::Open {
             sink,
             rx,
             send_window,
-            recv_window,
             dropped: 0,
         };
         // This "65536" seems too aggressive, but it's what tor does.
@@ -168,12 +167,15 @@ impl StreamMap {
             StreamEnt::EndReceived => Ok(ShouldSendEnd::DontSend),
             StreamEnt::Open {
                 send_window,
-                mut recv_window,
                 dropped,
                 // notably absent: the channels for sink and stream, which will get dropped and
                 // closed (meaning reads/writes from/to this stream will now fail)
                 ..
             } => {
+                // FIXME(eta): we don't copy the receive window, instead just creating a new one,
+                //             so a malicious peer can send us slightly more data than they should
+                //             be able to; see arti#230.
+                let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
                 // XXXX: We should set connected_ok properly.
@@ -196,7 +198,7 @@ impl StreamMap {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
+    use crate::circuit::sendme::StreamSendWindow;
 
     #[test]
     fn streammap_basics() -> Result<()> {
@@ -206,14 +208,9 @@ mod test {
 
         // Try add_ent
         for _ in 0..128 {
-            let (sink, _) = mpsc::unbounded();
+            let (sink, _) = mpsc::channel(128);
             let (_, rx) = mpsc::channel(2);
-            let id = map.add_ent(
-                sink,
-                rx,
-                StreamSendWindow::new(500),
-                StreamRecvWindow::new(500),
-            )?;
+            let id = map.add_ent(sink, rx, StreamSendWindow::new(500))?;
             let expect_id: StreamId = next_id.into();
             assert_eq!(expect_id, id);
             next_id = next_id.wrapping_add(1);

@@ -48,10 +48,12 @@ mod unique_id;
 
 use crate::channel::Channel;
 use crate::circuit::celltypes::*;
-use crate::circuit::reactor::{CircuitHandshake, CtrlMsg, Reactor};
+use crate::circuit::reactor::{
+    CircuitHandshake, CtrlMsg, Reactor, RECV_WINDOW_INIT, STREAM_READER_BUFFER,
+};
 pub use crate::circuit::unique_id::UniqId;
 use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
-use crate::stream::{DataStream, RawCellStream, ResolveStream, StreamParameters};
+use crate::stream::{DataStream, ResolveStream, StreamParameters, StreamReader};
 use crate::{Error, Result};
 use tor_cell::{
     chancell::{self, msg::ChanMsg, CircId},
@@ -62,10 +64,12 @@ use tor_linkspec::{CircTarget, LinkSpec};
 
 use futures::channel::{mpsc, oneshot};
 
+use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
 use std::net::IpAddr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
@@ -156,9 +160,12 @@ impl CircParameters {
 }
 
 /// A stream on a particular circuit.
-///
-/// When this object is dropped, the reactor will be told to close the stream.
+#[derive(Clone, Debug)]
 pub(crate) struct StreamTarget {
+    /// Which hop of the circuit this stream is with.
+    hop_num: HopNum,
+    /// Reactor ID for this stream.
+    stream_id: StreamId,
     /// Channel to send cells down.
     tx: mpsc::Sender<RelayMsg>,
     /// Reference to the circuit that this stream is on.
@@ -209,14 +216,14 @@ impl ClientCirc {
     ///
     /// The caller will typically want to see the first cell in response,
     /// to see whether it is e.g. an END or a CONNECTED.
-    async fn begin_stream_impl(&self, begin_msg: RelayMsg) -> Result<RawCellStream> {
+    async fn begin_stream_impl(&self, begin_msg: RelayMsg) -> Result<(StreamReader, StreamTarget)> {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
         let num_hops = self.hops.load(Ordering::SeqCst);
         // FIXME(eta): could panic if num_hops is zero
         let hop_num: HopNum = (num_hops - 1).into();
-        let (sender, receiver) = mpsc::unbounded();
+        let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
 
@@ -230,16 +237,23 @@ impl ClientCirc {
             })
             .map_err(|_| Error::CircuitClosed)?;
 
-        // FIXME(eta): we used to need the stream ID, but now we don't really use it any more.
-        //             should we just not send it from the reactor?
-        let _id = rx.await.map_err(|_| Error::CircuitClosed)??;
+        let stream_id = rx.await.map_err(|_| Error::CircuitClosed)??;
 
         let target = StreamTarget {
             circ: self.clone(),
             tx: msg_tx,
+            hop_num,
+            stream_id,
         };
 
-        Ok(RawCellStream::new(target, receiver))
+        let reader = StreamReader {
+            target: target.clone(),
+            receiver,
+            recv_window: StreamRecvWindow::new(RECV_WINDOW_INIT),
+            ended: false,
+        };
+
+        Ok((reader, target))
     }
 
     /// Start a DataStream (anonymized connection) to the given
@@ -249,8 +263,8 @@ impl ClientCirc {
         msg: RelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
-        let raw_s = self.begin_stream_impl(msg).await?;
-        let mut stream = DataStream::new(raw_s);
+        let (reader, target) = self.begin_stream_impl(msg).await?;
+        let mut stream = DataStream::new(reader, target);
         if !optimistic {
             stream.wait_for_connection().await?;
         }
@@ -330,13 +344,14 @@ impl ClientCirc {
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
     async fn try_resolve(self: &Arc<Self>, msg: Resolve) -> Result<Resolved> {
-        let rc_stream = self.begin_stream_impl(msg.into()).await?;
-        let mut resolve_stream = ResolveStream::new(rc_stream);
+        let (reader, _) = self.begin_stream_impl(msg.into()).await?;
+        let mut resolve_stream = ResolveStream::new(reader);
         resolve_stream.read_msg().await
     }
 
-    /// Shut down this circuit immediately, along with all streams that
-    /// are using it.
+    /// Shut down this circuit, along with all streams that are using it.
+    /// Happens asynchronously (i.e. the circuit won't necessarily be done shutting down
+    /// immediately after this function returns!).
     ///
     /// Note that other references to this circuit may exist.  If they
     /// do, they will stop working after you call this function.
@@ -353,6 +368,8 @@ impl ClientCirc {
     ///
     /// This is a separate function because we may eventually want to have
     /// it do more than just shut down.
+    ///
+    /// As with `terminate`, this function is asynchronous.
     pub(crate) fn protocol_error(&self) {
         self.terminate();
     }
@@ -401,7 +418,7 @@ impl PendingClientCirc {
             channel_id: id,
             crypto_out,
             meta_handler: None,
-            num_hops: num_hops.clone(),
+            num_hops: Arc::clone(&num_hops),
         };
 
         let circuit = ClientCirc {
@@ -473,7 +490,7 @@ impl PendingClientCirc {
                         id: *target.rsa_identity(),
                         pk: *target.ntor_onion_key(),
                     },
-                    ed_identity: target.ed_identity().clone(),
+                    ed_identity: *target.ed_identity(),
                 },
                 supports_authenticated_sendme: supports_flowctrl_1,
                 params: params.clone(),
@@ -554,6 +571,18 @@ impl StreamTarget {
     /// circuit needs to shut down.
     pub(crate) fn protocol_error(&mut self) {
         self.circ.protocol_error();
+    }
+
+    /// Send a SENDME cell for this stream.
+    pub(crate) fn send_sendme(&mut self) -> Result<()> {
+        self.circ
+            .control
+            .unbounded_send(CtrlMsg::SendSendme {
+                stream_id: self.stream_id,
+                hop_num: self.hop_num,
+            })
+            .map_err(|_| Error::CircuitClosed)?;
+        Ok(())
     }
 }
 

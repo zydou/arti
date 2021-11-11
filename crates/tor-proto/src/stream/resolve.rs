@@ -1,6 +1,6 @@
 //! Declare a type for streams that do hostname lookups
 
-use super::RawCellStream;
+use crate::stream::StreamReader;
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::{RelayMsg, Resolved};
 
@@ -8,7 +8,7 @@ use tor_cell::relaycell::msg::{RelayMsg, Resolved};
 /// cell.
 pub struct ResolveStream {
     /// The underlying RawCellStream.
-    s: RawCellStream,
+    s: StreamReader,
 }
 
 impl ResolveStream {
@@ -16,7 +16,7 @@ impl ResolveStream {
     ///
     /// Call only after sending a RESOLVE cell.
     #[allow(dead_code)] // need to implement a caller for this.
-    pub(crate) fn new(s: RawCellStream) -> Self {
+    pub(crate) fn new(s: StreamReader) -> Self {
         ResolveStream { s }
     }
 
@@ -28,7 +28,7 @@ impl ResolveStream {
             RelayMsg::End(e) => Err(Error::EndReceived(e.reason())),
             RelayMsg::Resolved(r) => Ok(r),
             m => {
-                self.s.protocol_error().await;
+                self.s.protocol_error();
                 Err(Error::StreamProto(format!(
                     "Unexpected {} on resolve stream",
                     m.cmd()
