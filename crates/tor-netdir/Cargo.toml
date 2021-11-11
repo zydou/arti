@@ -13,6 +13,9 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 experimental-api = []
+
+# Enable testing-only APIs.  APIs under this feature are not
+# covered by semver.
 testing = [ "hex", "hex-literal", "tor-netdoc/build_docs" ]
 
 [dependencies]
