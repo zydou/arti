@@ -11,7 +11,7 @@ rust-latest:
   image: rust:latest
   script:
     - cargo build --verbose --target x86_64-unknown-linux-gnu
-    - cargo test --verbose
+    - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy rustfmt
     - cargo clippy --all-features --tests -- -D warnings
     - cargo fmt -- --check
@@ -42,7 +42,7 @@ rust-nightly:
   allow_failure: true
   script:
     - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
-    - cargo test --verbose --all-features
+    - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     - rustup component add clippy
     # We check these extra warnings on CI only, since we don't want to forbid them while developing.
     - cargo clippy --all-features -- -D clippy::dbg_macro -D clippy::print_stdout -D clippy::print_stderr
@@ -58,7 +58,7 @@ minimal-versions:
     - cargo +nightly update -Z minimal-versions
     - cargo update -p crc32fast -p lexical-core -p synstructure:0.12.0 # failing deps of deps
     - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
-    - cargo test --verbose --all-features
+    - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
   tags:
     - amd64
 
