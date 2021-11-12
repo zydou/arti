@@ -260,7 +260,7 @@ impl<R: Runtime> TorClient<R> {
         let stream_timeout = Duration::new(10, 0);
 
         let stream_future = circ.begin_stream(&addr, port, Some(flags.stream_parameters()));
-        // This timout is needless but harmless for optimistic streams.
+        // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
             .timeout(stream_timeout, stream_future)

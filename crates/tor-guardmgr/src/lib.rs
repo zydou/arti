@@ -438,7 +438,7 @@ impl<R: Runtime> GuardMgr<R> {
         Ok((guard, monitor, usable))
     }
 
-    /// Ensure that the message queue is flushed before proceding to
+    /// Ensure that the message queue is flushed before proceeding to
     /// the next step.  Used for testing.
     #[cfg(test)]
     async fn flush_msg_queue(&self) {

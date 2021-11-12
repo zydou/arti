@@ -229,7 +229,7 @@ pub(crate) enum TargetCircUsage {
 /// want to refactor it a lot.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SupportedCircUsage {
-    /// Useable for BEGINDIR-based non-anonymous directory connections
+    /// Usable for BEGINDIR-based non-anonymous directory connections
     Dir,
     /// Usable to exit to a set of ports.
     Exit {
