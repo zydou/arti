@@ -22,5 +22,6 @@ We can delete older sections here after we bump the releases.
 tor-client: MODIFIED
 tor-dirclient: MODIFIED
 tor-llcrypto: BREAKING
+tor-netdoc: BREAKING
 tor-persist: BREAKING if `testing` feature is enabled.
 tor-proto: BREAKING

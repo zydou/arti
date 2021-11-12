@@ -36,6 +36,7 @@ impl<'a, I: Iterator, F: FnMut(&I::Item) -> bool> PauseAt<'a, I, F> {
         }
     }
     /// Replace the predicate on a PauseAt, returning a new PauseAt.
+    #[cfg(any(test, feature = "routerdesc"))]
     pub(crate) fn new_pred<F2>(self, pred: F2) -> PauseAt<'a, I, F2>
     where
         F2: FnMut(&I::Item) -> bool,

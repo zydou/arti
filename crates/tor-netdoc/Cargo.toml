@@ -11,7 +11,14 @@ categories = [ "parser-implementations" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
+default = []
+
+# Enable code to build the objects that represent different network documents.
 build_docs = [ "rand" ]
+
+# Enable the "router descriptor" document type, which is needed by relays and
+# bridge clients.
+routerdesc = []
 
 [dependencies]
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
