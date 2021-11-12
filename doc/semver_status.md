@@ -19,7 +19,8 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.0.1
 
-tor-proto: BREAKING
 tor-client: MODIFIED
-tor-persist: BREAKING if `testing` feature is enabled.
 tor-dirclient: MODIFIED
+tor-llcrypto: BREAKING
+tor-persist: BREAKING if `testing` feature is enabled.
+tor-proto: BREAKING

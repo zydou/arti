@@ -10,6 +10,15 @@ keywords = [ "tor", "arti", "cryptography" ]
 categories = [ "cryptography" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = []
+
+# Enable support for cryptography needed to be a Tor relay.
+relay = []
+
+# Enable support for cryptography needed to be an onion service v3 client.
+hsv3-client = []
+
 [dependencies]
 aes = { version = "0.7.0", features = ["ctr"] }
 arrayref = "0.3.6"
