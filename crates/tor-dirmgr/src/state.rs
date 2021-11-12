@@ -248,7 +248,7 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
         };
 
         // Check out what authorities we believe in, and see if enough
-        // of them are purported to have singed this consensus.
+        // of them are purported to have signed this consensus.
         let n_authorities = self.authority_ids.len() as u16;
         let unvalidated = unvalidated.set_n_authorities(n_authorities);
 

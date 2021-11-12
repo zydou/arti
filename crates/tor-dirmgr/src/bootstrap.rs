@@ -36,7 +36,7 @@ fn load_all<R: Runtime>(
     Ok(loaded)
 }
 
-/// Testing helper: if this is Some, then we retun it in place of any
+/// Testing helper: if this is Some, then we return it in place of any
 /// response to fetch_single.
 ///
 /// Note that only one test uses this: otherwise there would be a race
@@ -355,7 +355,7 @@ mod test {
 
     /// A fake implementation of DirState that just wants a fixed set
     /// of microdescriptors.  It doesn't care if it gets them: it just
-    /// wnats to be told that the IDs exist.
+    /// wants to be told that the IDs exist.
     #[derive(Debug, Clone)]
     struct DemoState {
         second_time_around: bool,

@@ -515,7 +515,7 @@ impl NetDir {
     }
 
     /// Return a relay matching a given Ed25519 identity and RSA identity,
-    /// if we have a useable relay with _both_ keys.
+    /// if we have a usable relay with _both_ keys.
     ///
     /// (Does not return unusable relays.)
     ///
