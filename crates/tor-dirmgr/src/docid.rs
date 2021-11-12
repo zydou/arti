@@ -4,9 +4,9 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use tor_dirclient::request;
-use tor_netdoc::doc::{
-    authcert::AuthCertKeyIds, microdesc::MdDigest, netstatus::ConsensusFlavor, routerdesc::RdDigest,
-};
+#[cfg(feature = "routerdesc")]
+use tor_netdoc::doc::routerdesc::RdDigest;
+use tor_netdoc::doc::{authcert::AuthCertKeyIds, microdesc::MdDigest, netstatus::ConsensusFlavor};
 
 /// The identity of a single document, in enough detail to load it
 /// from storage.
@@ -27,6 +27,7 @@ pub enum DocId {
     Microdesc(MdDigest),
     /// A request for the router descriptor of a public relay, by SHA1
     /// digest.
+    #[cfg(feature = "routerdesc")]
     RouterDesc(RdDigest),
 }
 
@@ -44,6 +45,7 @@ pub(crate) enum DocType {
     /// A microdescriptor
     Microdesc,
     /// A router descriptor.
+    #[cfg(feature = "routerdesc")]
     RouterDesc,
 }
 
@@ -56,6 +58,7 @@ impl DocId {
             LatestConsensus { flavor: f, .. } => T::Consensus(*f),
             AuthCert(_) => T::AuthCert,
             Microdesc(_) => T::Microdesc,
+            #[cfg(feature = "routerdesc")]
             RouterDesc(_) => T::RouterDesc,
         }
     }
@@ -72,6 +75,7 @@ pub(crate) enum ClientRequest {
     /// Request for one or more microdescriptors
     Microdescs(request::MicrodescRequest),
     /// Request for one or more router descriptors
+    #[cfg(feature = "routerdesc")]
     RouterDescs(request::RouterDescRequest),
 }
 
@@ -83,6 +87,7 @@ impl ClientRequest {
             Consensus(a) => a,
             AuthCert(a) => a,
             Microdescs(a) => a,
+            #[cfg(feature = "routerdesc")]
             RouterDescs(a) => a,
         }
     }
@@ -133,6 +138,7 @@ pub(crate) enum DocQuery {
     /// A request for microdescriptors
     Microdesc(Vec<MdDigest>),
     /// A request for router descriptors
+    #[cfg(feature = "routerdesc")]
     RouterDesc(Vec<RdDigest>),
 }
 
@@ -149,6 +155,7 @@ impl DocQuery {
             },
             DocId::AuthCert(_) => Self::AuthCert(Vec::new()),
             DocId::Microdesc(_) => Self::Microdesc(Vec::new()),
+            #[cfg(feature = "routerdesc")]
             DocId::RouterDesc(_) => Self::RouterDesc(Vec::new()),
         }
     }
@@ -159,6 +166,7 @@ impl DocQuery {
             (Self::LatestConsensus { .. }, DocId::LatestConsensus { .. }) => {}
             (Self::AuthCert(ids), DocId::AuthCert(id)) => ids.push(id),
             (Self::Microdesc(ids), DocId::Microdesc(id)) => ids.push(id),
+            #[cfg(feature = "routerdesc")]
             (Self::RouterDesc(ids), DocId::RouterDesc(id)) => ids.push(id),
             (_, _) => panic!(),
         }
@@ -180,6 +188,7 @@ impl DocQuery {
                 v.sort_unstable();
                 v[..].chunks(N).map(|s| Microdesc(s.to_vec())).collect()
             }
+            #[cfg(feature = "routerdesc")]
             RouterDesc(mut v) => {
                 v.sort_unstable();
                 v[..].chunks(N).map(|s| RouterDesc(s.to_vec())).collect()
@@ -236,6 +245,7 @@ mod test {
         assert_eq!(DocId::AuthCert(auth_id).doctype(), DocType::AuthCert);
 
         assert_eq!(DocId::Microdesc([22; 32]).doctype(), DocType::Microdesc);
+        #[cfg(feature = "routerdesc")]
         assert_eq!(DocId::RouterDesc([42; 20]).doctype(), DocType::RouterDesc);
     }
 
@@ -244,6 +254,7 @@ mod test {
         let mut ids = Vec::new();
         for byte in 0..=255 {
             ids.push(DocId::Microdesc([byte; 32]));
+            #[cfg(feature = "routerdesc")]
             ids.push(DocId::RouterDesc([byte; 20]));
             ids.push(DocId::AuthCert(AuthCertKeyIds {
                 id_fingerprint: [byte; 20].into(),
@@ -257,7 +268,10 @@ mod test {
         ids.push(consensus_q);
 
         let split = partition_by_type(ids);
+        #[cfg(feature = "routerdesc")]
         assert_eq!(split.len(), 4); // 4 distinct types.
+        #[cfg(not(feature = "routerdesc"))]
+        assert_eq!(split.len(), 3); // 3 distinct types.
 
         let q = split
             .get(&DocType::Consensus(ConsensusFlavor::Microdesc))
@@ -267,9 +281,11 @@ mod test {
         let q = split.get(&DocType::Microdesc).unwrap();
         assert!(matches!(q, DocQuery::Microdesc(v) if v.len() == 256));
 
-        let q = split.get(&DocType::RouterDesc).unwrap();
-        assert!(matches!(q, DocQuery::RouterDesc(v) if v.len() == 256));
-
+        #[cfg(feature = "routerdesc")]
+        {
+            let q = split.get(&DocType::RouterDesc).unwrap();
+            assert!(matches!(q, DocQuery::RouterDesc(v) if v.len() == 256));
+        }
         let q = split.get(&DocType::AuthCert).unwrap();
         assert!(matches!(q, DocQuery::AuthCert(v) if v.len() == 256));
     }
@@ -300,20 +316,24 @@ mod test {
         assert_eq!(found_ids, ids);
 
         // Test routerdescs.
-        let ids: HashSet<RdDigest> = (0..1001).into_iter().map(|_| rng.gen()).collect();
-        let split = DocQuery::RouterDesc(ids.clone().into_iter().collect()).split_for_download();
-        assert_eq!(split.len(), 3);
-        let mut found_ids = HashSet::new();
-        for q in split {
-            match q {
-                DocQuery::RouterDesc(ids) => ids.into_iter().for_each(|id| {
-                    found_ids.insert(id);
-                }),
-                _ => panic!("Wrong type."),
+        #[cfg(feature = "routerdesc")]
+        {
+            let ids: HashSet<RdDigest> = (0..1001).into_iter().map(|_| rng.gen()).collect();
+            let split =
+                DocQuery::RouterDesc(ids.clone().into_iter().collect()).split_for_download();
+            assert_eq!(split.len(), 3);
+            let mut found_ids = HashSet::new();
+            for q in split {
+                match q {
+                    DocQuery::RouterDesc(ids) => ids.into_iter().for_each(|id| {
+                        found_ids.insert(id);
+                    }),
+                    _ => panic!("Wrong type."),
+                }
             }
+            assert_eq!(found_ids.len(), 1001);
+            assert_eq!(&found_ids, &ids);
         }
-        assert_eq!(found_ids.len(), 1001);
-        assert_eq!(&found_ids, &ids);
 
         // Test authcerts.
         let ids: HashSet<AuthCertKeyIds> = (0..2500)
