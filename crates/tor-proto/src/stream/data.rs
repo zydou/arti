@@ -1,7 +1,6 @@
 //! Declare DataStream, a type that wraps RawCellStream so as to be useful
 //! for byte-oriented communication.
 
-use super::RawCellStream;
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::EndReason;
 
@@ -18,8 +17,9 @@ use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 use std::io::Result as IoResult;
 use std::pin::Pin;
-use std::sync::Arc;
 
+use crate::circuit::StreamTarget;
+use crate::stream::StreamReader;
 use tor_cell::relaycell::msg::{Data, RelayMsg};
 
 /// An anonymized stream over the Tor network.
@@ -111,15 +111,14 @@ pub struct DataReader {
 }
 
 impl DataStream {
-    /// Wrap a RawCellStream as a DataStream.
+    /// Wrap raw stream reader and target parts as a DataStream.
     ///
     /// For non-optimistic stream, function `wait_for_connection`
     /// must be called after to make sure CONNECTED is received.
-    pub(crate) fn new(s: RawCellStream) -> Self {
-        let s = Arc::new(s);
+    pub(crate) fn new(reader: StreamReader, target: StreamTarget) -> Self {
         let r = DataReader {
             state: Some(DataReaderState::Ready(DataReaderImpl {
-                s: Arc::clone(&s),
+                s: reader,
                 pending: Vec::new(),
                 offset: 0,
                 connected: false,
@@ -127,7 +126,7 @@ impl DataStream {
         };
         let w = DataWriter {
             state: Some(DataWriterState::Ready(DataWriterImpl {
-                s,
+                s: target,
                 buf: Box::new([0; Data::MAXLEN]),
                 n_pending: 0,
             })),
@@ -234,8 +233,8 @@ enum DataWriterState {
 
 /// Internal: the write part of a DataStream
 struct DataWriterImpl {
-    /// The underlying RawCellStream object.
-    s: Arc<RawCellStream>,
+    /// The underlying StreamTarget object.
+    s: StreamTarget,
 
     /// Buffered data to send over the connection.
     // TODO: this buffer is probably smaller than we want, but it's good
@@ -423,8 +422,8 @@ enum DataReaderState {
 
 /// Wrapper for the read part of a DataStream
 struct DataReaderImpl {
-    /// The underlying RawCellStream object.
-    s: Arc<RawCellStream>,
+    /// The underlying StreamReader object.
+    s: StreamReader,
 
     /// If present, data that we received on this stream but have not
     /// been able to send to the caller yet.
@@ -546,7 +545,7 @@ impl DataReaderImpl {
             Ok(RelayMsg::End(e)) => Err(Error::EndReceived(e.reason())),
             Err(e) => Err(e),
             Ok(m) => {
-                self.s.protocol_error().await;
+                self.s.protocol_error();
                 Err(Error::StreamProto(format!(
                     "Unexpected {} cell on stream",
                     m.cmd()

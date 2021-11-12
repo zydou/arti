@@ -3,45 +3,38 @@
 
 use crate::circuit::{sendme, StreamTarget};
 use crate::{Error, Result};
-use tor_cell::relaycell::msg::{RelayMsg, Sendme};
+use tor_cell::relaycell::msg::RelayMsg;
 
+use crate::circuit::sendme::StreamRecvWindow;
 use futures::channel::mpsc;
-use futures::lock::Mutex;
 use futures::stream::StreamExt;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-
-/// A RawCellStream is a client's cell-oriented view of a stream over the
-/// Tor network.
-pub struct RawCellStream {
-    /// Wrapped view of the circuit, hop, and streamid that we're using.
+/// The read part of a stream on a particular circuit.
+pub struct StreamReader {
+    /// The underlying `StreamTarget` for this stream.
+    pub(crate) target: StreamTarget,
+    /// Channel to receive stream messages from the reactor.
+    pub(crate) receiver: mpsc::Receiver<RelayMsg>,
+    /// Congestion control receive window for this stream.
     ///
-    /// TODO: do something similar with circuits?
-    target: Mutex<StreamTarget>,
-    /// A Stream over which we receive relay messages.  Only relay messages
-    /// that can be associated with a stream ID will be received.
-    receiver: Mutex<mpsc::Receiver<RelayMsg>>,
-    /// Have we been informed that this stream is closed, or received a fatal
-    /// error?
-    stream_ended: AtomicBool,
+    /// Having this here means we're only going to update it when the end consumer of this stream
+    /// actually reads things, meaning we don't ask for more data until it's actually needed (as
+    /// opposed to having the reactor assume we're always reading, and potentially overwhelm itself
+    /// with having to buffer data).
+    pub(crate) recv_window: StreamRecvWindow,
+    /// Whether or not this stream has ended.
+    pub(crate) ended: bool,
 }
 
-impl RawCellStream {
-    /// Internal: build a new RawCellStream.
-    pub(crate) fn new(target: StreamTarget, receiver: mpsc::Receiver<RelayMsg>) -> Self {
-        RawCellStream {
-            target: Mutex::new(target),
-            receiver: Mutex::new(receiver),
-            stream_ended: AtomicBool::new(false),
-        }
-    }
-
+impl StreamReader {
     /// Try to read the next relay message from this stream.
-    async fn recv_raw(&self) -> Result<RelayMsg> {
+    async fn recv_raw(&mut self) -> Result<RelayMsg> {
+        if self.ended {
+            // Prevent reading from streams after they've ended.
+            return Err(Error::StreamEnded);
+        }
         let msg = self
             .receiver
-            .lock()
-            .await
             .next()
             .await
             // This probably means that the other side closed the
@@ -50,13 +43,9 @@ impl RawCellStream {
                 Error::StreamProto("stream channel disappeared without END cell?".into())
             })?;
 
-        // Possibly decrement the window for the cell we just received, and
-        // send a SENDME if doing so took us under the threshold.
-        if sendme::msg_counts_towards_windows(&msg) {
-            let mut target = self.target.lock().await;
-            if target.recvwindow.take()? {
-                self.send_sendme(&mut target).await?;
-            }
+        if sendme::msg_counts_towards_windows(&msg) && self.recv_window.take()? {
+            self.target.send_sendme()?;
+            self.recv_window.put();
         }
 
         Ok(msg)
@@ -64,51 +53,19 @@ impl RawCellStream {
 
     /// As recv_raw, but if there is an error or an end cell, note that this
     /// stream has ended.
-    pub async fn recv(&self) -> Result<RelayMsg> {
+    pub async fn recv(&mut self) -> Result<RelayMsg> {
         let val = self.recv_raw().await;
         match val {
             Err(_) | Ok(RelayMsg::End(_)) => {
-                self.note_ended();
+                self.ended = true;
             }
             _ => {}
         }
         val
     }
 
-    /// Send a relay message along this stream
-    pub async fn send(&self, msg: RelayMsg) -> Result<()> {
-        self.target.lock().await.send(msg).await
-    }
-
-    /// Return true if this stream is marked as having ended.
-    pub fn has_ended(&self) -> bool {
-        self.stream_ended.load(Ordering::SeqCst)
-    }
-
-    /// Mark this stream as having ended because of an incoming cell.
-    fn note_ended(&self) {
-        self.stream_ended.store(true, Ordering::SeqCst);
-    }
-
-    /// Inform the circuit-side of this stream about a protocol error
-    pub async fn protocol_error(&self) {
-        // TODO: Should this call note_ended?
-        self.target.lock().await.protocol_error().await
-    }
-
-    /// Send a SENDME cell and adjust the receive window.
-    async fn send_sendme(&self, target: &mut StreamTarget) -> Result<()> {
-        let sendme = Sendme::new_empty();
-        target.send(sendme.into()).await?;
-        target.recvwindow.put();
-        Ok(())
-    }
-
-    /// Ensure that all the data in this stream has been flushed in to
-    /// the circuit, and close it.
-    pub async fn close(self) -> Result<()> {
-        // Not much to do here right now.
-        drop(self);
-        Ok(())
+    /// Shut down this stream.
+    pub fn protocol_error(&mut self) {
+        self.target.protocol_error();
     }
 }

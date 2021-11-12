@@ -67,6 +67,7 @@ pub use crate::channel::unique_id::UniqId;
 use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
 use crate::{Error, Result};
+use std::pin::Pin;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -76,9 +77,10 @@ use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
 
-use futures::SinkExt;
+use futures::{Sink, SinkExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use tracing::trace;
 
@@ -107,6 +109,55 @@ pub struct Channel {
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// A channel used to send cells to the Reactor.
     cell_tx: mpsc::Sender<ChanCell>,
+}
+
+impl Sink<ChanCell> for Channel {
+    type Error = Error;
+
+    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.cell_tx)
+            .poll_ready(cx)
+            .map_err(|_| Error::ChannelClosed)
+    }
+
+    fn start_send(self: Pin<&mut Self>, cell: ChanCell) -> Result<()> {
+        let this = self.get_mut();
+        if this.closed.load(Ordering::SeqCst) {
+            return Err(Error::ChannelClosed);
+        }
+        this.check_cell(&cell)?;
+        {
+            use msg::ChanMsg::*;
+            match cell.msg() {
+                Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
+                _ => trace!(
+                    "{}: Sending {} for {}",
+                    this.unique_id,
+                    cell.msg().cmd(),
+                    cell.circid()
+                ),
+            }
+        }
+
+        Pin::new(&mut this.cell_tx)
+            .start_send(cell)
+            .map_err(|_| Error::ChannelClosed)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.cell_tx)
+            .poll_flush(cx)
+            .map_err(|_| Error::ChannelClosed)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.cell_tx)
+            .poll_close(cx)
+            .map_err(|_| Error::ChannelClosed)
+    }
 }
 
 /// Structure for building and launching a Tor channel.
@@ -261,29 +312,18 @@ impl Channel {
         }
     }
 
+    /// Like `futures::Sink::poll_ready`.
+    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Result<bool> {
+        Ok(match Pin::new(&mut self.cell_tx).poll_ready(cx) {
+            Poll::Ready(Ok(_)) => true,
+            Poll::Ready(Err(_)) => return Err(Error::CircuitClosed),
+            Poll::Pending => false,
+        })
+    }
+
     /// Transmit a single cell on a channel.
     pub async fn send_cell(&mut self, cell: ChanCell) -> Result<()> {
-        if self.closed.load(Ordering::SeqCst) {
-            return Err(Error::ChannelClosed);
-        }
-        self.check_cell(&cell)?;
-        {
-            use msg::ChanMsg::*;
-            match cell.msg() {
-                Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
-                _ => trace!(
-                    "{}: Sending {} for {}",
-                    self.unique_id,
-                    cell.msg().cmd(),
-                    cell.circid()
-                ),
-            }
-        }
-
-        self.cell_tx
-            .send(cell)
-            .await
-            .map_err(|_| Error::InternalError("Reactor not alive to receive cells".into()))?;
+        self.send(cell).await?;
 
         Ok(())
     }
@@ -318,13 +358,10 @@ impl Channel {
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
-        let destroy_handle = CircDestroyHandle::new(id, self.control.clone());
-
         Ok(circuit::PendingClientCirc::new(
             id,
             self.clone(),
             createdreceiver,
-            Some(destroy_handle),
             receiver,
             circ_unique_id,
         ))
@@ -342,27 +379,13 @@ impl Channel {
     pub fn terminate(&self) {
         let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
     }
-}
 
-/// Helper structure: when this is dropped, the reactor is told to kill
-/// the circuit.
-pub(crate) struct CircDestroyHandle {
-    /// The circuit ID in question
-    id: CircId,
-    /// A sender to tell the reactor.
-    sender: mpsc::UnboundedSender<CtrlMsg>,
-}
-
-impl CircDestroyHandle {
-    /// Create a new CircDestroyHandle
-    fn new(id: CircId, sender: mpsc::UnboundedSender<CtrlMsg>) -> Self {
-        CircDestroyHandle { id, sender }
-    }
-}
-
-impl Drop for CircDestroyHandle {
-    fn drop(&mut self) {
-        let _ignore_cancel = self.sender.unbounded_send(CtrlMsg::CloseCircuit(self.id));
+    /// Tell the reactor that the circuit with the given ID has gone away.
+    pub fn close_circuit(&self, circid: CircId) -> Result<()> {
+        self.control
+            .unbounded_send(CtrlMsg::CloseCircuit(circid))
+            .map_err(|_| Error::ChannelClosed)?;
+        Ok(())
     }
 }
 

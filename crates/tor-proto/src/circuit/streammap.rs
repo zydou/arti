@@ -14,19 +14,24 @@ use std::collections::HashMap;
 
 use rand::Rng;
 
+use crate::circuit::reactor::RECV_WINDOW_INIT;
+use crate::circuit::sendme::StreamRecvWindow;
 use tracing::info;
 
 /// The entry for a stream.
 pub(super) enum StreamEnt {
-    /// An open stream: any relay cells tagged for this stream should get
-    /// sent over the mpsc::Sender.
-    ///
-    /// The StreamSendWindow is used to make sure that incoming SENDME
-    /// cells; the u16 is a count of cells that we have dropped due to
-    /// the stream disappearing before we can transform this into an
-    /// EndSent.
-    // TODO: is this the  best way?
-    Open(mpsc::Sender<RelayMsg>, sendme::StreamSendWindow, u16),
+    /// An open stream.
+    Open {
+        /// Sink to send relay cells tagged for this stream into.
+        sink: mpsc::Sender<RelayMsg>,
+        /// Stream for cells that should be sent down this stream.
+        rx: mpsc::Receiver<RelayMsg>,
+        /// Send window, for congestion control purposes.
+        send_window: sendme::StreamSendWindow,
+        /// Number of cells dropped due to the stream disappearing before we can
+        /// transform this into an `EndSent`.
+        dropped: u16,
+    },
     /// A stream for which we have received an END cell, but not yet
     /// had the stream object get dropped.
     EndReceived,
@@ -74,13 +79,24 @@ impl StreamMap {
         }
     }
 
+    /// Get the `HashMap` inside this stream map.
+    pub(super) fn inner(&mut self) -> &mut HashMap<StreamId, StreamEnt> {
+        &mut self.m
+    }
+
     /// Add an entry to this map; return the newly allocated StreamId.
     pub(super) fn add_ent(
         &mut self,
         sink: mpsc::Sender<RelayMsg>,
-        window: sendme::StreamSendWindow,
+        rx: mpsc::Receiver<RelayMsg>,
+        send_window: sendme::StreamSendWindow,
     ) -> Result<StreamId> {
-        let stream_ent = StreamEnt::Open(sink, window, 0);
+        let stream_ent = StreamEnt::Open {
+            sink,
+            rx,
+            send_window,
+            dropped: 0,
+        };
         // This "65536" seems too aggressive, but it's what tor does.
         //
         // Also, going around in a loop here is (sadly) needed in order
@@ -133,7 +149,7 @@ impl StreamMap {
                 stream_entry.remove_entry();
                 Ok(())
             }
-            StreamEnt::Open(_, _, _) => {
+            StreamEnt::Open { .. } => {
                 stream_entry.insert(StreamEnt::EndReceived);
                 Ok(())
             }
@@ -143,38 +159,30 @@ impl StreamMap {
     /// Handle a termination of the stream with `id` from this side of
     /// the circuit. Return true if the stream was open and an END
     /// ought to be sent.
-    pub(super) fn terminate(
-        &mut self,
-        id: StreamId,
-        mut recvw: sendme::StreamRecvWindow,
-    ) -> Result<ShouldSendEnd> {
-        use ShouldSendEnd::*;
-
-        // Check the hashmap for the right stream. Bail if not found.
-        // Also keep the hashmap handle so that we can do more efficient inserts/removals
-        let mut stream_entry = match self.m.entry(id) {
-            Entry::Vacant(_) => {
-                return Err(Error::InternalError(
-                    "Somehow we terminated a nonexistent connection‽".into(),
-                ))
-            }
-            Entry::Occupied(o) => o,
-        };
-
+    pub(super) fn terminate(&mut self, id: StreamId) -> Result<ShouldSendEnd> {
         // Progress the stream's state machine accordingly
-        match stream_entry.get() {
-            StreamEnt::EndReceived => {
-                stream_entry.remove_entry();
-                Ok(DontSend)
-            }
-            StreamEnt::Open(_, sendw, n) => {
-                recvw.decrement_n(*n)?;
+        match self.m.remove(&id).ok_or_else(|| {
+            Error::InternalError("Somehow we terminated a nonexistent connection‽".into())
+        })? {
+            StreamEnt::EndReceived => Ok(ShouldSendEnd::DontSend),
+            StreamEnt::Open {
+                send_window,
+                dropped,
+                // notably absent: the channels for sink and stream, which will get dropped and
+                // closed (meaning reads/writes from/to this stream will now fail)
+                ..
+            } => {
+                // FIXME(eta): we don't copy the receive window, instead just creating a new one,
+                //             so a malicious peer can send us slightly more data than they should
+                //             be able to; see arti#230.
+                let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
+                recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
                 // XXXX: We should set connected_ok properly.
                 let connected_ok = true;
-                let halfstream = HalfStream::new(sendw.new_ref(), recvw, connected_ok);
-                stream_entry.insert(StreamEnt::EndSent(halfstream));
-                Ok(Send)
+                let halfstream = HalfStream::new(send_window, recv_window, connected_ok);
+                self.m.insert(id, StreamEnt::EndSent(halfstream));
+                Ok(ShouldSendEnd::Send)
             }
             StreamEnt::EndSent(_) => {
                 panic!("Hang on! We're sending an END on a stream where we already sent an END‽");
@@ -190,7 +198,7 @@ impl StreamMap {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
+    use crate::circuit::sendme::StreamSendWindow;
 
     #[test]
     fn streammap_basics() -> Result<()> {
@@ -200,8 +208,9 @@ mod test {
 
         // Try add_ent
         for _ in 0..128 {
-            let (sink, _) = mpsc::channel(2);
-            let id = map.add_ent(sink, StreamSendWindow::new(500))?;
+            let (sink, _) = mpsc::channel(128);
+            let (_, rx) = mpsc::channel(2);
+            let id = map.add_ent(sink, rx, StreamSendWindow::new(500))?;
             let expect_id: StreamId = next_id.into();
             assert_eq!(expect_id, id);
             next_id = next_id.wrapping_add(1);
@@ -213,10 +222,7 @@ mod test {
 
         // Test get_mut.
         let nonesuch_id = next_id.into();
-        assert!(matches!(
-            map.get_mut(ids[0]),
-            Some(StreamEnt::Open(_, _, _))
-        ));
+        assert!(matches!(map.get_mut(ids[0]), Some(StreamEnt::Open { .. })));
         assert!(map.get_mut(nonesuch_id).is_none());
 
         // Test end_received
@@ -226,17 +232,10 @@ mod test {
         assert!(map.end_received(ids[1]).is_err());
 
         // Test terminate
-        let window = StreamRecvWindow::new(25);
-        assert!(map.terminate(nonesuch_id, window.clone()).is_err());
-        assert_eq!(
-            map.terminate(ids[2], window.clone()).unwrap(),
-            ShouldSendEnd::Send
-        );
+        assert!(map.terminate(nonesuch_id).is_err());
+        assert_eq!(map.terminate(ids[2]).unwrap(), ShouldSendEnd::Send);
         assert!(matches!(map.get_mut(ids[2]), Some(StreamEnt::EndSent(_))));
-        assert_eq!(
-            map.terminate(ids[1], window).unwrap(),
-            ShouldSendEnd::DontSend
-        );
+        assert_eq!(map.terminate(ids[1]).unwrap(), ShouldSendEnd::DontSend);
         assert!(matches!(map.get_mut(ids[1]), None));
 
         // Try receiving an end after a terminate.

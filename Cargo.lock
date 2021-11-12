@@ -2823,7 +2823,6 @@ dependencies = [
  "coarsetime",
  "crypto-mac",
  "digest",
- "event-listener",
  "futures",
  "generic-array",
  "hex",

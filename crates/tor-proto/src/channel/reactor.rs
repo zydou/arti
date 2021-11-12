@@ -281,11 +281,11 @@ impl Reactor {
         match self.circs.get_mut(circid) {
             Some(CircEnt::Open(s)) => {
                 // There's an open circuit; we can give it the RELAY cell.
-                // XXXX I think that this one actually means the other side
-                // is closed. If we see it IRL we should maybe ignore it.
-                s.send(msg.try_into()?).await.map_err(|_| {
-                    Error::InternalError("Circuit queue rejected message. Is it closing?".into())
-                })
+                if s.send(msg.try_into()?).await.is_err() {
+                    // The circuit's receiver went away, so we should destroy the circuit.
+                    self.outbound_destroy_circ(circid).await?;
+                }
+                Ok(())
             }
             Some(CircEnt::Opening(_, _)) => Err(Error::ChanProto(
                 "Relay cell on pending circuit before CREATED* received".into(),
@@ -397,6 +397,7 @@ pub(crate) mod test {
     use futures::stream::StreamExt;
     use tokio::test as async_test;
     use tokio_crate as tokio;
+    use tokio_crate::runtime::Handle;
 
     use crate::circuit::CircParameters;
 
@@ -469,10 +470,11 @@ pub(crate) mod test {
         let (chan, mut reactor, mut output, _input) = new_reactor();
 
         let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
-        let (pending, _circr) = ret.unwrap();
+        let (pending, circr) = ret.unwrap();
+        Handle::current().spawn(circr.run());
         assert!(reac.is_ok());
 
-        let id = pending.peek_circid().await;
+        let id = pending.peek_circid();
 
         let ent = reactor.circs.get_mut(id);
         assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
@@ -492,34 +494,38 @@ pub(crate) mod test {
     #[async_test]
     async fn new_circ_create_failure() {
         use tor_cell::chancell::msg;
-        let mut rng = rand::thread_rng();
         let (chan, mut reactor, mut output, mut input) = new_reactor();
 
         let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
-        let (pending, _circr) = ret.unwrap();
+        let (pending, circr) = ret.unwrap();
+        Handle::current().spawn(circr.run());
         assert!(reac.is_ok());
 
         let circparams = CircParameters::default();
 
-        let id = pending.peek_circid().await;
+        let id = pending.peek_circid();
 
+        eprintln!("abc");
         let ent = reactor.circs.get_mut(id);
         assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
         // We'll get a bad handshake result from this createdfast cell.
         let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
         input.send(Ok(created_cell)).await.unwrap();
+        eprintln!("def");
 
-        let (circ, reac) = futures::join!(
-            pending.create_firsthop_fast(&mut rng, &circparams),
-            reactor.run_once()
-        );
+        let (circ, reac) =
+            futures::join!(pending.create_firsthop_fast(circparams), reactor.run_once());
         // Make sure statuses are as expected.
         assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
         assert!(reac.is_ok());
+        eprintln!("ghi");
+
+        reactor.run_once().await.unwrap();
 
         // Make sure that the createfast cell got sent
         let cell_sent = output.next().await.unwrap();
         assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
+        eprintln!("jkkl");
 
         // The circid now counts as open, since as far as the reactor knows,
         // it was accepted.  (TODO: is this a bug?)

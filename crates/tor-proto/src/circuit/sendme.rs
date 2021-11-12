@@ -10,10 +10,7 @@
 //! other side of the circuit really has read all of the data that it's
 //! acknowledging.
 
-use futures::lock::Mutex;
-
 use std::collections::VecDeque;
-use std::sync::Arc;
 
 use tor_cell::relaycell::msg::RelayMsg;
 use tor_cell::relaycell::RelayCell;
@@ -52,27 +49,13 @@ where
     P: WindowParams,
     T: PartialEq + Eq + Clone,
 {
-    // TODO could use a bilock if that becomes non-experimental.
-    // TODO I wish we could do this without locking; we could make a bunch
-    // of these functions non-async if that happened.
-    /// Actual SendWindow object.
-    w: Arc<Mutex<SendWindowInner<T>>>,
-    /// Marker type to tell the compiler that the P type is used.
-    _dummy: std::marker::PhantomData<P>,
-}
-
-/// Interior (locked) code for SendWindowInner.
-struct SendWindowInner<T>
-where
-    T: PartialEq + Eq + Clone,
-{
     /// Current value for this window
     window: u16,
     /// Tag values that incoming "SENDME" messages need to match in order
     /// for us to send more data.
     tags: VecDeque<T>,
-    /// An event to wait on if we find that we are out of cells.
-    unblock: event_listener::Event,
+    /// Marker type to tell the compiler that the P type is used.
+    _dummy: std::marker::PhantomData<P>,
 }
 
 /// Helper: parameterizes a window to determine its maximum and its increment.
@@ -117,54 +100,36 @@ where
     pub(crate) fn new(window: u16) -> SendWindow<P, T> {
         let increment = P::increment();
         let capacity = (window + increment - 1) / increment;
-        let inner = SendWindowInner {
+        SendWindow {
             window,
             tags: VecDeque::with_capacity(capacity as usize),
-            unblock: event_listener::Event::new(),
-        };
-        SendWindow {
-            w: Arc::new(Mutex::new(inner)),
-            _dummy: std::marker::PhantomData,
-        }
-    }
-
-    /// Add a reference-count to SendWindow and return a new handle to it.
-    pub(crate) fn new_ref(&self) -> Self {
-        SendWindow {
-            w: Arc::clone(&self.w),
             _dummy: std::marker::PhantomData,
         }
     }
 
     /// Remove one item from this window (since we've sent a cell).
+    /// If the window was empty, returns an error.
     ///
     /// The provided tag is the one associated with the crypto layer that
     /// originated the cell.  It will get cloned and recorded if we'll
     /// need to check for it later.
     ///
     /// Return the number of cells left in the window.
-    pub(crate) async fn take(&mut self, tag: &T) -> Result<u16> {
-        loop {
-            let wait_on = {
-                let mut w = self.w.lock().await;
-                if let Some(val) = w.window.checked_sub(1) {
-                    w.window = val;
-                    if w.window % P::increment() == 0 {
-                        // We record this tag.
-                        // TODO: I'm not saying that this cell in particular
-                        // matches the spec, but Tor seems to like it.
-                        w.tags.push_back(tag.clone());
-                    }
+    pub(crate) fn take(&mut self, tag: &T) -> Result<u16> {
+        if let Some(val) = self.window.checked_sub(1) {
+            self.window = val;
+            if self.window % P::increment() == 0 {
+                // We record this tag.
+                // TODO: I'm not saying that this cell in particular
+                // matches the spec, but Tor seems to like it.
+                self.tags.push_back(tag.clone());
+            }
 
-                    return Ok(val);
-                }
-
-                // Window is zero; can't send yet.
-                w.unblock.listen()
-            };
-
-            // Wait on this event while _not_ holding the lock.
-            wait_on.await;
+            Ok(val)
+        } else {
+            Err(Error::CircProto(
+                "Called SendWindow::take() on empty SendWindow".into(),
+            ))
         }
     }
 
@@ -179,36 +144,32 @@ where
     /// On failure, return None: the caller should close the stream
     /// or circuit with a protocol error.
     #[must_use = "didn't check whether SENDME tag was right."]
-    pub(crate) async fn put(&mut self, tag: Option<T>) -> Option<u16> {
-        let mut w = self.w.lock().await;
-
-        match (w.tags.front(), tag) {
+    pub(crate) fn put(&mut self, tag: Option<T>) -> Option<u16> {
+        match (self.tags.front(), tag) {
             (Some(t), Some(tag)) if t == &tag => {} // this is the right tag.
             (Some(_), None) => {}                   // didn't need a tag.
             _ => {
                 return None;
             } // Bad tag or unexpected sendme.
         }
-        w.tags.pop_front();
+        self.tags.pop_front();
 
-        let was_zero = w.window == 0;
-
-        let v = w.window.checked_add(P::increment())?;
-        w.window = v;
-
-        if was_zero {
-            w.unblock.notify(usize::MAX)
-        }
+        let v = self.window.checked_add(P::increment())?;
+        self.window = v;
         Some(v)
+    }
+
+    /// Return the current send window value.
+    pub(crate) fn window(&self) -> u16 {
+        self.window
     }
 
     /// For testing: get a copy of the current send window, and the
     /// expected incoming tags.
     #[cfg(test)]
-    pub(crate) async fn window_and_expected_tags(&self) -> (u16, Vec<T>) {
-        let inner = self.w.lock().await;
-        let tags = inner.tags.iter().map(Clone::clone).collect();
-        (inner.window, tags)
+    pub(crate) fn window_and_expected_tags(&self) -> (u16, Vec<T>) {
+        let tags = self.tags.iter().map(Clone::clone).collect();
+        (self.window, tags)
     }
 }
 
@@ -231,7 +192,7 @@ impl<P: WindowParams> RecvWindow<P> {
         }
     }
 
-    /// Called when we've just sent a cell; return true if we need to send
+    /// Called when we've just received a cell; return true if we need to send
     /// a sendme, and false otherwise.
     ///
     /// Returns None if we should not have sent the cell, and we just
@@ -286,7 +247,6 @@ pub(crate) fn cell_counts_towards_windows(cell: &RelayCell) -> bool {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use futures::FutureExt;
     use tokio::test as async_test;
     use tokio_crate as tokio;
     use tor_cell::relaycell::{msg, RelayCell};
@@ -335,37 +295,37 @@ mod test {
     async fn sendwindow_basic() -> Result<()> {
         let mut w = new_sendwindow();
 
-        let n = w.take(&"Hello").await?;
+        let n = w.take(&"Hello")?;
         assert_eq!(n, 999);
         for _ in 0_usize..98 {
-            w.take(&"world").await?;
+            w.take(&"world")?;
         }
-        assert_eq!(w.w.lock().await.window, 901);
-        assert_eq!(w.w.lock().await.tags.len(), 0);
+        assert_eq!(w.window, 901);
+        assert_eq!(w.tags.len(), 0);
 
-        let n = w.take(&"and").await?;
+        let n = w.take(&"and")?;
         assert_eq!(n, 900);
-        assert_eq!(w.w.lock().await.tags.len(), 1);
-        assert_eq!(w.w.lock().await.tags[0], "and");
+        assert_eq!(w.tags.len(), 1);
+        assert_eq!(w.tags[0], "and");
 
-        let n = w.take(&"goodbye").await?;
+        let n = w.take(&"goodbye")?;
         assert_eq!(n, 899);
-        assert_eq!(w.w.lock().await.tags.len(), 1);
+        assert_eq!(w.tags.len(), 1);
 
         // Try putting a good tag.
-        let n = w.put(Some("and")).await;
+        let n = w.put(Some("and"));
         assert_eq!(n, Some(999));
-        assert_eq!(w.w.lock().await.tags.len(), 0);
+        assert_eq!(w.tags.len(), 0);
 
         for _ in 0_usize..300 {
-            w.take(&"dreamland").await?;
+            w.take(&"dreamland")?;
         }
-        assert_eq!(w.w.lock().await.tags.len(), 3);
+        assert_eq!(w.tags.len(), 3);
 
         // Put without a tag.
-        let n = w.put(None).await;
+        let n = w.put(None);
         assert_eq!(n, Some(799));
-        assert_eq!(w.w.lock().await.tags.len(), 2);
+        assert_eq!(w.tags.len(), 2);
 
         Ok(())
     }
@@ -374,44 +334,41 @@ mod test {
     async fn sendwindow_bad_put() -> Result<()> {
         let mut w = new_sendwindow();
         for _ in 0_usize..250 {
-            w.take(&"correct").await?;
+            w.take(&"correct")?;
         }
 
         // wrong tag: won't work.
-        assert_eq!(w.w.lock().await.window, 750);
-        let n = w.put(Some("incorrect")).await;
+        assert_eq!(w.window, 750);
+        let n = w.put(Some("incorrect"));
         assert!(n.is_none());
 
-        let n = w.put(Some("correct")).await;
+        let n = w.put(Some("correct"));
         assert_eq!(n, Some(850));
-        let n = w.put(Some("correct")).await;
+        let n = w.put(Some("correct"));
         assert_eq!(n, Some(950));
 
         // no tag expected: won't work.
-        let n = w.put(Some("correct")).await;
+        let n = w.put(Some("correct"));
         assert_eq!(n, None);
-        assert_eq!(w.w.lock().await.window, 950);
+        assert_eq!(w.window, 950);
 
-        let n = w.put(None).await;
+        let n = w.put(None);
         assert_eq!(n, None);
-        assert_eq!(w.w.lock().await.window, 950);
+        assert_eq!(w.window, 950);
 
         Ok(())
     }
 
     #[async_test]
-    async fn sendwindow_blocking() -> Result<()> {
+    async fn sendwindow_erroring() -> Result<()> {
         let mut w = new_sendwindow();
         for _ in 0_usize..1000 {
-            w.take(&"here a string").await?;
+            w.take(&"here a string")?;
         }
-        assert_eq!(w.w.lock().await.window, 0);
+        assert_eq!(w.window, 0);
 
-        // This is going to block -- make sure it doesn't say it's ready.
-        let ready = w.take(&"there a string").now_or_never();
-        assert!(ready.is_none());
-
-        // TODO: test that this actually wakes up when somebody else says "put".
+        let ready = w.take(&"there a string");
+        assert!(ready.is_err());
         Ok(())
     }
 }

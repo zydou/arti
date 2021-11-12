@@ -46,10 +46,10 @@ impl HalfStream {
     /// The caller must handle END cells; it is an internal error to pass
     /// END cells to this method.
     /// no ends here.
-    pub(super) async fn handle_msg(&mut self, msg: &RelayMsg) -> Result<()> {
+    pub(super) fn handle_msg(&mut self, msg: &RelayMsg) -> Result<()> {
         match msg {
             RelayMsg::Sendme(_) => {
-                self.sendw.put(Some(())).await.ok_or_else(|| {
+                self.sendw.put(Some(())).ok_or_else(|| {
                     Error::CircProto("Too many sendmes on a closed stream!".into())
                 })?;
                 Ok(())
@@ -91,15 +91,15 @@ mod test {
     #[async_test]
     async fn halfstream_sendme() -> Result<()> {
         let mut sendw = StreamSendWindow::new(101);
-        sendw.take(&()).await?; // Make sure that it will accept one sendme.
+        sendw.take(&())?; // Make sure that it will accept one sendme.
 
         let mut hs = HalfStream::new(sendw, StreamRecvWindow::new(20), true);
 
         // one sendme is fine
         let m = msg::Sendme::new_empty().into();
-        assert!(hs.handle_msg(&m).await.is_ok());
+        assert!(hs.handle_msg(&m).is_ok());
         // but no more were expected!
-        let e = hs.handle_msg(&m).await.err().unwrap();
+        let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
             "circuit protocol violation: Too many sendmes on a closed stream!"
@@ -120,11 +120,11 @@ mod test {
             .unwrap()
             .into();
         for _ in 0_u8..20 {
-            assert!(hs.handle_msg(&m).await.is_ok());
+            assert!(hs.handle_msg(&m).is_ok());
         }
 
         // But one more is a protocol violation.
-        let e = hs.handle_msg(&m).await.err().unwrap();
+        let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
             "circuit protocol violation: Received a data cell in violation of a window"
@@ -137,13 +137,13 @@ mod test {
         // We were told to accept a connected, so we'll accept one
         // and no more.
         let m = msg::Connected::new_empty().into();
-        assert!(hs.handle_msg(&m).await.is_ok());
-        assert!(hs.handle_msg(&m).await.is_err());
+        assert!(hs.handle_msg(&m).is_ok());
+        assert!(hs.handle_msg(&m).is_err());
 
         // If we try that again with connected_ok == false, we won't
         // accept any.
         let mut hs = HalfStream::new(StreamSendWindow::new(20), StreamRecvWindow::new(20), false);
-        let e = hs.handle_msg(&m).await.err().unwrap();
+        let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
             "circuit protocol violation: Bad CONNECTED cell on a closed stream!"
@@ -154,7 +154,7 @@ mod test {
     async fn halfstream_other() {
         let mut hs = hs_new();
         let m = msg::Extended2::new(Vec::new()).into();
-        let e = hs.handle_msg(&m).await.err().unwrap();
+        let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
             "circuit protocol violation: Bad EXTENDED2 cell on a closed stream!"
