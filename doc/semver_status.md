@@ -20,7 +20,7 @@ We can delete older sections here after we bump the releases.
 ## Since Arti 0.0.1
 
 tor-client: MODIFIED
-tor-dirclient: MODIFIED
+tor-dirclient: BREAKING
 tor-dirmgr: BREAKING
 tor-llcrypto: BREAKING
 tor-netdoc: BREAKING

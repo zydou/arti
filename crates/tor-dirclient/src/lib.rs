@@ -14,6 +14,15 @@
 //! This crate is part of
 //! [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 //! implement [Tor](https://www.torproject.org/) in Rust.
+//!
+//! # Features
+//!
+//! `xz` -- enable XZ compression.  This can be expensive in RAM and CPU,
+//! but it saves a lot of bandwidth.  (On by default.)
+//!
+//! `zstd` -- enable ZSTD compression.  (On by default.)
+//!
+//! `routerdesc` -- Add support for downloading router descriptors.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -576,7 +585,7 @@ mod test {
         let (mut s2_r, mut s2_w) = s2.split();
         let mock_time = MockSleepProvider::new(std::time::SystemTime::now());
 
-        let req = request::RouterDescRequest::all();
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
 
         let (v1, v2, v3): (Result<DirResponse>, Result<Vec<u8>>, Result<()>) = futures::join!(
             async {
@@ -601,7 +610,9 @@ mod test {
         v3?;
         let request = v2?;
 
-        assert!(request[..].starts_with(b"GET /tor/server/all.z HTTP/1.0\r\n"));
+        assert!(request[..].starts_with(
+            b"GET /tor/micro/d/CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk.z HTTP/1.0\r\n"
+        ));
         assert_eq!(response.status_code(), 200);
         assert!(!response.is_partial());
         assert!(response.error().is_none());
