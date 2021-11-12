@@ -20,6 +20,9 @@ build_docs = [ "rand" ]
 # bridge clients.
 routerdesc = []
 
+# Enable the "ns consensus" document type, which some relays cache and serve.
+ns_consensus = []
+
 [dependencies]
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
 tor-bytes = { path="../tor-bytes", version = "0.0.1"}

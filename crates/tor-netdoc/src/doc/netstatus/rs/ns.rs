@@ -17,6 +17,8 @@ use tor_protover::Protocols;
 use std::convert::TryInto;
 
 /// A single relay's status, as represented in a "ns" consensus.
+///
+/// Only available if `tor-netdoc` is built with the `ns_consensus` feature.
 #[derive(Debug, Clone)]
 pub struct NsConsensusRouterStatus {
     /// Underlying generic routerstatus object.

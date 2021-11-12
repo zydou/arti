@@ -32,6 +32,9 @@
 //! `routerdesc`: enable support for the "router descriptor" docment type, which
 //! is needed by bridge clients and relays.
 //!
+//! `ns-consensus`: enable support for the "ns consensus" document type, which
+//! some relays cache and serve.
+//!
 //! # Caveat haxxor: limitations and infelicities
 //!
 //! TODO: This crate requires that all of its inputs be valid UTF-8:
