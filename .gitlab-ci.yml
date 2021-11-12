@@ -15,10 +15,14 @@ rust-latest:
     - rustup component add clippy rustfmt
     - cargo clippy --all-features --tests -- -D warnings
     - cargo fmt -- --check
-    - cargo install cargo-audit
+    - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
     - ./maint/cargo_audit.sh
+    - cp $CARGO_HOME/bin/cargo-audit .
   tags:
     - amd64
+  cache:
+    paths:
+      - cargo-audit
   artifacts:
     paths:
       - target/x86_64-unknown-linux-gnu/debug/arti
