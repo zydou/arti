@@ -9,7 +9,6 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 use std::net::SocketAddr;
-use std::time::SystemTime;
 
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
@@ -19,8 +18,6 @@ pub struct RouterStatusBuilder<D> {
     nickname: Option<String>,
     /// See [`GenericRouterStatus::identity`].
     identity: Option<RsaIdentity>,
-    /// See [`GenericRouterStatus::published`].
-    published: Option<SystemTime>,
     /// See [`GenericRouterStatus::addrs`].
     addrs: Vec<SocketAddr>,
     /// See [`GenericRouterStatus::dir_port`].
@@ -43,7 +40,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
         RouterStatusBuilder {
             nickname: None,
             identity: None,
-            published: None,
             addrs: Vec::new(),
             dir_port: 0,
             doc_digest: None,
@@ -69,13 +65,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
     /// This value is required.
     pub fn identity(&mut self, identity: RsaIdentity) -> &mut Self {
         self.identity = Some(identity);
-        self
-    }
-    /// Set the publication time for this routerstatus.
-    ///
-    /// This value is optional, and does nothing (TODO).
-    pub fn published(&mut self, published: SystemTime) -> &mut Self {
-        self.published = Some(published);
         self
     }
     /// Add an OrPort at `addr` to this routerstatus.
@@ -138,7 +127,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing RSA identity"))?;
-        let published = self.published.unwrap_or_else(SystemTime::now);
         if self.addrs.is_empty() {
             return Err(Error::CannotBuild("No addresses"));
         }
@@ -158,7 +146,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
         Ok(GenericRouterStatus {
             nickname,
             identity,
-            published,
             addrs: self.addrs.clone(),
             or_port,
             dir_port: self.dir_port,

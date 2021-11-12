@@ -432,7 +432,6 @@ mod test {
             .rs()
             .nickname("Fred".into())
             .identity([155; 20].into())
-            .published(now - one_hour * 6)
             .add_or_port(SocketAddr::from(([10, 0, 0, 60], 9100)))
             .add_or_port("[f00f::1]:9200".parse().unwrap())
             .dir_port(66)

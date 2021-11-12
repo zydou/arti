@@ -63,13 +63,6 @@ struct GenericRouterStatus<D> {
     nickname: String,
     /// Fingerprint of the old-style RSA identity for this relay.
     identity: RsaIdentity,
-    /// Declared time at which the router descriptor for this relay
-    /// was published.
-    ///
-    /// This value should be ignored for all purposes; see
-    /// [proposal 275](https://gitlab.torproject.org/tpo/core/torspec/-/blob/master/proposals/275-md-published-time-is-silly.txt).
-    #[allow(dead_code)] // TODO: remove this some day?
-    published: time::SystemTime,
     /// A list of address:port values where this relay can be reached.
     addrs: Vec<net::SocketAddr>,
     /// Declared OR port for this relay.
@@ -266,7 +259,9 @@ where
         let identity = RsaIdentity::from_bytes(ident.as_bytes())
             .ok_or_else(|| Error::BadArgument(r_item.pos(), "Wrong identity length".to_string()))?;
         let skip = if microdesc_format { 0 } else { 1 };
-        let published: time::SystemTime = {
+        // We check that the published time is well-formed, but we never use it
+        // for anything in a consensus document.
+        let _ignore_published: time::SystemTime = {
             // TODO: It's annoying to have to do this allocation, since we
             // already have a slice that contains both of these arguments.
             // Instead, we could get a slice of arguments: we'd have to add
@@ -326,7 +321,6 @@ where
         Ok(GenericRouterStatus {
             nickname,
             identity,
-            published,
             addrs,
             or_port,
             dir_port,
