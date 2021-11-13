@@ -505,27 +505,23 @@ pub(crate) mod test {
 
         let id = pending.peek_circid();
 
-        eprintln!("abc");
         let ent = reactor.circs.get_mut(id);
         assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
         // We'll get a bad handshake result from this createdfast cell.
         let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
         input.send(Ok(created_cell)).await.unwrap();
-        eprintln!("def");
 
         let (circ, reac) =
             futures::join!(pending.create_firsthop_fast(circparams), reactor.run_once());
         // Make sure statuses are as expected.
         assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
         assert!(reac.is_ok());
-        eprintln!("ghi");
 
         reactor.run_once().await.unwrap();
 
         // Make sure that the createfast cell got sent
         let cell_sent = output.next().await.unwrap();
         assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
-        eprintln!("jkkl");
 
         // The circid now counts as open, since as far as the reactor knows,
         // it was accepted.  (TODO: is this a bug?)
