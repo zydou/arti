@@ -89,6 +89,7 @@ pub struct ClientCirc {
     /// Channel to send control messages to the reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
     /// For testing purposes: the CircId, for use in peek_circid().
+    #[cfg(test)]
     circid: CircId,
 }
 
@@ -425,6 +426,7 @@ impl PendingClientCirc {
             hops: num_hops,
             unique_id,
             control: control_tx,
+            #[cfg(test)]
             circid: id,
         };
 
