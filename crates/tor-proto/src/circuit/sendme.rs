@@ -247,8 +247,6 @@ pub(crate) fn cell_counts_towards_windows(cell: &RelayCell) -> bool {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use tokio::test as async_test;
-    use tokio_crate as tokio;
     use tor_cell::relaycell::{msg, RelayCell};
 
     #[test]
@@ -291,8 +289,8 @@ mod test {
         SendWindow::new(1000)
     }
 
-    #[async_test]
-    async fn sendwindow_basic() -> Result<()> {
+    #[test]
+    fn sendwindow_basic() -> Result<()> {
         let mut w = new_sendwindow();
 
         let n = w.take(&"Hello")?;
@@ -330,8 +328,8 @@ mod test {
         Ok(())
     }
 
-    #[async_test]
-    async fn sendwindow_bad_put() -> Result<()> {
+    #[test]
+    fn sendwindow_bad_put() -> Result<()> {
         let mut w = new_sendwindow();
         for _ in 0_usize..250 {
             w.take(&"correct")?;
@@ -359,8 +357,8 @@ mod test {
         Ok(())
     }
 
-    #[async_test]
-    async fn sendwindow_erroring() -> Result<()> {
+    #[test]
+    fn sendwindow_erroring() -> Result<()> {
         let mut w = new_sendwindow();
         for _ in 0_usize..1000 {
             w.take(&"here a string")?;

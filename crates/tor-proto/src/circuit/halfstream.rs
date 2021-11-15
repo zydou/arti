@@ -84,12 +84,10 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
-    use tokio::test as async_test;
-    use tokio_crate as tokio;
     use tor_cell::relaycell::msg;
 
-    #[async_test]
-    async fn halfstream_sendme() -> Result<()> {
+    #[test]
+    fn halfstream_sendme() -> Result<()> {
         let mut sendw = StreamSendWindow::new(101);
         sendw.take(&())?; // Make sure that it will accept one sendme.
 
@@ -111,8 +109,8 @@ mod test {
         HalfStream::new(StreamSendWindow::new(20), StreamRecvWindow::new(20), true)
     }
 
-    #[async_test]
-    async fn halfstream_data() {
+    #[test]
+    fn halfstream_data() {
         let mut hs = hs_new();
 
         // 20 data cells are okay.
@@ -131,8 +129,8 @@ mod test {
         );
     }
 
-    #[async_test]
-    async fn halfstream_connected() {
+    #[test]
+    fn halfstream_connected() {
         let mut hs = hs_new();
         // We were told to accept a connected, so we'll accept one
         // and no more.
@@ -150,8 +148,8 @@ mod test {
         );
     }
 
-    #[async_test]
-    async fn halfstream_other() {
+    #[test]
+    fn halfstream_other() {
         let mut hs = hs_new();
         let m = msg::Extended2::new(Vec::new()).into();
         let e = hs.handle_msg(&m).err().unwrap();
