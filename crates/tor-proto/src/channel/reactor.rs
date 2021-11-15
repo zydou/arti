@@ -393,13 +393,10 @@ impl Reactor {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::circuit::CircParameters;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
-    use tokio::test as async_test;
-    use tokio_crate as tokio;
-    use tokio_crate::runtime::Handle;
-
-    use crate::circuit::CircParameters;
+    use futures::task::SpawnExt;
 
     type CodecResult = std::result::Result<ChanCell, tor_cell::Error>;
 
@@ -431,318 +428,339 @@ pub(crate) mod test {
     }
 
     // Try shutdown from inside run_once..
-    #[async_test]
-    async fn shutdown() {
-        let (chan, mut reactor, _output, _input) = new_reactor();
+    #[test]
+    fn shutdown() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let (chan, mut reactor, _output, _input) = new_reactor();
 
-        chan.terminate();
-        let r = reactor.run_once().await;
-        assert!(matches!(r, Err(ReactorError::Shutdown)));
+            chan.terminate();
+            let r = reactor.run_once().await;
+            assert!(matches!(r, Err(ReactorError::Shutdown)));
+        })
     }
 
     // Try shutdown while reactor is running.
-    #[async_test]
-    async fn shutdown2() {
-        // TODO: Ask a rust person if this is how to do this.
-        use futures::future::FutureExt;
-        use futures::join;
+    #[test]
+    fn shutdown2() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            // TODO: Ask a rust person if this is how to do this.
 
-        let (chan, reactor, _output, _input) = new_reactor();
-        // Let's get the reactor running...
-        let run_reactor = reactor.run().map(|x| x.is_ok()).shared();
+            use futures::future::FutureExt;
+            use futures::join;
 
-        let rr = run_reactor.clone();
+            let (chan, reactor, _output, _input) = new_reactor();
+            // Let's get the reactor running...
+            let run_reactor = reactor.run().map(|x| x.is_ok()).shared();
 
-        let exit_then_check = async {
-            assert!(rr.peek().is_none());
-            // ... and terminate the channel while that's happening.
-            chan.terminate();
-        };
+            let rr = run_reactor.clone();
 
-        let (rr_s, _) = join!(run_reactor, exit_then_check);
+            let exit_then_check = async {
+                assert!(rr.peek().is_none());
+                // ... and terminate the channel while that's happening.
+                chan.terminate();
+            };
 
-        // Now let's see. The reactor should not _still_ be running.
-        assert!(rr_s);
+            let (rr_s, _) = join!(run_reactor, exit_then_check);
+
+            // Now let's see. The reactor should not _still_ be running.
+            assert!(rr_s);
+        })
     }
 
-    #[async_test]
-    async fn new_circ_closed() {
-        let (chan, mut reactor, mut output, _input) = new_reactor();
+    #[test]
+    fn new_circ_closed() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut reactor, mut output, _input) = new_reactor();
 
-        let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
-        let (pending, circr) = ret.unwrap();
-        Handle::current().spawn(circr.run());
-        assert!(reac.is_ok());
+            let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
+            let (pending, circr) = ret.unwrap();
+            rt.spawn(async {
+                let _ignore = circr.run().await;
+            })
+            .unwrap();
+            assert!(reac.is_ok());
 
-        let id = pending.peek_circid();
+            let id = pending.peek_circid();
 
-        let ent = reactor.circs.get_mut(id);
-        assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
-        // Now drop the circuit; this should tell the reactor to remove
-        // the circuit from the map.
-        drop(pending);
+            let ent = reactor.circs.get_mut(id);
+            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
+            // Now drop the circuit; this should tell the reactor to remove
+            // the circuit from the map.
+            drop(pending);
 
-        reactor.run_once().await.unwrap();
-        let ent = reactor.circs.get_mut(id);
-        assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
-        let cell = output.next().await.unwrap();
-        assert_eq!(cell.circid(), id);
-        assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
+            reactor.run_once().await.unwrap();
+            let ent = reactor.circs.get_mut(id);
+            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
+            let cell = output.next().await.unwrap();
+            assert_eq!(cell.circid(), id);
+            assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
+        })
     }
 
     // Test proper delivery of a created cell that doesn't make a channel
-    #[async_test]
-    async fn new_circ_create_failure() {
-        use tor_cell::chancell::msg;
-        let (chan, mut reactor, mut output, mut input) = new_reactor();
+    #[test]
+    fn new_circ_create_failure() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            use tor_cell::chancell::msg;
+            let (chan, mut reactor, mut output, mut input) = new_reactor();
 
-        let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
-        let (pending, circr) = ret.unwrap();
-        Handle::current().spawn(circr.run());
-        assert!(reac.is_ok());
+            let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
+            let (pending, circr) = ret.unwrap();
+            rt.spawn(async {
+                let _ignore = circr.run().await;
+            })
+            .unwrap();
+            assert!(reac.is_ok());
 
-        let circparams = CircParameters::default();
+            let circparams = CircParameters::default();
 
-        let id = pending.peek_circid();
+            let id = pending.peek_circid();
 
-        let ent = reactor.circs.get_mut(id);
-        assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
-        // We'll get a bad handshake result from this createdfast cell.
-        let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
-        input.send(Ok(created_cell)).await.unwrap();
+            let ent = reactor.circs.get_mut(id);
+            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
+            // We'll get a bad handshake result from this createdfast cell.
+            let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
+            input.send(Ok(created_cell)).await.unwrap();
 
-        let (circ, reac) =
-            futures::join!(pending.create_firsthop_fast(circparams), reactor.run_once());
-        // Make sure statuses are as expected.
-        assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
-        assert!(reac.is_ok());
+            let (circ, reac) =
+                futures::join!(pending.create_firsthop_fast(circparams), reactor.run_once());
+            // Make sure statuses are as expected.
+            assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
+            assert!(reac.is_ok());
 
-        reactor.run_once().await.unwrap();
+            reactor.run_once().await.unwrap();
 
-        // Make sure that the createfast cell got sent
-        let cell_sent = output.next().await.unwrap();
-        assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
+            // Make sure that the createfast cell got sent
+            let cell_sent = output.next().await.unwrap();
+            assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
 
-        // The circid now counts as open, since as far as the reactor knows,
-        // it was accepted.  (TODO: is this a bug?)
-        let ent = reactor.circs.get_mut(id);
-        assert!(matches!(ent, Some(CircEnt::Open(_))));
+            // The circid now counts as open, since as far as the reactor knows,
+            // it was accepted.  (TODO: is this a bug?)
+            let ent = reactor.circs.get_mut(id);
+            assert!(matches!(ent, Some(CircEnt::Open(_))));
 
-        // But the next run if the reactor will make the circuit get closed.
-        reactor.run_once().await.unwrap();
-        let ent = reactor.circs.get_mut(id);
-        assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
+            // But the next run if the reactor will make the circuit get closed.
+            reactor.run_once().await.unwrap();
+            let ent = reactor.circs.get_mut(id);
+            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
+        })
     }
 
     // Try incoming cells that shouldn't arrive on channels.
-    #[async_test]
-    async fn bad_cells() {
-        use tor_cell::chancell::msg;
-        let (_chan, mut reactor, _output, mut input) = new_reactor();
+    #[test]
+    fn bad_cells() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            use tor_cell::chancell::msg;
+            let (_chan, mut reactor, _output, mut input) = new_reactor();
 
-        // We shouldn't get create cells, ever.
-        let create_cell = msg::Create2::new(4, *b"hihi").into();
-        input
-            .send(Ok(ChanCell::new(9.into(), create_cell)))
-            .await
-            .unwrap();
+            // We shouldn't get create cells, ever.
+            let create_cell = msg::Create2::new(4, *b"hihi").into();
+            input
+                .send(Ok(ChanCell::new(9.into(), create_cell)))
+                .await
+                .unwrap();
 
-        // shouldn't get created2 cells for nonexistent circuits
-        let created2_cell = msg::Created2::new(*b"hihi").into();
-        input
-            .send(Ok(ChanCell::new(7.into(), created2_cell)))
-            .await
-            .unwrap();
+            // shouldn't get created2 cells for nonexistent circuits
+            let created2_cell = msg::Created2::new(*b"hihi").into();
+            input
+                .send(Ok(ChanCell::new(7.into(), created2_cell)))
+                .await
+                .unwrap();
 
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: CREATE2 cell on client channel"
-        );
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: CREATE2 cell on client channel"
+            );
 
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: Unexpected CREATED* cell not on opening circuit"
-        );
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: Unexpected CREATED* cell not on opening circuit"
+            );
 
-        // Can't get a relay cell on a circuit we've never heard of.
-        let relay_cell = msg::Relay::new(b"abc").into();
-        input
-            .send(Ok(ChanCell::new(4.into(), relay_cell)))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: Relay cell on nonexistent circuit"
-        );
+            // Can't get a relay cell on a circuit we've never heard of.
+            let relay_cell = msg::Relay::new(b"abc").into();
+            input
+                .send(Ok(ChanCell::new(4.into(), relay_cell)))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: Relay cell on nonexistent circuit"
+            );
 
-        // Can't get handshaking cells while channel is open.
-        let versions_cell = msg::Versions::new([3]).unwrap().into();
-        input
-            .send(Ok(ChanCell::new(0.into(), versions_cell)))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: VERSIONS cell after handshake is done"
-        );
+            // Can't get handshaking cells while channel is open.
+            let versions_cell = msg::Versions::new([3]).unwrap().into();
+            input
+                .send(Ok(ChanCell::new(0.into(), versions_cell)))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: VERSIONS cell after handshake is done"
+            );
 
-        // We don't accept CREATED.
-        let created_cell = msg::Created::new(&b"xyzzy"[..]).into();
-        input
-            .send(Ok(ChanCell::new(25.into(), created_cell)))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: CREATED cell received, but we never send CREATEs"
-        );
+            // We don't accept CREATED.
+            let created_cell = msg::Created::new(&b"xyzzy"[..]).into();
+            input
+                .send(Ok(ChanCell::new(25.into(), created_cell)))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: CREATED cell received, but we never send CREATEs"
+            );
+        })
     }
 
-    #[async_test]
-    async fn deliver_relay() {
-        use crate::circuit::celltypes::ClientCircChanMsg;
-        use futures::channel::oneshot;
-        use tor_cell::chancell::msg;
+    #[test]
+    fn deliver_relay() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            use crate::circuit::celltypes::ClientCircChanMsg;
+            use futures::channel::oneshot;
+            use tor_cell::chancell::msg;
 
-        let (_chan, mut reactor, _output, mut input) = new_reactor();
+            let (_chan, mut reactor, _output, mut input) = new_reactor();
 
-        let (_circ_stream_7, mut circ_stream_13) = {
-            let (snd1, _rcv1) = oneshot::channel();
-            let (snd2, rcv2) = mpsc::channel(64);
-            reactor
-                .circs
-                .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+            let (_circ_stream_7, mut circ_stream_13) = {
+                let (snd1, _rcv1) = oneshot::channel();
+                let (snd2, rcv2) = mpsc::channel(64);
+                reactor
+                    .circs
+                    .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
 
-            let (snd3, rcv3) = mpsc::channel(64);
-            reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
+                let (snd3, rcv3) = mpsc::channel(64);
+                reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
 
-            reactor
-                .circs
-                .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
-            (rcv2, rcv3)
-        };
+                reactor
+                    .circs
+                    .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+                (rcv2, rcv3)
+            };
 
-        // If a relay cell is sent on an open channel, the correct circuit
-        // should get it.
-        let relaycell: ChanMsg = msg::Relay::new(b"do you suppose").into();
-        input
-            .send(Ok(ChanCell::new(13.into(), relaycell.clone())))
-            .await
-            .unwrap();
-        reactor.run_once().await.unwrap();
-        let got = circ_stream_13.next().await.unwrap();
-        assert!(matches!(got, ClientCircChanMsg::Relay(_)));
+            // If a relay cell is sent on an open channel, the correct circuit
+            // should get it.
+            let relaycell: ChanMsg = msg::Relay::new(b"do you suppose").into();
+            input
+                .send(Ok(ChanCell::new(13.into(), relaycell.clone())))
+                .await
+                .unwrap();
+            reactor.run_once().await.unwrap();
+            let got = circ_stream_13.next().await.unwrap();
+            assert!(matches!(got, ClientCircChanMsg::Relay(_)));
 
-        // If a relay cell is sent on an opening channel, that's an error.
-        input
-            .send(Ok(ChanCell::new(7.into(), relaycell.clone())))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
+            // If a relay cell is sent on an opening channel, that's an error.
+            input
+                .send(Ok(ChanCell::new(7.into(), relaycell.clone())))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
             format!("{}", e),
             "channel protocol violation: Relay cell on pending circuit before CREATED* received"
         );
 
-        // If a relay cell is sent on a non-existent channel, that's an error.
-        input
-            .send(Ok(ChanCell::new(101.into(), relaycell.clone())))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: Relay cell on nonexistent circuit"
-        );
+            // If a relay cell is sent on a non-existent channel, that's an error.
+            input
+                .send(Ok(ChanCell::new(101.into(), relaycell.clone())))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: Relay cell on nonexistent circuit"
+            );
 
-        // It's fine to get a relay cell on a DestroySent channel: that happens
-        // when the other side hasn't noticed the Destroy yet.
+            // It's fine to get a relay cell on a DestroySent channel: that happens
+            // when the other side hasn't noticed the Destroy yet.
 
-        // We can do this 25 more times according to our setup:
-        for _ in 0..25 {
+            // We can do this 25 more times according to our setup:
+            for _ in 0..25 {
+                input
+                    .send(Ok(ChanCell::new(23.into(), relaycell.clone())))
+                    .await
+                    .unwrap();
+                reactor.run_once().await.unwrap(); // should be fine.
+            }
+
+            // This one will fail.
             input
                 .send(Ok(ChanCell::new(23.into(), relaycell.clone())))
                 .await
                 .unwrap();
-            reactor.run_once().await.unwrap(); // should be fine.
-        }
-
-        // This one will fail.
-        input
-            .send(Ok(ChanCell::new(23.into(), relaycell.clone())))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: Too many cells received on destroyed circuit"
-        );
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: Too many cells received on destroyed circuit"
+            );
+        })
     }
 
-    #[async_test]
-    async fn deliver_destroy() {
-        use crate::circuit::celltypes::*;
-        use futures::channel::oneshot;
-        use tor_cell::chancell::msg;
+    #[test]
+    fn deliver_destroy() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            use crate::circuit::celltypes::*;
+            use futures::channel::oneshot;
+            use tor_cell::chancell::msg;
 
-        let (_chan, mut reactor, _output, mut input) = new_reactor();
+            let (_chan, mut reactor, _output, mut input) = new_reactor();
 
-        let (circ_oneshot_7, mut circ_stream_13) = {
-            let (snd1, rcv1) = oneshot::channel();
-            let (snd2, _rcv2) = mpsc::channel(64);
-            reactor
-                .circs
-                .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
+            let (circ_oneshot_7, mut circ_stream_13) = {
+                let (snd1, rcv1) = oneshot::channel();
+                let (snd2, _rcv2) = mpsc::channel(64);
+                reactor
+                    .circs
+                    .put_unchecked(7.into(), CircEnt::Opening(snd1, snd2));
 
-            let (snd3, rcv3) = mpsc::channel(64);
-            reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
+                let (snd3, rcv3) = mpsc::channel(64);
+                reactor.circs.put_unchecked(13.into(), CircEnt::Open(snd3));
 
-            reactor
-                .circs
-                .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
-            (rcv1, rcv3)
-        };
+                reactor
+                    .circs
+                    .put_unchecked(23.into(), CircEnt::DestroySent(HalfCirc::new(25)));
+                (rcv1, rcv3)
+            };
 
-        // Destroying an opening circuit is fine.
-        let destroycell: ChanMsg = msg::Destroy::new(0.into()).into();
-        input
-            .send(Ok(ChanCell::new(7.into(), destroycell.clone())))
-            .await
-            .unwrap();
-        reactor.run_once().await.unwrap();
-        let msg = circ_oneshot_7.await;
-        assert!(matches!(msg, Ok(CreateResponse::Destroy(_))));
+            // Destroying an opening circuit is fine.
+            let destroycell: ChanMsg = msg::Destroy::new(0.into()).into();
+            input
+                .send(Ok(ChanCell::new(7.into(), destroycell.clone())))
+                .await
+                .unwrap();
+            reactor.run_once().await.unwrap();
+            let msg = circ_oneshot_7.await;
+            assert!(matches!(msg, Ok(CreateResponse::Destroy(_))));
 
-        // Destroying an open circuit is fine.
-        input
-            .send(Ok(ChanCell::new(13.into(), destroycell.clone())))
-            .await
-            .unwrap();
-        reactor.run_once().await.unwrap();
-        let msg = circ_stream_13.next().await.unwrap();
-        assert!(matches!(msg, ClientCircChanMsg::Destroy(_)));
+            // Destroying an open circuit is fine.
+            input
+                .send(Ok(ChanCell::new(13.into(), destroycell.clone())))
+                .await
+                .unwrap();
+            reactor.run_once().await.unwrap();
+            let msg = circ_stream_13.next().await.unwrap();
+            assert!(matches!(msg, ClientCircChanMsg::Destroy(_)));
 
-        // Destroying a DestroySent circuit is fine.
-        input
-            .send(Ok(ChanCell::new(23.into(), destroycell.clone())))
-            .await
-            .unwrap();
-        reactor.run_once().await.unwrap();
+            // Destroying a DestroySent circuit is fine.
+            input
+                .send(Ok(ChanCell::new(23.into(), destroycell.clone())))
+                .await
+                .unwrap();
+            reactor.run_once().await.unwrap();
 
-        // Destroying a nonexistent circuit is an error.
-        input
-            .send(Ok(ChanCell::new(101.into(), destroycell.clone())))
-            .await
-            .unwrap();
-        let e = reactor.run_once().await.unwrap_err().unwrap_err();
-        assert_eq!(
-            format!("{}", e),
-            "channel protocol violation: Destroy for nonexistent circuit"
-        );
+            // Destroying a nonexistent circuit is an error.
+            input
+                .send(Ok(ChanCell::new(101.into(), destroycell.clone())))
+                .await
+                .unwrap();
+            let e = reactor.run_once().await.unwrap_err().unwrap_err();
+            assert_eq!(
+                format!("{}", e),
+                "channel protocol violation: Destroy for nonexistent circuit"
+            );
+        })
     }
 }

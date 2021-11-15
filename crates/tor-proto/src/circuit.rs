@@ -614,15 +614,14 @@ mod test {
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
+    use futures::task::SpawnExt;
     use hex_literal::hex;
     use rand::thread_rng;
     use std::time::Duration;
-    use tokio::runtime::Handle;
-    use tokio_crate as tokio;
-    use tokio_crate::test as async_test;
     use tor_cell::chancell::{msg as chanmsg, ChanCell};
     use tor_cell::relaycell::{msg as relaymsg, RelayCell, StreamId};
     use tor_llcrypto::pk;
+    use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
     fn rmsg_to_ccmsg<ID>(id: ID, msg: relaymsg::RelayMsg) -> ClientCircChanMsg
@@ -680,23 +679,28 @@ mod test {
         )
     }
 
-    fn working_fake_channel() -> (
+    fn working_fake_channel<R: Runtime>(
+        rt: &R,
+    ) -> (
         Channel,
         Receiver<ChanCell>,
         Sender<std::result::Result<ChanCell, tor_cell::Error>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor();
-        Handle::current().spawn(chan_reactor.run());
+        rt.spawn(async {
+            let _ignore = chan_reactor.run().await;
+        })
+        .unwrap();
         (channel, rx, tx)
     }
 
-    async fn test_create(fast: bool) {
+    async fn test_create<R: Runtime>(rt: &R, fast: bool) {
         // We want to try progressing from a pending circuit to a circuit
         // via a crate_fast handshake.
 
         use crate::crypto::handshake::{fast::CreateFastServer, ntor::NtorServer, ServerHandshake};
 
-        let (chan, mut rx, _sink) = working_fake_channel();
+        let (chan, mut rx, _sink) = working_fake_channel(rt);
         let circid = 128.into();
         let (created_send, created_recv) = oneshot::channel();
         let (_circmsg_send, circmsg_recv) = mpsc::channel(64);
@@ -705,7 +709,10 @@ mod test {
         let (pending, reactor) =
             PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
 
-        Handle::current().spawn(reactor.run());
+        rt.spawn(async {
+            let _ignore = reactor.run().await;
+        })
+        .unwrap();
 
         // Future to pretend to be a relay on the other end of the circuit.
         let simulate_relay_fut = async move {
@@ -756,13 +763,17 @@ mod test {
          */
     }
 
-    #[async_test]
-    async fn test_create_fast() {
-        test_create(true).await
+    #[test]
+    fn test_create_fast() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_create(&rt, true).await;
+        })
     }
-    #[async_test]
-    async fn test_create_ntor() {
-        test_create(false).await
+    #[test]
+    fn test_create_ntor() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            test_create(&rt, false).await;
+        })
     }
 
     // An encryption layer that doesn't do any crypto.   Can be used
@@ -811,7 +822,8 @@ mod test {
 
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
-    async fn newcirc_ext(
+    async fn newcirc_ext<R: Runtime>(
+        rt: &R,
         chan: Channel,
         next_msg_from: HopNum,
     ) -> (ClientCirc, mpsc::Sender<ClientCircChanMsg>) {
@@ -823,7 +835,10 @@ mod test {
         let (pending, reactor) =
             PendingClientCirc::new(circid, chan, created_recv, circmsg_recv, unique_id);
 
-        Handle::current().spawn(reactor.run());
+        rt.spawn(async {
+            let _ignore = reactor.run().await;
+        })
+        .unwrap();
 
         let PendingClientCirc {
             circ,
@@ -850,33 +865,38 @@ mod test {
 
     // Helper: set up a 3-hop circuit with no encryption, where the
     // next inbound message seems to come from hop next_msg_from
-    async fn newcirc(chan: Channel) -> (ClientCirc, mpsc::Sender<ClientCircChanMsg>) {
-        newcirc_ext(chan, 2.into()).await
+    async fn newcirc<R: Runtime>(
+        rt: &R,
+        chan: Channel,
+    ) -> (ClientCirc, mpsc::Sender<ClientCircChanMsg>) {
+        newcirc_ext(rt, chan, 2.into()).await
     }
 
     // Try sending a cell via send_relay_cell
-    #[async_test]
-    async fn send_simple() {
-        let (chan, mut rx, _sink) = working_fake_channel();
-        let (circ, _send) = newcirc(chan).await;
-        let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir);
-        circ.control
-            .unbounded_send(CtrlMsg::SendRelayCell {
-                hop: 2.into(),
-                early: false,
-                cell: begindir,
-            })
-            .unwrap();
+    #[test]
+    fn send_simple() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (circ, _send) = newcirc(&rt, chan).await;
+            let begindir = RelayCell::new(0.into(), RelayMsg::BeginDir);
+            circ.control
+                .unbounded_send(CtrlMsg::SendRelayCell {
+                    hop: 2.into(),
+                    early: false,
+                    cell: begindir,
+                })
+                .unwrap();
 
-        // Here's what we tried to put on the TLS channel.  Note that
-        // we're using dummy relay crypto for testing convenience.
-        let rcvd = rx.next().await.unwrap();
-        assert_eq!(rcvd.circid(), 128.into());
-        let m = match rcvd.into_circid_and_msg().1 {
-            ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
-            _ => panic!(),
-        };
-        assert!(matches!(m.msg(), RelayMsg::BeginDir));
+            // Here's what we tried to put on the TLS channel.  Note that
+            // we're using dummy relay crypto for testing convenience.
+            let rcvd = rx.next().await.unwrap();
+            assert_eq!(rcvd.circid(), 128.into());
+            let m = match rcvd.into_circid_and_msg().1 {
+                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                _ => panic!(),
+            };
+            assert!(matches!(m.msg(), RelayMsg::BeginDir));
+        })
     }
 
     // NOTE(eta): this test is commented out because it basically tested implementation details
@@ -945,49 +965,55 @@ mod test {
     }
      */
 
-    #[async_test]
-    async fn extend() {
-        use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
+    #[test]
+    fn extend() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            use crate::crypto::handshake::{ntor::NtorServer, ServerHandshake};
 
-        let (chan, mut rx, _sink) = working_fake_channel();
-        let (circ, mut sink) = newcirc(chan).await;
-        let params = CircParameters::default();
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut sink) = newcirc(&rt, chan).await;
+            let params = CircParameters::default();
 
-        let extend_fut = async move {
-            let target = example_target();
-            circ.extend_ntor(&target, &params).await.unwrap();
-            circ // gotta keep the circ alive, or the reactor would exit.
-        };
-        let reply_fut = async move {
-            // We've disabled encryption on this circuit, so we can just
-            // read the extend2 cell.
-            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-            assert_eq!(id, 128.into());
-            let rmsg = match chmsg {
-                ChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
-                _ => panic!(),
+            let extend_fut = async move {
+                let target = example_target();
+                circ.extend_ntor(&target, &params).await.unwrap();
+                circ // gotta keep the circ alive, or the reactor would exit.
             };
-            let e2 = match rmsg.msg() {
-                RelayMsg::Extend2(e2) => e2,
-                _ => panic!(),
+            let reply_fut = async move {
+                // We've disabled encryption on this circuit, so we can just
+                // read the extend2 cell.
+                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+                assert_eq!(id, 128.into());
+                let rmsg = match chmsg {
+                    ChanMsg::RelayEarly(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    _ => panic!(),
+                };
+                let e2 = match rmsg.msg() {
+                    RelayMsg::Extend2(e2) => e2,
+                    _ => panic!(),
+                };
+                let mut rng = thread_rng();
+                let (_, reply) =
+                    NtorServer::server(&mut rng, &[example_ntor_key()], e2.handshake()).unwrap();
+                let extended2 = relaymsg::Extended2::new(reply).into();
+                sink.send(rmsg_to_ccmsg(0, extended2)).await.unwrap();
+                sink // gotta keep the sink alive, or the reactor will exit.
             };
-            let mut rng = thread_rng();
-            let (_, reply) =
-                NtorServer::server(&mut rng, &[example_ntor_key()], e2.handshake()).unwrap();
-            let extended2 = relaymsg::Extended2::new(reply).into();
-            sink.send(rmsg_to_ccmsg(0, extended2)).await.unwrap();
-            sink // gotta keep the sink alive, or the reactor will exit.
-        };
 
-        let (circ, _) = futures::join!(extend_fut, reply_fut);
+            let (circ, _) = futures::join!(extend_fut, reply_fut);
 
-        // Did we really add another hop?
-        assert_eq!(circ.n_hops(), 4);
+            // Did we really add another hop?
+            assert_eq!(circ.n_hops(), 4);
+        })
     }
 
-    async fn bad_extend_test_impl(reply_hop: HopNum, bad_reply: ClientCircChanMsg) -> Error {
-        let (chan, _rx, _sink) = working_fake_channel();
-        let (circ, mut sink) = newcirc_ext(chan, reply_hop).await;
+    async fn bad_extend_test_impl<R: Runtime>(
+        rt: &R,
+        reply_hop: HopNum,
+        bad_reply: ClientCircChanMsg,
+    ) -> Error {
+        let (chan, _rx, _sink) = working_fake_channel(rt);
+        let (circ, mut sink) = newcirc_ext(rt, chan, reply_hop).await;
         let params = CircParameters::default();
 
         let extend_fut = async move {
@@ -1006,121 +1032,132 @@ mod test {
         outcome.unwrap_err()
     }
 
-    #[async_test]
-    async fn bad_extend_wronghop() {
-        let extended2 = relaymsg::Extended2::new(vec![]).into();
-        let cc = rmsg_to_ccmsg(0, extended2);
+    #[test]
+    fn bad_extend_wronghop() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let extended2 = relaymsg::Extended2::new(vec![]).into();
+            let cc = rmsg_to_ccmsg(0, extended2);
 
-        let error = bad_extend_test_impl(1.into(), cc).await;
-        // This case shows up as a CircDestroy, since a message sent
-        // from the wrong hop won't even be delivered to the extend
-        // code's meta-handler.  Instead the unexpected message will cause
-        // the circuit to get torn down.
-        match error {
-            Error::CircuitClosed => {}
-            x => panic!("got other error: {}", x),
-        }
-    }
-
-    #[async_test]
-    async fn bad_extend_wrongtype() {
-        let extended = relaymsg::Extended::new(vec![7; 200]).into();
-        let cc = rmsg_to_ccmsg(0, extended);
-
-        let error = bad_extend_test_impl(2.into(), cc).await;
-        match error {
-            Error::CircProto(s) => {
-                assert_eq!(s, "wanted EXTENDED2; got EXTENDED")
+            let error = bad_extend_test_impl(&rt, 1.into(), cc).await;
+            // This case shows up as a CircDestroy, since a message sent
+            // from the wrong hop won't even be delivered to the extend
+            // code's meta-handler.  Instead the unexpected message will cause
+            // the circuit to get torn down.
+            match error {
+                Error::CircuitClosed => {}
+                x => panic!("got other error: {}", x),
             }
-            _ => panic!(),
-        }
+        })
     }
 
-    #[async_test]
-    async fn bad_extend_destroy() {
-        let cc = ClientCircChanMsg::Destroy(chanmsg::Destroy::new(4.into()));
-        let error = bad_extend_test_impl(2.into(), cc).await;
-        match error {
-            Error::CircuitClosed => {}
-            _ => panic!(),
-        }
-    }
+    #[test]
+    fn bad_extend_wrongtype() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let extended = relaymsg::Extended::new(vec![7; 200]).into();
+            let cc = rmsg_to_ccmsg(0, extended);
 
-    #[async_test]
-    async fn bad_extend_crypto() {
-        let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
-        let cc = rmsg_to_ccmsg(0, extended2);
-        let error = bad_extend_test_impl(2.into(), cc).await;
-        assert!(matches!(error, Error::BadHandshake));
-    }
-
-    #[async_test]
-    async fn begindir() {
-        let (chan, mut rx, _sink) = working_fake_channel();
-        let (circ, mut sink) = newcirc(chan).await;
-
-        let begin_and_send_fut = async move {
-            // Here we'll say we've got a circuit, and we want to
-            // make a simple BEGINDIR request with it.
-            let mut stream = Arc::new(circ).begin_dir_stream().await.unwrap();
-            stream.write_all(b"HTTP/1.0 GET /\r\n").await.unwrap();
-            stream.flush().await.unwrap();
-            let mut buf = [0_u8; 1024];
-            let n = stream.read(&mut buf).await.unwrap();
-            assert_eq!(&buf[..n], b"HTTP/1.0 404 Not found\r\n");
-            let n = stream.read(&mut buf).await.unwrap();
-            assert_eq!(n, 0);
-            stream
-        };
-        let reply_fut = async move {
-            // We've disabled encryption on this circuit, so we can just
-            // read the begindir cell.
-            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-            assert_eq!(id, 128.into()); // hardcoded circid.
-            let rmsg = match chmsg {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+            let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
+            match error {
+                Error::CircProto(s) => {
+                    assert_eq!(s, "wanted EXTENDED2; got EXTENDED")
+                }
                 _ => panic!(),
-            };
-            let (streamid, rmsg) = rmsg.into_streamid_and_msg();
-            assert!(matches!(rmsg, RelayMsg::BeginDir));
-
-            // Reply with a Connected cell to indicate success.
-            let connected = relaymsg::Connected::new_empty().into();
-            sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
-
-            // Now read a DATA cell...
-            let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
-            assert_eq!(id, 128.into());
-            let rmsg = match chmsg {
-                ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
-                _ => panic!(),
-            };
-            let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
-            assert_eq!(streamid_2, streamid);
-            if let RelayMsg::Data(d) = rmsg {
-                assert_eq!(d.as_ref(), &b"HTTP/1.0 GET /\r\n"[..]);
-            } else {
-                panic!();
             }
+        })
+    }
 
-            // Write another data cell in reply!
-            let data = relaymsg::Data::new(b"HTTP/1.0 404 Not found\r\n")
-                .unwrap()
-                .into();
-            sink.send(rmsg_to_ccmsg(streamid, data)).await.unwrap();
+    #[test]
+    fn bad_extend_destroy() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let cc = ClientCircChanMsg::Destroy(chanmsg::Destroy::new(4.into()));
+            let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
+            match error {
+                Error::CircuitClosed => {}
+                _ => panic!(),
+            }
+        })
+    }
 
-            // Send an END cell to say that the conversation is over.
-            let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
-            sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
+    #[test]
+    fn bad_extend_crypto() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
+            let cc = rmsg_to_ccmsg(0, extended2);
+            let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
+            assert!(matches!(error, Error::BadHandshake));
+        })
+    }
 
-            sink // gotta keep the sink alive, or the reactor will exit.
-        };
+    #[test]
+    fn begindir() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut rx, _sink) = working_fake_channel(&rt);
+            let (circ, mut sink) = newcirc(&rt, chan).await;
 
-        let (_stream, _) = futures::join!(begin_and_send_fut, reply_fut);
+            let begin_and_send_fut = async move {
+                // Here we'll say we've got a circuit, and we want to
+                // make a simple BEGINDIR request with it.
+                let mut stream = Arc::new(circ).begin_dir_stream().await.unwrap();
+                stream.write_all(b"HTTP/1.0 GET /\r\n").await.unwrap();
+                stream.flush().await.unwrap();
+                let mut buf = [0_u8; 1024];
+                let n = stream.read(&mut buf).await.unwrap();
+                assert_eq!(&buf[..n], b"HTTP/1.0 404 Not found\r\n");
+                let n = stream.read(&mut buf).await.unwrap();
+                assert_eq!(n, 0);
+                stream
+            };
+            let reply_fut = async move {
+                // We've disabled encryption on this circuit, so we can just
+                // read the begindir cell.
+                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+                assert_eq!(id, 128.into()); // hardcoded circid.
+                let rmsg = match chmsg {
+                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    _ => panic!(),
+                };
+                let (streamid, rmsg) = rmsg.into_streamid_and_msg();
+                assert!(matches!(rmsg, RelayMsg::BeginDir));
+
+                // Reply with a Connected cell to indicate success.
+                let connected = relaymsg::Connected::new_empty().into();
+                sink.send(rmsg_to_ccmsg(streamid, connected)).await.unwrap();
+
+                // Now read a DATA cell...
+                let (id, chmsg) = rx.next().await.unwrap().into_circid_and_msg();
+                assert_eq!(id, 128.into());
+                let rmsg = match chmsg {
+                    ChanMsg::Relay(r) => RelayCell::decode(r.into_relay_body()).unwrap(),
+                    _ => panic!(),
+                };
+                let (streamid_2, rmsg) = rmsg.into_streamid_and_msg();
+                assert_eq!(streamid_2, streamid);
+                if let RelayMsg::Data(d) = rmsg {
+                    assert_eq!(d.as_ref(), &b"HTTP/1.0 GET /\r\n"[..]);
+                } else {
+                    panic!();
+                }
+
+                // Write another data cell in reply!
+                let data = relaymsg::Data::new(b"HTTP/1.0 404 Not found\r\n")
+                    .unwrap()
+                    .into();
+                sink.send(rmsg_to_ccmsg(streamid, data)).await.unwrap();
+
+                // Send an END cell to say that the conversation is over.
+                let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
+                sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
+
+                sink // gotta keep the sink alive, or the reactor will exit.
+            };
+
+            let (_stream, _) = futures::join!(begin_and_send_fut, reply_fut);
+        });
     }
 
     // Set up a circuit and stream that expects some incoming SENDMEs.
-    async fn setup_incoming_sendme_case(
+    async fn setup_incoming_sendme_case<R: Runtime>(
+        rt: &R,
         n_to_send: usize,
     ) -> (
         ClientCirc,
@@ -1131,8 +1168,8 @@ mod test {
         Receiver<ChanCell>,
         Sender<std::result::Result<ChanCell, tor_cell::Error>>,
     ) {
-        let (chan, mut rx, sink2) = working_fake_channel();
-        let (circ, mut sink) = newcirc(chan).await;
+        let (chan, mut rx, sink2) = working_fake_channel(rt);
+        let (circ, mut sink) = newcirc(rt, chan).await;
 
         let circ_clone = Arc::new(circ.clone());
         let begin_and_send_fut = async move {
@@ -1195,96 +1232,103 @@ mod test {
         (circ, stream, sink, streamid, cells_received, rx, sink2)
     }
 
-    #[async_test]
-    async fn accept_valid_sendme() {
-        let (circ, _stream, mut sink, streamid, cells_received, _rx, _sink2) =
-            setup_incoming_sendme_case(300 * 498 + 3).await;
+    #[test]
+    fn accept_valid_sendme() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (circ, _stream, mut sink, streamid, cells_received, _rx, _sink2) =
+                setup_incoming_sendme_case(&rt, 300 * 498 + 3).await;
 
-        assert_eq!(cells_received, 301);
+            assert_eq!(cells_received, 301);
 
-        // Make sure that the circuit is indeed expecting the right sendmes
-        {
-            let (tx, rx) = oneshot::channel();
-            circ.control
-                .unbounded_send(CtrlMsg::QuerySendWindow {
-                    hop: 2.into(),
-                    done: tx,
-                })
-                .unwrap();
-            let (window, tags) = rx.await.unwrap().unwrap();
-            assert_eq!(window, 1000 - 301);
-            assert_eq!(tags.len(), 3);
-            // 100
-            assert_eq!(tags[0], hex!("6400000000000000000000000000000000000000"));
-            // 200
-            assert_eq!(tags[1], hex!("c800000000000000000000000000000000000000"));
-            // 300
-            assert_eq!(tags[2], hex!("2c01000000000000000000000000000000000000"));
-        }
+            // Make sure that the circuit is indeed expecting the right sendmes
+            {
+                let (tx, rx) = oneshot::channel();
+                circ.control
+                    .unbounded_send(CtrlMsg::QuerySendWindow {
+                        hop: 2.into(),
+                        done: tx,
+                    })
+                    .unwrap();
+                let (window, tags) = rx.await.unwrap().unwrap();
+                assert_eq!(window, 1000 - 301);
+                assert_eq!(tags.len(), 3);
+                // 100
+                assert_eq!(tags[0], hex!("6400000000000000000000000000000000000000"));
+                // 200
+                assert_eq!(tags[1], hex!("c800000000000000000000000000000000000000"));
+                // 300
+                assert_eq!(tags[2], hex!("2c01000000000000000000000000000000000000"));
+            }
 
-        let reply_with_sendme_fut = async move {
-            // make and send a circuit-level sendme.
-            let c_sendme =
-                relaymsg::Sendme::new_tag(hex!("6400000000000000000000000000000000000000")).into();
-            sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
+            let reply_with_sendme_fut = async move {
+                // make and send a circuit-level sendme.
+                let c_sendme =
+                    relaymsg::Sendme::new_tag(hex!("6400000000000000000000000000000000000000"))
+                        .into();
+                sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
 
-            // Make and send a stream-level sendme.
-            let s_sendme = relaymsg::Sendme::new_empty().into();
-            sink.send(rmsg_to_ccmsg(streamid, s_sendme)).await.unwrap();
+                // Make and send a stream-level sendme.
+                let s_sendme = relaymsg::Sendme::new_empty().into();
+                sink.send(rmsg_to_ccmsg(streamid, s_sendme)).await.unwrap();
 
-            sink
-        };
+                sink
+            };
 
-        let _sink = reply_with_sendme_fut.await;
+            let _sink = reply_with_sendme_fut.await;
 
-        // FIXME(eta): this is a hacky way of waiting for the reactor to run before doing the below
-        //             query; should find some way to properly synchronize to avoid flakiness
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        // Now make sure that the circuit is still happy, and its
-        // window is updated.
-        {
-            let (tx, rx) = oneshot::channel();
-            circ.control
-                .unbounded_send(CtrlMsg::QuerySendWindow {
-                    hop: 2.into(),
-                    done: tx,
-                })
-                .unwrap();
-            let (window, _tags) = rx.await.unwrap().unwrap();
-            assert_eq!(window, 1000 - 201);
-        }
+            // FIXME(eta): this is a hacky way of waiting for the reactor to run before doing the below
+            //             query; should find some way to properly synchronize to avoid flakiness
+            rt.sleep(Duration::from_millis(100)).await;
+            // Now make sure that the circuit is still happy, and its
+            // window is updated.
+            {
+                let (tx, rx) = oneshot::channel();
+                circ.control
+                    .unbounded_send(CtrlMsg::QuerySendWindow {
+                        hop: 2.into(),
+                        done: tx,
+                    })
+                    .unwrap();
+                let (window, _tags) = rx.await.unwrap().unwrap();
+                assert_eq!(window, 1000 - 201);
+            }
+        })
     }
 
-    #[async_test]
-    async fn invalid_circ_sendme() {
-        // Same setup as accept_valid_sendme() test above but try giving
-        // a sendme with the wrong tag.
+    #[test]
+    fn invalid_circ_sendme() {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            // Same setup as accept_valid_sendme() test above but try giving
+            // a sendme with the wrong tag.
 
-        let (circ, _stream, mut sink, _streamid, _cells_received, _rx, _sink2) =
-            setup_incoming_sendme_case(300 * 498 + 3).await;
+            let (circ, _stream, mut sink, _streamid, _cells_received, _rx, _sink2) =
+                setup_incoming_sendme_case(&rt, 300 * 498 + 3).await;
 
-        let reply_with_sendme_fut = async move {
-            // make and send a circuit-level sendme with a bad tag.
-            let c_sendme =
-                relaymsg::Sendme::new_tag(hex!("FFFF0000000000000000000000000000000000FF")).into();
-            sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
-            sink
-        };
+            let reply_with_sendme_fut = async move {
+                // make and send a circuit-level sendme with a bad tag.
+                let c_sendme =
+                    relaymsg::Sendme::new_tag(hex!("FFFF0000000000000000000000000000000000FF"))
+                        .into();
+                sink.send(rmsg_to_ccmsg(0_u16, c_sendme)).await.unwrap();
+                sink
+            };
 
-        let _sink = reply_with_sendme_fut.await;
+            let _sink = reply_with_sendme_fut.await;
 
-        let mut tries = 0;
-        // FIXME(eta): we aren't testing the error message like we used to; however, we can at least
-        //             check whether the reactor dies as a result of receiving invalid data.
-        while !circ.control.is_closed() {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            tries += 1;
-            if tries > 10 {
-                panic!("reactor continued running after invalid sendme");
+            let mut tries = 0;
+            // FIXME(eta): we aren't testing the error message like we used to; however, we can at least
+            //             check whether the reactor dies as a result of receiving invalid data.
+            while !circ.control.is_closed() {
+                // TODO: Don't sleep in tests.
+                rt.sleep(Duration::from_millis(100)).await;
+                tries += 1;
+                if tries > 10 {
+                    panic!("reactor continued running after invalid sendme");
+                }
             }
-        }
 
-        // TODO: check that the circuit is shut down too
+            // TODO: check that the circuit is shut down too
+        })
     }
 
     #[test]
