@@ -94,19 +94,23 @@ pub struct TorClientConfig {
 impl TorClientConfig {
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
-    /// This uses `tor_config`'s definitions for `APP_LOCAL_DATA` and
-    /// `APP_CACHE` for the state and cache directories respectively.
+    /// This gies the same result as using `tor_config`'s definitions
+    /// for `APP_LOCAL_DATA` and `APP_CACHE` for the state and cache
+    /// directories respectively.
     ///
     /// (On unix, this usually works out to `~/.local/share/arti` and
     /// `~/.cache/arti`, depending on your environment.  We use the
     /// `directories` crate for reasonable defaults on other platforms.)
     pub fn sane_defaults() -> Result<Self> {
-        let state_dir = tor_config::CfgPath::new("${APP_LOCAL_DATA}".into())
-            .path()
-            .map_err(|e| Error::Configuration(format!("failed to find APP_LOCAL_DATA: {:?}", e)))?;
-        let cache_dir = tor_config::CfgPath::new("${APP_CACHE}".into())
-            .path()
-            .map_err(|e| Error::Configuration(format!("failed to find APP_CACHE: {:?}", e)))?;
+        // Note: this must stay in sync with project_dirs() in the
+        // tor-config crate.
+        let dirs =
+            directories::ProjectDirs::from("org", "torproject", "Arti").ok_or_else(|| {
+                Error::Configuration("Could not determine default directories".to_string())
+            })?;
+
+        let state_dir = dirs.data_local_dir();
+        let cache_dir = dirs.cache_dir();
 
         Self::with_directories(state_dir, cache_dir)
     }

@@ -98,6 +98,8 @@ impl std::fmt::Display for CfgPath {
 /// Return a ProjectDirs object for the Arti project.
 fn project_dirs() -> Result<&'static ProjectDirs, Error> {
     /// lazy cell holding the ProjectDirs object.
+    // Note: this must stay in sync with sane_defaults() in the
+    // arti-client crate.
     static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
         Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
 

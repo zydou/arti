@@ -98,6 +98,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "derive_builder",
+ "directories",
  "futures",
  "hyper",
  "pin-project",
@@ -107,7 +108,6 @@ dependencies = [
  "tokio-util",
  "tor-chanmgr",
  "tor-circmgr",
- "tor-config",
  "tor-dirmgr",
  "tor-persist",
  "tor-proto",
