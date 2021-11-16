@@ -294,7 +294,11 @@ impl ClientCirc {
     /// a BEGIN_DIR cell.
     // FIXME(eta): get rid of Arc here!!!
     pub async fn begin_dir_stream(self: Arc<Self>) -> Result<DataStream> {
-        self.begin_data_stream(RelayMsg::BeginDir, false).await
+        // Note that we always open begindir connections optimistically.
+        // Since they are local to a relay that we've already authenticated
+        // with and built a circuit to, there should be no additional checks
+        // we need to perform to see whether the BEGINDIR will succeed.
+        self.begin_data_stream(RelayMsg::BeginDir, true).await
     }
 
     /// Perform a DNS lookup, using a RESOLVE cell with the last relay
