@@ -117,6 +117,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-broadcast"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90622698a1218e0b2fb846c97b5f19a0831f6baddee73d9454156365ccfa473b"
+dependencies = [
+ "easy-parallel",
+ "event-listener",
+ "futures-core",
+]
+
+[[package]]
 name = "async-channel"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -807,6 +818,12 @@ dependencies = [
  "redox_users",
  "winapi",
 ]
+
+[[package]]
+name = "easy-parallel"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dd4afd79212583ff429b913ad6605242ed7eec277e950b1438f300748f948f4"
 
 [[package]]
 name = "ed25519"
@@ -2685,6 +2702,19 @@ dependencies = [
  "tor-netdir",
  "tor-netdoc",
  "tor-rtcompat",
+ "tracing",
+]
+
+[[package]]
+name = "tor-events"
+version = "0.0.1"
+dependencies = [
+ "async-broadcast",
+ "futures",
+ "once_cell",
+ "serde",
+ "thiserror",
+ "tokio",
  "tracing",
 ]
 
