@@ -9,6 +9,7 @@ pub(crate) use b16impl::*;
 pub(crate) use b64impl::*;
 pub(crate) use curve25519impl::*;
 pub(crate) use ed25519impl::*;
+#[cfg(feature = "routerdesc")]
 pub(crate) use edcert::*;
 pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
@@ -253,6 +254,7 @@ mod rsa {
 }
 
 /// Types for decoding Ed25519 certificates
+#[cfg(feature = "routerdesc")]
 mod edcert {
     use crate::{Error, Pos, Result};
     use tor_cert::{CertType, Ed25519Cert, KeyUnknownCert};

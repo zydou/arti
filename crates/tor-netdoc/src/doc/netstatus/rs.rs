@@ -5,53 +5,22 @@
 
 #[cfg(feature = "build_docs")]
 pub(crate) mod build;
+mod md;
+#[cfg(feature = "ns_consensus")]
+mod ns;
 
-use super::{
-    ConsensusFlavor, NetstatusKwd, ParseRouterStatus, RelayFlags, RelayWeight, RouterStatus,
-};
-use crate::doc::microdesc::MdDigest;
-use crate::doc::routerdesc::RdDigest;
+use super::{NetstatusKwd, RelayFlags, RelayWeight};
+use crate::parse::parser::Section;
 use crate::types::misc::*;
-use crate::{parse::parser::Section, util::private::Sealed};
-use crate::{Error, Pos, Result};
+use crate::{Error, Result};
 use std::{net, time};
 
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
-use std::convert::TryInto;
-
-/// A single relay's status, as represented in a microdesc consensus.
-#[derive(Debug, Clone)]
-pub struct MdConsensusRouterStatus {
-    /// Underlying generic routerstatus object.
-    ///
-    /// This is private because we don't want to leak that these two
-    /// types have the same implementation "under the hood".
-    rs: GenericRouterStatus<MdDigest>,
-}
-
-/// A single relay's status, as represented in a "ns" consensus.
-#[derive(Debug, Clone)]
-pub struct NsConsensusRouterStatus {
-    /// Underlying generic routerstatus object.
-    ///
-    /// This is private because we don't want to leak that these two
-    /// types have the same implementation "under the hood".
-    rs: GenericRouterStatus<RdDigest>,
-}
-
-impl From<GenericRouterStatus<RdDigest>> for NsConsensusRouterStatus {
-    fn from(rs: GenericRouterStatus<RdDigest>) -> Self {
-        NsConsensusRouterStatus { rs }
-    }
-}
-
-impl From<GenericRouterStatus<MdDigest>> for MdConsensusRouterStatus {
-    fn from(rs: GenericRouterStatus<MdDigest>) -> Self {
-        MdConsensusRouterStatus { rs }
-    }
-}
+pub use md::MdConsensusRouterStatus;
+#[cfg(feature = "ns_consensus")]
+pub use ns::NsConsensusRouterStatus;
 
 /// Shared implementation of MdConsensusRouterStatus and NsConsensusRouterStatus.
 #[derive(Debug, Clone)]
@@ -143,100 +112,14 @@ macro_rules! implement_accessors {
     };
 }
 
-implement_accessors! {MdConsensusRouterStatus}
-implement_accessors! {NsConsensusRouterStatus}
-
-impl MdConsensusRouterStatus {
-    /// Return the expected microdescriptor digest for this routerstatus
-    pub fn md_digest(&self) -> &MdDigest {
-        &self.rs.doc_digest
-    }
-}
-
-impl NsConsensusRouterStatus {
-    /// Return the expected router descriptor digest for this routerstatus
-    pub fn rd_digest(&self) -> &RdDigest {
-        &self.rs.doc_digest
-    }
-}
-
-impl Sealed for MdConsensusRouterStatus {}
-
-impl RouterStatus for MdConsensusRouterStatus {
-    type DocumentDigest = MdDigest;
-
-    /// Return the expected microdescriptor digest for this routerstatus
-    fn rsa_identity(&self) -> &RsaIdentity {
-        &self.rs.identity
-    }
-
-    fn doc_digest(&self) -> &MdDigest {
-        self.md_digest()
-    }
-}
-
-impl ParseRouterStatus for MdConsensusRouterStatus {
-    fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Microdesc
-    }
-
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<MdConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, true)?;
-        Ok(MdConsensusRouterStatus { rs })
-    }
-}
-
-impl Sealed for NsConsensusRouterStatus {}
-
-impl RouterStatus for NsConsensusRouterStatus {
-    type DocumentDigest = RdDigest;
-
-    /// Return the expected microdescriptor digest for this routerstatus
-    fn rsa_identity(&self) -> &RsaIdentity {
-        &self.rs.identity
-    }
-
-    fn doc_digest(&self) -> &RdDigest {
-        self.rd_digest()
-    }
-}
-
-impl ParseRouterStatus for NsConsensusRouterStatus {
-    fn flavor() -> ConsensusFlavor {
-        ConsensusFlavor::Ns
-    }
-
-    fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<NsConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, false)?;
-        Ok(NsConsensusRouterStatus { rs })
-    }
-}
+// Make the macro public in the crate.
+pub(crate) use implement_accessors;
 
 /// Helper to decode a document digest in the format in which it
 /// appears in a given kind of routerstatus.
 trait FromRsString: Sized {
     /// Try to decode the given object.
     fn decode(s: &str) -> Result<Self>;
-}
-
-impl FromRsString for MdDigest {
-    fn decode(s: &str) -> Result<MdDigest> {
-        s.parse::<B64>()?
-            .check_len(32..=32)?
-            .as_bytes()
-            .try_into()
-            .map_err(|_| Error::Internal(Pos::None))
-    }
-}
-
-impl FromRsString for RdDigest {
-    fn decode(s: &str) -> Result<RdDigest> {
-        s.parse::<B64>()?
-            .check_len(20..=20)?
-            .as_bytes()
-            .try_into()
-            .map_err(|_| Error::Internal(Pos::None))
-    }
 }
 
 impl<D> GenericRouterStatus<D>

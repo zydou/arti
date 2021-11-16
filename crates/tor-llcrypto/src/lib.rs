@@ -56,6 +56,13 @@
 //!
 //! The [`util`] module has some miscellaneous compatibility utilities
 //! for manipulating cryptography-related objects and code.
+//!
+//! # Features
+//!
+//! `relay` -- enable cryptography that's only used on relays.
+//!
+//! `hsv3-client` -- enable cryptography that's only needed when running
+//! as a v3 onion service client.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]

@@ -5,6 +5,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
+#[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
 
 use crate::Result;
@@ -296,6 +297,7 @@ impl FromIterator<MdDigest> for MicrodescRequest {
 
 /// A request for one, many or all router descriptors.
 #[derive(Debug, Clone)]
+#[cfg(feature = "routerdesc")]
 pub struct RouterDescRequest {
     /// If this is set, we just ask for all the descriptors.
     // TODO: maybe this should be an enum, or maybe this case should
@@ -305,12 +307,14 @@ pub struct RouterDescRequest {
     digests: Vec<RdDigest>,
 }
 
+#[cfg(feature = "routerdesc")]
 impl Default for RouterDescRequest {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[cfg(feature = "routerdesc")]
 impl RouterDescRequest {
     /// Construct a request for all router descriptors.
     pub fn all() -> Self {
@@ -339,6 +343,7 @@ impl RouterDescRequest {
     }
 }
 
+#[cfg(feature = "routerdesc")]
 impl Requestable for RouterDescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
         let mut uri = "/tor/server/".to_string();
@@ -375,6 +380,7 @@ impl Requestable for RouterDescRequest {
     }
 }
 
+#[cfg(feature = "routerdesc")]
 impl FromIterator<RdDigest> for RouterDescRequest {
     fn from_iter<I: IntoIterator<Item = RdDigest>>(iter: I) -> Self {
         let mut req = Self::new();
@@ -509,6 +515,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "routerdesc")]
     fn test_rd_request_all() -> Result<()> {
         let req = RouterDescRequest::all();
         assert!(req.partial_docs_ok());
@@ -528,6 +535,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "routerdesc")]
     fn test_rd_request() -> Result<()> {
         let d1 = b"at some point I got ";
         let d2 = b"of writing in hex...";

@@ -492,6 +492,7 @@ impl<'a, 'b, K: Keyword> MaybeItem<'a, 'b, K> {
     /// If this item is present, parse its argument at position `idx`.
     /// Treat the absence or malformedness of the argument as an error,
     /// but treat the absence of this item as acceptable.
+    #[cfg(any(test, feature = "routerdesc"))]
     pub(crate) fn parse_arg<V: FromStr>(&self, idx: usize) -> Result<Option<V>>
     where
         Error: From<V::Err>,

@@ -21,14 +21,9 @@
 //! Recommend more standardized ways to do these things.
 
 use crate::pk;
-use digest::Digest;
 use thiserror::Error;
-use zeroize::Zeroizing;
 
 pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature};
-
-use curve25519_dalek::edwards::CompressedEdwardsY;
-use curve25519_dalek::scalar::Scalar;
 
 /// Convert a curve25519 public key (with sign bit) to an ed25519
 /// public key, for use in ntor key cross-certification.
@@ -70,10 +65,17 @@ pub fn convert_curve25519_to_ed25519_public(
 ///
 /// This panic should be impossible unless there are implementation
 /// bugs.
+///
+/// # Availability
+///
+/// This function is only available when the `relay` feature is enabled.
+#[cfg(any(test, feature = "relay"))]
 pub fn convert_curve25519_to_ed25519_private(
     privkey: &pk::curve25519::StaticSecret,
 ) -> Option<(pk::ed25519::ExpandedSecretKey, u8)> {
     use crate::d::Sha512;
+    use digest::Digest;
+    use zeroize::Zeroizing;
 
     let h = Sha512::new()
         .chain(privkey.to_bytes())
@@ -135,7 +137,15 @@ impl From<ed25519_dalek::SignatureError> for BlindingError {
 ///
 /// This function can fail if the input is not actually a valid
 /// Ed25519 public key.
+///
+/// # Availability
+///
+/// This function is only available when the `hsv3-client` feature is enabled.
+#[cfg(feature = "hsv3-client")]
 pub fn blind_pubkey(pk: &PublicKey, mut param: [u8; 32]) -> Result<PublicKey, BlindingError> {
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+    use curve25519_dalek::scalar::Scalar;
+
     // Clamp the blinding parameter
     param[0] &= 248;
     param[31] &= 63;
@@ -159,11 +169,9 @@ pub fn blind_pubkey(pk: &PublicKey, mut param: [u8; 32]) -> Result<PublicKey, Bl
 mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use std::convert::TryInto;
 
     #[test]
     fn curve_to_ed_compatible() {
-        use super::*;
         use crate::pk::{curve25519, ed25519};
         use crate::util::rand_compat::RngCompatExt;
         use rand::thread_rng;
@@ -187,7 +195,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "hsv3-client")]
     fn blinding() {
+        use std::convert::TryInto;
+
         // Test the ed25519 blinding function.
         //
         // These test vectors are from our ed25519 implementation and related

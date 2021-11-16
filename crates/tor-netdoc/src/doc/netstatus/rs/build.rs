@@ -1,14 +1,18 @@
 //! Provide builder functionality for routerstatuses.
 
-use super::{GenericRouterStatus, MdConsensusRouterStatus, NsConsensusRouterStatus};
+use super::{GenericRouterStatus, MdConsensusRouterStatus};
 use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{ConsensusBuilder, RelayFlags, RelayWeight};
-use crate::doc::routerdesc::RdDigest;
 use crate::{Error, Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 use std::net::SocketAddr;
+
+#[cfg(feature = "ns_consensus")]
+use super::NsConsensusRouterStatus;
+#[cfg(feature = "ns_consensus")]
+use crate::doc::routerdesc::RdDigest;
 
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
@@ -158,6 +162,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
     }
 }
 
+#[cfg(feature = "ns_consensus")]
 impl RouterStatusBuilder<RdDigest> {
     /// Try to finish this builder and add its RouterStatus to a
     /// provided ConsensusBuilder.

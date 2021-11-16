@@ -10,6 +10,7 @@ use crate::{Error, Result};
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
+#[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
 
 use std::collections::HashMap;
@@ -540,6 +541,9 @@ impl SqliteStore {
     }
 
     /// Read all the microdescriptors listed in `input` from the cache.
+    ///
+    /// Only available when the `routerdesc` feature is present.
+    #[cfg(feature = "routerdesc")]
     pub(crate) fn routerdescs<'a, I>(&self, input: I) -> Result<HashMap<RdDigest, String>>
     where
         I: IntoIterator<Item = &'a RdDigest>,
@@ -607,6 +611,7 @@ impl SqliteStore {
     }
 
     /// Store every router descriptors in `input` into the cache.
+    #[cfg(feature = "routerdesc")]
     #[allow(unused)]
     pub(crate) fn store_routerdescs<'a, I>(&mut self, input: I) -> Result<()>
     where
@@ -847,6 +852,7 @@ const FIND_MD: &str = "
 ";
 
 /// Query: find the router descriptors with a given hex-encoded sha1 digest
+#[cfg(feature = "routerdesc")]
 const FIND_RD: &str = "
   SELECT contents
   FROM RouterDescs
@@ -886,6 +892,7 @@ const INSERT_MD: &str = "
 
 /// Query: Add a new router descriptor
 #[allow(unused)]
+#[cfg(feature = "routerdesc")]
 const INSERT_RD: &str = "
   INSERT OR REPLACE INTO RouterDescs ( sha1_digest, published, contents )
   VALUES ( ?, ?, ? );
@@ -1214,6 +1221,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "routerdesc")]
     fn routerdescs() -> Result<()> {
         let (_tmp_dir, mut store) = new_empty()?;
 

@@ -74,6 +74,7 @@ pub use build::ConsensusBuilder;
 pub use rs::build::RouterStatusBuilder;
 
 pub use rs::MdConsensusRouterStatus;
+#[cfg(feature = "ns_consensus")]
 pub use rs::NsConsensusRouterStatus;
 
 /// The lifetime of a networkstatus document.
@@ -501,14 +502,17 @@ pub type UnvalidatedMdConsensus = UnvalidatedConsensus<MdConsensusRouterStatus>;
 /// and timeliness.
 pub type UncheckedMdConsensus = UncheckedConsensus<MdConsensusRouterStatus>;
 
+#[cfg(feature = "ns-consensus")]
 /// A consensus document that lists relays along with their
 /// router descriptor documents.
 pub type NsConsensus = Consensus<NsConsensusRouterStatus>;
 
+#[cfg(feature = "ns-consensus")]
 /// An NsConsensus that has been parsed and checked for timeliness,
 /// but not for signatures.
 pub type UnvalidatedNsConsensus = UnvalidatedConsensus<NsConsensusRouterStatus>;
 
+#[cfg(feature = "ns-consensus")]
 /// An NsConsensus that has been parsed but not checked for signatures
 /// and timeliness.
 pub type UncheckedNsConsensus = UncheckedConsensus<NsConsensusRouterStatus>;
@@ -1547,7 +1551,9 @@ mod test {
     const CERTS: &str = include_str!("../../testdata/authcerts2.txt");
     const CONSENSUS: &str = include_str!("../../testdata/mdconsensus1.txt");
 
+    #[cfg(feature = "ns-consensus")]
     const NS_CERTS: &str = include_str!("../../testdata/authcerts3.txt");
+    #[cfg(feature = "ns-consensus")]
     const NS_CONSENSUS: &str = include_str!("../../testdata/nsconsensus1.txt");
 
     fn read_bad(fname: &str) -> String {
@@ -1628,6 +1634,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "ns-consensus")]
     fn parse_and_validate_ns() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
         let mut certs = Vec::new();

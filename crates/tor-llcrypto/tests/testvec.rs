@@ -131,6 +131,7 @@ fn tv_ed25519() {
     assert!(kp.public.verify(&hex!(""), &sig).is_err());
 }
 
+#[cfg(feature = "relay")]
 #[test]
 fn tv_ed25519_convert() {
     fn edconv_single_test(curve_sk: [u8; 32], ed_sk: &[u8], signbit: u8, ed_pk: &[u8]) {

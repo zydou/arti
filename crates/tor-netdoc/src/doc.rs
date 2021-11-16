@@ -32,4 +32,13 @@
 pub mod authcert;
 pub mod microdesc;
 pub mod netstatus;
+
+#[cfg(any(doc, feature = "routerdesc"))]
 pub mod routerdesc;
+
+#[allow(missing_docs, clippy::missing_docs_in_private_items)]
+#[cfg(not(any(doc, feature = "routerdesc")))]
+pub mod routerdesc {
+    /// The digest of a RouterDesc document, as reported in a NS consensus.
+    pub type RdDigest = [u8; 20];
+}

@@ -20,6 +20,9 @@
 //! reading large directory objects from disk.
 //!
 //! `static` -- Try to link with a static copy of sqlite3.
+//!
+//! `routerdesc` -- (Incomplete) support for downloading and storing
+//!      router descriptors.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -574,6 +577,7 @@ impl<R: Runtime> DirMgr<R> {
                         .map(|(id, md)| (DocId::Microdesc(id), DocumentText::from_string(md))),
                 );
             }
+            #[cfg(feature = "routerdesc")]
             RouterDesc(digests) => result.extend(
                 store
                     .routerdescs(digests)?
@@ -602,6 +606,7 @@ impl<R: Runtime> DirMgr<R> {
                 DocQuery::Microdesc(ids) => {
                     res.push(ClientRequest::Microdescs(ids.into_iter().collect()));
                 }
+                #[cfg(feature = "routerdesc")]
                 DocQuery::RouterDesc(ids) => {
                     res.push(ClientRequest::RouterDescs(ids.into_iter().collect()));
                 }
@@ -823,6 +828,7 @@ mod test {
                     )
                     .unwrap();
 
+                #[cfg(feature = "routerdesc")]
                 store
                     .store_routerdescs(vec![("Fake rd1", now, &d4), ("Fake rd2", now, &d5)])
                     .unwrap();
@@ -874,10 +880,10 @@ mod test {
                     DocId::Microdesc(d3),
                     d_bogus,
                     DocId::AuthCert(certid2),
+                    #[cfg(feature = "routerdesc")]
                     DocId::RouterDesc(d5),
                 ])
                 .unwrap();
-            assert_eq!(res.len(), 4);
             assert_eq!(
                 res.get(&DocId::Microdesc(d2)).unwrap().as_str(),
                 Ok("Fake micro 2")
@@ -891,6 +897,7 @@ mod test {
                 res.get(&DocId::AuthCert(certid2)).unwrap().as_str(),
                 Ok("Fake certificate two")
             );
+            #[cfg(feature = "routerdesc")]
             assert_eq!(
                 res.get(&DocId::RouterDesc(d5)).unwrap().as_str(),
                 Ok("Fake rd2")
@@ -961,6 +968,7 @@ mod test {
                 sk_fingerprint: [100; 20].into(),
             };
             let mut rng = rand::thread_rng();
+            #[cfg(feature = "routerdesc")]
             let rd_ids: Vec<[u8; 20]> = (0..1000).map(|_| rng.gen()).collect();
             let md_ids: Vec<[u8; 32]> = (0..1000).map(|_| rng.gen()).collect();
 
@@ -982,10 +990,13 @@ mod test {
             assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
 
             // Try a bunch of rds.
-            let query = DocQuery::RouterDesc(rd_ids);
-            let reqs = mgr.query_into_requests(query).unwrap();
-            assert_eq!(reqs.len(), 2);
-            assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
+            #[cfg(feature = "routerdesc")]
+            {
+                let query = DocQuery::RouterDesc(rd_ids);
+                let reqs = mgr.query_into_requests(query).unwrap();
+                assert_eq!(reqs.len(), 2);
+                assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
+            }
         })
     }
 
