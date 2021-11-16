@@ -25,5 +25,4 @@ thiserror = "1.0.24"
 fslock = { version = "0.2.0" }
 
 [dev-dependencies]
-dirs = "4.0.0"
 tempfile = "3.2.0"
