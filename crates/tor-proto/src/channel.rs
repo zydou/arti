@@ -397,8 +397,6 @@ pub(crate) mod test {
     use super::*;
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
-    use tokio_crate as tokio;
-    use tokio_crate::test as async_test;
     use tor_cell::chancell::{msg, ChanCell};
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
@@ -414,31 +412,33 @@ pub(crate) mod test {
         }
     }
 
-    #[async_test]
-    async fn send_bad() {
-        let chan = fake_channel();
+    #[test]
+    fn send_bad() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let chan = fake_channel();
 
-        let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
-        let e = chan.check_cell(&cell);
-        assert!(e.is_err());
-        assert_eq!(
-            format!("{}", e.unwrap_err()),
-            "Internal programming error: Can't send CREATED2 cell on client channel"
-        );
-        let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
-        let e = chan.check_cell(&cell);
-        assert!(e.is_err());
-        assert_eq!(
-            format!("{}", e.unwrap_err()),
-            "Internal programming error: Can't send CERTS cell after handshake is done"
-        );
+            let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
+            let e = chan.check_cell(&cell);
+            assert!(e.is_err());
+            assert_eq!(
+                format!("{}", e.unwrap_err()),
+                "Internal programming error: Can't send CREATED2 cell on client channel"
+            );
+            let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
+            let e = chan.check_cell(&cell);
+            assert!(e.is_err());
+            assert_eq!(
+                format!("{}", e.unwrap_err()),
+                "Internal programming error: Can't send CERTS cell after handshake is done"
+            );
 
-        let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
-        let e = chan.check_cell(&cell);
-        assert!(e.is_ok());
-        // FIXME(eta): more difficult to test that sending works now that it has to go via reactor
-        // let got = output.next().await.unwrap();
-        // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
+            let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
+            let e = chan.check_cell(&cell);
+            assert!(e.is_ok());
+            // FIXME(eta): more difficult to test that sending works now that it has to go via reactor
+            // let got = output.next().await.unwrap();
+            // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
+        })
     }
 
     #[test]

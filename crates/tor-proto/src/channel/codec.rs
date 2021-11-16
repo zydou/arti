@@ -47,8 +47,6 @@ pub(crate) mod test {
     use futures::task::{Context, Poll};
     use hex_literal::hex;
     use std::pin::Pin;
-    use tokio::test as async_test;
-    use tokio_crate as tokio;
 
     use super::{futures_codec, ChannelCodec};
     use tor_cell::chancell::{msg, ChanCell, ChanCmd, CircId};
@@ -111,48 +109,53 @@ pub(crate) mod test {
         futures_codec::Framed::new(mbuf, ChannelCodec::new(4))
     }
 
-    #[async_test]
-    async fn check_encoding() -> std::result::Result<(), tor_cell::Error> {
-        let mb = MsgBuf::new(&b""[..]);
-        let mut framed = frame_buf(mb);
+    #[test]
+    fn check_encoding() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let mb = MsgBuf::new(&b""[..]);
+            let mut framed = frame_buf(mb);
 
-        let destroycell = msg::Destroy::new(2.into());
-        framed
-            .send(ChanCell::new(7.into(), destroycell.into()))
-            .await?;
+            let destroycell = msg::Destroy::new(2.into());
+            framed
+                .send(ChanCell::new(7.into(), destroycell.into()))
+                .await
+                .unwrap();
 
-        let nocerts = msg::Certs::new_empty();
-        framed.send(ChanCell::new(0.into(), nocerts.into())).await?;
+            let nocerts = msg::Certs::new_empty();
+            framed
+                .send(ChanCell::new(0.into(), nocerts.into()))
+                .await
+                .unwrap();
 
-        framed.flush().await?;
+            framed.flush().await.unwrap();
 
-        let data = framed.into_inner().into_response();
+            let data = framed.into_inner().into_response();
 
-        assert_eq!(&data[0..10], &hex!("00000007 04 0200000000")[..]);
+            assert_eq!(&data[0..10], &hex!("00000007 04 0200000000")[..]);
 
-        assert_eq!(&data[514..], &hex!("00000000 81 0001 00")[..]);
-        Ok(())
+            assert_eq!(&data[514..], &hex!("00000000 81 0001 00")[..]);
+        });
     }
 
-    #[async_test]
-    async fn check_decoding() -> std::result::Result<(), tor_cell::Error> {
-        let mut dat = Vec::new();
-        dat.extend_from_slice(&hex!("00000007 04 0200000000")[..]);
-        dat.resize(514, 0);
-        dat.extend_from_slice(&hex!("00000000 81 0001 00")[..]);
-        let mb = MsgBuf::new(&dat[..]);
-        let mut framed = frame_buf(mb);
+    #[test]
+    fn check_decoding() {
+        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            let mut dat = Vec::new();
+            dat.extend_from_slice(&hex!("00000007 04 0200000000")[..]);
+            dat.resize(514, 0);
+            dat.extend_from_slice(&hex!("00000000 81 0001 00")[..]);
+            let mb = MsgBuf::new(&dat[..]);
+            let mut framed = frame_buf(mb);
 
-        let destroy = framed.next().await.unwrap()?;
-        let nocerts = framed.next().await.unwrap()?;
+            let destroy = framed.next().await.unwrap().unwrap();
+            let nocerts = framed.next().await.unwrap().unwrap();
 
-        assert_eq!(destroy.circid(), CircId::from(7));
-        assert_eq!(destroy.msg().cmd(), ChanCmd::DESTROY);
-        assert_eq!(nocerts.circid(), CircId::from(0));
-        assert_eq!(nocerts.msg().cmd(), ChanCmd::CERTS);
+            assert_eq!(destroy.circid(), CircId::from(7));
+            assert_eq!(destroy.msg().cmd(), ChanCmd::DESTROY);
+            assert_eq!(nocerts.circid(), CircId::from(0));
+            assert_eq!(nocerts.msg().cmd(), ChanCmd::CERTS);
 
-        assert!(framed.into_inner().all_consumed());
-
-        Ok(())
+            assert!(framed.into_inner().all_consumed());
+        });
     }
 }

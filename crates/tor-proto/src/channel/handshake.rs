@@ -421,8 +421,6 @@ pub(super) mod test {
     #![allow(clippy::unwrap_used)]
     use hex_literal::hex;
     use std::time::{Duration, SystemTime};
-    use tokio::test as async_test;
-    use tokio_crate as tokio;
 
     use super::*;
     use crate::channel::codec::test::MsgBuf;
@@ -456,34 +454,36 @@ pub(super) mod test {
         add_padded(buf, NETINFO_PREFIX);
     }
 
-    #[async_test]
-    async fn connect_ok() -> Result<()> {
-        let mut buf = Vec::new();
-        // versions cell
-        buf.extend_from_slice(VERSIONS);
-        // certs cell -- no certs in it, but this function doesn't care.
-        buf.extend_from_slice(NOCERTS);
-        // netinfo cell -- quite minimal.
-        add_netinfo(&mut buf);
-        let mb = MsgBuf::new(&buf[..]);
-        let handshake = OutboundClientHandshake::new(mb, None);
-        let unverified = handshake.connect().await?;
+    #[test]
+    fn connect_ok() -> Result<()> {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let mut buf = Vec::new();
+            // versions cell
+            buf.extend_from_slice(VERSIONS);
+            // certs cell -- no certs in it, but this function doesn't care.
+            buf.extend_from_slice(NOCERTS);
+            // netinfo cell -- quite minimal.
+            add_netinfo(&mut buf);
+            let mb = MsgBuf::new(&buf[..]);
+            let handshake = OutboundClientHandshake::new(mb, None);
+            let unverified = handshake.connect().await?;
 
-        assert_eq!(unverified.link_protocol, 4);
+            assert_eq!(unverified.link_protocol, 4);
 
-        // Try again with an authchallenge cell and some padding.
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        buf.extend_from_slice(NOCERTS);
-        buf.extend_from_slice(VPADDING);
-        buf.extend_from_slice(AUTHCHALLENGE);
-        buf.extend_from_slice(VPADDING);
-        add_netinfo(&mut buf);
-        let mb = MsgBuf::new(&buf[..]);
-        let handshake = OutboundClientHandshake::new(mb, None);
-        let _unverified = handshake.connect().await?;
+            // Try again with an authchallenge cell and some padding.
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            buf.extend_from_slice(NOCERTS);
+            buf.extend_from_slice(VPADDING);
+            buf.extend_from_slice(AUTHCHALLENGE);
+            buf.extend_from_slice(VPADDING);
+            add_netinfo(&mut buf);
+            let mb = MsgBuf::new(&buf[..]);
+            let handshake = OutboundClientHandshake::new(mb, None);
+            let _unverified = handshake.connect().await?;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     async fn connect_err<T: Into<Vec<u8>>>(input: T) -> Error {
@@ -492,89 +492,99 @@ pub(super) mod test {
         handshake.connect().await.err().unwrap()
     }
 
-    #[async_test]
-    async fn connect_badver() {
-        let err = connect_err(&b"HTTP://"[..]).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: Doesn't seem to be a tor relay"
-        );
+    #[test]
+    fn connect_badver() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let err = connect_err(&b"HTTP://"[..]).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: Doesn't seem to be a tor relay"
+            );
 
-        let err = connect_err(&hex!("0000 07 0004 1234 ffff")[..]).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: No shared link protocols"
-        );
+            let err = connect_err(&hex!("0000 07 0004 1234 ffff")[..]).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: No shared link protocols"
+            );
+        })
     }
 
-    #[async_test]
-    async fn connect_cellparse() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        // Here's a certs cell that will fail.
-        buf.extend_from_slice(&hex!("00000000 81 0001 01")[..]);
-        let err = connect_err(buf).await;
-        assert!(matches!(
-            err,
-            Error::CellErr(tor_cell::Error::BytesErr(tor_bytes::Error::Truncated))
-        ));
+    #[test]
+    fn connect_cellparse() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            // Here's a certs cell that will fail.
+            buf.extend_from_slice(&hex!("00000000 81 0001 01")[..]);
+            let err = connect_err(buf).await;
+            assert!(matches!(
+                err,
+                Error::CellErr(tor_cell::Error::BytesErr(tor_bytes::Error::Truncated))
+            ));
+        })
     }
 
-    #[async_test]
-    async fn connect_duplicates() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        buf.extend_from_slice(NOCERTS);
-        buf.extend_from_slice(NOCERTS);
-        add_netinfo(&mut buf);
-        let err = connect_err(buf).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: Duplicate certs cell"
-        );
+    #[test]
+    fn connect_duplicates() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            buf.extend_from_slice(NOCERTS);
+            buf.extend_from_slice(NOCERTS);
+            add_netinfo(&mut buf);
+            let err = connect_err(buf).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: Duplicate certs cell"
+            );
 
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        buf.extend_from_slice(NOCERTS);
-        buf.extend_from_slice(AUTHCHALLENGE);
-        buf.extend_from_slice(AUTHCHALLENGE);
-        add_netinfo(&mut buf);
-        let err = connect_err(buf).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: Duplicate authchallenge cell"
-        );
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            buf.extend_from_slice(NOCERTS);
+            buf.extend_from_slice(AUTHCHALLENGE);
+            buf.extend_from_slice(AUTHCHALLENGE);
+            add_netinfo(&mut buf);
+            let err = connect_err(buf).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: Duplicate authchallenge cell"
+            );
+        })
     }
 
-    #[async_test]
-    async fn connect_missing_certs() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        add_netinfo(&mut buf);
-        let err = connect_err(buf).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: Missing certs cell"
-        );
+    #[test]
+    fn connect_missing_certs() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            add_netinfo(&mut buf);
+            let err = connect_err(buf).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: Missing certs cell"
+            );
+        })
     }
 
-    #[async_test]
-    async fn connect_misplaced_cell() {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(VERSIONS);
-        // here's a create cell.
-        add_padded(&mut buf, &hex!("00000001 01")[..]);
-        let err = connect_err(buf).await;
-        assert!(matches!(err, Error::ChanProto(_)));
-        assert_eq!(
-            format!("{}", err),
-            "channel protocol violation: Unexpected cell type CREATE"
-        );
+    #[test]
+    fn connect_misplaced_cell() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let mut buf = Vec::new();
+            buf.extend_from_slice(VERSIONS);
+            // here's a create cell.
+            add_padded(&mut buf, &hex!("00000001 01")[..]);
+            let err = connect_err(buf).await;
+            assert!(matches!(err, Error::ChanProto(_)));
+            assert_eq!(
+                format!("{}", err),
+                "channel protocol violation: Unexpected cell type CREATE"
+            );
+        })
     }
 
     fn make_unverified(certs: msg::Certs) -> UnverifiedChannel<MsgBuf> {
@@ -823,22 +833,24 @@ pub(super) mod test {
         pub(crate) const PEER_RSA: &[u8] = &hex!("2f1fb49bb332a9eec617e41e911c33fb3890aef3");
     }
 
-    #[async_test]
-    async fn test_finish() {
-        let ed25519_id = [3_u8; 32].into();
-        let rsa_id = [4_u8; 20].into();
-        let peer_addr = "127.1.1.2:443".parse().unwrap();
-        let ver = VerifiedChannel {
-            link_protocol: 4,
-            tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
-            unique_id: UniqId::new(),
-            target_addr: Some(peer_addr),
-            ed25519_id,
-            rsa_id,
-        };
+    #[test]
+    fn test_finish() {
+        tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let ed25519_id = [3_u8; 32].into();
+            let rsa_id = [4_u8; 20].into();
+            let peer_addr = "127.1.1.2:443".parse().unwrap();
+            let ver = VerifiedChannel {
+                link_protocol: 4,
+                tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
+                unique_id: UniqId::new(),
+                target_addr: Some(peer_addr),
+                ed25519_id,
+                rsa_id,
+            };
 
-        let (_chan, _reactor) = ver.finish().await.unwrap();
+            let (_chan, _reactor) = ver.finish().await.unwrap();
 
-        // TODO: check contents of netinfo cell
+            // TODO: check contents of netinfo cell
+        })
     }
 }

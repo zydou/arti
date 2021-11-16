@@ -50,6 +50,6 @@ tokio-util = { version = "0.6", features = ["compat"], optional = true }
 coarsetime = { version = "0.1.20", optional = true }
 
 [dev-dependencies]
-tokio-crate = { package = "tokio", version = "1.7.0", features = ["macros", "rt", "time"] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.1", features = ["tokio"] }
 hex-literal = "0.3.1"
 hex = "0.4.3"
