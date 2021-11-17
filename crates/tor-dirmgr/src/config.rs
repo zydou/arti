@@ -12,6 +12,7 @@ use crate::retry::RetryConfig;
 use crate::storage::sqlite::SqliteStore;
 use crate::Authority;
 use crate::Result;
+use tor_config::ConfigBuildError;
 use tor_netdir::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
 
@@ -27,7 +28,7 @@ use serde::Deserialize;
 /// [`NetworkConfigBuilder`], or deserialize it from a string.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
-#[builder(build_fn(validate = "Self::validate"))]
+#[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information,
     /// if we don't actually have a directory yet.
@@ -74,12 +75,13 @@ impl NetworkConfig {
 
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
-    fn validate(&self) -> std::result::Result<(), String> {
+    fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
         if self.authorities.is_some() && self.fallback_caches.is_none() {
-            return Err(
+            return Err(ConfigBuildError::Inconsistent(
+                vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 "Non-default authorities are use, but the fallback list is not overridden"
-                    .to_string(),
-            );
+                    .to_owned(),
+            ));
         }
 
         Ok(())
@@ -93,6 +95,7 @@ impl NetworkConfigBuilder {
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[serde(default = "default_retry_bootstrap")]
@@ -156,6 +159,7 @@ impl DownloadScheduleConfig {
 /// deserialize it from a string. (Arti generally uses Toml for
 /// configuration, but you can use other formats if you prefer.)
 #[derive(Debug, Clone, Builder)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
     /// directory information.

@@ -19,10 +19,14 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.0.1
 
-tor-client: MODIFIED
+arti-client: BREAKING
+tor-config: BREAKING
+tor-circmgr: BREAKING
 tor-dirclient: BREAKING
 tor-dirmgr: BREAKING
+tor-guardmgr: BREAKING
 tor-llcrypto: BREAKING
 tor-netdoc: BREAKING
+tor-netdir: BREAKING
 tor-persist: BREAKING if `testing` feature is enabled.
 tor-proto: BREAKING

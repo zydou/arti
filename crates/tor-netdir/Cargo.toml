@@ -25,6 +25,7 @@ testing = [ "hex", "hex-literal", "tor-netdoc/build_docs" ]
 
 [dependencies]
 tor-checkable = { path="../tor-checkable", version = "0.0.1"}
+tor-config = { path="../tor-config", version = "0.0.1" }
 tor-netdoc = { path="../tor-netdoc", version = "0.0.1"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}

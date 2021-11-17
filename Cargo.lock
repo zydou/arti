@@ -74,6 +74,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "arti-client",
+ "arti-config",
  "async-ctrlc",
  "clap",
  "config",
@@ -83,7 +84,6 @@ dependencies = [
  "rlimit",
  "serde",
  "tokio",
- "tor-config",
  "tor-rtcompat",
  "tor-socksproto",
  "tracing",
@@ -108,12 +108,28 @@ dependencies = [
  "tokio-util",
  "tor-chanmgr",
  "tor-circmgr",
+ "tor-config",
  "tor-dirmgr",
  "tor-persist",
  "tor-proto",
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "arti-config"
+version = "0.0.1"
+dependencies = [
+ "arti-client",
+ "config",
+ "once_cell",
+ "regex",
+ "serde",
+ "tempfile",
+ "thiserror",
+ "toml",
+ "tor-config",
 ]
 
 [[package]]
@@ -2589,6 +2605,7 @@ dependencies = [
  "static_assertions",
  "thiserror",
  "tor-chanmgr",
+ "tor-config",
  "tor-guardmgr",
  "tor-linkspec",
  "tor-llcrypto",
@@ -2606,16 +2623,13 @@ dependencies = [
 name = "tor-config"
 version = "0.0.1"
 dependencies = [
- "config",
+ "derive_builder",
  "directories",
  "dirs",
  "once_cell",
- "regex",
  "serde",
  "shellexpand",
- "tempfile",
  "thiserror",
- "toml",
 ]
 
 [[package]]
@@ -2679,6 +2693,7 @@ dependencies = [
  "time",
  "tor-checkable",
  "tor-circmgr",
+ "tor-config",
  "tor-consdiff",
  "tor-dirclient",
  "tor-llcrypto",
@@ -2701,6 +2716,7 @@ dependencies = [
  "retain_mut",
  "serde",
  "thiserror",
+ "tor-config",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",
@@ -2767,6 +2783,7 @@ dependencies = [
  "signature",
  "thiserror",
  "tor-checkable",
+ "tor-config",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdoc",

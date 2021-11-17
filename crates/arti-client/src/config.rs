@@ -7,6 +7,8 @@ use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::PathBuf;
 
+pub use tor_config::ConfigBuildError;
+
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
     pub use tor_circmgr::{
@@ -29,7 +31,7 @@ pub mod dir {
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientAddrConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
-#[builder]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///
@@ -65,6 +67,7 @@ impl Default for ClientAddrConfig {
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
 #[derive(Clone, Debug, Builder)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct TorClientConfig {
     /// A directory suitable for storing persistent Tor state in.
     ///

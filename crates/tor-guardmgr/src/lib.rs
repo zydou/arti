@@ -869,6 +869,7 @@ impl Default for GuardUsageKind {
 ///
 /// Used as an argument to [`GuardMgr::select_guard`].
 #[derive(Clone, Debug, Default, derive_builder::Builder)]
+#[builder(build_fn(error = "tor_config::ConfigBuildError"))]
 pub struct GuardUsage {
     /// The purpose for which this guard will be used.
     #[builder(default)]

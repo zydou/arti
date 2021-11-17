@@ -21,6 +21,7 @@ routerdesc = [ "tor-dirclient/routerdesc" ]
 retry-error = { path="../retry-error", version = "0.0.1"}
 tor-checkable = { path="../tor-checkable", version = "0.0.1"}
 tor-circmgr = { path="../tor-circmgr", version = "0.0.1"}
+tor-config = { path="../tor-config", version = "0.0.1" }
 tor-consdiff = { path="../tor-consdiff", version = "0.0.1"}
 tor-dirclient = { path="../tor-dirclient", version = "0.0.1"}
 tor-netdir = { path="../tor-netdir", version = "0.0.1"}

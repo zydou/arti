@@ -4,6 +4,8 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use tor_config::ConfigBuildError;
+
 use derive_builder::Builder;
 use serde::Deserialize;
 
@@ -14,7 +16,7 @@ use std::time::Duration;
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`RequestTimingBuilder`], or deserialize it from a string.
 #[derive(Debug, Clone, Builder, Deserialize)]
-#[builder]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct RequestTiming {
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
@@ -52,7 +54,7 @@ impl Default for RequestTiming {
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`], or deserialize it from a string.
 #[derive(Debug, Clone, Builder, Deserialize, Default)]
-#[builder]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct PathConfig {
     /// Override the default required distance for two relays to share
     /// the same circuit.
@@ -65,7 +67,7 @@ pub struct PathConfig {
 /// This type is immutable once constructd. To create an object of this
 /// type, use [`CircuitTimingBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize)]
-#[builder]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
@@ -95,7 +97,7 @@ impl Default for CircuitTiming {
 /// string.  (Arti generally uses Toml for configuration, but you can
 /// use other formats if you prefer.)
 #[derive(Debug, Clone, Builder, Default)]
-#[builder]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CircMgrConfig {
     /// Override the default required distance for two relays to share
     /// the same circuit.

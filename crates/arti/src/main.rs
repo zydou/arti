@@ -92,123 +92,17 @@ mod proxy;
 
 use std::sync::Arc;
 
-use arti_client::{
-    config::circ::{CircMgrConfig, CircMgrConfigBuilder},
-    config::dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
-    TorClient, TorClientConfig,
-};
-use tor_config::CfgPath;
+use arti_client::{TorClient, TorClientConfig};
+use arti_config::{ArtiConfig, LoggingConfig};
 use tor_rtcompat::{Runtime, SpawnBlocking};
 
 use anyhow::Result;
 use clap::{App, AppSettings, Arg, SubCommand};
-use serde::Deserialize;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::{info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, registry, EnvFilter};
-
-/// Default options to use for our configuration.
-const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
-
-/// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-struct LoggingConfig {
-    /// Filtering directives that determine tracing levels as described at
-    /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
-    ///
-    /// You can override this setting with the -l, --log-level command line parameter.
-    ///
-    /// Example: "info,tor_proto::channel=trace"
-    trace_filter: String,
-
-    /// Whether to log to journald
-    journald: bool,
-}
-
-/// Structure to hold our configuration options, whether from a
-/// configuration file or the command line.
-///
-/// NOTE: These are NOT the final options or their final layout.
-/// Expect NO stability here.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct ArtiConfig {
-    /// Port to listen on (at localhost) for incoming SOCKS
-    /// connections.
-    socks_port: Option<u16>,
-
-    /// Logging configuration
-    logging: LoggingConfig,
-
-    /// Information about the Tor network we want to connect to.
-    #[serde(default)]
-    network: NetworkConfig,
-
-    /// Directories for storing information on disk
-    storage: StorageConfig,
-
-    /// Information about when and how often to download directory information
-    download_schedule: DownloadScheduleConfig,
-
-    /// Facility to override network parameters from the values set in the
-    /// consensus.
-    #[serde(default)]
-    override_net_params: HashMap<String, i32>,
-
-    /// Information about how to build paths through the network.
-    path_rules: arti_client::config::circ::PathConfig,
-
-    /// Information about how to retry requests for circuits.
-    request_timing: arti_client::config::circ::RequestTiming,
-
-    /// Information about how to expire circuits.
-    circuit_timing: arti_client::config::circ::CircuitTiming,
-
-    /// Information about client address configuration parameters.
-    addr_config: arti_client::config::ClientAddrConfig,
-}
-
-/// Configuration for where information should be stored on disk.
-///
-/// This section is for read/write storage
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct StorageConfig {
-    /// Location on disk for cached directory information
-    cache_dir: CfgPath,
-    /// Location on disk for less-sensitive persistent state information.
-    state_dir: CfgPath,
-}
-
-impl ArtiConfig {
-    /// Return a [`DirMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_dir_config(&self) -> Result<DirMgrConfig> {
-        let mut dircfg = DirMgrConfigBuilder::default();
-        dircfg.network_config(self.network.clone());
-        dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(self.storage.cache_dir.path()?);
-        for (k, v) in self.override_net_params.iter() {
-            dircfg.override_net_param(k.clone(), *v);
-        }
-        Ok(dircfg.build()?)
-    }
-
-    /// Return a [`CircMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_circ_config(&self) -> Result<CircMgrConfig> {
-        let mut builder = CircMgrConfigBuilder::default();
-        Ok(builder
-            .path_config(self.path_rules.clone())
-            .request_timing(self.request_timing.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .build()?)
-    }
-}
 
 /// Run the main loop of the proxy.
 async fn run<R: Runtime>(
@@ -243,19 +137,19 @@ fn filt_from_str_verbose(s: &str, source: &str) -> EnvFilter {
 }
 
 /// Set up logging
-fn setup_logging(config: &ArtiConfig, cli: Option<&str>) {
+fn setup_logging(config: &LoggingConfig, cli: Option<&str>) {
     let env_filter =
         match cli.map(|s| filt_from_str_verbose(s, "--log-level command line parameter")) {
             Some(f) => f,
             None => filt_from_str_verbose(
-                config.logging.trace_filter.as_str(),
+                config.trace_filter.as_str(),
                 "trace_filter configuration option",
             ),
         };
 
     let registry = registry().with(fmt::Layer::default()).with(env_filter);
 
-    if config.logging.journald {
+    if config.journald {
         #[cfg(feature = "journald")]
         if let Ok(journald) = tracing_journald::layer() {
             registry.with(journald).init();
@@ -269,7 +163,7 @@ fn setup_logging(config: &ArtiConfig, cli: Option<&str>) {
 }
 
 fn main() -> Result<()> {
-    let dflt_config = tor_config::default_config_file().unwrap_or_else(|| "./config.toml".into());
+    let dflt_config = arti_config::default_config_file().unwrap_or_else(|| "./config.toml".into());
 
     let matches =
         App::new("Arti")
@@ -328,12 +222,6 @@ fn main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let mut cfg = config::Config::new();
-    cfg.merge(config::File::from_str(
-        ARTI_DEFAULTS,
-        config::FileFormat::Toml,
-    ))?;
-
     let config_files = matches
         .values_of_os("config-files")
         // This shouldn't actually be possible given we specify a default.
@@ -349,19 +237,14 @@ fn main() -> Result<()> {
         .map(|x| x.into_iter().map(ToOwned::to_owned).collect::<Vec<_>>())
         .unwrap_or_else(Vec::new);
 
-    tor_config::load(&mut cfg, &config_files, additional_opts)?;
+    let cfg = arti_config::load(&config_files, additional_opts)?;
 
     let config: ArtiConfig = cfg.try_into()?;
 
-    setup_logging(&config, matches.value_of("loglevel"));
+    setup_logging(config.logging(), matches.value_of("loglevel"));
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
-        let statecfg = config.storage.state_dir.path()?;
-        let dircfg = config.get_dir_config()?;
-        let circcfg = config.get_circ_config()?;
-        let addrcfg = config.addr_config;
-
-        let socks_port = match (proxy_matches.value_of("socks-port"), config.socks_port) {
+        let socks_port = match (proxy_matches.value_of("socks-port"), config.socks_port()) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => {
@@ -372,18 +255,13 @@ fn main() -> Result<()> {
             }
         };
 
+        let client_config = config.tor_client_config()?;
+
         info!(
             "Starting Arti {} in SOCKS proxy mode on port {}...",
             env!("CARGO_PKG_VERSION"),
             socks_port
         );
-
-        let client_config = TorClientConfig::builder()
-            .state_cfg(statecfg)
-            .dir_cfg(dircfg)
-            .circ_cfg(circcfg)
-            .addr_cfg(addrcfg)
-            .build()?;
 
         process::use_max_file_limit();
 
@@ -397,24 +275,5 @@ fn main() -> Result<()> {
         Ok(())
     } else {
         panic!("Subcommand added to clap subcommand list, but not yet implemented")
-    }
-}
-
-#[cfg(test)]
-mod test {
-
-    use super::*;
-
-    #[test]
-    fn load_default_config() -> Result<()> {
-        // TODO: this is duplicate code.
-        let mut cfg = config::Config::new();
-        cfg.merge(config::File::from_str(
-            ARTI_DEFAULTS,
-            config::FileFormat::Toml,
-        ))?;
-
-        let _parsed: ArtiConfig = cfg.try_into()?;
-        Ok(())
     }
 }

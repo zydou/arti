@@ -8,6 +8,7 @@
 members = [
     "crates/caret",
     "crates/retry-error",
+    "crates/tor-config",
     "crates/tor-units",
     "crates/tor-rtcompat",
     "crates/tor-rtmock",
@@ -29,8 +30,8 @@ members = [
     "crates/tor-circmgr",
     "crates/tor-dirclient",
     "crates/tor-dirmgr",
-    "crates/tor-config",
     "crates/arti-client",
+    "crates/arti-config",
     "crates/arti"
 ]
 

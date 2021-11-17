@@ -11,6 +11,7 @@
 //! `tor-dirmgr`: any changes here must be reflected there.
 
 use derive_builder::Builder;
+use tor_config::ConfigBuildError;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -25,7 +26,7 @@ use std::net::SocketAddr;
 // structure: we want our fallback directory configuration format to
 // be future-proof against adding new info about each fallback.
 #[derive(Debug, Clone, Deserialize, Builder)]
-#[builder(build_fn(validate = "FallbackDirBuilder::validate"))]
+#[builder(build_fn(validate = "FallbackDirBuilder::validate", error = "ConfigBuildError"))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
     rsa_identity: RsaIdentity,
@@ -58,10 +59,13 @@ impl FallbackDirBuilder {
         self
     }
     /// Check whether this builder is ready to make a FallbackDir.
-    fn validate(&self) -> std::result::Result<(), String> {
+    fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
         if let Some(orports) = &self.orports {
             if orports.is_empty() {
-                return Err("No OR ports on fallback directory".to_string());
+                return Err(ConfigBuildError::Invalid(
+                    "orport".to_string(),
+                    "list was empty".to_string(),
+                ));
             }
         }
         Ok(())

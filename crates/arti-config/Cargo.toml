@@ -1,0 +1,24 @@
+[package]
+name = "arti-config"
+version = "0.0.1"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "High-level configuration for the Arti Tor implementation"
+keywords = [ "tor", "arti" ]
+categories = [ "config" ]
+repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[dependencies]
+arti-client = { package="arti-client", path = "../arti-client", version = "0.0.1"}
+tor-config = { package="tor-config", path = "../tor-config", version = "0.0.1", features = ["expand-paths"]}
+config = { version = "0.11.0", default-features = false, features = ["toml"] }
+once_cell = "1.7.2"
+serde = { version = "1.0.124", features = ["derive"] }
+toml = "0.5.8"
+regex = { version = "1.5.3", default-features = false, features = ["std"] }
+thiserror = "1.0.24"
+
+[dev-dependencies]
+tempfile = "3.2.0"

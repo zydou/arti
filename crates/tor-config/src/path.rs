@@ -30,10 +30,11 @@ pub struct CfgPath(String);
 
 /// An error that has occurred while expanding a path.
 #[derive(thiserror::Error, Debug, Clone)]
-pub enum Error {
+#[non_exhaustive]
+pub enum CfgPathError {
     /// The path contained a variable we didn't recognize.
-    #[error("unrecognized variable")]
-    UnknownVar,
+    #[error("unrecognized variable {0}")]
+    UnknownVar(String),
     /// We couldn't construct a ProjectDirs object.
     #[error("can't construct project directories")]
     NoProjectDirs,
@@ -44,8 +45,8 @@ pub enum Error {
     ///
     /// (This is due to a limitation in the shellexpand crate, which should
     /// be fixed in the future.)
-    #[error("can't convert to UTF-8")]
-    BadUtf8,
+    #[error("can't convert value of {0} to UTF-8")]
+    BadUtf8(String),
 }
 
 impl CfgPath {
@@ -54,28 +55,38 @@ impl CfgPath {
         CfgPath(s)
     }
 
-    /// Return the path on disk designated by this path.
-    pub fn path(&self) -> Result<PathBuf, shellexpand::LookupError<Error>> {
-        Ok(shellexpand::full_with_context(&self.0, get_home, get_env)?
+    /// Return the path on disk designated by this `CfgPath`.
+    #[cfg(feature = "expand-paths")]
+    pub fn path(&self) -> Result<PathBuf, CfgPathError> {
+        Ok(shellexpand::full_with_context(&self.0, get_home, get_env)
+            .map_err(|e| e.cause)?
             .into_owned()
             .into())
+    }
+
+    /// Return the path on disk designated by this `CfgPath`.
+    #[cfg(not(feature = "expand-paths"))]
+    pub fn path(&self) -> Result<PathBuf, CfgPathError> {
+        Ok(self.0.into())
     }
 }
 
 /// Shellexpand helper: return the user's home directory if we can.
+#[cfg(feature = "expand-paths")]
 fn get_home() -> Option<&'static Path> {
     base_dirs().ok().map(BaseDirs::home_dir)
 }
 
 /// Shellexpand helper: Expand a shell variable if we can.
-fn get_env(var: &str) -> Result<Option<&'static str>, Error> {
+#[cfg(feature = "expand-paths")]
+fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
     let path = match var {
         "APP_CACHE" => project_dirs()?.cache_dir(),
         "APP_CONFIG" => project_dirs()?.config_dir(),
         "APP_SHARED_DATA" => project_dirs()?.data_dir(),
         "APP_LOCAL_DATA" => project_dirs()?.data_local_dir(),
         "USER_HOME" => base_dirs()?.home_dir(),
-        _ => return Err(Error::UnknownVar),
+        _ => return Err(CfgPathError::UnknownVar(var.to_owned())),
     };
 
     match path.to_str() {
@@ -85,7 +96,7 @@ fn get_env(var: &str) -> Result<Option<&'static str>, Error> {
         // Note that this error is necessary because shellexpand
         // doesn't currently handle OsStr.  In the future, that might
         // change.
-        None => Err(Error::BadUtf8),
+        None => Err(CfgPathError::BadUtf8(var.to_owned())),
     }
 }
 
@@ -96,25 +107,27 @@ impl std::fmt::Display for CfgPath {
 }
 
 /// Return a ProjectDirs object for the Arti project.
-fn project_dirs() -> Result<&'static ProjectDirs, Error> {
+#[cfg(feature = "expand-paths")]
+fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
     /// lazy cell holding the ProjectDirs object.
     // Note: this must stay in sync with sane_defaults() in the
     // arti-client crate.
     static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
         Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
 
-    PROJECT_DIRS.as_ref().ok_or(Error::NoProjectDirs)
+    PROJECT_DIRS.as_ref().ok_or(CfgPathError::NoProjectDirs)
 }
 
 /// Return a UserDirs object for the current user.
-fn base_dirs() -> Result<&'static BaseDirs, Error> {
+#[cfg(feature = "expand-paths")]
+fn base_dirs() -> Result<&'static BaseDirs, CfgPathError> {
     /// lazy cell holding the BaseDirs object.
     static BASE_DIRS: Lazy<Option<BaseDirs>> = Lazy::new(BaseDirs::new);
 
-    BASE_DIRS.as_ref().ok_or(Error::NoBaseDirs)
+    BASE_DIRS.as_ref().ok_or(CfgPathError::NoBaseDirs)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "expand-paths"))]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;

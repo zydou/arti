@@ -19,6 +19,7 @@ experimental-api = []
 
 [dependencies]
 tor-chanmgr = { path="../tor-chanmgr", version = "0.0.1"}
+tor-config = { path="../tor-config", version = "0.0.1" }
 tor-guardmgr = { path="../tor-guardmgr", version = "0.0.1"}
 tor-netdir = { path="../tor-netdir", version = "0.0.1"}
 tor-netdoc = { path="../tor-netdoc", version = "0.0.1"}
