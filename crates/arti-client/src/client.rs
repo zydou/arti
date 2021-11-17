@@ -222,7 +222,7 @@ impl<R: Runtime> TorClient<R> {
     /// Return a new isolated `TorClient` instance.
     ///
     /// The two `TorClient`s will share some internal state, but their
-    /// streams will haver share circuits with one another.
+    /// streams will never share circuits with one another.
     ///
     /// Use this function when you want separate parts of your program to
     /// each have a TorClient handle, but where you don't want their
