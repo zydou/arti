@@ -92,8 +92,16 @@ use params::NetParameters;
 #[serde(deny_unknown_fields)]
 pub struct SubnetConfig {
     /// Consider IPv4 nodes in the same /x to be the same family.
+    ///
+    /// If this value is 0, all nodes with IPv4 addresses will be in the
+    /// same family.  If this value is above 32, then no nodes will be
+    /// placed im the same family based on their IPv4 addresses.
     subnets_family_v4: u8,
     /// Consider IPv6 nodes in the same /x to be the same family.
+    ///
+    /// If this value is 0, all nodes with IPv6 addresses will be in the
+    /// same family.  If this value is above 128, then no nodes will be
+    /// placed im the same family based on their IPv6 addresses.
     subnets_family_v6: u8,
 }
 
@@ -110,8 +118,8 @@ impl SubnetConfig {
     /// out-of-bounds.
     pub fn new(subnets_family_v4: u8, subnets_family_v6: u8) -> Self {
         Self {
-            subnets_family_v4: subnets_family_v4.clamp(0, 32),
-            subnets_family_v6: subnets_family_v6.clamp(0, 128),
+            subnets_family_v4,
+            subnets_family_v6,
         }
     }
 
