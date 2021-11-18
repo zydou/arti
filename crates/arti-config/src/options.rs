@@ -32,6 +32,23 @@ pub struct LoggingConfig {
     pub journald: bool,
 }
 
+/// Configuration for one or more proxy listeners.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ProxyConfig {
+    /// Port to listen on (at localhost) for incoming SOCKS
+    /// connections.
+    socks_port: Option<u16>,
+}
+
+impl ProxyConfig {
+    /// Return the configured SOCKS port for this proxy configuration,
+    /// if one is enabled.
+    pub fn socks_port(&self) -> Option<u16> {
+        self.socks_port
+    }
+}
+
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.
 //
@@ -46,9 +63,8 @@ pub struct LoggingConfig {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
-    /// Port to listen on (at localhost) for incoming SOCKS
-    /// connections.
-    socks_port: Option<u16>,
+    /// Configuration for proxy listeners
+    proxy: ProxyConfig,
 
     /// Logging configuration
     logging: LoggingConfig,
@@ -149,10 +165,9 @@ impl ArtiConfig {
         &self.logging
     }
 
-    /// Return socks port
-    // TODO(nickm) refactor this to return an entire proxy-configuration structure.
-    pub fn socks_port(&self) -> Option<u16> {
-        self.socks_port
+    /// Return the [`ProxyConfig`] for this configuration.
+    pub fn proxy(&self) -> &ProxyConfig {
+        &self.proxy
     }
 }
 

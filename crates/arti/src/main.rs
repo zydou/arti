@@ -244,7 +244,10 @@ fn main() -> Result<()> {
     setup_logging(config.logging(), matches.value_of("loglevel"));
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
-        let socks_port = match (proxy_matches.value_of("socks-port"), config.socks_port()) {
+        let socks_port = match (
+            proxy_matches.value_of("socks-port"),
+            config.proxy().socks_port(),
+        ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => {
