@@ -1020,16 +1020,18 @@ mod test {
         let (circ, mut sink) = newcirc_ext(rt, chan, reply_hop).await;
         let params = CircParameters::default();
 
-        let extend_fut = async move {
-            let target = example_target();
-            let outcome = circ.extend_ntor(&target, &params).await;
-            (outcome, circ) // keep the circ alive, or the reactor will exit.
-        };
-        let bad_reply_fut = async move {
-            sink.send(bad_reply).await.unwrap();
-            sink // keep the sink alive, or the reactor will exit.
-        };
-        let ((outcome, circ), _) = futures::join!(extend_fut, bad_reply_fut);
+        let target = example_target();
+        #[allow(clippy::clone_on_copy)]
+        let rtc = rt.clone();
+        let sink_handle = rt
+            .spawn_with_handle(async move {
+                rtc.sleep(Duration::from_millis(100)).await;
+                sink.send(bad_reply).await.unwrap();
+                sink
+            })
+            .unwrap();
+        let outcome = circ.extend_ntor(&target, &params).await;
+        let _sink = sink_handle.await;
 
         assert_eq!(circ.n_hops(), 3);
         assert!(outcome.is_err());
