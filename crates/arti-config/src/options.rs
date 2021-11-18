@@ -74,8 +74,8 @@ pub struct ArtiConfig {
     /// Information about how to retry and expire circuits and request for circuits.
     circuit_timing: arti_client::config::circ::CircuitTiming,
 
-    /// Information about client address configuration parameters.
-    addr_config: arti_client::config::ClientAddrConfig,
+    /// Rules about which addresses the client is willing to connect to.
+    address_filter: arti_client::config::ClientAddrConfig,
 }
 
 /// Configuration for where information should be stored on disk.
@@ -134,7 +134,7 @@ impl ArtiConfig {
         let statecfg = self.storage.expand_state_dir()?;
         let dircfg = self.get_dir_config()?;
         let circcfg = self.get_circ_config()?;
-        let addrcfg = self.addr_config.clone();
+        let addrcfg = self.address_filter.clone();
 
         TorClientConfig::builder()
             .state_cfg(statecfg)
