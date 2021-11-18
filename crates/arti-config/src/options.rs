@@ -55,7 +55,7 @@ pub struct ArtiConfig {
 
     /// Information about the Tor network we want to connect to.
     #[serde(default)]
-    network: NetworkConfig,
+    tor_network: NetworkConfig,
 
     /// Directories for storing information on disk
     storage: StorageConfig,
@@ -110,7 +110,7 @@ impl ArtiConfig {
     /// configuration.
     fn get_dir_config(&self) -> Result<DirMgrConfig, ConfigBuildError> {
         let mut dircfg = DirMgrConfigBuilder::default();
-        dircfg.network_config(self.network.clone());
+        dircfg.network_config(self.tor_network.clone());
         dircfg.schedule_config(self.download_schedule.clone());
         dircfg.cache_path(self.storage.expand_cache_dir()?);
         for (k, v) in self.override_net_params.iter() {
