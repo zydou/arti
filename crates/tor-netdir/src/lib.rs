@@ -88,7 +88,7 @@ use params::NetParameters;
 /// the network.
 ///
 /// Used by [`Relay::in_same_subnet()`].
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Copy)]
 #[serde(deny_unknown_fields)]
 pub struct SubnetConfig {
     /// Consider IPv4 nodes in the same /x to be the same family.
@@ -99,14 +99,22 @@ pub struct SubnetConfig {
 
 impl Default for SubnetConfig {
     fn default() -> Self {
-        Self {
-            subnets_family_v4: 16,
-            subnets_family_v6: 32,
-        }
+        Self::new(16, 32)
     }
 }
 
 impl SubnetConfig {
+    /// Construct a new SubnetConfig from a pair of bit prefix lenths.
+    ///
+    /// The values are clamped to the appropriate ranges if they are
+    /// out-of-bounds.
+    pub fn new(subnets_family_v4: u8, subnets_family_v6: u8) -> Self {
+        Self {
+            subnets_family_v4: subnets_family_v4.clamp(0, 32),
+            subnets_family_v6: subnets_family_v6.clamp(0, 128),
+        }
+    }
+
     /// Are two addresses in the same subnet according to this configuration
     fn addrs_in_same_subnet(&self, a: &IpAddr, b: &IpAddr) -> bool {
         match (a, b) {

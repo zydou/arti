@@ -75,7 +75,7 @@ impl<'a> ExitPathBuilder<'a> {
         rng: &mut R,
         netdir: &'a NetDir,
         guard: Option<&Relay<'a>>,
-        config: &SubnetConfig,
+        config: SubnetConfig,
     ) -> Result<Relay<'a>> {
         match &self.inner {
             ExitPathBuilderInner::AnyExit { strict } => {
@@ -126,7 +126,7 @@ impl<'a> ExitPathBuilder<'a> {
             DirInfo::Fallbacks(_) => return Err(Error::NeedConsensus),
             DirInfo::Directory(d) => d,
         };
-        let subnet_config = &config.enforce_distance;
+        let subnet_config = config.subnet_config();
 
         let chosen_exit = if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
             Some(e)
@@ -194,16 +194,16 @@ impl<'a> ExitPathBuilder<'a> {
 }
 
 /// Returns true if both relays can appear together in the same circuit.
-fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: &SubnetConfig) -> bool {
+fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
     // XXX: features missing from original implementation:
     // - option NodeFamilySets
     // see: src/feature/nodelist/nodelist.c:nodes_in_same_family()
 
-    !a.in_same_family(b) && !a.in_same_subnet(b, subnet_config)
+    !a.in_same_family(b) && !a.in_same_subnet(b, &subnet_config)
 }
 
 /// Helper: wraps relays_can_share_circuit but takes an option.
-fn relays_can_share_circuit_opt(r1: &Relay<'_>, r2: Option<&Relay<'_>>, c: &SubnetConfig) -> bool {
+fn relays_can_share_circuit_opt(r1: &Relay<'_>, r2: Option<&Relay<'_>>, c: SubnetConfig) -> bool {
     match r2 {
         Some(r2) => relays_can_share_circuit(r1, r2, c),
         None => true,
@@ -236,9 +236,9 @@ mod test {
         assert!(r2.ed_identity() != r3.ed_identity());
 
         let subnet_config = SubnetConfig::default();
-        assert!(relays_can_share_circuit(r1, r2, &subnet_config));
-        assert!(relays_can_share_circuit(r1, r3, &subnet_config));
-        assert!(relays_can_share_circuit(r2, r3, &subnet_config));
+        assert!(relays_can_share_circuit(r1, r2, subnet_config));
+        assert!(relays_can_share_circuit(r1, r3, subnet_config));
+        assert!(relays_can_share_circuit(r2, r3, subnet_config));
     }
 
     #[test]

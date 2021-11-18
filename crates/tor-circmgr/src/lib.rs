@@ -163,7 +163,7 @@ impl<R: Runtime> CircMgr<R> {
         SM: tor_persist::StateMgr + Send + Sync + 'static,
     {
         let CircMgrConfig {
-            path_config,
+            path_rules,
             circuit_timing,
         } = config;
 
@@ -174,7 +174,7 @@ impl<R: Runtime> CircMgr<R> {
         let builder = build::CircuitBuilder::new(
             runtime.clone(),
             chanmgr,
-            path_config,
+            path_rules,
             storage_handle,
             guardmgr,
         );

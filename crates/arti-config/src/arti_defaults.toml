@@ -77,10 +77,11 @@ microdesc_parallelism = 4
 [path_rules]
 
 # How far apart do relays need to be in IP-space before they can be
-# used in the same circuit?  For example, "subnets_family_v4"=16 below
+# used in the same circuit?  For example, "ipv4_subnet_family_prefix=16"
 # means that two relays cannot appear in the same circuit if their
 # IPv4 addresses begin with the same 16 bits.
-enforce_distance = { "subnets_family_v4" = 16, "subnets_family_v6" = 32 }
+ipv4_subnet_family_prefix = 16
+ipv6_subnet_family_prefix = 32
 
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.

@@ -15,13 +15,51 @@ use std::time::Duration;
 ///
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Deserialize, Default)]
+#[derive(Debug, Clone, Builder, Deserialize)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct PathConfig {
-    /// Override the default required distance for two relays to share
-    /// the same circuit.
-    #[builder(default)]
-    pub(crate) enforce_distance: tor_netdir::SubnetConfig,
+    /// Set the length of a bit-prefix for a default IPv4 subnet-family.
+    ///
+    /// Any two relays will be considerd to belong to the same family if their
+    /// IPv4 addresses share at least this many initial bits.
+    #[builder(default = "ipv4_prefix_default()")]
+    #[serde(default = "ipv4_prefix_default")]
+    ipv4_subnet_family_prefix: u8,
+
+    /// Set the length of a bit-prefix for a default IPv6 subnet-family.
+    ///
+    /// Any two relays will be considerd to belong to the same family if their
+    /// IPv6 addresses share at least this many initial bits.
+    #[builder(default = "ipv6_prefix_default()")]
+    #[serde(default = "ipv6_prefix_default")]
+    ipv6_subnet_family_prefix: u8,
+}
+
+/// Default value for ipv4_subnet_family_prefix.
+fn ipv4_prefix_default() -> u8 {
+    16
+}
+/// Default value for ipv6_subnet_family_prefix.
+fn ipv6_prefix_default() -> u8 {
+    32
+}
+
+impl PathConfig {
+    /// Return a subnet configuration based on these rules.
+    pub fn subnet_config(&self) -> tor_netdir::SubnetConfig {
+        tor_netdir::SubnetConfig::new(
+            self.ipv4_subnet_family_prefix,
+            self.ipv6_subnet_family_prefix,
+        )
+    }
+}
+
+impl Default for PathConfig {
+    fn default() -> PathConfig {
+        PathConfigBuilder::default()
+            .build()
+            .expect("unusable hirdwired defaults")
+    }
 }
 
 /// Configuration for circuit timeouts, expiration, and so on.
@@ -84,7 +122,7 @@ pub struct CircMgrConfig {
     /// Override the default required distance for two relays to share
     /// the same circuit.
     #[builder(default)]
-    pub(crate) path_config: PathConfig,
+    pub(crate) path_rules: PathConfig,
 
     /// Timing and retry information related to circuits themselves.
     #[builder(default)]

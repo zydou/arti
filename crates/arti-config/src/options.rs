@@ -124,7 +124,7 @@ impl ArtiConfig {
     fn get_circ_config(&self) -> Result<CircMgrConfig, ConfigBuildError> {
         let mut builder = CircMgrConfigBuilder::default();
         builder
-            .path_config(self.path_rules.clone())
+            .path_rules(self.path_rules.clone())
             .circuit_timing(self.circuit_timing.clone())
             .build()
     }
