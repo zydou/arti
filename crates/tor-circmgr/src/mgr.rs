@@ -22,7 +22,7 @@
 //    - Error from prepare_action()
 //    - Error reported by restrict_mut?
 
-use crate::config::{CircuitTiming, RequestTiming};
+use crate::config::CircuitTiming;
 use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
@@ -622,9 +622,7 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     /// pending circuits.
     circs: sync::Mutex<CircList<B>>,
 
-    /// Configured timing and retry rules for attaching requests to circuits.
-    request_timing: RequestTiming,
-    /// Configured information about when to expire circuits.
+    /// Configured information about when to expire circuits and requests.
     circuit_timing: CircuitTiming,
 
     /// Minimum lifetime of an unused circuit.
@@ -645,12 +643,7 @@ enum Action<B: AbstractCircBuilder> {
 
 impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// Construct a new AbstractCircMgr.
-    pub(crate) fn new(
-        builder: B,
-        runtime: R,
-        request_timing: RequestTiming,
-        circuit_timing: CircuitTiming,
-    ) -> Self {
+    pub(crate) fn new(builder: B, runtime: R, circuit_timing: CircuitTiming) -> Self {
         let circs = sync::Mutex::new(CircList::new());
         let dflt_params = tor_netdir::params::NetParameters::default();
         let unused_timing = (&dflt_params).into();
@@ -658,7 +651,6 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             builder,
             runtime,
             circs,
-            request_timing,
             circuit_timing,
             unused_timing: sync::Mutex::new(unused_timing),
         }
@@ -683,9 +675,9 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
     ) -> Result<Arc<B::Circ>> {
-        let wait_for_circ = self.request_timing.request_timeout;
+        let wait_for_circ = self.circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
-        let max_tries = self.request_timing.request_max_retries;
+        let max_tries = self.circuit_timing.request_max_retries;
 
         let mut retry_err =
             RetryError /* ::<Box<Error>> */::in_attempt_to("find or build a circuit");
@@ -1035,7 +1027,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // delay will give the circuits that were originally
                     // specifically intended for a request a little more time
                     // to finish, before we offer it this circuit instead.
-                    let briefly = self.request_timing.request_loyalty;
+                    let briefly = self.circuit_timing.request_loyalty;
                     let sl = runtime_copy.sleep(briefly);
                     runtime_copy.allow_one_advance(briefly);
                     sl.await;
@@ -1345,7 +1337,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
 
@@ -1428,7 +1419,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             let c1 = mgr
@@ -1461,7 +1451,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             let c1 = mgr
@@ -1487,7 +1476,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
@@ -1509,7 +1497,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
@@ -1536,7 +1523,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             let c1 = rt.wait_for(mgr.get_or_launch(&ports, di())).await;
@@ -1560,7 +1546,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
 
@@ -1589,7 +1574,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
 
@@ -1657,7 +1641,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
             // Note that ports2 will be wider than ports1, so the second
@@ -1692,7 +1675,6 @@ mod test {
             let mgr = Arc::new(AbstractCircMgr::new(
                 builder,
                 rt.clone(),
-                RequestTiming::default(),
                 CircuitTiming::default(),
             ));
 
@@ -1738,12 +1720,7 @@ mod test {
                 .build()
                 .unwrap();
 
-            let mgr = Arc::new(AbstractCircMgr::new(
-                builder,
-                rt.clone(),
-                RequestTiming::default(),
-                circuit_timing,
-            ));
+            let mgr = Arc::new(AbstractCircMgr::new(builder, rt.clone(), circuit_timing));
 
             let imap = FakeSpec::new(vec![993_u16]);
             let pop = FakeSpec::new(vec![995_u16]);

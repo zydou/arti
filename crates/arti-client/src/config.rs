@@ -13,7 +13,7 @@ pub use tor_config::ConfigBuildError;
 pub mod circ {
     pub use tor_circmgr::{
         CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-        PathConfigBuilder, RequestTiming, RequestTimingBuilder,
+        PathConfigBuilder,
     };
 }
 

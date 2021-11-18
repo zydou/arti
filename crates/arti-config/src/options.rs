@@ -71,10 +71,7 @@ pub struct ArtiConfig {
     /// Information about how to build paths through the network.
     path_rules: arti_client::config::circ::PathConfig,
 
-    /// Information about how to retry requests for circuits.
-    request_timing: arti_client::config::circ::RequestTiming,
-
-    /// Information about how to expire circuits.
+    /// Information about how to retry and expire circuits and request for circuits.
     circuit_timing: arti_client::config::circ::CircuitTiming,
 
     /// Information about client address configuration parameters.
@@ -128,7 +125,6 @@ impl ArtiConfig {
         let mut builder = CircMgrConfigBuilder::default();
         builder
             .path_config(self.path_rules.clone())
-            .request_timing(self.request_timing.clone())
             .circuit_timing(self.circuit_timing.clone())
             .build()
     }

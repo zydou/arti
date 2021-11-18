@@ -82,15 +82,13 @@ microdesc_parallelism = 4
 # IPv4 addresses begin with the same 16 bits.
 enforce_distance = { "subnets_family_v4" = 16, "subnets_family_v6" = 32 }
 
-# Rules for how long circuits should survive.
+# Rules for how long circuits should survive, and how long pending
+# requests should wait for a circuit.
 [circuit_timing]
 
 # Once a circuit has been used for a request, we stop giving it out for
 # other requests after this time.
 max_dirtiness = "10 minutes"
-
-# Rules for how long pending requests should wait for a circuit.
-[request_timing]
 
 # When a circuit is requested, we keep trying to build circuits for up
 # to this long before the request gives up.

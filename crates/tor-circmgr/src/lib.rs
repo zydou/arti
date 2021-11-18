@@ -74,7 +74,7 @@ pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetP
 
 pub use config::{
     CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-    PathConfigBuilder, RequestTiming, RequestTimingBuilder,
+    PathConfigBuilder,
 };
 
 use usage::TargetCircUsage;
@@ -164,7 +164,6 @@ impl<R: Runtime> CircMgr<R> {
     {
         let CircMgrConfig {
             path_config,
-            request_timing,
             circuit_timing,
         } = config;
 
@@ -179,8 +178,7 @@ impl<R: Runtime> CircMgr<R> {
             storage_handle,
             guardmgr,
         );
-        let mgr =
-            mgr::AbstractCircMgr::new(builder, runtime.clone(), request_timing, circuit_timing);
+        let mgr = mgr::AbstractCircMgr::new(builder, runtime.clone(), circuit_timing);
         let circmgr = Arc::new(CircMgr { mgr: Arc::new(mgr) });
 
         runtime.spawn(continually_expire_circuits(
