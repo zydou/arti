@@ -500,6 +500,9 @@ pub(crate) mod test {
     // Test proper delivery of a created cell that doesn't make a channel
     #[test]
     fn new_circ_create_failure() {
+        use std::time::Duration;
+        use tor_rtcompat::SleepProvider;
+
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use tor_cell::chancell::msg;
             let (chan, mut reactor, mut output, mut input) = new_reactor();
@@ -518,29 +521,30 @@ pub(crate) mod test {
 
             let ent = reactor.circs.get_mut(id);
             assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
-            // We'll get a bad handshake result from this createdfast cell.
-            let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
-            input.send(Ok(created_cell)).await.unwrap();
 
-            let (circ, reac) =
-                futures::join!(pending.create_firsthop_fast(circparams), reactor.run_once());
+            #[allow(clippy::clone_on_copy)]
+            let rtc = rt.clone();
+            let send_response = async {
+                rtc.sleep(Duration::from_millis(100)).await;
+                eprintln!("sending createdfast");
+                // We'll get a bad handshake result from this createdfast cell.
+                let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
+                input.send(Ok(created_cell)).await.unwrap();
+                reactor.run_once().await.unwrap();
+            };
+
+            let (circ, _) = futures::join!(pending.create_firsthop_fast(circparams), send_response);
             // Make sure statuses are as expected.
             assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
-            assert!(reac.is_ok());
 
             reactor.run_once().await.unwrap();
 
             // Make sure that the createfast cell got sent
             let cell_sent = output.next().await.unwrap();
+            dbg!(cell_sent.msg());
             assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
 
-            // The circid now counts as open, since as far as the reactor knows,
-            // it was accepted.  (TODO: is this a bug?)
-            let ent = reactor.circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Open(_))));
-
             // But the next run if the reactor will make the circuit get closed.
-            reactor.run_once().await.unwrap();
             let ent = reactor.circs.get_mut(id);
             assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
         })
