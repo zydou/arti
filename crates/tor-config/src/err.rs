@@ -6,19 +6,34 @@
 #[non_exhaustive]
 pub enum ConfigBuildError {
     /// A mandatory field was not present.
-    #[error("Field was not provided: {0}")]
-    MissingField(String),
+    #[error("Field was not provided: {field}")]
+    MissingField {
+        /// The name of the missing field.
+        field: String,
+    },
     /// A single field had a value that proved to be unusable.
-    #[error("Value of {0} was incorrect: {1}")]
-    Invalid(String, String),
+    #[error("Value of {field} was incorrect: {problem}")]
+    Invalid {
+        /// The name of the invalid field
+        field: String,
+        /// A description of the problem.
+        problem: String,
+    },
     /// Multiple fields are inconsistent.
-    #[error("Fields {0:?} are inconsistent: {1}")]
-    Inconsistent(Vec<String>, String),
+    #[error("Fields {fields:?} are inconsistent: {problem}")]
+    Inconsistent {
+        /// The names of the inconsistent fields
+        fields: Vec<String>,
+        /// The problem that makes them inconsistent
+        problem: String,
+    },
 }
 
 impl From<derive_builder::UninitializedFieldError> for ConfigBuildError {
     fn from(val: derive_builder::UninitializedFieldError) -> Self {
-        ConfigBuildError::MissingField(val.field_name().to_string())
+        ConfigBuildError::MissingField {
+            field: val.field_name().to_string(),
+        }
     }
 }
 
@@ -28,12 +43,17 @@ impl ConfigBuildError {
     pub fn within(&self, prefix: &str) -> Self {
         use ConfigBuildError::*;
         match self {
-            MissingField(f) => MissingField(format!("{}.{}", prefix, f)),
-            Invalid(f, why) => Invalid(format!("{}.{}", prefix, f), why.clone()),
-            Inconsistent(fs, why) => Inconsistent(
-                fs.iter().map(|f| format!("{}.{}", prefix, f)).collect(),
-                why.clone(),
-            ),
+            MissingField { field } => MissingField {
+                field: format!("{}.{}", prefix, field),
+            },
+            Invalid { field, problem } => Invalid {
+                field: format!("{}.{}", prefix, field),
+                problem: problem.clone(),
+            },
+            Inconsistent { fields, problem } => Inconsistent {
+                fields: fields.iter().map(|f| format!("{}.{}", prefix, f)).collect(),
+                problem: problem.clone(),
+            },
         }
     }
 }

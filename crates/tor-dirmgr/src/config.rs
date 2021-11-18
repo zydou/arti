@@ -77,11 +77,11 @@ impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
         if self.authorities.is_some() && self.fallback_caches.is_none() {
-            return Err(ConfigBuildError::Inconsistent(
-                vec!["authorities".to_owned(), "fallbacks".to_owned()],
-                "Non-default authorities are use, but the fallback list is not overridden"
+            return Err(ConfigBuildError::Inconsistent {
+                fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
+                problem: "Non-default authorities are use, but the fallback list is not overridden"
                     .to_owned(),
-            ));
+            });
         }
 
         Ok(())

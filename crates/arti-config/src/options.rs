@@ -111,13 +111,19 @@ impl StorageConfig {
     fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
-            .map_err(|e| ConfigBuildError::Invalid("state_dir".to_owned(), e.to_string()))
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "state_dir".to_owned(),
+                problem: e.to_string(),
+            })
     }
     /// Try to expand `cache_dir` to be a path buffer.
     fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
-            .map_err(|e| ConfigBuildError::Invalid("cache_dir".to_owned(), e.to_string()))
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "cache_dir".to_owned(),
+                problem: e.to_string(),
+            })
     }
 }
 

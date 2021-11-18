@@ -62,10 +62,10 @@ impl FallbackDirBuilder {
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
         if let Some(orports) = &self.orports {
             if orports.is_empty() {
-                return Err(ConfigBuildError::Invalid(
-                    "orport".to_string(),
-                    "list was empty".to_string(),
-                ));
+                return Err(ConfigBuildError::Invalid {
+                    field: "orport".to_string(),
+                    problem: "list was empty".to_string(),
+                });
             }
         }
         Ok(())
