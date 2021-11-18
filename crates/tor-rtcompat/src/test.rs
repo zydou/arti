@@ -166,7 +166,7 @@ fn simple_tls<R: Runtime>(runtime: &R) -> IoResult<()> {
      openssl genpkey -algorithm RSA > test.key
      openssl req -new -out - -key test.key > test.csr
      openssl x509 -in test.csr -out test.crt -req -signkey test.key -days 0
-     openssl pkcs12 -export -out test.pfx -inkey test.key -in test.crt
+     openssl pkcs12 -export -certpbe PBE-SHA1-3DES -out test.pfx -inkey test.key -in test.crt
     */
     static PFX_ID: &[u8] = include_bytes!("test.pfx");
     // Note that we need to set a password on the pkcs12 file, since apparently
