@@ -22,7 +22,7 @@ use tracing::{info, warn};
 
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
-    retry::RetryConfig,
+    retry::DownloadSchedule,
     shared_ref::SharedMutArc,
     storage::sqlite::SqliteStore,
     CacheUsage, ClientRequest, DirMgrConfig, DirState, DocId, DocumentText, Error, Readiness,
@@ -169,9 +169,9 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     fn can_advance(&self) -> bool {
         self.next.is_some()
     }
-    fn dl_config(&self) -> Result<(usize, RetryConfig)> {
+    fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok((1, *wd.config().schedule().retry_consensus()))
+            Ok(*wd.config().schedule().retry_consensus())
         } else {
             Err(Error::ManagerDropped)
         }
@@ -335,9 +335,9 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     fn can_advance(&self) -> bool {
         self.unvalidated.key_is_correct(&self.certs[..]).is_ok()
     }
-    fn dl_config(&self) -> Result<(usize, RetryConfig)> {
+    fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok((1, *wd.config().schedule().retry_certs()))
+            Ok(*wd.config().schedule().retry_certs())
         } else {
             Err(Error::ManagerDropped)
         }
@@ -591,12 +591,9 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn can_advance(&self) -> bool {
         false
     }
-    fn dl_config(&self) -> Result<(usize, RetryConfig)> {
+    fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok((
-                wd.config().schedule().microdesc_parallelism(),
-                *wd.config().schedule().retry_microdescs(),
-            ))
+            Ok(*wd.config().schedule().retry_microdescs())
         } else {
             Err(Error::ManagerDropped)
         }
@@ -922,8 +919,7 @@ mod test {
 
         // Download configuration is simple: only 1 request can be done in
         // parallel.  It uses a consensus retry schedule.
-        let (par, retry) = state.dl_config().unwrap();
-        assert_eq!(par, 1);
+        let retry = state.dl_config().unwrap();
         assert_eq!(&retry, DownloadScheduleConfig::default().retry_consensus());
 
         // Do we know what we want?
@@ -1024,8 +1020,7 @@ mod test {
         assert!(!state.is_ready(Readiness::Usable));
         let consensus_expires = datetime!(2020-08-07 12:43:20 UTC).into();
         assert_eq!(state.reset_time(), Some(consensus_expires));
-        let (par, retry) = state.dl_config().unwrap();
-        assert_eq!(par, 1);
+        let retry = state.dl_config().unwrap();
         assert_eq!(&retry, DownloadScheduleConfig::default().retry_certs());
 
         // Check that we get the right list of missing docs.
@@ -1135,11 +1130,7 @@ mod test {
             assert!(reset_time >= fresh_until);
             assert!(reset_time <= valid_until);
         }
-        let (par, retry) = state.dl_config().unwrap();
-        assert_eq!(
-            par,
-            DownloadScheduleConfig::default().microdesc_parallelism()
-        );
+        let retry = state.dl_config().unwrap();
         assert_eq!(&retry, DownloadScheduleConfig::default().retry_microdescs());
 
         // Now check whether we're missing all the right microdescs.

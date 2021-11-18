@@ -68,7 +68,7 @@ mod storage;
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
 use crate::shared_ref::SharedMutArc;
 use crate::storage::sqlite::SqliteStore;
-use retry::RetryConfig;
+use retry::DownloadSchedule;
 use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
@@ -741,10 +741,8 @@ trait DirState: Send {
         request: &ClientRequest,
         storage: Option<&Mutex<SqliteStore>>,
     ) -> Result<bool>;
-    /// Return the number of attempts that should be made in parallel
-    /// to attempt downloads for missing documents, and a
-    /// configuration for retrying downloads.
-    fn dl_config(&self) -> Result<(usize, RetryConfig)>;
+    /// Return a configuration for attempting downloads.
+    fn dl_config(&self) -> Result<DownloadSchedule>;
     /// If possible, advance to the next state.
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>>;
     /// Return a time (if any) when downloaders should stop attempting to

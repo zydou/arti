@@ -8,7 +8,7 @@
 
 use rand::Rng;
 use std::convert::TryInto;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU8};
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -113,48 +113,72 @@ impl Default for RetryDelay {
 /// frequency.
 #[derive(Debug, Copy, Clone, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct RetryConfig {
+pub struct DownloadSchedule {
     /// How many times to retry before giving up?
-    num: NonZeroU32,
+    num_retries: NonZeroU32,
 
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
     #[serde(with = "humantime_serde")]
     initial_delay: Duration,
+
+    /// When we want to download a bunch of these at a time, how many
+    /// attempts should we try to launch at once?
+    #[serde(default = "default_parallelism")]
+    parallelism: NonZeroU8,
 }
 
-impl Default for RetryConfig {
+impl Default for DownloadSchedule {
     fn default() -> Self {
-        RetryConfig::new(3, Duration::from_millis(1000))
+        DownloadSchedule::new(3, Duration::from_millis(1000), 1)
     }
 }
 
-impl RetryConfig {
-    /// Create a new RetryConfig to control our logic for retrying
+/// Return the default parallelism for DownloadSchedule.
+fn default_parallelism() -> NonZeroU8 {
+    #![allow(clippy::unwrap_used)]
+    1.try_into().unwrap()
+}
+
+impl DownloadSchedule {
+    /// Create a new DownloadSchedule to control our logic for retrying
     /// a given download.
     ///
     /// The resulting configuration will always make at least one
     /// attempt, and at most `attempts`.  After a failure, it will
     /// wait at least `initial_delay` before trying again.
-    pub fn new(attempts: u32, initial_delay: Duration) -> Self {
+    pub fn new(attempts: u32, initial_delay: Duration, parallelism: u8) -> Self {
         // If unwrapping `1.try_into()` is not safe there are bigger problems
-        #[allow(clippy::unwrap_used)]
-        let num = attempts
+        #![allow(clippy::unwrap_used)]
+        let num_retries = attempts
             .try_into()
             .unwrap_or_else(|_| 1.try_into().unwrap());
-        RetryConfig { num, initial_delay }
+        let parallelism = parallelism
+            .try_into()
+            .unwrap_or_else(|_| 1.try_into().unwrap());
+        DownloadSchedule {
+            num_retries,
+            initial_delay,
+            parallelism,
+        }
     }
 
     /// Return an iterator to use over all the supported attempts for
     /// this configuration.
     pub fn attempts(&self) -> impl Iterator<Item = u32> {
-        0..(self.num.into())
+        0..(self.num_retries.into())
     }
 
     /// Return the number of times that we're supposed to retry, according
-    /// to this RetryConfig.
+    /// to this DownloadSchedule.
     pub fn n_attempts(&self) -> u32 {
-        self.num.into()
+        self.num_retries.into()
+    }
+
+    /// Return the number of parallel attempts that we're supposed to launch,
+    /// according to this DownloadSchedule.
+    pub fn parallelism(&self) -> u8 {
+        self.parallelism.into()
     }
 
     /// Return a RetryDelay object for this configuration.
@@ -214,7 +238,7 @@ mod test {
     #[test]
     fn config() {
         // default configuration is 3 tries, 1000 msec initial delay
-        let cfg = RetryConfig::default();
+        let cfg = DownloadSchedule::default();
 
         assert_eq!(cfg.n_attempts(), 3);
         let v: Vec<_> = cfg.attempts().collect();
@@ -225,8 +249,9 @@ mod test {
         assert_eq!(sched.low_bound_ms, 1000);
 
         // Try a zero-attempt schedule, and have it get remapped to 1,1
-        let cfg = RetryConfig::new(0, Duration::new(0, 0));
+        let cfg = DownloadSchedule::new(0, Duration::new(0, 0), 0);
         assert_eq!(cfg.n_attempts(), 1);
+        assert_eq!(cfg.parallelism(), 1);
         let v: Vec<_> = cfg.attempts().collect();
         assert_eq!(&v[..], &[0]);
 

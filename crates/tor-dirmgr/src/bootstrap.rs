@@ -216,7 +216,8 @@ pub(crate) async fn download<R: Runtime>(
     let runtime = upgrade_weak_ref(&dirmgr)?.runtime.clone();
 
     'next_state: loop {
-        let (parallelism, retry_config) = state.dl_config()?;
+        let retry_config = state.dl_config()?;
+        let parallelism = retry_config.parallelism();
 
         // In theory this could be inside the loop below maybe?  If we
         // want to drop the restriction that the missing() members of a
@@ -247,7 +248,7 @@ pub(crate) async fn download<R: Runtime>(
             {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 futures::select_biased! {
-                    outcome = download_attempt(&dirmgr, &mut state, parallelism).fuse() => {
+                    outcome = download_attempt(&dirmgr, &mut state, parallelism.into()).fuse() => {
                         match outcome {
                             Err(e) => {
                                 warn!("Error while downloading: {}", e);
@@ -328,7 +329,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::test::new_mgr;
-    use crate::{RetryConfig, SqliteStore};
+    use crate::{DownloadSchedule, SqliteStore};
     use std::convert::TryInto;
     use std::sync::Mutex;
     use tor_netdoc::doc::microdesc::MdDigest;
@@ -454,8 +455,8 @@ mod test {
             }
             Ok(changed)
         }
-        fn dl_config(&self) -> Result<(usize, RetryConfig)> {
-            Ok((1, RetryConfig::default()))
+        fn dl_config(&self) -> Result<DownloadSchedule> {
+            Ok(DownloadSchedule::default())
         }
         fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
             if self.can_advance() {

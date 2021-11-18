@@ -8,7 +8,7 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
-use crate::retry::RetryConfig;
+use crate::retry::DownloadSchedule;
 use crate::storage::sqlite::SqliteStore;
 use crate::Authority;
 use crate::Result;
@@ -100,36 +100,32 @@ pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[serde(default = "default_retry_bootstrap")]
     #[builder(default = "default_retry_bootstrap()")]
-    retry_bootstrap: RetryConfig,
+    retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
     #[serde(default)]
     #[builder(default)]
-    retry_consensus: RetryConfig,
+    retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
     #[serde(default)]
     #[builder(default)]
-    retry_certs: RetryConfig,
+    retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
-    #[serde(default)]
-    #[builder(default)]
-    retry_microdescs: RetryConfig,
-
-    /// Number of microdescriptor downloads to attempt in parallel
-    #[serde(default = "default_microdesc_parallelism")]
-    #[builder(default = "default_microdesc_parallelism()")]
-    microdesc_parallelism: u8,
+    #[serde(default = "default_microdesc_schedule")]
+    #[builder(default = "default_microdesc_schedule()")]
+    retry_microdescs: DownloadSchedule,
 }
 
 /// Default value for retry_bootstrap in DownloadScheduleConfig.
-fn default_retry_bootstrap() -> RetryConfig {
-    RetryConfig::new(128, std::time::Duration::new(1, 0))
+fn default_retry_bootstrap() -> DownloadSchedule {
+    DownloadSchedule::new(128, std::time::Duration::new(1, 0), 1)
 }
-/// Default value for microdesc_parallelism in DownloadScheduleConfig.
-fn default_microdesc_parallelism() -> u8 {
-    4
+
+/// Default value for microdesc_bootstrap in DownloadScheduleConfig.
+fn default_microdesc_schedule() -> DownloadSchedule {
+    DownloadSchedule::new(3, std::time::Duration::new(1, 0), 4)
 }
 
 impl Default for DownloadScheduleConfig {
@@ -139,7 +135,6 @@ impl Default for DownloadScheduleConfig {
             retry_consensus: Default::default(),
             retry_certs: Default::default(),
             retry_microdescs: Default::default(),
-            microdesc_parallelism: default_microdesc_parallelism(),
         }
     }
 }
@@ -241,28 +236,23 @@ impl DirMgrConfig {
 impl DownloadScheduleConfig {
     /// Return configuration for retrying our entire bootstrap
     /// operation at startup.
-    pub(crate) fn retry_bootstrap(&self) -> &RetryConfig {
+    pub(crate) fn retry_bootstrap(&self) -> &DownloadSchedule {
         &self.retry_bootstrap
     }
 
     /// Return configuration for retrying a consensus download.
-    pub(crate) fn retry_consensus(&self) -> &RetryConfig {
+    pub(crate) fn retry_consensus(&self) -> &DownloadSchedule {
         &self.retry_consensus
     }
 
     /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_certs(&self) -> &RetryConfig {
+    pub(crate) fn retry_certs(&self) -> &DownloadSchedule {
         &self.retry_certs
     }
 
     /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_microdescs(&self) -> &RetryConfig {
+    pub(crate) fn retry_microdescs(&self) -> &DownloadSchedule {
         &self.retry_microdescs
-    }
-
-    /// Number of microdescriptor fetches to attempt in parallel
-    pub(crate) fn microdesc_parallelism(&self) -> usize {
-        self.microdesc_parallelism.max(1).into()
     }
 }
 
@@ -369,18 +359,17 @@ mod test {
         let mut bld = DownloadScheduleConfig::builder();
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.microdesc_parallelism(), 4);
+        assert_eq!(cfg.retry_microdescs().parallelism(), 4);
         assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
 
-        bld.microdesc_parallelism(0)
-            .retry_consensus(RetryConfig::new(7, Duration::new(86400, 0)))
-            .retry_bootstrap(RetryConfig::new(4, Duration::new(3600, 0)))
-            .retry_certs(RetryConfig::new(5, Duration::new(3600, 0)))
-            .retry_microdescs(RetryConfig::new(6, Duration::new(3600, 0)));
+        bld.retry_consensus(DownloadSchedule::new(7, Duration::new(86400, 0), 1))
+            .retry_bootstrap(DownloadSchedule::new(4, Duration::new(3600, 0), 1))
+            .retry_certs(DownloadSchedule::new(5, Duration::new(3600, 0), 1))
+            .retry_microdescs(DownloadSchedule::new(6, Duration::new(3600, 0), 0));
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.microdesc_parallelism(), 1); // gets clamped to 1
+        assert_eq!(cfg.retry_microdescs().parallelism(), 1); // gets clamped
         assert_eq!(cfg.retry_microdescs().n_attempts(), 6);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 4);
         assert_eq!(cfg.retry_consensus().n_attempts(), 7);
