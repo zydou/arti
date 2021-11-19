@@ -2,10 +2,11 @@
 //!
 //! Some of these are re-exported from lower-level crates.
 
-use crate::{Error, Result};
+use crate::Error;
 use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::PathBuf;
+use tor_config::CfgPath;
 
 pub use tor_config::ConfigBuildError;
 
@@ -48,6 +49,41 @@ pub struct ClientAddrConfig {
 impl Default for ClientAddrConfig {
     fn default() -> Self {
         ClientAddrConfigBuilder::default().build().unwrap()
+    }
+}
+
+/// Configuration for where information should be stored on disk.
+///
+/// This section is for read/write storage.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct StorageConfig {
+    /// Location on disk for cached directory information
+    cache_dir: CfgPath,
+    /// Location on disk for less-sensitive persistent state information.
+    state_dir: CfgPath,
+}
+
+impl StorageConfig {
+    /// Try to expand `state_dir` to be a path buffer.
+    // TODO(nickm): This won't be public once we're done.
+    pub fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+        self.state_dir
+            .path()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "state_dir".to_owned(),
+                problem: e.to_string(),
+            })
+    }
+    /// Try to expand `cache_dir` to be a path buffer.
+    // TODO(nickm): This won't be public once we're done.
+    pub fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+        self.state_dir
+            .path()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "cache_dir".to_owned(),
+                problem: e.to_string(),
+            })
     }
 }
 
@@ -104,7 +140,7 @@ impl TorClientConfig {
     /// (On unix, this usually works out to `~/.local/share/arti` and
     /// `~/.cache/arti`, depending on your environment.  We use the
     /// `directories` crate for reasonable defaults on other platforms.)
-    pub fn sane_defaults() -> Result<Self> {
+    pub fn sane_defaults() -> crate::Result<Self> {
         // Note: this must stay in sync with project_dirs() in the
         // tor-config crate.
         let dirs =
@@ -121,7 +157,7 @@ impl TorClientConfig {
     /// Returns a `TorClientConfig` using the specified state and cache directories.
     ///
     /// All other configuration options are set to their defaults.
-    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self>
+    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> crate::Result<Self>
     where
         P: Into<PathBuf>,
         Q: Into<PathBuf>,

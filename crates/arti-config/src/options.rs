@@ -1,14 +1,13 @@
 //! Handling for arti's configuration formats.
 
-use crate::CfgPath;
 use arti_client::config::{
     circ::{CircMgrConfig, CircMgrConfigBuilder},
     dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
-    ConfigBuildError, TorClientConfig,
+    StorageConfig, TorClientConfig,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use tor_config::ConfigBuildError;
 
 /// Default options to use for our configuration.
 pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
@@ -92,39 +91,6 @@ pub struct ArtiConfig {
 
     /// Rules about which addresses the client is willing to connect to.
     address_filter: arti_client::config::ClientAddrConfig,
-}
-
-/// Configuration for where information should be stored on disk.
-///
-/// This section is for read/write storage.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct StorageConfig {
-    /// Location on disk for cached directory information
-    cache_dir: CfgPath,
-    /// Location on disk for less-sensitive persistent state information.
-    state_dir: CfgPath,
-}
-
-impl StorageConfig {
-    /// Try to expand `state_dir` to be a path buffer.
-    fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "state_dir".to_owned(),
-                problem: e.to_string(),
-            })
-    }
-    /// Try to expand `cache_dir` to be a path buffer.
-    fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "cache_dir".to_owned(),
-                problem: e.to_string(),
-            })
-    }
 }
 
 impl ArtiConfig {
