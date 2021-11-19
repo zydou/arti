@@ -69,6 +69,19 @@ impl CfgPath {
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
         Ok(self.0.into())
     }
+
+    /// Construct a new `CfgPath` from a system path.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CfgPathError> {
+        // TODO(nickm) This could wind up with trouble if somebody wanted
+        // a path that had a shell escape inside.  Maybe this type should have
+        // an enum inside.
+        Ok(Self(
+            path.as_ref()
+                .to_str()
+                .ok_or_else(|| CfgPathError::BadUtf8("path".to_string()))?
+                .to_string(),
+        ))
+    }
 }
 
 /// Shellexpand helper: return the user's home directory if we can.

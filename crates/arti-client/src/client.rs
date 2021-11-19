@@ -159,16 +159,10 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Return a client once there is enough directory material to
     /// connect safely over the Tor network.
-    pub async fn bootstrap(
-        runtime: R,
-        TorClientConfig {
-            state_cfg,
-            dir_cfg,
-            circ_cfg,
-            addr_cfg,
-        }: TorClientConfig,
-    ) -> Result<TorClient<R>> {
-        let statemgr = FsStateMgr::from_path(state_cfg)?;
+    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> Result<TorClient<R>> {
+        let circ_cfg = config.get_circmgr_config()?;
+        let dir_cfg = config.get_dirmgr_config()?;
+        let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
         if statemgr.try_lock()?.held() {
             debug!("It appears we have the lock on our state files.");
         } else {
@@ -176,6 +170,7 @@ impl<R: Runtime> TorClient<R> {
                 "Another process has the lock on our state files. We'll proceed in read-only mode."
             );
         }
+        let addr_cfg = config.address_filter.clone();
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;

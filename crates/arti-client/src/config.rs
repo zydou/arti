@@ -2,9 +2,10 @@
 //!
 //! Some of these are re-exported from lower-level crates.
 
-use crate::Error;
 use derive_builder::Builder;
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use tor_config::CfgPath;
 
@@ -55,16 +56,24 @@ impl Default for ClientAddrConfig {
 /// Configuration for where information should be stored on disk.
 ///
 /// This section is for read/write storage.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct StorageConfig {
     /// Location on disk for cached directory information
+    #[builder(setter(into))]
     cache_dir: CfgPath,
+    #[builder(setter(into))]
     /// Location on disk for less-sensitive persistent state information.
     state_dir: CfgPath,
 }
 
 impl StorageConfig {
+    /// Return a new StorageConfigBuilder.
+    pub fn builder() -> StorageConfigBuilder {
+        StorageConfigBuilder::default()
+    }
+
     /// Try to expand `state_dir` to be a path buffer.
     // TODO(nickm): This won't be public once we're done.
     pub fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
@@ -105,32 +114,37 @@ impl StorageConfig {
 #[derive(Clone, Debug, Builder)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct TorClientConfig {
-    /// A directory suitable for storing persistent Tor state in.
-    ///
-    /// This is distinct from the cache directory set in `dir_cfg`:
-    /// it is _not_ safe to delete this information regularly.
-    ///
-    /// Multiple instances of Arti may share the same state directory.
-    pub(crate) state_cfg: PathBuf,
+    /// Information about the Tor network we want to connect to.
+    #[builder(default)]
+    tor_network: dir::NetworkConfig,
 
-    /// Configuration for the network directory manager.
-    ///
-    /// This includes information on how to find and authenticate the
-    /// Tor network, how to frequently to retry directory downloads,
-    /// and where to store cached directory information.
-    pub(crate) dir_cfg: dir::DirMgrConfig,
+    /// Directories for storing information on disk
+    pub(crate) storage: StorageConfig,
 
-    /// Configuration for the network circuit manager.
-    ///
-    /// This includes information about how to build paths through the
-    /// Tor network, and how to retry failed circuits.
-    pub(crate) circ_cfg: circ::CircMgrConfig,
+    /// Information about when and how often to download directory information
+    download_schedule: dir::DownloadScheduleConfig,
 
-    /// Configures how the client interprets addresses on the network.
-    pub(crate) addr_cfg: ClientAddrConfig,
+    /// Facility to override network parameters from the values set in the
+    /// consensus.
+    #[builder(default)]
+    override_net_params: HashMap<String, i32>,
+
+    /// Information about how to build paths through the network.
+    path_rules: circ::PathConfig,
+
+    /// Information about how to retry and expire circuits and request for circuits.
+    circuit_timing: circ::CircuitTiming,
+
+    /// Rules about which addresses the client is willing to connect to.
+    pub(crate) address_filter: ClientAddrConfig,
 }
 
 impl TorClientConfig {
+    /// Return a new TorClientConfigBuilder.
+    pub fn builder() -> TorClientConfigBuilder {
+        TorClientConfigBuilder::default()
+    }
+
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
     /// This gies the same result as using `tor_config`'s definitions
@@ -140,12 +154,15 @@ impl TorClientConfig {
     /// (On unix, this usually works out to `~/.local/share/arti` and
     /// `~/.cache/arti`, depending on your environment.  We use the
     /// `directories` crate for reasonable defaults on other platforms.)
-    pub fn sane_defaults() -> crate::Result<Self> {
+    pub fn sane_defaults() -> Result<Self, ConfigBuildError> {
         // Note: this must stay in sync with project_dirs() in the
         // tor-config crate.
         let dirs =
             directories::ProjectDirs::from("org", "torproject", "Arti").ok_or_else(|| {
-                Error::Configuration("Could not determine default directories".to_string())
+                ConfigBuildError::Invalid {
+                    field: "directories".to_string(),
+                    problem: "Could not determine default directories".to_string(),
+                }
             })?;
 
         let state_dir = dirs.data_local_dir();
@@ -157,26 +174,49 @@ impl TorClientConfig {
     /// Returns a `TorClientConfig` using the specified state and cache directories.
     ///
     /// All other configuration options are set to their defaults.
-    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> crate::Result<Self>
+    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self, ConfigBuildError>
     where
-        P: Into<PathBuf>,
-        Q: Into<PathBuf>,
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
     {
-        Ok(Self {
-            state_cfg: state_dir.into(),
-            dir_cfg: dir::DirMgrConfig::builder()
-                .cache_path(cache_dir.into())
-                .build()
-                .map_err(|e| {
-                    Error::Configuration(format!("failed to build DirMgrConfig: {}", e))
+        let storage_cfg = StorageConfig::builder()
+            .cache_dir(
+                CfgPath::from_path(cache_dir).map_err(|e| ConfigBuildError::Invalid {
+                    field: "cache_dir".to_owned(),
+                    problem: e.to_string(),
                 })?,
-            circ_cfg: Default::default(),
-            addr_cfg: Default::default(),
-        })
+            )
+            .state_dir(
+                CfgPath::from_path(state_dir).map_err(|e| ConfigBuildError::Invalid {
+                    field: "state_dir".to_owned(),
+                    problem: e.to_string(),
+                })?,
+            )
+            .build()
+            .map_err(|e| e.within("storage"))?;
+
+        Self::builder().storage(storage_cfg).build()
     }
 
-    /// Return a new builder to construct a `TorClientConfig`.
-    pub fn builder() -> TorClientConfigBuilder {
-        TorClientConfigBuilder::default()
+    /// Build a DirMgrConfig from this configuration.
+    pub(crate) fn get_dirmgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+        let mut dircfg = dir::DirMgrConfigBuilder::default();
+        dircfg.network_config(self.tor_network.clone());
+        dircfg.schedule_config(self.download_schedule.clone());
+        dircfg.cache_path(self.storage.expand_cache_dir()?);
+        for (k, v) in self.override_net_params.iter() {
+            dircfg.override_net_param(k.clone(), *v);
+        }
+        dircfg.build()
+    }
+
+    /// Return a [`CircMgrConfig`] object based on the user's selected
+    /// configuration.
+    pub(crate) fn get_circmgr_config(&self) -> Result<circ::CircMgrConfig, ConfigBuildError> {
+        let mut builder = circ::CircMgrConfigBuilder::default();
+        builder
+            .path_rules(self.path_rules.clone())
+            .circuit_timing(self.circuit_timing.clone())
+            .build()
     }
 }

@@ -1,8 +1,7 @@
 //! Handling for arti's configuration formats.
 
 use arti_client::config::{
-    circ::{CircMgrConfig, CircMgrConfigBuilder},
-    dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
+    dir::{DownloadScheduleConfig, NetworkConfig},
     StorageConfig, TorClientConfig,
 };
 use serde::Deserialize;
@@ -94,41 +93,16 @@ pub struct ArtiConfig {
 }
 
 impl ArtiConfig {
-    /// Return a [`DirMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_dir_config(&self) -> Result<DirMgrConfig, ConfigBuildError> {
-        let mut dircfg = DirMgrConfigBuilder::default();
-        dircfg.network_config(self.tor_network.clone());
-        dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in self.override_net_params.iter() {
-            dircfg.override_net_param(k.clone(), *v);
-        }
-        dircfg.build()
-    }
-
-    /// Return a [`CircMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_circ_config(&self) -> Result<CircMgrConfig, ConfigBuildError> {
-        let mut builder = CircMgrConfigBuilder::default();
-        builder
-            .path_rules(self.path_rules.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .build()
-    }
-
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
-        let statecfg = self.storage.expand_state_dir()?;
-        let dircfg = self.get_dir_config()?;
-        let circcfg = self.get_circ_config()?;
-        let addrcfg = self.address_filter.clone();
-
         TorClientConfig::builder()
-            .state_cfg(statecfg)
-            .dir_cfg(dircfg)
-            .circ_cfg(circcfg)
-            .addr_cfg(addrcfg)
+            .storage(self.storage.clone())
+            .address_filter(self.address_filter.clone())
+            .path_rules(self.path_rules.clone())
+            .circuit_timing(self.circuit_timing.clone())
+            .override_net_params(self.override_net_params.clone())
+            .download_schedule(self.download_schedule.clone())
+            .tor_network(self.tor_network.clone())
             .build()
     }
 
