@@ -39,6 +39,16 @@ impl LoggingConfig {
     }
 }
 
+impl From<LoggingConfig> for LoggingConfigBuilder {
+    fn from(cfg: LoggingConfig) -> LoggingConfigBuilder {
+        let mut builder = LoggingConfigBuilder::default();
+        builder
+            .trace_filter(cfg.trace_filter)
+            .journald(cfg.journald);
+        builder
+    }
+}
+
 /// Configuration for one or more proxy listeners.
 #[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
@@ -59,6 +69,14 @@ impl ProxyConfig {
     /// if one is enabled.
     pub fn socks_port(&self) -> Option<u16> {
         self.socks_port
+    }
+}
+
+impl From<ProxyConfig> for ProxyConfigBuilder {
+    fn from(cfg: ProxyConfig) -> ProxyConfigBuilder {
+        let mut builder = ProxyConfigBuilder::default();
+        builder.socks_port(cfg.socks_port);
+        builder
     }
 }
 

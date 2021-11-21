@@ -66,6 +66,16 @@ impl Default for PathConfig {
     }
 }
 
+impl From<PathConfig> for PathConfigBuilder {
+    fn from(cfg: PathConfig) -> PathConfigBuilder {
+        let mut builder = PathConfigBuilder::default();
+        builder
+            .ipv4_subnet_family_prefix(cfg.ipv4_subnet_family_prefix)
+            .ipv6_subnet_family_prefix(cfg.ipv6_subnet_family_prefix);
+        builder
+    }
+}
+
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
 /// This type is immutable once constructd. To create an object of this
@@ -114,6 +124,18 @@ impl CircuitTiming {
     /// Return a new [`CircuitTimingBuilder`]
     pub fn builder() -> CircuitTimingBuilder {
         CircuitTimingBuilder::default()
+    }
+}
+
+impl From<CircuitTiming> for CircuitTimingBuilder {
+    fn from(cfg: CircuitTiming) -> CircuitTimingBuilder {
+        let mut builder = CircuitTimingBuilder::default();
+        builder
+            .max_dirtiness(cfg.max_dirtiness)
+            .request_timeout(cfg.request_timeout)
+            .request_max_retries(cfg.request_max_retries)
+            .request_loyalty(cfg.request_loyalty);
+        builder
     }
 }
 

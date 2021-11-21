@@ -58,6 +58,16 @@ impl Default for NetworkConfig {
     }
 }
 
+impl From<NetworkConfig> for NetworkConfigBuilder {
+    fn from(cfg: NetworkConfig) -> NetworkConfigBuilder {
+        let mut builder = NetworkConfigBuilder::default();
+        builder
+            .fallback_caches(cfg.fallback_caches)
+            .authorities(cfg.authorities);
+        builder
+    }
+}
+
 impl NetworkConfig {
     /// Return a new builder to construct a NetworkConfig.
     pub fn builder() -> NetworkConfigBuilder {
@@ -130,12 +140,9 @@ fn default_microdesc_schedule() -> DownloadSchedule {
 
 impl Default for DownloadScheduleConfig {
     fn default() -> Self {
-        DownloadScheduleConfig {
-            retry_bootstrap: default_retry_bootstrap(),
-            retry_consensus: Default::default(),
-            retry_certs: Default::default(),
-            retry_microdescs: Default::default(),
-        }
+        Self::builder()
+            .build()
+            .expect("default builder setting didn't work")
     }
 }
 
@@ -143,6 +150,18 @@ impl DownloadScheduleConfig {
     /// Return a new builder to make a [`DownloadScheduleConfig`]
     pub fn builder() -> DownloadScheduleConfigBuilder {
         DownloadScheduleConfigBuilder::default()
+    }
+}
+
+impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
+    fn from(cfg: DownloadScheduleConfig) -> DownloadScheduleConfigBuilder {
+        let mut builder = DownloadScheduleConfigBuilder::default();
+        builder
+            .retry_bootstrap(cfg.retry_bootstrap)
+            .retry_consensus(cfg.retry_consensus)
+            .retry_certs(cfg.retry_certs)
+            .retry_microdescs(cfg.retry_microdescs);
+        builder
     }
 }
 

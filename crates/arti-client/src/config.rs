@@ -53,6 +53,14 @@ impl Default for ClientAddrConfig {
     }
 }
 
+impl From<ClientAddrConfig> for ClientAddrConfigBuilder {
+    fn from(cfg: ClientAddrConfig) -> ClientAddrConfigBuilder {
+        let mut builder = ClientAddrConfigBuilder::default();
+        builder.allow_local_addrs(cfg.allow_local_addrs);
+        builder
+    }
+}
+
 impl ClientAddrConfig {
     /// Return a new [`ClientAddrConfigBuilder`].
     pub fn builder() -> ClientAddrConfigBuilder {
@@ -100,6 +108,14 @@ impl StorageConfig {
                 field: "cache_dir".to_owned(),
                 problem: e.to_string(),
             })
+    }
+}
+
+impl From<StorageConfig> for StorageConfigBuilder {
+    fn from(cfg: StorageConfig) -> StorageConfigBuilder {
+        let mut builder = StorageConfigBuilder::default();
+        builder.state_dir(cfg.state_dir).cache_dir(cfg.cache_dir);
+        builder
     }
 }
 
