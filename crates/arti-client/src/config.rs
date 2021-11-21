@@ -171,7 +171,7 @@ impl TorClientConfig {
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
     /// This gies the same result as using `tor_config`'s definitions
-    /// for `APP_LOCAL_DATA` and `APP_CACHE` for the state and cache
+    /// for `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
     /// directories respectively.
     ///
     /// (On unix, this usually works out to `~/.local/share/arti` and

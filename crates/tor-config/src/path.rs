@@ -13,11 +13,11 @@ use serde::Deserialize;
 /// with expansion of certain variables.
 ///
 /// The supported variables are:
-///   * `APP_CACHE`: an arti-specific cache directory.
-///   * `APP_CONFIG`: an arti-specific configuration directory.
-///   * `APP_SHARED_DATA`: an arti-specific directory in the user's "shared
+///   * `ARTI_CACHE`: an arti-specific cache directory.
+///   * `ARTI_CONFIG`: an arti-specific configuration directory.
+///   * `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
 ///     data" space.
-///   * `APP_LOCAL_DATA`: an arti-specific directory in the user's "local
+///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
 ///     data" space.
 ///   * `USER_HOME`: the user's home directory.
 ///
@@ -108,10 +108,10 @@ fn get_home() -> Option<&'static Path> {
 #[cfg(feature = "expand-paths")]
 fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
     let path = match var {
-        "APP_CACHE" => project_dirs()?.cache_dir(),
-        "APP_CONFIG" => project_dirs()?.config_dir(),
-        "APP_SHARED_DATA" => project_dirs()?.data_dir(),
-        "APP_LOCAL_DATA" => project_dirs()?.data_local_dir(),
+        "ARTI_CACHE" => project_dirs()?.cache_dir(),
+        "ARTI_CONFIG" => project_dirs()?.config_dir(),
+        "ARTI_SHARED_DATA" => project_dirs()?.data_dir(),
+        "ARTI_LOCAL_DATA" => project_dirs()?.data_local_dir(),
         "USER_HOME" => base_dirs()?.home_dir(),
         _ => return Err(CfgPathError::UnknownVar(var.to_owned())),
     };
@@ -188,8 +188,8 @@ mod test {
 
     #[test]
     fn expand_cache() {
-        let p = CfgPath::new("${APP_CACHE}/example".to_string());
-        assert_eq!(p.to_string(), "${APP_CACHE}/example".to_string());
+        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
 
         let expected = project_dirs().unwrap().cache_dir().join("example");
         assert_eq!(p.path().unwrap().to_str(), expected.to_str());
@@ -197,8 +197,8 @@ mod test {
 
     #[test]
     fn expand_bogus() {
-        let p = CfgPath::new("${APP_WOMBAT}/example".to_string());
-        assert_eq!(p.to_string(), "${APP_WOMBAT}/example".to_string());
+        let p = CfgPath::new("${ARTI_WOMBAT}/example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_WOMBAT}/example".to_string());
 
         assert!(p.path().is_err());
     }
