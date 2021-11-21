@@ -53,6 +53,13 @@ impl Default for ClientAddrConfig {
     }
 }
 
+impl ClientAddrConfig {
+    /// Return a new [`ClientAddrConfigBuilder`].
+    pub fn builder() -> ClientAddrConfigBuilder {
+        ClientAddrConfigBuilder::default()
+    }
+}
+
 /// Configuration for where information should be stored on disk.
 ///
 /// This section is for read/write storage.

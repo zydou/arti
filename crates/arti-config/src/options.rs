@@ -4,6 +4,7 @@ use arti_client::config::{
     dir::{DownloadScheduleConfig, NetworkConfig},
     StorageConfig, TorClientConfig,
 };
+use derive_builder::Builder;
 use serde::Deserialize;
 use std::collections::HashMap;
 use tor_config::ConfigBuildError;
@@ -12,9 +13,10 @@ use tor_config::ConfigBuildError;
 pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
 /// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
@@ -30,9 +32,17 @@ pub struct LoggingConfig {
     pub journald: bool,
 }
 
+impl LoggingConfig {
+    /// Return a new LoggingConfigBuilder
+    pub fn builder() -> LoggingConfigBuilder {
+        LoggingConfigBuilder::default()
+    }
+}
+
 /// Configuration for one or more proxy listeners.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder)]
 #[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
@@ -40,6 +50,11 @@ pub struct ProxyConfig {
 }
 
 impl ProxyConfig {
+    /// Return a new [`ProxyConfigBuilder`].
+    pub fn builder() -> ProxyConfigBuilder {
+        ProxyConfigBuilder::default()
+    }
+
     /// Return the configured SOCKS port for this proxy configuration,
     /// if one is enabled.
     pub fn socks_port(&self) -> Option<u16> {

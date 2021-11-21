@@ -45,6 +45,10 @@ fn ipv6_prefix_default() -> u8 {
 }
 
 impl PathConfig {
+    /// Return a new [`PathConfigBuilder`].
+    pub fn builder(&self) -> PathConfigBuilder {
+        PathConfigBuilder::default()
+    }
     /// Return a subnet configuration based on these rules.
     pub fn subnet_config(&self) -> tor_netdir::SubnetConfig {
         tor_netdir::SubnetConfig::new(
@@ -106,6 +110,13 @@ impl Default for CircuitTiming {
     }
 }
 
+impl CircuitTiming {
+    /// Return a new [`CircuitTimingBuilder`]
+    pub fn builder() -> CircuitTimingBuilder {
+        CircuitTimingBuilder::default()
+    }
+}
+
 /// Configuration for a circuit manager.
 ///
 /// This configuration includes information about how to build paths
@@ -127,4 +138,11 @@ pub struct CircMgrConfig {
     /// Timing and retry information related to circuits themselves.
     #[builder(default)]
     pub(crate) circuit_timing: CircuitTiming,
+}
+
+impl CircMgrConfig {
+    /// Return a new [CircMgrConfigBuiler`].
+    pub fn builder() -> CircMgrConfigBuilder {
+        CircMgrConfigBuilder::default()
+    }
 }

@@ -123,6 +123,7 @@ version = "0.0.1"
 dependencies = [
  "arti-client",
  "config",
+ "derive_builder",
  "once_cell",
  "regex",
  "serde",
