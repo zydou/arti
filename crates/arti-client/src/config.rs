@@ -203,18 +203,8 @@ impl TorClientConfig {
         Q: AsRef<Path>,
     {
         let storage_cfg = StorageConfig::builder()
-            .cache_dir(
-                CfgPath::from_path(cache_dir).map_err(|e| ConfigBuildError::Invalid {
-                    field: "cache_dir".to_owned(),
-                    problem: e.to_string(),
-                })?,
-            )
-            .state_dir(
-                CfgPath::from_path(state_dir).map_err(|e| ConfigBuildError::Invalid {
-                    field: "state_dir".to_owned(),
-                    problem: e.to_string(),
-                })?,
-            )
+            .cache_dir(CfgPath::from_path(cache_dir))
+            .state_dir(CfgPath::from_path(state_dir))
             .build()
             .map_err(|e| e.within("storage"))?;
 

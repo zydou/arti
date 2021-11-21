@@ -26,7 +26,17 @@ use serde::Deserialize;
 /// hood.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(transparent)]
-pub struct CfgPath(String);
+pub struct CfgPath(PathInner);
+
+/// Inner implementation of CfgPath
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+enum PathInner {
+    /// A path that should be expanded from a string using ShellExpand.
+    Shell(String),
+    /// A path that should be used literally, with no expansion.
+    Literal(PathBuf),
+}
 
 /// An error that has occurred while expanding a path.
 #[derive(thiserror::Error, Debug, Clone)]
@@ -47,41 +57,45 @@ pub enum CfgPathError {
     /// be fixed in the future.)
     #[error("can't convert value of {0} to UTF-8")]
     BadUtf8(String),
+    /// We couldn't convert a string to a valid path on the OS.
+    #[error("invalid path string: {0:?}")]
+    InvalidString(String),
 }
 
 impl CfgPath {
     /// Create a new configuration path
     pub fn new(s: String) -> Self {
-        CfgPath(s)
+        CfgPath(PathInner::Shell(s))
     }
 
     /// Return the path on disk designated by this `CfgPath`.
-    #[cfg(feature = "expand-paths")]
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
-        Ok(shellexpand::full_with_context(&self.0, get_home, get_env)
-            .map_err(|e| e.cause)?
-            .into_owned()
-            .into())
-    }
-
-    /// Return the path on disk designated by this `CfgPath`.
-    #[cfg(not(feature = "expand-paths"))]
-    pub fn path(&self) -> Result<PathBuf, CfgPathError> {
-        Ok(self.0.into())
+        match &self.0 {
+            PathInner::Shell(s) => expand(s),
+            PathInner::Literal(p) => Ok(p.clone()),
+        }
     }
 
     /// Construct a new `CfgPath` from a system path.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, CfgPathError> {
-        // TODO(nickm) This could wind up with trouble if somebody wanted
-        // a path that had a shell escape inside.  Maybe this type should have
-        // an enum inside.
-        Ok(Self(
-            path.as_ref()
-                .to_str()
-                .ok_or_else(|| CfgPathError::BadUtf8("path".to_string()))?
-                .to_string(),
-        ))
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
+        CfgPath(PathInner::Literal(path.as_ref().to_owned()))
     }
+}
+
+/// Helper: expand a directory given as a string.
+#[cfg(feature = "expand-paths")]
+fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
+    Ok(shellexpand::full_with_context(s, get_home, get_env)
+        .map_err(|e| e.cause)?
+        .into_owned()
+        .into())
+}
+
+/// Helper: convert a string to a path without expansion.
+#[cfg(not(feature = "expand-paths"))]
+fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
+    s.try_into()
+        .map_err(|_| CfgPathError::InvalidString(s.to_owned()))
 }
 
 /// Shellexpand helper: return the user's home directory if we can.
@@ -115,7 +129,10 @@ fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
 
 impl std::fmt::Display for CfgPath {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(fmt)
+        match &self.0 {
+            PathInner::Literal(p) => write!(fmt, "{:?}", p),
+            PathInner::Shell(s) => s.fmt(fmt),
+        }
     }
 }
 
