@@ -32,7 +32,7 @@ pub mod dir {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientAddrConfigBuilder`].
-#[derive(Debug, Clone, Builder, Deserialize)]
+#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
@@ -72,7 +72,7 @@ impl ClientAddrConfig {
 /// Configuration for where information should be stored on disk.
 ///
 /// This section is for read/write storage.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct StorageConfig {
@@ -135,7 +135,7 @@ impl From<StorageConfig> for StorageConfigBuilder {
 ///
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.

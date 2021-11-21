@@ -13,7 +13,7 @@ use tor_config::ConfigBuildError;
 pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
 /// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
 #[builder(build_fn(error = "ConfigBuildError"))]
@@ -59,7 +59,7 @@ impl From<LoggingConfig> for LoggingConfigBuilder {
 }
 
 /// Configuration for one or more proxy listeners.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ProxyConfig {
@@ -108,7 +108,7 @@ impl From<ProxyConfig> for ProxyConfigBuilder {
 ///
 /// NOTE: These are NOT the final options or their final layout.
 /// Expect NO stability here.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
     /// Configuration for proxy listeners

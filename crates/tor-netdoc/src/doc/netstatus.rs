@@ -142,7 +142,7 @@ impl Lifetime {
 /// These are used to describe current settings for the Tor network,
 /// current weighting parameters for path selection, and so on.  They're
 /// encoded with a space-separated K=V format.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
     params: HashMap<String, T>,

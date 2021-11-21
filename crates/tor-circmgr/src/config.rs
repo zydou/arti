@@ -15,7 +15,7 @@ use std::time::Duration;
 ///
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`], or deserialize it from a string.
-#[derive(Debug, Clone, Builder, Deserialize)]
+#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
@@ -80,7 +80,7 @@ impl From<PathConfig> for PathConfigBuilder {
 ///
 /// This type is immutable once constructd. To create an object of this
 /// type, use [`CircuitTimingBuilder`].
-#[derive(Debug, Clone, Builder, Deserialize)]
+#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
@@ -170,7 +170,7 @@ impl From<CircuitTiming> for CircuitTimingBuilder {
 /// this type, use [`CircMgrConfigBuilder`], or deserialize it from a
 /// string.  (Arti generally uses Toml for configuration, but you can
 /// use other formats if you prefer.)
-#[derive(Debug, Clone, Builder, Default)]
+#[derive(Debug, Clone, Builder, Default, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct CircMgrConfig {
     /// Override the default required distance for two relays to share

@@ -26,7 +26,7 @@ use serde::Deserialize;
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`NetworkConfigBuilder`], or deserialize it from a string.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 pub struct NetworkConfig {
@@ -103,7 +103,7 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DownloadScheduleConfig {
@@ -172,7 +172,7 @@ impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
 /// To create an object of this type, use [`DirMgrConfigBuilder`], or
 /// deserialize it from a string. (Arti generally uses Toml for
 /// configuration, but you can use other formats if you prefer.)
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format

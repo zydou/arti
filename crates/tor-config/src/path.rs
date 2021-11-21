@@ -24,12 +24,12 @@ use serde::Deserialize;
 /// These variables are implemented using the `directories` crate, and
 /// so should use appropriate system-specific overrides under the
 /// hood.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
 
 /// Inner implementation of CfgPath
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 enum PathInner {
     /// A path that should be expanded from a string using ShellExpand.

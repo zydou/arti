@@ -13,7 +13,7 @@ use tor_netdoc::doc::authcert::{AuthCert, AuthCertKeyIds};
 // Note that we do *not* set serde(deny_unknown_fields)] on this structure:
 // we want our authorities format to be future-proof against adding new info
 // about each authority.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 pub struct Authority {
     /// A memorable nickname for this authority.
     #[builder(setter(into))]
