@@ -85,29 +85,50 @@ impl From<PathConfig> for PathConfigBuilder {
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
-    #[builder(default = "Duration::from_secs(60 * 10)")]
-    #[serde(with = "humantime_serde")]
+    #[builder(default = "default_max_dirtiness()")]
+    #[serde(with = "humantime_serde", default = "default_max_dirtiness")]
     pub(crate) max_dirtiness: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
     // TODO: Impose a maximum or minimum?
-    #[builder(default = "Duration::from_secs(60)")]
-    #[serde(with = "humantime_serde")]
+    #[builder(default = "default_request_timeout()")]
+    #[serde(with = "humantime_serde", default = "default_request_timeout")]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
     /// this many attempts.
     // TODO: Impose a maximum or minimum?
-    #[builder(default = "32")]
+    #[builder(default = "default_request_max_retries()")]
+    #[serde(default = "default_request_max_retries")]
     pub(crate) request_max_retries: u32,
 
     /// When waiting for requested circuits, wait at least this long
     /// before using a suitable-looking circuit launched by some other
     /// request.
-    #[builder(default = "Duration::from_millis(50)")]
-    #[serde(with = "humantime_serde")]
+    #[builder(default = "default_request_loyalty()")]
+    #[serde(with = "humantime_serde", default = "default_request_loyalty")]
     pub(crate) request_loyalty: Duration,
+}
+
+/// Return the default value for `max_dirtiness`.
+fn default_max_dirtiness() -> Duration {
+    Duration::from_secs(60 * 10)
+}
+
+/// Return the default value for `request_timeout`.
+fn default_request_timeout() -> Duration {
+    Duration::from_secs(60)
+}
+
+/// Return the default value for `request_max_retries`.
+fn default_request_max_retries() -> u32 {
+    32
+}
+
+/// Return the default request loyalty timeout.
+fn default_request_loyalty() -> Duration {
+    Duration::from_millis(50)
 }
 
 // NOTE: it seems that `unwrap` may be safe because of builder defaults

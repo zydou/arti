@@ -25,11 +25,20 @@ pub struct LoggingConfig {
     ///
     /// Example: "info,tor_proto::channel=trace"
     // TODO(nickm) remove public elements when I revise this.
+    #[serde(default = "default_trace_filter")]
+    #[builder(default = "default_trace_filter()")]
     pub trace_filter: String,
 
     /// Whether to log to journald
     // TODO(nickm) remove public elements when I revise this.
+    #[serde(default)]
+    #[builder(default)]
     pub journald: bool,
+}
+
+/// Return a default value for `trace_filter`.
+fn default_trace_filter() -> String {
+    "debug".to_owned()
 }
 
 impl LoggingConfig {
@@ -56,7 +65,15 @@ impl From<LoggingConfig> for LoggingConfigBuilder {
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
+    #[serde(default = "default_socks_port")]
+    #[builder(default = "default_socks_port()")]
     socks_port: Option<u16>,
+}
+
+/// Return the default value for `socks_port`
+#[allow(clippy::unnecessary_wraps)]
+fn default_socks_port() -> Option<u16> {
+    Some(9150)
 }
 
 impl ProxyConfig {

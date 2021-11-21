@@ -40,6 +40,7 @@ pub struct ClientAddrConfig {
     /// This option is off by default, since (by default) Tor exits will
     /// always reject connections to such addresses.
     #[builder(default)]
+    #[serde(default)]
     pub(crate) allow_local_addrs: bool,
 }
 
