@@ -184,7 +184,7 @@ pub struct CircMgrConfig {
 }
 
 impl CircMgrConfig {
-    /// Return a new [CircMgrConfigBuiler`].
+    /// Return a new [`CircMgrConfigBuilder`].
     pub fn builder() -> CircMgrConfigBuilder {
         CircMgrConfigBuilder::default()
     }

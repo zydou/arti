@@ -2,7 +2,7 @@
 
 use arti_client::config::{
     dir::{DownloadScheduleConfig, NetworkConfig},
-    StorageConfig, TorClientConfig,
+    StorageConfig, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -142,18 +142,35 @@ pub struct ArtiConfig {
     address_filter: arti_client::config::ClientAddrConfig,
 }
 
+impl From<ArtiConfig> for TorClientConfigBuilder {
+    fn from(cfg: ArtiConfig) -> TorClientConfigBuilder {
+        let mut builder = TorClientConfig::builder();
+        let ArtiConfig {
+            storage,
+            address_filter,
+            path_rules,
+            circuit_timing,
+            override_net_params,
+            download_schedule,
+            tor_network,
+            ..
+        } = cfg;
+        *builder.storage() = storage.into();
+        *builder.address_filter() = address_filter.into();
+        *builder.path_rules() = path_rules.into();
+        *builder.circuit_timing() = circuit_timing.into();
+        *builder.override_net_params() = override_net_params;
+        *builder.download_schedule() = download_schedule.into();
+        *builder.tor_network() = tor_network.into();
+        builder
+    }
+}
+
 impl ArtiConfig {
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
-        TorClientConfig::builder()
-            .storage(self.storage.clone())
-            .address_filter(self.address_filter.clone())
-            .path_rules(self.path_rules.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .override_net_params(self.override_net_params.clone())
-            .download_schedule(self.download_schedule.clone())
-            .tor_network(self.tor_network.clone())
-            .build()
+        let builder: TorClientConfigBuilder = self.clone().into();
+        builder.build()
     }
 
     /// Return the [`LoggingConfig`] for this configuration.

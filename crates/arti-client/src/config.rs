@@ -135,11 +135,9 @@ impl From<StorageConfig> for StorageConfigBuilder {
 ///
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
-#[derive(Clone, Debug, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
-    #[builder(default)]
     tor_network: dir::NetworkConfig,
 
     /// Directories for storing information on disk
@@ -150,7 +148,6 @@ pub struct TorClientConfig {
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
-    #[builder(default)]
     override_net_params: HashMap<String, i32>,
 
     /// Information about how to build paths through the network.
@@ -203,13 +200,12 @@ impl TorClientConfig {
         P: AsRef<Path>,
         Q: AsRef<Path>,
     {
-        let storage_cfg = StorageConfig::builder()
+        let mut builder = Self::builder();
+        builder
+            .storage()
             .cache_dir(CfgPath::from_path(cache_dir))
-            .state_dir(CfgPath::from_path(state_dir))
-            .build()
-            .map_err(|e| e.within("storage"))?;
-
-        Self::builder().storage(storage_cfg).build()
+            .state_dir(CfgPath::from_path(state_dir));
+        builder.build()
     }
 
     /// Build a DirMgrConfig from this configuration.
@@ -232,5 +228,158 @@ impl TorClientConfig {
             .path_rules(self.path_rules.clone())
             .circuit_timing(self.circuit_timing.clone())
             .build()
+    }
+}
+
+/// Builder object used to construct a [`TorClientConfig`].
+///
+/// Unlike other builder types in Arti, this builder works by exposing an
+/// inner builder for each section in the [`TorClientConfig`].
+#[derive(Clone, Default)]
+pub struct TorClientConfigBuilder {
+    /// Inner builder for the `tor_network` section.
+    tor_network: dir::NetworkConfigBuilder,
+    /// Inner builder for the `storage` section.
+    storage: StorageConfigBuilder,
+    /// Inner builder for the `download_schedule` section.
+    download_schedule: dir::DownloadScheduleConfigBuilder,
+    /// Inner builder for the `override_net_params` section.
+    override_net_params: HashMap<String, i32>,
+    /// Inner builder for the `path_rules` section.
+    path_rules: circ::PathConfigBuilder,
+    /// Inner builder for the `circuit_timing` section.
+    circuit_timing: circ::CircuitTimingBuilder,
+    /// Inner builder for the `address_filter` section.
+    address_filter: ClientAddrConfigBuilder,
+}
+
+impl TorClientConfigBuilder {
+    /// Construct a [`TorClientConfig`] from this builder.
+    pub fn build(&self) -> Result<TorClientConfig, ConfigBuildError> {
+        let tor_network = self
+            .tor_network
+            .build()
+            .map_err(|e| e.within("tor_network"))?;
+        let storage = self.storage.build().map_err(|e| e.within("storage"))?;
+        let download_schedule = self
+            .download_schedule
+            .build()
+            .map_err(|e| e.within("download_schedule"))?;
+        let override_net_params = self.override_net_params.clone();
+        let path_rules = self
+            .path_rules
+            .build()
+            .map_err(|e| e.within("path_rules"))?;
+        let circuit_timing = self
+            .circuit_timing
+            .build()
+            .map_err(|e| e.within("circuit_timing"))?;
+        let address_filter = self
+            .address_filter
+            .build()
+            .map_err(|e| e.within("address_filter"))?;
+
+        Ok(TorClientConfig {
+            tor_network,
+            storage,
+            download_schedule,
+            override_net_params,
+            path_rules,
+            circuit_timing,
+            address_filter,
+        })
+    }
+
+    /// Return a mutable reference to a
+    /// [`NetworkConfigBuilder`](dir::NetworkConfigBuilder)
+    /// to use in configuring the underlying Tor network.
+    ///
+    /// Most programs shouldn't need to alter this configuration: it's only for
+    /// cases when you need to use a nonstandard set of Tor directory authorities
+    /// and fallback caches.
+    pub fn tor_network(&mut self) -> &mut dir::NetworkConfigBuilder {
+        &mut self.tor_network
+    }
+
+    /// Return a mutable reference to a [`StorageConfigBuilder`].
+    ///
+    /// This section is used to configure the locations where Arti should
+    /// store files on disk.
+    pub fn storage(&mut self) -> &mut StorageConfigBuilder {
+        &mut self.storage
+    }
+
+    /// Return a mutable reference to a
+    /// [`DowloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
+    ///
+    /// This section is used to override Arti's schedule when attempting and
+    /// retrying to download directory objects.
+    pub fn download_schedule(&mut self) -> &mut dir::DownloadScheduleConfigBuilder {
+        &mut self.download_schedule
+    }
+
+    /// Return a mutable reference to a [`HashMap`] of network parameters
+    /// that should be used to override those specified in the consensus
+    /// directory.
+    ///
+    /// This section should not usually be used for anything but testing:
+    /// if you find yourself needing to configure an override here for
+    /// production use, please consider opening a feature request for it
+    /// instead.
+    ///
+    /// For a complete list of Tor's defined network parameters (not all of
+    /// which are yet supported by Arti), see
+    /// [`path-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/param-spec.txt).
+    pub fn override_net_params(&mut self) -> &mut HashMap<String, i32> {
+        &mut self.override_net_params
+    }
+
+    /// Return a mutable reference to a [`PathConfigBuilder`](circ::PathConfigBuilder).
+    ///
+    /// This section is used to override Arti's rules for selecting which
+    /// relays should be used in a given circuit.
+    pub fn path_rules(&mut self) -> &mut circ::PathConfigBuilder {
+        &mut self.path_rules
+    }
+
+    /// Return a mutable reference to a [`CircuitTimingBuilder`](circ::CircuitTimingBuilder).
+    ///
+    /// This section overrides Arti's rules for deciding how long to use
+    /// circuits, and when to give up on attempts to launch them.
+    pub fn circuit_timing(&mut self) -> &mut circ::CircuitTimingBuilder {
+        &mut self.circuit_timing
+    }
+
+    /// Return a mutable reference to a [`ClientAddrConfigBuilder`].
+    ///
+    /// This section controls which addresses Arti is willing to launch connections
+    /// to over the Tor network.  Any addresses rejected by this section cause
+    /// stream attempts to fail before any traffic is sent over the network.
+    pub fn address_filter(&mut self) -> &mut ClientAddrConfigBuilder {
+        &mut self.address_filter
+    }
+}
+
+impl From<TorClientConfig> for TorClientConfigBuilder {
+    fn from(cfg: TorClientConfig) -> TorClientConfigBuilder {
+        let TorClientConfig {
+            tor_network,
+            storage,
+            download_schedule,
+            override_net_params,
+            path_rules,
+            circuit_timing,
+            address_filter,
+        } = cfg;
+
+        TorClientConfigBuilder {
+            tor_network: tor_network.into(),
+            storage: storage.into(),
+            download_schedule: download_schedule.into(),
+            override_net_params,
+            path_rules: path_rules.into(),
+            circuit_timing: circuit_timing.into(),
+            address_filter: address_filter.into(),
+        }
     }
 }
