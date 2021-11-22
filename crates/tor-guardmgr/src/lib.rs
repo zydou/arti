@@ -133,7 +133,7 @@
 use futures::channel::mpsc;
 use futures::task::{SpawnError, SpawnExt};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -891,7 +891,7 @@ pub struct GuardUsage {
     ///
     /// (Eventually, multiple restrictions may be supported.)
     #[builder(default, setter(strip_option))]
-    restriction: Option<GuardRestriction>,
+    restriction: Option<HashSet<GuardRestriction>>,
 }
 
 impl GuardUsageBuilder {
@@ -908,7 +908,7 @@ impl GuardUsageBuilder {
 /// They're suitable for things like making sure that we don't start
 /// and end a circuit at the same relay, or requiring a specific
 /// subprotocol version for certain kinds of requests.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.

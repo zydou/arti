@@ -5,7 +5,7 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
@@ -298,10 +298,17 @@ impl Guard {
     }
 
     /// Return true if this guard obeys the restriction in `rest`.
-    fn obeys_restriction(&self, rest: &GuardRestriction) -> bool {
-        match rest {
-            GuardRestriction::AvoidId(ed) => &self.id.ed25519 != ed,
+    fn obeys_restriction(&self, rest: &HashSet<GuardRestriction>) -> bool {
+        for r in rest {
+            match r {
+                GuardRestriction::AvoidId(ed) => {
+                    if &self.id.ed25519 == ed {
+                        return false;
+                    }
+                }
+            }
         }
+        true
     }
 
     /// Return true if this guard is suitable to use for the provided `usage`.
@@ -676,6 +683,9 @@ mod test {
 
     #[test]
     fn simple_accessors() {
+        use std::collections::hash_map::RandomState;
+        use std::iter::FromIterator;
+
         let id = basic_id();
         let g = basic_guard();
 
@@ -688,11 +698,15 @@ mod test {
 
         use crate::GuardUsageBuilder;
         let usage1 = GuardUsageBuilder::new()
-            .restriction(GuardRestriction::AvoidId([22; 32].into()))
+            .restriction(HashSet::<_, RandomState>::from_iter([
+                GuardRestriction::AvoidId([22; 32].into()),
+            ]))
             .build()
             .unwrap();
         let usage2 = GuardUsageBuilder::new()
-            .restriction(GuardRestriction::AvoidId([13; 32].into()))
+            .restriction(HashSet::<_, RandomState>::from_iter([
+                GuardRestriction::AvoidId([13; 32].into()),
+            ]))
             .build()
             .unwrap();
         let usage3 = GuardUsage::default();

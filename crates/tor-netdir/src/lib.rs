@@ -70,6 +70,7 @@ use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
+use tor_netdoc::types::family::RelayFamily;
 use tor_netdoc::types::policy::PortPolicy;
 
 use serde::Deserialize;
@@ -961,6 +962,11 @@ impl<'a> Relay<'a> {
     /// this does not verify if the relay is marked BadExit.
     pub fn ipv6_declared_policy(&self) -> &Arc<PortPolicy> {
         self.md.ipv6_policy()
+    }
+
+    /// Return the family declared by this relay.
+    pub fn family(&self) -> &RelayFamily {
+        self.md.family()
     }
 
     /// Return a reference to this relay's "router status" entry in
