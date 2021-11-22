@@ -19,7 +19,9 @@ pub enum TorEvent {
 // NOTE: Update EVENT_KIND_COUNT when adding new events!!
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(usize)]
+#[non_exhaustive]
 pub enum TorEventKind {
+    /// Identifier for [`TorEvent::Empty`].
     Empty = 0,
 }
 
