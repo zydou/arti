@@ -32,16 +32,16 @@ trace_filter = "debug"
 # These paths can use ~ to indicate the user's home directory, or a set
 # of shell-style variables to indicate platform-specific paths.
 #
-# Supported variables are APP_CACHE, APP_CONFIG, APP_SHARED_DATA,
-# APP_LOCAL_DATA, and USER_HOME.
+# Supported variables are ARTI_CACHE, ARTI_CONFIG, ARTI_SHARED_DATA,
+# ARTI_LOCAL_DATA, and USER_HOME.
 #
 # Multiple processes can share the same cache_dir.  If they do, one of them
 # will download directory information for all of the others.
 #
 # The state directory is not yet used.
 [storage]
-cache_dir = "${APP_CACHE}"
-state_dir = "${APP_LOCAL_DATA}"
+cache_dir = "${ARTI_CACHE}"
+state_dir = "${ARTI_LOCAL_DATA}"
 
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.

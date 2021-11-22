@@ -42,7 +42,7 @@ mod cmdline;
 mod options;
 
 pub use cmdline::CmdLine;
-pub use options::{ArtiConfig, LoggingConfig, ProxyConfig, StorageConfig};
+pub use options::{ArtiConfig, LoggingConfig, ProxyConfig};
 use tor_config::CfgPath;
 
 use std::path::{Path, PathBuf};
@@ -91,7 +91,7 @@ fn load_mut<P: AsRef<Path>>(
 
 /// Return a filename for the default user configuration file.
 pub fn default_config_file() -> Option<PathBuf> {
-    CfgPath::new("${APP_CONFIG}/arti.toml".into()).path().ok()
+    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path().ok()
 }
 
 #[cfg(test)]

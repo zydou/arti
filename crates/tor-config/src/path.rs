@@ -13,20 +13,30 @@ use serde::Deserialize;
 /// with expansion of certain variables.
 ///
 /// The supported variables are:
-///   * `APP_CACHE`: an arti-specific cache directory.
-///   * `APP_CONFIG`: an arti-specific configuration directory.
-///   * `APP_SHARED_DATA`: an arti-specific directory in the user's "shared
+///   * `ARTI_CACHE`: an arti-specific cache directory.
+///   * `ARTI_CONFIG`: an arti-specific configuration directory.
+///   * `ARTI_SHARED_DATA`: an arti-specific directory in the user's "shared
 ///     data" space.
-///   * `APP_LOCAL_DATA`: an arti-specific directory in the user's "local
+///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
 ///     data" space.
 ///   * `USER_HOME`: the user's home directory.
 ///
 /// These variables are implemented using the `directories` crate, and
 /// so should use appropriate system-specific overrides under the
 /// hood.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
-pub struct CfgPath(String);
+pub struct CfgPath(PathInner);
+
+/// Inner implementation of CfgPath
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(untagged)]
+enum PathInner {
+    /// A path that should be expanded from a string using ShellExpand.
+    Shell(String),
+    /// A path that should be used literally, with no expansion.
+    Literal(PathBuf),
+}
 
 /// An error that has occurred while expanding a path.
 #[derive(thiserror::Error, Debug, Clone)]
@@ -47,28 +57,45 @@ pub enum CfgPathError {
     /// be fixed in the future.)
     #[error("can't convert value of {0} to UTF-8")]
     BadUtf8(String),
+    /// We couldn't convert a string to a valid path on the OS.
+    #[error("invalid path string: {0:?}")]
+    InvalidString(String),
 }
 
 impl CfgPath {
     /// Create a new configuration path
     pub fn new(s: String) -> Self {
-        CfgPath(s)
+        CfgPath(PathInner::Shell(s))
     }
 
     /// Return the path on disk designated by this `CfgPath`.
-    #[cfg(feature = "expand-paths")]
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
-        Ok(shellexpand::full_with_context(&self.0, get_home, get_env)
-            .map_err(|e| e.cause)?
-            .into_owned()
-            .into())
+        match &self.0 {
+            PathInner::Shell(s) => expand(s),
+            PathInner::Literal(p) => Ok(p.clone()),
+        }
     }
 
-    /// Return the path on disk designated by this `CfgPath`.
-    #[cfg(not(feature = "expand-paths"))]
-    pub fn path(&self) -> Result<PathBuf, CfgPathError> {
-        Ok(self.0.into())
+    /// Construct a new `CfgPath` from a system path.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
+        CfgPath(PathInner::Literal(path.as_ref().to_owned()))
     }
+}
+
+/// Helper: expand a directory given as a string.
+#[cfg(feature = "expand-paths")]
+fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
+    Ok(shellexpand::full_with_context(s, get_home, get_env)
+        .map_err(|e| e.cause)?
+        .into_owned()
+        .into())
+}
+
+/// Helper: convert a string to a path without expansion.
+#[cfg(not(feature = "expand-paths"))]
+fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
+    s.try_into()
+        .map_err(|_| CfgPathError::InvalidString(s.to_owned()))
 }
 
 /// Shellexpand helper: return the user's home directory if we can.
@@ -81,10 +108,10 @@ fn get_home() -> Option<&'static Path> {
 #[cfg(feature = "expand-paths")]
 fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
     let path = match var {
-        "APP_CACHE" => project_dirs()?.cache_dir(),
-        "APP_CONFIG" => project_dirs()?.config_dir(),
-        "APP_SHARED_DATA" => project_dirs()?.data_dir(),
-        "APP_LOCAL_DATA" => project_dirs()?.data_local_dir(),
+        "ARTI_CACHE" => project_dirs()?.cache_dir(),
+        "ARTI_CONFIG" => project_dirs()?.config_dir(),
+        "ARTI_SHARED_DATA" => project_dirs()?.data_dir(),
+        "ARTI_LOCAL_DATA" => project_dirs()?.data_local_dir(),
         "USER_HOME" => base_dirs()?.home_dir(),
         _ => return Err(CfgPathError::UnknownVar(var.to_owned())),
     };
@@ -102,7 +129,10 @@ fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
 
 impl std::fmt::Display for CfgPath {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(fmt)
+        match &self.0 {
+            PathInner::Literal(p) => write!(fmt, "{:?}", p),
+            PathInner::Shell(s) => s.fmt(fmt),
+        }
     }
 }
 
@@ -158,8 +188,8 @@ mod test {
 
     #[test]
     fn expand_cache() {
-        let p = CfgPath::new("${APP_CACHE}/example".to_string());
-        assert_eq!(p.to_string(), "${APP_CACHE}/example".to_string());
+        let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
 
         let expected = project_dirs().unwrap().cache_dir().join("example");
         assert_eq!(p.path().unwrap().to_str(), expected.to_str());
@@ -167,8 +197,8 @@ mod test {
 
     #[test]
     fn expand_bogus() {
-        let p = CfgPath::new("${APP_WOMBAT}/example".to_string());
-        assert_eq!(p.to_string(), "${APP_WOMBAT}/example".to_string());
+        let p = CfgPath::new("${ARTI_WOMBAT}/example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_WOMBAT}/example".to_string());
 
         assert!(p.path().is_err());
     }

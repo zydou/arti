@@ -25,7 +25,7 @@ use std::net::SocketAddr;
 // Note that we do *not* set serde(deny_unknown_fields) on this
 // structure: we want our fallback directory configuration format to
 // be future-proof against adding new info about each fallback.
-#[derive(Debug, Clone, Deserialize, Builder)]
+#[derive(Debug, Clone, Deserialize, Builder, Eq, PartialEq)]
 #[builder(build_fn(validate = "FallbackDirBuilder::validate", error = "ConfigBuildError"))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay

@@ -49,7 +49,7 @@ pub enum Error {
 
     /// Building configuration for the client failed.
     #[error("Configuration failed: {0}")]
-    Configuration(String),
+    Configuration(#[from] tor_config::ConfigBuildError),
 }
 
 impl From<TimeoutError> for Error {

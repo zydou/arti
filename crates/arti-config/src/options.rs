@@ -1,22 +1,22 @@
 //! Handling for arti's configuration formats.
 
-use crate::CfgPath;
 use arti_client::config::{
-    circ::{CircMgrConfig, CircMgrConfigBuilder},
-    dir::{DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, NetworkConfig},
-    ConfigBuildError, TorClientConfig,
+    dir::{DownloadScheduleConfig, NetworkConfig},
+    StorageConfig, TorClientConfig, TorClientConfigBuilder,
 };
+use derive_builder::Builder;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use tor_config::ConfigBuildError;
 
 /// Default options to use for our configuration.
 pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
 /// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html>
@@ -25,27 +25,75 @@ pub struct LoggingConfig {
     ///
     /// Example: "info,tor_proto::channel=trace"
     // TODO(nickm) remove public elements when I revise this.
+    #[serde(default = "default_trace_filter")]
+    #[builder(default = "default_trace_filter()")]
     pub trace_filter: String,
 
     /// Whether to log to journald
     // TODO(nickm) remove public elements when I revise this.
+    #[serde(default)]
+    #[builder(default)]
     pub journald: bool,
 }
 
+/// Return a default value for `trace_filter`.
+fn default_trace_filter() -> String {
+    "debug".to_owned()
+}
+
+impl LoggingConfig {
+    /// Return a new LoggingConfigBuilder
+    pub fn builder() -> LoggingConfigBuilder {
+        LoggingConfigBuilder::default()
+    }
+}
+
+impl From<LoggingConfig> for LoggingConfigBuilder {
+    fn from(cfg: LoggingConfig) -> LoggingConfigBuilder {
+        let mut builder = LoggingConfigBuilder::default();
+        builder
+            .trace_filter(cfg.trace_filter)
+            .journald(cfg.journald);
+        builder
+    }
+}
+
 /// Configuration for one or more proxy listeners.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
+    #[serde(default = "default_socks_port")]
+    #[builder(default = "default_socks_port()")]
     socks_port: Option<u16>,
 }
 
+/// Return the default value for `socks_port`
+#[allow(clippy::unnecessary_wraps)]
+fn default_socks_port() -> Option<u16> {
+    Some(9150)
+}
+
 impl ProxyConfig {
+    /// Return a new [`ProxyConfigBuilder`].
+    pub fn builder() -> ProxyConfigBuilder {
+        ProxyConfigBuilder::default()
+    }
+
     /// Return the configured SOCKS port for this proxy configuration,
     /// if one is enabled.
     pub fn socks_port(&self) -> Option<u16> {
         self.socks_port
+    }
+}
+
+impl From<ProxyConfig> for ProxyConfigBuilder {
+    fn from(cfg: ProxyConfig) -> ProxyConfigBuilder {
+        let mut builder = ProxyConfigBuilder::default();
+        builder.socks_port(cfg.socks_port);
+        builder
     }
 }
 
@@ -60,7 +108,7 @@ impl ProxyConfig {
 ///
 /// NOTE: These are NOT the final options or their final layout.
 /// Expect NO stability here.
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
     /// Configuration for proxy listeners
@@ -94,76 +142,35 @@ pub struct ArtiConfig {
     address_filter: arti_client::config::ClientAddrConfig,
 }
 
-/// Configuration for where information should be stored on disk.
-///
-/// This section is for read/write storage.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct StorageConfig {
-    /// Location on disk for cached directory information
-    cache_dir: CfgPath,
-    /// Location on disk for less-sensitive persistent state information.
-    state_dir: CfgPath,
-}
-
-impl StorageConfig {
-    /// Try to expand `state_dir` to be a path buffer.
-    fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "state_dir".to_owned(),
-                problem: e.to_string(),
-            })
-    }
-    /// Try to expand `cache_dir` to be a path buffer.
-    fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
-            .path()
-            .map_err(|e| ConfigBuildError::Invalid {
-                field: "cache_dir".to_owned(),
-                problem: e.to_string(),
-            })
+impl From<ArtiConfig> for TorClientConfigBuilder {
+    fn from(cfg: ArtiConfig) -> TorClientConfigBuilder {
+        let mut builder = TorClientConfig::builder();
+        let ArtiConfig {
+            storage,
+            address_filter,
+            path_rules,
+            circuit_timing,
+            override_net_params,
+            download_schedule,
+            tor_network,
+            ..
+        } = cfg;
+        *builder.storage() = storage.into();
+        *builder.address_filter() = address_filter.into();
+        *builder.path_rules() = path_rules.into();
+        *builder.circuit_timing() = circuit_timing.into();
+        *builder.override_net_params() = override_net_params;
+        *builder.download_schedule() = download_schedule.into();
+        *builder.tor_network() = tor_network.into();
+        builder
     }
 }
 
 impl ArtiConfig {
-    /// Return a [`DirMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_dir_config(&self) -> Result<DirMgrConfig, ConfigBuildError> {
-        let mut dircfg = DirMgrConfigBuilder::default();
-        dircfg.network_config(self.tor_network.clone());
-        dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in self.override_net_params.iter() {
-            dircfg.override_net_param(k.clone(), *v);
-        }
-        dircfg.build()
-    }
-
-    /// Return a [`CircMgrConfig`] object based on the user's selected
-    /// configuration.
-    fn get_circ_config(&self) -> Result<CircMgrConfig, ConfigBuildError> {
-        let mut builder = CircMgrConfigBuilder::default();
-        builder
-            .path_rules(self.path_rules.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .build()
-    }
-
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
-        let statecfg = self.storage.expand_state_dir()?;
-        let dircfg = self.get_dir_config()?;
-        let circcfg = self.get_circ_config()?;
-        let addrcfg = self.address_filter.clone();
-
-        TorClientConfig::builder()
-            .state_cfg(statecfg)
-            .dir_cfg(dircfg)
-            .circ_cfg(circcfg)
-            .addr_cfg(addrcfg)
-            .build()
+        let builder: TorClientConfigBuilder = self.clone().into();
+        builder.build()
     }
 
     /// Return the [`LoggingConfig`] for this configuration.

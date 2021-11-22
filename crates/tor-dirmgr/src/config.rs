@@ -26,7 +26,7 @@ use serde::Deserialize;
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`NetworkConfigBuilder`], or deserialize it from a string.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 pub struct NetworkConfig {
@@ -55,6 +55,16 @@ impl Default for NetworkConfig {
             fallback_caches: fallbacks::default_fallbacks(),
             authorities: crate::authority::default_authorities(),
         }
+    }
+}
+
+impl From<NetworkConfig> for NetworkConfigBuilder {
+    fn from(cfg: NetworkConfig) -> NetworkConfigBuilder {
+        let mut builder = NetworkConfigBuilder::default();
+        builder
+            .fallback_caches(cfg.fallback_caches)
+            .authorities(cfg.authorities);
+        builder
     }
 }
 
@@ -93,7 +103,7 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Deserialize, Debug, Clone, Builder)]
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DownloadScheduleConfig {
@@ -130,12 +140,9 @@ fn default_microdesc_schedule() -> DownloadSchedule {
 
 impl Default for DownloadScheduleConfig {
     fn default() -> Self {
-        DownloadScheduleConfig {
-            retry_bootstrap: default_retry_bootstrap(),
-            retry_consensus: Default::default(),
-            retry_certs: Default::default(),
-            retry_microdescs: Default::default(),
-        }
+        Self::builder()
+            .build()
+            .expect("default builder setting didn't work")
     }
 }
 
@@ -146,6 +153,18 @@ impl DownloadScheduleConfig {
     }
 }
 
+impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
+    fn from(cfg: DownloadScheduleConfig) -> DownloadScheduleConfigBuilder {
+        let mut builder = DownloadScheduleConfigBuilder::default();
+        builder
+            .retry_bootstrap(cfg.retry_bootstrap)
+            .retry_consensus(cfg.retry_consensus)
+            .retry_certs(cfg.retry_certs)
+            .retry_microdescs(cfg.retry_microdescs);
+        builder
+    }
+}
+
 /// Configuration type for network directory operations.
 ///
 /// This type is immutable once constructed.
@@ -153,7 +172,7 @@ impl DownloadScheduleConfig {
 /// To create an object of this type, use [`DirMgrConfigBuilder`], or
 /// deserialize it from a string. (Arti generally uses Toml for
 /// configuration, but you can use other formats if you prefer.)
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
