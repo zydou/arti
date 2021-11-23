@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# usage: with_coverage <command> [args...] : run <command> with [args...]
+#        with_coverage                     : runs bash interactively
+
 set -e
 
 COVERAGE_BASEDIR=$(git rev-parse --show-toplevel)
