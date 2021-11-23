@@ -347,7 +347,14 @@ impl<R: Runtime> GuardMgr<R> {
 
         // TODO: Once we support nontrivial filters, we might have to
         // swap out "active_guards" depending on which set it is.
-        // TODO: Warn if the filter is waaaay to small according to guard params.
+
+        if n_permitted < inner.params.min_filtered_sample_size {
+            warn!(
+                "The number of guards permitted is smaller than the guard param minimum of {}",
+                inner.params.min_filtered_sample_size,
+            );
+        }
+
         info!(
             ?filter,
             restrictive = restrictive_filter,
