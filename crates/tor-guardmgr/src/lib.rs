@@ -347,7 +347,14 @@ impl<R: Runtime> GuardMgr<R> {
 
         // TODO: Once we support nontrivial filters, we might have to
         // swap out "active_guards" depending on which set it is.
-        // TODO: Warn if the filter is waaaay to small according to guard params.
+
+        if frac_permitted < inner.params.extreme_threshold {
+            warn!(
+                "The number of guards permitted is smaller than the guard param minimum of {}%.",
+                inner.params.extreme_threshold * 100.0,
+            );
+        }
+
         info!(
             ?filter,
             restrictive = restrictive_filter,
@@ -734,6 +741,9 @@ struct GuardParams {
     ///
     /// (Not fully implemented yet.)
     filter_threshold: f64,
+    /// What fraction of the guards determine that our filter is "very
+    /// restrictive"?
+    extreme_threshold: f64,
 }
 
 impl Default for GuardParams {
@@ -753,6 +763,7 @@ impl Default for GuardParams {
             np_idle_timeout: Duration::from_secs(600),
             internet_down_timeout: Duration::from_secs(600),
             filter_threshold: 0.2,
+            extreme_threshold: 0.01,
         }
     }
 }
@@ -774,6 +785,7 @@ impl TryFrom<&NetParameters> for GuardParams {
             np_idle_timeout: p.guard_nonprimary_idle_timeout.try_into()?,
             internet_down_timeout: p.guard_internet_likely_down.try_into()?,
             filter_threshold: p.guard_meaningful_restriction.as_fraction(),
+            extreme_threshold: p.guard_extreme_restriction.as_fraction(),
         })
     }
 }
