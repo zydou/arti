@@ -1154,10 +1154,10 @@ mod test {
                 let end = relaymsg::End::new_with_reason(relaymsg::EndReason::DONE).into();
                 sink.send(rmsg_to_ccmsg(streamid, end)).await.unwrap();
 
-                sink // gotta keep the sink alive, or the reactor will exit.
+                (rx, sink) // gotta keep these alive, or the reactor will exit.
             };
 
-            let (_stream, _) = futures::join!(begin_and_send_fut, reply_fut);
+            let (_stream, (_rx, _sink)) = futures::join!(begin_and_send_fut, reply_fut);
         });
     }
 
