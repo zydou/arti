@@ -526,7 +526,7 @@ pub(crate) mod test {
             let rtc = rt.clone();
             let send_response = async {
                 rtc.sleep(Duration::from_millis(100)).await;
-                eprintln!("sending createdfast");
+                trace!("sending createdfast");
                 // We'll get a bad handshake result from this createdfast cell.
                 let created_cell = ChanCell::new(id, msg::CreatedFast::new(*b"x").into());
                 input.send(Ok(created_cell)).await.unwrap();

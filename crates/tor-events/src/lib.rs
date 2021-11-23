@@ -385,7 +385,6 @@ mod test {
 
             // this shouldn't have an event to receive now
             let result = tokio::time::timeout(Duration::from_millis(100), rx.next()).await;
-            eprintln!("result: {:?}", result);
             assert!(result.is_err());
         });
     }
