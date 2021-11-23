@@ -16,6 +16,8 @@ Usage:
 Options:
   -h: Print this message.
   -i: Run an interactive shell after the command (if any)
+  -c: Continue using data from previous runs. (By default, data is deleted.)
+  -s: Skip generating a final report.
 
 Notes:
   You need to have grcov, rust-nightly, and llvm-tools-preview installed.
@@ -23,13 +25,19 @@ EOF
 }
 
 interactive=no
+remove_data=yes
+skip_report=no
 
-while getopts "hi" opt ; do
+while getopts "chis" opt ; do
     case "$opt" in
+	c) remove_data=no
+	   ;;
 	h) usage
 	   exit 0
 	   ;;
 	i) interactive=yes
+	   ;;
+	s) skip_report=yes
 	   ;;
 	*) echo "Unknown option."
 	   exit 1
@@ -66,7 +74,8 @@ export RUSTUP_TOOLCHAIN=nightly
 if [ -d "$COVERAGE_BASEDIR/coverage" ]; then
     rm -r "$COVERAGE_BASEDIR/coverage" || true
 fi
-if [ -d "$COVERAGE_BASEDIR/coverage_meta" ]; then
+if [ -d "$COVERAGE_BASEDIR/coverage_meta" ] && [ "$remove_data" = "yes" ]; then
+    echo "Removing data from previous runs. (Use -c to suppress this behavior.)"
     rm -r "$COVERAGE_BASEDIR/coverage_meta" || true
 fi
 
@@ -81,6 +90,10 @@ if [ $interactive = "yes" ] ; then
     echo "Exit this shell when you are ready to genate a coverage report."
     # when run interactivelly, don't die on error
     bash || true
+fi
+
+if [ "$skip_report" = "yes" ]; then
+    exit 0
 fi
 
 echo "Generating report..."
