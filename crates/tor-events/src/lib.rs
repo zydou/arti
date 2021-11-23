@@ -1,5 +1,34 @@
 //! Tools for generating a stream of structured events, similar to C tor's `ControlPort`.
 
+#![deny(missing_docs)]
+#![warn(noop_method_call)]
+#![deny(unreachable_pub)]
+#![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
+#![deny(clippy::cast_lossless)]
+#![deny(clippy::checked_conversions)]
+#![warn(clippy::clone_on_ref_ptr)]
+#![warn(clippy::cognitive_complexity)]
+#![deny(clippy::debug_assert_with_mut_call)]
+#![deny(clippy::exhaustive_enums)]
+#![deny(clippy::exhaustive_structs)]
+#![deny(clippy::expl_impl_clone_on_copy)]
+#![deny(clippy::fallible_impl_from)]
+#![deny(clippy::implicit_clone)]
+#![deny(clippy::large_stack_arrays)]
+#![warn(clippy::manual_ok_or)]
+#![deny(clippy::missing_docs_in_private_items)]
+#![deny(clippy::missing_panics_doc)]
+#![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
+#![warn(clippy::rc_buffer)]
+#![deny(clippy::ref_option_ref)]
+#![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unnecessary_wraps)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+
 pub mod events;
 
 use crate::events::{TorEvent, TorEventKind};
@@ -39,7 +68,13 @@ pub static BROADCAST_CAPACITY: usize = 512;
 /// Currently, this type is a singleton; there is one event reporting system used for the entire
 /// program. This is not stable, and may change in future.
 pub struct EventReactor {
+    /// A receiver that the reactor uses to learn about incoming events.
+    ///
+    /// This is unbounded so that event publication doesn't have to be async.
     receiver: UnboundedReceiver<TorEvent>,
+    /// A sender that the reactor uses to publish events.
+    ///
+    /// Events are only sent here if at least one subscriber currently wants them.
     broadcast: Sender<TorEvent>,
 }
 
@@ -105,6 +140,7 @@ impl EventReactor {
 
 /// An error encountered when trying to receive a `TorEvent`.
 #[derive(Clone, Debug, Error)]
+#[non_exhaustive]
 pub enum ReceiverError {
     /// The receiver isn't subscribed to anything, so wouldn't ever return any events.
     #[error("no event subscriptions")]
@@ -160,6 +196,7 @@ impl futures::stream::Stream for TorEventReceiver {
 }
 
 impl TorEventReceiver {
+    /// Create a `TorEventReceiver` from an `InactiveReceiver` handle.
     pub(crate) fn wrap(rx: InactiveReceiver<TorEvent>) -> Self {
         Self {
             inner: Either::Right(rx),
@@ -240,6 +277,7 @@ pub fn broadcast(event: TorEvent) {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use crate::{
         broadcast, event_has_subscribers, EventReactor, StreamExt, TorEvent, TorEventKind,
     };
