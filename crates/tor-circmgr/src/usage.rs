@@ -10,6 +10,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
+use crate::mgr::{abstract_spec_find_supported, OpenEntry};
 use crate::{Error, Result};
 
 /// An exit policy, as supported by the last hop of a circuit.
@@ -25,7 +26,7 @@ pub(crate) struct ExitPolicy {
 ///
 /// Ordinarily, this is a TCP port, plus a flag to indicate whether we
 /// must support IPv4 or IPv6.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct TargetPort {
     /// True if this is a request to connect to an IPv6 address
     ipv6: bool,
@@ -209,6 +210,14 @@ impl ExitPolicy {
 pub(crate) enum TargetCircUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
+    /// Built preemptively, to reduce the likelihood that clients have to wait for a circuit
+    /// to be available.
+    Preemptive {
+        /// A port the circuit has to allow, if specified.
+        ///
+        /// If this is `None`, we just want a circuit capable of doing DNS resolution.
+        port: Option<TargetPort>,
+    },
     /// Use to exit to one or more ports.
     Exit {
         /// List of ports the circuit has to allow.
@@ -262,6 +271,23 @@ impl TargetCircUsage {
             TargetCircUsage::Dir => {
                 let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
                 Ok((path, SupportedCircUsage::Dir, mon, usable))
+            }
+            TargetCircUsage::Preemptive { port } => {
+                // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
+                let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
+                    .pick_path(rng, netdir, guards, config)?;
+                let policy = path
+                    .exit_policy()
+                    .expect("ExitPathBuilder gave us a one-hop circuit?");
+                Ok((
+                    path,
+                    SupportedCircUsage::Exit {
+                        policy,
+                        isolation: None,
+                    },
+                    mon,
+                    usable,
+                ))
             }
             TargetCircUsage::Exit {
                 ports: p,
@@ -320,6 +346,13 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
+            (Exit { policy, .. }, TargetCircUsage::Preemptive { port }) => {
+                if let Some(p) = port {
+                    policy.allows_port(*p)
+                } else {
+                    true
+                }
+            }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => true,
             (_, _) => false,
         }
@@ -347,6 +380,26 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
             (_, _) => Err(Error::UsageNotSupported("Incompatible usage".into())),
+        }
+    }
+
+    fn find_supported<'a, 'b, C>(
+        list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
+        usage: &TargetCircUsage,
+    ) -> Vec<&'b mut OpenEntry<Self, C>> {
+        match usage {
+            TargetCircUsage::Preemptive { .. } => {
+                let supported = abstract_spec_find_supported(list, usage);
+                // We need to have at least two circuits that support `port` in order
+                // to reuse them; otherwise, we must create a new circuit, so
+                // that we get closer to having two circuits.
+                if supported.len() >= 2 {
+                    supported
+                } else {
+                    vec![]
+                }
+            }
+            _ => abstract_spec_find_supported(list, usage),
         }
     }
 }

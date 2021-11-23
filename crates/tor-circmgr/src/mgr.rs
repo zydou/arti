@@ -89,6 +89,29 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     /// If this function returns Ok, the resulting spec must be
     /// contained by the original spec, and must support `usage`.
     fn restrict_mut(&mut self, usage: &Self::Usage) -> Result<()>;
+
+    /// Find all open circuits in `list` whose specifications permit
+    /// `usage`.
+    ///
+    /// By default, this calls `abstract_spec_find_supported`.
+    fn find_supported<'a, 'b, C>(
+        list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
+        usage: &Self::Usage,
+    ) -> Vec<&'b mut OpenEntry<Self, C>> {
+        abstract_spec_find_supported(list, usage)
+    }
+}
+
+/// Default implementation of `AbstractSpec::find_supported`; provided as a separate function
+/// so it can be used in overridden implementations.
+///
+/// This returns the all circuits in `list` for which `circuit.spec.supports(usage)` returns
+/// `true`.
+pub(crate) fn abstract_spec_find_supported<'a, 'b, S: AbstractSpec, C>(
+    list: impl Iterator<Item = &'b mut OpenEntry<S, C>>,
+    usage: &S::Usage,
+) -> Vec<&'b mut OpenEntry<S, C>> {
+    list.filter(|circ| circ.spec.supports(usage)).collect()
 }
 
 /// Minimal abstract view of a circuit.
@@ -255,11 +278,11 @@ impl ExpirationInfo {
 }
 
 /// An entry for an open circuit held by an `AbstractCircMgr`.
-struct OpenEntry<B: AbstractCircBuilder> {
+pub(crate) struct OpenEntry<S, C> {
     /// Current AbstractCircSpec for this circuit's permitted usages.
-    spec: B::Spec,
+    pub(crate) spec: S,
     /// The circuit under management.
-    circ: Arc<B::Circ>,
+    circ: Arc<C>,
     /// When does this circuit expire?
     ///
     /// (Note that expired circuits are removed from the manager,
@@ -268,9 +291,9 @@ struct OpenEntry<B: AbstractCircBuilder> {
     expiration: ExpirationInfo,
 }
 
-impl<B: AbstractCircBuilder> OpenEntry<B> {
+impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// Make a new OpenEntry for a given circuit and spec.
-    fn new(spec: B::Spec, circ: Arc<B::Circ>, expiration: ExpirationInfo) -> Self {
+    fn new(spec: S, circ: Arc<C>, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
             circ,
@@ -279,7 +302,7 @@ impl<B: AbstractCircBuilder> OpenEntry<B> {
     }
 
     /// Return true if this circuit can be used for `usage`.
-    fn supports(&self, usage: &<B::Spec as AbstractSpec>::Usage) -> bool {
+    fn supports(&self, usage: &<S as AbstractSpec>::Usage) -> bool {
         self.circ.usable() && self.spec.supports(usage)
     }
 
@@ -287,11 +310,7 @@ impl<B: AbstractCircBuilder> OpenEntry<B> {
     /// been used for `usage` at time `now`.
     ///
     /// Return an error if this circuit may not be used for `usage`.
-    fn restrict_mut(
-        &mut self,
-        usage: &<B::Spec as AbstractSpec>::Usage,
-        now: Instant,
-    ) -> Result<()> {
+    fn restrict_mut(&mut self, usage: &<S as AbstractSpec>::Usage, now: Instant) -> Result<()> {
         self.spec.restrict_mut(usage)?;
         self.expiration.mark_dirty(now);
         Ok(())
@@ -309,7 +328,7 @@ impl<B: AbstractCircBuilder> OpenEntry<B> {
     /// supports `spec`.
     fn find_best<'a>(
         ents: &'a mut Vec<&'a mut Self>,
-        usage: &<B::Spec as AbstractSpec>::Usage,
+        usage: &<S as AbstractSpec>::Usage,
         parallelism: usize,
     ) -> &'a mut Self {
         let _ = usage; // not yet used.
@@ -444,7 +463,8 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
 struct CircList<B: AbstractCircBuilder> {
     /// A map from circuit ID to [`OpenEntry`] values for all managed
     /// open circuits.
-    open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B>>,
+    #[allow(clippy::type_complexity)]
+    open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Spec, B::Circ>>,
     /// Weak-set of PendingEntry for circuits that are being built.
     ///
     /// Because this set only holds weak references, and the only
@@ -473,7 +493,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
     }
 
     /// Add `e` to the list of open circuits.
-    fn add_open(&mut self, e: OpenEntry<B>) {
+    fn add_open(&mut self, e: OpenEntry<B::Spec, B::Circ>) {
         let id = e.circ.id();
         self.open_circs.insert(id, e);
     }
@@ -484,12 +504,9 @@ impl<B: AbstractCircBuilder> CircList<B> {
     fn find_open(
         &mut self,
         usage: &<B::Spec as AbstractSpec>::Usage,
-    ) -> Option<Vec<&mut OpenEntry<B>>> {
-        let v: Vec<_> = self
-            .open_circs
-            .values_mut()
-            .filter(|oc| oc.supports(usage))
-            .collect();
+    ) -> Option<Vec<&mut OpenEntry<B::Spec, B::Circ>>> {
+        let list = self.open_circs.values_mut();
+        let v = <B::Spec as AbstractSpec>::find_supported(list, usage);
         if v.is_empty() {
             None
         } else {
@@ -500,14 +517,20 @@ impl<B: AbstractCircBuilder> CircList<B> {
     /// Find an open circuit by ID.
     ///
     /// Return None if no such circuit exists in this list.
-    fn get_open_mut(&mut self, id: &<B::Circ as AbstractCirc>::Id) -> Option<&mut OpenEntry<B>> {
+    fn get_open_mut(
+        &mut self,
+        id: &<B::Circ as AbstractCirc>::Id,
+    ) -> Option<&mut OpenEntry<B::Spec, B::Circ>> {
         self.open_circs.get_mut(id)
     }
 
     /// Extract an open circuit by ID, removing it from this list.
     ///
     /// Return None if no such circuit exists in this list.
-    fn take_open(&mut self, id: &<B::Circ as AbstractCirc>::Id) -> Option<OpenEntry<B>> {
+    fn take_open(
+        &mut self,
+        id: &<B::Circ as AbstractCirc>::Id,
+    ) -> Option<OpenEntry<B::Spec, B::Circ>> {
         self.open_circs.remove(id)
     }
 
@@ -617,7 +640,7 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     builder: B,
     /// An asynchronous runtime to use for launching tasks and
     /// checking timeouts.
-    runtime: R,
+    pub(crate) runtime: R,
     /// A CircList to manage our list of circuits, requests, and
     /// pending circuits.
     circs: sync::Mutex<CircList<B>>,

@@ -56,7 +56,7 @@ use tor_rtcompat::Runtime;
 
 use futures::task::SpawnExt;
 use std::convert::TryInto;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 use tracing::{debug, warn};
 
@@ -66,6 +66,7 @@ mod err;
 mod impls;
 mod mgr;
 pub mod path;
+mod preemptive;
 mod timeouts;
 mod usage;
 
@@ -77,6 +78,7 @@ pub use config::{
     PathConfigBuilder,
 };
 
+use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
 /// A Result type as returned from this crate.
@@ -149,6 +151,8 @@ impl<'a> DirInfo<'a> {
 pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
+    /// A preemptive circuit predictor, for, uh, building circuits preemptively.
+    preemptive: Arc<Mutex<PreemptiveCircuitPredictor>>,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -167,6 +171,12 @@ impl<R: Runtime> CircMgr<R> {
             circuit_timing,
         } = config;
 
+        // TODO(eta): don't hardcode!
+        let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(vec![
+            TargetPort::ipv4(80),
+            TargetPort::ipv4(443),
+        ])));
+
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
@@ -179,7 +189,10 @@ impl<R: Runtime> CircMgr<R> {
             guardmgr,
         );
         let mgr = mgr::AbstractCircMgr::new(builder, runtime.clone(), circuit_timing);
-        let circmgr = Arc::new(CircMgr { mgr: Arc::new(mgr) });
+        let circmgr = Arc::new(CircMgr {
+            mgr: Arc::new(mgr),
+            preemptive,
+        });
 
         runtime.spawn(continually_expire_circuits(
             runtime.clone(),
@@ -251,6 +264,16 @@ impl<R: Runtime> CircMgr<R> {
         isolation: StreamIsolation,
     ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
+        {
+            let mut predictive = self.preemptive.lock().expect("preemptive lock poisoned");
+            if ports.is_empty() {
+                predictive.note_usage(None);
+            } else {
+                for port in ports.iter() {
+                    predictive.note_usage(Some(*port));
+                }
+            }
+        }
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await
