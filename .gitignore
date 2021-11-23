@@ -1,4 +1,5 @@
 /coverage/
+/coverage_meta/
 /target/
 /crates/*/target/
 /crates/*/fuzz/target/
