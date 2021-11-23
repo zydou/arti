@@ -11,6 +11,8 @@ export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
 export RUSTUP_TOOLCHAIN=nightly
 
 rm -r "$COVERAGE_BASEDIR/coverage" || true
+rm -r "$COVERAGE_BASEDIR/coverage_meta" || true
+
 mkdir -p "$COVERAGE_BASEDIR/coverage"
 
 if [ $# -eq 0 ]; then
@@ -20,14 +22,18 @@ else
 	"$@"
 fi
 
+echo "Generating report..."
+
 grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/debug/" \
 	-s "$COVERAGE_BASEDIR/crates/" -o "$COVERAGE_BASEDIR/coverage" -t html --branch \
 	--ignore-not-existing --excl-start '^mod test' --excl-stop '^}' \
 	--ignore="*/tests/*" --ignore="*/examples/*"
 
+# Extract coverage information and print it to the command line.
 awk '{if (match($0, /<p class="heading">([^<]*)<\/p>/, groups)) {
 		last_match=groups[1]
 	} else if (match($0, /<abbr title="[0-9]* \/ [0-9]*">([^<]*)<\/abbr>/, groups)) {
 	    print last_match " " groups[1]
 	}}' "$COVERAGE_BASEDIR/coverage/index.html"
+
 echo "Full report: $COVERAGE_BASEDIR/coverage/index.html"
