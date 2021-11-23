@@ -497,7 +497,7 @@ impl Guard {
             /// If this fraction of circs are suspcious, we should disable
             /// the guard.
             const DISABLE_THRESHOLD: f64 = 0.7;
-            /// If this fractino of circuits are suspicious, we should
+            /// If this fraction of circuits are suspicious, we should
             /// warn.
             const WARN_THRESHOLD: f64 = 0.5;
 
