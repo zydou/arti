@@ -63,8 +63,12 @@ export RUSTFLAGS="-Z instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
 export RUSTUP_TOOLCHAIN=nightly
 
-rm -r "$COVERAGE_BASEDIR/coverage" || true
-rm -r "$COVERAGE_BASEDIR/coverage_meta" || true
+if [ -d "$COVERAGE_BASEDIR/coverage" ]; then
+    rm -r "$COVERAGE_BASEDIR/coverage" || true
+fi
+if [ -d "$COVERAGE_BASEDIR/coverage_meta" ]; then
+    rm -r "$COVERAGE_BASEDIR/coverage_meta" || true
+fi
 
 mkdir -p "$COVERAGE_BASEDIR/coverage"
 
