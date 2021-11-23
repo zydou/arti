@@ -80,14 +80,17 @@ if [ -d "$COVERAGE_BASEDIR/coverage_meta" ] && [ "$remove_data" = "yes" ]; then
 fi
 
 mkdir -p "$COVERAGE_BASEDIR/coverage"
+mkdir -p "$COVERAGE_BASEDIR/coverage_meta"
 
 if [ $# -ne 0 ]; then
+    echo "$@" >> "$COVERAGE_BASEDIR/coverage_meta/commands"
     "$@"
 fi
 
 if [ $interactive = "yes" ] ; then
     echo "Launching a bash shell."
     echo "Exit this shell when you are ready to genate a coverage report."
+    echo "# BASH SHELL" >> "$COVERAGE_BASEDIR/coverage_meta/commands"
     # when run interactivelly, don't die on error
     bash || true
 fi
@@ -109,5 +112,18 @@ awk '{if (match($0, /<p class="heading">([^<]*)<\/p>/, groups)) {
 	} else if (match($0, /<abbr title="[0-9]* \/ [0-9]*">([^<]*)<\/abbr>/, groups)) {
 	    print last_match " " groups[1]
 	}}' "$COVERAGE_BASEDIR/coverage/index.html"
+
+# Insert the command log and git revision in index.html
+ed "$COVERAGE_BASEDIR/coverage/index.html" <<EOF >/dev/null
+/class=.level/
+-
+a
+<pre>
+REVISION: $(git rev-parse HEAD) $(git diff --quiet || echo "[dirty]")
+$(cat "$COVERAGE_BASEDIR/coverage_meta/commands")
+</pre>
+.
+wq
+EOF
 
 echo "Full report: $COVERAGE_BASEDIR/coverage/index.html"
