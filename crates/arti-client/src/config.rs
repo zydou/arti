@@ -22,9 +22,9 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig,
-        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder, NetworkConfig,
-        NetworkConfigBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadSchedule,
+        DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder,
+        NetworkConfig, NetworkConfigBuilder,
     };
 }
 
@@ -399,5 +399,54 @@ mod test {
         let b2 = TorClientConfigBuilder::from(dflt.clone());
         let dflt2 = b2.build().unwrap();
         assert_eq!(&dflt, &dflt2);
+    }
+
+    #[test]
+    fn builder() {
+        use tor_dirmgr::DownloadSchedule;
+        let sec = std::time::Duration::from_secs(1);
+
+        let auth = dir::Authority::builder()
+            .name("Fred")
+            .v3ident([22; 20].into())
+            .build()
+            .unwrap();
+        let fallback = dir::FallbackDir::builder()
+            .rsa_identity([23; 20].into())
+            .ed_identity([99; 32].into())
+            .orports(vec!["127.0.0.7:7".parse().unwrap()])
+            .build()
+            .unwrap();
+
+        let mut bld = TorClientConfig::builder();
+        bld.tor_network()
+            .authorities(vec![auth])
+            .fallback_caches(vec![fallback]);
+        bld.storage()
+            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
+            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld.download_schedule()
+            .retry_certs(DownloadSchedule::new(10, sec, 3))
+            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+        bld.override_net_params()
+            .insert("wombats-per-quokka".to_owned(), 7);
+        bld.path_rules()
+            .ipv4_subnet_family_prefix(20)
+            .ipv6_subnet_family_prefix(48);
+        bld.circuit_timing()
+            .max_dirtiness(90 * sec)
+            .request_timeout(10 * sec)
+            .request_max_retries(22)
+            .request_loyalty(3600 * sec);
+        bld.address_filter().allow_local_addrs(true);
+
+        let val = bld.build().unwrap();
+
+        // Reconstruct, rebuild, and validate.
+        let bld2 = TorClientConfigBuilder::from(val.clone());
+        let val2 = bld2.build().unwrap();
+        assert_eq!(val, val2);
+
+        assert_ne!(val, TorClientConfig::sane_defaults().unwrap());
     }
 }

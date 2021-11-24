@@ -187,6 +187,11 @@ impl ArtiConfig {
         builder.build()
     }
 
+    /// Return a new ArtiConfigBuilder.
+    pub fn builder() -> ArtiConfigBuilder {
+        ArtiConfigBuilder::default()
+    }
+
     /// Return the [`LoggingConfig`] for this configuration.
     pub fn logging(&self) -> &LoggingConfig {
         &self.logging
@@ -394,5 +399,57 @@ mod test {
         let client_config = parsed.tor_client_config().unwrap();
         let dflt_client_config = TorClientConfig::sane_defaults().unwrap();
         assert_eq!(&client_config, &dflt_client_config);
+    }
+
+    #[test]
+    fn builder() {
+        use arti_client::config::dir::DownloadSchedule;
+        use tor_config::CfgPath;
+        let sec = std::time::Duration::from_secs(1);
+
+        let auth = dir::Authority::builder()
+            .name("Fred")
+            .v3ident([22; 20].into())
+            .build()
+            .unwrap();
+        let fallback = dir::FallbackDir::builder()
+            .rsa_identity([23; 20].into())
+            .ed_identity([99; 32].into())
+            .orports(vec!["127.0.0.7:7".parse().unwrap()])
+            .build()
+            .unwrap();
+
+        let mut bld = ArtiConfig::builder();
+        bld.proxy().socks_port(Some(9999));
+        bld.logging().journald(true).trace_filter("warn".to_owned());
+        bld.tor_network()
+            .authorities(vec![auth])
+            .fallback_caches(vec![fallback]);
+        bld.storage()
+            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
+            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld.download_schedule()
+            .retry_certs(DownloadSchedule::new(10, sec, 3))
+            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+        bld.override_net_params()
+            .insert("wombats-per-quokka".to_owned(), 7);
+        bld.path_rules()
+            .ipv4_subnet_family_prefix(20)
+            .ipv6_subnet_family_prefix(48);
+        bld.circuit_timing()
+            .max_dirtiness(90 * sec)
+            .request_timeout(10 * sec)
+            .request_max_retries(22)
+            .request_loyalty(3600 * sec);
+        bld.address_filter().allow_local_addrs(true);
+
+        let val = bld.build().unwrap();
+
+        // Reconstruct, rebuild, and validate.
+        let bld2 = ArtiConfigBuilder::from(val.clone());
+        let val2 = bld2.build().unwrap();
+        assert_eq!(val, val2);
+
+        assert_ne!(val, ArtiConfig::default());
     }
 }

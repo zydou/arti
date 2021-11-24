@@ -147,6 +147,7 @@ impl DownloadSchedule {
     /// The resulting configuration will always make at least one
     /// attempt, and at most `attempts`.  After a failure, it will
     /// wait at least `initial_delay` before trying again.
+    #[allow(clippy::missing_panics_doc)] // can't really panic.
     pub fn new(attempts: u32, initial_delay: Duration, parallelism: u8) -> Self {
         // If unwrapping `1.try_into()` is not safe there are bigger problems
         #![allow(clippy::unwrap_used)]
