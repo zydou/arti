@@ -42,7 +42,9 @@ mod cmdline;
 mod options;
 
 pub use cmdline::CmdLine;
-pub use options::{ArtiConfig, LoggingConfig, ProxyConfig};
+pub use options::{
+    ArtiConfig, LoggingConfig, LoggingConfigBuilder, ProxyConfig, ProxyConfigBuilder,
+};
 use tor_config::CfgPath;
 
 use std::path::{Path, PathBuf};

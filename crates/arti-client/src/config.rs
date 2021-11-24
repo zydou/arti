@@ -220,7 +220,7 @@ impl TorClientConfig {
         dircfg.build()
     }
 
-    /// Return a [`CircMgrConfig`] object based on the user's selected
+    /// Return a [`CircMgrConfig`](circ::CircMgrConfig) object based on the user's selected
     /// configuration.
     pub(crate) fn get_circmgr_config(&self) -> Result<circ::CircMgrConfig, ConfigBuildError> {
         let mut builder = circ::CircMgrConfigBuilder::default();
