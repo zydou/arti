@@ -130,7 +130,7 @@ fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
 impl std::fmt::Display for CfgPath {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            PathInner::Literal(p) => write!(fmt, "{:?}", p),
+            PathInner::Literal(p) => write!(fmt, "{:?} [exactly]", p),
             PathInner::Shell(s) => s.fmt(fmt),
         }
     }
@@ -200,6 +200,21 @@ mod test {
         let p = CfgPath::new("${ARTI_WOMBAT}/example".to_string());
         assert_eq!(p.to_string(), "${ARTI_WOMBAT}/example".to_string());
 
-        assert!(p.path().is_err());
+        assert!(matches!(p.path(), Err(CfgPathError::UnknownVar(_))));
+        assert_eq!(
+            &p.path().unwrap_err().to_string(),
+            "unrecognized variable ARTI_WOMBAT"
+        );
+    }
+
+    #[test]
+    fn literal() {
+        let p = CfgPath::from_path(PathBuf::from("${ARTI_CACHE}/literally"));
+        // This doesn't get expanded, since we're using a literal path.
+        assert_eq!(
+            p.path().unwrap().to_str().unwrap(),
+            "${ARTI_CACHE}/literally"
+        );
+        assert_eq!(p.to_string(), "\"${ARTI_CACHE}/literally\" [exactly]");
     }
 }

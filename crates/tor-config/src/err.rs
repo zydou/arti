@@ -57,3 +57,57 @@ impl ConfigBuildError {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn within() {
+        let e1 = ConfigBuildError::MissingField {
+            field: "lettuce".to_owned(),
+        };
+        let e2 = ConfigBuildError::Invalid {
+            field: "tomato".to_owned(),
+            problem: "too crunchy".to_owned(),
+        };
+        let e3 = ConfigBuildError::Inconsistent {
+            fields: vec!["mayo".to_owned(), "avocado".to_owned()],
+            problem: "pick one".to_owned(),
+        };
+
+        assert_eq!(
+            &e1.within("sandwich").to_string(),
+            "Field was not provided: sandwich.lettuce"
+        );
+        assert_eq!(
+            &e2.within("sandwich").to_string(),
+            "Value of sandwich.tomato was incorrect: too crunchy"
+        );
+        assert_eq!(
+            &e3.within("sandwich").to_string(),
+            r#"Fields ["sandwich.mayo", "sandwich.avocado"] are inconsistent: pick one"#
+        );
+    }
+
+    #[derive(derive_builder::Builder, Debug)]
+    #[builder(build_fn(error = "ConfigBuildError"))]
+    struct Cephalopod {
+        // arms have suction cups for their whole length
+        arms: u8,
+        // Tentacles have suction cups at the ends
+        tentacles: u8,
+    }
+
+    #[test]
+    fn builderr() {
+        let squid = CephalopodBuilder::default().arms(8).tentacles(2).build();
+        let octopus = CephalopodBuilder::default().arms(8).build();
+        assert!(squid.is_ok());
+        assert!(octopus.is_err());
+        assert_eq!(
+            &octopus.unwrap_err().to_string(),
+            "Field was not provided: tentacles"
+        );
+    }
+}
