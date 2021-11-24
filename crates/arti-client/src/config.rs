@@ -76,12 +76,24 @@ impl ClientAddrConfig {
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct StorageConfig {
-    /// Location on disk for cached directory information
-    #[builder(setter(into))]
+    /// Location on disk for cached directory information.
+    #[builder(setter(into), default = "default_cache_dir()")]
+    #[serde(default = "default_cache_dir")]
     cache_dir: CfgPath,
-    #[builder(setter(into))]
+    #[builder(setter(into), default = "default_state_dir()")]
+    #[serde(default = "default_state_dir")]
     /// Location on disk for less-sensitive persistent state information.
     state_dir: CfgPath,
+}
+
+/// Return the default cache directory.
+fn default_cache_dir() -> CfgPath {
+    CfgPath::new("${ARTI_CACHE}".to_owned())
+}
+
+/// Return the default state directory.
+fn default_state_dir() -> CfgPath {
+    CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
 }
 
 impl StorageConfig {
@@ -168,28 +180,15 @@ impl TorClientConfig {
 
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
-    /// This gives the same result as using `tor_config`'s definitions
-    /// for `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
+    /// This gives the same result as the default builder, which
+    /// uses `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
     /// directories respectively.
     ///
     /// (On unix, this usually works out to `~/.local/share/arti` and
     /// `~/.cache/arti`, depending on your environment.  We use the
     /// `directories` crate for reasonable defaults on other platforms.)
     pub fn sane_defaults() -> Result<Self, ConfigBuildError> {
-        // Note: this must stay in sync with project_dirs() in the
-        // tor-config crate.
-        let dirs =
-            directories::ProjectDirs::from("org", "torproject", "Arti").ok_or_else(|| {
-                ConfigBuildError::Invalid {
-                    field: "directories".to_string(),
-                    problem: "Could not determine default directories".to_string(),
-                }
-            })?;
-
-        let state_dir = dirs.data_local_dir();
-        let cache_dir = dirs.cache_dir();
-
-        Self::with_directories(state_dir, cache_dir)
+        Self::builder().build()
     }
 
     /// Returns a `TorClientConfig` using the specified state and cache directories.
