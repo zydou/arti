@@ -396,7 +396,7 @@ where
     }
 }
 
-/// Helper: Return a boxed decoder object that wrapsthe stream  $s.
+/// Helper: Return a boxed decoder object that wraps the stream  $s.
 macro_rules! decoder {
     ($dec:ident, $s:expr) => {{
         let mut decoder = $dec::new($s);
@@ -480,7 +480,7 @@ mod test {
     }
 
     #[async_test]
-    async fn decomp_identity() -> Result<()> {
+    async fn decompress_identity() -> Result<()> {
         let mut text = Vec::new();
         for _ in 0..1000 {
             text.extend(b"This is a string with a nontrivial length that we'll use to make sure that the loop is executed more than once.");

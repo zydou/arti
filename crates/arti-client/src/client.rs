@@ -426,7 +426,7 @@ async fn update_persistent_state<R: Runtime>(
                 Ok(NewlyAcquired) => {
                     info!("We now own the lock on our state files.");
                     if let Err(e) = circmgr.upgrade_to_owned_persistent_state() {
-                        error!("Unable to upgrade to owneed state files: {}", e);
+                        error!("Unable to upgrade to owned state files: {}", e);
                         break;
                     }
                 }

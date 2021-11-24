@@ -124,7 +124,7 @@ pub(crate) struct Guard {
     /// If this guard is currently Unreachable, when should we next
     /// retry it?
     ///
-    /// (Retrying a guard involves clearing this field, and seetting
+    /// (Retrying a guard involves clearing this field, and setting
     /// `reachable`
     #[serde(skip)]
     retry_at: Option<Instant>, // derived from tried_to_connect_at.
@@ -486,7 +486,7 @@ impl Guard {
         }
     }
 
-    /// Note that a cicuit through this guard died in a way that we couldn't
+    /// Note that a circuit through this guard died in a way that we couldn't
     /// necessarily attribute to the guard.
     pub(crate) fn record_indeterminate_result(&mut self) {
         self.circ_history.n_indeterminate += 1;
@@ -494,7 +494,7 @@ impl Guard {
         if let Some(ratio) = self.circ_history.indeterminate_ratio() {
             // TODO: These should not be hardwired, and they may be set
             // too high.
-            /// If this fraction of circs are suspcious, we should disable
+            /// If this fraction of circs are suspicious, we should disable
             /// the guard.
             const DISABLE_THRESHOLD: f64 = 0.7;
             /// If this fraction of circuits are suspicious, we should

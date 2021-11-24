@@ -46,7 +46,7 @@ impl Writeable for Vec<u8> {
 }
 
 // The GenericArray type is defined to work around a limitation in Rust's
-// typesystem.  Ideally we can get rid of GenericArray entirely at some
+// type system.  Ideally we can get rid of GenericArray entirely at some
 // point down the line.
 //
 // For now, we only use GenericArray<u8>, so that's all we'll declare, since

@@ -20,7 +20,7 @@ use std::time::Duration;
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
     ///
-    /// Any two relays will be considerd to belong to the same family if their
+    /// Any two relays will be considered to belong to the same family if their
     /// IPv4 addresses share at least this many initial bits.
     #[builder(default = "ipv4_prefix_default()")]
     #[serde(default = "ipv4_prefix_default")]
@@ -28,7 +28,7 @@ pub struct PathConfig {
 
     /// Set the length of a bit-prefix for a default IPv6 subnet-family.
     ///
-    /// Any two relays will be considerd to belong to the same family if their
+    /// Any two relays will be considered to belong to the same family if their
     /// IPv6 addresses share at least this many initial bits.
     #[builder(default = "ipv6_prefix_default()")]
     #[serde(default = "ipv6_prefix_default")]
@@ -62,7 +62,7 @@ impl Default for PathConfig {
     fn default() -> PathConfig {
         PathConfigBuilder::default()
             .build()
-            .expect("unusable hirdwired defaults")
+            .expect("unusable hardwired defaults")
     }
 }
 
@@ -78,7 +78,7 @@ impl From<PathConfig> for PathConfigBuilder {
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
-/// This type is immutable once constructd. To create an object of this
+/// This type is immutable once constructed. To create an object of this
 /// type, use [`CircuitTimingBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]

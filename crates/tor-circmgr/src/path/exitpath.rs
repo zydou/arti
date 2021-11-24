@@ -331,7 +331,7 @@ mod test {
 
     #[test]
     fn no_exits() {
-        // Construct a netdirwith no exits.
+        // Construct a netdir with no exits.
         let netdir = testnet::construct_custom_netdir(|_idx, bld| {
             bld.md.parse_ipv4_policy("reject 1-65535").unwrap();
         })

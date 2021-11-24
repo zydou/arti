@@ -113,7 +113,7 @@ impl Estimator {
         inner.update_params(params);
     }
 
-    /// Store any state associated with this timeout esimator into `storage`.
+    /// Store any state associated with this timeout estimator into `storage`.
     pub(crate) fn save_state(&self, storage: &TimeoutStateHandle) -> crate::Result<()> {
         let state = {
             let mut inner = self.inner.lock().expect("Timeout estimator lock poisoned.");

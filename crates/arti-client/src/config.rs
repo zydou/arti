@@ -310,7 +310,7 @@ impl TorClientConfigBuilder {
     }
 
     /// Return a mutable reference to a
-    /// [`DowloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
+    /// [`DownloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
     ///
     /// This section is used to override Arti's schedule when attempting and
     /// retrying to download directory objects.

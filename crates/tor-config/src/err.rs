@@ -100,7 +100,7 @@ mod test {
     }
 
     #[test]
-    fn builderr() {
+    fn build_err() {
         let squid = CephalopodBuilder::default().arms(8).tentacles(2).build();
         let octopus = CephalopodBuilder::default().arms(8).build();
         assert!(squid.is_ok());

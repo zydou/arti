@@ -242,7 +242,7 @@ impl PublicKey {
         }
 
         let asn1 = ASN1Block::Sequence(0, vec![to_asn1_int(self.0.n()), to_asn1_int(self.0.e())]);
-        simple_asn1::to_der(&asn1).expect("RSA key not encodeable as DER")
+        simple_asn1::to_der(&asn1).expect("RSA key not encodable as DER")
     }
 
     /// Compute the RsaIdentity for this public key.

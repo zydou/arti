@@ -84,7 +84,7 @@ impl GuardUsable {
 pub enum GuardStatus {
     /// The guard was used successfully.
     Success,
-    /// The guard was used unsuccessfuly.
+    /// The guard was used unsuccessfully.
     Failure,
     /// The circuit failed in a way that we cannot prove is the guard's
     /// fault, but which _might_ be the guard's fault.
@@ -259,7 +259,7 @@ pub(crate) struct PendingRequest {
     /// built through this guard can be used.
     ///
     /// (This is an option so that we can safely make reply() once-only.
-    /// Otherwise we run into lifetime isseus elsewhere.)
+    /// Otherwise we run into lifetime issues elsewhere.)
     usable: Option<oneshot::Sender<bool>>,
     /// The time when we gave out this guard.
     #[allow(dead_code)] // TODO: Remove, or use it to notice stuck requests

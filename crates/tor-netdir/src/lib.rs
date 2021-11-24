@@ -112,7 +112,7 @@ impl Default for SubnetConfig {
 }
 
 impl SubnetConfig {
-    /// Construct a new SubnetConfig from a pair of bit prefix lenths.
+    /// Construct a new SubnetConfig from a pair of bit prefix lengths.
     ///
     /// The values are clamped to the appropriate ranges if they are
     /// out-of-bounds.

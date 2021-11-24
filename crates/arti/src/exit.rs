@@ -5,7 +5,7 @@ use crate::Result;
 /// Wait until a control-c notification is received, using an appropriate
 /// runtime mechanism.
 ///
-/// This function can have pretty kludgey side-effects: see
+/// This function can have pretty kludgy side-effects: see
 /// documentation for `tokio::signal::ctrl_c` and `async_ctrlc` for
 /// caveats.  Notably, you can only call this once with async_std.
 pub(crate) async fn wait_for_ctrl_c() -> Result<()> {

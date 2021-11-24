@@ -47,7 +47,7 @@ impl GuardStatusHandle {
 
     /// Report the provided status to the guard manager.
     ///
-    /// Future cals to methods on this object will do nothing.
+    /// Future calls to methods on this object will do nothing.
     pub(crate) fn report(&self, status: GuardStatus) {
         let mut mon = self.mon.lock().expect("Poisoned lock");
         if let Some(mon) = mon.take() {
