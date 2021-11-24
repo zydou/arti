@@ -124,7 +124,7 @@ macro_rules! declare_net_parameters {
 
 declare_net_parameters! {
 
-/// This structure holds recognised configuration parameters. All values are type-safe,
+/// This structure holds recognized configuration parameters. All values are type-safe,
 /// and where applicable clamped to be within range.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -227,7 +227,7 @@ pub struct NetParameters {
     pub guard_max_sample_threshold: Percentage<BoundedInt32<1,100>> = (20)
         from "guard-max-sample-threshold",
 
-    /// If the client ever hase fewer than this many guards in their sample,
+    /// If the client ever has fewer than this many guards in their sample,
     /// after filtering out unusable guards, they should try to add more guards
     /// to the sample (if allowed).
     pub guard_filtered_min_sample_size: BoundedInt32<1,{i32::MAX}> = (20)

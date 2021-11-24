@@ -5,7 +5,7 @@ pub(crate) use imp::*;
 /// Testing implementation helpers.
 ///
 /// This module comes in two flavors: a stochastic and a non-stochastic one.
-/// When stochastic testing is enabeld, we use a real PRNG, and therefore
+/// When stochastic testing is enabled, we use a real PRNG, and therefore
 /// we require more iterations and broader tolerances.
 ///
 /// The stochastic testing version of this module is on when the

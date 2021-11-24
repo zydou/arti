@@ -29,7 +29,7 @@
 //! `build_docs`: enable code to construct the objects representing different
 //! network documents.
 //!
-//! `routerdesc`: enable support for the "router descriptor" docment type, which
+//! `routerdesc`: enable support for the "router descriptor" document type, which
 //! is needed by bridge clients and relays.
 //!
 //! `ns-consensus`: enable support for the "ns consensus" document type, which

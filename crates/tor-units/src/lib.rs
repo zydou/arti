@@ -101,7 +101,7 @@ impl<const LOWER: i32, const UPPER: i32> BoundedInt32<LOWER, UPPER> {
 
     /// Private constructor function for this type.
     fn unchecked_new(value: i32) -> Self {
-        assert!(LOWER <= UPPER); //The compiler optimises this out, no run-time cost.
+        assert!(LOWER <= UPPER); //The compiler optimizes this out, no run-time cost.
 
         BoundedInt32 { value }
     }

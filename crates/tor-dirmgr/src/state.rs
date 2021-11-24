@@ -229,7 +229,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
 impl<DM: WriteNetDir> GetConsensusState<DM> {
     /// Helper: try to set the current consensus text from an input
     /// string `text`.  Refuse it if the authorities could never be
-    /// correct, or if it is illformed.
+    /// correct, or if it is ill-formed.
     fn add_consensus_text(
         &mut self,
         from_cache: bool,

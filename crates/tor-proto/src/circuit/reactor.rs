@@ -851,7 +851,7 @@ impl Reactor {
     ///
     /// # Note
     ///
-    /// Making use of the enqueuing capbilities of this function is discouraged! You should first
+    /// Making use of the enqueuing capabilities of this function is discouraged! You should first
     /// check whether the channel is ready to receive messages (`self.channel.poll_ready`), and
     /// ideally use this to implement backpressure (such that you do not read from other sources
     /// that would send here while you know you're unable to forward the messages on).

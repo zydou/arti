@@ -43,7 +43,7 @@ pub struct NetworkConfig {
     /// consensus documents.
     ///
     /// (If none are specified, we use a default list of authorities
-    /// shippedwith Arti.)
+    /// shipped with Arti.)
     #[serde(default = "crate::authority::default_authorities")]
     #[builder(default = "crate::authority::default_authorities()")]
     authorities: Vec<Authority>,

@@ -28,7 +28,7 @@ pub mod dir {
     };
 }
 
-/// Configuration for client behaviour relating to addresses.
+/// Configuration for client behavior relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientAddrConfigBuilder`].
@@ -168,7 +168,7 @@ impl TorClientConfig {
 
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
-    /// This gies the same result as using `tor_config`'s definitions
+    /// This gives the same result as using `tor_config`'s definitions
     /// for `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
     /// directories respectively.
     ///

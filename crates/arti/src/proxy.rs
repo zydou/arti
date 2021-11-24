@@ -102,7 +102,7 @@ impl IsolationMap {
 /// SOCKS handshake and relay the connection over the Tor network.
 ///
 /// Uses `isolation_map` to decide which circuits circuits this connection
-/// may use.  Requires that `isolation_info` is a pair listeng the listener
+/// may use.  Requires that `isolation_info` is a pair listing the listener
 /// id and the source address for the socks request.
 async fn handle_socks_conn<R, S>(
     runtime: R,

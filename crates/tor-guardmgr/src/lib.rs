@@ -86,7 +86,7 @@
 //!
 //! Guard nodes were first proposes (as "helper nodes") in "Defending
 //! Anonymous Communications Against Passive Logging Attacks" by
-//! Matther Wright, Micah Adler, Brian N. Levine, and Clay Shields in
+//! Matthew Wright, Micah Adler, Brian N. Levine, and Clay Shields in
 //! the Proceedings of the 2003 IEEE Symposium on Security and
 //! Privacy.  (See <https://www.freehaven.net/anonbib/#wright03>)
 //!
@@ -203,7 +203,7 @@ struct GuardMgrInner {
     /// A mpsc channel, used to tell the task running in
     /// [`daemon::report_status_events`] about a new event to monitor.
     ///
-    /// This uses an `UnboundedSener` so that we don't have to await
+    /// This uses an `UnboundedSender` so that we don't have to await
     /// while sending the message, which in turn allows the GuardMgr
     /// API to be simpler.  The risk, however, is that there's no
     /// backpressure in the event that the task running
@@ -456,7 +456,7 @@ impl<R: Runtime> GuardMgr<R> {
             inner
                 .ctrl
                 .unbounded_send(pingmsg)
-                .expect("Guard observer task exited permaturely.");
+                .expect("Guard observer task exited prematurely.");
         }
         let _ = rcv.await;
     }
