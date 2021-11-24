@@ -66,6 +66,12 @@ if [ "$(which grcov 2>/dev/null)" = "" ]; then
     exit 1
 fi
 
+# Validate that llvm-tools-preview is installed.
+if [ "$(rustup +nightly component list --installed | grep llvm-tools-preview)" = "" ]; then
+   echo "llvm-tools-preview appears not to be installed. Try 'rustup +nightly component add llvm-tools-preview'." >&2
+   exit 1
+fi
+
 COVERAGE_BASEDIR=$(git rev-parse --show-toplevel)
 export RUSTFLAGS="-Z instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
