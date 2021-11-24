@@ -34,6 +34,7 @@ pub mod dir {
 /// use [`ClientAddrConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[serde(deny_unknown_fields)]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///

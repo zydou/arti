@@ -17,6 +17,7 @@ use std::time::Duration;
 /// [`PathConfigBuilder`], or deserialize it from a string.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[serde(deny_unknown_fields)]
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
     ///
@@ -82,6 +83,7 @@ impl From<PathConfig> for PathConfigBuilder {
 /// type, use [`CircuitTimingBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[serde(deny_unknown_fields)]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
