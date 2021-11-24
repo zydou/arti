@@ -103,8 +103,7 @@ impl StorageConfig {
     }
 
     /// Try to expand `state_dir` to be a path buffer.
-    // TODO(nickm): This won't be public once we're done.
-    pub fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+    pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
@@ -113,8 +112,7 @@ impl StorageConfig {
             })
     }
     /// Try to expand `cache_dir` to be a path buffer.
-    // TODO(nickm): This won't be public once we're done.
-    pub fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+    pub(crate) fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
