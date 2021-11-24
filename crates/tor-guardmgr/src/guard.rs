@@ -16,6 +16,7 @@ use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum Reachable {
     /// A guard is believed to be reachable, since we have successfully
     /// used it more recently than we've failed.
