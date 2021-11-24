@@ -97,6 +97,12 @@ fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
 }
 
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
 impl StorageConfig {
     /// Return a new StorageConfigBuilder.
     pub fn builder() -> StorageConfigBuilder {
@@ -379,5 +385,19 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn defaults() {
+        let dflt = TorClientConfig::sane_defaults().unwrap();
+        let b2 = TorClientConfigBuilder::from(dflt.clone());
+        let dflt2 = b2.build().unwrap();
+        assert_eq!(&dflt, &dflt2);
     }
 }

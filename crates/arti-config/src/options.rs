@@ -41,6 +41,12 @@ fn default_trace_filter() -> String {
     "debug".to_owned()
 }
 
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
 impl LoggingConfig {
     /// Return a new LoggingConfigBuilder
     pub fn builder() -> LoggingConfigBuilder {
@@ -76,6 +82,12 @@ fn default_socks_port() -> Option<u16> {
     Some(9150)
 }
 
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
 impl ProxyConfig {
     /// Return a new [`ProxyConfigBuilder`].
     pub fn builder() -> ProxyConfigBuilder {
@@ -108,7 +120,7 @@ impl From<ProxyConfig> for ProxyConfigBuilder {
 ///
 /// NOTE: These are NOT the final options or their final layout.
 /// Expect NO stability here.
-#[derive(Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
     /// Configuration for proxy listeners
@@ -191,7 +203,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn load_default_config() {
+    fn default_config() {
         // TODO: this is duplicate code.
         let mut cfg = config::Config::new();
         cfg.merge(config::File::from_str(
@@ -200,6 +212,13 @@ mod test {
         ))
         .unwrap();
 
-        let _parsed: ArtiConfig = cfg.try_into().unwrap();
+        let parsed: ArtiConfig = cfg.try_into().unwrap();
+        let default = ArtiConfig::default();
+        assert_eq!(&parsed, &default);
+
+        // Make sure that the client configuration this gives us is the default one.
+        let client_config = parsed.tor_client_config().unwrap();
+        let dflt_client_config = TorClientConfig::sane_defaults().unwrap();
+        assert_eq!(&client_config, &dflt_client_config);
     }
 }
