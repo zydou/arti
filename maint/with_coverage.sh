@@ -113,11 +113,13 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/
 	--ignore="*/tests/*" --ignore="*/examples/*"
 
 # Extract coverage information and print it to the command line.
-awk '{if (match($0, /<p class="heading">([^<]*)<\/p>/, groups)) {
-		last_match=groups[1]
-	} else if (match($0, /<abbr title="[0-9]* \/ [0-9]*">([^<]*)<\/abbr>/, groups)) {
-	    print last_match " " groups[1]
-	}}' "$COVERAGE_BASEDIR/coverage/index.html"
+awk '{if (match($0, /<p class="heading">([^<]*)<\/p>/)) {
+              last_match=substr($0, RSTART+19, RLENGTH-23)
+      } else if (last_match != "" && match($0, /[0-9]*(\.[0-9]*)? %/)) {
+              pct = substr($0, RSTART, RLENGTH)
+              print last_match " " pct
+              last_match=""
+     }}' "$COVERAGE_BASEDIR/coverage/index.html"
 
 # Insert the command log and git revision in index.html
 ed "$COVERAGE_BASEDIR/coverage/index.html" <<EOF >/dev/null
