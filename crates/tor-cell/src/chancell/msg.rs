@@ -644,7 +644,7 @@ impl Body for Netinfo {
             .try_into()
             .expect("Too many addrs in netinfo cell");
         w.write_u8(n_addrs);
-        for addr in self.my_addr.iter() {
+        for addr in &self.my_addr {
             enc_one_netinfo_addr(w, addr);
         }
     }
@@ -732,7 +732,7 @@ impl Body for Versions {
         ChanMsg::Versions(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        for v in self.versions.iter() {
+        for v in &self.versions {
             w.write_u16(*v);
         }
     }
@@ -907,7 +907,7 @@ impl Body for Certs {
             .try_into()
             .expect("Too many certs to encode in cell.");
         w.write_u8(n_certs);
-        for c in self.certs.iter() {
+        for c in &self.certs {
             enc_one_tor_cert(w, c)
         }
     }
@@ -964,7 +964,7 @@ impl Body for AuthChallenge {
         w.write_all(&self.challenge[..]);
         assert!(self.methods.len() <= std::u16::MAX as usize);
         w.write_u16(self.methods.len() as u16);
-        for m in self.methods.iter() {
+        for m in &self.methods {
             w.write_u16(*m);
         }
     }

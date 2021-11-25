@@ -246,7 +246,7 @@ impl<E: Display> Display for RetryError<E> {
                     self.doing, n
                 )?;
 
-                for (attempt, e) in self.errors.iter() {
+                for (attempt, e) in &self.errors {
                     write!(f, "\n{}: {}", attempt, e)?;
                 }
                 Ok(())

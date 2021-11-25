@@ -1463,7 +1463,7 @@ impl SignatureGroup {
     fn list_missing(&self, certs: &[AuthCert]) -> (usize, Vec<&Signature>) {
         let mut ok: HashSet<RsaIdentity> = HashSet::new();
         let mut missing = Vec::new();
-        for sig in self.signatures.iter() {
+        for sig in &self.signatures {
             let id_fingerprint = &sig.key_ids.id_fingerprint;
             if ok.contains(id_fingerprint) {
                 continue;
@@ -1483,7 +1483,7 @@ impl SignatureGroup {
     /// authorities.
     fn could_validate(&self, authorities: &[&RsaIdentity]) -> bool {
         let mut signed_by: HashSet<RsaIdentity> = HashSet::new();
-        for sig in self.signatures.iter() {
+        for sig in &self.signatures {
             let id_fp = &sig.key_ids.id_fingerprint;
             if signed_by.contains(id_fp) {
                 // Already found this in the list.
@@ -1509,7 +1509,7 @@ impl SignatureGroup {
         // than one certificate for a single authority.
         let mut ok: HashSet<RsaIdentity> = HashSet::new();
 
-        for sig in self.signatures.iter() {
+        for sig in &self.signatures {
             let id_fingerprint = &sig.key_ids.id_fingerprint;
             if ok.contains(id_fingerprint) {
                 // We already checked at least one signature using this

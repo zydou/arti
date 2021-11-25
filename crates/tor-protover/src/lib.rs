@@ -477,7 +477,7 @@ impl std::fmt::Display for Protocols {
                 entries.push(format!("{}={}", pk, dumpmask(*mask)))
             }
         }
-        for ent in self.unrecognized.iter() {
+        for ent in &self.unrecognized {
             if ent.supported != 0 {
                 entries.push(format!(
                     "{}={}",

@@ -410,7 +410,7 @@ impl PartialNetDir {
     /// netdir, using the microdescriptors from the previous netdir.
     pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
         let mut loaded = Vec::new();
-        for ent in prev.mds.iter() {
+        for ent in &prev.mds {
             if let MdEntry::Present { md, .. } = ent {
                 if self.netdir.mds.contains(md.digest()) {
                     loaded.push(md.digest());
@@ -1054,7 +1054,7 @@ mod test {
         let missing: HashSet<_> = dir.missing_microdescs().collect();
         assert_eq!(missing.len(), 40);
         assert_eq!(missing.len(), dir.netdir.consensus.relays().len());
-        for md in microdescs.iter() {
+        for md in &microdescs {
             assert!(missing.contains(md.digest()));
         }
 

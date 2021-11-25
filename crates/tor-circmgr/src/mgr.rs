@@ -786,7 +786,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // all have failed)
             let best = PendingEntry::find_best(&pending, usage);
             if restrict_circ {
-                for item in best.iter() {
+                for item in &best {
                     // TODO: Do we want to tentatively restrict _all_ of these?
                     // not clear to me.
                     item.tentative_restrict_mut(usage)?;

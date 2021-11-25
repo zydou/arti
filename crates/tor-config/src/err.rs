@@ -92,6 +92,7 @@ mod test {
 
     #[derive(derive_builder::Builder, Debug)]
     #[builder(build_fn(error = "ConfigBuildError"))]
+    #[allow(dead_code)]
     struct Cephalopod {
         // arms have suction cups for their whole length
         arms: u8,
