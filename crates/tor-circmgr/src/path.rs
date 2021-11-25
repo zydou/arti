@@ -147,7 +147,7 @@ fn assert_same_path_when_owned(path: &TorPath<'_>) {
             }
         }
         (_, _) => {
-            panic!("Mismatched path types.")
+            panic!("Mismatched path types.");
         }
     }
 }

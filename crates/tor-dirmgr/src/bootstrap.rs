@@ -502,7 +502,7 @@ mod test {
                 .await
                 .unwrap();
             assert!(result.0.is_ready(Readiness::Complete));
-        })
+        });
     }
 
     #[test]
@@ -537,6 +537,6 @@ mod test {
                 .await
                 .unwrap();
             assert!(result.0.is_ready(Readiness::Complete));
-        })
+        });
     }
 }

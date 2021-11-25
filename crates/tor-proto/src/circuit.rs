@@ -771,13 +771,13 @@ mod test {
     fn test_create_fast() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             test_create(&rt, true).await;
-        })
+        });
     }
     #[test]
     fn test_create_ntor() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             test_create(&rt, false).await;
-        })
+        });
     }
 
     // An encryption layer that doesn't do any crypto.   Can be used
@@ -900,7 +900,7 @@ mod test {
                 _ => panic!(),
             };
             assert!(matches!(m.msg(), RelayMsg::BeginDir));
-        })
+        });
     }
 
     // NOTE(eta): this test is commented out because it basically tested implementation details
@@ -1008,7 +1008,7 @@ mod test {
 
             // Did we really add another hop?
             assert_eq!(circ.n_hops(), 4);
-        })
+        });
     }
 
     async fn bad_extend_test_impl<R: Runtime>(
@@ -1053,7 +1053,7 @@ mod test {
                 Error::CircuitClosed => {}
                 x => panic!("got other error: {}", x),
             }
-        })
+        });
     }
 
     #[test]
@@ -1065,11 +1065,11 @@ mod test {
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             match error {
                 Error::CircProto(s) => {
-                    assert_eq!(s, "wanted EXTENDED2; got EXTENDED")
+                    assert_eq!(s, "wanted EXTENDED2; got EXTENDED");
                 }
                 _ => panic!(),
             }
-        })
+        });
     }
 
     #[test]
@@ -1081,7 +1081,7 @@ mod test {
                 Error::CircuitClosed => {}
                 _ => panic!(),
             }
-        })
+        });
     }
 
     #[test]
@@ -1091,7 +1091,7 @@ mod test {
             let cc = rmsg_to_ccmsg(0, extended2);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
             assert!(matches!(error, Error::BadHandshake));
-        })
+        });
     }
 
     #[test]
@@ -1225,7 +1225,7 @@ mod test {
                     cells_received += 1;
                     bytes_received += dat.as_ref().len();
                 } else {
-                    panic!()
+                    panic!();
                 }
             }
 
@@ -1298,7 +1298,7 @@ mod test {
                 let (window, _tags) = rx.await.unwrap().unwrap();
                 assert_eq!(window, 1000 - 201);
             }
-        })
+        });
     }
 
     #[test]
@@ -1334,7 +1334,7 @@ mod test {
             }
 
             // TODO: check that the circuit is shut down too
-        })
+        });
     }
 
     #[test]

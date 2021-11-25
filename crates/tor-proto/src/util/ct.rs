@@ -27,7 +27,7 @@ where
     for (i, x) in array.iter().enumerate() {
         let equal = matches(x);
         idx.conditional_assign(&(i as u64), equal);
-        found.conditional_assign(&equal, equal)
+        found.conditional_assign(&equal, equal);
     }
 
     if found.into() {

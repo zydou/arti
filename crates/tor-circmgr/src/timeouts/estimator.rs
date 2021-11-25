@@ -54,7 +54,7 @@ impl Estimator {
             let est = ReadonlyTimeoutEstimator::from_state(&v);
             *self.inner.lock().expect("Timeout estimator lock poisoned") = Box::new(est);
         } else {
-            debug!("Unable to reload timeout state.")
+            debug!("Unable to reload timeout state.");
         }
     }
 

@@ -118,6 +118,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -995,7 +996,7 @@ mod test {
             let usage = GuardUsage::default();
             let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
             assert_eq!(id2, id);
-        })
+        });
     }
 
     #[test]
@@ -1039,7 +1040,7 @@ mod test {
             );
 
             assert_eq!((u3, u4), (false, true));
-        })
+        });
     }
 
     #[test]
@@ -1053,6 +1054,6 @@ mod test {
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
             assert_eq!(guard.id().rsa.as_bytes()[0] % 4, 0);
-        })
+        });
     }
 }

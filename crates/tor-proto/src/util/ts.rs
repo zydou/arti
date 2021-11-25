@@ -30,7 +30,7 @@ impl Timestamp {
     pub(crate) fn update(&self) {
         // TODO: Do we want to use 'Instant::recent() instead,' and
         // add an updater thread?
-        self.update_to(coarsetime::Instant::now())
+        self.update_to(coarsetime::Instant::now());
     }
     /// Update this timestamp to (at least) the time `now`.
     #[inline]

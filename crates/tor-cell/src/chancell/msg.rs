@@ -477,7 +477,7 @@ impl Body for Relay {
         ChanMsg::Relay(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        w.write_all(&self.body[..])
+        w.write_all(&self.body[..]);
     }
 }
 impl Readable for Relay {
@@ -509,7 +509,7 @@ impl Body for Destroy {
         ChanMsg::Destroy(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        w.write_u8(self.reason.into())
+        w.write_u8(self.reason.into());
     }
 }
 impl Readable for Destroy {
@@ -908,7 +908,7 @@ impl Body for Certs {
             .expect("Too many certs to encode in cell.");
         w.write_u8(n_certs);
         for c in &self.certs {
-            enc_one_tor_cert(w, c)
+            enc_one_tor_cert(w, c);
         }
     }
 }
@@ -1048,7 +1048,7 @@ impl Body for Authorize {
         ChanMsg::Authorize(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        w.write_all(&self.content[..])
+        w.write_all(&self.content[..]);
     }
 }
 impl Readable for Authorize {
@@ -1099,7 +1099,7 @@ impl Body for Unrecognized {
         ChanMsg::Unrecognized(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        w.write_all(&self.content[..])
+        w.write_all(&self.content[..]);
     }
 }
 impl Readable for Unrecognized {

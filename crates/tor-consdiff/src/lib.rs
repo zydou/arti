@@ -40,6 +40,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -494,7 +495,7 @@ impl<'a> DiffResult<'a> {
     /// Put every member of `lines` at the end of this DiffResult, in
     /// reverse order.
     fn push_reversed(&mut self, lines: &[&'a str]) {
-        self.lines.extend(lines.iter().rev())
+        self.lines.extend(lines.iter().rev());
     }
 
     /// Remove the 1-indexed lines from `first` through `last` inclusive.
@@ -556,7 +557,7 @@ impl<'a> DiffResult<'a> {
 impl<'a> Display for DiffResult<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         for elt in &self.lines {
-            writeln!(f, "{}", elt)?
+            writeln!(f, "{}", elt)?;
         }
         Ok(())
     }
@@ -666,7 +667,7 @@ mod test {
             let cmd = DiffCommand::from_line_iterator(&mut iter)?;
             let cmd2 = DiffCommand::from_line_iterator(&mut iter)?;
             if cmd2.is_some() {
-                panic!("Unexpected second command")
+                panic!("Unexpected second command");
             }
             Ok(cmd.unwrap())
         }
@@ -871,7 +872,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         fn cmds(s: &str) -> Result<Vec<DiffCommand<'_>>> {
             let mut out = Vec::new();
             for cmd in DiffCommandIter::new(s.lines()) {
-                out.push(cmd?)
+                out.push(cmd?);
             }
             Ok(out)
         }

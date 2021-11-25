@@ -635,7 +635,7 @@ impl Body for Sendme {
                     .try_into()
                     .expect("Too many bytes to encode in relay cell.");
                 w.write_u16(bodylen);
-                w.append(&mut x)
+                w.append(&mut x);
             }
         }
     }
@@ -716,7 +716,7 @@ impl Body for Extended {
         Ok(Extended { handshake })
     }
     fn encode_onto(mut self, w: &mut Vec<u8>) {
-        w.append(&mut self.handshake)
+        w.append(&mut self.handshake);
     }
 }
 
@@ -1139,6 +1139,6 @@ impl Body for Unrecognized {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        w.write_all(&self.body[..])
+        w.write_all(&self.body[..]);
     }
 }

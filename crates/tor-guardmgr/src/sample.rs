@@ -589,7 +589,7 @@ impl GuardSet {
     /// just been abandoned, without learning whether it succeeded or failed.
     pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &GuardId) {
         if let Some(guard) = self.guards.get_mut(guard_id) {
-            guard.note_exploratory_circ(false)
+            guard.note_exploratory_circ(false);
         }
     }
 

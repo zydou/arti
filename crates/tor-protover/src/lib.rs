@@ -58,6 +58,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -474,7 +475,7 @@ impl std::fmt::Display for Protocols {
         for (idx, mask) in self.recognized.iter().enumerate() {
             if *mask != 0 {
                 let pk: ProtoKind = (idx as u16).into();
-                entries.push(format!("{}={}", pk, dumpmask(*mask)))
+                entries.push(format!("{}={}", pk, dumpmask(*mask)));
             }
         }
         for ent in &self.unrecognized {
@@ -483,7 +484,7 @@ impl std::fmt::Display for Protocols {
                     "{}={}",
                     ent.proto.to_str(),
                     dumpmask(ent.supported)
-                ))
+                ));
             }
         }
         // This sort is required.

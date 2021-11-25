@@ -347,7 +347,7 @@ mod test {
         let v = &456;
         y.push((k, v));
         let u = x.saturating_update(y.into_iter());
-        assert_eq!(u, vec![&String::from("This_is_not_a_real_key")])
+        assert_eq!(u, vec![&String::from("This_is_not_a_real_key")]);
     }
 
     // #[test]

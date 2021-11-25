@@ -85,7 +85,7 @@ impl AddrPolicy {
     /// If accept is true, the rule is to accept addresses that match;
     /// if accept is false, the rule rejects such addresses.
     pub fn push(&mut self, kind: RuleKind, pattern: AddrPortPattern) {
-        self.rules.push(AddrPolicyRule { kind, pattern })
+        self.rules.push(AddrPolicyRule { kind, pattern });
     }
 }
 

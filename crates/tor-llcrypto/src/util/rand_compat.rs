@@ -82,7 +82,7 @@ impl<T: RngCore> OldRngCore for RngWrapper<T> {
         self.0.next_u64()
     }
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest)
+        self.0.fill_bytes(dest);
     }
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), OldError> {
         self.0.try_fill_bytes(dest).map_err(|e| err_to_old(&e))
@@ -97,7 +97,7 @@ impl<T: RngCore> RngCore for RngWrapper<T> {
         self.0.next_u64()
     }
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0.fill_bytes(dest)
+        self.0.fill_bytes(dest);
     }
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
         self.0.try_fill_bytes(dest)

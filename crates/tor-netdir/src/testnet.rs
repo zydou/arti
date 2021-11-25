@@ -233,6 +233,6 @@ mod test {
         let _net = construct_custom_netdir(|_idx, _nb| {
             val += 1;
         });
-        assert_eq!(val, 40)
+        assert_eq!(val, 40);
     }
 }

@@ -145,7 +145,7 @@ impl LinkSpec {
     /// Sort a slice of LinkSpec based on the order in which they should
     /// appear in an EXTEND cell.
     pub fn sort_by_type(lst: &mut [Self]) {
-        lst.sort_by_key(LinkSpec::sort_pos)
+        lst.sort_by_key(LinkSpec::sort_pos);
     }
 }
 

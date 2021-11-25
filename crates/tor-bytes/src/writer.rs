@@ -44,23 +44,23 @@ pub trait Writer {
 
     /// Append a single u8 to this writer.
     fn write_u8(&mut self, x: u8) {
-        self.write_all(&[x])
+        self.write_all(&[x]);
     }
     /// Append a single u16 to this writer, encoded in big-endian order.
     fn write_u16(&mut self, x: u16) {
-        self.write_all(&x.to_be_bytes())
+        self.write_all(&x.to_be_bytes());
     }
     /// Append a single u32 to this writer, encoded in big-endian order.
     fn write_u32(&mut self, x: u32) {
-        self.write_all(&x.to_be_bytes())
+        self.write_all(&x.to_be_bytes());
     }
     /// Append a single u64 to this writer, encoded in big-endian order.
     fn write_u64(&mut self, x: u64) {
-        self.write_all(&x.to_be_bytes())
+        self.write_all(&x.to_be_bytes());
     }
     /// Append a single u128 to this writer, encoded in big-endian order.
     fn write_u128(&mut self, x: u128) {
-        self.write_all(&x.to_be_bytes())
+        self.write_all(&x.to_be_bytes());
     }
     /// Write n bytes to this writer, all with the value zero.
     ///
@@ -68,17 +68,17 @@ pub trait Writer {
     /// a vector.  You should probably replace it if you can.
     fn write_zeros(&mut self, n: usize) {
         let v = vec![0_u8; n];
-        self.write_all(&v[..])
+        self.write_all(&v[..]);
     }
     /// Encode a Writeable object onto this writer, using its
     /// write_onto method.
     fn write<E: Writeable + ?Sized>(&mut self, e: &E) {
-        e.write_onto(self)
+        e.write_onto(self);
     }
     /// Encode a WriteableOnce object onto this writer, using its
     /// write_into method.
     fn write_and_consume<E: WriteableOnce>(&mut self, e: E) {
-        e.write_into(self)
+        e.write_into(self);
     }
 }
 
