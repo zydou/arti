@@ -133,10 +133,10 @@ async fn main() -> Result<()> {
     eprintln!("starting Arti...");
 
     // The client config includes things like where to store persistent Tor network state.
-    // The "sane defaults" provided are the same as the Arti standalone application, and save data
+    // The defaults provided are the same as the Arti standalone application, and save data
     // to a conventional place depending on operating system (for example, ~/.local/share/arti
     // on Linux platforms)
-    let config = TorClientConfig::sane_defaults()?;
+    let config = TorClientConfig::default();
     // Arti needs an async runtime handle to spawn async tasks.
     let rt: TokioRuntimeHandle = tokio_crate::runtime::Handle::current().into();
 

@@ -156,7 +156,7 @@ impl From<StorageConfig> for StorageConfigBuilder {
 /// for default directories.)
 ///
 /// Most users will create a TorClientConfig by running
-/// [`TorClientConfig::sane_defaults`].
+/// [`TorClientConfig::default`].
 ///
 /// If you need to override the locations where Arti stores its information,
 /// you can make a TorClientConfig with [`TorClientConfig::with_directories`].
@@ -191,39 +191,18 @@ pub struct TorClientConfig {
     pub(crate) address_filter: ClientAddrConfig,
 }
 
+impl Default for TorClientConfig {
+    fn default() -> Self {
+        Self::builder()
+            .build()
+            .expect("Could not build TorClientConfig from default configuration.")
+    }
+}
+
 impl TorClientConfig {
     /// Return a new TorClientConfigBuilder.
     pub fn builder() -> TorClientConfigBuilder {
         TorClientConfigBuilder::default()
-    }
-
-    /// Returns a `TorClientConfig` using reasonably sane defaults.
-    ///
-    /// This gives the same result as the default builder, which
-    /// uses `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
-    /// directories respectively.
-    ///
-    /// (On unix, this usually works out to `~/.local/share/arti` and
-    /// `~/.cache/arti`, depending on your environment.  We use the
-    /// `directories` crate for reasonable defaults on other platforms.)
-    pub fn sane_defaults() -> Result<Self, ConfigBuildError> {
-        Self::builder().build()
-    }
-
-    /// Returns a `TorClientConfig` using the specified state and cache directories.
-    ///
-    /// All other configuration options are set to their defaults.
-    pub fn with_directories<P, Q>(state_dir: P, cache_dir: Q) -> Result<Self, ConfigBuildError>
-    where
-        P: AsRef<Path>,
-        Q: AsRef<Path>,
-    {
-        let mut builder = Self::builder();
-        builder
-            .storage()
-            .cache_dir(CfgPath::from_path(cache_dir))
-            .state_dir(CfgPath::from_path(state_dir));
-        builder.build()
     }
 
     /// Build a DirMgrConfig from this configuration.
@@ -306,6 +285,22 @@ impl TorClientConfigBuilder {
             circuit_timing,
             address_filter,
         })
+    }
+
+    /// Returns a `TorClientConfigBuilder` using the specified state and cache directories.
+    ///
+    /// All other configuration options are set to their defaults.
+    pub fn from_directories<P, Q>(state_dir: P, cache_dir: Q) -> Self
+    where
+        P: AsRef<Path>,
+        Q: AsRef<Path>,
+    {
+        let mut builder = Self::default();
+        builder
+            .storage()
+            .cache_dir(CfgPath::from_path(cache_dir))
+            .state_dir(CfgPath::from_path(state_dir));
+        builder
     }
 
     /// Return a mutable reference to a
@@ -409,7 +404,7 @@ mod test {
 
     #[test]
     fn defaults() {
-        let dflt = TorClientConfig::sane_defaults().unwrap();
+        let dflt = TorClientConfig::default();
         let b2 = TorClientConfigBuilder::from(dflt.clone());
         let dflt2 = b2.build().unwrap();
         assert_eq!(&dflt, &dflt2);
@@ -461,6 +456,6 @@ mod test {
         let val2 = bld2.build().unwrap();
         assert_eq!(val, val2);
 
-        assert_ne!(val, TorClientConfig::sane_defaults().unwrap());
+        assert_ne!(val, TorClientConfig::default());
     }
 }

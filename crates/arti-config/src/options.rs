@@ -400,7 +400,7 @@ mod test {
 
         // Make sure that the client configuration this gives us is the default one.
         let client_config = parsed.tor_client_config().unwrap();
-        let dflt_client_config = TorClientConfig::sane_defaults().unwrap();
+        let dflt_client_config = TorClientConfig::default();
         assert_eq!(&client_config, &dflt_client_config);
     }
 
