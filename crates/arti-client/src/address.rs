@@ -95,7 +95,6 @@ pub struct TorAddr {
     /// The target host.
     host: Host,
     /// The target port number.
-    // TODO: reject port 0.
     port: u16,
 }
 
@@ -247,7 +246,11 @@ impl IntoTorAddr for &str {
             let (host, port) = self.rsplit_once(':').ok_or(TorAddrError::NoPort)?;
             let host = host.parse()?;
             let port = port.parse().map_err(|_| TorAddrError::BadPort)?;
-            Ok(TorAddr { host, port })
+            if port == 0 {
+                Err(TorAddrError::BadPort)
+            } else {
+                Ok(TorAddr { host, port })
+            }
         }
     }
 }
