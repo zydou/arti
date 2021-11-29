@@ -333,9 +333,6 @@ struct DirSource {
     /// This is the same key as the one that signs the authority's
     /// certificates.
     identity: RsaIdentity,
-    /// Address of the authority in string form.
-    // XXXX why do we have this _and_ IP?
-    address: String,
     /// IP address for the authority
     ip: net::IpAddr,
     /// HTTP directory port for this authority
@@ -935,7 +932,6 @@ impl DirSource {
         }
         let nickname = item.required_arg(0)?.to_string();
         let identity = item.parse_arg::<Fingerprint>(1)?.into();
-        let address = item.required_arg(2)?.to_string();
         let ip = item.parse_arg(3)?;
         let dir_port = item.parse_arg(4)?;
         let or_port = item.parse_arg(5)?;
@@ -943,7 +939,6 @@ impl DirSource {
         Ok(DirSource {
             nickname,
             identity,
-            address,
             ip,
             dir_port,
             or_port,

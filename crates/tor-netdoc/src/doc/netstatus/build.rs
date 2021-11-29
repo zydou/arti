@@ -250,8 +250,6 @@ pub struct VoterInfoBuilder {
     nickname: Option<String>,
     /// See [`DirSource::identity`]
     identity: Option<RsaIdentity>,
-    /// See [`DirSource::address`]
-    address: Option<String>,
     /// See [`DirSource::ip`]
     ip: Option<IpAddr>,
     /// See [`ConsensusVoterInfo::contact`]
@@ -270,7 +268,6 @@ impl VoterInfoBuilder {
         VoterInfoBuilder {
             nickname: None,
             identity: None,
-            address: None,
             ip: None,
             contact: None,
             vote_digest: Vec::new(),
@@ -292,14 +289,6 @@ impl VoterInfoBuilder {
     /// This value is required.
     pub fn identity(&mut self, identity: RsaIdentity) -> &mut Self {
         self.identity = Some(identity);
-        self
-    }
-
-    /// Set a string-valued address.
-    ///
-    /// This value is required.
-    pub fn address(&mut self, address: String) -> &mut Self {
-        self.address = Some(address);
         self
     }
 
@@ -350,11 +339,6 @@ impl VoterInfoBuilder {
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing identity"))?;
-        let address = self
-            .address
-            .as_ref()
-            .ok_or(Error::CannotBuild("Missing address"))?
-            .clone();
         let ip = self.ip.ok_or(Error::CannotBuild("Missing IP"))?;
         let contact = self
             .contact
@@ -367,7 +351,6 @@ impl VoterInfoBuilder {
         let dir_source = DirSource {
             nickname,
             identity,
-            address,
             ip,
             dir_port: self.dir_port,
             or_port: self.or_port,
@@ -419,7 +402,6 @@ mod test {
             .voter()
             .nickname("Fuzzy".into())
             .identity([15; 20].into())
-            .address("fuzzy.example.com".into())
             .ip("10.0.0.200".parse().unwrap())
             .contact("admin@fuzzy.example.com".into())
             .vote_digest((*b"1234").into())
