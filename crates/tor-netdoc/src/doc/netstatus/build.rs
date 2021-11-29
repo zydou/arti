@@ -250,8 +250,6 @@ pub struct VoterInfoBuilder {
     nickname: Option<String>,
     /// See [`DirSource::identity`]
     identity: Option<RsaIdentity>,
-    /// See [`DirSource::address`]
-    address: Option<String>,
     /// See [`DirSource::ip`]
     ip: Option<IpAddr>,
     /// See [`ConsensusVoterInfo::contact`]
@@ -270,7 +268,6 @@ impl VoterInfoBuilder {
         VoterInfoBuilder {
             nickname: None,
             identity: None,
-            address: None,
             ip: None,
             contact: None,
             vote_digest: Vec::new(),
@@ -292,14 +289,6 @@ impl VoterInfoBuilder {
     /// This value is required.
     pub fn identity(&mut self, identity: RsaIdentity) -> &mut Self {
         self.identity = Some(identity);
-        self
-    }
-
-    /// Set a string-valued address.
-    ///
-    /// This value is required.
-    pub fn address(&mut self, address: String) -> &mut Self {
-        self.address = Some(address);
         self
     }
 
@@ -413,7 +402,6 @@ mod test {
             .voter()
             .nickname("Fuzzy".into())
             .identity([15; 20].into())
-            .address("fuzzy.example.com".into())
             .ip("10.0.0.200".parse().unwrap())
             .contact("admin@fuzzy.example.com".into())
             .vote_digest((*b"1234").into())
