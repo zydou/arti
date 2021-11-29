@@ -481,7 +481,7 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
         if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
             let netdir = dm.netdir();
             if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                warn!("Problem launching a timeout testing circuit: {}", e)
+                warn!("Problem launching a timeout testing circuit: {}", e);
             }
             delay = netdir
                 .params()
@@ -503,7 +503,7 @@ impl<R: Runtime> Drop for TorClient<R> {
         match self.circmgr.store_persistent_state() {
             Ok(()) => info!("Flushed persistent state at exit."),
             Err(tor_circmgr::Error::State(tor_persist::Error::NoLock)) => {
-                debug!("Lock not held; no state to flush.")
+                debug!("Lock not held; no state to flush.");
             }
             Err(e) => error!("Unable to flush state on client exit: {}", e),
         }

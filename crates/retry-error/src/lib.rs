@@ -55,6 +55,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -160,10 +161,10 @@ impl<E> RetryError<E> {
                 if same_err(last_err, &err) {
                     last_attempt.grow();
                 } else {
-                    self.errors.push((attempt, err))
+                    self.errors.push((attempt, err));
                 }
             } else {
-                self.errors.push((attempt, err))
+                self.errors.push((attempt, err));
             }
         }
     }
@@ -173,7 +174,7 @@ impl<E: PartialEq<E>> RetryError<E> {
     /// Group up consecutive errors of the same kind, according to the
     /// `PartialEq` implementation.
     pub fn dedup(&mut self) {
-        self.dedup_by(PartialEq::eq)
+        self.dedup_by(PartialEq::eq);
     }
 }
 
@@ -206,7 +207,7 @@ where
         C: IntoIterator<Item = T>,
     {
         for item in iter.into_iter() {
-            self.push(item)
+            self.push(item);
         }
     }
 }
@@ -246,7 +247,7 @@ impl<E: Display> Display for RetryError<E> {
                     self.doing, n
                 )?;
 
-                for (attempt, e) in self.errors.iter() {
+                for (attempt, e) in &self.errors {
                     write!(f, "\n{}: {}", attempt, e)?;
                 }
                 Ok(())

@@ -313,7 +313,7 @@ pub(crate) mod tor1 {
             &self.last_digest_val
         }
         fn encrypt_outbound(&mut self, cell: &mut RelayCellBody) {
-            self.cipher.apply_keystream(&mut cell.0[..])
+            self.cipher.apply_keystream(&mut cell.0[..]);
         }
     }
 

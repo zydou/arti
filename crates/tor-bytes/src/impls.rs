@@ -35,13 +35,13 @@ impl Writer for bytes::BytesMut {
 
 impl<'a> Writeable for [u8] {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-        b.write_all(self)
+        b.write_all(self);
     }
 }
 
 impl Writeable for Vec<u8> {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-        b.write_all(&self[..])
+        b.write_all(&self[..]);
     }
 }
 
@@ -66,7 +66,7 @@ where
     N: generic_array::ArrayLength<u8>,
 {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-        b.write_all(self.as_slice())
+        b.write_all(self.as_slice());
     }
 }
 
@@ -137,7 +137,7 @@ mod net_impls {
 
     impl Writeable for Ipv4Addr {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(&self.octets()[..])
+            b.write_all(&self.octets()[..]);
         }
     }
 
@@ -149,7 +149,7 @@ mod net_impls {
 
     impl Writeable for Ipv6Addr {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(&self.octets()[..])
+            b.write_all(&self.octets()[..]);
         }
     }
     impl Readable for Ipv6Addr {
@@ -167,7 +167,7 @@ mod ed25519_impls {
 
     impl Writeable for ed25519::PublicKey {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(self.as_bytes())
+            b.write_all(self.as_bytes());
         }
     }
     impl Readable for ed25519::PublicKey {
@@ -180,7 +180,7 @@ mod ed25519_impls {
 
     impl Writeable for ed25519::Ed25519Identity {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(self.as_bytes())
+            b.write_all(self.as_bytes());
         }
     }
     impl Readable for ed25519::Ed25519Identity {
@@ -191,7 +191,7 @@ mod ed25519_impls {
     }
     impl Writeable for ed25519::Signature {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(&self.to_bytes()[..])
+            b.write_all(&self.to_bytes()[..]);
         }
     }
     impl Readable for ed25519::Signature {
@@ -210,7 +210,7 @@ mod curve25519_impls {
 
     impl Writeable for PublicKey {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(self.as_bytes())
+            b.write_all(self.as_bytes());
         }
     }
     impl Readable for PublicKey {
@@ -221,7 +221,7 @@ mod curve25519_impls {
     }
     impl Writeable for SharedSecret {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(self.as_bytes())
+            b.write_all(self.as_bytes());
         }
     }
 }
@@ -233,7 +233,7 @@ mod rsa_impls {
 
     impl Writeable for RsaIdentity {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(self.as_bytes())
+            b.write_all(self.as_bytes());
         }
     }
     impl Readable for RsaIdentity {
@@ -251,7 +251,7 @@ mod mac_impls {
     impl<M: Mac> WriteableOnce for Output<M> {
         fn write_into<B: Writer + ?Sized>(self, b: &mut B) {
             let code = self.into_bytes();
-            b.write(&code[..])
+            b.write(&code[..]);
         }
     }
     impl<M: Mac> Readable for Output<M> {
@@ -267,7 +267,7 @@ mod u8_array_impls {
     use super::*;
     impl<const N: usize> Writeable for [u8; N] {
         fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
-            b.write_all(&self[..])
+            b.write_all(&self[..]);
         }
     }
 

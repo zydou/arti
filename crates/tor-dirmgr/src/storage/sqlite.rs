@@ -665,7 +665,7 @@ impl Unlinker {
     /// Forget about this unlinker, so that the corresponding file won't
     /// get dropped.
     fn forget(mut self) {
-        self.p = None
+        self.p = None;
     }
 }
 impl Drop for Unlinker {

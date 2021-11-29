@@ -460,6 +460,6 @@ mod test {
             ));
             mon.succeeded();
             assert!(usable.unwrap().await.unwrap());
-        })
+        });
     }
 }

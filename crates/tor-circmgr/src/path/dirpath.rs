@@ -179,6 +179,6 @@ mod test {
                 distinct_guards.len(),
                 netdir.params().guard_dir_use_parallelism.get() as usize
             );
-        })
+        });
     }
 }

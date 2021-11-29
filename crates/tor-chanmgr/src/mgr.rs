@@ -387,6 +387,6 @@ mod test {
             assert!(mgr.get_nowait(&3).is_some());
             assert!(mgr.get_nowait(&4).is_some());
             assert!(mgr.get_nowait(&5).is_none());
-        })
+        });
     }
 }

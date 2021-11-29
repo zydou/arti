@@ -125,13 +125,13 @@ impl<R: Runtime> SleepProvider for MockSleepRuntime<R> {
         self.sleep.wallclock()
     }
     fn block_advance<T: Into<String>>(&self, reason: T) {
-        self.sleep.block_advance(reason)
+        self.sleep.block_advance(reason);
     }
     fn release_advance<T: Into<String>>(&self, reason: T) {
-        self.sleep.release_advance(reason)
+        self.sleep.release_advance(reason);
     }
     fn allow_one_advance(&self, dur: Duration) {
-        self.sleep.allow_one_advance(dur)
+        self.sleep.allow_one_advance(dur);
     }
 }
 

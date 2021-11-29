@@ -40,6 +40,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -221,19 +222,18 @@ impl<'a> DiffCommand<'a> {
     /// implementation is potentially O(n) in the size of the input.
     #[cfg(any(test, fuzzing, feature = "slow-diff-apply"))]
     fn apply_to(&self, target: &mut DiffResult<'a>) -> Result<()> {
-        use DiffCommand::*;
         match self {
-            Delete { low, high } => {
+            Self::Delete { low, high } => {
                 target.remove_lines(*low, *high)?;
             }
-            DeleteToEnd { low } => {
+            Self::DeleteToEnd { low } => {
                 target.remove_lines(*low, target.lines.len())?;
             }
-            Replace { low, high, lines } => {
+            Self::Replace { low, high, lines } => {
                 target.remove_lines(*low, *high)?;
                 target.insert_at(*low, lines)?;
             }
-            Insert { pos, lines } => {
+            Self::Insert { pos, lines } => {
                 // This '+1' seems off, but it's what the spec says. I wonder
                 // if the spec is wrong.
                 target.insert_at(*pos + 1, lines)?;
@@ -295,10 +295,8 @@ impl<'a> DiffCommand<'a> {
 
     /// Return the lines that we should add to the output
     fn lines(&self) -> Option<&[&'a str]> {
-        use DiffCommand::*;
         match self {
-            Replace { lines, .. } => Some(lines.as_slice()),
-            Insert { lines, .. } => Some(lines.as_slice()),
+            Self::Replace { lines, .. } | Self::Insert { lines, .. } => Some(lines.as_slice()),
             _ => None,
         }
     }
@@ -306,10 +304,8 @@ impl<'a> DiffCommand<'a> {
     /// Return a mutable reference to the vector of lines we should
     /// add to the output.
     fn linebuf_mut(&mut self) -> Option<&mut Vec<&'a str>> {
-        use DiffCommand::*;
         match self {
-            Replace { ref mut lines, .. } => Some(lines),
-            Insert { ref mut lines, .. } => Some(lines),
+            Self::Replace { ref mut lines, .. } | Self::Insert { ref mut lines, .. } => Some(lines),
             _ => None,
         }
     }
@@ -319,12 +315,10 @@ impl<'a> DiffCommand<'a> {
     ///
     /// We use this line number to know which lines we should copy.
     fn following_lines(&self) -> Option<usize> {
-        use DiffCommand::*;
         match self {
-            Delete { high, .. } => Some(high + 1),
-            DeleteToEnd { .. } => None,
-            Replace { high, .. } => Some(high + 1),
-            Insert { pos, .. } => Some(pos + 1),
+            Self::Delete { high, .. } | Self::Replace { high, .. } => Some(high + 1),
+            Self::DeleteToEnd { .. } => None,
+            Self::Insert { pos, .. } => Some(pos + 1),
         }
     }
 
@@ -334,18 +328,17 @@ impl<'a> DiffCommand<'a> {
     /// This can be the same as following_lines(), if we shouldn't
     /// actually remove any lines.
     fn first_removed_line(&self) -> usize {
-        use DiffCommand::*;
         match self {
-            Delete { low, .. } => *low,
-            DeleteToEnd { low } => *low,
-            Replace { low, .. } => *low,
-            Insert { pos, .. } => *pos + 1,
+            Self::Delete { low, .. } => *low,
+            Self::DeleteToEnd { low } => *low,
+            Self::Replace { low, .. } => *low,
+            Self::Insert { pos, .. } => *pos + 1,
         }
     }
 
     /// Return true if this is an Insert command.
     fn is_insert(&self) -> bool {
-        matches!(self, DiffCommand::Insert { .. })
+        matches!(self, Self::Insert { .. })
     }
 
     /// Extract a single command from a line iterator that yields lines
@@ -380,8 +373,6 @@ impl<'a> DiffCommand<'a> {
             return Err(Error::BadDiff("range cannot begin at usize::MAX"));
         }
 
-        use DiffCommand::*;
-
         match (low, high) {
             (lo, Some(RangeEnd::Num(hi))) if lo > hi.into() => {
                 return Err(Error::BadDiff("mis-ordered lines in range"))
@@ -390,23 +381,23 @@ impl<'a> DiffCommand<'a> {
         }
 
         let mut cmd = match (command, low, high) {
-            ("d", low, None) => Delete { low, high: low },
-            ("d", low, Some(RangeEnd::Num(high))) => Delete {
+            ("d", low, None) => Self::Delete { low, high: low },
+            ("d", low, Some(RangeEnd::Num(high))) => Self::Delete {
                 low,
                 high: high.into(),
             },
-            ("d", low, Some(RangeEnd::DollarSign)) => DeleteToEnd { low },
-            ("c", low, None) => Replace {
+            ("d", low, Some(RangeEnd::DollarSign)) => Self::DeleteToEnd { low },
+            ("c", low, None) => Self::Replace {
                 low,
                 high: low,
                 lines: Vec::new(),
             },
-            ("c", low, Some(RangeEnd::Num(high))) => Replace {
+            ("c", low, Some(RangeEnd::Num(high))) => Self::Replace {
                 low,
                 high: high.into(),
                 lines: Vec::new(),
             },
-            ("a", low, None) => Insert {
+            ("a", low, None) => Self::Insert {
                 pos: low,
                 lines: Vec::new(),
             },
@@ -504,7 +495,7 @@ impl<'a> DiffResult<'a> {
     /// Put every member of `lines` at the end of this DiffResult, in
     /// reverse order.
     fn push_reversed(&mut self, lines: &[&'a str]) {
-        self.lines.extend(lines.iter().rev())
+        self.lines.extend(lines.iter().rev());
     }
 
     /// Remove the 1-indexed lines from `first` through `last` inclusive.
@@ -551,7 +542,7 @@ impl<'a> DiffResult<'a> {
         use digest::Digest;
         use tor_llcrypto::d::Sha3_256;
         let mut d = Sha3_256::new();
-        for line in self.lines.iter() {
+        for line in &self.lines {
             d.update(line.as_bytes());
             d.update(b"\n");
         }
@@ -565,8 +556,8 @@ impl<'a> DiffResult<'a> {
 
 impl<'a> Display for DiffResult<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        for elt in self.lines.iter() {
-            writeln!(f, "{}", elt)?
+        for elt in &self.lines {
+            writeln!(f, "{}", elt)?;
         }
         Ok(())
     }
@@ -671,13 +662,12 @@ mod test {
 
     #[test]
     fn parse_command() -> Result<()> {
-        use DiffCommand::*;
         fn parse(s: &str) -> Result<DiffCommand<'_>> {
             let mut iter = s.lines();
             let cmd = DiffCommand::from_line_iterator(&mut iter)?;
             let cmd2 = DiffCommand::from_line_iterator(&mut iter)?;
             if cmd2.is_some() {
-                panic!("Unexpected second command")
+                panic!("Unexpected second command");
             }
             Ok(cmd.unwrap())
         }
@@ -689,16 +679,16 @@ mod test {
         }
 
         let p = parse("3,8d\n")?;
-        assert!(matches!(p, Delete { low: 3, high: 8 }));
+        assert!(matches!(p, DiffCommand::Delete { low: 3, high: 8 }));
         let p = parse("3d\n")?;
-        assert!(matches!(p, Delete { low: 3, high: 3 }));
+        assert!(matches!(p, DiffCommand::Delete { low: 3, high: 3 }));
         let p = parse("100,$d\n")?;
-        assert!(matches!(p, DeleteToEnd { low: 100 }));
+        assert!(matches!(p, DiffCommand::DeleteToEnd { low: 100 }));
 
         let p = parse("30,40c\nHello\nWorld\n.\n")?;
         assert!(matches!(
             p,
-            Replace {
+            DiffCommand::Replace {
                 low: 30,
                 high: 40,
                 ..
@@ -708,7 +698,7 @@ mod test {
         let p = parse("30c\nHello\nWorld\n.\n")?;
         assert!(matches!(
             p,
-            Replace {
+            DiffCommand::Replace {
                 low: 30,
                 high: 30,
                 ..
@@ -717,10 +707,10 @@ mod test {
         assert_eq!(p.lines(), Some(&["Hello", "World"][..]));
 
         let p = parse("999a\nHello\nWorld\n.\n")?;
-        assert!(matches!(p, Insert { pos: 999, .. }));
+        assert!(matches!(p, DiffCommand::Insert { pos: 999, .. }));
         assert_eq!(p.lines(), Some(&["Hello", "World"][..]));
         let p = parse("0a\nHello\nWorld\n.\n")?;
-        assert!(matches!(p, Insert { pos: 0, .. }));
+        assert!(matches!(p, DiffCommand::Insert { pos: 0, .. }));
         assert_eq!(p.lines(), Some(&["Hello", "World"][..]));
 
         parse_err("hello world");
@@ -882,7 +872,7 @@ hash B03DA3ACA1D3C1D083E3FF97873002416EBD81A058B406D5C5946EAB53A79663 F6789F35B6
         fn cmds(s: &str) -> Result<Vec<DiffCommand<'_>>> {
             let mut out = Vec::new();
             for cmd in DiffCommandIter::new(s.lines()) {
-                out.push(cmd?)
+                out.push(cmd?);
             }
             Ok(out)
         }

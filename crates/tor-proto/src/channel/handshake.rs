@@ -508,7 +508,7 @@ pub(super) mod test {
                 format!("{}", err),
                 "channel protocol violation: No shared link protocols"
             );
-        })
+        });
     }
 
     #[test]
@@ -523,7 +523,7 @@ pub(super) mod test {
                 err,
                 Error::CellErr(tor_cell::Error::BytesErr(tor_bytes::Error::Truncated))
             ));
-        })
+        });
     }
 
     #[test]
@@ -553,7 +553,7 @@ pub(super) mod test {
                 format!("{}", err),
                 "channel protocol violation: Duplicate authchallenge cell"
             );
-        })
+        });
     }
 
     #[test]
@@ -568,7 +568,7 @@ pub(super) mod test {
                 format!("{}", err),
                 "channel protocol violation: Missing certs cell"
             );
-        })
+        });
     }
 
     #[test]
@@ -584,7 +584,7 @@ pub(super) mod test {
                 format!("{}", err),
                 "channel protocol violation: Unexpected cell type CREATE"
             );
-        })
+        });
     }
 
     fn make_unverified(certs: msg::Certs) -> UnverifiedChannel<MsgBuf> {
@@ -851,6 +851,6 @@ pub(super) mod test {
             let (_chan, _reactor) = ver.finish().await.unwrap();
 
             // TODO: check contents of netinfo cell
-        })
+        });
     }
 }

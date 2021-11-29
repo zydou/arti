@@ -242,7 +242,7 @@ impl MicrodescRequest {
     }
     /// Add `d` to the list of microdescriptors we want to request.
     pub fn push(&mut self, d: MdDigest) {
-        self.digests.push(d)
+        self.digests.push(d);
     }
 
     /// Return a list of the microdescriptor digests that we're asking for.
@@ -333,7 +333,7 @@ impl RouterDescRequest {
     /// Add `d` to the list of digests we want to request.
     pub fn push(&mut self, d: RdDigest) {
         if !self.all_descriptors {
-            self.digests.push(d)
+            self.digests.push(d);
         }
     }
 

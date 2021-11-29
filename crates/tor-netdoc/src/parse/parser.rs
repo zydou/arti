@@ -259,7 +259,7 @@ impl<T: Keyword> SectionRules<T> {
                     rule.check_multiplicity(t.as_slice())?;
                     // The number is right. Check each individual item.
                     for item in t.as_slice() {
-                        rule.check_item(item)?
+                        rule.check_item(item)?;
                     }
                 }
             }

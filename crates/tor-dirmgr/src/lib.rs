@@ -48,6 +48,7 @@
 #![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
@@ -785,7 +786,7 @@ mod test {
 
             assert!(mgr.circmgr().is_err());
             assert!(mgr.opt_netdir().is_none());
-        })
+        });
     }
 
     #[test]
@@ -900,7 +901,7 @@ mod test {
                 res.get(&DocId::RouterDesc(d5)).unwrap().as_str(),
                 Ok("Fake rd2")
             );
-        })
+        });
     }
 
     #[test]
@@ -952,7 +953,7 @@ mod test {
                 }
                 _ => panic!("Wrong request type"),
             }
-        })
+        });
     }
 
     #[test]
@@ -995,7 +996,7 @@ mod test {
                 assert_eq!(reqs.len(), 2);
                 assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
             }
-        })
+        });
     }
 
     #[test]
@@ -1068,6 +1069,6 @@ replacement line
 ".to_string();
             let expanded = mgr.expand_response_text(r, diff);
             assert!(expanded.is_err());
-        })
+        });
     }
 }

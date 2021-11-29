@@ -214,7 +214,7 @@ impl TorClientConfig {
         dircfg.network_config(self.tor_network.clone());
         dircfg.schedule_config(self.download_schedule.clone());
         dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in self.override_net_params.iter() {
+        for (k, v) in &self.override_net_params {
             dircfg.override_net_param(k.clone(), *v);
         }
         dircfg.build()

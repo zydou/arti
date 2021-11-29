@@ -140,7 +140,7 @@ impl History {
         let mut observations = Vec::new();
         for (d, n) in iter {
             for _ in 0..n {
-                observations.push(d)
+                observations.push(d);
             }
         }
         use rand::seq::SliceRandom;
@@ -176,7 +176,7 @@ impl History {
     /// Increment the histogram bucket containing `time` by one.
     fn inc_bucket(&mut self, time: MsecDuration) {
         let center = History::bucket_center(time);
-        *self.time_histogram.entry(center).or_insert(0) += 1
+        *self.time_histogram.entry(center).or_insert(0) += 1;
     }
 
     /// Decrement the histogram bucket containing `time` by one, removing

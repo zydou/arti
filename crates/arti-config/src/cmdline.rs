@@ -67,7 +67,7 @@ impl CmdLine {
     /// Compose elements of this cmdline into a single toml string.
     fn build_toml(&self) -> String {
         let mut toml_s = String::new();
-        for line in self.contents.iter() {
+        for line in &self.contents {
             toml_s.push_str(tweak_toml_bareword(line).as_ref().unwrap_or(line));
             toml_s.push('\n');
         }

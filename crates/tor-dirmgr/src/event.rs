@@ -91,7 +91,7 @@ mod test {
     async fn drop_test() {
         let publ = Publisher::new();
         for _ in 0..100000 {
-            publ.send(DirEvent::NewConsensus).await
+            publ.send(DirEvent::NewConsensus).await;
         }
     }
 

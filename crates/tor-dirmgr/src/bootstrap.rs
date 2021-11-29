@@ -426,7 +426,7 @@ mod test {
             _storage: Option<&Mutex<SqliteStore>>,
         ) -> Result<bool> {
             let mut changed = false;
-            for (id, _ignore) in docs.iter() {
+            for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
                     if self.got_items.get(id) == Some(&false) {
                         self.got_items.insert(*id, true);
@@ -502,7 +502,7 @@ mod test {
                 .await
                 .unwrap();
             assert!(result.0.is_ready(Readiness::Complete));
-        })
+        });
     }
 
     #[test]
@@ -537,6 +537,6 @@ mod test {
                 .await
                 .unwrap();
             assert!(result.0.is_ready(Readiness::Complete));
-        })
+        });
     }
 }

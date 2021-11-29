@@ -786,7 +786,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // all have failed)
             let best = PendingEntry::find_best(&pending, usage);
             if restrict_circ {
-                for item in best.iter() {
+                for item in &best {
                     // TODO: Do we want to tentatively restrict _all_ of these?
                     // not clear to me.
                     item.tentative_restrict_mut(usage)?;
@@ -889,7 +889,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 );
                             }
                             if src == streams::Source::Left {
-                                retry_error.push(e)
+                                retry_error.push(e);
                             }
                             continue;
                         }
@@ -1066,7 +1066,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     pub(crate) fn expire_circs(&self, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
         let dirty_cutoff = now - self.circuit_timing.max_dirtiness;
-        list.expire_circs(now, dirty_cutoff)
+        list.expire_circs(now, dirty_cutoff);
     }
 
     /// Return the number of open circuits held by this circuit manager.
@@ -1659,7 +1659,7 @@ mod test {
             if let (Ok(c1), Ok(c2)) = (c1, c2) {
                 assert!(Arc::ptr_eq(&c1, &c2));
             } else {
-                panic!()
+                panic!();
             };
         });
     }

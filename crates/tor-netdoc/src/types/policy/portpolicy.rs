@@ -46,7 +46,7 @@ impl Display for PortPolicy {
         } else {
             write!(f, "accept ")?;
             let mut comma = "";
-            for range in self.allowed.iter() {
+            for range in &self.allowed {
                 write!(f, "{}{}", comma, range)?;
                 comma = ",";
             }
@@ -66,7 +66,7 @@ impl PortPolicy {
     fn invert(&mut self) {
         let mut prev_hi = 0;
         let mut new_allowed = Vec::new();
-        for entry in self.allowed.iter() {
+        for entry in &self.allowed {
             // ports prev_hi+1 through entry.lo-1 were rejected.  We should
             // make them allowed.
             if entry.lo > prev_hi + 1 {

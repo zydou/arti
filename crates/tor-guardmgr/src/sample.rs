@@ -173,7 +173,7 @@ impl GuardSet {
 
     /// Copy non-persistent status from every guard shared with `other`.
     pub(crate) fn copy_status_from(&mut self, other: &GuardSet) {
-        for (id, guard) in self.guards.iter_mut() {
+        for (id, guard) in &mut self.guards {
             if let Some(other_guard) = other.get(id) {
                 guard.copy_status_from(other_guard);
             }
@@ -438,7 +438,7 @@ impl GuardSet {
         }
 
         // Clear exploratory_circ_pending for all primary guards.
-        for id in self.primary.iter() {
+        for id in &self.primary {
             if let Some(guard) = self.guards.get_mut(id) {
                 guard.note_exploratory_circ(false);
             }
@@ -519,7 +519,7 @@ impl GuardSet {
 
     /// Mark every `Unreachable` primary guard as `Unknown`.
     pub(crate) fn mark_primary_guards_retriable(&mut self) {
-        for id in self.primary.iter() {
+        for id in &self.primary {
             if let Some(g) = self.guards.get_mut(id) {
                 g.mark_retriable();
             }
@@ -537,7 +537,7 @@ impl GuardSet {
 
     /// Mark every `Unreachable` guard as `Unknown`.
     pub(crate) fn mark_all_guards_retriable(&mut self) {
-        for (_, g) in self.guards.iter_mut() {
+        for g in self.guards.values_mut() {
             g.mark_retriable();
         }
     }
@@ -589,7 +589,7 @@ impl GuardSet {
     /// just been abandoned, without learning whether it succeeded or failed.
     pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &GuardId) {
         if let Some(guard) = self.guards.get_mut(guard_id) {
-            guard.note_exploratory_circ(false)
+            guard.note_exploratory_circ(false);
         }
     }
 
@@ -793,7 +793,7 @@ mod test {
             guards.assert_consistency();
 
             // make sure all the guards are okay.
-            for (g, guard) in guards.guards.iter() {
+            for (g, guard) in &guards.guards {
                 let relay = g.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(guards.contains_relay(&relay));
@@ -842,7 +842,7 @@ mod test {
             guards.guards.keys().collect::<HashSet<_>>(),
             guards2.guards.keys().collect::<HashSet<_>>()
         );
-        for (k, g) in guards.guards.iter() {
+        for (k, g) in &guards.guards {
             let g2 = guards2.guards.get(k).unwrap();
             assert_eq!(format!("{:?}", g), format!("{:?}", g2));
         }

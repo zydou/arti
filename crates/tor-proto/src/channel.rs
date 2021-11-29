@@ -438,7 +438,7 @@ pub(crate) mod test {
             // FIXME(eta): more difficult to test that sending works now that it has to go via reactor
             // let got = output.next().await.unwrap();
             // assert!(matches!(got.msg(), ChanMsg::Create2(_)));
-        })
+        });
     }
 
     #[test]

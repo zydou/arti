@@ -789,7 +789,7 @@ mod test {
             assert!(timeouts[0].0); // success
             assert_eq!(timeouts[0].1, 0); // one-hop
             assert_eq!(timeouts[0].2, Duration::from_millis(100));
-        })
+        });
     }
 
     #[test]
@@ -814,7 +814,7 @@ mod test {
             assert!(timeouts[0].0); // success
             assert_eq!(timeouts[0].1, 2); // three-hop
             assert_eq!(timeouts[0].2, Duration::from_millis(600));
-        })
+        });
     }
 
     #[test]

@@ -635,7 +635,7 @@ impl Body for Sendme {
                     .try_into()
                     .expect("Too many bytes to encode in relay cell.");
                 w.write_u16(bodylen);
-                w.append(&mut x)
+                w.append(&mut x);
             }
         }
     }
@@ -716,7 +716,7 @@ impl Body for Extended {
         Ok(Extended { handshake })
     }
     fn encode_onto(mut self, w: &mut Vec<u8>) {
-        w.append(&mut self.handshake)
+        w.append(&mut self.handshake);
     }
 }
 
@@ -789,7 +789,7 @@ impl Body for Extend2 {
     fn encode_onto(self, w: &mut Vec<u8>) {
         let n_linkspecs: u8 = self.linkspec.len().try_into().expect("Too many linkspecs");
         w.write_u8(n_linkspecs);
-        for ls in self.linkspec.iter() {
+        for ls in &self.linkspec {
             w.write(ls);
         }
         w.write_u16(self.handshake_type);
@@ -971,53 +971,51 @@ impl Readable for ResolvedVal {
                 return Err(Error::BadMessage("Wrong length for RESOLVED answer"));
             }
         }
-        use ResolvedVal::*;
         Ok(match tp {
-            RES_HOSTNAME => Hostname(r.take(len)?.into()),
-            RES_IPV4 => Ip(IpAddr::V4(r.extract()?)),
-            RES_IPV6 => Ip(IpAddr::V6(r.extract()?)),
+            RES_HOSTNAME => Self::Hostname(r.take(len)?.into()),
+            RES_IPV4 => Self::Ip(IpAddr::V4(r.extract()?)),
+            RES_IPV6 => Self::Ip(IpAddr::V6(r.extract()?)),
             RES_ERR_TRANSIENT => {
                 r.advance(len)?;
-                TransientError
+                Self::TransientError
             }
             RES_ERR_NONTRANSIENT => {
                 r.advance(len)?;
-                NontransientError
+                Self::NontransientError
             }
-            _ => Unrecognized(tp, r.take(len)?.into()),
+            _ => Self::Unrecognized(tp, r.take(len)?.into()),
         })
     }
 }
 
 impl Writeable for ResolvedVal {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
-        use ResolvedVal::*;
         match self {
-            Hostname(h) => {
+            Self::Hostname(h) => {
                 w.write_u8(RES_HOSTNAME);
                 let h_len: u8 = h.len().try_into().expect("Hostname too long");
                 w.write_u8(h_len);
                 w.write_all(&h[..]);
             }
-            Ip(IpAddr::V4(a)) => {
+            Self::Ip(IpAddr::V4(a)) => {
                 w.write_u8(RES_IPV4);
                 w.write_u8(4); // length
                 w.write(a);
             }
-            Ip(IpAddr::V6(a)) => {
+            Self::Ip(IpAddr::V6(a)) => {
                 w.write_u8(RES_IPV6);
                 w.write_u8(16); // length
                 w.write(a);
             }
-            TransientError => {
+            Self::TransientError => {
                 w.write_u8(RES_ERR_TRANSIENT);
                 w.write_u8(0); // length
             }
-            NontransientError => {
+            Self::NontransientError => {
                 w.write_u8(RES_ERR_NONTRANSIENT);
                 w.write_u8(0); // length
             }
-            Unrecognized(tp, v) => {
+            Self::Unrecognized(tp, v) => {
                 w.write_u8(*tp);
                 let v_len: u8 = v
                     .len()
@@ -1090,7 +1088,7 @@ impl Body for Resolved {
         Ok(Resolved { answers })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        for (rv, ttl) in self.answers.iter() {
+        for (rv, ttl) in &self.answers {
             w.write(rv);
             w.write_u32(*ttl);
         }
@@ -1141,6 +1139,6 @@ impl Body for Unrecognized {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        w.write_all(&self.body[..])
+        w.write_all(&self.body[..]);
     }
 }

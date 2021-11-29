@@ -350,7 +350,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
-        for id in self.missing_docs().iter() {
+        for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let parsed = AuthCert::parse(cert.as_str()?)?.check_signature()?;
                 let now = current_time(&self.writedir)?;

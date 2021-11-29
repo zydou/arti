@@ -436,7 +436,7 @@ pub(crate) mod test {
             chan.terminate();
             let r = reactor.run_once().await;
             assert!(matches!(r, Err(ReactorError::Shutdown)));
-        })
+        });
     }
 
     // Try shutdown while reactor is running.
@@ -464,7 +464,7 @@ pub(crate) mod test {
 
             // Now let's see. The reactor should not _still_ be running.
             assert!(rr_s);
-        })
+        });
     }
 
     #[test]
@@ -494,7 +494,7 @@ pub(crate) mod test {
             let cell = output.next().await.unwrap();
             assert_eq!(cell.circid(), id);
             assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
-        })
+        });
     }
 
     // Test proper delivery of a created cell that doesn't make a channel
@@ -547,7 +547,7 @@ pub(crate) mod test {
             // But the next run if the reactor will make the circuit get closed.
             let ent = reactor.circs.get_mut(id);
             assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
-        })
+        });
     }
 
     // Try incoming cells that shouldn't arrive on channels.
@@ -618,7 +618,7 @@ pub(crate) mod test {
                 format!("{}", e),
                 "channel protocol violation: CREATED cell received, but we never send CREATEs"
             );
-        })
+        });
     }
 
     #[test]
@@ -701,7 +701,7 @@ pub(crate) mod test {
                 format!("{}", e),
                 "channel protocol violation: Too many cells received on destroyed circuit"
             );
-        })
+        });
     }
 
     #[test]
@@ -765,6 +765,6 @@ pub(crate) mod test {
                 format!("{}", e),
                 "channel protocol violation: Destroy for nonexistent circuit"
             );
-        })
+        });
     }
 }
