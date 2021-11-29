@@ -90,6 +90,9 @@ type TimeoutStateHandle = tor_persist::DynStorageHandle<timeouts::pareto::Pareto
 /// Key used to load timeout state information.
 const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 
+/// If we have this number or more circuits open, we don't build circuits preemptively any more.
+const PREEMPTIVE_CIRCUIT_THRESHOLD: usize = 12;
+
 /// Represents what we know about the Tor network.
 ///
 /// This can either be a complete directory, or a list of fallbacks.
@@ -277,6 +280,37 @@ impl<R: Runtime> CircMgr<R> {
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await
+    }
+
+    /// Launch circuits preemptively, using the preemptive circuit predictor's predictions.
+    ///
+    /// # Note
+    ///
+    /// This function is invoked periodically from the
+    /// `arti-client` crate, based on timings from the network
+    /// parameters. As with `launch_timeout_testing_circuit_if_appropriate`, this
+    /// should ideally be refactored to be internal to this crate, and not be a
+    /// public API here.
+    pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
+        if self.mgr.n_circs() >= PREEMPTIVE_CIRCUIT_THRESHOLD {
+            return;
+        }
+        debug!("Launching circuits preemptively.");
+        let circs = {
+            let preemptive = self.preemptive.lock().expect("preemptive lock poisoned");
+            preemptive.predict()
+        };
+
+        let futures = circs
+            .iter()
+            .map(|usage| self.mgr.get_or_launch(usage, netdir));
+        let results = futures::future::join_all(futures).await;
+        for (i, result) in results.iter().enumerate() {
+            match result {
+                Ok(_) => debug!("Build succeeded for {:?}", circs[i]),
+                Err(e) => warn!("Failed to build preemptive circuit {:?}: {}", circs[i], e),
+            }
+        }
     }
 
     /// If `circ_id` is the unique identifier for a circuit that we're

@@ -20,6 +20,8 @@ impl PreemptiveCircuitPredictor {
         for sp in starting_ports {
             usages.insert(Some(sp), Instant::now());
         }
+        // We want to build circuits for resolving DNS, too.
+        usages.insert(None, Instant::now());
         Self { usages }
     }
 

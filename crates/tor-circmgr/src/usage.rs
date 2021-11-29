@@ -3,6 +3,7 @@
 use rand::Rng;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
@@ -363,6 +364,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 
         match (self, usage) {
             (Dir, TargetCircUsage::Dir) => Ok(()),
+            (Exit { .. }, TargetCircUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
                     isolation: ref mut i1,
@@ -393,6 +395,11 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 // We need to have at least two circuits that support `port` in order
                 // to reuse them; otherwise, we must create a new circuit, so
                 // that we get closer to having two circuits.
+                debug!(
+                    "preemptive usage {:?} matches {} active circuits",
+                    usage,
+                    supported.len()
+                );
                 if supported.len() >= 2 {
                     supported
                 } else {
