@@ -247,9 +247,6 @@ mod rsa {
         }
         /// Give an error if the length of of this key's modulus, in
         /// bits, is not exactly `n`.
-        // XXXX: We need #[allow(dead_code)] otherwise some things
-        // won't work.
-        #[allow(dead_code)]
         pub(crate) fn check_len_eq(self, n: usize) -> Result<Self> {
             self.check_len(n..=n)
         }
