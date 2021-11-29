@@ -499,6 +499,7 @@ pub(crate) mod test {
 
     // Test proper delivery of a created cell that doesn't make a channel
     #[test]
+    #[ignore] // See bug #244: re-enable this test once it passes reliably.
     fn new_circ_create_failure() {
         use std::time::Duration;
         use tor_rtcompat::SleepProvider;
