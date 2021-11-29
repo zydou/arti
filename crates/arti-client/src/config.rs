@@ -80,7 +80,7 @@ impl ClientAddrConfig {
 /// On unix, the default directories will typically expand to `~/.cache/arti`
 /// and `~/.local/share/arti/` respectively, depending on the user's
 /// environment. Other platforms will also use suitable defaults. For more
-/// information, see the documentation for [`CfgDir`].
+/// information, see the documentation for [`CfgPath`].
 ///
 /// This section is for read/write storage.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
