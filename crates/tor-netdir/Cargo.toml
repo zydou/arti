@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdir"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -24,13 +24,13 @@ experimental-api = []
 testing = [ "hex", "hex-literal", "tor-netdoc/build_docs" ]
 
 [dependencies]
-tor-checkable = { path="../tor-checkable", version = "0.0.1"}
-tor-config = { path="../tor-config", version = "0.0.1" }
-tor-netdoc = { path="../tor-netdoc", version = "0.0.1"}
-tor-linkspec = { path="../tor-linkspec", version = "0.0.1"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
-tor-protover = { path="../tor-protover", version = "0.0.1"}
-tor-units = { path="../tor-units", version = "0.0.1"}
+tor-checkable = { path="../tor-checkable", version = "0.0.2"}
+tor-config = { path="../tor-config", version = "0.0.2"}
+tor-netdoc = { path="../tor-netdoc", version = "0.0.2"}
+tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
+tor-protover = { path="../tor-protover", version = "0.0.2"}
+tor-units = { path="../tor-units", version = "0.0.2"}
 
 derive_builder = "0.10.2"
 derive_more = "0.99.0"
@@ -45,4 +45,4 @@ tracing = "0.1.26"
 [dev-dependencies]
 hex = "0.4.3"
 hex-literal = "0.3.1"
-tor-netdoc = { path="../tor-netdoc", version = "0.0.1", features=["build_docs"] }
+tor-netdoc = { path="../tor-netdoc", version = "0.0.2", features=["build_docs"] }

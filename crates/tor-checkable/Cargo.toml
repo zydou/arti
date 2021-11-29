@@ -1,6 +1,6 @@
 [package]
 name = "tor-checkable"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -11,7 +11,7 @@ categories = [ "cryptography", "rust-patterns" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.1"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 
 signature = "1.3.0"
 thiserror = "1.0.24"

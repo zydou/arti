@@ -1,6 +1,6 @@
 [package]
 name = "tor-events"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2018"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 license = "MIT OR Apache-2.0"
