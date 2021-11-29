@@ -359,13 +359,6 @@ impl<B: AbstractCircBuilder> PendingRequest<B> {
 /// An entry for an under-construction in-progress circuit tracked by
 /// an `AbstractCircMgr`.
 struct PendingEntry<B: AbstractCircBuilder> {
-    /// Specification for the usages that this circuit will support
-    /// immediately after it is constructed, before it is used for any
-    /// operation.
-    #[allow(dead_code)]
-    // TODO: Nothing actually uses this.  Should we remove it?  Or is
-    // it good for something?
-    circ_spec: B::Spec,
     /// Specification that this circuit will support, if every pending
     /// request that is waiting for it is attached to it.
     ///
@@ -384,12 +377,11 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
     /// Make a new PendingEntry that starts out supporting a given
     /// spec.  Return that PendingEntry, along with a Sender to use to
     /// report the result of building this circuit.
-    fn new(circ_spec: B::Spec) -> (Self, oneshot::Sender<PendResult<B>>) {
+    fn new(circ_spec: &B::Spec) -> (Self, oneshot::Sender<PendResult<B>>) {
         let tentative_assignment = sync::Mutex::new(circ_spec.clone());
         let (sender, receiver) = oneshot::channel();
         let receiver = receiver.shared();
         let entry = PendingEntry {
-            circ_spec,
             tentative_assignment,
             receiver,
         };
@@ -926,7 +918,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
     ) -> Result<(Arc<PendingEntry<B>>, CircBuildPlan<B>)> {
         let (plan, bspec) = self.builder.plan_circuit(usage, dir)?;
-        let (pending, sender) = PendingEntry::new(bspec);
+        let (pending, sender) = PendingEntry::new(&bspec);
         let pending = Arc::new(pending);
 
         let plan = CircBuildPlan {
