@@ -72,6 +72,16 @@ impl ClientAddrConfig {
 
 /// Configuration for where information should be stored on disk.
 ///
+/// By default, cache information will be stored in `${ARTI_CACHE}`, and
+/// persistent state will be stored in `${ARTI_LOCAL_DATA}`.  That means that
+/// _all_ programs using these defaults will share their cache and state data.
+/// If that isn't what you want,  you'll need to override these directories.
+///
+/// On unix, the default directories will typically expand to `~/.cache/arti`
+/// and `~/.local/share/arti/` respectively, depending on the user's
+/// environment. Other platforms will also use suitable defaults. For more
+/// information, see the documentation for [`CfgDir`].
+///
 /// This section is for read/write storage.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -81,9 +91,9 @@ pub struct StorageConfig {
     #[builder(setter(into), default = "default_cache_dir()")]
     #[serde(default = "default_cache_dir")]
     cache_dir: CfgPath,
+    /// Location on disk for less-sensitive persistent state information.
     #[builder(setter(into), default = "default_state_dir()")]
     #[serde(default = "default_state_dir")]
-    /// Location on disk for less-sensitive persistent state information.
     state_dir: CfgPath,
 }
 
@@ -140,9 +150,10 @@ impl From<StorageConfig> for StorageConfigBuilder {
 /// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
 ///
 /// In order to connect to the Tor network, Arti needs to know a few
-/// well-known directories on the network, and the public keys of the
+/// well-known directory caches on the network, and the public keys of the
 /// network's directory authorities.  It also needs a place on disk to
-/// store persistent state and cached directory information.
+/// store persistent state and cached directory information. (See [`StorageConfig`]
+/// for default directories.)
 ///
 /// Most users will create a TorClientConfig by running
 /// [`TorClientConfig::sane_defaults`].
@@ -152,6 +163,9 @@ impl From<StorageConfig> for StorageConfigBuilder {
 ///
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
+///
+/// NOTE: These are NOT the final options or their final layout.
+/// Expect NO stability here.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.

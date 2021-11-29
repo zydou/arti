@@ -114,14 +114,17 @@ impl From<ProxyConfig> for ProxyConfigBuilder {
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.
 //
-/// These options are declared in a public crate outside of `arti` so
-/// that other applications can parse and use them, if desired.  If
-/// you're only embedding arti via `arti-client`, and you don't want
-/// to use Arti's configuration format, use
-/// [`arti_client::TorClientConfig`] instead.
+/// These options are declared in a public crate outside of `arti` so that other
+/// applications can parse and use them, if desired.  If you're only embedding
+/// arti via `arti-client`, and you don't want to use Arti's configuration
+/// format, use [`arti_client::TorClientConfig`] instead.
 ///
-/// NOTE: These are NOT the final options or their final layout.
-/// Expect NO stability here.
+/// By default, Arti will run using the default Tor network, store state and
+/// cache information to a per-user set of directories shared by all
+/// that user's applications, and run a SOCKS client on a local port.
+///
+/// NOTE: These are NOT the final options or their final layout. Expect NO
+/// stability here.
 #[derive(Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
@@ -304,7 +307,7 @@ impl ArtiConfigBuilder {
     }
 
     /// Return a mutable reference to a
-    /// [`DowloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
+    /// [`DownloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
     ///
     /// This section is used to override Arti's schedule when attempting and
     /// retrying to download directory objects.
