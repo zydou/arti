@@ -4,6 +4,51 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we will
 probably switch to using a separate changelog for each crate.
 
+# Arti 0.0.2
+
+This release tries to move us towards a more permanent API, and set the stage
+for future work in 
+
+It breaks compatibility with previous releases (as expected) and 
+
+### New features
+
+- Warn if guard restrictions are too strict. (#[242])
+- 
+
+### Breaking changes
+
+- Revised APIs in many high-level crates.
+
+### Documentation
+
+- Many other improvements and rewrites.
+
+### Infrastructure
+
+- Update our `cargo-husky` scripts to better match our CI. ([!62])
+- Use grcov, not tarpaulin. ([!136])
+
+### Cleanups, minor features, and bugfixes
+
+- Huge refactoring of the `tor-proto` crate to conform more closely to the
+  reactor architecture, and reduce the need for locks. ([#205], [#217]).
+
+- Too many to smaller fixes to list.
+
+
+### Acknowledgments
+
+Thanks to everybody who's contributed to this release, including Daniel
+Eades, Dimitris Apostolou, Neel Chauhan, S0AndS0, Trinity Pointard, and Yuan
+Lyu!
+
+[#205]: 
+[#217]:
+[#242]:
+[!62]: 
+[!136]: 
+
 # Arti 0.0.1
 
 This release attempts to be "free of known privacy holes". That
