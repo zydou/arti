@@ -44,7 +44,8 @@ mod options;
 
 pub use cmdline::CmdLine;
 pub use options::{
-    ArtiConfig, LoggingConfig, LoggingConfigBuilder, ProxyConfig, ProxyConfigBuilder,
+    ArtiConfig, ArtiConfigBuilder, LoggingConfig, LoggingConfigBuilder, ProxyConfig,
+    ProxyConfigBuilder,
 };
 use tor_config::CfgPath;
 

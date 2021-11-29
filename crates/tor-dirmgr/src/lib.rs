@@ -69,7 +69,7 @@ mod storage;
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
 use crate::shared_ref::SharedMutArc;
 use crate::storage::sqlite::SqliteStore;
-use retry::DownloadSchedule;
+pub use retry::DownloadSchedule;
 use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;

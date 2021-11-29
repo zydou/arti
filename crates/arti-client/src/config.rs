@@ -22,9 +22,9 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig,
-        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder, NetworkConfig,
-        NetworkConfigBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadSchedule,
+        DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder,
+        NetworkConfig, NetworkConfigBuilder,
     };
 }
 
@@ -34,6 +34,7 @@ pub mod dir {
 /// use [`ClientAddrConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[serde(deny_unknown_fields)]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///
@@ -71,17 +72,45 @@ impl ClientAddrConfig {
 
 /// Configuration for where information should be stored on disk.
 ///
+/// By default, cache information will be stored in `${ARTI_CACHE}`, and
+/// persistent state will be stored in `${ARTI_LOCAL_DATA}`.  That means that
+/// _all_ programs using these defaults will share their cache and state data.
+/// If that isn't what you want,  you'll need to override these directories.
+///
+/// On unix, the default directories will typically expand to `~/.cache/arti`
+/// and `~/.local/share/arti/` respectively, depending on the user's
+/// environment. Other platforms will also use suitable defaults. For more
+/// information, see the documentation for [`CfgDir`].
+///
 /// This section is for read/write storage.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct StorageConfig {
-    /// Location on disk for cached directory information
-    #[builder(setter(into))]
+    /// Location on disk for cached directory information.
+    #[builder(setter(into), default = "default_cache_dir()")]
+    #[serde(default = "default_cache_dir")]
     cache_dir: CfgPath,
-    #[builder(setter(into))]
     /// Location on disk for less-sensitive persistent state information.
+    #[builder(setter(into), default = "default_state_dir()")]
+    #[serde(default = "default_state_dir")]
     state_dir: CfgPath,
+}
+
+/// Return the default cache directory.
+fn default_cache_dir() -> CfgPath {
+    CfgPath::new("${ARTI_CACHE}".to_owned())
+}
+
+/// Return the default state directory.
+fn default_state_dir() -> CfgPath {
+    CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
 }
 
 impl StorageConfig {
@@ -91,8 +120,7 @@ impl StorageConfig {
     }
 
     /// Try to expand `state_dir` to be a path buffer.
-    // TODO(nickm): This won't be public once we're done.
-    pub fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+    pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
@@ -101,8 +129,7 @@ impl StorageConfig {
             })
     }
     /// Try to expand `cache_dir` to be a path buffer.
-    // TODO(nickm): This won't be public once we're done.
-    pub fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
+    pub(crate) fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
@@ -123,9 +150,10 @@ impl From<StorageConfig> for StorageConfigBuilder {
 /// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
 ///
 /// In order to connect to the Tor network, Arti needs to know a few
-/// well-known directories on the network, and the public keys of the
+/// well-known directory caches on the network, and the public keys of the
 /// network's directory authorities.  It also needs a place on disk to
-/// store persistent state and cached directory information.
+/// store persistent state and cached directory information. (See [`StorageConfig`]
+/// for default directories.)
 ///
 /// Most users will create a TorClientConfig by running
 /// [`TorClientConfig::sane_defaults`].
@@ -135,6 +163,9 @@ impl From<StorageConfig> for StorageConfigBuilder {
 ///
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
+///
+/// NOTE: These are NOT the final options or their final layout.
+/// Expect NO stability here.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
@@ -168,28 +199,15 @@ impl TorClientConfig {
 
     /// Returns a `TorClientConfig` using reasonably sane defaults.
     ///
-    /// This gives the same result as using `tor_config`'s definitions
-    /// for `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
+    /// This gives the same result as the default builder, which
+    /// uses `ARTI_LOCAL_DATA` and `ARTI_CACHE` for the state and cache
     /// directories respectively.
     ///
     /// (On unix, this usually works out to `~/.local/share/arti` and
     /// `~/.cache/arti`, depending on your environment.  We use the
     /// `directories` crate for reasonable defaults on other platforms.)
     pub fn sane_defaults() -> Result<Self, ConfigBuildError> {
-        // Note: this must stay in sync with project_dirs() in the
-        // tor-config crate.
-        let dirs =
-            directories::ProjectDirs::from("org", "torproject", "Arti").ok_or_else(|| {
-                ConfigBuildError::Invalid {
-                    field: "directories".to_string(),
-                    problem: "Could not determine default directories".to_string(),
-                }
-            })?;
-
-        let state_dir = dirs.data_local_dir();
-        let cache_dir = dirs.cache_dir();
-
-        Self::with_directories(state_dir, cache_dir)
+        Self::builder().build()
     }
 
     /// Returns a `TorClientConfig` using the specified state and cache directories.
@@ -381,5 +399,68 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn defaults() {
+        let dflt = TorClientConfig::sane_defaults().unwrap();
+        let b2 = TorClientConfigBuilder::from(dflt.clone());
+        let dflt2 = b2.build().unwrap();
+        assert_eq!(&dflt, &dflt2);
+    }
+
+    #[test]
+    fn builder() {
+        use tor_dirmgr::DownloadSchedule;
+        let sec = std::time::Duration::from_secs(1);
+
+        let auth = dir::Authority::builder()
+            .name("Fred")
+            .v3ident([22; 20].into())
+            .build()
+            .unwrap();
+        let fallback = dir::FallbackDir::builder()
+            .rsa_identity([23; 20].into())
+            .ed_identity([99; 32].into())
+            .orports(vec!["127.0.0.7:7".parse().unwrap()])
+            .build()
+            .unwrap();
+
+        let mut bld = TorClientConfig::builder();
+        bld.tor_network()
+            .authorities(vec![auth])
+            .fallback_caches(vec![fallback]);
+        bld.storage()
+            .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
+            .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld.download_schedule()
+            .retry_certs(DownloadSchedule::new(10, sec, 3))
+            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+        bld.override_net_params()
+            .insert("wombats-per-quokka".to_owned(), 7);
+        bld.path_rules()
+            .ipv4_subnet_family_prefix(20)
+            .ipv6_subnet_family_prefix(48);
+        bld.circuit_timing()
+            .max_dirtiness(90 * sec)
+            .request_timeout(10 * sec)
+            .request_max_retries(22)
+            .request_loyalty(3600 * sec);
+        bld.address_filter().allow_local_addrs(true);
+
+        let val = bld.build().unwrap();
+
+        // Reconstruct, rebuild, and validate.
+        let bld2 = TorClientConfigBuilder::from(val.clone());
+        let val2 = bld2.build().unwrap();
+        assert_eq!(val, val2);
+
+        assert_ne!(val, TorClientConfig::sane_defaults().unwrap());
     }
 }

@@ -60,6 +60,7 @@ impl ConfigBuildError {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
     use super::*;
 
     #[test]
@@ -105,6 +106,9 @@ mod test {
         let squid = CephalopodBuilder::default().arms(8).tentacles(2).build();
         let octopus = CephalopodBuilder::default().arms(8).build();
         assert!(squid.is_ok());
+        let squid = squid.unwrap();
+        assert_eq!(squid.arms, 8);
+        assert_eq!(squid.tentacles, 2);
         assert!(octopus.is_err());
         assert_eq!(
             &octopus.unwrap_err().to_string(),
