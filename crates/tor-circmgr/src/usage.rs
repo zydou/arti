@@ -363,25 +363,36 @@ mod test {
 
     #[test]
     fn exit_policy() {
-        let network = testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
+        use tor_netdir::testnet::construct_custom_netdir;
+        use tor_netdoc::doc::netstatus::RelayFlags;
+
+        let network = construct_custom_netdir(|idx, nb| {
+            if (0x21..0x27).contains(&idx) {
+                nb.rs.add_flags(RelayFlags::BAD_EXIT);
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
 
         // Nodes with ID 0x0a through 0x13 and 0x1e through 0x27 are
         // exits.  Odd-numbered ones allow only ports 80 and 443;
-        // even-numbered ones allow all ports.
+        // even-numbered ones allow all ports.  Nodes with ID 0x21
+        // through 0x27 are bad exits.
         let id_noexit = [0x05; 32].into();
         let id_webexit = [0x11; 32].into();
         let id_fullexit = [0x20; 32].into();
+        let id_badexit = [0x25; 32].into();
 
         let not_exit = network.by_id(&id_noexit).unwrap();
         let web_exit = network.by_id(&id_webexit).unwrap();
         let full_exit = network.by_id(&id_fullexit).unwrap();
+        let bad_exit = network.by_id(&id_badexit).unwrap();
 
         let ep_none = ExitPolicy::from_relay(&not_exit);
         let ep_web = ExitPolicy::from_relay(&web_exit);
         let ep_full = ExitPolicy::from_relay(&full_exit);
+        let ep_bad = ExitPolicy::from_relay(&bad_exit);
 
         assert!(!ep_none.allows_port(TargetPort::ipv4(80)));
         assert!(!ep_none.allows_port(TargetPort::ipv4(9999)));
@@ -394,15 +405,18 @@ mod test {
         assert!(ep_full.allows_port(TargetPort::ipv4(443)));
         assert!(ep_full.allows_port(TargetPort::ipv4(9999)));
 
+        assert!(!ep_bad.allows_port(TargetPort::ipv4(80)));
+
         // Note that nobody in the testdir::network allows ipv6.
         assert!(!ep_none.allows_port(TargetPort::ipv6(80)));
         assert!(!ep_web.allows_port(TargetPort::ipv6(80)));
         assert!(!ep_full.allows_port(TargetPort::ipv6(80)));
+        assert!(!ep_bad.allows_port(TargetPort::ipv6(80)));
 
         // Check is_supported_by while we're here.
-        // TODO: Make sure that if BadExit is set, this function returns no
         assert!(TargetPort::ipv4(80).is_supported_by(&web_exit));
         assert!(!TargetPort::ipv6(80).is_supported_by(&web_exit));
+        assert!(!TargetPort::ipv6(80).is_supported_by(&bad_exit));
     }
 
     #[test]
