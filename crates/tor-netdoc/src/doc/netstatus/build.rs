@@ -350,11 +350,6 @@ impl VoterInfoBuilder {
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing identity"))?;
-        let address = self
-            .address
-            .as_ref()
-            .ok_or(Error::CannotBuild("Missing address"))?
-            .clone();
         let ip = self.ip.ok_or(Error::CannotBuild("Missing IP"))?;
         let contact = self
             .contact
@@ -367,7 +362,6 @@ impl VoterInfoBuilder {
         let dir_source = DirSource {
             nickname,
             identity,
-            address,
             ip,
             dir_port: self.dir_port,
             or_port: self.or_port,
