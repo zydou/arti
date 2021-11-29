@@ -162,6 +162,7 @@ mod net_impls {
 /// Implement Readable and Writeable for Ed25519 types.
 mod ed25519_impls {
     use super::*;
+    #[allow(unused_imports)] // This `use` is needed with ed25519 < 1.3.0
     use signature::Signature;
     use tor_llcrypto::pk::ed25519;
 
