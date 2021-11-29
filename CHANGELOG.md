@@ -7,18 +7,29 @@ probably switch to using a separate changelog for each crate.
 # Arti 0.0.2
 
 This release tries to move us towards a more permanent API, and set the stage
-for future work in 
+for future work in performance evaluation.
 
-It breaks compatibility with previous releases (as expected) and 
+It breaks compatibility with previous releases, as is expected before
+release 0.1.0 (scheduled March 2022).
 
 ### New features
 
-- Warn if guard restrictions are too strict. (#[242])
-- 
+- Warn if guard restrictions are too strict. ([#242])
+- Optimistic data is now supported on streams, and used by default on
+  directory requests. ([#23])
+- Initial cut at a typed event framework. Not yet used, but will eventually
+  take the role of Tor's "controller event" system.  ([#230])
+- Large rewrite of configuration handling system, with more ergonomic
+  builders for top-level configurations. ([#84])
+
 
 ### Breaking changes
 
-- Revised APIs in many high-level crates.
+- The `${APP_*}` path variables have been renamed to
+  `${ARTI_*}`. ([efdd3275])
+- The configuration file format has been substantially revised. ([#84])
+- Most code that clients don't need is now behind a cargo feature. ([#124])
+- Revised APIs in many other high-level crates.
 
 ### Documentation
 
@@ -33,9 +44,9 @@ It breaks compatibility with previous releases (as expected) and
 
 - Huge refactoring of the `tor-proto` crate to conform more closely to the
   reactor architecture, and reduce the need for locks. ([#205], [#217]).
-
+- By default, `cargo build --release` now chooses a more aggressive set
+  of optimization flags. ([!124])
 - Too many to smaller fixes to list.
-
 
 ### Acknowledgments
 
@@ -43,11 +54,16 @@ Thanks to everybody who's contributed to this release, including Daniel
 Eades, Dimitris Apostolou, Neel Chauhan, S0AndS0, Trinity Pointard, and Yuan
 Lyu!
 
-[#205]: 
-[#217]:
-[#242]:
-[!62]: 
-[!136]: 
+[#23]: https://gitlab.torproject.org/tpo/core/arti/-/issues/23
+[#84]: https://gitlab.torproject.org/tpo/core/arti/-/issues/84
+[#205]: https://gitlab.torproject.org/tpo/core/arti/-/issues/205
+[#217]: https://gitlab.torproject.org/tpo/core/arti/-/issues/217
+[#230]: https://gitlab.torproject.org/tpo/core/arti/-/issues/230
+[#242]: https://gitlab.torproject.org/tpo/core/arti/-/issues/242
+[!62]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/62
+[!124]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/124
+[!136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/136
+[efdd3275]: https://gitlab.torproject.org/tpo/core/arti/-/commit/efdd327569990cd9e4d7678bae2ac406baf7b1d5
 
 # Arti 0.0.1
 
