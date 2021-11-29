@@ -33,10 +33,13 @@ async fn main() -> Result<()> {
         .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
         .await?;
 
+    // IMPORTANT: Make sure the request was written.
+    // Arti buffers data, so flushing the buffer is usually required.
     stream.flush().await?;
 
     eprintln!("reading response...");
 
+    // Read and print the result.
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf).await?;
 

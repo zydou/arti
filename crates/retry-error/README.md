@@ -18,29 +18,22 @@ operations.
 ```rust
 use retry_error::RetryError;
 
-fn some_operation() -> anyhow::Result<bool>  {
-    let num1 = vec![2, 3];
-    let address = &num1 as *const Vec<i32>;
-    let n = address as i32;
-    
-    if n % 2 == 0 {
-        Ok(true)
-    } else {
-        Err(anyhow::anyhow!("error!"))
-    }
+fn some_operation() -> anyhow::Result<bool> {
+    unimplemented!(); // example
 }
 
-const N_ATTEMPTS: usize = 10;
-let mut err = RetryError::in_attempt_to("perform an example operation");
-for _ in 0..N_ATTEMPTS {
-    match some_operation() {
-        Ok(val) => return Ok(()),
-        Err(e) => err.push(e),
+fn example() -> Result<(), RetryError<anyhow::Error>> {
+    const N_ATTEMPTS: usize = 10;
+    let mut err = RetryError::in_attempt_to("perform an example operation");
+    for _ in 0..N_ATTEMPTS {
+        match some_operation() {
+            Ok(val) => return Ok(()),
+            Err(e) => err.push(e),
+        }
     }
+    // All attempts failed; return all the errors.
+    return Err(err);
 }
-// All attempts failed; return all the errors.
-return Err(err);
-# Ok::<(), RetryError<anyhow::Error>>(())
 ```
 
 License: MIT OR Apache-2.0
