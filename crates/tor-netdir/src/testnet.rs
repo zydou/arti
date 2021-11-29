@@ -14,21 +14,10 @@
 #![allow(clippy::unwrap_used)]
 
 use super::*;
-use hex_literal::hex;
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
-use tor_llcrypto::pk::rsa;
 use tor_netdoc::doc::microdesc::MicrodescBuilder;
 use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, RouterStatusBuilder};
-
-/// Helper: make a dummy 1024-bit RSA public key.
-///
-/// (I forget where I got this key, so you probably shouldn't encrypt any
-/// secrets to it.
-fn rsa_example() -> rsa::PublicKey {
-    let der = hex!("30818902818100d527b6c63d6e81d39c328a94ce157dccdc044eb1ad8c210c9c9e22487b4cfade6d4041bd10469a657e3d82bc00cf62ac3b6a99247e573b54c10c47f5dc849b0accda031eca6f6e5dc85677f76dec49ff24d2fcb2b5887fb125aa204744119bb6417f45ee696f8dfc1c2fc21b2bae8e9e37a19dc2518a2c24e7d8fd7fac0f46950203010001");
-    rsa::PublicKey::from_der(&der).unwrap()
-}
 
 /// A set of builder objects for a single node.
 #[derive(Debug, Clone)]
@@ -175,7 +164,6 @@ where
 
         let mut md_builder = Microdesc::builder();
         md_builder
-            .tap_key(rsa_example())
             .ntor_key((*b"----nothing in dirmgr uses this-").into())
             .ed25519_id([idx; 32].into())
             .family(family.parse().unwrap())

@@ -22,7 +22,7 @@ use crate::util;
 use crate::util::str::Extent;
 use crate::{AllowAnnotations, Error, Result};
 use tor_llcrypto::d;
-use tor_llcrypto::pk::{curve25519, ed25519, rsa};
+use tor_llcrypto::pk::{curve25519, ed25519};
 
 use digest::Digest;
 use once_cell::sync::Lazy;
@@ -60,8 +60,6 @@ pub struct Microdesc {
     // correlate the microdesc to a consensus, it's never used again.
     sha256: MdDigest,
     /// Public key used for the deprecated TAP circuit extension protocol.
-    // TODO: why even store this? Nothing in Arti will ever use it.
-    tap_onion_key: rsa::PublicKey,
     /// Public key used for the ntor circuit extension protocol.
     ntor_onion_key: curve25519::PublicKey,
     /// Declared family for this relay.
@@ -265,14 +263,6 @@ impl Microdesc {
             util::str::str_offset(s, first.kwd_str()).unwrap()
         };
 
-        // Legacy (tap) onion key
-        let tap_onion_key: rsa::PublicKey = body
-            .required(ONION_KEY)?
-            .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
-            .check_len_eq(1024)?
-            .check_exponent(65537)?
-            .into();
-
         // Ntor onion key
         let ntor_onion_key = body
             .required(NTOR_ONION_KEY)?
@@ -326,7 +316,6 @@ impl Microdesc {
 
         let md = Microdesc {
             sha256,
-            tap_onion_key,
             ntor_onion_key,
             family,
             ipv4_policy: ipv4_policy.intern(),
