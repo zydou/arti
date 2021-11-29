@@ -36,7 +36,7 @@ necessary state about network consensus as required. This state gets persisted t
 locations specified in the [`TorClientConfig`].
 
 A client can then be used to make connections over Tor with [`TorClient::connect`], which
-accepts anything implementing [`IntoTorAddr`]. This returns a [`DataStream`], an anonymised
+accepts anything implementing [`IntoTorAddr`]. This returns a [`DataStream`], an anonymized
 TCP stream type that implements [`AsyncRead`](futures::io::AsyncRead) and
 [`AsyncWrite`](futures::io::AsyncWrite), as well as the Tokio versions of those traits if
 the `tokio` crate feature is enabled.
@@ -92,7 +92,7 @@ This version of Arti includes basic support for "stream isolation": the ability 
 different TCP connections ('streams') go over different Tor circuits (and thus different exit
 nodes, making them originate from different IP addresses).
 
-This is useful to avoid deanonymising
+This is useful to avoid deanonymizing
 users by correlation: for example, you might want a Tor connection to your bank and a Tor
 connection to an online forum to use different circuits, to avoid the possibility of the two
 identities being linked by having the same source IP.

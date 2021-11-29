@@ -1,6 +1,6 @@
-# tor-config
+# arti-config
 
-`tor-config`: Tools for configuration management in Arti
+`arti-config`: Tools for configuration management in Arti
 
 ## Overview
 
