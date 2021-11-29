@@ -36,7 +36,7 @@ necessary state about network consensus as required. This state gets persisted t
 locations specified in the [`TorClientConfig`].
 
 A client can then be used to make connections over Tor with [`TorClient::connect`], which
-accepts anything implementing [`IntoTorAddr`]. This returns a [`DataStream`], an anonymised
+accepts anything implementing [`IntoTorAddr`]. This returns a [`DataStream`], an anonymized
 TCP stream type that implements [`AsyncRead`](futures::io::AsyncRead) and
 [`AsyncWrite`](futures::io::AsyncWrite), as well as the Tokio versions of those traits if
 the `tokio` crate feature is enabled.
@@ -52,57 +52,38 @@ If you really want to connect to a raw IP address and know what you're doing, ta
 ### Example: making connections over Tor
 
 ```rust
-use anyhow::Result;
-use arti_client::{TorClient, TorClientConfig};
-use tokio_crate as tokio;
+// The client configuration describes how to connect to the Tor network,
+// and what directories to use for storing persistent state.
+let config = TorClientConfig::sane_defaults()?;
+// Arti needs a handle to an async runtime in order to spawn tasks and use the
+// network. (See "Multiple runtime support" below.)
+let rt = tor_rtcompat::tokio::current_runtime()?;
+
+// Start the Arti client, and let it bootstrap a connection to the Tor network.
+// (This takes a while to gather the necessary directory information.
+// It uses cached information when possible.)
+let tor_client = TorClient::bootstrap(rt, config).await?;
+
+// Initiate a connection over Tor to example.com, port 80.
+let mut stream = tor_client.connect(("example.com", 80), None).await?;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
-    tracing_subscriber::fmt::init();
+// Write out an HTTP request.
+stream
+    .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
+    .await?;
 
-    // The client config includes things like where to store persistent Tor network state.
-    // The "sane defaults" provided are the same as the Arti standalone application, and save data
-    // to a conventional place depending on operating system (for example, ~/.local/share/arti
-    // on Linux platforms)
-    let config = TorClientConfig::sane_defaults()?;
-    // Arti needs an async runtime handle to spawn async tasks.
-    // (See "Multiple runtime support" below.)
-    let rt = tor_rtcompat::tokio::current_runtime()?;
+// IMPORTANT: Make sure the request was written.
+// Arti buffers data, so flushing the buffer is usually required.
+stream.flush().await?;
 
-    eprintln!("connecting to Tor...");
+// Read and print the result.
+let mut buf = Vec::new();
+stream.read_to_end(&mut buf).await?;
 
-    // We now let the Arti client start and bootstrap a connection to the network.
-    // (This takes a while to gather the necessary consensus state, etc.)
-    let tor_client = TorClient::bootstrap(rt, config).await?;
-
-    eprintln!("connecting to example.com...");
-
-    // Initiate a connection over Tor to example.com, port 80.
-    let mut stream = tor_client.connect(("example.com", 80), None).await?;
-
-    eprintln!("sending request...");
-
-    stream
-        .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
-        .await?;
-
-    // IMPORTANT: Make sure the request was written.
-    // Arti buffers data, so flushing the buffer is usually required.
-    stream.flush().await?;
-
-    eprintln!("reading response...");
-    
-    // Read and print the result.
-    let mut buf = Vec::new();
-    stream.read_to_end(&mut buf).await?;
-
-    println!("{}", String::from_utf8_lossy(&buf));
-
-    Ok(())
-}
+println!("{}", String::from_utf8_lossy(&buf));
+#
 ```
 
 ### More advanced usage
@@ -111,7 +92,7 @@ This version of Arti includes basic support for "stream isolation": the ability 
 different TCP connections ('streams') go over different Tor circuits (and thus different exit
 nodes, making them originate from different IP addresses).
 
-This is useful to avoid deanonymising
+This is useful to avoid deanonymizing
 users by correlation: for example, you might want a Tor connection to your bank and a Tor
 connection to an online forum to use different circuits, to avoid the possibility of the two
 identities being linked by having the same source IP.
