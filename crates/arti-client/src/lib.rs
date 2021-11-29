@@ -57,7 +57,7 @@
 //! # async fn main() -> Result<()> {
 //! // The client configuration describes how to connect to the Tor network,
 //! // and what directories to use for storing persistent state.
-//! let config = TorClientConfig::sane_defaults()?;
+//! let config = TorClientConfig::default();
 //! // Arti needs a handle to an async runtime in order to spawn tasks and use the
 //! // network. (See "Multiple runtime support" below.)
 //! let rt = tor_rtcompat::tokio::current_runtime()?;

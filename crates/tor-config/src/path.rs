@@ -23,7 +23,7 @@ use serde::Deserialize;
 ///
 /// These variables are implemented using the `directories` crate, and
 /// so should use appropriate system-specific overrides under the
-/// hood.
+/// hood. For more information, see that crate's documentation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
@@ -140,8 +140,6 @@ impl std::fmt::Display for CfgPath {
 #[cfg(feature = "expand-paths")]
 fn project_dirs() -> Result<&'static ProjectDirs, CfgPathError> {
     /// lazy cell holding the ProjectDirs object.
-    // Note: this must stay in sync with sane_defaults() in the
-    // arti-client crate.
     static PROJECT_DIRS: Lazy<Option<ProjectDirs>> =
         Lazy::new(|| ProjectDirs::from("org", "torproject", "Arti"));
 
