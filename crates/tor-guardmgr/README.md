@@ -88,7 +88,7 @@ below) and comments and internal documentation in this crate.
 
 Guard nodes were first proposes (as "helper nodes") in "Defending
 Anonymous Communications Against Passive Logging Attacks" by
-Matther Wright, Micah Adler, Brian N. Levine, and Clay Shields in
+Matthew Wright, Micah Adler, Brian N. Levine, and Clay Shields in
 the Proceedings of the 2003 IEEE Symposium on Security and
 Privacy.  (See <https://www.freehaven.net/anonbib/#wright03>)
 

@@ -11,24 +11,27 @@
 //! It's used by higher-level crates that retry
 //! operations.
 //!
-//! # Example
+//! ## Example
 //!
-//! ```
-//! # fn some_operation() -> Result<(),anyhow::Error> {Ok(())}
-//! # fn demo() -> Result<(),retry_error::RetryError<anyhow::Error>> {
-//! use retry_error::RetryError;
+//! ```rust
+//!use retry_error::RetryError;
 //!
-//! const N_ATTEMPTS: usize = 10;
-//! let mut err = RetryError::in_attempt_to("perform an example operation");
-//! for _ in 0..N_ATTEMPTS {
-//!     match some_operation() {
-//!         Ok(val) => return Ok(val),
-//!         Err(e) => err.push(e),
-//!     }
-//! }
-//! // All attempts failed; return all the errors.
-//! return Err(err)
-//! # }
+//!fn some_operation() -> anyhow::Result<bool> {
+//!    unimplemented!(); // example
+//!}
+//!
+//!fn example() -> Result<(), RetryError<anyhow::Error>> {
+//!    const N_ATTEMPTS: usize = 10;
+//!    let mut err = RetryError::in_attempt_to("perform an example operation");
+//!    for _ in 0..N_ATTEMPTS {
+//!        match some_operation() {
+//!            Ok(val) => return Ok(()),
+//!            Err(e) => err.push(e),
+//!        }
+//!    }
+//!    // All attempts failed; return all the errors.
+//!    return Err(err);
+//!}
 //! ```
 
 #![deny(missing_docs)]

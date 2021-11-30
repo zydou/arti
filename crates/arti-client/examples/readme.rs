@@ -15,6 +15,7 @@ async fn main() -> Result<()> {
     // on Linux platforms)
     let config = TorClientConfig::default();
     // Arti needs an async runtime handle to spawn async tasks.
+    // (See "Multiple runtime support" below.)
     let rt = tor_rtcompat::tokio::current_runtime()?;
 
     eprintln!("connecting to Tor...");
@@ -25,6 +26,7 @@ async fn main() -> Result<()> {
 
     eprintln!("connecting to example.com...");
 
+    // Initiate a connection over Tor to example.com, port 80.
     let mut stream = tor_client.connect(("example.com", 80), None).await?;
 
     eprintln!("sending request...");
@@ -33,10 +35,13 @@ async fn main() -> Result<()> {
         .write_all(b"GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n")
         .await?;
 
+    // IMPORTANT: Make sure the request was written.
+    // Arti buffers data, so flushing the buffer is usually required.
     stream.flush().await?;
 
     eprintln!("reading response...");
 
+    // Read and print the result.
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf).await?;
 

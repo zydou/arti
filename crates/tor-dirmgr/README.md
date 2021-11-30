@@ -23,4 +23,7 @@ reading large directory objects from disk.
 
 `static` -- Try to link with a static copy of sqlite3.
 
+`routerdesc` -- (Incomplete) support for downloading and storing
+     router descriptors.
+
 License: MIT OR Apache-2.0

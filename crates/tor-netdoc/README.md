@@ -26,6 +26,17 @@ implementations for parsing specific data structures that are used
 inside directory documents.  Finally, the [`doc`] module defines
 the parsers for the documents themselves.
 
+## Features
+
+`build_docs`: enable code to construct the objects representing different
+network documents.
+
+`routerdesc`: enable support for the "router descriptor" document type, which
+is needed by bridge clients and relays.
+
+`ns-consensus`: enable support for the "ns consensus" document type, which
+some relays cache and serve.
+
 ## Caveat haxxor: limitations and infelicities
 
 TODO: This crate requires that all of its inputs be valid UTF-8:
