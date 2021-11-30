@@ -13,6 +13,7 @@
 //!   use it for other roles, or to use it less commonly for them.
 
 use crate::params::NetParameters;
+use bitflags::bitflags;
 use tor_netdoc::doc::netstatus::{self, MdConsensus, MdConsensusRouterStatus, NetParams};
 
 /// Helper: Calculate the function we should use to find initial relay
@@ -158,37 +159,39 @@ impl RelayWeight {
     }
 }
 
-/// A kind of relay, for the purposes of selecting a relay by weight.
-///
-/// Relays can have or lack the Guard flag, the Exit flag, and the V2Dir flag.
-/// All together, this makes 8 kinds of relays.
-// TODO: use bitflags here?
-struct WeightKind(u8);
-/// Flag in weightkind for Guard relays.
-const FLG_GUARD: u8 = 1 << 0;
-/// Flag in weightkind for Exit relays.
-const FLG_EXIT: u8 = 1 << 1;
-/// Flag in weightkind for V2Dir relays.
-const FLG_DIR: u8 = 1 << 2;
+bitflags! {
+    /// A kind of relay, for the purposes of selecting a relay by weight.
+    ///
+    /// Relays can have or lack the Guard flag, the Exit flag, and the
+    /// V2Dir flag. All together, this makes 8 kinds of relays.
+    struct WeightKind: u8 {
+        /// Flag in weightkind for Guard relays.
+        const GUARD = 1 << 0;
+        /// Flag in weightkind for Exit relays.
+        const EXIT = 1 << 1;
+        /// Flag in weightkind for V2Dir relays.
+        const DIR = 1 << 2;
+    }
+}
 
 impl WeightKind {
     /// Return the appropriate WeightKind for a relay.
     fn for_rs(rs: &MdConsensusRouterStatus) -> Self {
-        let mut r = 0;
+        let mut r = WeightKind::empty();
         if rs.is_flagged_guard() {
-            r |= FLG_GUARD;
+            r |= WeightKind::GUARD;
         }
         if rs.is_flagged_exit() {
-            r |= FLG_EXIT;
+            r |= WeightKind::EXIT;
         }
         if rs.is_flagged_v2dir() {
-            r |= FLG_DIR;
+            r |= WeightKind::DIR;
         }
-        WeightKind(r)
+        r
     }
     /// Return the index to use for this kind of a relay within a WeightSet.
     fn idx(self) -> usize {
-        self.0 as usize
+        self.bits as usize
     }
 }
 
@@ -496,15 +499,24 @@ mod test {
         assert_eq!(ws.shift, 0);
 
         assert_eq!(ws.w[0].as_guard, 5904);
-        assert_eq!(ws.w[(FLG_GUARD) as usize].as_guard, 5904);
-        assert_eq!(ws.w[(FLG_EXIT) as usize].as_exit, 10000);
-        assert_eq!(ws.w[(FLG_EXIT | FLG_GUARD) as usize].as_dir, 0);
-        assert_eq!(ws.w[(FLG_GUARD) as usize].as_dir, 4096);
-        assert_eq!(ws.w[(FLG_GUARD | FLG_DIR) as usize].as_dir, 4096);
+        assert_eq!(ws.w[(WeightKind::GUARD.bits()) as usize].as_guard, 5904);
+        assert_eq!(ws.w[(WeightKind::EXIT.bits()) as usize].as_exit, 10000);
+        assert_eq!(
+            ws.w[(WeightKind::EXIT | WeightKind::GUARD).bits() as usize].as_dir,
+            0
+        );
+        assert_eq!(
+            ws.w[(WeightKind::GUARD | WeightKind::DIR).bits() as usize].as_dir,
+            4096
+        );
+        assert_eq!(
+            ws.w[(WeightKind::GUARD | WeightKind::DIR).bits() as usize].as_dir,
+            4096
+        );
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Unmeasured(7777),
                 WeightRole::Guard
             ),
@@ -513,7 +525,7 @@ mod test {
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Measured(7777),
                 WeightRole::Guard
             ),
@@ -522,7 +534,7 @@ mod test {
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Measured(7777),
                 WeightRole::Middle
             ),
@@ -531,7 +543,7 @@ mod test {
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Measured(7777),
                 WeightRole::Exit
             ),
@@ -540,7 +552,7 @@ mod test {
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Measured(7777),
                 WeightRole::BeginDir
             ),
@@ -549,7 +561,7 @@ mod test {
 
         assert_eq!(
             ws.weight_bw_for_role(
-                WeightKind(FLG_GUARD | FLG_DIR),
+                WeightKind::GUARD | WeightKind::DIR,
                 &RW::Measured(7777),
                 WeightRole::Unweighted
             ),
@@ -585,19 +597,22 @@ mod test {
     #[test]
     fn weight_flags() {
         let rs1 = rs_builder().set_flags(RelayFlags::EXIT).build().unwrap();
-        assert_eq!(WeightKind::for_rs(&rs1).0, FLG_EXIT);
+        assert_eq!(WeightKind::for_rs(&rs1), WeightKind::EXIT);
 
         let rs1 = rs_builder().set_flags(RelayFlags::GUARD).build().unwrap();
-        assert_eq!(WeightKind::for_rs(&rs1).0, FLG_GUARD);
+        assert_eq!(WeightKind::for_rs(&rs1), WeightKind::GUARD);
 
         let rs1 = rs_builder().set_flags(RelayFlags::V2DIR).build().unwrap();
-        assert_eq!(WeightKind::for_rs(&rs1).0, FLG_DIR);
+        assert_eq!(WeightKind::for_rs(&rs1), WeightKind::DIR);
 
         let rs1 = rs_builder().build().unwrap();
-        assert_eq!(WeightKind::for_rs(&rs1).0, 0);
+        assert_eq!(WeightKind::for_rs(&rs1), WeightKind::empty());
 
         let rs1 = rs_builder().set_flags(RelayFlags::all()).build().unwrap();
-        assert_eq!(WeightKind::for_rs(&rs1).0, FLG_EXIT | FLG_GUARD | FLG_DIR);
+        assert_eq!(
+            WeightKind::for_rs(&rs1),
+            WeightKind::EXIT | WeightKind::GUARD | WeightKind::DIR
+        );
     }
 
     #[test]

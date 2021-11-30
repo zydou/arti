@@ -32,6 +32,7 @@ tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 tor-protover = { path="../tor-protover", version = "0.0.2"}
 tor-units = { path="../tor-units", version = "0.0.2"}
 
+bitflags = "1.2.1"
 derive_builder = "0.10.2"
 derive_more = "0.99.0"
 hex = { version= "0.4.3", optional = true }

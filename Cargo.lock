@@ -2749,6 +2749,7 @@ dependencies = [
 name = "tor-netdir"
 version = "0.0.2"
 dependencies = [
+ "bitflags",
  "derive_builder",
  "derive_more",
  "hex",
