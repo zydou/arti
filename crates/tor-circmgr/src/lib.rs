@@ -57,8 +57,8 @@ use tor_rtcompat::Runtime;
 
 use futures::task::SpawnExt;
 use std::convert::TryInto;
-use std::sync::{Arc, Weak};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 pub mod build;
@@ -67,6 +67,7 @@ mod err;
 mod impls;
 mod mgr;
 pub mod path;
+mod preemptive;
 mod timeouts;
 mod usage;
 
@@ -78,6 +79,7 @@ pub use config::{
     PathConfigBuilder,
 };
 
+use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
 /// A Result type as returned from this crate.
@@ -88,6 +90,9 @@ type TimeoutStateHandle = tor_persist::DynStorageHandle<timeouts::pareto::Pareto
 
 /// Key used to load timeout state information.
 const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
+
+/// If we have this number or more circuits open, we don't build circuits preemptively any more.
+const PREEMPTIVE_CIRCUIT_THRESHOLD: usize = 12;
 
 /// Represents what we know about the Tor network.
 ///
@@ -150,6 +155,8 @@ impl<'a> DirInfo<'a> {
 pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
+    /// A preemptive circuit predictor, for, uh, building circuits preemptively.
+    predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -168,6 +175,12 @@ impl<R: Runtime> CircMgr<R> {
             circuit_timing,
         } = config;
 
+        // TODO(eta): don't hardcode!
+        let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(vec![
+            TargetPort::ipv4(80),
+            TargetPort::ipv4(443),
+        ])));
+
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
@@ -180,7 +193,10 @@ impl<R: Runtime> CircMgr<R> {
             guardmgr,
         );
         let mgr = mgr::AbstractCircMgr::new(builder, runtime.clone(), circuit_timing);
-        let circmgr = Arc::new(CircMgr { mgr: Arc::new(mgr) });
+        let circmgr = Arc::new(CircMgr {
+            mgr: Arc::new(mgr),
+            predictor: preemptive,
+        });
 
         runtime.spawn(continually_expire_circuits(
             runtime.clone(),
@@ -252,9 +268,51 @@ impl<R: Runtime> CircMgr<R> {
         isolation: StreamIsolation,
     ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
+        let time = Instant::now();
+        {
+            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
+            if ports.is_empty() {
+                predictive.note_usage(None, time);
+            } else {
+                for port in ports.iter() {
+                    predictive.note_usage(Some(*port), time);
+                }
+            }
+        }
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await
+    }
+
+    /// Launch circuits preemptively, using the preemptive circuit predictor's predictions.
+    ///
+    /// # Note
+    ///
+    /// This function is invoked periodically from the
+    /// `arti-client` crate, based on timings from the network
+    /// parameters. As with `launch_timeout_testing_circuit_if_appropriate`, this
+    /// should ideally be refactored to be internal to this crate, and not be a
+    /// public API here.
+    pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
+        if self.mgr.n_circs() >= PREEMPTIVE_CIRCUIT_THRESHOLD {
+            return;
+        }
+        debug!("Checking preemptive circuit predictions.");
+        let circs = {
+            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
+            preemptive.predict()
+        };
+
+        let futures = circs
+            .iter()
+            .map(|usage| self.mgr.get_or_launch(usage, netdir));
+        let results = futures::future::join_all(futures).await;
+        for (i, result) in results.iter().enumerate() {
+            match result {
+                Ok(_) => debug!("Circuit exists (or was created) for {:?}", circs[i]),
+                Err(e) => warn!("Failed to build preemptive circuit {:?}: {}", circs[i], e),
+            }
+        }
     }
 
     /// If `circ_id` is the unique identifier for a circuit that we're

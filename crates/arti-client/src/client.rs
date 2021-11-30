@@ -7,7 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, TorClientConfig};
-use tor_circmgr::{IsolationToken, StreamIsolationBuilder, TargetPort};
+use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -198,6 +198,12 @@ impl<R: Runtime> TorClient<R> {
         ))?;
 
         runtime.spawn(continually_launch_timeout_testing_circuits(
+            runtime.clone(),
+            Arc::downgrade(&circmgr),
+            Arc::downgrade(&dirmgr),
+        ))?;
+
+        runtime.spawn(continually_preemptively_build_circuits(
             runtime.clone(),
             Arc::downgrade(&circmgr),
             Arc::downgrade(&dirmgr),
@@ -493,6 +499,30 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
         };
 
         rt.sleep(delay).await;
+    }
+}
+
+/// Run indefinitely, launching circuits where the preemptive circuit
+/// predictor thinks it'd be a good idea to have them.
+///
+/// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
+///
+/// This is a daemon task: it runs indefinitely in the background.
+///
+/// # Note
+///
+/// This would be better handled entirely within `tor-circmgr`, like
+/// other daemon tasks.
+async fn continually_preemptively_build_circuits<R: Runtime>(
+    rt: R,
+    circmgr: Weak<tor_circmgr::CircMgr<R>>,
+    dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
+) {
+    while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+        let netdir = dm.netdir();
+        cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
+            .await;
+        rt.sleep(Duration::from_secs(10)).await;
     }
 }
 
