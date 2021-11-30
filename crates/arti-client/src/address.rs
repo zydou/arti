@@ -99,6 +99,16 @@ pub struct TorAddr {
 }
 
 impl TorAddr {
+    /// Construct a TorAddr from its consituent parts, rejecting it if the
+    /// port is zero.
+    fn new(host: Host, port: u16) -> Result<Self, TorAddrError> {
+        if port == 0 {
+            Err(TorAddrError::BadPort)
+        } else {
+            Ok(TorAddr { host, port })
+        }
+    }
+
     /// Construct a `TorAddr` from any object that implements
     /// [`IntoTorAddr`].
     pub fn from<A: IntoTorAddr>(addr: A) -> Result<Self, TorAddrError> {
@@ -165,7 +175,7 @@ impl std::fmt::Display for TorAddr {
 }
 
 /// An error created while making or using a [`TorAddr`].
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error, Clone, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum TorAddrError {
     /// Tried to parse a string that can never be interpreted as a valid host.
@@ -174,7 +184,7 @@ pub enum TorAddrError {
     /// Tried to parse a string as an `address:port`, but it had no port.
     #[error("No port found in string")]
     NoPort,
-    /// Tried to parse a port that wasn't a valid `u16`.
+    /// Tried to parse a port that wasn't a valid nonzero `u16`.
     #[error("Could not parse port")]
     BadPort,
 }
@@ -238,19 +248,12 @@ impl<A: IntoTorAddr + Clone> IntoTorAddr for &A {
 impl IntoTorAddr for &str {
     fn into_tor_addr(self) -> Result<TorAddr, TorAddrError> {
         if let Ok(sa) = SocketAddr::from_str(self) {
-            Ok(TorAddr {
-                host: Host::Ip(sa.ip()),
-                port: sa.port(),
-            })
+            TorAddr::new(Host::Ip(sa.ip()), sa.port())
         } else {
             let (host, port) = self.rsplit_once(':').ok_or(TorAddrError::NoPort)?;
             let host = host.parse()?;
             let port = port.parse().map_err(|_| TorAddrError::BadPort)?;
-            if port == 0 {
-                Err(TorAddrError::BadPort)
-            } else {
-                Ok(TorAddr { host, port })
-            }
+            TorAddr::new(host, port)
         }
     }
 }
@@ -272,7 +275,7 @@ impl IntoTorAddr for (&str, u16) {
     fn into_tor_addr(self) -> Result<TorAddr, TorAddrError> {
         let (host, port) = self;
         let host = host.parse()?;
-        Ok(TorAddr { host, port })
+        TorAddr::new(host, port)
     }
 }
 
@@ -292,30 +295,21 @@ impl<T: DangerouslyIntoTorAddr + Clone> DangerouslyIntoTorAddr for &T {
 impl DangerouslyIntoTorAddr for (IpAddr, u16) {
     fn into_tor_addr_dangerously(self) -> Result<TorAddr, TorAddrError> {
         let (addr, port) = self;
-        Ok(TorAddr {
-            host: Host::Ip(addr),
-            port,
-        })
+        TorAddr::new(Host::Ip(addr), port)
     }
 }
 
 impl DangerouslyIntoTorAddr for (Ipv4Addr, u16) {
     fn into_tor_addr_dangerously(self) -> Result<TorAddr, TorAddrError> {
         let (addr, port) = self;
-        Ok(TorAddr {
-            host: Host::Ip(addr.into()),
-            port,
-        })
+        TorAddr::new(Host::Ip(addr.into()), port)
     }
 }
 
 impl DangerouslyIntoTorAddr for (Ipv6Addr, u16) {
     fn into_tor_addr_dangerously(self) -> Result<TorAddr, TorAddrError> {
         let (addr, port) = self;
-        Ok(TorAddr {
-            host: Host::Ip(addr.into()),
-            port,
-        })
+        TorAddr::new(Host::Ip(addr.into()), port)
     }
 }
 
@@ -455,6 +449,18 @@ mod test {
             ("2001:db8::42".to_owned(), 9001)
         );
         assert_eq!(sap("example.com:80"), ("example.com".to_owned(), 80));
+    }
+
+    #[test]
+    fn bad_ports() {
+        assert_eq!(
+            TorAddr::from("www.example.com:squirrel"),
+            Err(TorAddrError::BadPort)
+        );
+        assert_eq!(
+            TorAddr::from("www.example.com:0"),
+            Err(TorAddrError::BadPort)
+        );
     }
 
     #[test]

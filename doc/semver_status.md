@@ -23,3 +23,6 @@ tor-proto: MODIFIED
   (New constructor for HsNtorClientInput)
 tor-netdoc: BREAKING
   (No more tap_key function in MicrodescBuilder)
+
+arti-client: MODIFIED
+  (PartialEq, Eq for TorAddrError)
