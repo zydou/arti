@@ -59,9 +59,6 @@ pub struct Microdesc {
     // TODO: maybe this belongs somewhere else. Once it's used to store
     // correlate the microdesc to a consensus, it's never used again.
     sha256: MdDigest,
-    /// Public key used for the deprecated TAP circuit extension protocol.
-    // TODO: why even store this? Nothing in Arti will ever use it.
-    tap_onion_key: rsa::PublicKey,
     /// Public key used for the ntor circuit extension protocol.
     ntor_onion_key: curve25519::PublicKey,
     /// Declared family for this relay.
@@ -266,7 +263,7 @@ impl Microdesc {
         };
 
         // Legacy (tap) onion key
-        let tap_onion_key: rsa::PublicKey = body
+        let _: rsa::PublicKey = body
             .required(ONION_KEY)?
             .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
             .check_len_eq(1024)?
@@ -326,7 +323,6 @@ impl Microdesc {
 
         let md = Microdesc {
             sha256,
-            tap_onion_key,
             ntor_onion_key,
             family,
             ipv4_policy: ipv4_policy.intern(),
