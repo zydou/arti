@@ -50,9 +50,9 @@ release 0.1.0 (scheduled March 2022).
 
 ### Acknowledgments
 
-Thanks to everybody who's contributed to this release, including Daniel
-Eades, Dimitris Apostolou, Neel Chauhan, S0AndS0, Trinity Pointard, and Yuan
-Lyu!
+Thanks to everybody who's contributed to this release, including dagon,
+Daniel Eades, Dimitris Apostolou, Neel Chauhan, S0AndS0, Trinity Pointard,
+and Yuan Lyu!
 
 [#23]: https://gitlab.torproject.org/tpo/core/arti/-/issues/23
 [#84]: https://gitlab.torproject.org/tpo/core/arti/-/issues/84
