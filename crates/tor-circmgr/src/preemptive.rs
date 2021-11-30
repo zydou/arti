@@ -75,7 +75,7 @@ mod test {
                     port: Some(TargetPort::ipv6(80))
                 },
             ]
-        )
+        );
     }
 
     #[test]
