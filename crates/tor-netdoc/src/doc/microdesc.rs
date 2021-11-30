@@ -71,6 +71,8 @@ pub struct Microdesc {
     ed25519_id: ed25519::Ed25519Identity,
     // addr is obsolete and doesn't go here any more
     // pr is obsolete and doesn't go here any more.
+    // The legacy "tap" onion-key is obsolete, and though we parse it, we don't
+    // save it.
 }
 
 impl Microdesc {
@@ -262,7 +264,8 @@ impl Microdesc {
             util::str::str_offset(s, first.kwd_str()).unwrap()
         };
 
-        // Legacy (tap) onion key
+        // Legacy (tap) onion key.  We parse this to make sure it's well-formed,
+        // but then we discard it immediately, since we never want to use it.
         let _: rsa::PublicKey = body
             .required(ONION_KEY)?
             .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?

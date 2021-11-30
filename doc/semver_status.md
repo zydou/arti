@@ -20,3 +20,6 @@ We can delete older sections here after we bump the releases.
 ## Since Arti 0.0.2
 
 tor-proto: MODIFIED
+  (New constructor for HsNtorClientInput)
+tor-netdoc: BREAKING
+  (No more tap_key function in MicrodescBuilder)
