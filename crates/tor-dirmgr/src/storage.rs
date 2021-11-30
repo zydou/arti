@@ -9,6 +9,7 @@
 pub(crate) mod sqlite;
 
 use crate::{Error, Result};
+use std::cell::RefCell;
 use std::{path::Path, str::Utf8Error};
 
 /// A document returned by a directory manager.
@@ -55,10 +56,20 @@ pub(crate) enum InputString {
     /// A string that's been validated as UTF-8
     Utf8(String),
     /// A set of unvalidated bytes.
-    UncheckedBytes(Vec<u8>),
+    UncheckedBytes {
+        /// The underlying bytes
+        bytes: Vec<u8>,
+        /// Whether the bytes have been validated previously as UTF-8
+        validated: RefCell<bool>,
+    },
     #[cfg(feature = "mmap")]
     /// A set of memory-mapped bytes (not yet validated as UTF-8).
-    MappedBytes(memmap2::Mmap),
+    MappedBytes {
+        /// The underlying bytes
+        bytes: memmap2::Mmap,
+        /// Whether the bytes have been validated previously as UTF-8
+        validated: RefCell<bool>,
+    },
 }
 
 impl InputString {
@@ -70,14 +81,31 @@ impl InputString {
 
     /// Helper for [`Self::as_str()`], with unwrapped error type.
     fn as_str_impl(&self) -> std::result::Result<&str, Utf8Error> {
-        // TODO: it is not strictly necessary to re-check the UTF8 every time
-        // this function is called; we could instead remember the result
-        // we got.
+        // It is not necessary to re-check the UTF8 every time
+        // this function is called so remember the result
+        // we got with `validated`
+
         match self {
             InputString::Utf8(s) => Ok(&s[..]),
-            InputString::UncheckedBytes(v) => std::str::from_utf8(&v[..]),
+            InputString::UncheckedBytes { bytes, validated } => {
+                if *validated.borrow() {
+                    unsafe { Ok(std::str::from_utf8_unchecked(&bytes[..])) }
+                } else {
+                    let result = std::str::from_utf8(&bytes[..])?;
+                    validated.replace(true);
+                    Ok(result)
+                }
+            }
             #[cfg(feature = "mmap")]
-            InputString::MappedBytes(m) => std::str::from_utf8(&m[..]),
+            InputString::MappedBytes { bytes, validated } => {
+                if *validated.borrow() {
+                    unsafe { Ok(std::str::from_utf8_unchecked(&bytes[..])) }
+                } else {
+                    let result = std::str::from_utf8(&bytes[..])?;
+                    validated.replace(true);
+                    Ok(result)
+                }
+            }
         }
     }
 
@@ -93,8 +121,11 @@ impl InputString {
                 // the contents of the file while we're using it.
                 memmap2::Mmap::map(&f)
             };
-            if let Ok(m) = mapping {
-                return Ok(InputString::MappedBytes(m));
+            if let Ok(bytes) = mapping {
+                return Ok(InputString::MappedBytes {
+                    bytes,
+                    validated: RefCell::new(false),
+                });
             }
         }
         use std::io::{BufReader, Read};
@@ -109,9 +140,9 @@ impl AsRef<[u8]> for InputString {
     fn as_ref(&self) -> &[u8] {
         match self {
             InputString::Utf8(s) => s.as_ref(),
-            InputString::UncheckedBytes(v) => &v[..],
+            InputString::UncheckedBytes { bytes, .. } => &bytes[..],
             #[cfg(feature = "mmap")]
-            InputString::MappedBytes(m) => &m[..],
+            InputString::MappedBytes { bytes, .. } => &bytes[..],
         }
     }
 }
@@ -123,8 +154,11 @@ impl From<String> for InputString {
 }
 
 impl From<Vec<u8>> for InputString {
-    fn from(v: Vec<u8>) -> InputString {
-        InputString::UncheckedBytes(v)
+    fn from(bytes: Vec<u8>) -> InputString {
+        InputString::UncheckedBytes {
+            bytes,
+            validated: RefCell::new(false),
+        }
     }
 }
 
@@ -139,9 +173,11 @@ mod test {
         let s: InputString = "Hello world".to_string().into();
         assert_eq!(s.as_ref(), b"Hello world");
         assert_eq!(s.as_str().unwrap(), "Hello world");
+        assert_eq!(s.as_str().unwrap(), "Hello world");
 
         let s: InputString = b"Hello world".to_vec().into();
         assert_eq!(s.as_ref(), b"Hello world");
+        assert_eq!(s.as_str().unwrap(), "Hello world");
         assert_eq!(s.as_str().unwrap(), "Hello world");
 
         // bad utf-8
@@ -163,6 +199,7 @@ mod test {
         let s = InputString::load(&goodstr);
         let s = s.unwrap();
         assert_eq!(s.as_str().unwrap(), "This is a reasonable file.\n");
+        assert_eq!(s.as_str().unwrap(), "This is a reasonable file.\n");
         assert_eq!(s.as_ref(), b"This is a reasonable file.\n");
 
         let badutf8 = td.path().join("badutf8");
@@ -176,6 +213,7 @@ mod test {
         let s: InputString = "Hello universe".to_string().into();
         let dt: DocumentText = s.into();
         assert_eq!(dt.as_ref(), b"Hello universe");
+        assert_eq!(dt.as_str(), Ok("Hello universe"));
         assert_eq!(dt.as_str(), Ok("Hello universe"));
 
         let s: InputString = b"Hello \xff universe".to_vec().into();
