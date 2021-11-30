@@ -76,7 +76,6 @@ impl KeyGenerator for HsNtorHkdfKeyGenerator {
 /*********************** Client Side Code ************************************/
 
 /// The input to enter the HS Ntor protocol as a client
-/// XXX Make a constructor
 #[derive(Clone)]
 pub struct HsNtorClientInput {
     /// Introduction point encryption key (aka B)
@@ -99,6 +98,25 @@ pub struct HsNtorClientInput {
     /// of the ENCRYPTED_DATA. It's used to compute the MAC at the end of the
     /// INTRODUCE1 cell.
     pub intro_cell_data: Vec<u8>,
+}
+
+impl HsNtorClientInput {
+    /// Create a new `HsNtorClientInput`
+    pub fn new(
+        B: curve25519::PublicKey,
+        auth_key: ed25519::PublicKey,
+        subcredential: Subcredential,
+        plaintext: Vec<u8>,
+        intro_cell_data: Vec<u8>,
+    ) -> Self {
+        HsNtorClientInput {
+            B,
+            auth_key,
+            subcredential,
+            plaintext,
+            intro_cell_data,
+        }
+    }
 }
 
 /// Client state for an ntor handshake.
@@ -231,7 +249,6 @@ where
 /*********************** Server Side Code ************************************/
 
 /// The input required to enter the HS Ntor protocol as a service
-/// XXX Make a constructor
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
     pub b: curve25519::StaticSecret,
@@ -248,6 +265,25 @@ pub struct HsNtorServiceInput {
     /// of the ENCRYPTED_DATA. Will be used to verify the MAC at the end of the
     /// INTRODUCE1 cell.
     pub intro_cell_data: Vec<u8>,
+}
+
+impl HsNtorServiceInput {
+    /// Create a new `HsNtorServiceInput`
+    pub fn new(
+        b: curve25519::StaticSecret,
+        B: curve25519::PublicKey,
+        auth_key: ed25519::PublicKey,
+        subcredential: Subcredential,
+        intro_cell_data: Vec<u8>,
+    ) -> Self {
+        HsNtorServiceInput {
+            b,
+            B,
+            auth_key,
+            subcredential,
+            intro_cell_data,
+        }
+    }
 }
 
 /// Conduct the HS Ntor handshake as the service.
@@ -474,21 +510,21 @@ mod test {
         let intro_auth_key_pubkey = ed25519::PublicKey::from(&intro_auth_key_privkey);
 
         // Create keys for client and service
-        let client_keys = HsNtorClientInput {
-            B: intro_b_pubkey,
-            auth_key: intro_auth_key_pubkey,
-            subcredential: [5; 32],
-            plaintext: vec![66; 10],
-            intro_cell_data: vec![42; 60],
-        };
+        let client_keys = HsNtorClientInput::new(
+            intro_b_pubkey,
+            intro_auth_key_pubkey,
+            [5; 32],
+            vec![66; 10],
+            vec![42; 60],
+        );
 
-        let service_keys = HsNtorServiceInput {
-            b: intro_b_privkey,
-            B: intro_b_pubkey,
-            auth_key: intro_auth_key_pubkey,
-            subcredential: [5; 32],
-            intro_cell_data: vec![42; 60],
-        };
+        let service_keys = HsNtorServiceInput::new(
+            intro_b_privkey,
+            intro_b_pubkey,
+            intro_auth_key_pubkey,
+            [5; 32],
+            vec![42; 60],
+        );
 
         // Client: Sends an encrypted INTRODUCE1 cell
         let (state, cmsg) = client_send_intro(&mut rng, &client_keys)?;
