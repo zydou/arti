@@ -4,10 +4,10 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we will
 probably switch to using a separate changelog for each crate.
 
-# Arti 0.0.2
+# Arti 0.0.2 — 30 Nov 2021
 
-This release tries to move us towards a more permanent API, and set the stage
-for future work in performance evaluation.
+This release tries to move us towards a more permanent API, and sets the
+stage for future work in performance evaluation and event reporting.
 
 It breaks compatibility with previous releases, as is expected before
 release 0.1.0 (scheduled March 2022).
@@ -46,7 +46,7 @@ release 0.1.0 (scheduled March 2022).
   reactor architecture, and reduce the need for locks. ([#205], [#217]).
 - By default, `cargo build --release` now chooses a more aggressive set
   of optimization flags. ([!124])
-- Too many to smaller fixes to list.
+- Too many smaller fixes to list.
 
 ### Acknowledgments
 
@@ -56,6 +56,7 @@ Lyu!
 
 [#23]: https://gitlab.torproject.org/tpo/core/arti/-/issues/23
 [#84]: https://gitlab.torproject.org/tpo/core/arti/-/issues/84
+[#124]: https://gitlab.torproject.org/tpo/core/arti/-/issues/124
 [#205]: https://gitlab.torproject.org/tpo/core/arti/-/issues/205
 [#217]: https://gitlab.torproject.org/tpo/core/arti/-/issues/217
 [#230]: https://gitlab.torproject.org/tpo/core/arti/-/issues/230
@@ -65,7 +66,7 @@ Lyu!
 [!136]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/136
 [efdd3275]: https://gitlab.torproject.org/tpo/core/arti/-/commit/efdd327569990cd9e4d7678bae2ac406baf7b1d5
 
-# Arti 0.0.1
+# Arti 0.0.1 — 29 Oct 2021
 
 This release attempts to be "free of known privacy holes". That
 isn't to say that there are no remaining bugs, but rather that we've
