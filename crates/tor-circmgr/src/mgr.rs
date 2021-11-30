@@ -94,7 +94,7 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     /// `usage`.
     ///
     /// By default, this calls `abstract_spec_find_supported`.
-    fn find_supported<'a, 'b, C>(
+    fn find_supported<'a, 'b, C: AbstractCirc>(
         list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
         usage: &Self::Usage,
     ) -> Vec<&'b mut OpenEntry<Self, C>> {
@@ -107,11 +107,11 @@ pub(crate) trait AbstractSpec: Clone + Debug {
 ///
 /// This returns the all circuits in `list` for which `circuit.spec.supports(usage)` returns
 /// `true`.
-pub(crate) fn abstract_spec_find_supported<'a, 'b, S: AbstractSpec, C>(
+pub(crate) fn abstract_spec_find_supported<'a, 'b, S: AbstractSpec, C: AbstractCirc>(
     list: impl Iterator<Item = &'b mut OpenEntry<S, C>>,
     usage: &S::Usage,
 ) -> Vec<&'b mut OpenEntry<S, C>> {
-    list.filter(|circ| circ.spec.supports(usage)).collect()
+    list.filter(|circ| circ.supports(usage)).collect()
 }
 
 /// Minimal abstract view of a circuit.
@@ -249,6 +249,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
 /// All circuits start out "unused" and become "dirty" when their spec
 /// is first restricted -- that is, when they are first handed out to be
 /// used for a request.
+#[derive(Debug, Clone, PartialEq)]
 enum ExpirationInfo {
     /// The circuit has never been used.
     Unused {
@@ -278,9 +279,10 @@ impl ExpirationInfo {
 }
 
 /// An entry for an open circuit held by an `AbstractCircMgr`.
+#[derive(PartialEq, Debug, Clone)]
 pub(crate) struct OpenEntry<S, C> {
     /// Current AbstractCircSpec for this circuit's permitted usages.
-    pub(crate) spec: S,
+    spec: S,
     /// The circuit under management.
     circ: Arc<C>,
     /// When does this circuit expire?
@@ -640,7 +642,7 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     builder: B,
     /// An asynchronous runtime to use for launching tasks and
     /// checking timeouts.
-    pub(crate) runtime: R,
+    runtime: R,
     /// A CircList to manage our list of circuits, requests, and
     /// pending circuits.
     circs: sync::Mutex<CircList<B>>,
@@ -1145,9 +1147,11 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::Error;
+    use crate::usage::{ExitPolicy, SupportedCircUsage};
+    use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
+    use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockSleepRuntime;
     use tracing::trace;
@@ -1165,7 +1169,7 @@ mod test {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq, Clone)]
     struct FakeCirc {
         id: FakeId,
     }
@@ -1783,5 +1787,149 @@ mod test {
             assert!(!Arc::ptr_eq(&pop2, &pop1));
             assert!(Arc::ptr_eq(&imap2, &imap1));
         });
+    }
+
+    /// Returns three exit policies; one that permits nothing, one that permits ports 80
+    /// and 443 only, and one that permits all ports.
+    fn get_exit_policies() -> (ExitPolicy, ExitPolicy, ExitPolicy) {
+        // FIXME(eta): the below is copypasta; would be nice to have a better way of
+        //             constructing ExitPolicy objects for testing maybe
+        let network = testnet::construct_netdir()
+            .unwrap()
+            .unwrap_if_sufficient()
+            .unwrap();
+
+        // Nodes with ID 0x0a through 0x13 and 0x1e through 0x27 are
+        // exits.  Odd-numbered ones allow only ports 80 and 443;
+        // even-numbered ones allow all ports.
+        let id_noexit = [0x05; 32].into();
+        let id_webexit = [0x11; 32].into();
+        let id_fullexit = [0x20; 32].into();
+
+        let not_exit = network.by_id(&id_noexit).unwrap();
+        let web_exit = network.by_id(&id_webexit).unwrap();
+        let full_exit = network.by_id(&id_fullexit).unwrap();
+
+        let ep_none = ExitPolicy::from_relay(&not_exit);
+        let ep_web = ExitPolicy::from_relay(&web_exit);
+        let ep_full = ExitPolicy::from_relay(&full_exit);
+        (ep_none, ep_web, ep_full)
+    }
+
+    #[test]
+    fn test_find_supported() {
+        let (ep_none, ep_web, ep_full) = get_exit_policies();
+        let fake_circ = Arc::new(FakeCirc { id: FakeId::next() });
+        let expiration = ExpirationInfo::Unused {
+            use_before: Instant::now() + Duration::from_secs(60 * 60),
+        };
+
+        let mut entry_none = OpenEntry::new(
+            SupportedCircUsage::Exit {
+                policy: ep_none,
+                isolation: None,
+            },
+            Arc::clone(&fake_circ),
+            expiration.clone(),
+        );
+        let mut entry_none_c = entry_none.clone();
+        let mut entry_web = OpenEntry::new(
+            SupportedCircUsage::Exit {
+                policy: ep_web,
+                isolation: None,
+            },
+            Arc::clone(&fake_circ),
+            expiration.clone(),
+        );
+        let mut entry_web_c = entry_web.clone();
+        let mut entry_full = OpenEntry::new(
+            SupportedCircUsage::Exit {
+                policy: ep_full,
+                isolation: None,
+            },
+            Arc::clone(&fake_circ),
+            expiration,
+        );
+        let mut entry_full_c = entry_full.clone();
+
+        let usage_web = TargetCircUsage::Exit {
+            ports: vec![TargetPort::ipv4(80)],
+            isolation: StreamIsolation::no_isolation(),
+        };
+        let empty: Vec<&OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(vec![&mut entry_none].into_iter(), &usage_web),
+            empty
+        );
+
+        // HACK(eta): We have to faff around with clones and such because
+        //            `abstract_spec_find_supported` has a silly signature that involves `&mut`
+        //            refs, which we can't have more than one of.
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none, &mut entry_web].into_iter(),
+                &usage_web
+            ),
+            vec![&mut entry_web_c]
+        );
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
+                &usage_web
+            ),
+            vec![&mut entry_web_c, &mut entry_full_c]
+        );
+
+        // Test preemptive circuit usage:
+
+        let usage_preemptive_web = TargetCircUsage::Preemptive {
+            port: Some(TargetPort::ipv4(80)),
+        };
+        let usage_preemptive_dns = TargetCircUsage::Preemptive { port: None };
+
+        // shouldn't return anything unless there are >=2 circuits
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none].into_iter(),
+                &usage_preemptive_web
+            ),
+            empty
+        );
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none].into_iter(),
+                &usage_preemptive_dns
+            ),
+            empty
+        );
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none, &mut entry_web].into_iter(),
+                &usage_preemptive_web
+            ),
+            empty
+        );
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none, &mut entry_web].into_iter(),
+                &usage_preemptive_dns
+            ),
+            vec![&mut entry_none_c, &mut entry_web_c]
+        );
+
+        assert_eq!(
+            SupportedCircUsage::find_supported(
+                vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
+                &usage_preemptive_web
+            ),
+            vec![&mut entry_web_c, &mut entry_full_c]
+        );
     }
 }

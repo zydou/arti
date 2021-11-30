@@ -11,7 +11,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
-use crate::mgr::{abstract_spec_find_supported, OpenEntry};
+use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry};
 use crate::{Error, Result};
 
 /// An exit policy, as supported by the last hop of a circuit.
@@ -27,7 +27,7 @@ pub(crate) struct ExitPolicy {
 ///
 /// Ordinarily, this is a TCP port, plus a flag to indicate whether we
 /// must support IPv4 or IPv6.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct TargetPort {
     /// True if this is a request to connect to an IPv6 address
     ipv6: bool,
@@ -106,7 +106,7 @@ impl TargetPort {
 //
 // This type is re-exported by `arti-client`: any changes to it must be
 // reflected in `arti-client`'s version.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IsolationToken(u64);
 
 #[allow(clippy::new_without_default)]
@@ -143,7 +143,7 @@ impl IsolationToken {
 ///
 /// If two streams are isolated from one another, they may not share
 /// a circuit.
-#[derive(Copy, Clone, Eq, Debug, PartialEq, derive_builder::Builder)]
+#[derive(Copy, Clone, Eq, Debug, PartialEq, PartialOrd, Ord, derive_builder::Builder)]
 pub struct StreamIsolation {
     /// Any isolation token set on the stream.
     #[builder(default = "IsolationToken::no_isolation()")]
@@ -207,18 +207,10 @@ impl ExitPolicy {
 ///
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum TargetCircUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
-    /// Built preemptively, to reduce the likelihood that clients have to wait for a circuit
-    /// to be available.
-    Preemptive {
-        /// A port the circuit has to allow, if specified.
-        ///
-        /// If this is `None`, we just want a circuit capable of doing DNS resolution.
-        port: Option<TargetPort>,
-    },
     /// Use to exit to one or more ports.
     Exit {
         /// List of ports the circuit has to allow.
@@ -231,6 +223,19 @@ pub(crate) enum TargetCircUsage {
     },
     /// For a circuit is only used for the purpose of building it.
     TimeoutTesting,
+    /// For internal usage only: build a circuit preemptively, to reduce wait times.
+    ///
+    /// # Warning
+    ///
+    /// This **MUST NOT** be used by code outside of the preemptive circuit predictor. In
+    /// particular, this usage doesn't support stream isolation, so using it to ask for
+    /// circuits (for example, by passing it to `get_or_launch`) could be unsafe!
+    Preemptive {
+        /// A port the circuit has to allow, if specified.
+        ///
+        /// If this is `None`, we just want a circuit capable of doing DNS resolution.
+        port: Option<TargetPort>,
+    },
 }
 
 /// The purposes for which a circuit is usable.
@@ -347,7 +352,12 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
-            (Exit { policy, .. }, TargetCircUsage::Preemptive { port }) => {
+            (Exit { policy, isolation }, TargetCircUsage::Preemptive { port }) => {
+                if isolation.is_some() {
+                    // If the circuit has a stream isolation token, we might not be able to use it
+                    // for new streams that don't share it.
+                    return false;
+                }
                 if let Some(p) = port {
                     policy.allows_port(*p)
                 } else {
@@ -364,6 +374,9 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 
         match (self, usage) {
             (Dir, TargetCircUsage::Dir) => Ok(()),
+            // This usage is only used to create circuits preemptively, and doesn't actually
+            // correspond to any streams; accordingly, we don't need to modify the circuit's
+            // acceptable usage at all.
             (Exit { .. }, TargetCircUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
@@ -385,7 +398,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         }
     }
 
-    fn find_supported<'a, 'b, C>(
+    fn find_supported<'a, 'b, C: AbstractCirc>(
         list: impl Iterator<Item = &'b mut OpenEntry<Self, C>>,
         usage: &TargetCircUsage,
     ) -> Vec<&'b mut OpenEntry<Self, C>> {

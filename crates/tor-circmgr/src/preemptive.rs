@@ -37,8 +37,81 @@ impl PreemptiveCircuitPredictor {
             .collect()
     }
 
-    /// Note the use of a new port.
-    pub(crate) fn note_usage(&mut self, port: Option<TargetPort>) {
-        self.usages.insert(port, Instant::now());
+    /// Note the use of a new port at the provided `time`.
+    pub(crate) fn note_usage(&mut self, port: Option<TargetPort>, time: Instant) {
+        self.usages.insert(port, time);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn predicts_starting_ports() {
+        let predictor = PreemptiveCircuitPredictor::new(vec![]);
+
+        let mut results = predictor.predict();
+        results.sort();
+        assert_eq!(
+            predictor.predict(),
+            vec![TargetCircUsage::Preemptive { port: None }]
+        );
+
+        let predictor =
+            PreemptiveCircuitPredictor::new(vec![TargetPort::ipv4(80), TargetPort::ipv6(80)]);
+
+        let mut results = predictor.predict();
+        results.sort();
+        assert_eq!(
+            results,
+            vec![
+                TargetCircUsage::Preemptive { port: None },
+                TargetCircUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(80))
+                },
+                TargetCircUsage::Preemptive {
+                    port: Some(TargetPort::ipv6(80))
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn predicts_used_ports() {
+        let mut predictor = PreemptiveCircuitPredictor::new(vec![]);
+
+        assert_eq!(
+            predictor.predict(),
+            vec![TargetCircUsage::Preemptive { port: None }]
+        );
+
+        predictor.note_usage(Some(TargetPort::ipv4(1234)), Instant::now());
+
+        let mut results = predictor.predict();
+        results.sort();
+        assert_eq!(
+            results,
+            vec![
+                TargetCircUsage::Preemptive { port: None },
+                TargetCircUsage::Preemptive {
+                    port: Some(TargetPort::ipv4(1234))
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn does_not_predict_old_ports() {
+        let mut predictor = PreemptiveCircuitPredictor::new(vec![]);
+        let more_than_an_hour_ago = Instant::now() - Duration::from_secs(60 * 60 + 1);
+
+        predictor.note_usage(Some(TargetPort::ipv4(2345)), more_than_an_hour_ago);
+
+        assert_eq!(
+            predictor.predict(),
+            vec![TargetCircUsage::Preemptive { port: None }]
+        );
     }
 }

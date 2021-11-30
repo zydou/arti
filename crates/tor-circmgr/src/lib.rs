@@ -57,7 +57,7 @@ use tor_rtcompat::Runtime;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
 pub mod build;
@@ -155,7 +155,7 @@ pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
     /// A preemptive circuit predictor, for, uh, building circuits preemptively.
-    preemptive: Arc<Mutex<PreemptiveCircuitPredictor>>,
+    predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -194,7 +194,7 @@ impl<R: Runtime> CircMgr<R> {
         let mgr = mgr::AbstractCircMgr::new(builder, runtime.clone(), circuit_timing);
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
-            preemptive,
+            predictor: preemptive,
         });
 
         runtime.spawn(continually_expire_circuits(
@@ -267,13 +267,14 @@ impl<R: Runtime> CircMgr<R> {
         isolation: StreamIsolation,
     ) -> Result<Arc<ClientCirc>> {
         self.expire_circuits();
+        let time = Instant::now();
         {
-            let mut predictive = self.preemptive.lock().expect("preemptive lock poisoned");
+            let mut predictive = self.predictor.lock().expect("preemptive lock poisoned");
             if ports.is_empty() {
-                predictive.note_usage(None);
+                predictive.note_usage(None, time);
             } else {
                 for port in ports.iter() {
-                    predictive.note_usage(Some(*port));
+                    predictive.note_usage(Some(*port), time);
                 }
             }
         }
@@ -295,9 +296,9 @@ impl<R: Runtime> CircMgr<R> {
         if self.mgr.n_circs() >= PREEMPTIVE_CIRCUIT_THRESHOLD {
             return;
         }
-        debug!("Launching circuits preemptively.");
+        debug!("Checking preemptive circuit predictions.");
         let circs = {
-            let preemptive = self.preemptive.lock().expect("preemptive lock poisoned");
+            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
             preemptive.predict()
         };
 
@@ -307,7 +308,7 @@ impl<R: Runtime> CircMgr<R> {
         let results = futures::future::join_all(futures).await;
         for (i, result) in results.iter().enumerate() {
             match result {
-                Ok(_) => debug!("Build succeeded for {:?}", circs[i]),
+                Ok(_) => debug!("Circuit exists (or was created) for {:?}", circs[i]),
                 Err(e) => warn!("Failed to build preemptive circuit {:?}: {}", circs[i], e),
             }
         }
