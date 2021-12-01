@@ -88,6 +88,11 @@ fi
 mkdir -p "$COVERAGE_BASEDIR/coverage"
 mkdir -p "$COVERAGE_BASEDIR/coverage_meta"
 
+if [ ! -e "$COVERAGE_BASEDIR/coverage_meta/commands" ] ; then
+    echo "REVISION: $(git rev-parse HEAD) $(git diff --quiet || echo "[dirty]")" >  "$COVERAGE_BASEDIR/coverage_meta/commands"
+fi
+
+
 if [ $# -ne 0 ]; then
     echo "$@" >> "$COVERAGE_BASEDIR/coverage_meta/commands"
     "$@"
@@ -112,26 +117,13 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/
 	--ignore-not-existing --excl-start '^mod test' --excl-stop '^}' \
 	--ignore="*/tests/*" --ignore="*/examples/*"
 
-# Extract coverage information and print it to the command line.
-awk '{if (match($0, /<p class="heading">([^<]*)<\/p>/)) {
-              last_match=substr($0, RSTART+19, RLENGTH-23)
-      } else if (last_match != "" && match($0, /[0-9]*(\.[0-9]*)? %/)) {
-              pct = substr($0, RSTART, RLENGTH)
-              print last_match " " pct
-              last_match=""
-     }}' "$COVERAGE_BASEDIR/coverage/index.html"
+cp "$COVERAGE_BASEDIR/coverage/index.html" "$COVERAGE_BASEDIR/coverage/index_orig.html"
 
-# Insert the command log and git revision in index.html
-ed "$COVERAGE_BASEDIR/coverage/index.html" <<EOF >/dev/null
-/class=.level/
--
-a
-<pre>
-REVISION: $(git rev-parse HEAD) $(git diff --quiet || echo "[dirty]")
-$(cat "$COVERAGE_BASEDIR/coverage_meta/commands")
-</pre>
-.
-wq
-EOF
+if [ "$(which python3 2>/dev/null)" = "" ]; then
+    echo "python3 not installed; not post-processing the index file."
+else
+    echo "Postprocessing..."
+    python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage.py" "$COVERAGE_BASEDIR/coverage_meta/commands" "$COVERAGE_BASEDIR/coverage/index.html" "$COVERAGE_BASEDIR/coverage/index.html"
+fi
 
 echo "Full report: $COVERAGE_BASEDIR/coverage/index.html"
