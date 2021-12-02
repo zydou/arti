@@ -169,6 +169,16 @@ mod test {
     }
 
     #[test]
+    fn clone_into_box() {
+        let mut cl = CmdLine::new();
+        cl.push_toml_line("Molo=Lizwe".to_owned());
+        let cl2 = cl.clone_into_box();
+
+        let v = cl2.collect().unwrap();
+        assert_eq!(v["Molo"], "Lizwe".into());
+    }
+
+    #[test]
     fn parse_good() {
         let mut cl = CmdLine::default();
         cl.push_toml_line("a=3".to_string());
@@ -181,5 +191,13 @@ mod test {
         assert_eq!(v["bcd"], "hello".into());
         assert_eq!(v["ef"], "gh i".into());
         assert_eq!(v["w"], vec![1, 2, 3].into());
+    }
+
+    #[test]
+    fn parse_bad() {
+        let mut cl = CmdLine::default();
+        cl.push_toml_line("x=1 1 1 1 1".to_owned());
+        let v = cl.collect();
+        assert!(v.is_err());
     }
 }
