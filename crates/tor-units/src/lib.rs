@@ -558,6 +558,16 @@ mod tests {
     }
 
     #[test]
+    fn try_into_usize() {
+        let b0: BoundedInt32<-10, 300> = BoundedInt32::saturating_from(0);
+        let b100: BoundedInt32<-10, 300> = BoundedInt32::saturating_from(100);
+        let bn5: BoundedInt32<-10, 300> = BoundedInt32::saturating_from(-5);
+        assert_eq!(usize::try_from(b0), Ok(0_usize));
+        assert_eq!(usize::try_from(b100), Ok(100_usize));
+        assert_eq!(usize::try_from(bn5), Err(Error::Negative));
+    }
+
+    #[test]
     fn percents() {
         type Pct = Percentage<u8>;
         let p = Pct::new(100);
@@ -570,7 +580,11 @@ mod tests {
 
         let p = Pct::new(25);
         assert_eq!(p.as_percent(), 25);
+        assert_eq!(p.clone(), p);
         assert_approx_eq!(f64, p.as_fraction(), 0.25);
+
+        type BPct = Percentage<BoundedInt32<0, 100>>;
+        assert_eq!(BPct::try_from(99).unwrap().as_percent().get(), 99);
     }
 
     #[test]
@@ -580,10 +594,19 @@ mod tests {
         let ms = Msec::new(500);
         let d: Result<Duration, _> = ms.try_into();
         assert_eq!(d.unwrap(), Duration::from_millis(500));
+        assert_eq!(Duration::try_from(ms * 2).unwrap(), Duration::from_secs(1));
 
         let ms = Msec::new(-100);
         let d: Result<Duration, _> = ms.try_into();
         assert!(d.is_err());
+
+        type BMSec = IntegerMilliseconds<BoundedInt32<0, 1000>>;
+        let half_sec = BMSec::try_from(500).unwrap();
+        assert_eq!(
+            Duration::try_from(half_sec).unwrap(),
+            Duration::from_millis(500)
+        );
+        assert!(BMSec::try_from(1001).is_err());
     }
 
     #[test]
@@ -597,6 +620,15 @@ mod tests {
         let ms = Sec::new(-100);
         let d: Result<Duration, _> = ms.try_into();
         assert!(d.is_err());
+
+        type BSec = IntegerSeconds<BoundedInt32<0, 3600>>;
+        let half_hour = BSec::try_from(1800).unwrap();
+        assert_eq!(
+            Duration::try_from(half_hour).unwrap(),
+            Duration::from_secs(1800)
+        );
+        assert!(BSec::try_from(9999).is_err());
+        assert_eq!(half_hour.clone(), half_hour);
     }
 
     #[test]
@@ -614,11 +646,19 @@ mod tests {
         let t = IntegerDays::<u64>::new(u64::MAX);
         let d: Result<Duration, _> = t.try_into();
         assert_eq!(d, Err(Error::Overflow));
+
+        type BDays = IntegerDays<BoundedInt32<10, 30>>;
+        assert_eq!(
+            BDays::new(17_i32.try_into().unwrap()),
+            BDays::try_from(17).unwrap()
+        );
     }
 
     #[test]
     fn sendme() {
         let smv = SendMeVersion::new(5);
         assert_eq!(smv.get(), 5);
+        assert_eq!(smv.clone().get(), 5);
+        assert_eq!(smv, SendMeVersion::try_from(5).unwrap());
     }
 }
