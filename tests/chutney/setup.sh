@@ -3,12 +3,24 @@ set -xe
 
 target="${1:-chutney/networks/basic}"
 cd "$(git rev-parse --show-toplevel)"
-[ -d chutney ] || git clone https://gitlab.torproject.org/tpo/core/chutney
-./chutney/chutney configure "$target"
-./chutney/chutney start "$target"
-CHUTNEY_START_TIME=180 ./chutney/chutney wait_for_bootstrap "$target"
-./chutney/chutney verify "$target"
 
+if [ -z "${CHUTNEY_PATH}" ]; then
+    # CHUTNEY_PATH isn't set; try cloning a local chutney.
+    if [ -d chutney ]; then
+	(cd ./chutney && git pull)
+    else
+	git clone https://gitlab.torproject.org/tpo/core/chutney
+    fi
+    export CHUTNEY_PATH="$(pwd)/chutney"
+else
+    # CHUTNEY_PATH is set; tell the user about that.
+    echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
+fi
+
+"${CHUTNEY_PATH}/chutney" configure "$target"
+"${CHUTNEY_PATH}"/chutney start "$target"
+CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "$target"
+"${CHUTNEY_PATH}"/chutney verify "$target"
 
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
@@ -19,7 +31,7 @@ fi
 
 (
 	set +e
-	"$cmd" proxy -c chutney/net/nodes/arti.toml &
+	"$cmd" proxy -c "${CHUTNEY_PATH}/net/nodes/arti.toml" &
 	pid=$!
 	echo "target=$target" > tests/chutney/arti.run
 	echo "pid=$pid" >> tests/chutney/arti.run
