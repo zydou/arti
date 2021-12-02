@@ -104,7 +104,7 @@ for (crate, (numerator, denominator)) in crate_lines.items():
     else:
         bg = "success"
     tclass = f"has-text-centered has-background-{bg} p-2"
-    table_text.append(f''''
+    table_text.append(f'''
 <tr>
   <th>{crate}</th>
   <td class="{tclass}">{pct}</td>
