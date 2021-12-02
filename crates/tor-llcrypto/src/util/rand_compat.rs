@@ -121,3 +121,115 @@ fn err_to_old(e: &Error) -> OldError {
         nz.into()
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    /// OR every byte of src into dest.
+    ///
+    /// Requires that they have the same length.
+    fn or_into(dst: &mut [u8], src: &[u8]) {
+        assert_eq!(dst.len(), src.len());
+        for i in 0..dst.len() {
+            dst[i] |= src[i];
+        }
+    }
+
+    /// AND every byte of src into dest.
+    ///
+    /// Requires that they have the same length.
+    fn and_into(dst: &mut [u8], src: &[u8]) {
+        assert_eq!(dst.len(), src.len());
+        for i in 0..dst.len() {
+            dst[i] &= src[i];
+        }
+    }
+
+    #[test]
+    fn test_wrapper_as_old() {
+        let mut wrapped = rand::thread_rng().rng_compat();
+
+        let mut z64 = 0xffffffffffffffff_u64;
+        let mut z32 = 0xffffffff_u32;
+        let mut z17 = [0xff_u8; 17];
+        let mut z17_try = [0xff_u8; 17];
+        let mut o64 = 0_u64;
+        let mut o32 = 0_u32;
+        let mut o17 = [0_u8; 17];
+        let mut o17_try = [0_u8; 17];
+        for _ in 0..1000 {
+            let u = OldRngCore::next_u64(&mut wrapped);
+            z64 &= u;
+            o64 |= u;
+
+            let u = OldRngCore::next_u32(&mut wrapped);
+            z32 &= u;
+            o32 |= u;
+
+            let mut bytes = [0; 17];
+            OldRngCore::fill_bytes(&mut wrapped, &mut bytes);
+            and_into(&mut z17, &bytes);
+            or_into(&mut o17, &bytes);
+
+            let mut bytes = [0; 17];
+            OldRngCore::try_fill_bytes(&mut wrapped, &mut bytes).unwrap();
+            and_into(&mut z17_try, &bytes);
+            or_into(&mut o17_try, &bytes);
+        }
+        assert_eq!(z64, 0);
+        assert_eq!(z32, 0);
+
+        assert_eq!(o64, 0xffffffffffffffff_u64);
+        assert_eq!(o32, 0xffffffff_u32);
+
+        assert_eq!(z17, [0; 17]);
+        assert_eq!(z17_try, [0; 17]);
+        assert_eq!(o17, [0xff; 17]);
+        assert_eq!(o17_try, [0xff; 17]);
+    }
+
+    #[test]
+    fn test_wrapper_as_new() {
+        let mut wrapped = rand::thread_rng().rng_compat();
+
+        let mut z64 = 0xffffffffffffffff_u64;
+        let mut z32 = 0xffffffff_u32;
+        let mut z17 = [0xff_u8; 17];
+        let mut z17_try = [0xff_u8; 17];
+        let mut o64 = 0_u64;
+        let mut o32 = 0_u32;
+        let mut o17 = [0_u8; 17];
+        let mut o17_try = [0_u8; 17];
+        for _ in 0..1000 {
+            let u = RngCore::next_u64(&mut wrapped);
+            z64 &= u;
+            o64 |= u;
+
+            let u = RngCore::next_u32(&mut wrapped);
+            z32 &= u;
+            o32 |= u;
+
+            let mut bytes = [0; 17];
+            RngCore::fill_bytes(&mut wrapped, &mut bytes);
+            and_into(&mut z17, &bytes);
+            or_into(&mut o17, &bytes);
+
+            let mut bytes = [0; 17];
+            RngCore::try_fill_bytes(&mut wrapped, &mut bytes).unwrap();
+            and_into(&mut z17_try, &bytes);
+            or_into(&mut o17_try, &bytes);
+        }
+        assert_eq!(z64, 0);
+        assert_eq!(z32, 0);
+
+        assert_eq!(o64, 0xffffffffffffffff_u64);
+        assert_eq!(o32, 0xffffffff_u32);
+
+        assert_eq!(z17, [0; 17]);
+        assert_eq!(z17_try, [0; 17]);
+        assert_eq!(o17, [0xff; 17]);
+        assert_eq!(o17_try, [0xff; 17]);
+    }
+}
