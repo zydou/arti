@@ -14,7 +14,9 @@ else
 fi
 
 
-kill -s INT "$pid";
+# Tolerate a failure here: even in case the arti process already died
+# for some reason, we still want to shut down the chutney network.
+kill -s INT "$pid" || true
 # wait $pid, but $pid was started by a different process
 tail --pid="$pid" -f /dev/null
 
