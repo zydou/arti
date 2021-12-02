@@ -28,6 +28,22 @@ mod net {
         /// Underlying tokio_util::compat::Compat wrapper.
         s: Compat<TokioTcpStream>,
     }
+    impl TcpStream {
+        /// Get a reference to the underlying tokio `TcpStream`.
+        pub fn get_ref(&self) -> &TokioTcpStream {
+            self.s.get_ref()
+        }
+
+        /// Get a mutable reference to the underlying tokio `TcpStream`.
+        pub fn get_mut(&mut self) -> &mut TokioTcpStream {
+            self.s.get_mut()
+        }
+
+        /// Convert this type into its underlying tokio `TcpStream`.
+        pub fn into_inner(self) -> TokioTcpStream {
+            self.s.into_inner()
+        }
+    }
     impl From<TokioTcpStream> for TcpStream {
         fn from(s: TokioTcpStream) -> TcpStream {
             let s = s.compat();
@@ -111,9 +127,9 @@ mod tls {
 
     use futures::io::{AsyncRead, AsyncWrite};
 
+    use crate::impls::tokio::net::TcpStream;
     use std::convert::TryFrom;
     use std::io::{Error as IoError, Result as IoResult};
-    use std::net::SocketAddr;
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
@@ -139,16 +155,15 @@ mod tls {
     }
 
     #[async_trait]
-    impl crate::traits::TlsConnector for TlsConnector {
+    impl crate::traits::TlsConnector<TcpStream> for TlsConnector {
         type Conn = TlsStream;
 
-        async fn connect_unvalidated(
+        async fn negotiate_unvalidated(
             &self,
-            addr: &SocketAddr,
+            stream: TcpStream,
             hostname: &str,
         ) -> IoResult<Self::Conn> {
-            let stream = tokio_crate::net::TcpStream::connect(addr).await?;
-
+            let stream = stream.into_inner();
             let conn = self
                 .connector
                 .connect(hostname, stream)
@@ -222,7 +237,7 @@ macro_rules! implement_traits_for {
             }
         }
 
-        impl TlsProvider for $runtime {
+        impl TlsProvider<net::TcpStream> for $runtime {
             type TlsStream = tls::TlsStream;
             type Connector = tls::TlsConnector;
 

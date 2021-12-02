@@ -162,8 +162,9 @@ impl MockNetwork {
     /// Tell the listener at `target_addr` (if any) about an incoming
     /// connection from `source_addr` at `peer_stream`.
     ///
-    /// If this is a tls listener, only succeed when want_tls is true,
-    /// and return the certificate.
+    /// If the listener is a TLS listener, returns its certificate.
+    /// **Note:** Callers should check whether the presence or absence of a certificate
+    /// matches their expectations.
     ///
     /// Returns an error if there isn't any such listener.
     async fn send_connection(
@@ -171,19 +172,12 @@ impl MockNetwork {
         source_addr: SocketAddr,
         target_addr: SocketAddr,
         peer_stream: LocalStream,
-        want_tls: bool,
     ) -> IoResult<Option<Vec<u8>>> {
         let entry = {
             let listener_map = self.listening.lock().expect("Poisoned lock for listener");
             listener_map.get(&target_addr).map(Clone::clone)
         };
         if let Some(mut entry) = entry {
-            if entry.tls_cert.is_some() != want_tls {
-                // TODO(nickm): This is not what you'd really see on a
-                // mismatched connection.  Maybe we should change this
-                // to give garbage, or a warning, or something?
-                return Err(err(ErrorKind::ConnectionRefused));
-            }
             if entry.send.send((peer_stream, source_addr)).await.is_ok() {
                 return Ok(entry.tls_cert);
             }
@@ -364,13 +358,15 @@ impl TcpProvider for MockNetProvider {
 
     async fn connect(&self, addr: &SocketAddr) -> IoResult<LocalStream> {
         let my_addr = self.get_origin_addr_for(addr)?;
-        let (mine, theirs) = stream_pair();
+        let (mut mine, theirs) = stream_pair();
 
-        let _no_cert = self
+        let cert = self
             .inner
             .net
-            .send_connection(my_addr, *addr, theirs, false)
+            .send_connection(my_addr, *addr, theirs)
             .await?;
+
+        mine.tls_cert = cert;
 
         Ok(mine)
     }
@@ -385,14 +381,12 @@ impl TcpProvider for MockNetProvider {
 }
 
 #[async_trait]
-impl TlsProvider for MockNetProvider {
+impl TlsProvider<LocalStream> for MockNetProvider {
     type Connector = MockTlsConnector;
     type TlsStream = MockTlsStream;
 
     fn tls_connector(&self) -> MockTlsConnector {
-        MockTlsConnector {
-            provider: self.clone(),
-        }
+        MockTlsConnector {}
     }
 }
 
@@ -401,10 +395,8 @@ impl TlsProvider for MockNetProvider {
 /// Note that no TLS is actually performed here: connections are simply
 /// told that they succeeded with a given certificate.
 #[derive(Clone)]
-pub struct MockTlsConnector {
-    /// A handle to the underlying provider.
-    provider: MockNetProvider,
-}
+#[non_exhaustive]
+pub struct MockTlsConnector;
 
 /// Mock TLS connector for use with MockNetProvider.
 ///
@@ -422,28 +414,24 @@ pub struct MockTlsStream {
 }
 
 #[async_trait]
-impl TlsConnector for MockTlsConnector {
+impl TlsConnector<LocalStream> for MockTlsConnector {
     type Conn = MockTlsStream;
 
-    async fn connect_unvalidated(
+    async fn negotiate_unvalidated(
         &self,
-        addr: &SocketAddr,
+        mut stream: LocalStream,
         _sni_hostname: &str,
     ) -> IoResult<MockTlsStream> {
-        let my_addr = self.provider.get_origin_addr_for(addr)?;
-        let (mine, theirs) = stream_pair();
+        let peer_cert = stream.tls_cert.take();
 
-        let peer_cert = self
-            .provider
-            .inner
-            .net
-            .send_connection(my_addr, *addr, theirs, true)
-            .await?;
+        if peer_cert.is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "attempted to wrap non-TLS stream!",
+            ));
+        }
 
-        Ok(MockTlsStream {
-            peer_cert,
-            stream: mine,
-        })
+        Ok(MockTlsStream { peer_cert, stream })
     }
 }
 
@@ -629,8 +617,9 @@ mod test {
             let (r1, r2): (IoResult<()>, IoResult<()>) = futures::join!(
                 async {
                     let connector = client1.tls_connector();
+                    let conn = client1.connect(&address).await?;
                     let mut conn = connector
-                        .connect_unvalidated(&address, "zombo.example.com")
+                        .negotiate_unvalidated(conn, "zombo.example.com")
                         .await?;
                     assert_eq!(&conn.peer_certificate()?.unwrap()[..], &cert[..]);
                     conn.write_all(b"This is totally encrypted.").await?;
@@ -638,10 +627,6 @@ mod test {
                     conn.read_to_end(&mut v).await?;
                     conn.close().await?;
                     assert_eq!(v[..], b"Yup, your secrets is safe"[..]);
-
-                    // Now try a non-tls connection.
-                    let e = client1.connect(&address).await;
-                    assert!(e.is_err());
                     Ok(())
                 },
                 async {

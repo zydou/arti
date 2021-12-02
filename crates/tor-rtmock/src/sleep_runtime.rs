@@ -105,7 +105,7 @@ impl<R: Runtime> TcpProvider for MockSleepRuntime<R> {
     }
 }
 
-impl<R: Runtime> TlsProvider for MockSleepRuntime<R> {
+impl<R: Runtime> TlsProvider<R::TcpStream> for MockSleepRuntime<R> {
     type Connector = R::Connector;
     type TlsStream = R::TlsStream;
     fn tls_connector(&self) -> Self::Connector {
