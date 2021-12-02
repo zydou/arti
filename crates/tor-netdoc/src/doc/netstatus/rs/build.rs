@@ -24,8 +24,6 @@ pub struct RouterStatusBuilder<D> {
     identity: Option<RsaIdentity>,
     /// See [`GenericRouterStatus::addrs`].
     addrs: Vec<SocketAddr>,
-    /// See [`GenericRouterStatus::dir_port`].
-    dir_port: u16, // never used, I think? XXXX
     /// See [`GenericRouterStatus::doc_digest`].
     doc_digest: Option<D>,
     /// See [`GenericRouterStatus::flags`].
@@ -45,7 +43,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
             nickname: None,
             identity: None,
             addrs: Vec::new(),
-            dir_port: 0,
             doc_digest: None,
             flags: RelayFlags::empty(),
             version: None,
@@ -76,13 +73,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
     /// At least one value here is required.
     pub fn add_or_port(&mut self, addr: SocketAddr) -> &mut Self {
         self.addrs.push(addr);
-        self
-    }
-    /// Set a directory port for this routerstatus.
-    ///
-    /// Nothing in Arti uses this value; it defaults to 0.
-    pub fn dir_port(&mut self, dir_port: u16) -> &mut Self {
-        self.dir_port = dir_port;
         self
     }
     /// Set the document digest for this routerstatus.
@@ -152,7 +142,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
             identity,
             addrs: self.addrs.clone(),
             or_port,
-            dir_port: self.dir_port,
             doc_digest,
             version: self.version.clone(),
             protos,
