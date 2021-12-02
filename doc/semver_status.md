@@ -26,3 +26,6 @@ tor-netdoc: BREAKING
 
 arti-client: MODIFIED
   (PartialEq, Eq for TorAddrError)
+
+tor-units: MODIFIED
+  (Eq,PartialEq for BoundedInt32)
