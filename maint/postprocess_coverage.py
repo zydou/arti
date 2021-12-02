@@ -1,0 +1,119 @@
+#!/usr/bin/python
+#
+# Use BeautifulSoup to mangle a grov HTML output file and insert other
+# things we care about.
+
+import sys
+import os.path
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    print("Sorry, BeautifulSoup 4 is not installed.", file=sys.stderr)
+    sys.exit(1)
+
+if len(sys.argv) != 4:
+    print(f"Usage: {sys.argv[0]} <commands_file> <index_file> <output_file>")
+    print("    Post-process a grcov index.html file")
+    sys.exit(1)
+
+# Read the commands file:
+with open(sys.argv[1]) as f:
+    commands = f.read()
+
+# Parse the coverage file
+with open(sys.argv[2]) as f:
+    document = BeautifulSoup(f, "html.parser")
+
+# Print summary of overall line, function, and branch coverage
+for level in document.find_all("div", class_="level-item"):
+    heading = level.p.text
+    percentage = level.abbr.text
+    print(f"{heading}: {percentage}")
+
+
+def parse_frac(s):
+    "Parse a 'num / den' fraction into a 2-tuple."
+    elts = s.split()
+    if len(elts) != 3 or elts[1] != '/':
+        return (0, 0)
+    return (int(elts[0]), int(elts[2]))
+
+
+def find_crate(s):
+    "Extract a crate name from a path string."
+    while "/" in s:
+        s, rest = os.path.split(s)
+        if s == '.':
+            return rest
+    return s
+
+
+# Generate a summary of per-crate coverage.
+crate_lines = dict()
+
+for row in document.table.find_all("tr"):
+    path = row.th.text.strip()
+    cells = row.find_all("td")
+    if not cells or len(cells) < 3:
+        continue
+    pct = cells[1].text.strip()
+    numerator, denominator = parse_frac(cells[2].text)
+    if pct.endswith("%"):
+        pct = pct[:-1]
+    pct = float(pct)
+    if abs(pct - (100*numerator/denominator)) > .01:
+        print(f"Whoops, mismatched percentage for {path}. Am I parsing right?")
+
+    crate = find_crate(path)
+    entry = crate_lines.setdefault(crate, [0, 0])
+    entry[0] += numerator
+    entry[1] += denominator
+
+
+# Insert a command summary before the main table.
+commands_tag = document.new_tag("pre")
+commands_tag.string = commands
+document.nav.insert_after(commands_tag)
+
+# Construct a crate-coverage table to go after the main table.
+#
+# We build this as a string and parse it because it's simpler that way.
+table_text = ["""<table class="table is-fullwidth">
+<thead><tr>
+   <th>Crate name</th>
+   <th class="has-text-centered" colspan="2">Line coverage</th>
+</tr></thead>
+<tbody>
+"""]
+danger_threshold = .7
+warning_threshold = .9
+# Add a row for each crate...
+for (crate, (numerator, denominator)) in crate_lines.items():
+    if denominator == 0:
+        frac = 0
+        pct = "n/a"
+    else:
+        frac = numerator/denominator
+        pct = "%.02f%%" % (100*numerator/denominator)
+    # Choose what class to put the text in
+    if frac < danger_threshold:
+        bg = "danger"
+    elif frac < warning_threshold:
+        bg = "warning"
+    else:
+        bg = "success"
+    tclass = f"has-text-centered has-background-{bg} p-2"
+    table_text.append(f''''
+<tr>
+  <th>{crate}</th>
+  <td class="{tclass}">{pct}</td>
+  <td class="{tclass}">{numerator} / {denominator}</td>
+</tr>''')
+table_text.append("</tbody></table>")
+newtable = BeautifulSoup("\n".join(table_text), "html.parser")
+# Insert the table!
+document.table.insert_after(newtable)
+
+with open(sys.argv[3], 'w') as out:
+    out.write(document.prettify())
