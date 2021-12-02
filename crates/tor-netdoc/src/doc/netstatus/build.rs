@@ -416,7 +416,6 @@ mod test {
             .identity([155; 20].into())
             .add_or_port(SocketAddr::from(([10, 0, 0, 60], 9100)))
             .add_or_port("[f00f::1]:9200".parse().unwrap())
-            .dir_port(66)
             .doc_digest([99; 32])
             .set_flags(RelayFlags::FAST)
             .add_flags(RelayFlags::STABLE | RelayFlags::V2DIR)

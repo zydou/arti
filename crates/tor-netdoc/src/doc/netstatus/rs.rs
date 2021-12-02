@@ -37,9 +37,6 @@ struct GenericRouterStatus<D> {
     /// Declared OR port for this relay.
     #[allow(dead_code)] // This value is never used; we look at addrs instead.
     or_port: u16,
-    /// Declared directory port for this relay.
-    #[allow(dead_code)] // Arti doesn't use this value.
-    dir_port: u16,
     /// Digest of the document for this relay.
     doc_digest: D,
     /// Flags applied by the authorities to this relay.
@@ -156,7 +153,7 @@ where
         };
         let ipv4addr = r_item.required_arg(4 + skip)?.parse::<net::Ipv4Addr>()?;
         let or_port = r_item.required_arg(5 + skip)?.parse::<u16>()?;
-        let dir_port = r_item.required_arg(6 + skip)?.parse::<u16>()?;
+        let _ = r_item.required_arg(6 + skip)?.parse::<u16>()?;
 
         let mut addrs: Vec<net::SocketAddr> = vec![net::SocketAddr::V4(net::SocketAddrV4::new(
             ipv4addr, or_port,
@@ -206,7 +203,6 @@ where
             identity,
             addrs,
             or_port,
-            dir_port,
             doc_digest,
             flags,
             version,
