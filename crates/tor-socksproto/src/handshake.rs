@@ -355,7 +355,7 @@ mod test {
 
     #[test]
     fn socks4_good() {
-        let mut h = SocksHandshake::new();
+        let mut h = SocksHandshake::default();
         let a = h.handshake(&hex!("04 01 0050 CB007107 00")[..]).unwrap();
         assert!(a.finished);
         assert!(h.finished());
