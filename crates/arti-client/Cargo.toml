@@ -31,6 +31,7 @@ tor-persist = { path="../tor-persist", version = "0.0.2"}
 tor-proto = { path="../tor-proto", version = "0.0.2"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2"}
 
+humantime-serde = "1.0.1"
 derive_builder = "0.10.2"
 directories = "4.0.1"
 futures = "0.3.13"

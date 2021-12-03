@@ -3,8 +3,8 @@
 use arti_client::config::{
     circ,
     dir::{self, DownloadScheduleConfig, NetworkConfig},
-    ClientAddrConfig, ClientAddrConfigBuilder, StorageConfig, StorageConfigBuilder,
-    TorClientConfig, TorClientConfigBuilder,
+    ClientAddrConfig, ClientAddrConfigBuilder, ClientDNSConfig, ClientDNSConfigBuilder,
+    StorageConfig, StorageConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -157,6 +157,9 @@ pub struct ArtiConfig {
 
     /// Rules about which addresses the client is willing to connect to.
     address_filter: ClientAddrConfig,
+
+    /// Rules about a client's DNS resolution.
+    dns_rules: ClientDNSConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -232,6 +235,8 @@ pub struct ArtiConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Builder for the address_filter section.
     address_filter: ClientAddrConfigBuilder,
+    /// Builder for the DNS resolution rules.
+    dns_rules: ClientDNSConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -261,6 +266,7 @@ impl ArtiConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
+        let dns_rules = self.dns_rules.build().map_err(|e| e.within("dns_rules"))?;
         Ok(ArtiConfig {
             proxy,
             logging,
@@ -271,6 +277,7 @@ impl ArtiConfigBuilder {
             path_rules,
             circuit_timing,
             address_filter,
+            dns_rules,
         })
     }
 
@@ -355,6 +362,14 @@ impl ArtiConfigBuilder {
     pub fn address_filter(&mut self) -> &mut ClientAddrConfigBuilder {
         &mut self.address_filter
     }
+
+    /// Return a mutable reference to a [`ClientDNSConfigBuilder`].
+    ///
+    /// This section controls how Arti should handle an exit relay's DNS
+    /// resolution.
+    pub fn dns_rules(&mut self) -> &mut ClientDNSConfigBuilder {
+        &mut self.dns_rules
+    }
 }
 
 impl From<ArtiConfig> for ArtiConfigBuilder {
@@ -369,6 +384,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             path_rules: cfg.path_rules.into(),
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
+            dns_rules: cfg.dns_rules.into(),
         }
     }
 }
