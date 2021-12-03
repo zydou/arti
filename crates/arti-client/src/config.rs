@@ -55,17 +55,19 @@ pub struct ClientAddrConfig {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct ClientDNSConfig {
-    /// The client DNS stream timeout
+    /// How long should we wait before timing out a stream when connecting
+    /// to a host?
     #[builder(default = "default_dns_stream_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_stream_timeout")]
     pub stream_timeout: Duration,
 
-    /// The client DNS resolve timeout
+    /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
     pub resolve_timeout: Duration,
 
-    /// The client DNS resolve timeout
+    /// How long should we wait before timing out when resolving a DNS
+    /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
     pub resolve_ptr_timeout: Duration,
