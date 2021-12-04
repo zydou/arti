@@ -124,8 +124,10 @@ impl CircTarget for OwnedCircTarget {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+
     #[test]
-    fn targetinfo() {
+    #[allow(clippy::redundant_clone)]
+    fn chan_target() {
         let ti = OwnedChanTarget::new(
             vec!["127.0.0.1:11".parse().unwrap()],
             [42; 32].into(),
@@ -136,5 +138,28 @@ mod test {
         assert_eq!(ti.addrs(), ti2.addrs());
         assert_eq!(ti.ed_identity(), ti2.ed_identity());
         assert_eq!(ti.rsa_identity(), ti2.rsa_identity());
+
+        assert_eq!(format!("{:?}", ti), format!("{:?}", ti2));
+        assert_eq!(format!("{:?}", ti), format!("{:?}", ti.clone()));
+    }
+
+    #[test]
+    #[allow(clippy::redundant_clone)]
+    fn circ_target() {
+        let ch = OwnedChanTarget::new(
+            vec!["127.0.0.1:11".parse().unwrap()],
+            [42; 32].into(),
+            [45; 20].into(),
+        );
+        let ct = OwnedCircTarget::new(ch.clone(), [99; 32].into(), "FlowCtrl=7".parse().unwrap());
+
+        assert_eq!(ct.addrs(), ch.addrs());
+        assert_eq!(ct.rsa_identity(), ch.rsa_identity());
+        assert_eq!(ct.ed_identity(), ch.ed_identity());
+        assert_eq!(ct.ntor_onion_key().as_bytes(), &[99; 32]);
+        assert_eq!(&ct.protovers().to_string(), "FlowCtrl=7");
+        let ct2 = OwnedCircTarget::from_circ_target(&ct);
+        assert_eq!(format!("{:?}", ct), format!("{:?}", ct2));
+        assert_eq!(format!("{:?}", ct), format!("{:?}", ct.clone()));
     }
 }

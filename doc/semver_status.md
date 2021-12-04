@@ -32,3 +32,6 @@ tor-units: MODIFIED
 
 caret: BREAKING
   (Removed unused-but-exported Error type.)
+
+tor-linkspec: BREAKING
+  (Removed to_owned() on ChanTarget)

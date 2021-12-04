@@ -27,12 +27,6 @@ pub trait ChanTarget {
     }
     /// Return the RSA identity for this relay.
     fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
-
-    /// Return a new [`OwnedChanTarget`](crate::OwnedChanTarget)
-    /// containing a copy of the information in this `ChanTarget`.
-    fn to_owned(&self) -> crate::OwnedChanTarget {
-        crate::OwnedChanTarget::from_chan_target(self)
-    }
 }
 
 /// Information about a Tor relay used to extend a circuit to it.
@@ -92,9 +86,9 @@ mod test {
         }
     }
 
-    #[test]
-    fn test_linkspecs() {
-        let ex = Example {
+    /// Return an `Example` object, for use in tests below.
+    fn example() -> Example {
+        Example {
             addrs: vec![
                 "127.0.0.1:99".parse::<SocketAddr>().unwrap(),
                 "[::1]:909".parse::<SocketAddr>().unwrap(),
@@ -114,8 +108,12 @@ mod test {
                  726624ec26b3353b10a903a6d0ab1c4c"
             )),
             pv: tor_protover::Protocols::default(),
-        };
+        }
+    }
 
+    #[test]
+    fn test_linkspecs() {
+        let ex = example();
         let specs = ex.linkspecs();
         assert_eq!(4, specs.len());
 
@@ -146,5 +144,22 @@ mod test {
             specs[3],
             LinkSpec::OrPort("::1".parse::<IpAddr>().unwrap(), 909)
         );
+    }
+
+    #[test]
+    fn key_accessor() {
+        let ex = example();
+        // We can get the ed25519 key if it's valid...
+        let key = ex.ed_identity_key().unwrap();
+        assert_eq!(&pk::ed25519::Ed25519Identity::from(key), ex.ed_identity());
+
+        // Now try an invalid example.
+        let a = hex!("6d616e79737472696e677361726565646b6579736e6f74746869736f6e654091");
+        let ex = Example {
+            ed_id: pk::ed25519::Ed25519Identity::from_bytes(&a).unwrap(),
+            ..ex
+        };
+        let key = ex.ed_identity_key();
+        assert!(key.is_none());
     }
 }
