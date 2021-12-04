@@ -29,3 +29,6 @@ arti-client: MODIFIED
 
 tor-units: MODIFIED
   (Eq,PartialEq for BoundedInt32)
+
+caret: BREAKING
+  (Removed unused-but-exported Error type.)

@@ -67,30 +67,6 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
-/// An error produced from type derived from type.  These errors can
-/// only occur when trying to convert to a type made with caret_enum!
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Error {
-    /// Tried to convert to an enumeration type from an integer that
-    /// didn't represent a member of that enumeration.
-    InvalidInteger,
-    /// Tried to convert to an enumeration type from a string that
-    /// didn't represent a member of that enumeration.
-    InvalidString,
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidInteger => write!(f, "Integer was not member of this enumeration"),
-            Error::InvalidString => write!(f, "String was not member of this enumeration"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
 /// Declare an integer type with some named elements.
 ///
 /// This macro declares a struct that wraps an integer
