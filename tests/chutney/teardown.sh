@@ -20,7 +20,7 @@ kill -s INT "$pid" || true
 # wait $pid, but $pid was started by a different process
 tail --pid="$pid" -f /dev/null
 
-"${CHUTNEY_PATH}/chutney" stop "$target"
+"${CHUTNEY_PATH}/chutney" stop "${CHUTNEY_PATH}/$target"
 
 source tests/chutney/arti.run
 exit "$result"

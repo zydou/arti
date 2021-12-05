@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xe
 
-target="${1:-chutney/networks/basic}"
+target="${1:-networks/basic}"
 cd "$(git rev-parse --show-toplevel)"
 
 if [ -z "${CHUTNEY_PATH}" ]; then
@@ -17,10 +17,15 @@ else
     echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
 fi
 
-"${CHUTNEY_PATH}/chutney" configure "$target"
-"${CHUTNEY_PATH}"/chutney start "$target"
-CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "$target"
-"${CHUTNEY_PATH}"/chutney verify "$target"
+if [ ! -e "${CHUTNEY_PATH}/${target}" ]; then
+    echo "Target network description ${CHUTNEY_PATH}/${target} not found."
+    exit 1
+fi
+
+"${CHUTNEY_PATH}/chutney" configure "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_PATH}"/chutney start "${CHUTNEY_PATH}/$target"
+CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "${CHUTNEY_PATH}/$target"
+"${CHUTNEY_PATH}"/chutney verify "${CHUTNEY_PATH}/$target"
 
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
