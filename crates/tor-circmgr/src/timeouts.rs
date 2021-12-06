@@ -143,9 +143,31 @@ impl Action {
     }
 }
 
+/// A safe variant of [`Duration::mul_f64`] that never panics.
+///
+/// For infinite or NaN or negative multipliers, the results might be
+/// nonsensical, but at least they won't be a panic.
+fn mul_duration_f64_saturating(d: Duration, mul: f64) -> Duration {
+    let secs = d.as_secs_f64() * mul;
+    // At this point I'd like to use Duration::try_from_secs_f64, but
+    // that isn't stable yet. :p
+    if secs.is_finite() && secs >= 0.0 {
+        // We rely on the property that `f64 as uNN` is saturating.
+        let seconds = secs.trunc() as u64;
+        let nanos = if seconds == u64::MAX {
+            0 // prevent any possible overflow.
+        } else {
+            (secs.fract() * 1e9) as u32
+        };
+        Duration::new(seconds, nanos)
+    } else {
+        Duration::from_secs(1)
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::Action;
+    use super::*;
 
     #[test]
     fn action_scale_values() {
@@ -173,5 +195,39 @@ mod test {
         );
 
         assert_eq!(Action::RoundTrip { length: 3 }.timeout_scale(), 3);
+    }
+
+    #[test]
+    fn test_mul_duration() {
+        // This is wrong because of leap years, but we'll fake it.
+        let mega_year = Duration::from_secs(86400 * 365 * 1000 * 1000);
+
+        // Multiply by zero.
+        let v = mul_duration_f64_saturating(mega_year, 0.0);
+        assert!(v.is_zero());
+
+        // Multiply by one.
+        assert_eq!(mul_duration_f64_saturating(mega_year, 1.0), mega_year);
+
+        // Divide by 1000.
+        let v = mul_duration_f64_saturating(mega_year, 1.0 / 1000.0);
+        let s = v.as_secs_f64();
+        assert!((s - (mega_year.as_secs_f64() / 1000.0)).abs() < 0.1);
+
+        // This would overflow if we were using mul_f64.
+        let v = mul_duration_f64_saturating(mega_year, 1e9);
+        assert!(v > mega_year * 1000);
+
+        // This would underflow.
+        let v = mul_duration_f64_saturating(mega_year, -1.0);
+        assert_eq!(v, Duration::from_secs(1));
+
+        // These are just silly.
+        let v = mul_duration_f64_saturating(mega_year, f64::INFINITY);
+        assert_eq!(v, Duration::from_secs(1));
+        let v = mul_duration_f64_saturating(mega_year, f64::NEG_INFINITY);
+        assert_eq!(v, Duration::from_secs(1));
+        let v = mul_duration_f64_saturating(mega_year, f64::NAN);
+        assert_eq!(v, Duration::from_secs(1));
     }
 }

@@ -59,8 +59,8 @@ impl TimeoutEstimator for ReadonlyTimeoutEstimator {
         let multiplier =
             (action.timeout_scale() as f64) / (reference_action.timeout_scale() as f64);
 
-        // XXXX `mul_f64()` can panic if we overflow Duration.
-        let timeout = base.mul_f64(multiplier);
+        use super::mul_duration_f64_saturating as mul;
+        let timeout = mul(base, multiplier);
 
         // We use the same timeout twice here, since we don't need
         // separate abandon and timeout thresholds when we are not
