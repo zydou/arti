@@ -141,25 +141,23 @@ impl<'a> ExitPathBuilder<'a> {
             Some(guardmgr) => {
                 let mut b = tor_guardmgr::GuardUsageBuilder::default();
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
-                let mut restrictions: Vec<tor_guardmgr::GuardRestriction> = Vec::new();
+                let mut family = std::collections::HashSet::new();
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
                     let id = exit_relay.ed_identity();
-                    restrictions.push(tor_guardmgr::GuardRestriction::AvoidId(*id));
+                    family.insert(*id);
                     for rsaid in exit_relay.family().members() {
                         let relay = netdir.by_rsa_id(rsaid);
                         if let Some(r) = relay {
                             for fam_relay in r.family().members() {
                                 if fam_relay == exit_relay.rsa_identity() {
-                                    restrictions.push(tor_guardmgr::GuardRestriction::AvoidId(
-                                        *r.ed_identity(),
-                                    ));
+                                    family.insert(*r.ed_identity());
                                 }
                             }
                         }
                     }
                 }
-                b.restrictions(restrictions);
+                b.push_restriction(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
                 let guard = guard.get_relay(netdir).ok_or_else(|| {

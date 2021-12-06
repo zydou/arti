@@ -133,7 +133,7 @@
 use futures::channel::mpsc;
 use futures::task::{SpawnError, SpawnExt};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -919,6 +919,8 @@ impl GuardUsageBuilder {
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.
     AvoidId(pk::ed25519::Ed25519Identity),
+    /// Don't pick a guard with any of the provided Ed25519 identities.
+    AvoidAllIds(HashSet<pk::ed25519::Ed25519Identity>),
 }
 
 /// An error caused while creating or updating a guard manager.

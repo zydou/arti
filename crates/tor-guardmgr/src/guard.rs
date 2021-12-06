@@ -306,6 +306,7 @@ impl Guard {
     fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
         match r {
             GuardRestriction::AvoidId(ed) => &self.id.ed25519 != ed,
+            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.ed25519),
         }
     }
 
