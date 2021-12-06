@@ -5,7 +5,7 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
@@ -297,18 +297,16 @@ impl Guard {
         }
     }
 
-    /// Return true if this guard obeys the restriction in `rest`.
-    fn obeys_restriction(&self, rest: &HashSet<GuardRestriction>) -> bool {
-        for r in rest {
-            match r {
-                GuardRestriction::AvoidId(ed) => {
-                    if &self.id.ed25519 == ed {
-                        return false;
-                    }
-                }
-            }
+    /// Return true if this guard obeys all of the given restrictions.
+    fn obeys_restrictions(&self, restrictions: &[GuardRestriction]) -> bool {
+        restrictions.iter().all(|r| self.obeys_restriction(r))
+    }
+
+    /// Return true if this guard obeys a single restriction.
+    fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
+        match r {
+            GuardRestriction::AvoidId(ed) => &self.id.ed25519 != ed,
         }
-        true
     }
 
     /// Return true if this guard is suitable to use for the provided `usage`.
@@ -317,10 +315,7 @@ impl Guard {
         if usage.kind == GuardUsageKind::OneHopDirectory && !self.is_dir_cache {
             return false;
         }
-        match &usage.restriction {
-            Some(rest) => self.obeys_restriction(rest),
-            None => true,
-        }
+        self.obeys_restrictions(&usage.restrictions[..])
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -683,9 +678,6 @@ mod test {
 
     #[test]
     fn simple_accessors() {
-        use std::collections::hash_map::RandomState;
-        use std::iter::FromIterator;
-
         let id = basic_id();
         let g = basic_guard();
 
@@ -698,15 +690,11 @@ mod test {
 
         use crate::GuardUsageBuilder;
         let usage1 = GuardUsageBuilder::new()
-            .restriction(HashSet::<_, RandomState>::from_iter([
-                GuardRestriction::AvoidId([22; 32].into()),
-            ]))
+            .push_restriction(GuardRestriction::AvoidId([22; 32].into()))
             .build()
             .unwrap();
         let usage2 = GuardUsageBuilder::new()
-            .restriction(HashSet::<_, RandomState>::from_iter([
-                GuardRestriction::AvoidId([13; 32].into()),
-            ]))
+            .push_restriction(GuardRestriction::AvoidId([13; 32].into()))
             .build()
             .unwrap();
         let usage3 = GuardUsage::default();

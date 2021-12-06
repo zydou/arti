@@ -3,7 +3,6 @@
 use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
-use std::collections::HashSet;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_linkspec::ChanTarget;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
@@ -142,17 +141,17 @@ impl<'a> ExitPathBuilder<'a> {
             Some(guardmgr) => {
                 let mut b = tor_guardmgr::GuardUsageBuilder::default();
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
-                let mut restrictions: HashSet<tor_guardmgr::GuardRestriction> = HashSet::new();
+                let mut restrictions: Vec<tor_guardmgr::GuardRestriction> = Vec::new();
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
                     let id = exit_relay.ed_identity();
-                    restrictions.insert(tor_guardmgr::GuardRestriction::AvoidId(*id));
+                    restrictions.push(tor_guardmgr::GuardRestriction::AvoidId(*id));
                     for rsaid in exit_relay.family().members() {
                         let relay = netdir.by_rsa_id(rsaid);
                         if let Some(r) = relay {
                             for fam_relay in r.family().members() {
                                 if fam_relay == exit_relay.rsa_identity() {
-                                    restrictions.insert(tor_guardmgr::GuardRestriction::AvoidId(
+                                    restrictions.push(tor_guardmgr::GuardRestriction::AvoidId(
                                         *r.ed_identity(),
                                     ));
                                 }
@@ -160,7 +159,7 @@ impl<'a> ExitPathBuilder<'a> {
                         }
                     }
                 }
-                b.restriction(restrictions);
+                b.restrictions(restrictions);
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
                 let guard = guard.get_relay(netdir).ok_or_else(|| {

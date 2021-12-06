@@ -133,7 +133,7 @@
 use futures::channel::mpsc;
 use futures::task::{SpawnError, SpawnExt};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -887,17 +887,23 @@ pub struct GuardUsage {
     /// The purpose for which this guard will be used.
     #[builder(default)]
     kind: GuardUsageKind,
-    /// An optional restriction on which guard may be used.
-    ///
-    /// (Eventually, multiple restrictions may be supported.)
-    #[builder(default, setter(strip_option))]
-    restriction: Option<HashSet<GuardRestriction>>,
+    /// A list of restrictions on which guard may be used.
+    #[builder(default)]
+    restrictions: Vec<GuardRestriction>,
 }
 
 impl GuardUsageBuilder {
     /// Create a new empty [`GuardUsageBuilder`].
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Add `restriction` to the list of restrictions on this guard usage.
+    pub fn push_restriction(&mut self, restriction: GuardRestriction) -> &mut Self {
+        self.restrictions
+            .get_or_insert_with(Vec::new)
+            .push(restriction);
+        self
     }
 }
 
@@ -908,7 +914,7 @@ impl GuardUsageBuilder {
 /// They're suitable for things like making sure that we don't start
 /// and end a circuit at the same relay, or requiring a specific
 /// subprotocol version for certain kinds of requests.
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.
