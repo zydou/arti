@@ -70,7 +70,6 @@ use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
-use tor_netdoc::types::family::RelayFamily;
 use tor_netdoc::types::policy::PortPolicy;
 
 use serde::Deserialize;
@@ -818,6 +817,31 @@ impl NetDir {
         self.by_rsa_id_unchecked(rsa_id)
             .map(|unchecked| RelayWeight(self.weights.weight_rs_for_role(unchecked.rs, role)))
     }
+
+    /// Return all relays in this NetDir known to be in the same family as
+    /// `relay`.
+    ///
+    /// This list of members will **not** necessarily include `relay` itself.
+    ///
+    /// # Limitations
+    ///
+    /// Two relays only belong to the same family if _each_ relay
+    /// claims to share a family with the other.  But if we are
+    /// missing a microdescriptor for one of the relays listed by this
+    /// relay, we cannot know whether it acknowledges family
+    /// membership with this relay or not.  Therefore, this function
+    /// can omit family members for which there is not (as yet) any
+    /// Relay object.
+    pub fn known_family_members<'a>(
+        &'a self,
+        relay: &'a Relay<'a>,
+    ) -> impl Iterator<Item = Relay<'a>> {
+        let relay_rsa_id = relay.rsa_id();
+        relay.md.family().members().filter_map(move |other_rsa_id| {
+            self.by_rsa_id(other_rsa_id)
+                .filter(|other_relay| other_relay.md.family().contains(relay_rsa_id))
+        })
+    }
 }
 
 impl MdReceiver for NetDir {
@@ -962,11 +986,6 @@ impl<'a> Relay<'a> {
     /// this does not verify if the relay is marked BadExit.
     pub fn ipv6_declared_policy(&self) -> &Arc<PortPolicy> {
         self.md.ipv6_policy()
-    }
-
-    /// Return the family declared by this relay.
-    pub fn family(&self) -> &RelayFamily {
-        self.md.family()
     }
 
     /// Return a reference to this relay's "router status" entry in
