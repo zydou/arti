@@ -686,6 +686,13 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         *u = p.into();
     }
 
+    /// Return this manager's [`CircuitTiming`].
+    pub(crate) fn circuit_timing(&self) -> &CircuitTiming {
+        &self.circuit_timing
+    }
+
+    ///
+
     /// Return a circuit suitable for use with a given `usage`,
     /// creating that circuit if necessary, and restricting it
     /// under the assumption that it will be used for that spec.

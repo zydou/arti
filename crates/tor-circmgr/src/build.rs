@@ -299,6 +299,11 @@ impl<R: Runtime> CircuitBuilder<R> {
         }
     }
 
+    /// Return this builder's [`PathConfig`](crate::PathConfig).
+    pub(crate) fn path_config(&self) -> &crate::PathConfig {
+        &self.path_config
+    }
+
     /// Flush state to the state manager.
     pub(crate) fn save_state(&self) -> Result<()> {
         // TODO: someday we'll want to only do this if there is something
@@ -364,11 +369,6 @@ impl<R: Runtime> CircuitBuilder<R> {
         let owned = path.try_into()?;
         self.build_owned(owned, params, rng, Arc::new(None.into()))
             .await
-    }
-
-    /// Return the path configuration used by this builder.
-    pub(crate) fn path_config(&self) -> &crate::PathConfig {
-        &self.path_config
     }
 
     /// Return true if this builder is currently learning timeout info.

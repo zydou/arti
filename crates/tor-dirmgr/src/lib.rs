@@ -401,6 +401,33 @@ impl<R: Runtime> DirMgr<R> {
             .ok_or(Error::NoDownloadSupport)
     }
 
+    /// Try to change our configuration to `new_config`.
+    ///
+    /// Actual behavior will depend on the value of `how`.
+    pub fn reconfigure(
+        &self,
+        new_config: &DirMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+        if new_config.cache_path() != self.config.cache_path() {
+            how.cannot_change("storage.cache_path")?;
+        }
+        if new_config.authorities() != self.config.authorities() {
+            how.cannot_change("network.authorities")?;
+        }
+        if new_config.fallbacks() != self.config.fallbacks() {
+            how.cannot_change("network.fallback_caches")?;
+        }
+        if new_config.schedule() != self.config.schedule() {
+            how.cannot_change("download_schedule.*")?;
+        }
+        if new_config.override_net_params() != self.config.override_net_params() {
+            how.cannot_change("override_net_params.*")?;
+        }
+
+        Ok(())
+    }
+
     /// Try to make this a directory manager with read-write access to its
     /// storage.
     ///

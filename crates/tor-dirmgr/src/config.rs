@@ -230,6 +230,11 @@ impl DirMgrConfig {
         SqliteStore::from_path(&self.cache_path, readonly)
     }
 
+    /// Return the configured cache path.
+    pub(crate) fn cache_path(&self) -> &std::path::Path {
+        self.cache_path.as_ref()
+    }
+
     /// Return a slice of the configured authorities
     pub(crate) fn authorities(&self) -> &[Authority] {
         self.network_config.authorities()

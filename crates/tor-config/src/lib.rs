@@ -41,5 +41,35 @@
 mod err;
 mod path;
 
-pub use err::ConfigBuildError;
+pub use err::{ConfigBuildError, ReconfigureError};
 pub use path::CfgPath;
+
+/// Rules for reconfiguring a running Arti instance.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum Reconfigure {
+    /// Perform no reconfiguration unless we can guarantee that all changes will be successful.
+    AllOrNothing,
+    /// Try to reconfigure as much as possible; warn on fields that we cannot reconfigure.
+    WarnOnFailures,
+    /// Don't reconfigure anything: Only check whether we can guarantee that all changes will be successful.
+    CheckAllOrNothing,
+}
+
+impl Reconfigure {
+    /// Called when we see a disallowed attempt to change `field`: either give a ReconfigureError,
+    /// or warn and return `Ok(())`, depending on the value of `self`.
+    pub fn cannot_change<S: AsRef<str>>(self, field: S) -> Result<(), ReconfigureError> {
+        match self {
+            Reconfigure::AllOrNothing | Reconfigure::CheckAllOrNothing => {
+                Err(ReconfigureError::CannotChange {
+                    field: field.as_ref().to_owned(),
+                })
+            }
+            Reconfigure::WarnOnFailures => {
+                tracing::warn!("Cannot change field {} on a running client", field.as_ref());
+                Ok(())
+            }
+        }
+    }
+}

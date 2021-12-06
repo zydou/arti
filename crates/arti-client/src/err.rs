@@ -50,6 +50,10 @@ pub enum Error {
     /// Building configuration for the client failed.
     #[error("Configuration failed: {0}")]
     Configuration(#[from] tor_config::ConfigBuildError),
+
+    /// Unable to change configuration.
+    #[error("Reconfiguration failed: {0}")]
+    Reconfigure(#[from] tor_config::ReconfigureError),
 }
 
 impl From<TimeoutError> for Error {

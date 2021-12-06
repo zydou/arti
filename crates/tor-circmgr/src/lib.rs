@@ -212,6 +212,25 @@ impl<R: Runtime> CircMgr<R> {
         Ok(circmgr)
     }
 
+    /// Try to change our configuration settings to `new_config`.
+    ///
+    /// The actual behavior here will depend on the value of `how`.
+    pub fn reconfigure(
+        &self,
+        new_config: &CircMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+        let path_rules = self.mgr.peek_builder().path_config();
+        let circuit_timing = self.mgr.circuit_timing();
+        if path_rules != &new_config.path_rules {
+            how.cannot_change("path_rules.*")?;
+        }
+        if circuit_timing != &new_config.circuit_timing {
+            how.cannot_change("circuit_timing.*")?;
+        }
+        Ok(())
+    }
+
     /// Reload state from the state manager.
     ///
     /// We only call this method if we _don't_ have the lock on the state

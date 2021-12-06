@@ -82,6 +82,10 @@ impl FsStateMgr {
             .statepath
             .join(sanitize_filename::sanitize(key) + ".json")
     }
+    /// Return the top-level directory for this storage manager.
+    pub fn path(&self) -> &Path {
+        self.inner.statepath.as_ref()
+    }
 }
 
 impl StateMgr for FsStateMgr {

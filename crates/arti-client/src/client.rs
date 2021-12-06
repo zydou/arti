@@ -43,6 +43,8 @@ pub struct TorClient<R: Runtime> {
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
+    /// Location on disk where we store persistent data.
+    statemgr: FsStateMgr,
     /// Client address configuration
     addrcfg: ClientAddrConfig,
     /// Client DNS configuration
@@ -197,7 +199,7 @@ impl<R: Runtime> TorClient<R> {
         runtime.spawn(update_persistent_state(
             runtime.clone(),
             Arc::downgrade(&circmgr),
-            statemgr,
+            statemgr.clone(),
         ))?;
 
         runtime.spawn(continually_launch_timeout_testing_circuits(
@@ -219,15 +221,63 @@ impl<R: Runtime> TorClient<R> {
             client_isolation,
             circmgr,
             dirmgr,
+            statemgr,
             addrcfg: addr_cfg,
             timeoutcfg: timeout_cfg,
         })
     }
 
-    /// Return a new isolated `TorClient` instance.
+    /// Change the configuration of this TorClient to `new_config`.
     ///
-    /// The two `TorClient`s will share some internal state, but their
-    /// streams will never share circuits with one another.
+    /// The `how` describes whether to perform an all-or-nothing
+    /// reconfiguration: either all of the configuration changes will be applied,
+    /// or none will. If you have disabled all-or-nothing changes, then only
+    /// fatal errors will be reported in this function's return value.
+    ///
+    /// This function applies its changes to **all** TorClient instances derived
+    /// from the same call to [`TorClient::bootstrap`]: even ones whose circuits are
+    /// isolated from this handle.
+    ///
+    /// # Limitations
+    ///
+    /// At present, no options can actually be reconfigured: this function is a lie!
+    /// It only exists to demonstrate its intended API.
+    pub fn reconfigure(
+        &self,
+        new_config: &TorClientConfig,
+        how: tor_config::Reconfigure,
+    ) -> Result<()> {
+        match how {
+            tor_config::Reconfigure::AllOrNothing => {
+                // We have to check before we make any changes.
+                self.reconfigure(new_config, tor_config::Reconfigure::CheckAllOrNothing)?;
+            }
+            tor_config::Reconfigure::CheckAllOrNothing => {}
+            tor_config::Reconfigure::WarnOnFailures => {}
+            _ => {}
+        }
+
+        let circ_cfg = new_config.get_circmgr_config()?;
+        let dir_cfg = new_config.get_dirmgr_config()?;
+        let state_cfg = new_config.storage.expand_state_dir()?;
+        let addr_cfg = &new_config.address_filter;
+
+        if state_cfg != self.statemgr.path() {
+            how.cannot_change("storage.state_dir")?;
+        }
+        if &self.addrcfg != addr_cfg {
+            how.cannot_change("address_filter.*")?;
+        }
+        self.circmgr.reconfigure(&circ_cfg, how)?;
+        self.dirmgr.reconfigure(&dir_cfg, how)?;
+
+        Ok(())
+    }
+
+    /// Return a new isolated `TorClient` handle.
+    ///
+    /// The two `TorClient`s will share internal state and configuration, but
+    /// their streams will never share circuits with one another.
     ///
     /// Use this function when you want separate parts of your program to
     /// each have a TorClient handle, but where you don't want their
