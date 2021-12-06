@@ -453,7 +453,7 @@ async fn update_persistent_state<R: Runtime>(
             debug!("Circmgr has disappeared; task exiting.");
             return;
         }
-        // XXXX This delay is probably too small.
+        // TODO(nickm): This delay is probably too small.
         //
         // Also, we probably don't even want a fixed delay here.  Instead,
         // we should be updating more frequently when the data is volatile

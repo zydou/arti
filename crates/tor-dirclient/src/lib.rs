@@ -109,14 +109,14 @@ where
 {
     let circuit = circ_mgr.get_or_launch_dir(dirinfo).await?;
 
-    // XXXX should be an option, and is too long.
+    // TODO(nickm) This should be an option, and is too long.
     let begin_timeout = Duration::from_secs(5);
     let source = SourceInfo::new(circuit.unique_id());
 
     // Launch the stream.
     let mut stream = runtime
         .timeout(begin_timeout, circuit.begin_dir_stream())
-        .await??; // XXXX handle fatalities here too
+        .await??; // TODO(nickm) handle fatalities here too
 
     // TODO: Perhaps we want separate timeouts for each phase of this.
     // For now, we just use higher-level timeouts in `dirmgr`.
@@ -209,7 +209,7 @@ where
         // response.  But this should be fast enough.
         let n = read_until_limited(stream, b'\n', 2048, &mut buf).await?;
 
-        // XXXX Better maximum and/or let this expand.
+        // TODO(nickm): Better maximum and/or let this expand.
         let mut headers = [httparse::EMPTY_HEADER; 32];
         let mut response = httparse::Response::new(&mut headers);
 
@@ -222,7 +222,7 @@ where
                     return Err(Error::TruncatedHeaders);
                 }
 
-                // XXXX Pick a better maximum
+                // TODO(nickm): Pick a better maximum
                 if buf.len() >= 16384 {
                     return Err(httparse::Error::TooManyHeaders.into());
                 }
@@ -292,8 +292,8 @@ where
 {
     let buffer_window_size = 1024;
     let mut written_total: usize = 0;
-    // XXXX should be an option and is maybe too long.  Though for some
-    // users this may be too short?
+    // TODO(nickm): This should be an option, and is maybe too long.
+    // Though for some users it may be too short?
     let read_timeout = Duration::from_secs(10);
     let timer = runtime.sleep(read_timeout).fuse();
     futures::pin_mut!(timer);

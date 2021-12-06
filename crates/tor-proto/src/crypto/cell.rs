@@ -195,7 +195,7 @@ impl InboundClientCrypt {
     /// Decrypt an incoming cell that is coming to the client.
     ///
     /// On success, return which hop was the originator of the cell.
-    // XXXX use real tag type
+    // TODO(nickm): Use a real type for the tag, not just `&[u8]`.
     pub(crate) fn decrypt(&mut self, cell: &mut RelayCellBody) -> Result<(HopNum, &[u8])> {
         for (hopnum, layer) in self.layers.iter_mut().enumerate() {
             if let Some(tag) = layer.decrypt_inbound(cell) {
@@ -343,7 +343,8 @@ pub(crate) mod tor1 {
             self.0[8] = 0;
 
             d.update(&self.0[..]);
-            *used_digest = d.clone().finalize(); // XXX can I avoid this clone?
+            // TODO(nickm) can we avoid this clone?  Probably not.
+            *used_digest = d.clone().finalize();
             self.0[5..9].copy_from_slice(&used_digest[0..4]);
         }
         /// Check a cell to see whether its recognized field is set.

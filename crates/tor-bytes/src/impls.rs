@@ -85,7 +85,7 @@ where
         for _ in 0..N::to_usize() {
             v.push(T::take_from(b)?);
         }
-        // XXXX I wish I didn't have to clone this.
+        // TODO(nickm) I wish I didn't have to clone this.
         Ok(Self::from_slice(v.as_slice()).clone())
     }
 }

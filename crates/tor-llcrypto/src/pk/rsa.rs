@@ -13,8 +13,7 @@
 //! RSA signing is only needed for relays and authorities, and
 //! RSA-OAEP padding is only needed for the (obsolete) TAP protocol.
 //!
-//!
-//! XXXX This module should expose RustCrypto trait-based wrappers,
+//! This module should expose RustCrypto trait-based wrappers,
 //! but the [`rsa`] crate didn't support them as of initial writing.
 use arrayref::array_ref;
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey};
@@ -222,8 +221,8 @@ impl PublicKey {
     ///
     /// The result is an RsaPublicKey, not a PublicKeyInfo.
     pub fn to_der(&self) -> Vec<u8> {
-        // There seem to be version issues with these two versions of
-        // bigint. XXXX
+        // There seem to be version issues with these two
+        // versions of bigint: yuck!
         use rsa::BigUint; // not the same as the one in simple_asn1.
         use rsa::PublicKeyParts;
         use simple_asn1::{ASN1Block, BigInt};

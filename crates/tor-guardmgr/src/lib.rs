@@ -1001,7 +1001,9 @@ mod test {
 
     #[test]
     fn simple_waiting() {
-        // XXXX This test fails in rare cases; I suspect a race condition somewhere.
+        // TODO(nickm): This test fails in rare cases; I suspect a
+        // race condition somewhere.
+        //
         // I've doubled up on the queue flushing in order to try to make the
         // race less likely, but we should investigate.
         test_with_all_runtimes!(|rt| async move {

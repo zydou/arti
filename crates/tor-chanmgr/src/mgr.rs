@@ -122,8 +122,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
 
-        // XXXX It would be neat to use tor_retry instead, but it's
-        // too tied to anyhow right now.
+        // TODO(nickm): It would be neat to use tor_retry instead.
         let mut last_err = Err(Error::Internal("Error was never set!?"));
 
         for _ in 0..N_ATTEMPTS {
@@ -332,7 +331,7 @@ mod test {
             let cf = FakeChannelFactory::new(runtime);
             let mgr = AbstractChanMgr::new(cf);
 
-            // TODO XXXX: figure out how to make these actually run
+            // TODO(nickm): figure out how to make these actually run
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(

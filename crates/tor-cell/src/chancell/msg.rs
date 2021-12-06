@@ -596,7 +596,7 @@ fn take_one_netinfo_addr(r: &mut Reader<'_>) -> Result<Option<IpAddr>> {
             Ok(Some(IpAddr::V4(bytes.into())))
         }
         (0x06, 16) => {
-            // XXXX is there a better way?
+            // TODO(nickm) is there a better way?
             let mut bytes = [0_u8; 16];
             (&mut bytes[..]).copy_from_slice(abody);
             Ok(Some(IpAddr::V6(bytes.into())))
@@ -755,10 +755,10 @@ pub struct PaddingNegotiate {
     /// Whether to start or stop padding
     command: u8,
     /// Suggested lower-bound value for inter-packet timeout in msec.
-    // XXXX is that right?
+    // TODO(nickm) is that right?
     ito_low_ms: u16,
     /// Suggested upper-bound value for inter-packet timeout in msec.
-    // XXXX is that right?
+    // TODO(nickm) is that right?
     ito_high_ms: u16,
 }
 impl PaddingNegotiate {

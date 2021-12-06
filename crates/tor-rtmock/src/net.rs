@@ -179,8 +179,9 @@ impl MockNetwork {
         };
         if let Some(mut entry) = entry {
             if entry.tls_cert.is_some() != want_tls {
-                // XXXX This is not what you'd really see on a mismatched
-                // connection.
+                // TODO(nickm): This is not what you'd really see on a
+                // mismatched connection.  Maybe we should change this
+                // to give garbage, or a warning, or something?
                 return Err(err(ErrorKind::ConnectionRefused));
             }
             if entry.send.send((peer_stream, source_addr)).await.is_ok() {

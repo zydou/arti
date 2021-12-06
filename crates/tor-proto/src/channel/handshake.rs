@@ -284,7 +284,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         // Now look at the signing->TLS cert and check it against the
         // peer certificate.
         let (sk_tls, sk_tls_sig) = sk_tls
-            .check_key(&Some(*signing_key))? // this is a bad interface XXXX
+            .check_key(&Some(*signing_key))? // TODO(nickm): this is a bad interface
             .dangerously_split()?;
         sigs.push(&sk_tls_sig);
         let sk_tls = sk_tls

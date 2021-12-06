@@ -44,7 +44,7 @@ impl RsaCrosscert {
     /// Decode a slice of bytes into an RSA crosscert.
     pub fn decode(bytes: &[u8]) -> tor_bytes::Result<UncheckedRsaCrosscert> {
         let mut r = Reader::from_slice(bytes);
-        let signed_portion = r.peek(36)?; // a bit ugly XXXX
+        let signed_portion = r.peek(36)?; // TODO(nickm): a bit ugly.
         let subject_key = r.extract()?;
         let exp_hours = r.take_u32()?;
         let siglen = r.take_u8()?;

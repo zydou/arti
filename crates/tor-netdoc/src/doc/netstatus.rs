@@ -442,7 +442,7 @@ struct Footer {
 
 /// Trait to parse a single relay as listed in a consensus document.
 ///
-/// XXXX: I'd rather not have this trait be public, but I haven't yet
+/// TODO(nickm): I'd rather not have this trait be public, but I haven't yet
 /// figured out how to make it private.
 pub trait ParseRouterStatus: Sized + Sealed {
     /// Parse this object from a `Section` object containing its

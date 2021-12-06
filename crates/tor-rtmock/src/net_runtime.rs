@@ -1,6 +1,7 @@
 //! Declare MockNetRuntime.
 
-// XXXX this is mostly copy-paste from MockSleepRuntime.
+// TODO(nickm): This is mostly copy-paste from MockSleepRuntime.  If possible,
+// we should make it so that more code is more shared.
 
 use crate::net::MockNetProvider;
 use tor_rtcompat::{Runtime, SleepProvider, SpawnBlocking, TcpProvider, TlsProvider};

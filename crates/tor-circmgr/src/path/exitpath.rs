@@ -195,10 +195,6 @@ impl<'a> ExitPathBuilder<'a> {
 
 /// Returns true if both relays can appear together in the same circuit.
 fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
-    // XXX: features missing from original implementation:
-    // - option NodeFamilySets
-    // see: src/feature/nodelist/nodelist.c:nodes_in_same_family()
-
     !a.in_same_family(b) && !a.in_same_subnet(b, &subnet_config)
 }
 

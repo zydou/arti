@@ -500,7 +500,7 @@ impl SqliteStore {
         certs: &[AuthCertKeyIds],
     ) -> Result<HashMap<AuthCertKeyIds, String>> {
         let mut result = HashMap::new();
-        // XXXX Do I need to get a transaction here for performance?
+        // TODO(nickm): Do I need to get a transaction here for performance?
         let mut stmt = self.conn.prepare(FIND_AUTHCERT)?;
 
         for ids in certs {
@@ -525,8 +525,8 @@ impl SqliteStore {
         let mut result = HashMap::new();
         let mut stmt = self.conn.prepare(FIND_MD)?;
 
-        // XXXX Should I speed this up with a transaction, or does it not
-        // matter for queries?
+        // TODO(nickm): Should I speed this up with a transaction, or
+        // does it not matter for queries?
         for md_digest in input.into_iter() {
             let h_digest = hex::encode(md_digest);
             if let Some(contents) = stmt
@@ -551,8 +551,8 @@ impl SqliteStore {
         let mut result = HashMap::new();
         let mut stmt = self.conn.prepare(FIND_RD)?;
 
-        // XXXX Should I speed this up with a transaction, or does it not
-        // matter for queries?
+        // TODO(nickm): Should I speed this up with a transaction, or
+        // does it not matter for queries?
         for rd_digest in input.into_iter() {
             let h_digest = hex::encode(rd_digest);
             if let Some(contents) = stmt

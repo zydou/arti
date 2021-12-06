@@ -4,7 +4,8 @@
 //! user experience.  If user wait too long for their circuits, or if
 //! they use exceptionally slow circuits, then Tor will feel really
 //! slow.  Second, these timeouts are actually a security
-//! property. (XXXX explain why!)
+//! property.
+// TODO(nickm): explain why!
 
 use std::time::Duration;
 

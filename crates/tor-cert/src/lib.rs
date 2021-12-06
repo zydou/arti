@@ -536,7 +536,9 @@ pub struct UncheckedCert {
 
     /// The signed text of the certificate. (Checking ed25519 signatures
     /// forces us to store this.
-    text: Vec<u8>, // XXXX It would be better to store a hash here.
+    // TODO(nickm)  It would be better to store a hash here, but we
+    // don't have the right Ed25519 API.
+    text: Vec<u8>,
 
     /// The alleged signature
     signature: ed25519::Signature,

@@ -326,7 +326,8 @@ fn client_handshake_ntor_v3_no_keygen(
 /// Trait for an object that handle and incoming client message and
 /// return a server's reply.
 ///
-// XXXX I wanted to use a closure here, but the lifetimes didn't work.
+// TODO(nickm): I wanted to use a closure here, but the lifetimes didn't work,
+// and I couldn't figure out why.
 pub(crate) trait MsgReply {
     /// Given a message received from a client, parse it and decide
     /// how (and whether) to reply.

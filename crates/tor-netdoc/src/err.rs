@@ -232,13 +232,13 @@ pub enum Error {
     MissingArgument(Pos),
     /// We found an argument that couldn't be parsed.
     #[error("bad argument for entry{0}: {1}")]
-    BadArgument(Pos, String), // converting to a string doesn't sit well with me. XXXX
+    BadArgument(Pos, String),
     /// We found an object that couldn't be parsed after it was decoded.
     #[error("bad object for entry{0}: {1}")]
-    BadObjectVal(Pos, String), // converting to a string doesn't sit well with me. XXXX
+    BadObjectVal(Pos, String),
     /// There was some signature that we couldn't validate.
     #[error("couldn't validate signature{0}")]
-    BadSignature(Pos), // say which kind of signature. TODO
+    BadSignature(Pos), // TODO(nickm): say which kind of signature.
     /// There was a tor version we couldn't parse.
     #[error("couldn't parse Tor version{0}")]
     BadTorVersion(Pos),
@@ -316,8 +316,8 @@ impl Error {
 
     /// Helper: return this error's position.
     pub(crate) fn pos(&self) -> Pos {
-        // XXXX This duplicate code is yucky. We should refactor this error
-        // type to use an ErrorKind pattern.
+        // TODO(nickm): This duplicate code is yucky. We should
+        // refactor this error type to use an ErrorKind pattern.
         use Error::*;
         let pos = match self {
             Internal(p) => Some(p),

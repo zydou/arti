@@ -16,7 +16,9 @@ type Result<T> = std::result::Result<T, ConfigError>;
 /// the bareword is quoted for convenience.
 #[derive(Debug, Clone)]
 pub struct CmdLine {
-    /// String for decorating Values.  (XXXX not yet used).
+    /// String for decorating Values.
+    //
+    // TODO(nickm): not yet used.
     #[allow(dead_code)]
     name: String,
     /// List of toml lines as given on the command line.

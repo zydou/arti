@@ -254,9 +254,10 @@ where
     R: RngCore + CryptoRng,
     T: AsRef<[u8]>,
 {
-    // XXXX we generate this key whether or not we are actually going to
-    // find our nodeid or keyid. Perhaps we should delay that till later.
-    // But if we do, we'll need to refactor a bit to keep our tests working.
+    // TODO(nickm): we generate this key whether or not we are
+    // actually going to find our nodeid or keyid. Perhaps we should
+    // delay that till later?  It shouldn't matter for most cases,
+    // though.
     let ephem = EphemeralSecret::new(rng.rng_compat());
     let ephem_pub = PublicKey::from(&ephem);
 

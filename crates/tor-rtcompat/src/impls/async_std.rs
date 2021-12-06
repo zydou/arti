@@ -28,7 +28,9 @@ mod net {
     pub struct IncomingStreams {
         /// A state object, stored in an Option so we can take ownership of it
         /// while poll is being called.
-        // XXXX I hate using this trick.
+        // TODO(nickm): I hate using this trick.  At some point in the
+        // future, once Rust has nice support for async traits, maybe
+        // we can refactor it.
         state: Option<IncomingStreamsState>,
     }
     /// The result type returned by [`take_and_poll`].

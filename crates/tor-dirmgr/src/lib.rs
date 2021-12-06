@@ -115,7 +115,7 @@ pub struct DirMgr<R: Runtime> {
     /// validate them, and so on.
     config: DirMgrConfig,
     /// Handle to our sqlite cache.
-    // XXXX I'd like to use an rwlock, but that's not feasible, since
+    // TODO(nickm): I'd like to use an rwlock, but that's not feasible, since
     // rusqlite::Connection isn't Sync.
     store: Mutex<SqliteStore>,
     /// Our latest sufficiently bootstrapped directory, if we have one.

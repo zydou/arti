@@ -629,7 +629,7 @@ impl Reactor {
         params: &CircParameters,
     ) -> Result<()>
     where
-        L: CryptInit + ClientLayer<FWD, REV> + 'static + Send, // need all this?XXXX
+        L: CryptInit + ClientLayer<FWD, REV> + 'static + Send,
         FWD: OutboundClientLayer + 'static + Send,
         REV: InboundClientLayer + 'static + Send,
         H: ClientHandshake,
@@ -1093,7 +1093,7 @@ impl Reactor {
         // copy it, but I don't see a way around it right now.
         let tag = {
             let mut tag_copy = [0_u8; 20];
-            // XXXX This could crash if the tag length changes.  We'll
+            // TODO(nickm): This could crash if the tag length changes.  We'll
             // have to refactor it then.
             (&mut tag_copy).copy_from_slice(tag);
             tag_copy

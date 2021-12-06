@@ -10,8 +10,8 @@ pub mod rand_compat;
 /// is an RSA key.
 ///
 /// WARNING: Does not validate the X.509 certificate at all!
-///
-/// XXXXX This is a massive kludge.
+//
+// TODO(nickm): This is a massive kludge.
 pub fn x509_extract_rsa_subject_kludge(der: &[u8]) -> Option<crate::pk::rsa::PublicKey> {
     //use ASN1Block::*;
     let blocks = simple_asn1::from_der(der).ok()?;
