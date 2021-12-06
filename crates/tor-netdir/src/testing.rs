@@ -16,12 +16,9 @@ mod imp {
     pub(crate) fn get_rng() -> impl rand::Rng {
         // When stochastic tests aren't enabled, we use a RNG seeded
         // with a fixed value and a small number of iterators for each test.
-        //
-        // XXXX: Note that the StdRng is not guaranteed to be
-        // reproducible across rust stdlib versions; an upgrade might break
-        // these tests.
         use rand::SeedableRng;
-        rand::rngs::StdRng::from_seed(
+        // Use this RNG to make the tests reproducible.
+        rand_chacha::ChaCha12Rng::from_seed(
             // Fun facts:
             // The Julius Tote was a mechanical computer and point-of-sale
             // system from the 1920s that used horses as an RNG.

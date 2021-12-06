@@ -47,3 +47,4 @@ tracing = "0.1.26"
 hex = "0.4.3"
 hex-literal = "0.3.1"
 tor-netdoc = { path="../tor-netdoc", version = "0.0.2", features=["build_docs"] }
+rand_chacha = "0.3.1"
