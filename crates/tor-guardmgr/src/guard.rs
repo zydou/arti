@@ -699,9 +699,32 @@ mod test {
             .build()
             .unwrap();
         let usage3 = GuardUsage::default();
+        let usage4 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidId([22; 32].into()))
+            .push_restriction(GuardRestriction::AvoidId([13; 32].into()))
+            .build()
+            .unwrap();
+        let usage5 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidAllIds(
+                vec![[22; 32].into(), [13; 32].into()].into_iter().collect(),
+            ))
+            .build()
+            .unwrap();
+        let usage6 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidAllIds(
+                vec![[99; 32].into(), [100; 32].into()]
+                    .into_iter()
+                    .collect(),
+            ))
+            .build()
+            .unwrap();
+
         assert!(g.conforms_to_usage(&usage1));
         assert!(!g.conforms_to_usage(&usage2));
         assert!(g.conforms_to_usage(&usage3));
+        assert!(!g.conforms_to_usage(&usage4));
+        assert!(!g.conforms_to_usage(&usage5));
+        assert!(g.conforms_to_usage(&usage6));
     }
 
     #[test]

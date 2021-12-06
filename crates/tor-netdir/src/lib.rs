@@ -1526,4 +1526,39 @@ mod test {
             .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
             .is_none());
     }
+
+    #[test]
+    fn family_list() {
+        let netdir = construct_custom_netdir(|idx, n| {
+            if idx == 0x0a {
+                n.md.family(
+                    "$0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B \
+                     $0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C \
+                     $0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D"
+                        .parse()
+                        .unwrap(),
+                );
+            } else if idx == 0x0c {
+                n.md.family("$0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A".parse().unwrap());
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        // In the testing netdir, adjacent members are in the same family by default...
+        let r0 = netdir.by_id(&[0; 32].into()).unwrap();
+        let family: Vec<_> = netdir.known_family_members(&r0).collect();
+        assert_eq!(family.len(), 1);
+        assert_eq!(family[0].id(), &Ed25519Identity::from([1; 32]));
+
+        // But we've made this relay claim membership with several others.
+        let r10 = netdir.by_id(&[10; 32].into()).unwrap();
+        let family: HashSet<_> = netdir.known_family_members(&r10).map(|r| *r.id()).collect();
+        assert_eq!(family.len(), 2);
+        assert!(family.contains(&Ed25519Identity::from([11; 32])));
+        assert!(family.contains(&Ed25519Identity::from([12; 32])));
+        // Note that 13 doesn't get put in, even though it's listed, since it doesn't claim
+        //  membership with 10.
+    }
 }
