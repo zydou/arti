@@ -13,7 +13,7 @@
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
-use std::sync::{Mutex, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
@@ -53,7 +53,7 @@ use tor_rtcompat::Runtime;
 pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// Return a DirMgrConfig to use when asked how to retry downloads,
     /// or when we need to find a list of descriptors.
-    fn config(&self) -> &DirMgrConfig;
+    fn config(&self) -> Arc<DirMgrConfig>;
 
     /// Return a reference where we can write or modify a NetDir.
     fn netdir(&self) -> &SharedMutArc<NetDir>;
@@ -75,8 +75,8 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
-    fn config(&self) -> &DirMgrConfig {
-        &self.config
+    fn config(&self) -> Arc<DirMgrConfig> {
+        self.config.get()
     }
     fn netdir(&self) -> &SharedMutArc<NetDir> {
         &self.netdir
@@ -485,7 +485,8 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
 
         let partial_dir = match Weak::upgrade(&writedir) {
             Some(wd) => {
-                let params = wd.config().override_net_params();
+                let config = wd.config();
+                let params = config.override_net_params();
                 let mut dir = PartialNetDir::new(consensus, Some(params));
                 if let Some(old_dir) = wd.netdir().get() {
                     dir.fill_from_previous_netdir(&old_dir);
@@ -786,7 +787,7 @@ mod test {
     }
 
     struct DirRcv {
-        cfg: DirMgrConfig,
+        cfg: Arc<DirMgrConfig>,
         netdir: SharedMutArc<NetDir>,
         consensus_changed: AtomicBool,
         descriptors_changed: AtomicBool,
@@ -805,6 +806,7 @@ mod test {
                 .network_config(netcfg.build().unwrap())
                 .build()
                 .unwrap();
+            let cfg = Arc::new(cfg);
             DirRcv {
                 now,
                 cfg,
@@ -816,8 +818,8 @@ mod test {
     }
 
     impl WriteNetDir for DirRcv {
-        fn config(&self) -> &DirMgrConfig {
-            &self.cfg
+        fn config(&self) -> Arc<DirMgrConfig> {
+            Arc::clone(&self.cfg)
         }
         fn netdir(&self) -> &SharedMutArc<NetDir> {
             &self.netdir
