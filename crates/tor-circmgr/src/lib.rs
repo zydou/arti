@@ -221,11 +221,7 @@ impl<R: Runtime> CircMgr<R> {
         how: tor_config::Reconfigure,
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
         let old_path_rules = self.mgr.peek_builder().path_config();
-        let circuit_timing = self.mgr.circuit_timing();
         let preemptive_circuits = &self.preemptive_cfg;
-        if circuit_timing != &new_config.circuit_timing {
-            how.cannot_change("circuit_timing.*")?;
-        }
         if preemptive_circuits != &new_config.preemptive_circuits {
             how.cannot_change("preemptive_circuits")?;
         }
@@ -239,6 +235,8 @@ impl<R: Runtime> CircMgr<R> {
         self.mgr
             .peek_builder()
             .set_path_config(new_config.path_rules.clone());
+        self.mgr
+            .set_circuit_timing(new_config.circuit_timing.clone());
 
         if discard_circuits {
             // TODO(nickm): Someday, we might want to take a more lenient approach, and only

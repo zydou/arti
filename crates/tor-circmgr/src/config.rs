@@ -134,8 +134,12 @@ pub struct PreemptiveCircuitConfig {
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
-/// This type is immutable once constructed. To create an object of this
-/// type, use [`CircuitTimingBuilder`].
+/// This type is immutable once constructed. To create an object of this type,
+/// use [`CircuitTimingBuilder`].
+///
+/// You can change the CircuitTiming on a running Arti client.  Doing so affects
+/// the expiration times of all circuits that are not currently expired, and the
+/// request timing of all _future_ requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]

@@ -26,6 +26,7 @@ use crate::config::CircuitTiming;
 use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
+use tor_config::MutCfg;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -657,9 +658,11 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     circs: sync::Mutex<CircList<B>>,
 
     /// Configured information about when to expire circuits and requests.
-    circuit_timing: CircuitTiming,
+    circuit_timing: MutCfg<CircuitTiming>,
 
     /// Minimum lifetime of an unused circuit.
+    ///
+    /// Derived from the network parameters.
     unused_timing: sync::Mutex<UnusedTimings>,
 }
 
@@ -686,7 +689,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             builder,
             runtime,
             circs,
-            circuit_timing,
+            circuit_timing: circuit_timing.into(),
             unused_timing: sync::Mutex::new(unused_timing),
         }
     }
@@ -701,12 +704,14 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     }
 
     /// Return this manager's [`CircuitTiming`].
-    pub(crate) fn circuit_timing(&self) -> &CircuitTiming {
-        &self.circuit_timing
+    pub(crate) fn circuit_timing(&self) -> Arc<CircuitTiming> {
+        self.circuit_timing.get()
     }
 
-    ///
-
+    /// Return this manager's [`CircuitTiming`].
+    pub(crate) fn set_circuit_timing(&self, new_config: CircuitTiming) {
+        self.circuit_timing.replace(new_config);
+    }
     /// Return a circuit suitable for use with a given `usage`,
     /// creating that circuit if necessary, and restricting it
     /// under the assumption that it will be used for that spec.
@@ -717,9 +722,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
     ) -> Result<Arc<B::Circ>> {
-        let wait_for_circ = self.circuit_timing.request_timeout;
+        let circuit_timing = self.circuit_timing();
+        let wait_for_circ = circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
-        let max_tries = self.circuit_timing.request_max_retries;
+        let max_tries = circuit_timing.request_max_retries;
 
         let mut retry_err =
             RetryError /* ::<Box<Error>> */::in_attempt_to("find or build a circuit");
@@ -1014,6 +1020,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             sender,
             pending,
         } = plan;
+        let request_loyalty = self.circuit_timing().request_loyalty;
 
         let wait_on_future = pending.receiver.clone();
         let runtime = self.runtime.clone();
@@ -1074,9 +1081,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // delay will give the circuits that were originally
                     // specifically intended for a request a little more time
                     // to finish, before we offer it this circuit instead.
-                    let briefly = self.circuit_timing.request_loyalty;
-                    let sl = runtime_copy.sleep(briefly);
-                    runtime_copy.allow_one_advance(briefly);
+                    let sl = runtime_copy.sleep(request_loyalty);
+                    runtime_copy.allow_one_advance(request_loyalty);
                     sl.await;
 
                     let pending = {
@@ -1119,7 +1125,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// no longer be given out for new circuits.
     pub(crate) fn expire_circs(&self, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
-        let dirty_cutoff = now - self.circuit_timing.max_dirtiness;
+        let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
         list.expire_circs(now, dirty_cutoff);
     }
 
