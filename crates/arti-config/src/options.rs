@@ -3,8 +3,8 @@
 use arti_client::config::{
     circ,
     dir::{self, DownloadScheduleConfig, NetworkConfig},
-    ClientAddrConfig, ClientAddrConfigBuilder, StorageConfig, StorageConfigBuilder,
-    TorClientConfig, TorClientConfigBuilder,
+    ClientAddrConfig, ClientAddrConfigBuilder, ClientTimeoutConfig, ClientTimeoutConfigBuilder,
+    StorageConfig, StorageConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -160,6 +160,9 @@ pub struct ArtiConfig {
 
     /// Rules about which addresses the client is willing to connect to.
     address_filter: ClientAddrConfig,
+
+    /// Rules about a client's DNS resolution.
+    timeout_rules: ClientTimeoutConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -239,6 +242,8 @@ pub struct ArtiConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Builder for the address_filter section.
     address_filter: ClientAddrConfigBuilder,
+    /// Builder for the DNS resolution rules.
+    timeout_rules: ClientTimeoutConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -272,6 +277,10 @@ impl ArtiConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
+        let timeout_rules = self
+            .timeout_rules
+            .build()
+            .map_err(|e| e.within("timeout_rules"))?;
         Ok(ArtiConfig {
             proxy,
             logging,
@@ -283,6 +292,7 @@ impl ArtiConfigBuilder {
             circuit_preemptive,
             circuit_timing,
             address_filter,
+            timeout_rules,
         })
     }
 
@@ -374,6 +384,14 @@ impl ArtiConfigBuilder {
     pub fn address_filter(&mut self) -> &mut ClientAddrConfigBuilder {
         &mut self.address_filter
     }
+
+    /// Return a mutable reference to a [`ClientTimeoutConfigBuilder`].
+    ///
+    /// This section controls how Arti should handle an exit relay's DNS
+    /// resolution.
+    pub fn timeout_rules(&mut self) -> &mut ClientTimeoutConfigBuilder {
+        &mut self.timeout_rules
+    }
 }
 
 impl From<ArtiConfig> for ArtiConfigBuilder {
@@ -389,6 +407,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             circuit_preemptive: cfg.circuit_preemptive.into(),
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
+            timeout_rules: cfg.timeout_rules.into(),
         }
     }
 }

@@ -91,6 +91,7 @@ dependencies = [
  "derive_builder",
  "directories",
  "futures",
+ "humantime-serde",
  "hyper",
  "pin-project",
  "serde",

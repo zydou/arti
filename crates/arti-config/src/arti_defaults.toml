@@ -126,3 +126,15 @@ request_loyalty = "50 msec"
 
 # Should we allow attempts to make Tor connections to local addresses?
 allow_local_addrs = false
+
+# Rules for a circuit timeouts
+[timeout_rules]
+
+# How long should we wait before timing out a stream when connecting to a host?
+stream_timeout = "10 sec"
+
+# How long should we wait before timing out when resolving a DNS record?
+resolve_timeout = "10 sec"
+
+# How long should we wait before timing out when resolving a DNS PTR record?
+resolve_ptr_timeout = "10 sec"

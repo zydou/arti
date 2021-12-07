@@ -6,7 +6,7 @@
 //! `TorClient::connect()`.
 use crate::address::IntoTorAddr;
 
-use crate::config::{ClientAddrConfig, TorClientConfig};
+use crate::config::{ClientAddrConfig, ClientTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
@@ -45,6 +45,8 @@ pub struct TorClient<R: Runtime> {
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
     /// Client address configuration
     addrcfg: ClientAddrConfig,
+    /// Client DNS configuration
+    timeoutcfg: ClientTimeoutConfig,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -171,6 +173,7 @@ impl<R: Runtime> TorClient<R> {
             );
         }
         let addr_cfg = config.address_filter.clone();
+        let timeout_cfg = config.timeout_rules.clone();
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
@@ -217,6 +220,7 @@ impl<R: Runtime> TorClient<R> {
             circmgr,
             dirmgr,
             addrcfg: addr_cfg,
+            timeoutcfg: timeout_cfg,
         })
     }
 
@@ -257,14 +261,11 @@ impl<R: Runtime> TorClient<R> {
         let circ = self.get_or_launch_exit_circ(&exit_ports, &flags).await?;
         info!("Got a circuit for {}:{}", addr, port);
 
-        // TODO: make this configurable.
-        let stream_timeout = Duration::new(10, 0);
-
         let stream_future = circ.begin_stream(&addr, port, Some(flags.stream_parameters()));
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
-            .timeout(stream_timeout, stream_future)
+            .timeout(self.timeoutcfg.stream_timeout, stream_future)
             .await??;
 
         Ok(stream)
@@ -282,13 +283,10 @@ impl<R: Runtime> TorClient<R> {
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
 
-        // TODO: make this configurable.
-        let resolve_timeout = Duration::new(10, 0);
-
         let resolve_future = circ.resolve(hostname);
         let addrs = self
             .runtime
-            .timeout(resolve_timeout, resolve_future)
+            .timeout(self.timeoutcfg.resolve_timeout, resolve_future)
             .await??;
 
         Ok(addrs)
@@ -305,13 +303,10 @@ impl<R: Runtime> TorClient<R> {
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
 
-        // TODO: make this configurable.
-        let resolve_ptr_timeout = Duration::new(10, 0);
-
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
             .runtime
-            .timeout(resolve_ptr_timeout, resolve_ptr_future)
+            .timeout(self.timeoutcfg.resolve_ptr_timeout, resolve_ptr_future)
             .await??;
 
         Ok(hostnames)

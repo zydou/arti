@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 use tor_config::CfgPath;
 
 pub use tor_config::ConfigBuildError;
@@ -45,6 +46,33 @@ pub struct ClientAddrConfig {
     pub(crate) allow_local_addrs: bool,
 }
 
+/// Configuration for client behavior relating to connection timeouts
+///
+/// This type is immutable once constructed. To create an object of this type,
+/// use [`ClientTimeoutConfigBuilder`].
+#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct ClientTimeoutConfig {
+    /// How long should we wait before timing out a stream when connecting
+    /// to a host?
+    #[builder(default = "default_dns_stream_timeout()")]
+    #[serde(with = "humantime_serde", default = "default_dns_stream_timeout")]
+    pub stream_timeout: Duration,
+
+    /// How long should we wait before timing out when resolving a DNS record?
+    #[builder(default = "default_dns_resolve_timeout()")]
+    #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
+    pub resolve_timeout: Duration,
+
+    /// How long should we wait before timing out when resolving a DNS
+    /// PTR record?
+    #[builder(default = "default_dns_resolve_ptr_timeout()")]
+    #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
+    pub resolve_ptr_timeout: Duration,
+}
+
 // NOTE: it seems that `unwrap` may be safe because of builder defaults
 // check `derive_builder` documentation for details
 // https://docs.rs/derive_builder/0.10.2/derive_builder/#default-values
@@ -68,6 +96,47 @@ impl ClientAddrConfig {
     pub fn builder() -> ClientAddrConfigBuilder {
         ClientAddrConfigBuilder::default()
     }
+}
+
+#[allow(clippy::unwrap_used)]
+impl Default for ClientTimeoutConfig {
+    fn default() -> Self {
+        ClientTimeoutConfigBuilder::default().build().unwrap()
+    }
+}
+
+impl From<ClientTimeoutConfig> for ClientTimeoutConfigBuilder {
+    fn from(cfg: ClientTimeoutConfig) -> ClientTimeoutConfigBuilder {
+        let mut builder = ClientTimeoutConfigBuilder::default();
+        builder
+            .stream_timeout(cfg.stream_timeout)
+            .resolve_timeout(cfg.resolve_timeout)
+            .resolve_ptr_timeout(cfg.resolve_ptr_timeout);
+
+        builder
+    }
+}
+
+impl ClientTimeoutConfig {
+    /// Return a new [`ClientTimeoutConfigBuilder`].
+    pub fn builder() -> ClientTimeoutConfigBuilder {
+        ClientTimeoutConfigBuilder::default()
+    }
+}
+
+/// Return the default stream timeout
+fn default_dns_stream_timeout() -> Duration {
+    Duration::new(10, 0)
+}
+
+/// Return the default resolve timeout
+fn default_dns_resolve_timeout() -> Duration {
+    Duration::new(10, 0)
+}
+
+/// Return the default PTR resolve timeout
+fn default_dns_resolve_ptr_timeout() -> Duration {
+    Duration::new(10, 0)
 }
 
 /// Configuration for where information should be stored on disk.
@@ -193,6 +262,9 @@ pub struct TorClientConfig {
 
     /// Rules about which addresses the client is willing to connect to.
     pub(crate) address_filter: ClientAddrConfig,
+
+    /// Rules about client DNS configuration
+    pub(crate) timeout_rules: ClientTimeoutConfig,
 }
 
 impl Default for TorClientConfig {
@@ -254,6 +326,8 @@ pub struct TorClientConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
     address_filter: ClientAddrConfigBuilder,
+    /// Inner builder for the `timeout_rules` section.
+    timeout_rules: ClientTimeoutConfigBuilder,
 }
 
 impl TorClientConfigBuilder {
@@ -285,6 +359,10 @@ impl TorClientConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
+        let timeout_rules = self
+            .timeout_rules
+            .build()
+            .map_err(|e| e.within("timeout_rules"))?;
 
         Ok(TorClientConfig {
             tor_network,
@@ -295,6 +373,7 @@ impl TorClientConfigBuilder {
             circuit_preemptive,
             circuit_timing,
             address_filter,
+            timeout_rules,
         })
     }
 
@@ -402,6 +481,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_preemptive,
             circuit_timing,
             address_filter,
+            timeout_rules,
         } = cfg;
 
         TorClientConfigBuilder {
@@ -413,6 +493,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_preemptive: circuit_preemptive.into(),
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
+            timeout_rules: timeout_rules.into(),
         }
     }
 }
