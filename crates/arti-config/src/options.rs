@@ -3,7 +3,7 @@
 use arti_client::config::{
     circ,
     dir::{self, DownloadScheduleConfig, NetworkConfig},
-    ClientAddrConfig, ClientAddrConfigBuilder, ClientDNSConfig, ClientDNSConfigBuilder,
+    ClientAddrConfig, ClientAddrConfigBuilder, ClientTimeoutConfig, ClientTimeoutConfigBuilder,
     StorageConfig, StorageConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
@@ -159,7 +159,7 @@ pub struct ArtiConfig {
     address_filter: ClientAddrConfig,
 
     /// Rules about a client's DNS resolution.
-    dns_rules: ClientDNSConfig,
+    timeout_rules: ClientTimeoutConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -236,7 +236,7 @@ pub struct ArtiConfigBuilder {
     /// Builder for the address_filter section.
     address_filter: ClientAddrConfigBuilder,
     /// Builder for the DNS resolution rules.
-    dns_rules: ClientDNSConfigBuilder,
+    timeout_rules: ClientTimeoutConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -266,7 +266,10 @@ impl ArtiConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
-        let dns_rules = self.dns_rules.build().map_err(|e| e.within("dns_rules"))?;
+        let timeout_rules = self
+            .timeout_rules
+            .build()
+            .map_err(|e| e.within("timeout_rules"))?;
         Ok(ArtiConfig {
             proxy,
             logging,
@@ -277,7 +280,7 @@ impl ArtiConfigBuilder {
             path_rules,
             circuit_timing,
             address_filter,
-            dns_rules,
+            timeout_rules,
         })
     }
 
@@ -363,12 +366,12 @@ impl ArtiConfigBuilder {
         &mut self.address_filter
     }
 
-    /// Return a mutable reference to a [`ClientDNSConfigBuilder`].
+    /// Return a mutable reference to a [`ClientTimeoutConfigBuilder`].
     ///
     /// This section controls how Arti should handle an exit relay's DNS
     /// resolution.
-    pub fn dns_rules(&mut self) -> &mut ClientDNSConfigBuilder {
-        &mut self.dns_rules
+    pub fn timeout_rules(&mut self) -> &mut ClientTimeoutConfigBuilder {
+        &mut self.timeout_rules
     }
 }
 
@@ -384,7 +387,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             path_rules: cfg.path_rules.into(),
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
-            dns_rules: cfg.dns_rules.into(),
+            timeout_rules: cfg.timeout_rules.into(),
         }
     }
 }

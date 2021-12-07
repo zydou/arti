@@ -46,15 +46,15 @@ pub struct ClientAddrConfig {
     pub(crate) allow_local_addrs: bool,
 }
 
-/// Configuration for client behavior relating to DNS
+/// Configuration for client behavior relating to connection timeouts
 ///
 /// This type is immutable once constructed. To create an object of this type,
-/// use [`ClientDNSConfigBuilder`].
+/// use [`ClientTimeoutConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
-pub struct ClientDNSConfig {
+pub struct ClientTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
     #[builder(default = "default_dns_stream_timeout()")]
@@ -99,15 +99,15 @@ impl ClientAddrConfig {
 }
 
 #[allow(clippy::unwrap_used)]
-impl Default for ClientDNSConfig {
+impl Default for ClientTimeoutConfig {
     fn default() -> Self {
-        ClientDNSConfigBuilder::default().build().unwrap()
+        ClientTimeoutConfigBuilder::default().build().unwrap()
     }
 }
 
-impl From<ClientDNSConfig> for ClientDNSConfigBuilder {
-    fn from(cfg: ClientDNSConfig) -> ClientDNSConfigBuilder {
-        let mut builder = ClientDNSConfigBuilder::default();
+impl From<ClientTimeoutConfig> for ClientTimeoutConfigBuilder {
+    fn from(cfg: ClientTimeoutConfig) -> ClientTimeoutConfigBuilder {
+        let mut builder = ClientTimeoutConfigBuilder::default();
         builder
             .stream_timeout(cfg.stream_timeout)
             .resolve_timeout(cfg.resolve_timeout)
@@ -117,10 +117,10 @@ impl From<ClientDNSConfig> for ClientDNSConfigBuilder {
     }
 }
 
-impl ClientDNSConfig {
-    /// Return a new [`ClientDNSConfigBuilder`].
-    pub fn builder() -> ClientDNSConfigBuilder {
-        ClientDNSConfigBuilder::default()
+impl ClientTimeoutConfig {
+    /// Return a new [`ClientTimeoutConfigBuilder`].
+    pub fn builder() -> ClientTimeoutConfigBuilder {
+        ClientTimeoutConfigBuilder::default()
     }
 }
 
@@ -261,7 +261,7 @@ pub struct TorClientConfig {
     pub(crate) address_filter: ClientAddrConfig,
 
     /// Rules about client DNS configuration
-    pub(crate) dns_rules: ClientDNSConfig,
+    pub(crate) timeout_rules: ClientTimeoutConfig,
 }
 
 impl Default for TorClientConfig {
@@ -321,8 +321,8 @@ pub struct TorClientConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
     address_filter: ClientAddrConfigBuilder,
-    /// Inner builder for the `dns_rules` section.
-    dns_rules: ClientDNSConfigBuilder,
+    /// Inner builder for the `timeout_rules` section.
+    timeout_rules: ClientTimeoutConfigBuilder,
 }
 
 impl TorClientConfigBuilder {
@@ -350,7 +350,10 @@ impl TorClientConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
-        let dns_rules = self.dns_rules.build().map_err(|e| e.within("dns_rules"))?;
+        let timeout_rules = self
+            .timeout_rules
+            .build()
+            .map_err(|e| e.within("timeout_rules"))?;
 
         Ok(TorClientConfig {
             tor_network,
@@ -360,7 +363,7 @@ impl TorClientConfigBuilder {
             path_rules,
             circuit_timing,
             address_filter,
-            dns_rules,
+            timeout_rules,
         })
     }
 
@@ -460,7 +463,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             path_rules,
             circuit_timing,
             address_filter,
-            dns_rules,
+            timeout_rules,
         } = cfg;
 
         TorClientConfigBuilder {
@@ -471,7 +474,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             path_rules: path_rules.into(),
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
-            dns_rules: dns_rules.into(),
+            timeout_rules: timeout_rules.into(),
         }
     }
 }

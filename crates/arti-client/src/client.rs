@@ -6,7 +6,7 @@
 //! `TorClient::connect()`.
 use crate::address::IntoTorAddr;
 
-use crate::config::{ClientAddrConfig, ClientDNSConfig, TorClientConfig};
+use crate::config::{ClientAddrConfig, ClientTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
@@ -46,7 +46,7 @@ pub struct TorClient<R: Runtime> {
     /// Client address configuration
     addrcfg: ClientAddrConfig,
     /// Client DNS configuration
-    dnscfg: ClientDNSConfig,
+    timeoutcfg: ClientTimeoutConfig,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -173,7 +173,7 @@ impl<R: Runtime> TorClient<R> {
             );
         }
         let addr_cfg = config.address_filter.clone();
-        let dns_cfg = config.dns_rules.clone();
+        let timeout_cfg = config.timeout_rules.clone();
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
@@ -220,7 +220,7 @@ impl<R: Runtime> TorClient<R> {
             circmgr,
             dirmgr,
             addrcfg: addr_cfg,
-            dnscfg: dns_cfg,
+            timeoutcfg: timeout_cfg,
         })
     }
 
@@ -265,7 +265,7 @@ impl<R: Runtime> TorClient<R> {
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
-            .timeout(self.dnscfg.stream_timeout, stream_future)
+            .timeout(self.timeoutcfg.stream_timeout, stream_future)
             .await??;
 
         Ok(stream)
@@ -286,7 +286,7 @@ impl<R: Runtime> TorClient<R> {
         let resolve_future = circ.resolve(hostname);
         let addrs = self
             .runtime
-            .timeout(self.dnscfg.resolve_timeout, resolve_future)
+            .timeout(self.timeoutcfg.resolve_timeout, resolve_future)
             .await??;
 
         Ok(addrs)
@@ -306,7 +306,7 @@ impl<R: Runtime> TorClient<R> {
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
             .runtime
-            .timeout(self.dnscfg.resolve_ptr_timeout, resolve_ptr_future)
+            .timeout(self.timeoutcfg.resolve_ptr_timeout, resolve_ptr_future)
             .await??;
 
         Ok(hostnames)
