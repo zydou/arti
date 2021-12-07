@@ -817,6 +817,31 @@ impl NetDir {
         self.by_rsa_id_unchecked(rsa_id)
             .map(|unchecked| RelayWeight(self.weights.weight_rs_for_role(unchecked.rs, role)))
     }
+
+    /// Return all relays in this NetDir known to be in the same family as
+    /// `relay`.
+    ///
+    /// This list of members will **not** necessarily include `relay` itself.
+    ///
+    /// # Limitations
+    ///
+    /// Two relays only belong to the same family if _each_ relay
+    /// claims to share a family with the other.  But if we are
+    /// missing a microdescriptor for one of the relays listed by this
+    /// relay, we cannot know whether it acknowledges family
+    /// membership with this relay or not.  Therefore, this function
+    /// can omit family members for which there is not (as yet) any
+    /// Relay object.
+    pub fn known_family_members<'a>(
+        &'a self,
+        relay: &'a Relay<'a>,
+    ) -> impl Iterator<Item = Relay<'a>> {
+        let relay_rsa_id = relay.rsa_id();
+        relay.md.family().members().filter_map(move |other_rsa_id| {
+            self.by_rsa_id(other_rsa_id)
+                .filter(|other_relay| other_relay.md.family().contains(relay_rsa_id))
+        })
+    }
 }
 
 impl MdReceiver for NetDir {
@@ -1500,5 +1525,40 @@ mod test {
         assert!(netdir
             .weight_by_rsa_id(&[99; 20].into(), WeightRole::Guard)
             .is_none());
+    }
+
+    #[test]
+    fn family_list() {
+        let netdir = construct_custom_netdir(|idx, n| {
+            if idx == 0x0a {
+                n.md.family(
+                    "$0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B \
+                     $0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C \
+                     $0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D0D"
+                        .parse()
+                        .unwrap(),
+                );
+            } else if idx == 0x0c {
+                n.md.family("$0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A".parse().unwrap());
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        // In the testing netdir, adjacent members are in the same family by default...
+        let r0 = netdir.by_id(&[0; 32].into()).unwrap();
+        let family: Vec<_> = netdir.known_family_members(&r0).collect();
+        assert_eq!(family.len(), 1);
+        assert_eq!(family[0].id(), &Ed25519Identity::from([1; 32]));
+
+        // But we've made this relay claim membership with several others.
+        let r10 = netdir.by_id(&[10; 32].into()).unwrap();
+        let family: HashSet<_> = netdir.known_family_members(&r10).map(|r| *r.id()).collect();
+        assert_eq!(family.len(), 2);
+        assert!(family.contains(&Ed25519Identity::from([11; 32])));
+        assert!(family.contains(&Ed25519Identity::from([12; 32])));
+        // Note that 13 doesn't get put in, even though it's listed, since it doesn't claim
+        //  membership with 10.
     }
 }

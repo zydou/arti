@@ -297,10 +297,16 @@ impl Guard {
         }
     }
 
-    /// Return true if this guard obeys the restriction in `rest`.
-    fn obeys_restriction(&self, rest: &GuardRestriction) -> bool {
-        match rest {
+    /// Return true if this guard obeys all of the given restrictions.
+    fn obeys_restrictions(&self, restrictions: &[GuardRestriction]) -> bool {
+        restrictions.iter().all(|r| self.obeys_restriction(r))
+    }
+
+    /// Return true if this guard obeys a single restriction.
+    fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
+        match r {
             GuardRestriction::AvoidId(ed) => &self.id.ed25519 != ed,
+            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.ed25519),
         }
     }
 
@@ -310,10 +316,7 @@ impl Guard {
         if usage.kind == GuardUsageKind::OneHopDirectory && !self.is_dir_cache {
             return false;
         }
-        match &usage.restriction {
-            Some(rest) => self.obeys_restriction(rest),
-            None => true,
-        }
+        self.obeys_restrictions(&usage.restrictions[..])
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -688,17 +691,40 @@ mod test {
 
         use crate::GuardUsageBuilder;
         let usage1 = GuardUsageBuilder::new()
-            .restriction(GuardRestriction::AvoidId([22; 32].into()))
+            .push_restriction(GuardRestriction::AvoidId([22; 32].into()))
             .build()
             .unwrap();
         let usage2 = GuardUsageBuilder::new()
-            .restriction(GuardRestriction::AvoidId([13; 32].into()))
+            .push_restriction(GuardRestriction::AvoidId([13; 32].into()))
             .build()
             .unwrap();
         let usage3 = GuardUsage::default();
+        let usage4 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidId([22; 32].into()))
+            .push_restriction(GuardRestriction::AvoidId([13; 32].into()))
+            .build()
+            .unwrap();
+        let usage5 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidAllIds(
+                vec![[22; 32].into(), [13; 32].into()].into_iter().collect(),
+            ))
+            .build()
+            .unwrap();
+        let usage6 = GuardUsageBuilder::new()
+            .push_restriction(GuardRestriction::AvoidAllIds(
+                vec![[99; 32].into(), [100; 32].into()]
+                    .into_iter()
+                    .collect(),
+            ))
+            .build()
+            .unwrap();
+
         assert!(g.conforms_to_usage(&usage1));
         assert!(!g.conforms_to_usage(&usage2));
         assert!(g.conforms_to_usage(&usage3));
+        assert!(!g.conforms_to_usage(&usage4));
+        assert!(!g.conforms_to_usage(&usage5));
+        assert!(g.conforms_to_usage(&usage6));
     }
 
     #[test]

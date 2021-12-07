@@ -4,7 +4,6 @@ use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
-use tor_linkspec::ChanTarget;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -143,11 +142,11 @@ impl<'a> ExitPathBuilder<'a> {
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
-                    // TODO Problem! This doesn't actually enforce a
-                    // distinct family for the guard and the exit.  It
-                    // just makes sure they're not the same relay.
-                    let id = exit_relay.ed_identity();
-                    b.restriction(tor_guardmgr::GuardRestriction::AvoidId(*id));
+                    let mut family = std::collections::HashSet::new();
+                    family.insert(*exit_relay.id());
+                    // TODO(nickm): See "limitations" note on `known_family_members`.
+                    family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
+                    b.push_restriction(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
