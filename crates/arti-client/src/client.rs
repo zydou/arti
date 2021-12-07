@@ -173,7 +173,7 @@ impl<R: Runtime> TorClient<R> {
             );
         }
         let addr_cfg = config.address_filter.clone();
-        let timeout_cfg = config.timeout_rules.clone();
+        let timeout_cfg = config.stream_timeouts.clone();
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
@@ -265,7 +265,7 @@ impl<R: Runtime> TorClient<R> {
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
-            .timeout(self.timeoutcfg.stream_timeout, stream_future)
+            .timeout(self.timeoutcfg.connect_timeout, stream_future)
             .await??;
 
         Ok(stream)

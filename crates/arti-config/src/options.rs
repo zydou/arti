@@ -161,8 +161,8 @@ pub struct ArtiConfig {
     /// Rules about which addresses the client is willing to connect to.
     address_filter: ClientAddrConfig,
 
-    /// Rules about a client's DNS resolution.
-    timeout_rules: ClientTimeoutConfig,
+    /// Information about when to time out client requests.
+    stream_timeouts: ClientTimeoutConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -242,8 +242,8 @@ pub struct ArtiConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Builder for the address_filter section.
     address_filter: ClientAddrConfigBuilder,
-    /// Builder for the DNS resolution rules.
-    timeout_rules: ClientTimeoutConfigBuilder,
+    /// Builder for the stream timeout rules.
+    stream_timeouts: ClientTimeoutConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -277,10 +277,10 @@ impl ArtiConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
-        let timeout_rules = self
-            .timeout_rules
+        let stream_timeouts = self
+            .stream_timeouts
             .build()
-            .map_err(|e| e.within("timeout_rules"))?;
+            .map_err(|e| e.within("stream_timeouts"))?;
         Ok(ArtiConfig {
             proxy,
             logging,
@@ -292,7 +292,7 @@ impl ArtiConfigBuilder {
             preemptive_circuits,
             circuit_timing,
             address_filter,
-            timeout_rules,
+            stream_timeouts,
         })
     }
 
@@ -389,8 +389,8 @@ impl ArtiConfigBuilder {
     ///
     /// This section controls how Arti should handle an exit relay's DNS
     /// resolution.
-    pub fn timeout_rules(&mut self) -> &mut ClientTimeoutConfigBuilder {
-        &mut self.timeout_rules
+    pub fn stream_timeouts(&mut self) -> &mut ClientTimeoutConfigBuilder {
+        &mut self.stream_timeouts
     }
 }
 
@@ -407,7 +407,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             preemptive_circuits: cfg.preemptive_circuits.into(),
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
-            timeout_rules: cfg.timeout_rules.into(),
+            stream_timeouts: cfg.stream_timeouts.into(),
         }
     }
 }
