@@ -121,6 +121,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
+ "tor-circmgr",
  "tor-config",
 ]
 

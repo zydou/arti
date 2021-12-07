@@ -478,6 +478,9 @@ struct CircList<B: AbstractCircBuilder> {
 
 impl<B: AbstractCircBuilder> CircList<B> {
     /// Make a new empty `CircList`
+    ///
+    /// XXXX: We need the exit_circs_for_port since it's used by find_open()
+    /// which in turn calls find_supported() which uses this variable
     fn new() -> Self {
         CircList {
             open_circs: HashMap::new(),
@@ -660,6 +663,7 @@ enum Action<B: AbstractCircBuilder> {
 
 impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// Construct a new AbstractCircMgr.
+    /// XXX: We need the exit_circs_for_port for CircList
     pub(crate) fn new(builder: B, runtime: R, circuit_timing: CircuitTiming) -> Self {
         let circs = sync::Mutex::new(CircList::new());
         let dflt_params = tor_netdir::params::NetParameters::default();
@@ -1862,7 +1866,7 @@ mod test {
         assert_eq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
-                &usage_web
+                &usage_web,
             ),
             vec![&mut entry_web_c]
         );
@@ -1870,7 +1874,7 @@ mod test {
         assert_eq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
-                &usage_web
+                &usage_web,
             ),
             vec![&mut entry_web_c, &mut entry_full_c]
         );
@@ -1879,8 +1883,12 @@ mod test {
 
         let usage_preemptive_web = TargetCircUsage::Preemptive {
             port: Some(TargetPort::ipv4(80)),
+            circs: 2,
         };
-        let usage_preemptive_dns = TargetCircUsage::Preemptive { port: None };
+        let usage_preemptive_dns = TargetCircUsage::Preemptive {
+            port: None,
+            circs: 2,
+        };
 
         // shouldn't return anything unless there are >=2 circuits
 
