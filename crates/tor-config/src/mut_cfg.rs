@@ -61,14 +61,6 @@ impl<T: Default> Default for MutCfg<T> {
     }
 }
 
-impl<T> Clone for MutCfg<T> {
-    fn clone(&self) -> Self {
-        MutCfg {
-            cfg: RwLock::new(self.get()),
-        }
-    }
-}
-
 impl<T> From<T> for MutCfg<T> {
     fn from(config: T) -> MutCfg<T> {
         MutCfg::new(config)

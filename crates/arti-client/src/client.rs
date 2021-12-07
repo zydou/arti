@@ -33,6 +33,9 @@ use tracing::{debug, error, info, warn};
 /// Cloning this object makes a new reference to the same underlying
 /// handles: it's usually better to clone the `TorClient` than it is to
 /// create a new one.
+// TODO(nickm): This type now has 5 Arcs inside it, and 2 types that have
+// implicit Arcs inside them! maybe it's time to replace much of the insides of
+// this with an Arc<TorClientInner>?
 #[derive(Clone)]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
@@ -47,9 +50,9 @@ pub struct TorClient<R: Runtime> {
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
-    addrcfg: MutCfg<ClientAddrConfig>,
+    addrcfg: Arc<MutCfg<ClientAddrConfig>>,
     /// Client DNS configuration
-    timeoutcfg: MutCfg<ClientTimeoutConfig>,
+    timeoutcfg: Arc<MutCfg<ClientTimeoutConfig>>,
     /// Mutex used to serialize concurrent attempts to reconfigure a TorClient.
     ///
     /// See [`TorClient::reconfigure`] for more information on its use.
@@ -227,8 +230,8 @@ impl<R: Runtime> TorClient<R> {
             circmgr,
             dirmgr,
             statemgr,
-            addrcfg: addr_cfg.into(),
-            timeoutcfg: timeout_cfg.into(),
+            addrcfg: Arc::new(addr_cfg.into()),
+            timeoutcfg: Arc::new(timeout_cfg.into()),
             reconfigure_lock: Arc::new(Mutex::new(())),
         })
     }
