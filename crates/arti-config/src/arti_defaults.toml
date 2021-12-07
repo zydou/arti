@@ -83,6 +83,22 @@ retry_microdescs = { num_retries = 3, initial_delay = "1 sec", parallelism = 4 }
 ipv4_subnet_family_prefix = 16
 ipv6_subnet_family_prefix = 32
 
+# Rules for preemptive circuits.
+[circuit_preemptive]
+
+# How many circuits should we have before we stop opening circuits
+# preemptively?
+threshold = 12
+
+# Which exit ports should we preemptively build circuits through?
+ports = [80, 443]
+
+# When we see a new port, how long should we have an fast exit for that port?
+duration = 3600
+
+# How many circuits should we have at minimum for a exit port?
+min_exit_circs_for_port = 2
+
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
 [circuit_timing]

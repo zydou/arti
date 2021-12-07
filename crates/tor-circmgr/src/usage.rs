@@ -1,6 +1,7 @@
 //! Code related to tracking what activities a circuit can be used for.
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::debug;
@@ -27,7 +28,7 @@ pub(crate) struct ExitPolicy {
 ///
 /// Ordinarily, this is a TCP port, plus a flag to indicate whether we
 /// must support IPv4 or IPv6.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize)]
 pub struct TargetPort {
     /// True if this is a request to connect to an IPv6 address
     ipv6: bool,
@@ -235,6 +236,8 @@ pub(crate) enum TargetCircUsage {
         ///
         /// If this is `None`, we just want a circuit capable of doing DNS resolution.
         port: Option<TargetPort>,
+        /// The number of exit circuits needed for a port
+        circs: usize,
     },
 }
 
@@ -278,7 +281,7 @@ impl TargetCircUsage {
                 let (path, mon, usable) = DirPathBuilder::new().pick_path(rng, netdir, guards)?;
                 Ok((path, SupportedCircUsage::Dir, mon, usable))
             }
-            TargetCircUsage::Preemptive { port } => {
+            TargetCircUsage::Preemptive { port, .. } => {
                 // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
                     .pick_path(rng, netdir, guards, config)?;
@@ -352,7 +355,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
-            (Exit { policy, isolation }, TargetCircUsage::Preemptive { port }) => {
+            (Exit { policy, isolation }, TargetCircUsage::Preemptive { port, .. }) => {
                 if isolation.is_some() {
                     // If the circuit has a stream isolation token, we might not be able to use it
                     // for new streams that don't share it.
@@ -403,7 +406,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         usage: &TargetCircUsage,
     ) -> Vec<&'b mut OpenEntry<Self, C>> {
         match usage {
-            TargetCircUsage::Preemptive { .. } => {
+            TargetCircUsage::Preemptive { circs, .. } => {
                 let supported = abstract_spec_find_supported(list, usage);
                 // We need to have at least two circuits that support `port` in order
                 // to reuse them; otherwise, we must create a new circuit, so
@@ -413,7 +416,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     usage,
                     supported.len()
                 );
-                if supported.len() >= 2 {
+                if supported.len() >= *circs {
                     supported
                 } else {
                     vec![]

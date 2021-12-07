@@ -12,6 +12,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 arti-client = { package="arti-client", path = "../arti-client", version = "0.0.2"}
+tor-circmgr = { package="tor-circmgr", path="../tor-circmgr", version = "0.0.2"}
 tor-config = { package="tor-config", path = "../tor-config", version = "0.0.2", features = ["expand-paths"]}
 config = { version = "0.11.0", default-features = false, features = ["toml"] }
 once_cell = "1.7.2"

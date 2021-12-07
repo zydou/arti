@@ -14,8 +14,8 @@ pub use tor_config::ConfigBuildError;
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
     pub use tor_circmgr::{
-        CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-        PathConfigBuilder,
+        CircMgrConfig, CircMgrConfigBuilder, CircuitPreemptive, CircuitPreemptiveBuilder,
+        CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
     };
 }
 
@@ -185,6 +185,9 @@ pub struct TorClientConfig {
     /// Information about how to build paths through the network.
     path_rules: circ::PathConfig,
 
+    /// Information about preemptive circuits.
+    circuit_preemptive: circ::CircuitPreemptive,
+
     /// Information about how to retry and expire circuits and request for circuits.
     circuit_timing: circ::CircuitTiming,
 
@@ -246,6 +249,8 @@ pub struct TorClientConfigBuilder {
     /// Inner builder for the `path_rules` section.
     path_rules: circ::PathConfigBuilder,
     /// Inner builder for the `circuit_timing` section.
+    circuit_preemptive: circ::CircuitPreemptiveBuilder,
+    /// Inner builder for the `circuit_timing` section.
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
     address_filter: ClientAddrConfigBuilder,
@@ -268,6 +273,10 @@ impl TorClientConfigBuilder {
             .path_rules
             .build()
             .map_err(|e| e.within("path_rules"))?;
+        let circuit_preemptive = self
+            .circuit_preemptive
+            .build()
+            .map_err(|e| e.within("circuit_preemptive"))?;
         let circuit_timing = self
             .circuit_timing
             .build()
@@ -283,6 +292,7 @@ impl TorClientConfigBuilder {
             download_schedule,
             override_net_params,
             path_rules,
+            circuit_preemptive,
             circuit_timing,
             address_filter,
         })
@@ -356,6 +366,13 @@ impl TorClientConfigBuilder {
         &mut self.path_rules
     }
 
+    /// Return a mutable reference to a [`CircuitPreemptiveBuilder`](circ::CircuitPreemptiveBuilder).
+    ///
+    /// This section overrides Arti's rules for preemptive circuits.
+    pub fn circuit_preemptive(&mut self) -> &mut circ::CircuitPreemptiveBuilder {
+        &mut self.circuit_preemptive
+    }
+
     /// Return a mutable reference to a [`CircuitTimingBuilder`](circ::CircuitTimingBuilder).
     ///
     /// This section overrides Arti's rules for deciding how long to use
@@ -382,6 +399,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             download_schedule,
             override_net_params,
             path_rules,
+            circuit_preemptive,
             circuit_timing,
             address_filter,
         } = cfg;
@@ -392,6 +410,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             download_schedule: download_schedule.into(),
             override_net_params,
             path_rules: path_rules.into(),
+            circuit_preemptive: circuit_preemptive.into(),
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
         }
