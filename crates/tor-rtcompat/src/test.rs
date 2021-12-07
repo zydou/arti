@@ -202,7 +202,8 @@ fn simple_tls<R: Runtime>(runtime: &R) -> IoResult<()> {
     runtime.block_on(async {
         let text = b"I Suddenly Dont Understand Anything";
         let mut buf = vec![0_u8; text.len()];
-        let mut conn = connector.connect_unvalidated(&addr, "Kan.Aya").await?;
+        let conn = runtime.connect(&addr).await?;
+        let mut conn = connector.negotiate_unvalidated(conn, "Kan.Aya").await?;
         assert!(conn.peer_certificate()?.is_some());
         conn.write_all(text).await?;
         conn.flush().await?;

@@ -121,7 +121,6 @@ mod tls {
 
     use std::convert::TryFrom;
     use std::io::{Error as IoError, Result as IoResult};
-    use std::net::SocketAddr;
 
     /// The TLS-over-TCP type returned by this module.
     #[allow(unreachable_pub)] // not actually unreachable; depends on features
@@ -142,16 +141,14 @@ mod tls {
     }
 
     #[async_trait]
-    impl crate::traits::TlsConnector for TlsConnector {
+    impl crate::traits::TlsConnector<TcpStream> for TlsConnector {
         type Conn = TlsStream;
 
-        async fn connect_unvalidated(
+        async fn negotiate_unvalidated(
             &self,
-            addr: &SocketAddr,
+            stream: TcpStream,
             hostname: &str,
         ) -> IoResult<Self::Conn> {
-            let stream = TcpStream::connect(addr).await?;
-
             let conn = self
                 .connector
                 .connect(hostname, stream)
@@ -183,6 +180,7 @@ mod tls {
 
 // ==============================
 
+use async_std_crate::net::TcpStream;
 use futures::{Future, FutureExt};
 use std::pin::Pin;
 use std::time::Duration;
@@ -207,7 +205,7 @@ impl SpawnBlocking for async_executors::AsyncStd {
     }
 }
 
-impl TlsProvider for async_executors::AsyncStd {
+impl TlsProvider<TcpStream> for async_executors::AsyncStd {
     type TlsStream = tls::TlsStream;
     type Connector = tls::TlsConnector;
 

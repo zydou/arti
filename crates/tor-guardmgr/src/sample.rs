@@ -913,7 +913,7 @@ mod test {
         // Pick a guard and mark it as confirmed.
         let id1 = guards.sample[0].clone();
         guards.record_success(&id1, &params, t1);
-        assert_eq!(&guards.confirmed, &[id1.clone()]);
+        assert_eq!(&guards.confirmed, &[id1]);
 
         let one_day = Duration::from_secs(86400);
         guards.expire_old_guards(&params, t1 + one_day * 30);

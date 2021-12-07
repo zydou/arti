@@ -6,6 +6,7 @@
 use crate::net::MockNetProvider;
 use tor_rtcompat::{Runtime, SleepProvider, SpawnBlocking, TcpProvider, TlsProvider};
 
+use crate::io::LocalStream;
 use async_trait::async_trait;
 use futures::task::{FutureObj, Spawn, SpawnError};
 use futures::Future;
@@ -66,9 +67,9 @@ impl<R: Runtime> TcpProvider for MockNetRuntime<R> {
     }
 }
 
-impl<R: Runtime> TlsProvider for MockNetRuntime<R> {
-    type Connector = <MockNetProvider as TlsProvider>::Connector;
-    type TlsStream = <MockNetProvider as TlsProvider>::TlsStream;
+impl<R: Runtime> TlsProvider<LocalStream> for MockNetRuntime<R> {
+    type Connector = <MockNetProvider as TlsProvider<LocalStream>>::Connector;
+    type TlsStream = <MockNetProvider as TlsProvider<LocalStream>>::TlsStream;
     fn tls_connector(&self) -> Self::Connector {
         self.net.tls_connector()
     }

@@ -26,7 +26,15 @@ use std::time::{Duration, Instant, SystemTime};
 /// Additionally, every `Runtime` is [`Send`] and [`Sync`], though these
 /// requirements may be somewhat relaxed in the future.
 pub trait Runtime:
-    Sync + Send + Spawn + SpawnBlocking + Clone + SleepProvider + TcpProvider + TlsProvider + 'static
+    Sync
+    + Send
+    + Spawn
+    + SpawnBlocking
+    + Clone
+    + SleepProvider
+    + TcpProvider
+    + TlsProvider<Self::TcpStream>
+    + 'static
 {
 }
 
@@ -38,7 +46,7 @@ impl<T> Runtime for T where
         + Clone
         + SleepProvider
         + TcpProvider
-        + TlsProvider
+        + TlsProvider<Self::TcpStream>
         + 'static
 {
 }
@@ -161,38 +169,35 @@ pub trait CertifiedConn {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>>;
 }
 
-/// An object that knows how to make a TLS-over-TCP connection we
-/// can use in Tor.
+/// An object that knows how to wrap a TCP connection (where the type of said TCP
+/// connection is `S`) with TLS.
 ///
 /// (Note that because of Tor's peculiarities, this is not a
 /// general-purpose TLS type.  Unlike typical users, Tor does not want
 /// its TLS library to check whether the certificates are signed
 /// within the web PKI hierarchy, or what their hostnames are.
 #[async_trait]
-pub trait TlsConnector {
+pub trait TlsConnector<S> {
     /// The type of connection returned by this connector
     type Conn: AsyncRead + AsyncWrite + CertifiedConn + Unpin + Send + 'static;
 
-    /// Launch a TLS-over-TCP connection to a given address.
+    /// Start a TLS session over the provided TCP stream `stream`.
     ///
     /// Declare `sni_hostname` as the desired hostname, but don't
     /// actually check whether the hostname in the certificate matches
     /// it.
-    async fn connect_unvalidated(
-        &self,
-        addr: &SocketAddr,
-        sni_hostname: &str,
-    ) -> IoResult<Self::Conn>;
+    async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn>;
 }
 
-/// Trait for a runtime that knows how to create TLS connections.
+/// Trait for a runtime that knows how to create TLS connections over
+/// TCP streams of type `S`.
 ///
 /// This is separate from [`TlsConnector`] because eventually we may
 /// eventually want to support multiple `TlsConnector` implementations
 /// that use a single [`Runtime`].
-pub trait TlsProvider {
+pub trait TlsProvider<S> {
     /// The Connector object that this provider can return.
-    type Connector: TlsConnector<Conn = Self::TlsStream> + Send + Sync + Unpin;
+    type Connector: TlsConnector<S, Conn = Self::TlsStream> + Send + Sync + Unpin;
 
     /// The type of the stream returned by that connector.
     type TlsStream: AsyncRead + AsyncWrite + CertifiedConn + Unpin + Send + 'static;

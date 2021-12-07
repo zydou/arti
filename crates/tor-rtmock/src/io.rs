@@ -37,11 +37,13 @@ pub fn stream_pair() -> (LocalStream, LocalStream) {
         w: w1,
         r: r1,
         pending_bytes: Vec::new(),
+        tls_cert: None,
     };
     let s2 = LocalStream {
         w: w2,
         r: r2,
         pending_bytes: Vec::new(),
+        tls_cert: None,
     };
     (s1, s2)
 }
@@ -65,6 +67,15 @@ pub struct LocalStream {
     r: mpsc::Receiver<IoResult<Vec<u8>>>,
     /// Bytes that we have read from `r` but not yet delivered.
     pending_bytes: Vec<u8>,
+    /// Data about the other side of this stream's fake TLS certificate, if any.
+    /// If this is present, I/O operations will fail with an error.
+    ///
+    /// How this is intended to work: things that return `LocalStream`s that could potentially
+    /// be connected to a fake TLS listener should set this field. Then, a fake TLS wrapper
+    /// type would clear this field (after checking its contents are as expected).
+    ///
+    /// FIXME(eta): this is a bit of a layering violation, but it's hard to do otherwise
+    pub(crate) tls_cert: Option<Vec<u8>>,
 }
 
 /// Helper: pull bytes off the front of `pending_bytes` and put them
@@ -84,6 +95,12 @@ impl AsyncRead for LocalStream {
     ) -> Poll<IoResult<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
+        }
+        if self.tls_cert.is_some() {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "attempted to treat a TLS stream as non-TLS!",
+            )));
         }
         if !self.pending_bytes.is_empty() {
             return Poll::Ready(Ok(drain_helper(buf, &mut self.pending_bytes)));
@@ -107,6 +124,13 @@ impl AsyncWrite for LocalStream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<IoResult<usize>> {
+        if self.tls_cert.is_some() {
+            return Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "attempted to treat a TLS stream as non-TLS!",
+            )));
+        }
+
         match futures::ready!(Pin::new(&mut self.w).poll_ready(cx)) {
             Ok(()) => (),
             Err(e) => return Poll::Ready(Err(IoError::new(ErrorKind::BrokenPipe, e))),

@@ -18,7 +18,7 @@ pub(crate) struct ChanBuilder<R: Runtime> {
     /// Asynchronous runtime for TLS, TCP, spawning, and timeouts.
     runtime: R,
     /// Object to build TLS connections.
-    tls_connector: <R as TlsProvider>::Connector,
+    tls_connector: <R as TlsProvider<R::TcpStream>>::Connector,
 }
 
 impl<R: Runtime> ChanBuilder<R> {
@@ -72,10 +72,13 @@ impl<R: Runtime> ChanBuilder<R> {
 
         tracing::info!("Negotiating TLS with {}", addr);
 
+        // Establish a TCP connection.
+        let stream = self.runtime.connect(addr).await?;
+
         // TODO: add a random hostname here if it will be used for SNI?
         let tls = self
             .tls_connector
-            .connect_unvalidated(addr, "ignored")
+            .negotiate_unvalidated(stream, "ignored")
             .await?;
 
         let peer_cert = tls
