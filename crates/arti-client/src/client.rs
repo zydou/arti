@@ -240,8 +240,8 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// # Limitations
     ///
-    /// At present, no options can actually be reconfigured: this function is a lie!
-    /// It only exists to demonstrate its intended API.
+    /// At present, most options can't actually be reconfigured.  Those that can
+    /// are specifically noted in their documentation.
     pub fn reconfigure(
         &self,
         new_config: &TorClientConfig,

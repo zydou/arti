@@ -566,6 +566,14 @@ impl<B: AbstractCircBuilder> CircList<B> {
         }
     }
 
+    /// Return true if `circ` is still pending.
+    ///
+    /// A circuit will become non-pending when finishes (successfully or not), or when it's
+    /// removed from this list via `clear_all_circuits()`.
+    fn circ_is_pending(&self, circ: &Arc<PendingEntry<B>>) -> bool {
+        self.pending_circs.contains(circ)
+    }
+
     /// Construct and add a new entry to the set of request waiting
     /// for a circuit.
     ///
@@ -582,6 +590,12 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .iter()
             .filter(|pend| pend.supported_by(circ_spec))
             .collect()
+    }
+
+    /// Clear all pending circuits and open circuits.
+    fn clear_all_circuits(&mut self) {
+        self.pending_circs.clear();
+        self.open_circs.clear();
     }
 }
 
@@ -1033,14 +1047,19 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
                         {
                             let mut list = self.circs.lock().expect("poisoned lock");
-                            list.add_open(open_ent);
-                            // We drop our reference to 'pending' here:
-                            // this should make all the weak references to
-                            // the `PendingEntry` become dangling.
-                            drop(pending);
+                            if list.circ_is_pending(&pending) {
+                                list.add_open(open_ent);
+                                // We drop our reference to 'pending' here:
+                                // this should make all the weak references to
+                                // the `PendingEntry` become dangling.
+                                drop(pending);
+                                (Some(new_spec), Ok(id))
+                            } else {
+                                // This circuit is no longer pending! It must have been cancelled.
+                                drop(pending); // ibid
+                                (None, Err(Error::CircCancelled))
+                            }
                         }
-
-                        (Some(new_spec), Ok(id))
                     }
                 };
                 // Tell anybody who was listening about it that this
@@ -1084,6 +1103,13 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     pub(crate) fn take_circ(&self, id: &<B::Circ as AbstractCirc>::Id) -> Option<Arc<B::Circ>> {
         let mut list = self.circs.lock().expect("poisoned lock");
         list.take_open(id).map(|e| e.circ)
+    }
+
+    /// Remove all circuits from this manager, to ensure they can't be given out for any more
+    /// requests.
+    pub(crate) fn retire_all_circuits(&self) {
+        let mut list = self.circs.lock().expect("poisoned lock");
+        list.clear_all_circuits();
     }
 
     /// Expire circuits according to the rules in `config` and the

@@ -270,7 +270,7 @@ pub struct CircuitBuilder<R: Runtime> {
     /// The underlying [`Builder`] object
     builder: Arc<Builder<R, Arc<ClientCirc>>>,
     /// Configuration for how to choose paths for circuits.
-    path_config: crate::PathConfig,
+    path_config: tor_config::MutCfg<crate::PathConfig>,
     /// State-manager object to use in storing current state.
     storage: crate::TimeoutStateHandle,
     /// Guard manager to tell us which guards nodes to use for the circuits
@@ -293,15 +293,20 @@ impl<R: Runtime> CircuitBuilder<R> {
 
         CircuitBuilder {
             builder: Arc::new(Builder::new(runtime, chanmgr, timeouts)),
-            path_config,
+            path_config: path_config.into(),
             storage,
             guardmgr,
         }
     }
 
     /// Return this builder's [`PathConfig`](crate::PathConfig).
-    pub(crate) fn path_config(&self) -> &crate::PathConfig {
-        &self.path_config
+    pub(crate) fn path_config(&self) -> Arc<crate::PathConfig> {
+        self.path_config.get()
+    }
+
+    /// Replace this builder's [`PathConfig`](crate::PathConfig).
+    pub(crate) fn set_path_config(&self, new_config: crate::PathConfig) {
+        self.path_config.replace(new_config);
     }
 
     /// Flush state to the state manager.

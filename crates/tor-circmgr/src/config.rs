@@ -15,6 +15,11 @@ use std::time::Duration;
 ///
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`], or deserialize it from a string.
+///
+/// You may change the PathConfig on a running Arti client.  Doing so changes
+/// paths that are constructed in the future, and prevents requests from being
+/// attached to existing circuits, if the configuration has become more
+/// restrictive.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -56,6 +61,15 @@ impl PathConfig {
             self.ipv4_subnet_family_prefix,
             self.ipv6_subnet_family_prefix,
         )
+    }
+
+    /// Return true if this configuration is at least as permissive as `other`.
+    ///
+    /// In other words, in other words, return true if every circuit permitted
+    /// by `other` would also be permitted by this configuration.
+    pub(crate) fn more_permissive_than(&self, other: &Self) -> bool {
+        self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
+            && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
     }
 }
 

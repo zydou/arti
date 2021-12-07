@@ -41,6 +41,14 @@ pub enum Error {
     #[error("{0}")]
     RequestFailed(RetryError<Box<Error>>),
 
+    /// A circuit succeeded, but was cancelled before it could be used.
+    ///
+    /// Circuits can be cancelled either by a user request to
+    /// [`retire_all_circuits()`](crate::CircMgr::retire_all_circuits), or by a
+    /// configuration change that makes old paths unusable.
+    #[error("Circuit cancelled")]
+    CircCancelled,
+
     /// An error caused by a programming issue or a failure in another
     /// library that we can't work around.
     #[error("Internal error: {0}")]

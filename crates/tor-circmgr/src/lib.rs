@@ -59,7 +59,7 @@ use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 pub mod build;
 mod config;
@@ -220,13 +220,27 @@ impl<R: Runtime> CircMgr<R> {
         new_config: &CircMgrConfig,
         how: tor_config::Reconfigure,
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
-        let path_rules = self.mgr.peek_builder().path_config();
+        let old_path_rules = self.mgr.peek_builder().path_config();
         let circuit_timing = self.mgr.circuit_timing();
-        if path_rules != &new_config.path_rules {
-            how.cannot_change("path_rules.*")?;
-        }
         if circuit_timing != &new_config.circuit_timing {
             how.cannot_change("circuit_timing.*")?;
+        }
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
+
+        let discard_circuits = !new_config.path_rules.more_permissive_than(&old_path_rules);
+
+        self.mgr
+            .peek_builder()
+            .set_path_config(new_config.path_rules.clone());
+
+        if discard_circuits {
+            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
+            // retire those circuits that do not conform to the new path rules.
+            info!("Path configuration has become more restrictive: retiring existing circuits.");
+            self.retire_all_circuits();
         }
         Ok(())
     }
@@ -344,6 +358,17 @@ impl<R: Runtime> CircMgr<R> {
     /// keeping track of, don't give it out for any future requests.
     pub fn retire_circ(&self, circ_id: &UniqId) {
         let _ = self.mgr.take_circ(circ_id);
+    }
+
+    /// Mark every circuit that we have launched so far as unsuitable for
+    /// any future requests.  This won't close existing circuits that have
+    /// streams attached to them, but it will prevent any future streams from
+    /// being attached.
+    ///
+    /// TODO: we may want to expose this eventually.  If we do, we should
+    /// be very clear that you don't want to use it haphazardly.
+    pub(crate) fn retire_all_circuits(&self) {
+        self.mgr.retire_all_circuits();
     }
 
     /// Expire every circuit that has been dirty for too long.
