@@ -33,6 +33,10 @@ pub mod dir {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientAddrConfigBuilder`].
+///
+/// You can replace this configuration on a running Arti client.  Doing so will
+/// affect new streams and requests, but will have no effect on existing streams
+/// and requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -50,6 +54,10 @@ pub struct ClientAddrConfig {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientTimeoutConfigBuilder`].
+///
+/// You can replace this configuration on a running Arti client.  Doing so will
+/// affect new streams and requests, but will have no effect on existing streams
+/// and requests—even those that are currently waiting.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]

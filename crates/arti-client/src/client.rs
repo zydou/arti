@@ -8,6 +8,7 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, ClientTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
+use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -46,9 +47,9 @@ pub struct TorClient<R: Runtime> {
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
-    addrcfg: ClientAddrConfig,
+    addrcfg: MutCfg<ClientAddrConfig>,
     /// Client DNS configuration
-    timeoutcfg: ClientTimeoutConfig,
+    timeoutcfg: MutCfg<ClientTimeoutConfig>,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -222,8 +223,8 @@ impl<R: Runtime> TorClient<R> {
             circmgr,
             dirmgr,
             statemgr,
-            addrcfg: addr_cfg,
-            timeoutcfg: timeout_cfg,
+            addrcfg: addr_cfg.into(),
+            timeoutcfg: timeout_cfg.into(),
         })
     }
 
@@ -266,14 +267,16 @@ impl<R: Runtime> TorClient<R> {
         if state_cfg != self.statemgr.path() {
             how.cannot_change("storage.state_dir")?;
         }
-        if &self.addrcfg != addr_cfg {
-            how.cannot_change("address_filter.*")?;
-        }
-        if &self.timeoutcfg != timeout_cfg {
-            how.cannot_change("stream_timeouts.*")?;
-        }
+
         self.circmgr.reconfigure(&circ_cfg, how)?;
         self.dirmgr.reconfigure(&dir_cfg, how)?;
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
+
+        self.addrcfg.replace(addr_cfg.clone());
+        self.timeoutcfg.replace(timeout_cfg.clone());
 
         Ok(())
     }
@@ -307,7 +310,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
-        addr.enforce_config(&self.addrcfg)?;
+        addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
 
         let flags = flags.unwrap_or_default();
@@ -319,7 +322,7 @@ impl<R: Runtime> TorClient<R> {
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
-            .timeout(self.timeoutcfg.connect_timeout, stream_future)
+            .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await??;
 
         Ok(stream)
@@ -332,7 +335,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
-        addr.enforce_config(&self.addrcfg)?;
+        addr.enforce_config(&self.addrcfg.get())?;
 
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
@@ -340,7 +343,7 @@ impl<R: Runtime> TorClient<R> {
         let resolve_future = circ.resolve(hostname);
         let addrs = self
             .runtime
-            .timeout(self.timeoutcfg.resolve_timeout, resolve_future)
+            .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await??;
 
         Ok(addrs)
@@ -360,7 +363,10 @@ impl<R: Runtime> TorClient<R> {
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
             .runtime
-            .timeout(self.timeoutcfg.resolve_ptr_timeout, resolve_ptr_future)
+            .timeout(
+                self.timeoutcfg.get().resolve_ptr_timeout,
+                resolve_ptr_future,
+            )
             .await??;
 
         Ok(hostnames)
