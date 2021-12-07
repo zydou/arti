@@ -57,20 +57,20 @@ pub struct ClientAddrConfig {
 pub struct ClientTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
-    #[builder(default = "default_dns_stream_timeout()")]
-    #[serde(with = "humantime_serde", default = "default_dns_stream_timeout")]
-    pub stream_timeout: Duration,
+    #[builder(default = "default_connect_timeout()")]
+    #[serde(with = "humantime_serde", default = "default_connect_timeout")]
+    pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
-    pub resolve_timeout: Duration,
+    pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
-    pub resolve_ptr_timeout: Duration,
+    pub(crate) resolve_ptr_timeout: Duration,
 }
 
 // NOTE: it seems that `unwrap` may be safe because of builder defaults
@@ -109,7 +109,7 @@ impl From<ClientTimeoutConfig> for ClientTimeoutConfigBuilder {
     fn from(cfg: ClientTimeoutConfig) -> ClientTimeoutConfigBuilder {
         let mut builder = ClientTimeoutConfigBuilder::default();
         builder
-            .stream_timeout(cfg.stream_timeout)
+            .connect_timeout(cfg.connect_timeout)
             .resolve_timeout(cfg.resolve_timeout)
             .resolve_ptr_timeout(cfg.resolve_ptr_timeout);
 
@@ -125,7 +125,7 @@ impl ClientTimeoutConfig {
 }
 
 /// Return the default stream timeout
-fn default_dns_stream_timeout() -> Duration {
+fn default_connect_timeout() -> Duration {
     Duration::new(10, 0)
 }
 
@@ -263,8 +263,8 @@ pub struct TorClientConfig {
     /// Rules about which addresses the client is willing to connect to.
     pub(crate) address_filter: ClientAddrConfig,
 
-    /// Rules about client DNS configuration
-    pub(crate) timeout_rules: ClientTimeoutConfig,
+    /// Information about timing out client requests.
+    pub(crate) stream_timeouts: ClientTimeoutConfig,
 }
 
 impl Default for TorClientConfig {
@@ -326,8 +326,9 @@ pub struct TorClientConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
     address_filter: ClientAddrConfigBuilder,
-    /// Inner builder for the `timeout_rules` section.
-    timeout_rules: ClientTimeoutConfigBuilder,
+    /// Inner builder for the `stream_timeouts
+    //` section.
+    stream_timeouts: ClientTimeoutConfigBuilder,
 }
 
 impl TorClientConfigBuilder {
@@ -359,10 +360,10 @@ impl TorClientConfigBuilder {
             .address_filter
             .build()
             .map_err(|e| e.within("address_filter"))?;
-        let timeout_rules = self
-            .timeout_rules
+        let stream_timeouts = self
+            .stream_timeouts
             .build()
-            .map_err(|e| e.within("timeout_rules"))?;
+            .map_err(|e| e.within("stream_timeouts"))?;
 
         Ok(TorClientConfig {
             tor_network,
@@ -373,7 +374,7 @@ impl TorClientConfigBuilder {
             preemptive_circuits,
             circuit_timing,
             address_filter,
-            timeout_rules,
+            stream_timeouts,
         })
     }
 
@@ -481,7 +482,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             preemptive_circuits,
             circuit_timing,
             address_filter,
-            timeout_rules,
+            stream_timeouts,
         } = cfg;
 
         TorClientConfigBuilder {
@@ -493,7 +494,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             preemptive_circuits: preemptive_circuits.into(),
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
-            timeout_rules: timeout_rules.into(),
+            stream_timeouts: stream_timeouts.into(),
         }
     }
 }
