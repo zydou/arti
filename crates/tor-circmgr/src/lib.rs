@@ -154,9 +154,6 @@ pub struct CircMgr<R: Runtime> {
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
     /// A preemptive circuit predictor, for, uh, building circuits preemptively.
     predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
-    /// Configuration for preemptive circuit construction.
-    // TODO(nickm): Parts of this are duplicated elsewhere in the manager and builder structures.
-    preemptive_cfg: config::PreemptiveCircuitConfig,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -176,14 +173,8 @@ impl<R: Runtime> CircMgr<R> {
             preemptive_circuits,
         } = config;
 
-        let ports = preemptive_circuits
-            .initial_predicted_ports
-            .iter()
-            .map(|p| TargetPort::ipv4(*p))
-            .collect();
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
-            ports,
-            preemptive_circuits.prediction_lifetime,
+            preemptive_circuits,
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
@@ -201,7 +192,6 @@ impl<R: Runtime> CircMgr<R> {
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-            preemptive_cfg: preemptive_circuits,
         });
 
         runtime.spawn(continually_expire_circuits(
@@ -221,9 +211,13 @@ impl<R: Runtime> CircMgr<R> {
         how: tor_config::Reconfigure,
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
         let old_path_rules = self.mgr.peek_builder().path_config();
-        let preemptive_circuits = &self.preemptive_cfg;
-        if preemptive_circuits != &new_config.preemptive_circuits {
-            how.cannot_change("preemptive_circuits")?;
+        let predictor = self.predictor.lock().expect("poisoned lock");
+        let preemptive_circuits = predictor.config();
+        if preemptive_circuits.initial_predicted_ports
+            != new_config.preemptive_circuits.initial_predicted_ports
+        {
+            // This change has no effect, since the list of ports was _initial_.
+            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
         }
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
@@ -237,6 +231,7 @@ impl<R: Runtime> CircMgr<R> {
             .set_path_config(new_config.path_rules.clone());
         self.mgr
             .set_circuit_timing(new_config.circuit_timing.clone());
+        predictor.set_config(new_config.preemptive_circuits.clone());
 
         if discard_circuits {
             // TODO(nickm): Someday, we might want to take a more lenient approach, and only
@@ -335,14 +330,16 @@ impl<R: Runtime> CircMgr<R> {
     /// should ideally be refactored to be internal to this crate, and not be a
     /// public API here.
     pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
-        if self.mgr.n_circs() >= self.preemptive_cfg.disable_at_threshold {
+        debug!("Checking preemptive circuit predictions.");
+        let (circs, threshold) = {
+            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
+            let threshold = preemptive.config().disable_at_threshold;
+            (preemptive.predict(), threshold)
+        };
+
+        if self.mgr.n_circs() >= threshold {
             return;
         }
-        debug!("Checking preemptive circuit predictions.");
-        let circs = {
-            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
-            preemptive.predict()
-        };
 
         let futures = circs
             .iter()

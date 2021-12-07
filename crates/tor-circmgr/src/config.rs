@@ -99,6 +99,8 @@ impl From<PathConfig> for PathConfigBuilder {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`PreemptiveCircuitConfigBuilder`].
+///
+/// Except as noted, this configuration can be changed on a running Arti client.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -112,8 +114,11 @@ pub struct PreemptiveCircuitConfig {
 
     /// At startup, which exit ports should we expect that the client will want?
     ///
-    /// (Over time, new ports are added to this list in response to what the client
-    /// has actually requested.)
+    /// (Over time, new ports are added to the predicted list, in response to
+    /// what the client has actually requested.)
+    ///
+    /// This value cannot be changed on a running Arti client, because doing so
+    /// would be meaningless.
     #[builder(default = "default_preemptive_ports()")]
     #[serde(default = "default_preemptive_ports")]
     pub(crate) initial_predicted_ports: Vec<u16>,

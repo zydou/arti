@@ -1,8 +1,9 @@
 //! Tools for determining what circuits to preemptively build.
 
-use crate::{TargetCircUsage, TargetPort};
+use crate::{PreemptiveCircuitConfig, TargetCircUsage, TargetPort};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Instant;
 
 /// Predicts what circuits might be used in future based on past activity, and suggests
 /// circuits to preemptively build as a result.
@@ -12,28 +13,46 @@ pub(crate) struct PreemptiveCircuitPredictor {
     /// such usage.
     usages: HashMap<Option<TargetPort>, Instant>,
 
-    /// How long should we have a fast exit for a port?
-    duration: Duration,
+    /// Configuration for this predictor.
+    config: tor_config::MutCfg<PreemptiveCircuitConfig>,
 }
 
 impl PreemptiveCircuitPredictor {
     /// Create a new predictor, starting out with a set of ports we think are likely to be used.
-    pub(crate) fn new(starting_ports: Vec<TargetPort>, dur: Duration) -> Self {
+    pub(crate) fn new(config: PreemptiveCircuitConfig) -> Self {
         let mut usages = HashMap::new();
-        for sp in starting_ports {
-            usages.insert(Some(sp), Instant::now());
+        for port in &config.initial_predicted_ports {
+            // TODO(nickm) should this be IPv6? Should we have a way to configure IPv6 initial ports?
+            usages.insert(Some(TargetPort::ipv4(*port)), Instant::now());
         }
+
         // We want to build circuits for resolving DNS, too.
         usages.insert(None, Instant::now());
 
-        let duration = dur;
+        Self {
+            usages,
+            config: config.into(),
+        }
+    }
 
-        Self { usages, duration }
+    /// Return the configuration for this PreemptiveCircuitPredictor.
+    pub(crate) fn config(&self) -> Arc<PreemptiveCircuitConfig> {
+        self.config.get()
+    }
+
+    /// Replace the current configuration for this PreemptiveCircuitPredictor
+    /// with `new_config`.
+    pub(crate) fn set_config(&self, mut new_config: PreemptiveCircuitConfig) {
+        self.config.map_and_replace(|cfg| {
+            // Force this to stay the same, since it can't meaningfully be changed.
+            new_config.initial_predicted_ports = cfg.initial_predicted_ports.clone();
+            new_config
+        });
     }
 
     /// Make some predictions for what circuits should be built.
     pub(crate) fn predict(&self) -> Vec<TargetCircUsage> {
-        let duration = Instant::now() - self.duration;
+        let duration = Instant::now() - self.config.get().prediction_lifetime;
         self.usages
             .iter()
             .filter(|(_, &time)| time > duration)
@@ -49,12 +68,18 @@ impl PreemptiveCircuitPredictor {
 
 #[cfg(test)]
 mod test {
-    use crate::{PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
+    #![allow(clippy::unwrap_used)]
+    use crate::{PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
     use std::time::{Duration, Instant};
 
     #[test]
     fn predicts_starting_ports() {
-        let predictor = PreemptiveCircuitPredictor::new(vec![], Duration::from_secs(2));
+        let cfg = PreemptiveCircuitConfig::builder()
+            .initial_predicted_ports(vec![])
+            .prediction_lifetime(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let predictor = PreemptiveCircuitPredictor::new(cfg);
 
         let mut results = predictor.predict();
         results.sort();
@@ -66,10 +91,13 @@ mod test {
             }]
         );
 
-        let predictor = PreemptiveCircuitPredictor::new(
-            vec![TargetPort::ipv4(80), TargetPort::ipv6(80)],
-            Duration::from_secs(2),
-        );
+        let cfg = PreemptiveCircuitConfig::builder()
+            .initial_predicted_ports(vec![80])
+            .prediction_lifetime(Duration::from_secs(2))
+            .build()
+            .unwrap();
+
+        let predictor = PreemptiveCircuitPredictor::new(cfg);
 
         let mut results = predictor.predict();
         results.sort();
@@ -84,17 +112,18 @@ mod test {
                     port: Some(TargetPort::ipv4(80)),
                     circs: 2
                 },
-                TargetCircUsage::Preemptive {
-                    port: Some(TargetPort::ipv6(80)),
-                    circs: 2
-                },
             ]
         );
     }
 
     #[test]
     fn predicts_used_ports() {
-        let mut predictor = PreemptiveCircuitPredictor::new(vec![], Duration::from_secs(2));
+        let cfg = PreemptiveCircuitConfig::builder()
+            .initial_predicted_ports(vec![])
+            .prediction_lifetime(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let mut predictor = PreemptiveCircuitPredictor::new(cfg);
 
         assert_eq!(
             predictor.predict(),
@@ -125,7 +154,12 @@ mod test {
 
     #[test]
     fn does_not_predict_old_ports() {
-        let mut predictor = PreemptiveCircuitPredictor::new(vec![], Duration::from_secs(2));
+        let cfg = PreemptiveCircuitConfig::builder()
+            .initial_predicted_ports(vec![])
+            .prediction_lifetime(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let mut predictor = PreemptiveCircuitPredictor::new(cfg);
         let more_than_an_hour_ago = Instant::now() - Duration::from_secs(60 * 60 + 1);
 
         predictor.note_usage(Some(TargetPort::ipv4(2345)), more_than_an_hour_ago);
