@@ -11,6 +11,7 @@ pub(crate) struct PreemptiveCircuitPredictor {
     /// A map of every exit port we've observed being used (or `None` if we observed an exit being
     /// used to resolve DNS names instead of building a stream), to the last time we encountered
     /// such usage.
+    // TODO(nickm): Let's have a mechanism for cleaning this out from time to time.
     usages: HashMap<Option<TargetPort>, Instant>,
 
     /// Configuration for this predictor.
@@ -52,15 +53,22 @@ impl PreemptiveCircuitPredictor {
 
     /// Make some predictions for what circuits should be built.
     pub(crate) fn predict(&self) -> Vec<TargetCircUsage> {
-        let duration = Instant::now() - self.config.get().prediction_lifetime;
+        let config = self.config();
+        let cutoff = Instant::now() - config.prediction_lifetime;
+        let circs = config.min_exit_circs_for_port;
         self.usages
             .iter()
-            .filter(|(_, &time)| time > duration)
-            .map(|(&port, _)| TargetCircUsage::Preemptive { port, circs: 2 })
+            .filter(|(_, &time)| time > cutoff)
+            .map(|(&port, _)| TargetCircUsage::Preemptive { port, circs })
             .collect()
     }
 
     /// Note the use of a new port at the provided `time`.
+    ///
+    /// # Limitations
+    ///
+    /// This function assumes that the `time` values it receives are
+    /// monotonically increasing.
     pub(crate) fn note_usage(&mut self, port: Option<TargetPort>, time: Instant) {
         self.usages.insert(port, time);
     }
