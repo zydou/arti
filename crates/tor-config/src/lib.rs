@@ -39,9 +39,11 @@
 #![deny(clippy::unwrap_used)]
 
 mod err;
+mod mut_cfg;
 mod path;
 
 pub use err::{ConfigBuildError, ReconfigureError};
+pub use mut_cfg::MutCfg;
 pub use path::CfgPath;
 
 /// Rules for reconfiguring a running Arti instance.
