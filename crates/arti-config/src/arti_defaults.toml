@@ -83,20 +83,31 @@ retry_microdescs = { num_retries = 3, initial_delay = "1 sec", parallelism = 4 }
 ipv4_subnet_family_prefix = 16
 ipv6_subnet_family_prefix = 32
 
-# Rules for preemptive circuits.
-[circuit_preemptive]
 
-# How many circuits should we have before we stop opening circuits
-# preemptively?
-threshold = 12
+# Configure preemptive circuit construction.
+#
+# Preemptive circuits are built ahead of time, to anticipate client need. This
+# section configures the way in which this demand is anticipated and in which
+# these circuits are constructed.
+[preemptive_circuits]
+# If we have at least this many available circuits, we suspend
+# construction of preemptive circuits. whether our available circuits
+# support our predicted exit ports or not.
+disable_at_threshold = 12
 
-# Which exit ports should we preemptively build circuits through?
-ports = [80, 443]
+# At startup, which exit ports should we expect that the client will want?
+#
+# (Over time, new ports are added to this list in response to what the client
+# has actually requested.)
+initial_predicted_ports = [80, 443]
 
-# When we see a new port, how long should we have an fast exit for that port?
-duration = 3600
+# After we see the client request a connection to a new port, how long should we
+# predict that the client will still want to have circuitsw available for that
+# port?
+prediction_lifetime = "1 hour"
 
-# How many circuits should we have at minimum for a exit port?
+# How many available circuits should we try to have, at minimum, for each
+# predicted exit port?
 min_exit_circs_for_port = 2
 
 # Rules for how long circuits should survive, and how long pending

@@ -79,30 +79,40 @@ impl From<PathConfig> for PathConfigBuilder {
 
 /// Configuration for preemptive circuits.
 ///
-/// This type is immutable once constructed. To create an object of this
-/// type, use [`CircuitPreemptiveBuilder`].
+/// Preemptive circuits are built ahead of time, to anticipate client need. This
+/// object configures the way in which this demand is anticipated and in which
+/// these circuits are constructed.
+///
+/// This type is immutable once constructed. To create an object of this type,
+/// use [`PreemptiveCircuitConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
-pub struct CircuitPreemptive {
-    /// How many circuits should we have before we stop opening circuits
-    /// preemptively?
+pub struct PreemptiveCircuitConfig {
+    /// If we have at least this many available circuits, we suspend
+    /// construction of preemptive circuits. whether our available circuits
+    /// support our predicted exit ports or not.
     #[builder(default = "default_preemptive_threshold()")]
     #[serde(default = "default_preemptive_threshold")]
-    pub(crate) threshold: usize,
+    pub(crate) disable_at_threshold: usize,
 
-    /// Which exit ports should we preemptively build circuits through?
+    /// At startup, which exit ports should we expect that the client will want?
+    ///
+    /// (Over time, new ports are added to this list in response to what the client
+    /// has actually requested.)
     #[builder(default = "default_preemptive_ports()")]
     #[serde(default = "default_preemptive_ports")]
-    pub(crate) ports: Vec<u16>,
+    pub(crate) initial_predicted_ports: Vec<u16>,
 
-    /// When we see a new port, how long should we have a fast exit for
-    /// that port?
+    /// After we see the client request a connection to a new port, how long
+    /// should we predict that the client will still want to have circuits
+    /// available for that port?
     #[builder(default = "default_preemptive_duration()")]
-    #[serde(default = "default_preemptive_duration")]
-    pub(crate) duration: u64,
+    #[serde(with = "humantime_serde", default = "default_preemptive_duration")]
+    pub(crate) prediction_lifetime: Duration,
 
-    /// How many circuits should we have at minimum for an exit port?
+    /// How many available circuits should we try to have, at minimum, for each
+    /// predicted exit port?
     #[builder(default = "default_preemptive_min_exit_circs_for_port()")]
     #[serde(default = "default_preemptive_min_exit_circs_for_port")]
     pub(crate) min_exit_circs_for_port: usize,
@@ -155,8 +165,8 @@ fn default_preemptive_ports() -> Vec<u16> {
 }
 
 /// Return default duration
-fn default_preemptive_duration() -> u64 {
-    60 * 60
+fn default_preemptive_duration() -> Duration {
+    Duration::from_secs(60 * 60)
 }
 
 /// Return minimum circuits for an exit port
@@ -213,28 +223,28 @@ impl From<CircuitTiming> for CircuitTimingBuilder {
     }
 }
 
-impl Default for CircuitPreemptive {
+impl Default for PreemptiveCircuitConfig {
     fn default() -> Self {
-        CircuitPreemptiveBuilder::default()
+        PreemptiveCircuitConfigBuilder::default()
             .build()
             .expect("preemptive circuit defaults")
     }
 }
 
-impl CircuitPreemptive {
-    /// Return a new [`CircuitPreemptiveBuilder`]
-    pub fn builder() -> CircuitPreemptiveBuilder {
-        CircuitPreemptiveBuilder::default()
+impl PreemptiveCircuitConfig {
+    /// Return a new [`PreemptiveCircuitConfigBuilder`]
+    pub fn builder() -> PreemptiveCircuitConfigBuilder {
+        PreemptiveCircuitConfigBuilder::default()
     }
 }
 
-impl From<CircuitPreemptive> for CircuitPreemptiveBuilder {
-    fn from(cfg: CircuitPreemptive) -> CircuitPreemptiveBuilder {
-        let mut builder = CircuitPreemptiveBuilder::default();
+impl From<PreemptiveCircuitConfig> for PreemptiveCircuitConfigBuilder {
+    fn from(cfg: PreemptiveCircuitConfig) -> PreemptiveCircuitConfigBuilder {
+        let mut builder = PreemptiveCircuitConfigBuilder::default();
         builder
-            .threshold(cfg.threshold)
-            .ports(cfg.ports)
-            .duration(cfg.duration)
+            .disable_at_threshold(cfg.disable_at_threshold)
+            .initial_predicted_ports(cfg.initial_predicted_ports)
+            .prediction_lifetime(cfg.prediction_lifetime)
             .min_exit_circs_for_port(cfg.min_exit_circs_for_port);
         builder
     }
@@ -264,7 +274,7 @@ pub struct CircMgrConfig {
 
     /// Information related to preemptive circuits.
     #[builder(default)]
-    pub(crate) circuit_preemptive: CircuitPreemptive,
+    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
 }
 
 impl CircMgrConfig {

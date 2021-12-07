@@ -75,8 +75,8 @@ pub use err::Error;
 pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort};
 
 pub use config::{
-    CircMgrConfig, CircMgrConfigBuilder, CircuitPreemptive, CircuitPreemptiveBuilder,
-    CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
+    CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
+    PathConfigBuilder, PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
 };
 
 use crate::preemptive::PreemptiveCircuitPredictor;
@@ -173,17 +173,17 @@ impl<R: Runtime> CircMgr<R> {
         let CircMgrConfig {
             path_rules,
             circuit_timing,
-            circuit_preemptive,
+            preemptive_circuits,
         } = config;
 
-        let ports = circuit_preemptive
-            .ports
+        let ports = preemptive_circuits
+            .initial_predicted_ports
             .iter()
             .map(|p| TargetPort::ipv4(*p))
             .collect();
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
             ports,
-            Duration::from_secs(circuit_preemptive.duration),
+            preemptive_circuits.prediction_lifetime,
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
@@ -201,7 +201,7 @@ impl<R: Runtime> CircMgr<R> {
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-            threshold: circuit_preemptive.threshold,
+            threshold: preemptive_circuits.disable_at_threshold,
         });
 
         runtime.spawn(continually_expire_circuits(
