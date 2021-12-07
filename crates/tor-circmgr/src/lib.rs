@@ -154,9 +154,9 @@ pub struct CircMgr<R: Runtime> {
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
     /// A preemptive circuit predictor, for, uh, building circuits preemptively.
     predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
-    /// How many circuits should we have before we stop opening circuits
-    /// preemptively?
-    threshold: usize,
+    /// Configuration for preemptive circuit construction.
+    // TODO(nickm): Parts of this are duplicated elsewhere in the manager and builder structures.
+    preemptive_cfg: config::PreemptiveCircuitConfig,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -201,7 +201,7 @@ impl<R: Runtime> CircMgr<R> {
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-            threshold: preemptive_circuits.disable_at_threshold,
+            preemptive_cfg: preemptive_circuits,
         });
 
         runtime.spawn(continually_expire_circuits(
@@ -222,8 +222,12 @@ impl<R: Runtime> CircMgr<R> {
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
         let old_path_rules = self.mgr.peek_builder().path_config();
         let circuit_timing = self.mgr.circuit_timing();
+        let preemptive_circuits = &self.preemptive_cfg;
         if circuit_timing != &new_config.circuit_timing {
             how.cannot_change("circuit_timing.*")?;
+        }
+        if preemptive_circuits != &new_config.preemptive_circuits {
+            how.cannot_change("preemptive_circuits")?;
         }
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
@@ -333,7 +337,7 @@ impl<R: Runtime> CircMgr<R> {
     /// should ideally be refactored to be internal to this crate, and not be a
     /// public API here.
     pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
-        if self.mgr.n_circs() >= self.threshold {
+        if self.mgr.n_circs() >= self.preemptive_cfg.disable_at_threshold {
             return;
         }
         debug!("Checking preemptive circuit predictions.");

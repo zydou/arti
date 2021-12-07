@@ -261,12 +261,16 @@ impl<R: Runtime> TorClient<R> {
         let dir_cfg = new_config.get_dirmgr_config()?;
         let state_cfg = new_config.storage.expand_state_dir()?;
         let addr_cfg = &new_config.address_filter;
+        let timeout_cfg = &new_config.stream_timeouts;
 
         if state_cfg != self.statemgr.path() {
             how.cannot_change("storage.state_dir")?;
         }
         if &self.addrcfg != addr_cfg {
             how.cannot_change("address_filter.*")?;
+        }
+        if &self.timeoutcfg != timeout_cfg {
+            how.cannot_change("stream_timeouts.*")?;
         }
         self.circmgr.reconfigure(&circ_cfg, how)?;
         self.dirmgr.reconfigure(&dir_cfg, how)?;
