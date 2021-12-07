@@ -153,7 +153,7 @@ pub struct ArtiConfig {
     path_rules: circ::PathConfig,
 
     /// Information about preemptive circuits
-    circuit_preemptive: circ::CircuitPreemptive,
+    preemptive_circuits: circ::PreemptiveCircuitConfig,
 
     /// Information about how to retry and expire circuits and request for circuits.
     circuit_timing: circ::CircuitTiming,
@@ -169,7 +169,7 @@ impl From<ArtiConfig> for TorClientConfigBuilder {
             storage,
             address_filter,
             path_rules,
-            circuit_preemptive,
+            preemptive_circuits,
             circuit_timing,
             override_net_params,
             download_schedule,
@@ -179,7 +179,7 @@ impl From<ArtiConfig> for TorClientConfigBuilder {
         *builder.storage() = storage.into();
         *builder.address_filter() = address_filter.into();
         *builder.path_rules() = path_rules.into();
-        *builder.circuit_preemptive() = circuit_preemptive.into();
+        *builder.preemptive_circuits() = preemptive_circuits.into();
         *builder.circuit_timing() = circuit_timing.into();
         *builder.override_net_params() = override_net_params;
         *builder.download_schedule() = download_schedule.into();
@@ -233,8 +233,8 @@ pub struct ArtiConfigBuilder {
     override_net_params: HashMap<String, i32>,
     /// Builder for the path_rules section.
     path_rules: circ::PathConfigBuilder,
-    /// Builder for the circuit_preemptive section.
-    circuit_preemptive: circ::CircuitPreemptiveBuilder,
+    /// Builder for the preemptive_circuits section.
+    preemptive_circuits: circ::PreemptiveCircuitConfigBuilder,
     /// Builder for the circuit_timing section.
     circuit_timing: circ::CircuitTimingBuilder,
     /// Builder for the address_filter section.
@@ -260,10 +260,10 @@ impl ArtiConfigBuilder {
             .path_rules
             .build()
             .map_err(|e| e.within("path_rules"))?;
-        let circuit_preemptive = self
-            .circuit_preemptive
+        let preemptive_circuits = self
+            .preemptive_circuits
             .build()
-            .map_err(|e| e.within("circuit_preemptive"))?;
+            .map_err(|e| e.within("preemptive_circuits"))?;
         let circuit_timing = self
             .circuit_timing
             .build()
@@ -280,7 +280,7 @@ impl ArtiConfigBuilder {
             download_schedule,
             override_net_params,
             path_rules,
-            circuit_preemptive,
+            preemptive_circuits,
             circuit_timing,
             address_filter,
         })
@@ -351,11 +351,11 @@ impl ArtiConfigBuilder {
         &mut self.path_rules
     }
 
-    /// Return a mutable reference to a [`CircuitPreemptiveBuilder`](circ::CircuitPreemptiveBuilder).
+    /// Return a mutable reference to a [`PreemptiveCircuitConfigBuilder`](circ::PreemptiveCircuitConfigBuilder).
     ///
     /// This section overrides Arti's rules for preemptive circuits.
-    pub fn circuit_preemptive(&mut self) -> &mut circ::CircuitPreemptiveBuilder {
-        &mut self.circuit_preemptive
+    pub fn preemptive_circuits(&mut self) -> &mut circ::PreemptiveCircuitConfigBuilder {
+        &mut self.preemptive_circuits
     }
 
     /// Return a mutable reference to a [`CircuitTimingBuilder`](circ::CircuitTimingBuilder).
@@ -386,7 +386,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             download_schedule: cfg.download_schedule.into(),
             override_net_params: cfg.override_net_params,
             path_rules: cfg.path_rules.into(),
-            circuit_preemptive: cfg.circuit_preemptive.into(),
+            preemptive_circuits: cfg.preemptive_circuits.into(),
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
         }
@@ -459,7 +459,7 @@ mod test {
         bld.path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
-        bld.circuit_preemptive()
+        bld.preemptive_circuits()
             .threshold(12)
             .ports(vec![80, 443])
             .duration(60 * 60)

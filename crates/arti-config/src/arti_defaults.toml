@@ -84,7 +84,7 @@ ipv4_subnet_family_prefix = 16
 ipv6_subnet_family_prefix = 32
 
 # Rules for preemptive circuits.
-[circuit_preemptive]
+[preemptive_circuits]
 
 # How many circuits should we have before we stop opening circuits
 # preemptively?

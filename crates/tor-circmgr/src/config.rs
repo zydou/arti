@@ -80,11 +80,11 @@ impl From<PathConfig> for PathConfigBuilder {
 /// Configuration for preemptive circuits.
 ///
 /// This type is immutable once constructed. To create an object of this
-/// type, use [`CircuitPreemptiveBuilder`].
+/// type, use [`PreemptiveCircuitConfigBuilder`].
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
-pub struct CircuitPreemptive {
+pub struct PreemptiveCircuitConfig {
     /// How many circuits should we have before we stop opening circuits
     /// preemptively?
     #[builder(default = "default_preemptive_threshold()")]
@@ -213,24 +213,24 @@ impl From<CircuitTiming> for CircuitTimingBuilder {
     }
 }
 
-impl Default for CircuitPreemptive {
+impl Default for PreemptiveCircuitConfig {
     fn default() -> Self {
-        CircuitPreemptiveBuilder::default()
+        PreemptiveCircuitConfigBuilder::default()
             .build()
             .expect("preemptive circuit defaults")
     }
 }
 
-impl CircuitPreemptive {
-    /// Return a new [`CircuitPreemptiveBuilder`]
-    pub fn builder() -> CircuitPreemptiveBuilder {
-        CircuitPreemptiveBuilder::default()
+impl PreemptiveCircuitConfig {
+    /// Return a new [`PreemptiveCircuitConfigBuilder`]
+    pub fn builder() -> PreemptiveCircuitConfigBuilder {
+        PreemptiveCircuitConfigBuilder::default()
     }
 }
 
-impl From<CircuitPreemptive> for CircuitPreemptiveBuilder {
-    fn from(cfg: CircuitPreemptive) -> CircuitPreemptiveBuilder {
-        let mut builder = CircuitPreemptiveBuilder::default();
+impl From<PreemptiveCircuitConfig> for PreemptiveCircuitConfigBuilder {
+    fn from(cfg: PreemptiveCircuitConfig) -> PreemptiveCircuitConfigBuilder {
+        let mut builder = PreemptiveCircuitConfigBuilder::default();
         builder
             .threshold(cfg.threshold)
             .ports(cfg.ports)
@@ -264,7 +264,7 @@ pub struct CircMgrConfig {
 
     /// Information related to preemptive circuits.
     #[builder(default)]
-    pub(crate) circuit_preemptive: CircuitPreemptive,
+    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
 }
 
 impl CircMgrConfig {
