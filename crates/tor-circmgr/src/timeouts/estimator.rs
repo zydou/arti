@@ -212,8 +212,10 @@ mod test {
             (Duration::from_secs(60), Duration::from_secs(60))
         );
         est2.reload_readonly_from_storage(&handle2);
-        let v = Duration::from_millis(to_1.0.as_millis() as u64);
-        assert_eq!(est2.timeouts(&act), (v, v));
+        let to_1_secs = to_1.0.as_secs_f64();
+        let timeouts = est2.timeouts(&act);
+        assert!((timeouts.0.as_secs_f64() - to_1_secs).abs() < 0.001);
+        assert!((timeouts.1.as_secs_f64() - to_1_secs).abs() < 0.001);
 
         drop(est);
         drop(handle);

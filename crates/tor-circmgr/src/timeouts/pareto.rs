@@ -610,10 +610,11 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
         let multiplier =
             (action.timeout_scale() as f64) / (reference_action.timeout_scale() as f64);
 
-        // TODO-SPEC The spec define any of self.  Tor doesn't multiply the
+        // TODO-SPEC The spec doesn't define any of this
+        // action-based-multiplier stuff.  Tor doesn't multiply the
         // abandon timeout.
-        // XXXX `mul_f64()` can panic if we overflow Duration.
-        (base_t.mul_f64(multiplier), base_a.mul_f64(multiplier))
+        use super::mul_duration_f64_saturating as mul;
+        (mul(base_t, multiplier), mul(base_a, multiplier))
     }
 
     fn learning_timeouts(&self) -> bool {
