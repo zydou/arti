@@ -59,18 +59,18 @@ pub struct ClientTimeoutConfig {
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
     #[serde(with = "humantime_serde", default = "default_connect_timeout")]
-    pub connect_timeout: Duration,
+    pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
-    pub resolve_timeout: Duration,
+    pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
-    pub resolve_ptr_timeout: Duration,
+    pub(crate) resolve_ptr_timeout: Duration,
 }
 
 // NOTE: it seems that `unwrap` may be safe because of builder defaults
