@@ -160,6 +160,8 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 /// information, see the documentation for [`CfgPath`].
 ///
 /// This section is for read/write storage.
+///
+/// You cannot change this section on a running Arti client.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
