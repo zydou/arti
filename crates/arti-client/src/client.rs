@@ -19,7 +19,7 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::{Error, Result};
@@ -50,6 +50,10 @@ pub struct TorClient<R: Runtime> {
     addrcfg: MutCfg<ClientAddrConfig>,
     /// Client DNS configuration
     timeoutcfg: MutCfg<ClientTimeoutConfig>,
+    /// Mutex used to serialize concurrent attempts to reconfigure a TorClient.
+    ///
+    /// See [`TorClient::reconfigure`] for more information on its use.
+    reconfigure_lock: Arc<Mutex<()>>,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -225,29 +229,42 @@ impl<R: Runtime> TorClient<R> {
             statemgr,
             addrcfg: addr_cfg.into(),
             timeoutcfg: timeout_cfg.into(),
+            reconfigure_lock: Arc::new(Mutex::new(())),
         })
     }
 
     /// Change the configuration of this TorClient to `new_config`.
     ///
     /// The `how` describes whether to perform an all-or-nothing
-    /// reconfiguration: either all of the configuration changes will be applied,
-    /// or none will. If you have disabled all-or-nothing changes, then only
-    /// fatal errors will be reported in this function's return value.
+    /// reconfiguration: either all of the configuration changes will be
+    /// applied, or none will. If you have disabled all-or-nothing changes, then
+    /// only fatal errors will be reported in this function's return value.
     ///
     /// This function applies its changes to **all** TorClient instances derived
-    /// from the same call to [`TorClient::bootstrap`]: even ones whose circuits are
-    /// isolated from this handle.
+    /// from the same call to [`TorClient::bootstrap`]: even ones whose circuits
+    /// are isolated from this handle.
     ///
     /// # Limitations
     ///
-    /// At present, most options can't actually be reconfigured.  Those that can
-    /// are specifically noted in their documentation.
+    /// Although most options are reconfigurable, there are some whose values
+    /// can't be changed on an a running TorClient.  Those options (or their
+    /// sections) are explicitly documented not to be changeable.
+    ///
+    /// Changing some options do not take effect immediately on all open streams
+    /// and circuits, but rather affect only future streams and circuits.  Those
+    /// are also explicitly documented.
     pub fn reconfigure(
         &self,
         new_config: &TorClientConfig,
         how: tor_config::Reconfigure,
     ) -> Result<()> {
+        // We need to hold this lock while we're reconfiguring the client: even
+        // though the individual fields have their own synchronization, we can't
+        // safely let two threads change them at once.  If we did, then we'd
+        // introduce time-of-check/time-of-use bugs in checking our configuration,
+        // deciding how to change it, then applying the changes.
+        let _guard = self.reconfigure_lock.lock().expect("Poisoned lock");
+
         match how {
             tor_config::Reconfigure::AllOrNothing => {
                 // We have to check before we make any changes.
