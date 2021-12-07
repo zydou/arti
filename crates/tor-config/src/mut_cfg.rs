@@ -43,6 +43,16 @@ impl<T> MutCfg<T> {
     pub fn replace(&self, new_config: T) {
         *self.cfg.write().expect("poisoned lock") = Arc::new(new_config);
     }
+
+    /// Replace the current configuration with the results of evaluating `func` on it.
+    pub fn map_and_replace<F>(&self, func: F)
+    where
+        F: FnOnce(&Arc<T>) -> T,
+    {
+        let mut cfg = self.cfg.write().expect("poisoned lock");
+        let new_cfg = func(&cfg);
+        *cfg = Arc::new(new_cfg);
+    }
 }
 
 impl<T: Default> Default for MutCfg<T> {
