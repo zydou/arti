@@ -89,7 +89,6 @@ impl<'a, 'b> Ntor1Kdf<'a, 'b> {
 
 impl Kdf for Ntor1Kdf<'_, '_> {
     fn derive(&self, seed: &[u8], n_bytes: usize) -> Result<SecretBytes> {
-        // XXXX mark as zero-on-free?
         let hkdf = hkdf::Hkdf::<Sha256>::new(Some(self.t_key), seed);
 
         let mut result = Zeroizing::new(vec![0; n_bytes]);
@@ -107,7 +106,6 @@ impl ShakeKdf {
 }
 impl Kdf for ShakeKdf {
     fn derive(&self, seed: &[u8], n_bytes: usize) -> Result<SecretBytes> {
-        // XXXX mark as zero-on-free?
         let mut xof = Shake256::default();
         xof.update(seed);
         let mut result = Zeroizing::new(vec![0; n_bytes]);
