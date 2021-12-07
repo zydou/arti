@@ -177,13 +177,13 @@ impl<R: Runtime> CircMgr<R> {
         } = config;
 
         let ports = preemptive_circuits
-            .ports
+            .initial_predicted_ports
             .iter()
             .map(|p| TargetPort::ipv4(*p))
             .collect();
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
             ports,
-            Duration::from_secs(preemptive_circuits.duration),
+            preemptive_circuits.prediction_lifetime,
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
@@ -201,7 +201,7 @@ impl<R: Runtime> CircMgr<R> {
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-            threshold: preemptive_circuits.threshold,
+            threshold: preemptive_circuits.disable_at_threshold,
         });
 
         runtime.spawn(continually_expire_circuits(

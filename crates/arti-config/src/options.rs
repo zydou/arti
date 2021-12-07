@@ -397,6 +397,8 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
 
+    use std::time::Duration;
+
     use super::*;
 
     #[test]
@@ -460,9 +462,9 @@ mod test {
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
         bld.preemptive_circuits()
-            .threshold(12)
-            .ports(vec![80, 443])
-            .duration(60 * 60)
+            .disable_at_threshold(12)
+            .initial_predicted_ports(vec![80, 443])
+            .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
         bld.circuit_timing()
             .max_dirtiness(90 * sec)
