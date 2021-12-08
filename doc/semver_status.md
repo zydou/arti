@@ -21,11 +21,19 @@ We can delete older sections here after we bump the releases.
 
 tor-proto: MODIFIED
   (New constructor for HsNtorClientInput)
+
 tor-netdoc: BREAKING
   (No more tap_key function in MicrodescBuilder)
 
 arti-client: MODIFIED
   (PartialEq, Eq for TorAddrError)
+  (New configurable stuff)
+
+tor-circmgr: MODIFIED
+  New configuration options.
+
+arti-config: MODIFIED
+  New configuration options.
 
 tor-units: MODIFIED
   (Eq,PartialEq for BoundedInt32)
@@ -35,3 +43,9 @@ caret: BREAKING
 
 tor-linkspec: BREAKING
   (Removed to_owned() on ChanTarget)
+
+tor-rtcompat: BREAKING
+  (TlsConnector API changed)
+
+tor-netdir: MODIFIED:
+  (New functions for families, overrides.)
