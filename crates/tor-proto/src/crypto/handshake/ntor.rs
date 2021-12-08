@@ -9,7 +9,7 @@ use tor_llcrypto::pk::curve25519::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_llcrypto::util::rand_compat::RngCompatExt;
 
-use crypto_mac::{self, Mac, NewMac};
+use digest::Mac;
 use rand_core::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
@@ -124,7 +124,7 @@ impl KeyGenerator for NtorHkdfKeyGenerator {
 }
 
 /// Alias for an HMAC output, used to validate correctness of a handshake.
-type Authcode = crypto_mac::Output<hmac::Hmac<d::Sha256>>;
+type Authcode = digest::CtOutput<hmac::Hmac<d::Sha256>>;
 
 /// Perform a client handshake, generating an onionskin and a state object
 fn client_handshake_ntor_v1<R>(

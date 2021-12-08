@@ -245,20 +245,20 @@ mod rsa_impls {
     }
 }
 
-/// Implement readable and writeable for the crypto_mac::Output type.
-mod mac_impls {
+/// Implement readable and writeable for the digest::CtOutput type.
+mod digest_impls {
     use super::*;
-    use crypto_mac::{Mac, Output};
-    impl<M: Mac> WriteableOnce for Output<M> {
+    use digest::{CtOutput, OutputSizeUser};
+    impl<T: OutputSizeUser> WriteableOnce for CtOutput<T> {
         fn write_into<B: Writer + ?Sized>(self, b: &mut B) {
             let code = self.into_bytes();
             b.write(&code[..]);
         }
     }
-    impl<M: Mac> Readable for Output<M> {
+    impl<T: OutputSizeUser> Readable for CtOutput<T> {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             let array = GenericArray::take_from(b)?;
-            Ok(Output::new(array))
+            Ok(CtOutput::new(array))
         }
     }
 }

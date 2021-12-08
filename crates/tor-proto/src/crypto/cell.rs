@@ -269,12 +269,12 @@ pub(crate) mod tor1 {
             let bckey = &seed[dlen * 2 + keylen..dlen * 2 + keylen * 2];
             let fwd = CryptState {
                 cipher: SC::new(fckey.try_into().expect("Wrong length"), &Default::default()),
-                digest: D::new().chain(fdinit),
+                digest: D::new().chain_update(fdinit),
                 last_digest_val: GenericArray::default(),
             };
             let back = CryptState {
                 cipher: SC::new(bckey.try_into().expect("Wrong length"), &Default::default()),
-                digest: D::new().chain(bdinit),
+                digest: D::new().chain_update(bdinit),
                 last_digest_val: GenericArray::default(),
             };
             CryptStatePair { fwd, back }

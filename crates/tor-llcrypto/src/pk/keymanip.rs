@@ -78,9 +78,9 @@ pub fn convert_curve25519_to_ed25519_private(
     use zeroize::Zeroizing;
 
     let h = Sha512::new()
-        .chain(privkey.to_bytes())
+        .chain_update(privkey.to_bytes())
         // XXXX this string isn't actually specified anywhere.
-        .chain(&b"Derive high part of ed25519 key from curve25519 key\0"[..])
+        .chain_update(&b"Derive high part of ed25519 key from curve25519 key\0"[..])
         .finalize();
 
     let mut bytes = Zeroizing::new([0_u8; 64]);
