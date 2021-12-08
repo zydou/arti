@@ -136,21 +136,26 @@ impl History {
     where
         I: Iterator<Item = (MsecDuration, u16)>,
     {
-        // XXXX if the input is bogus, then this could be a huge array.
-        let mut observations = Vec::new();
-        for (d, n) in iter {
-            for _ in 0..n {
-                observations.push(d);
-            }
-        }
-        use rand::seq::SliceRandom;
+        use rand::seq::{IteratorRandom, SliceRandom};
+        use std::iter;
         let mut rng = rand::thread_rng();
-        observations[..].shuffle(&mut rng);
+
+        // We want to build a vector with the elements of the old histogram in
+        // random order, but we want to defend ourselves against bogus inputs
+        // that would take too much RAM.
+        let mut observations = iter
+            .take(TIME_HISTORY_LEN) // limit number of bins
+            .map(|(dur, n)| iter::repeat(dur).take(n as usize))
+            .flatten()
+            .choose_multiple(&mut rng, TIME_HISTORY_LEN);
+        // choose_multiple doesn't guarantee anything about the order of its output.
+        observations.shuffle(&mut rng);
 
         let mut result = History::new_empty();
         for obs in observations {
             result.add_time(obs);
         }
+
         result
     }
 
