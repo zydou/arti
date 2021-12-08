@@ -574,8 +574,9 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
     }
 
     fn note_circ_timeout(&mut self, hop: u8, _delay: Duration) {
-        // XXXXX This only counts if we have recent-enough
-        // activity.  See circuit_build_times_network_check_live.
+        // TODO(nickm) This only counts if we have recent-enough
+        // activity.  See circuit_build_times_network_check_live and
+        // arti#256.
         if hop > 0 {
             self.history.add_success(false);
             if self.history.n_recent_timeouts() > self.p.reset_after_timeouts {
