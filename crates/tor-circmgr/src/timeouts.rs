@@ -120,7 +120,8 @@ impl Action {
         // "a", then through "a--b", then through "a--b--c", for a
         // total of 6.
         //
-        // XXXX This should go into the specifications.
+        // This is documented in path-spec.txt under "Calculating
+        // timeouts thresholds for circuits of different lengths".
         match *self {
             Action::BuildCircuit { length } => {
                 // We never down-scale our estimates for building a circuit
