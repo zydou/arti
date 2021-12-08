@@ -145,12 +145,10 @@ pub struct NetParameters {
         from "cbtrecentcount",
     /// How many timeouts (in the last `cbt_success_count` observations)
     /// indicates that our circuit timeouts are too low?
-    // XXXX-SPEC 10000 is greater than 1000 for cbt_success_count.
     pub cbt_max_timeouts: BoundedInt32<3, 10_000> = (18)
         from "cbtmaxtimeouts",
     /// Smallest number of circuit build times we have to view in order to use
     /// our Pareto-based circuit timeout estimator.
-    // XXXX-SPEC 10000 disables this.
     pub cbt_min_circs_for_estimate: BoundedInt32<1, 10_000> = (100)
         from "cbtmincircs",
     /// Quantile to use when determining the correct circuit timeout value
