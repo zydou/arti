@@ -6,36 +6,35 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Asynchronous client-side implementation of the central Tor network protocols"
-keywords = [ "tor", "arti", "networking", "anonymity" ]
-categories = [ "network-programming", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "networking", "anonymity"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
 hs = []
 ntor_v3 = []
-tokio = [ "tokio-crate", "tokio-util" ]
-traffic-timestamp = [ "coarsetime" ]
+tokio = ["tokio-crate", "tokio-util"]
+traffic-timestamp = ["coarsetime"]
 
 [dependencies]
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
-tor-bytes = { path="../tor-bytes", version = "0.0.2"}
-tor-cert = { path="../tor-cert", version = "0.0.2"}
-tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
-tor-checkable = { path="../tor-checkable", version = "0.0.2"}
-tor-protover = { path="../tor-protover", version = "0.0.2"}
-tor-cell = { path="../tor-cell", version = "0.0.2"}
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.0.2" }
+tor-bytes = { path = "../tor-bytes", version = "0.0.2" }
+tor-cert = { path = "../tor-cert", version = "0.0.2" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.0.2" }
+tor-checkable = { path = "../tor-checkable", version = "0.0.2" }
+tor-protover = { path = "../tor-protover", version = "0.0.2" }
+tor-cell = { path = "../tor-cell", version = "0.0.2" }
 
 arrayref = "0.3.6"
 bytes = "1.0.1"
 cipher = "0.3.0"
-crypto-mac = "0.11.0"
-digest = "0.9.0"
+digest = "0.10.0"
 futures = "0.3.13"
 asynchronous-codec = "0.6.0"
 generic-array = "0.14.4"
-hkdf = "0.11.0"
-hmac = "0.11.0"
+hkdf = "0.12.0"
+hmac = "0.12.0"
 tracing = "0.1.26"
 rand = "0.8.3"
 rand_core = "0.6.2"
@@ -50,6 +49,8 @@ tokio-util = { version = "0.6", features = ["compat"], optional = true }
 coarsetime = { version = "0.1.20", optional = true }
 
 [dev-dependencies]
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2", features = ["tokio"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.2", features = [
+    "tokio",
+] }
 hex-literal = "0.3.1"
 hex = "0.4.3"
