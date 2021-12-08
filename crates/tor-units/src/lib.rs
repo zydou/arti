@@ -209,6 +209,18 @@ impl From<BoundedInt32<0, 255>> for u8 {
     }
 }
 
+impl<const H: i32> From<BoundedInt32<0, H>> for u32 {
+    fn from(val: BoundedInt32<0, H>) -> u32 {
+        val.value as u32
+    }
+}
+
+impl<const H: i32> From<BoundedInt32<1, H>> for u32 {
+    fn from(val: BoundedInt32<1, H>) -> u32 {
+        val.value as u32
+    }
+}
+
 impl<const L: i32, const H: i32> TryFrom<BoundedInt32<L, H>> for u64 {
     type Error = Error;
     fn try_from(val: BoundedInt32<L, H>) -> Result<Self, Self::Error> {
@@ -555,6 +567,29 @@ mod tests {
         assert_eq!(b, 1);
         assert_eq!(c, 90);
         assert_eq!(d, 255);
+    }
+
+    #[test]
+    fn into_u32() {
+        let zero: BoundedInt32<0, 1000> = BoundedInt32::saturating_from(0);
+        let one: BoundedInt32<0, 1000> = BoundedInt32::saturating_from(1);
+        let ninety: BoundedInt32<0, 1000> = BoundedInt32::saturating_from(90);
+        let max: BoundedInt32<0, 1000> = BoundedInt32::saturating_from(1000);
+
+        assert_eq!(u32::from(zero), 0);
+        assert_eq!(u32::from(one), 1);
+        assert_eq!(u32::from(ninety), 90);
+        assert_eq!(u32::from(max), 1000);
+
+        let zero: BoundedInt32<1, 1000> = BoundedInt32::saturating_from(0);
+        let one: BoundedInt32<1, 1000> = BoundedInt32::saturating_from(1);
+        let ninety: BoundedInt32<1, 1000> = BoundedInt32::saturating_from(90);
+        let max: BoundedInt32<1, 1000> = BoundedInt32::saturating_from(1000);
+
+        assert_eq!(u32::from(zero), 1);
+        assert_eq!(u32::from(one), 1);
+        assert_eq!(u32::from(ninety), 90);
+        assert_eq!(u32::from(max), 1000);
     }
 
     #[test]

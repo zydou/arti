@@ -246,7 +246,7 @@ impl WeightSet {
     /// Compute the correct WeightSet for a provided MdConsensus.
     pub(crate) fn from_consensus(consensus: &MdConsensus, params: &NetParameters) -> Self {
         let bandwidth_fn = pick_bandwidth_fn(consensus.relays().iter().map(|rs| rs.weight()));
-        let weight_scale = params.bw_weight_scale.get(); //TODO Escapes the type. XXXXXXX
+        let weight_scale = params.bw_weight_scale.into();
 
         let total_bw = consensus
             .relays()
@@ -264,7 +264,7 @@ impl WeightSet {
     fn from_parts(
         bandwidth_fn: BandwidthFn,
         total_bw: u64,
-        weight_scale: i32,
+        weight_scale: u32,
         p: &NetParams<i32>,
     ) -> Self {
         /// Find a single RelayWeight, given the names that its bandwidth
@@ -282,8 +282,9 @@ impl WeightSet {
             }
         }
 
-        assert!(weight_scale >= 0);
-        let weight_scale = weight_scale as u32;
+        // Prevent division by zero in case we're called with a bogus
+        // input.  (That shouldn't be possible.)
+        let weight_scale = weight_scale.max(1);
 
         // For non-V2Dir relays, we have names for most of their weights.
         //

@@ -130,7 +130,7 @@ declare_net_parameters! {
 #[non_exhaustive]
 pub struct NetParameters {
     /// A weighting factor for bandwidth calculations
-    pub bw_weight_scale: BoundedInt32<0, { i32::MAX }> = (10_000)
+    pub bw_weight_scale: BoundedInt32<1, { i32::MAX }> = (10_000)
         from "bwweightscale",
     /// If true, do not attempt to learn circuit-build timeouts at all.
     pub cbt_learning_disabled: BoundedInt32<0, 1> = (0)
