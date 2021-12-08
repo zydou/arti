@@ -83,8 +83,13 @@ impl FsStateMgr {
             .join(sanitize_filename::sanitize(key) + ".json")
     }
     /// Return the top-level directory for this storage manager.
+    ///
+    /// (This is the same directory passed to [`FsStateMgr::new`].)
     pub fn path(&self) -> &Path {
-        self.inner.statepath.as_ref()
+        self.inner
+            .statepath
+            .parent()
+            .expect("No parent directory even after path.join?")
     }
 }
 
@@ -173,6 +178,8 @@ mod test {
 
         assert_eq!(Some(stuff), stuff2);
         assert!(nothing.is_none());
+
+        assert_eq!(dir.path(), store.path());
 
         drop(store); // Do this to release the fs lock.
         let store = FsStateMgr::from_path(dir.path())?;
