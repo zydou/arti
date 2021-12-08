@@ -66,3 +66,48 @@ impl<T> From<T> for MutCfg<T> {
         MutCfg::new(config)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn basic_constructors() {
+        let m = MutCfg::new(7_u32);
+        assert_eq!(*m.get(), 7);
+        let m: MutCfg<u32> = MutCfg::default();
+        assert_eq!(*m.get(), 0);
+        let m: MutCfg<u32> = 100.into();
+        assert_eq!(*m.get(), 100);
+    }
+
+    #[test]
+    fn mutate_with_existing_ref() {
+        let m = MutCfg::new(100_u32);
+        let old_ref = m.get();
+        m.replace(101);
+        assert_eq!(*old_ref, 100);
+        assert_eq!(*m.get(), 101);
+    }
+
+    #[test]
+    fn check_and_replace() {
+        let m = MutCfg::new(100_u32);
+        let different_100 = Arc::new(100_u32);
+        // won't replace, since it is a different arc.
+        assert!(!m.check_and_replace(&different_100, 200));
+        let old_100 = m.get();
+        assert_eq!(*old_100, 100);
+        assert!(m.check_and_replace(&old_100, 200));
+        assert_eq!(*m.get(), 200);
+    }
+
+    #[test]
+    fn map_and_replace() {
+        let m = MutCfg::new(100_u32);
+        let m_old = m.get();
+        m.map_and_replace(|old_val| **old_val * 20);
+        assert_eq!(*m.get(), 2000);
+        assert_eq!(*m_old, 100);
+    }
+}

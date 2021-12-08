@@ -443,9 +443,8 @@ impl<R: Runtime> DirMgr<R> {
             // was no current netdir.)
             self.netdir_consensus_changed.store(true, Ordering::SeqCst);
 
-            // TODO(nickm): need to make sure that notify gets called.  But
-            // first I should probably refactor notify() to be more like the
-            // backend for tor-events.
+            // TODO(nickm): need to make sure that notify gets called.  But first I should probably
+            // refactor notify() to be more like the backend for tor-events.
         }
 
         Ok(())

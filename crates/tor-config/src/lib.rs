@@ -69,9 +69,31 @@ impl Reconfigure {
                 })
             }
             Reconfigure::WarnOnFailures => {
-                tracing::warn!("Cannot change field {} on a running client", field.as_ref());
+                tracing::warn!("Cannot change {} on a running client.", field.as_ref());
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use tracing_test::traced_test;
+
+    #[test]
+    #[traced_test]
+    fn reconfigure_helpers() {
+        let how = Reconfigure::AllOrNothing;
+        let err = how.cannot_change("the_laws_of_physics").unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Cannot change the_laws_of_physics on a running client.".to_owned()
+        );
+
+        let how = Reconfigure::WarnOnFailures;
+        let ok = how.cannot_change("stuff");
+        assert!(ok.is_ok());
+        assert!(logs_contain("Cannot change stuff on a running client."));
     }
 }

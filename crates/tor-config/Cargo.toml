@@ -25,3 +25,4 @@ directories = { version = "4.0.1", optional = true }
 
 [dev-dependencies]
 dirs = "4.0.0"
+tracing-test = "0.2.1"
