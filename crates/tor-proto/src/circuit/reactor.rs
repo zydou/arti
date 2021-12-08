@@ -12,6 +12,7 @@ use crate::crypto::cell::{
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
 use std::collections::VecDeque;
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{ChanMsg, Relay};
@@ -823,13 +824,13 @@ impl Reactor {
             .ok_or_else(|| Error::CircProto(format!("Couldn't find {} hop", hopnum)))?;
 
         let auth: Option<[u8; 20]> = match msg.into_tag() {
-            Some(v) if v.len() == 20 => {
-                // XXXX ugly code.
-                let mut tag = [0_u8; 20];
-                (&mut tag).copy_from_slice(&v[..]);
-                Some(tag)
+            Some(v) => {
+                if let Ok(tag) = <[u8; 20]>::try_from(v) {
+                    Some(tag)
+                } else {
+                    return Err(Error::CircProto("malformed tag on circuit sendme".into()));
+                }
             }
-            Some(_) => return Err(Error::CircProto("malformed tag on circuit sendme".into())),
             None => {
                 if !hop.auth_sendme_optional {
                     return Err(Error::CircProto("missing tag on circuit sendme".into()));
