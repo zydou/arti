@@ -618,8 +618,7 @@ impl Body for Sendme {
                     Some(r.take(dlen as usize)?.into())
                 }
                 _ => {
-                    // XXXX is this an error?
-                    None
+                    return Err(Error::BadMessage("Unrecognized SENDME version."));
                 }
             }
         };
