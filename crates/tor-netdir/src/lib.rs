@@ -421,6 +421,7 @@ impl PartialNetDir {
         }
         loaded
     }
+
     /// Return true if this are enough information in this directory
     /// to build multihop paths.
     pub fn have_enough_paths(&self) -> bool {
@@ -500,6 +501,23 @@ impl NetDir {
         };
         UncheckedRelay { rs, md }
     }
+
+    /// Replace the overridden parameters in this netdir with `new_replacement`.
+    ///
+    /// After this function is done, the netdir's parameters will be those in
+    /// the consensus, overridden by settings from `new_replacement`.  Any
+    /// settings in the old replacement parameters will be discarded.
+    pub fn replace_overridden_parameters(&mut self, new_replacement: &netstatus::NetParams<i32>) {
+        // TODO(nickm): This is largely duplicate code from PartialNetDir::new().
+        let mut new_params = NetParameters::default();
+        let _ = new_params.saturating_update(self.consensus.params().iter());
+        for u in new_params.saturating_update(new_replacement.iter()) {
+            warn!("Unrecognized option: override_net_params.{}", u);
+        }
+
+        self.params = new_params;
+    }
+
     /// Return an iterator over all Relay objects, including invalid ones
     /// that we can't use.
     pub fn all_relays(&self) -> impl Iterator<Item = UncheckedRelay<'_>> {

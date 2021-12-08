@@ -429,12 +429,24 @@ impl<R: Runtime> DirMgr<R> {
             return Ok(());
         }
 
+        let params_changed = new_config.override_net_params() != config.override_net_params();
+
         self.config
             .map_and_replace(|cfg| cfg.update_config(new_config));
 
-        // TODO(nickm): If the override_net_params field has changed, we should
-        // update it on our current netdir and tell everybody who cares that
-        // there is a new netdir.
+        if params_changed {
+            let _ignore_err = self.netdir.mutate(|netdir| {
+                netdir.replace_overridden_parameters(new_config.override_net_params());
+                Ok(())
+            });
+            // (It's okay to ignore the error, since it just means that there
+            // was no current netdir.)
+            self.netdir_consensus_changed.store(true, Ordering::SeqCst);
+
+            // TODO(nickm): need to make sure that notify gets called.  But
+            // first I should probably refactor notify() to be more like the
+            // backend for tor-events.
+        }
 
         Ok(())
     }

@@ -541,9 +541,12 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     fn consider_upgrade(&mut self) -> bool {
         if let Some(p) = self.partial.take() {
             match p.unwrap_if_sufficient() {
-                Ok(netdir) => {
+                Ok(mut netdir) => {
                     self.reset_time = pick_download_time(netdir.lifetime());
                     if let Some(wd) = Weak::upgrade(&self.writedir) {
+                        // We re-set the parameters here, in case they have been
+                        // reconfigured.
+                        netdir.replace_overridden_parameters(wd.config().override_net_params());
                         wd.netdir().replace(netdir);
                         wd.netdir_consensus_changed();
                         wd.netdir_descriptors_changed();
