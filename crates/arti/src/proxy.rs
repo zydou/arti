@@ -214,7 +214,7 @@ where
             };
             // Okay, great! We have a connection over the Tor network.
             info!("Got a stream for {}:{}", addr, port);
-            // TODO: XXXX-A1 Should send a SOCKS reply if something fails.
+            // TODO: Should send a SOCKS reply if something fails. See #258.
 
             // Send back a SOCKS response, telling the client that it
             // successfully connected.
@@ -279,8 +279,8 @@ where
         }
     };
 
-    // TODO: XXXX-A1 we should close the TCP stream if either task fails. Do we?
-    // TODO: XXXX-A1 should report the errors.
+    // TODO: we should close the TCP stream if either task fails. Do we?
+    // See #211 and #190.
 
     Ok(())
 }
