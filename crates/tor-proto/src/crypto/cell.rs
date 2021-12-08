@@ -44,14 +44,11 @@ pub(crate) trait CryptInit: Sized {
     /// Return the number of bytes that this state will require.
     fn seed_len() -> usize;
     /// Construct this state from a seed of the appropriate length.
-    ///
-    /// TODO: maybe this should return a Result rather than just
-    /// asserting that the length is correct.
-    fn initialize(seed: &[u8]) -> Self;
+    fn initialize(seed: &[u8]) -> Result<Self>;
     /// Initialize this object from a key generator.
     fn construct<K: super::handshake::KeyGenerator>(keygen: K) -> Result<Self> {
         let seed = keygen.expand(Self::seed_len())?;
-        Ok(Self::initialize(&seed))
+        Self::initialize(&seed)
     }
 }
 
@@ -259,8 +256,10 @@ pub(crate) mod tor1 {
         fn seed_len() -> usize {
             SC::KeySize::to_usize() * 2 + D::OutputSize::to_usize() * 2
         }
-        fn initialize(seed: &[u8]) -> Self {
-            assert!(seed.len() == Self::seed_len());
+        fn initialize(seed: &[u8]) -> Result<Self> {
+            if seed.len() != Self::seed_len() {
+                return Err(Error::InternalError("length is invalid".to_string()));
+            }
             let keylen = SC::KeySize::to_usize();
             let dlen = D::OutputSize::to_usize();
             let fdinit = &seed[0..dlen];
@@ -277,7 +276,7 @@ pub(crate) mod tor1 {
                 digest: D::new().chain_update(bdinit),
                 last_digest_val: GenericArray::default(),
             };
-            CryptStatePair { fwd, back }
+            Ok(CryptStatePair { fwd, back })
         }
     }
 
@@ -505,11 +504,11 @@ mod test {
 
         let mut cc_out = OutboundClientCrypt::new();
         let mut cc_in = InboundClientCrypt::new();
-        let pair = Tor1RelayCrypto::initialize(&K1[..]);
+        let pair = Tor1RelayCrypto::initialize(&K1[..]).unwrap();
         add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::initialize(&K2[..]);
+        let pair = Tor1RelayCrypto::initialize(&K2[..]).unwrap();
         add_layers(&mut cc_out, &mut cc_in, pair);
-        let pair = Tor1RelayCrypto::initialize(&K3[..]);
+        let pair = Tor1RelayCrypto::initialize(&K3[..]).unwrap();
         add_layers(&mut cc_out, &mut cc_in, pair);
 
         let mut xof = tor_llcrypto::d::Shake256::default();
