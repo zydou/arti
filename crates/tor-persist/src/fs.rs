@@ -84,7 +84,7 @@ impl FsStateMgr {
     }
     /// Return the top-level directory for this storage manager.
     ///
-    /// (This is the same directory passed to [`FsStateMgr::new`].)
+    /// (This is the same directory passed to [`FsStateMgr::from_path`].)
     pub fn path(&self) -> &Path {
         self.inner
             .statepath
