@@ -79,7 +79,6 @@ pub fn convert_curve25519_to_ed25519_private(
 
     let h = Sha512::new()
         .chain_update(privkey.to_bytes())
-        // XXXX this string isn't actually specified anywhere.
         .chain_update(&b"Derive high part of ed25519 key from curve25519 key\0"[..])
         .finalize();
 
