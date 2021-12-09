@@ -52,8 +52,7 @@ rust-nightly:
 
 minimal-versions:
   stage: test
-  # TODO: REVERT TO 1.53 once arti#257 is solved.
-  image: rust:1.56
+  image: rust:1.53
   script:
     - rustup install nightly
     - cargo +nightly update -Z minimal-versions
