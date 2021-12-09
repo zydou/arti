@@ -148,10 +148,7 @@ impl AnnotatedMicrodesc {
 
     /// If this Microdesc was parsed from `s`, return its original text.
     pub fn within<'a>(&self, s: &'a str) -> Option<&'a str> {
-        self.location
-            .as_ref()
-            .map(|ext| ext.reconstruct(s))
-            .flatten()
+        self.location.as_ref().and_then(|ext| ext.reconstruct(s))
     }
 }
 

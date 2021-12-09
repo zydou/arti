@@ -122,8 +122,7 @@ impl UncheckedAuthCert {
     pub fn within<'a>(&self, haystack: &'a str) -> Option<&'a str> {
         self.location
             .as_ref()
-            .map(|ext| ext.reconstruct(haystack))
-            .flatten()
+            .and_then(|ext| ext.reconstruct(haystack))
     }
 }
 

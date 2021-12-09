@@ -477,21 +477,16 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
     dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
 ) {
-    loop {
-        let delay;
-        if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-            let netdir = dm.netdir();
-            if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                warn!("Problem launching a timeout testing circuit: {}", e);
-            }
-            delay = netdir
-                .params()
-                .cbt_testing_delay
-                .try_into()
-                .expect("Out-of-bounds value from BoundedInt32");
-        } else {
-            break;
-        };
+    while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+        let netdir = dm.netdir();
+        if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
+            warn!("Problem launching a timeout testing circuit: {}", e);
+        }
+        let delay = netdir
+            .params()
+            .cbt_testing_delay
+            .try_into()
+            .expect("Out-of-bounds value from BoundedInt32");
 
         rt.sleep(delay).await;
     }

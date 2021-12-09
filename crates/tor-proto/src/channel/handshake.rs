@@ -319,8 +319,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         // a kludge to extract the RSA key)
         let pkrsa = c
             .cert_body(CertType::RSA_ID_X509)
-            .map(ll::util::x509_extract_rsa_subject_kludge)
-            .flatten()
+            .and_then(ll::util::x509_extract_rsa_subject_kludge)
             .ok_or_else(|| Error::ChanProto("Couldn't find RSA identity key".into()))?;
 
         // Now verify the RSA identity -> Ed Identity crosscert.

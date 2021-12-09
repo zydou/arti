@@ -391,8 +391,7 @@ impl SqliteStore {
         pending: Option<bool>,
     ) -> Result<Option<InputString>> {
         trace!(?flavor, ?pending, "Loading latest consensus from cache");
-        let rv: Option<(OffsetDateTime, OffsetDateTime, String)>;
-        rv = match pending {
+        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
             None => self
                 .conn
                 .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
