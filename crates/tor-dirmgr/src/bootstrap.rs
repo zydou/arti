@@ -122,7 +122,6 @@ async fn load_once<R: Runtime>(
         let documents = load_all(dirmgr, missing)?;
         state.add_from_cache(documents, dirmgr.store_if_rw())
     };
-    dirmgr.notify().await;
     outcome
 }
 
@@ -141,7 +140,6 @@ pub(crate) async fn load<R: Runtime>(
 
         if state.can_advance() {
             state = state.advance()?;
-            dirmgr.notify().await;
             safety_counter = 0;
         } else {
             if !changed {
@@ -178,7 +176,6 @@ async fn download_attempt<R: Runtime>(
         match dirmgr.expand_response_text(&client_req, text) {
             Ok(text) => {
                 let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
-                dirmgr.notify().await;
                 match outcome {
                     Ok(b) => changed |= b,
                     // TODO: in this case we might want to stop using this source.
@@ -286,7 +283,6 @@ pub(crate) async fn download<R: Runtime>(
             if state.can_advance() {
                 // We have enough info to advance to another state.
                 state = state.advance()?;
-                upgrade_weak_ref(&dirmgr)?.notify().await;
                 continue 'next_state;
             } else {
                 // We should wait a bit, and then retry.
