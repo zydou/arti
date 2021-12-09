@@ -488,6 +488,7 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
             .try_into()
             .expect("Out-of-bounds value from BoundedInt32");
 
+        drop((cm, dm));
         rt.sleep(delay).await;
     }
 }
