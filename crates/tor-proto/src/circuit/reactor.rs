@@ -15,7 +15,7 @@ use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use tor_cell::chancell::msg::{ChanMsg, Relay};
+use tor_cell::chancell::msg::{ChanMsg, DestroyReason, Relay};
 use tor_cell::relaycell::msg::{End, RelayMsg, Sendme};
 use tor_cell::relaycell::{RelayCell, RelayCmd, StreamId};
 
@@ -765,14 +765,26 @@ impl Reactor {
         if let RelayMsg::Sendme(s) = msg {
             return self.handle_sendme(hopnum, s);
         }
-        if let RelayMsg::Truncated(_) = msg {
-            // XXXX need to handle Truncated cells. This isn't the right
-            // way, but at least it's safe.
-            // TODO: If we ever do handle Truncate cells more
-            // correctly, we will need to audit all our use of HopNum
-            // to identify a layer.  Otherwise we could confuse a
-            // message from the previous hop N with a message from the
-            // new hop N.
+        if let RelayMsg::Truncated(t) = msg {
+            let reason = match t.reason() {
+                DestroyReason::NONE => "No reason",
+                DestroyReason::PROTOCOL => "Protocol violation",
+                DestroyReason::INTERNAL => "Internal error",
+                DestroyReason::REQUESTED => "Client sent an TRUNCATE command",
+                DestroyReason::HIBERNATING => "Relay is hibernating and not accepting requests",
+                DestroyReason::RESOURCELIMIT => "Relay ran out of resources",
+                DestroyReason::CONNECTFAILED => "Couldn't connect to relay",
+                DestroyReason::OR_IDENTITY => "Connected to relay with different OR identity",
+                DestroyReason::CHANNEL_CLOSED => "The OR channels carrying this circuit died",
+                DestroyReason::FINISHED => "Circuit expired for being too dirty or old",
+                DestroyReason::TIMEOUT => "Curcuit construction took too long",
+                DestroyReason::DESTROYED => "Circuit was destroyed without client truncate",
+                DestroyReason::NOSUCHSERVICE => "No such onion service",
+                _ => "Other reason", // XXXX: Wildcard?
+            };
+
+            warn!("Circuit truncated. Reason: {}", reason);
+
             return Err(Error::CircuitClosed);
         }
 

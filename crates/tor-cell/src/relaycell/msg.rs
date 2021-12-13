@@ -854,6 +854,10 @@ impl Truncated {
     pub fn new(reason: DestroyReason) -> Self {
         Truncated { reason }
     }
+    /// Get the reason to destroy thecircuit
+    pub fn reason(self) -> DestroyReason {
+        self.reason
+    }
 }
 impl Body for Truncated {
     fn into_message(self) -> RelayMsg {
