@@ -65,6 +65,10 @@ pub enum Error {
     /// Problem selecting a guard relay.
     #[error("Unable to select a guard relay: {0}")]
     Guard(#[from] tor_guardmgr::PickGuardError),
+
+    /// We have an expired consensus
+    #[error("Consensus is expired")]
+    ExpiredConsensus,
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {

@@ -3,6 +3,7 @@
 use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
+use std::time::{Duration, SystemTime};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
@@ -126,6 +127,12 @@ impl<'a> ExitPathBuilder<'a> {
             DirInfo::Directory(d) => d,
         };
         let subnet_config = config.subnet_config();
+        let lifetime = netdir.lifetime();
+
+        // Check if the consensus isn't expired by > 72 hours
+        if SystemTime::now() > lifetime.valid_until() + Duration::new(72 * 60 * 60, 0) {
+            return Err(Error::ExpiredConsensus);
+        }
 
         let chosen_exit = if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
             Some(e)
