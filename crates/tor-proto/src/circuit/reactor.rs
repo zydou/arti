@@ -760,7 +760,7 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: RelayMsg) -> Result<()> {
+    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: RelayMsg) -> Result<bool> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
         if let RelayMsg::Sendme(s) = msg {
             return self.handle_sendme(hopnum, s);
@@ -785,7 +785,7 @@ impl Reactor {
 
             warn!("Circuit truncated. Reason: {}", reason);
 
-            return Err(Error::CircuitClosed);
+            return Ok(true);
         }
 
         trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
@@ -806,7 +806,7 @@ impl Reactor {
                     ret
                 );
                 let _ = done.send(ret); // don't care if sender goes away
-                Ok(())
+                Ok(false)
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
@@ -828,7 +828,7 @@ impl Reactor {
     }
 
     /// Handle a RELAY_SENDME cell on this circuit with stream ID 0.
-    fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<()> {
+    fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<bool> {
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
         let hop = self
@@ -852,7 +852,7 @@ impl Reactor {
             }
         };
         match hop.sendwindow.put(auth) {
-            Some(_) => Ok(()),
+            Some(_) => Ok(false),
             None => Err(Error::CircProto("bad auth tag on circuit sendme".into())),
         }
     }
@@ -1084,10 +1084,7 @@ impl Reactor {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
-            Relay(r) => {
-                self.handle_relay_cell(cx, r)?;
-                Ok(false)
-            }
+            Relay(r) => Ok(self.handle_relay_cell(cx, r)?),
             Destroy(_) => {
                 self.handle_destroy_cell()?;
                 Ok(true)
@@ -1096,7 +1093,7 @@ impl Reactor {
     }
 
     /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<()> {
+    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<bool> {
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
@@ -1177,7 +1174,7 @@ impl Reactor {
                     // FIXME(eta): I think ignoring the must_use return value here is okay, since
                     //             the tag is () anyway? or something???
                     let _ = send_window.put(Some(()));
-                    return Ok(());
+                    return Ok(false);
                 }
 
                 // Remember whether this was an end cell: if so we should
@@ -1223,7 +1220,7 @@ impl Reactor {
                 ));
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     /// Helper: process a destroy cell.
