@@ -8,6 +8,7 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, ClientTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
+use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -18,7 +19,7 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::{Error, Result};
@@ -32,6 +33,9 @@ use tracing::{debug, error, info, warn};
 /// Cloning this object makes a new reference to the same underlying
 /// handles: it's usually better to clone the `TorClient` than it is to
 /// create a new one.
+// TODO(nickm): This type now has 5 Arcs inside it, and 2 types that have
+// implicit Arcs inside them! maybe it's time to replace much of the insides of
+// this with an Arc<TorClientInner>?
 #[derive(Clone)]
 pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
@@ -43,10 +47,16 @@ pub struct TorClient<R: Runtime> {
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
+    /// Location on disk where we store persistent data.
+    statemgr: FsStateMgr,
     /// Client address configuration
-    addrcfg: ClientAddrConfig,
+    addrcfg: Arc<MutCfg<ClientAddrConfig>>,
     /// Client DNS configuration
-    timeoutcfg: ClientTimeoutConfig,
+    timeoutcfg: Arc<MutCfg<ClientTimeoutConfig>>,
+    /// Mutex used to serialize concurrent attempts to reconfigure a TorClient.
+    ///
+    /// See [`TorClient::reconfigure`] for more information on its use.
+    reconfigure_lock: Arc<Mutex<()>>,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -197,7 +207,7 @@ impl<R: Runtime> TorClient<R> {
         runtime.spawn(update_persistent_state(
             runtime.clone(),
             Arc::downgrade(&circmgr),
-            statemgr,
+            statemgr.clone(),
         ))?;
 
         runtime.spawn(continually_launch_timeout_testing_circuits(
@@ -219,15 +229,82 @@ impl<R: Runtime> TorClient<R> {
             client_isolation,
             circmgr,
             dirmgr,
-            addrcfg: addr_cfg,
-            timeoutcfg: timeout_cfg,
+            statemgr,
+            addrcfg: Arc::new(addr_cfg.into()),
+            timeoutcfg: Arc::new(timeout_cfg.into()),
+            reconfigure_lock: Arc::new(Mutex::new(())),
         })
     }
 
-    /// Return a new isolated `TorClient` instance.
+    /// Change the configuration of this TorClient to `new_config`.
     ///
-    /// The two `TorClient`s will share some internal state, but their
-    /// streams will never share circuits with one another.
+    /// The `how` describes whether to perform an all-or-nothing
+    /// reconfiguration: either all of the configuration changes will be
+    /// applied, or none will. If you have disabled all-or-nothing changes, then
+    /// only fatal errors will be reported in this function's return value.
+    ///
+    /// This function applies its changes to **all** TorClient instances derived
+    /// from the same call to [`TorClient::bootstrap`]: even ones whose circuits
+    /// are isolated from this handle.
+    ///
+    /// # Limitations
+    ///
+    /// Although most options are reconfigurable, there are some whose values
+    /// can't be changed on an a running TorClient.  Those options (or their
+    /// sections) are explicitly documented not to be changeable.
+    ///
+    /// Changing some options do not take effect immediately on all open streams
+    /// and circuits, but rather affect only future streams and circuits.  Those
+    /// are also explicitly documented.
+    pub fn reconfigure(
+        &self,
+        new_config: &TorClientConfig,
+        how: tor_config::Reconfigure,
+    ) -> Result<()> {
+        // We need to hold this lock while we're reconfiguring the client: even
+        // though the individual fields have their own synchronization, we can't
+        // safely let two threads change them at once.  If we did, then we'd
+        // introduce time-of-check/time-of-use bugs in checking our configuration,
+        // deciding how to change it, then applying the changes.
+        let _guard = self.reconfigure_lock.lock().expect("Poisoned lock");
+
+        match how {
+            tor_config::Reconfigure::AllOrNothing => {
+                // We have to check before we make any changes.
+                self.reconfigure(new_config, tor_config::Reconfigure::CheckAllOrNothing)?;
+            }
+            tor_config::Reconfigure::CheckAllOrNothing => {}
+            tor_config::Reconfigure::WarnOnFailures => {}
+            _ => {}
+        }
+
+        let circ_cfg = new_config.get_circmgr_config()?;
+        let dir_cfg = new_config.get_dirmgr_config()?;
+        let state_cfg = new_config.storage.expand_state_dir()?;
+        let addr_cfg = &new_config.address_filter;
+        let timeout_cfg = &new_config.stream_timeouts;
+
+        if state_cfg != self.statemgr.path() {
+            how.cannot_change("storage.state_dir")?;
+        }
+
+        self.circmgr.reconfigure(&circ_cfg, how)?;
+        self.dirmgr.reconfigure(&dir_cfg, how)?;
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
+
+        self.addrcfg.replace(addr_cfg.clone());
+        self.timeoutcfg.replace(timeout_cfg.clone());
+
+        Ok(())
+    }
+
+    /// Return a new isolated `TorClient` handle.
+    ///
+    /// The two `TorClient`s will share internal state and configuration, but
+    /// their streams will never share circuits with one another.
     ///
     /// Use this function when you want separate parts of your program to
     /// each have a TorClient handle, but where you don't want their
@@ -253,7 +330,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
-        addr.enforce_config(&self.addrcfg)?;
+        addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
 
         let flags = flags.unwrap_or_default();
@@ -265,7 +342,7 @@ impl<R: Runtime> TorClient<R> {
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
-            .timeout(self.timeoutcfg.connect_timeout, stream_future)
+            .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await??;
 
         Ok(stream)
@@ -278,7 +355,7 @@ impl<R: Runtime> TorClient<R> {
         flags: Option<ConnectPrefs>,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
-        addr.enforce_config(&self.addrcfg)?;
+        addr.enforce_config(&self.addrcfg.get())?;
 
         let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
@@ -286,7 +363,7 @@ impl<R: Runtime> TorClient<R> {
         let resolve_future = circ.resolve(hostname);
         let addrs = self
             .runtime
-            .timeout(self.timeoutcfg.resolve_timeout, resolve_future)
+            .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await??;
 
         Ok(addrs)
@@ -306,7 +383,10 @@ impl<R: Runtime> TorClient<R> {
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
             .runtime
-            .timeout(self.timeoutcfg.resolve_ptr_timeout, resolve_ptr_future)
+            .timeout(
+                self.timeoutcfg.get().resolve_ptr_timeout,
+                resolve_ptr_future,
+            )
             .await??;
 
         Ok(hostnames)

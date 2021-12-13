@@ -33,6 +33,10 @@ pub mod dir {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientAddrConfigBuilder`].
+///
+/// You can replace this configuration on a running Arti client.  Doing so will
+/// affect new streams and requests, but will have no effect on existing streams
+/// and requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -50,6 +54,10 @@ pub struct ClientAddrConfig {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`ClientTimeoutConfigBuilder`].
+///
+/// You can replace this configuration on a running Arti client.  Doing so will
+/// affect new streams and requests, but will have no effect on existing streams
+/// and requests—even those that are currently waiting.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -152,6 +160,8 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 /// information, see the documentation for [`CfgPath`].
 ///
 /// This section is for read/write storage.
+///
+/// You cannot change this section on a running Arti client.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]

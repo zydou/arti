@@ -26,6 +26,7 @@ use crate::config::CircuitTiming;
 use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
+use tor_config::MutCfg;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -566,6 +567,14 @@ impl<B: AbstractCircBuilder> CircList<B> {
         }
     }
 
+    /// Return true if `circ` is still pending.
+    ///
+    /// A circuit will become non-pending when finishes (successfully or not), or when it's
+    /// removed from this list via `clear_all_circuits()`.
+    fn circ_is_pending(&self, circ: &Arc<PendingEntry<B>>) -> bool {
+        self.pending_circs.contains(circ)
+    }
+
     /// Construct and add a new entry to the set of request waiting
     /// for a circuit.
     ///
@@ -582,6 +591,12 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .iter()
             .filter(|pend| pend.supported_by(circ_spec))
             .collect()
+    }
+
+    /// Clear all pending circuits and open circuits.
+    fn clear_all_circuits(&mut self) {
+        self.pending_circs.clear();
+        self.open_circs.clear();
     }
 }
 
@@ -643,9 +658,11 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
     circs: sync::Mutex<CircList<B>>,
 
     /// Configured information about when to expire circuits and requests.
-    circuit_timing: CircuitTiming,
+    circuit_timing: MutCfg<CircuitTiming>,
 
     /// Minimum lifetime of an unused circuit.
+    ///
+    /// Derived from the network parameters.
     unused_timing: sync::Mutex<UnusedTimings>,
 }
 
@@ -672,7 +689,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             builder,
             runtime,
             circs,
-            circuit_timing,
+            circuit_timing: circuit_timing.into(),
             unused_timing: sync::Mutex::new(unused_timing),
         }
     }
@@ -686,6 +703,15 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         *u = p.into();
     }
 
+    /// Return this manager's [`CircuitTiming`].
+    pub(crate) fn circuit_timing(&self) -> Arc<CircuitTiming> {
+        self.circuit_timing.get()
+    }
+
+    /// Return this manager's [`CircuitTiming`].
+    pub(crate) fn set_circuit_timing(&self, new_config: CircuitTiming) {
+        self.circuit_timing.replace(new_config);
+    }
     /// Return a circuit suitable for use with a given `usage`,
     /// creating that circuit if necessary, and restricting it
     /// under the assumption that it will be used for that spec.
@@ -696,9 +722,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
     ) -> Result<Arc<B::Circ>> {
-        let wait_for_circ = self.circuit_timing.request_timeout;
+        let circuit_timing = self.circuit_timing();
+        let wait_for_circ = circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
-        let max_tries = self.circuit_timing.request_max_retries;
+        let max_tries = circuit_timing.request_max_retries;
 
         let mut retry_err =
             RetryError /* ::<Box<Error>> */::in_attempt_to("find or build a circuit");
@@ -993,6 +1020,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             sender,
             pending,
         } = plan;
+        let request_loyalty = self.circuit_timing().request_loyalty;
 
         let wait_on_future = pending.receiver.clone();
         let runtime = self.runtime.clone();
@@ -1026,14 +1054,19 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
                         {
                             let mut list = self.circs.lock().expect("poisoned lock");
-                            list.add_open(open_ent);
-                            // We drop our reference to 'pending' here:
-                            // this should make all the weak references to
-                            // the `PendingEntry` become dangling.
-                            drop(pending);
+                            if list.circ_is_pending(&pending) {
+                                list.add_open(open_ent);
+                                // We drop our reference to 'pending' here:
+                                // this should make all the weak references to
+                                // the `PendingEntry` become dangling.
+                                drop(pending);
+                                (Some(new_spec), Ok(id))
+                            } else {
+                                // This circuit is no longer pending! It must have been cancelled.
+                                drop(pending); // ibid
+                                (None, Err(Error::CircCancelled))
+                            }
                         }
-
-                        (Some(new_spec), Ok(id))
                     }
                 };
                 // Tell anybody who was listening about it that this
@@ -1048,9 +1081,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // delay will give the circuits that were originally
                     // specifically intended for a request a little more time
                     // to finish, before we offer it this circuit instead.
-                    let briefly = self.circuit_timing.request_loyalty;
-                    let sl = runtime_copy.sleep(briefly);
-                    runtime_copy.allow_one_advance(briefly);
+                    let sl = runtime_copy.sleep(request_loyalty);
+                    runtime_copy.allow_one_advance(request_loyalty);
                     sl.await;
 
                     let pending = {
@@ -1079,6 +1111,13 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         list.take_open(id).map(|e| e.circ)
     }
 
+    /// Remove all circuits from this manager, to ensure they can't be given out for any more
+    /// requests.
+    pub(crate) fn retire_all_circuits(&self) {
+        let mut list = self.circs.lock().expect("poisoned lock");
+        list.clear_all_circuits();
+    }
+
     /// Expire circuits according to the rules in `config` and the
     /// current time `now`.
     ///
@@ -1086,7 +1125,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// no longer be given out for new circuits.
     pub(crate) fn expire_circs(&self, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
-        let dirty_cutoff = now - self.circuit_timing.max_dirtiness;
+        let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
         list.expire_circs(now, dirty_cutoff);
     }
 

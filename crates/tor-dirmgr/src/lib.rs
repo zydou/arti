@@ -113,7 +113,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct DirMgr<R: Runtime> {
     /// Configuration information: where to find directories, how to
     /// validate them, and so on.
-    config: DirMgrConfig,
+    config: tor_config::MutCfg<DirMgrConfig>,
     /// Handle to our sqlite cache.
     // TODO(nickm): I'd like to use an rwlock, but that's not feasible, since
     // rusqlite::Connection isn't Sync.
@@ -332,16 +332,21 @@ impl<R: Runtime> DirMgr<R> {
             CacheUsage::CacheOkay,
         )?);
 
-        let (retry_config, runtime) = {
+        let runtime = {
             let dirmgr = upgrade_weak_ref(&weak)?;
-            (
-                *dirmgr.config.schedule().retry_bootstrap(),
-                dirmgr.runtime.clone(),
-            )
+            dirmgr.runtime.clone()
         };
 
         loop {
             let mut usable = false;
+
+            let retry_config = {
+                let dirmgr = upgrade_weak_ref(&weak)?;
+                // TODO(nickm): instead of getting this every time we loop, it
+                // might be a good idea to refresh it with each attempt, at
+                // least at the point of checking the number of attempts.
+                *dirmgr.config.get().schedule().retry_bootstrap()
+            };
             let mut retry_delay = retry_config.schedule();
 
             'retry_attempt: for _ in retry_config.attempts() {
@@ -401,6 +406,50 @@ impl<R: Runtime> DirMgr<R> {
             .ok_or(Error::NoDownloadSupport)
     }
 
+    /// Try to change our configuration to `new_config`.
+    ///
+    /// Actual behavior will depend on the value of `how`.
+    pub fn reconfigure(
+        &self,
+        new_config: &DirMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+        let config = self.config.get();
+        // We don't support changing these: doing so basically would require us
+        // to abort all our in-progress downloads, since they might be based on
+        // no-longer-viable information.
+        if new_config.cache_path() != config.cache_path() {
+            how.cannot_change("storage.cache_path")?;
+        }
+        if new_config.authorities() != config.authorities() {
+            how.cannot_change("network.authorities")?;
+        }
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
+
+        let params_changed = new_config.override_net_params() != config.override_net_params();
+
+        self.config
+            .map_and_replace(|cfg| cfg.update_config(new_config));
+
+        if params_changed {
+            let _ignore_err = self.netdir.mutate(|netdir| {
+                netdir.replace_overridden_parameters(new_config.override_net_params());
+                Ok(())
+            });
+            // (It's okay to ignore the error, since it just means that there
+            // was no current netdir.)
+            self.netdir_consensus_changed.store(true, Ordering::SeqCst);
+
+            // TODO(nickm): need to make sure that notify gets called.  But first I should probably
+            // refactor notify() to be more like the backend for tor-events.
+        }
+
+        Ok(())
+    }
+
     /// Try to make this a directory manager with read-write access to its
     /// storage.
     ///
@@ -442,7 +491,7 @@ impl<R: Runtime> DirMgr<R> {
         let netdir_descriptors_changed = AtomicBool::new(false);
         let publisher = event::Publisher::new();
         Ok(DirMgr {
-            config,
+            config: config.into(),
             store,
             netdir,
             netdir_consensus_changed,

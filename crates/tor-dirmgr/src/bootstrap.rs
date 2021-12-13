@@ -58,9 +58,10 @@ async fn fetch_single<R: Runtime>(
     }
     let circmgr = dirmgr.circmgr()?;
     let cur_netdir = dirmgr.opt_netdir();
+    let config = dirmgr.config.get();
     let dirinfo = match cur_netdir {
         Some(ref netdir) => netdir.as_ref().into(),
-        None => dirmgr.config.fallbacks().into(),
+        None => config.fallbacks().into(),
     };
     let resource =
         tor_dirclient::get_resource(request.as_requestable(), dirinfo, &dirmgr.runtime, circmgr)

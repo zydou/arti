@@ -1,4 +1,4 @@
-//! Declare an error type.
+//! Declare error types.
 
 /// An error related to an option passed to Arti via a configuration
 /// builder.
@@ -56,6 +56,18 @@ impl ConfigBuildError {
             },
         }
     }
+}
+
+/// An error caused when attempting to reconfigure an existing Arti client, or one of its modules.
+#[derive(Debug, Clone, thiserror::Error)]
+#[non_exhaustive]
+pub enum ReconfigureError {
+    /// Tried to change a field that cannot change on a running client.
+    #[error("Cannot change {field} on a running client.")]
+    CannotChange {
+        /// The field (or fields) that we tried to change.
+        field: String,
+    },
 }
 
 #[cfg(test)]

@@ -30,20 +30,25 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
 pub struct NetworkConfig {
-    /// List of locations to look in when downloading directory information,
-    /// if we don't actually have a directory yet.
+    /// List of locations to look in when downloading directory information, if
+    /// we don't actually have a directory yet.
     ///
-    /// (If we do have a cached directory, we use directory caches
-    /// listed there instead.)
+    /// (If we do have a cached directory, we use directory caches listed there
+    /// instead.)
+    ///
+    /// This section can be changed in a running Arti client.  Doing so will
+    /// affect future download attempts only.
     #[serde(default = "fallbacks::default_fallbacks")]
     #[builder(default = "fallbacks::default_fallbacks()")]
     fallback_caches: Vec<FallbackDir>,
 
-    /// List of directory authorities which we expect to sign
-    /// consensus documents.
+    /// List of directory authorities which we expect to sign consensus
+    /// documents.
     ///
-    /// (If none are specified, we use a default list of authorities
-    /// shipped with Arti.)
+    /// (If none are specified, we use a default list of authorities shipped
+    /// with Arti.)
+    ///
+    /// This section cannot be changed in a running Arti client.
     #[serde(default = "crate::authority::default_authorities")]
     #[builder(default = "crate::authority::default_authorities()")]
     authorities: Vec<Authority>,
@@ -170,13 +175,18 @@ impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
 /// This type is immutable once constructed.
 ///
 /// To create an object of this type, use [`DirMgrConfigBuilder`], or
-/// deserialize it from a string. (Arti generally uses Toml for
-/// configuration, but you can use other formats if you prefer.)
+/// deserialize it from a string. (Arti generally uses Toml for configuration,
+/// but you can use other formats if you prefer.)
+///
+/// Many members of this type can be replaced with a new configuration on a
+/// running Arti client. Those that cannot are documented.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
     /// directory information.
+    ///
+    /// Cannot be changed on a running Arti client.
     #[builder(setter(into))]
     cache_path: PathBuf,
 
@@ -185,11 +195,27 @@ pub struct DirMgrConfig {
     network_config: NetworkConfig,
 
     /// Configuration information about when we download things.
+    ///
+    /// This can be replaced on a running Arti client. Doing so affects _future_
+    /// download attempts, but has no effect on attempts that are currently in
+    /// progress or being retried.
+    ///
+    /// (The above is a limitation: we would like it to someday have an effect
+    /// on in-progress attempts as well, at least at the top level.  Users
+    /// should _not_ assume that the effect of changing this option will always
+    /// be delayed.)
     #[builder(default)]
     schedule_config: DownloadScheduleConfig,
 
-    /// A map of network parameters that we're overriding from their
-    /// settings in the consensus.
+    /// A map of network parameters that we're overriding from their settings in
+    /// the consensus.
+    ///
+    /// This can be replaced on a running Arti client.  Doing so will take
+    /// effect the next time a consensus is downloaded.
+    ///
+    /// (The above is a limitation: we would like it to someday take effect
+    /// immediately. Users should _not_ assume that the effect of changing this
+    /// option will always be delayed.)
     #[builder(default)]
     override_net_params: netstatus::NetParams<i32>,
 }
@@ -230,6 +256,11 @@ impl DirMgrConfig {
         SqliteStore::from_path(&self.cache_path, readonly)
     }
 
+    /// Return the configured cache path.
+    pub(crate) fn cache_path(&self) -> &std::path::Path {
+        self.cache_path.as_ref()
+    }
+
     /// Return a slice of the configured authorities
     pub(crate) fn authorities(&self) -> &[Authority] {
         self.network_config.authorities()
@@ -249,6 +280,22 @@ impl DirMgrConfig {
     /// attempt and retry downloads.
     pub(crate) fn schedule(&self) -> &DownloadScheduleConfig {
         &self.schedule_config
+    }
+
+    /// Construct a new configuration object where all replaceable fields in
+    /// `self` are replaced with those from  `new_config`.
+    ///
+    /// Any fields which aren't allowed to change at runtime are copied from self.
+    pub(crate) fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
+        DirMgrConfig {
+            cache_path: self.cache_path.clone(),
+            network_config: NetworkConfig {
+                fallback_caches: new_config.network_config.fallback_caches.clone(),
+                authorities: self.network_config.authorities.clone(),
+            },
+            schedule_config: new_config.schedule_config.clone(),
+            override_net_params: new_config.override_net_params.clone(),
+        }
     }
 }
 

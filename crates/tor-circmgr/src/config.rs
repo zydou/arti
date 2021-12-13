@@ -15,6 +15,11 @@ use std::time::Duration;
 ///
 /// This type is immutable once constructed.  To build one, use
 /// [`PathConfigBuilder`], or deserialize it from a string.
+///
+/// You may change the PathConfig on a running Arti client.  Doing so changes
+/// paths that are constructed in the future, and prevents requests from being
+/// attached to existing circuits, if the configuration has become more
+/// restrictive.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -57,6 +62,15 @@ impl PathConfig {
             self.ipv6_subnet_family_prefix,
         )
     }
+
+    /// Return true if this configuration is at least as permissive as `other`.
+    ///
+    /// In other words, in other words, return true if every circuit permitted
+    /// by `other` would also be permitted by this configuration.
+    pub(crate) fn more_permissive_than(&self, other: &Self) -> bool {
+        self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
+            && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
+    }
 }
 
 impl Default for PathConfig {
@@ -85,6 +99,8 @@ impl From<PathConfig> for PathConfigBuilder {
 ///
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`PreemptiveCircuitConfigBuilder`].
+///
+/// Except as noted, this configuration can be changed on a running Arti client.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
@@ -98,8 +114,11 @@ pub struct PreemptiveCircuitConfig {
 
     /// At startup, which exit ports should we expect that the client will want?
     ///
-    /// (Over time, new ports are added to this list in response to what the client
-    /// has actually requested.)
+    /// (Over time, new ports are added to the predicted list, in response to
+    /// what the client has actually requested.)
+    ///
+    /// This value cannot be changed on a running Arti client, because doing so
+    /// would be meaningless.
     #[builder(default = "default_preemptive_ports()")]
     #[serde(default = "default_preemptive_ports")]
     pub(crate) initial_predicted_ports: Vec<u16>,
@@ -120,8 +139,12 @@ pub struct PreemptiveCircuitConfig {
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
-/// This type is immutable once constructed. To create an object of this
-/// type, use [`CircuitTimingBuilder`].
+/// This type is immutable once constructed. To create an object of this type,
+/// use [`CircuitTimingBuilder`].
+///
+/// You can change the CircuitTiming on a running Arti client.  Doing so affects
+/// the expiration times of all circuits that are not currently expired, and the
+/// request timing of all _future_ requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]

@@ -59,7 +59,7 @@ use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 pub mod build;
 mod config;
@@ -154,9 +154,6 @@ pub struct CircMgr<R: Runtime> {
     mgr: Arc<mgr::AbstractCircMgr<build::CircuitBuilder<R>, R>>,
     /// A preemptive circuit predictor, for, uh, building circuits preemptively.
     predictor: Arc<Mutex<PreemptiveCircuitPredictor>>,
-    /// How many circuits should we have before we stop opening circuits
-    /// preemptively?
-    threshold: usize,
 }
 
 impl<R: Runtime> CircMgr<R> {
@@ -176,14 +173,8 @@ impl<R: Runtime> CircMgr<R> {
             preemptive_circuits,
         } = config;
 
-        let ports = preemptive_circuits
-            .initial_predicted_ports
-            .iter()
-            .map(|p| TargetPort::ipv4(*p))
-            .collect();
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
-            ports,
-            preemptive_circuits.prediction_lifetime,
+            preemptive_circuits,
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
@@ -201,7 +192,6 @@ impl<R: Runtime> CircMgr<R> {
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
-            threshold: preemptive_circuits.disable_at_threshold,
         });
 
         runtime.spawn(continually_expire_circuits(
@@ -210,6 +200,46 @@ impl<R: Runtime> CircMgr<R> {
         ))?;
 
         Ok(circmgr)
+    }
+
+    /// Try to change our configuration settings to `new_config`.
+    ///
+    /// The actual behavior here will depend on the value of `how`.
+    pub fn reconfigure(
+        &self,
+        new_config: &CircMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+        let old_path_rules = self.mgr.peek_builder().path_config();
+        let predictor = self.predictor.lock().expect("poisoned lock");
+        let preemptive_circuits = predictor.config();
+        if preemptive_circuits.initial_predicted_ports
+            != new_config.preemptive_circuits.initial_predicted_ports
+        {
+            // This change has no effect, since the list of ports was _initial_.
+            how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
+        }
+
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
+
+        let discard_circuits = !new_config.path_rules.more_permissive_than(&old_path_rules);
+
+        self.mgr
+            .peek_builder()
+            .set_path_config(new_config.path_rules.clone());
+        self.mgr
+            .set_circuit_timing(new_config.circuit_timing.clone());
+        predictor.set_config(new_config.preemptive_circuits.clone());
+
+        if discard_circuits {
+            // TODO(nickm): Someday, we might want to take a more lenient approach, and only
+            // retire those circuits that do not conform to the new path rules.
+            info!("Path configuration has become more restrictive: retiring existing circuits.");
+            self.retire_all_circuits();
+        }
+        Ok(())
     }
 
     /// Reload state from the state manager.
@@ -300,14 +330,16 @@ impl<R: Runtime> CircMgr<R> {
     /// should ideally be refactored to be internal to this crate, and not be a
     /// public API here.
     pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
-        if self.mgr.n_circs() >= self.threshold {
+        debug!("Checking preemptive circuit predictions.");
+        let (circs, threshold) = {
+            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
+            let threshold = preemptive.config().disable_at_threshold;
+            (preemptive.predict(), threshold)
+        };
+
+        if self.mgr.n_circs() >= threshold {
             return;
         }
-        debug!("Checking preemptive circuit predictions.");
-        let circs = {
-            let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
-            preemptive.predict()
-        };
 
         let futures = circs
             .iter()
@@ -325,6 +357,17 @@ impl<R: Runtime> CircMgr<R> {
     /// keeping track of, don't give it out for any future requests.
     pub fn retire_circ(&self, circ_id: &UniqId) {
         let _ = self.mgr.take_circ(circ_id);
+    }
+
+    /// Mark every circuit that we have launched so far as unsuitable for
+    /// any future requests.  This won't close existing circuits that have
+    /// streams attached to them, but it will prevent any future streams from
+    /// being attached.
+    ///
+    /// TODO: we may want to expose this eventually.  If we do, we should
+    /// be very clear that you don't want to use it haphazardly.
+    pub(crate) fn retire_all_circuits(&self) {
+        self.mgr.retire_all_circuits();
     }
 
     /// Expire every circuit that has been dirty for too long.
