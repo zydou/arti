@@ -548,7 +548,7 @@ caret_int! {
         TIMEOUT = 10,
         /// Circuit was destroyed w/o client truncate (?)
         DESTROYED = 11,
-        /// Request for unknown hidden service
+        /// Request for unknown onion service
         NOSUCHSERVICE = 12
     }
 }

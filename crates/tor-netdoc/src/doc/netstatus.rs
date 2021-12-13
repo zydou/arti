@@ -367,7 +367,7 @@ bitflags! {
         /// Clients choose their their initial relays from among the set
         /// of Guard relays.
         const GUARD = (1<<4);
-        /// Does this relay participate on the hidden service directory
+        /// Does this relay participate on the onion service directory
         /// ring?
         const HSDIR = (1<<5);
         /// If set, there is no consensus for the ed25519 key for this relay.
