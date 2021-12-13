@@ -144,20 +144,28 @@ where
     ///
     /// On failure, return None: the caller should close the stream
     /// or circuit with a protocol error.
-    #[must_use = "didn't check whether SENDME tag was right."]
-    pub(crate) fn put(&mut self, tag: Option<T>) -> Option<u16> {
+    #[must_use = "didn't check whether SENDME was expected and tag was right."]
+    pub(crate) fn put(&mut self, tag: Option<T>) -> Result<u16> {
         match (self.tags.front(), tag) {
             (Some(t), Some(tag)) if t == &tag => {} // this is the right tag.
             (Some(_), None) => {}                   // didn't need a tag.
-            _ => {
-                return None;
-            } // Bad tag or unexpected sendme.
+            (Some(_), Some(_)) => {
+                return Err(Error::CircProto("Mismatched tag on circuit SENDME".into()));
+            }
+            (None, _) => {
+                return Err(Error::CircProto(
+                    "Received a SENDME when none was expected".into(),
+                ));
+            }
         }
         self.tags.pop_front();
 
-        let v = self.window.checked_add(P::increment())?;
+        let v = self
+            .window
+            .checked_add(P::increment())
+            .ok_or_else(|| Error::InternalError("Overflow on SENDME window".into()))?;
         self.window = v;
-        Some(v)
+        Ok(v)
     }
 
     /// Return the current send window value.
@@ -313,7 +321,7 @@ mod test {
 
         // Try putting a good tag.
         let n = w.put(Some("and"));
-        assert_eq!(n, Some(999));
+        assert_eq!(n?, 999);
         assert_eq!(w.tags.len(), 0);
 
         for _ in 0_usize..300 {
@@ -323,7 +331,7 @@ mod test {
 
         // Put without a tag.
         let n = w.put(None);
-        assert_eq!(n, Some(799));
+        assert_eq!(n?, 799);
         assert_eq!(w.tags.len(), 2);
 
         Ok(())
@@ -339,20 +347,20 @@ mod test {
         // wrong tag: won't work.
         assert_eq!(w.window, 750);
         let n = w.put(Some("incorrect"));
-        assert!(n.is_none());
+        assert!(n.is_err());
 
         let n = w.put(Some("correct"));
-        assert_eq!(n, Some(850));
+        assert_eq!(n?, 850);
         let n = w.put(Some("correct"));
-        assert_eq!(n, Some(950));
+        assert_eq!(n?, 950);
 
         // no tag expected: won't work.
         let n = w.put(Some("correct"));
-        assert_eq!(n, None);
+        assert!(n.is_err());
         assert_eq!(w.window, 950);
 
         let n = w.put(None);
-        assert_eq!(n, None);
+        assert!(n.is_err());
         assert_eq!(w.window, 950);
 
         Ok(())
