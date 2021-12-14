@@ -42,6 +42,19 @@ pub(super) enum StreamEnt {
     EndSent(HalfStream),
 }
 
+impl StreamEnt {
+    /// Retrieve the send window for this stream, if it is open.
+    pub(super) fn send_window(&mut self) -> Option<&mut sendme::StreamSendWindow> {
+        match self {
+            StreamEnt::Open {
+                ref mut send_window,
+                ..
+            } => Some(send_window),
+            _ => None,
+        }
+    }
+}
+
 /// Return value to indicate whether or not we send an END cell upon
 /// terminating a given stream.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

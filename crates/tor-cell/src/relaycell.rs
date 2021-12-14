@@ -183,6 +183,10 @@ impl RelayCell {
     pub fn cmd(&self) -> RelayCmd {
         self.msg.cmd()
     }
+    /// Return the stream ID for the stream that this cell corresponds to.
+    pub fn stream_id(&self) -> StreamId {
+        self.streamid
+    }
     /// Return the underlying message for this cell.
     pub fn msg(&self) -> &msg::RelayMsg {
         &self.msg

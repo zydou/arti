@@ -907,6 +907,7 @@ impl Reactor {
         cell: RelayCell,
     ) -> Result<()> {
         let c_t_w = sendme::cell_counts_towards_windows(&cell);
+        let stream_id = cell.stream_id();
         let mut body: RelayCellBody = cell.encode(&mut rand::thread_rng())?.into();
         let tag = self.crypto_out.encrypt(&mut body, hop)?;
         let msg = chancell::msg::Relay::from_raw(body.into());
@@ -934,6 +935,23 @@ impl Reactor {
                 return Ok(());
             }
             hop.sendwindow.take(tag)?;
+            if !stream_id.is_zero() {
+                // We need to decrement the stream-level sendme window.
+                // Stream data cells should only be dequeued and fed into this function if
+                // the window is above zero, so we don't need to worry about enqueuing things.
+                if let Some(window) = hop.map.get_mut(stream_id).and_then(StreamEnt::send_window) {
+                    window.take(&())?;
+                } else {
+                    warn!(
+                        "{}: sending a relay cell for non-existent or non-open stream with ID {}!",
+                        self.unique_id, stream_id
+                    );
+                    return Err(Error::CircProto(format!(
+                        "tried to send a relay cell on non-open stream {}",
+                        stream_id
+                    )));
+                }
+            }
         }
         self.send_msg_direct(cx, msg)
     }
