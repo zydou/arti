@@ -432,13 +432,8 @@ impl<R: Runtime> GuardMgr<R> {
         let net_has_been_down = inner.active_guards.all_primary_guards_are_unreachable()
             && tor_proto::time_since_last_incoming_traffic() >= inner.params.internet_down_timeout;
 
-        let pending_request = pending::PendingRequest::new(
-            guard_id.clone(),
-            usage,
-            usable_sender,
-            now,
-            net_has_been_down,
-        );
+        let pending_request =
+            pending::PendingRequest::new(guard_id.clone(), usage, usable_sender, net_has_been_down);
         inner.pending.insert(request_id, pending_request);
 
         inner.active_guards.record_attempt(&guard_id, now);
