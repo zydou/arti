@@ -208,7 +208,15 @@ where
                                 .context("Couldn't write SOCKS reply")?;
                             return Err(anyhow!(e));
                         }
-                        _ => return Err(anyhow!(e)),
+                        _ => {
+                            let reply =
+                                request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None);
+                            socks_w
+                                .write(&reply[..])
+                                .await
+                                .context("Couldn't write SOCKS reply")?;
+                            return Err(anyhow!(e));
+                        }
                     }
                 }
             };
@@ -276,6 +284,11 @@ where
         _ => {
             // We don't support this SOCKS command.
             warn!("Dropping request; {:?} is unsupported", request.command());
+            let reply = request.reply(tor_socksproto::SocksStatus::COMMAND_NOT_SUPPORTED, None);
+            socks_w
+                .write(&reply[..])
+                .await
+                .context("Could't write SOCKS reply")?;
         }
     };
 
