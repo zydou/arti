@@ -530,13 +530,11 @@ mod tests {
 
     #[test]
     fn bounded_from_i32() {
-        let mut x: Result<BoundedInt32<-100, 100>, Error>;
-
-        x = (50).try_into();
+        let x: Result<BoundedInt32<-100, 100>, _> = 50.try_into();
         let y: i32 = x.unwrap().into();
         assert_eq!(y, 50);
 
-        x = (1000).try_into();
+        let x: Result<BoundedInt32<-100, 100>, _> = 1000.try_into();
         assert!(x.is_err());
     }
 

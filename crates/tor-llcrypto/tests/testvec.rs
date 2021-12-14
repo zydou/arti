@@ -567,7 +567,7 @@ rI2rzhqqBIhzFFaYuxyRAhkSBxCKTdl6X0k74ahT3MM=
 ";
 
     assert!(public.verify(&digest, &to_der(sig)).is_ok());
-    assert!(!public.verify(&wrong_digest, &to_der(sig)).is_ok());
+    assert!(public.verify(&wrong_digest, &to_der(sig)).is_err());
 
     let val = rsa::ValidatableRsaSignature::new(&public, &to_der(sig), &digest);
 
