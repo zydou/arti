@@ -62,9 +62,9 @@ impl<R: Runtime> ChanBuilder<R> {
 
         // 1. Negotiate the TLS connection.
 
-        // TODO: This just uses the first address. Instead we could be smarter,
-        // or use "happy eyeballs, or whatever.  Maybe we will want to
-        // refactor as we do so?
+        // TODO: This just uses the first address. Instead we could be
+        // smarter, or use "happy eyeballs", or whatever.  Maybe we will
+        // want to refactor as we do so?
         let addr = target
             .addrs()
             .get(0)
