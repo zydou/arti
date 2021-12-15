@@ -174,6 +174,15 @@ pub(super) struct CircHop {
     outbound: VecDeque<([u8; 20], ChanCell)>,
 }
 
+/// An indicator on what we should do when we receive a cell for a circuit.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum CellStatus {
+    /// The circuit should stay open.
+    Continue,
+    /// Perform a clean shutdown on this circuit.
+    CleanShutdown,
+}
+
 impl CircHop {
     /// Create a new hop.
     pub(super) fn new(auth_sendme_optional: bool, initial_window: u16) -> Self {
@@ -460,7 +469,7 @@ impl Reactor {
                         return Poll::Ready(Err(ReactorError::Shutdown));
                     }
                     Some(cell) => {
-                        if self.handle_cell(cx, cell)? {
+                        if self.handle_cell(cx, cell)? == CellStatus::CleanShutdown {
                             trace!("{}: reactor shutdown due to handled cell", self.unique_id);
                             return Poll::Ready(Err(ReactorError::Shutdown));
                         }
@@ -760,20 +769,15 @@ impl Reactor {
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
-    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: RelayMsg) -> Result<()> {
+    fn handle_meta_cell(&mut self, hopnum: HopNum, msg: RelayMsg) -> Result<CellStatus> {
         // SENDME cells and TRUNCATED get handled internally by the circuit.
         if let RelayMsg::Sendme(s) = msg {
             return self.handle_sendme(hopnum, s);
         }
-        if let RelayMsg::Truncated(_) = msg {
-            // XXXX need to handle Truncated cells. This isn't the right
-            // way, but at least it's safe.
-            // TODO: If we ever do handle Truncate cells more
-            // correctly, we will need to audit all our use of HopNum
-            // to identify a layer.  Otherwise we could confuse a
-            // message from the previous hop N with a message from the
-            // new hop N.
-            return Err(Error::CircuitClosed);
+        if let RelayMsg::Truncated(t) = msg {
+            warn!("Circuit truncated. Reason: {}", t.reason_string());
+
+            return Ok(CellStatus::CleanShutdown);
         }
 
         trace!("{}: Received meta-cell {:?}", self.unique_id, msg);
@@ -794,7 +798,7 @@ impl Reactor {
                     ret
                 );
                 let _ = done.send(ret); // don't care if sender goes away
-                Ok(())
+                Ok(CellStatus::Continue)
             } else {
                 // Somebody wanted a message from a different hop!  Put this
                 // one back.
@@ -816,7 +820,7 @@ impl Reactor {
     }
 
     /// Handle a RELAY_SENDME cell on this circuit with stream ID 0.
-    fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<()> {
+    fn handle_sendme(&mut self, hopnum: HopNum, msg: Sendme) -> Result<CellStatus> {
         // No need to call "shutdown" on errors in this function;
         // it's called from the reactor task and errors will propagate there.
         let hop = self
@@ -840,7 +844,7 @@ impl Reactor {
             }
         };
         hop.sendwindow.put(auth)?;
-        Ok(())
+        Ok(CellStatus::Continue)
     }
 
     /// Send a message onto the circuit's channel (to be called with a `Context`)
@@ -1084,23 +1088,20 @@ impl Reactor {
     /// or rejected; a few get delivered to circuits.
     ///
     /// Return true if we should exit.
-    fn handle_cell(&mut self, cx: &mut Context<'_>, cell: ClientCircChanMsg) -> Result<bool> {
+    fn handle_cell(&mut self, cx: &mut Context<'_>, cell: ClientCircChanMsg) -> Result<CellStatus> {
         trace!("{}: handling cell: {:?}", self.unique_id, cell);
         use ClientCircChanMsg::*;
         match cell {
-            Relay(r) => {
-                self.handle_relay_cell(cx, r)?;
-                Ok(false)
-            }
+            Relay(r) => Ok(self.handle_relay_cell(cx, r)?),
             Destroy(_) => {
                 self.handle_destroy_cell()?;
-                Ok(true)
+                Ok(CellStatus::CleanShutdown)
             }
         }
     }
 
     /// React to a Relay or RelayEarly cell.
-    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<()> {
+    fn handle_relay_cell(&mut self, cx: &mut Context<'_>, cell: Relay) -> Result<CellStatus> {
         let mut body = cell.into_relay_body().into();
 
         // Decrypt the cell. If it's recognized, then find the
@@ -1179,7 +1180,7 @@ impl Reactor {
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
                     send_window.put(Some(()))?;
-                    return Ok(());
+                    return Ok(CellStatus::Continue);
                 }
 
                 // Remember whether this was an end cell: if so we should
@@ -1225,7 +1226,7 @@ impl Reactor {
                 ));
             }
         }
-        Ok(())
+        Ok(CellStatus::Continue)
     }
 
     /// Helper: process a destroy cell.

@@ -854,6 +854,25 @@ impl Truncated {
     pub fn new(reason: DestroyReason) -> Self {
         Truncated { reason }
     }
+    /// Get the reason to destroy the circuit as a string
+    pub fn reason_string(self) -> &'static str {
+        match self.reason {
+            DestroyReason::NONE => "No reason",
+            DestroyReason::PROTOCOL => "Protocol violation",
+            DestroyReason::INTERNAL => "Internal error",
+            DestroyReason::REQUESTED => "Client sent an TRUNCATE command",
+            DestroyReason::HIBERNATING => "Relay is hibernating and not accepting requests",
+            DestroyReason::RESOURCELIMIT => "Relay ran out of resources",
+            DestroyReason::CONNECTFAILED => "Couldn't connect to relay",
+            DestroyReason::OR_IDENTITY => "Connected to relay with different OR identity",
+            DestroyReason::CHANNEL_CLOSED => "The OR channels carrying this circuit died",
+            DestroyReason::FINISHED => "Circuit expired for being too dirty or old",
+            DestroyReason::TIMEOUT => "Curcuit construction took too long",
+            DestroyReason::DESTROYED => "Circuit was destroyed without client truncate",
+            DestroyReason::NOSUCHSERVICE => "No such onion service",
+            _ => "Other reason", // XXXX: Wildcard?
+        }
+    }
 }
 impl Body for Truncated {
     fn into_message(self) -> RelayMsg {
