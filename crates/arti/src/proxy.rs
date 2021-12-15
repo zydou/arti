@@ -147,10 +147,7 @@ where
             n_read -= action.drain;
         }
         if !action.reply.is_empty() {
-            socks_w
-                .write(&action.reply[..])
-                .await
-                .context("Error while writing reply to SOCKS handshake")?;
+            write_all_and_flush(&mut socks_w, &action.reply[..]).await?;
         }
         if action.finished {
             break handshake.into_request();
@@ -198,26 +195,14 @@ where
                     // The connect attempt has failed.  We need to
                     // send an error.  See what kind it is.
                     //
-                    match e {
+                    let reply = match e {
                         arti_client::Error::Timeout => {
-                            let reply =
-                                request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None);
-                            socks_w
-                                .write(&reply[..])
-                                .await
-                                .context("Couldn't write SOCKS reply")?;
-                            return Err(anyhow!(e));
+                            request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
                         }
-                        _ => {
-                            let reply =
-                                request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None);
-                            socks_w
-                                .write(&reply[..])
-                                .await
-                                .context("Couldn't write SOCKS reply")?;
-                            return Err(anyhow!(e));
-                        }
-                    }
+                        _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
+                    };
+                    write_all_and_close(&mut socks_w, &reply[..]).await?;
+                    return Err(anyhow!(e));
                 }
             };
             // Okay, great! We have a connection over the Tor network.
@@ -227,10 +212,7 @@ where
             // Send back a SOCKS response, telling the client that it
             // successfully connected.
             let reply = request.reply(tor_socksproto::SocksStatus::SUCCEEDED, None);
-            socks_w
-                .write(&reply[..])
-                .await
-                .context("Couldn't write SOCKS reply")?;
+            write_all_and_flush(&mut socks_w, &reply[..]).await?;
 
             let (tor_r, tor_w) = tor_stream.split();
 
@@ -248,10 +230,7 @@ where
                     tor_socksproto::SocksStatus::SUCCEEDED,
                     Some(&SocksAddr::Ip(*addr)),
                 );
-                socks_w
-                    .write(&reply[..])
-                    .await
-                    .context("Couldn't write SOCKS reply")?;
+                write_all_and_flush(&mut socks_w, &reply[..]).await?;
             }
         }
         SocksCmd::RESOLVE_PTR => {
@@ -262,10 +241,7 @@ where
                 Err(e) => {
                     let reply =
                         request.reply(tor_socksproto::SocksStatus::ADDRTYPE_NOT_SUPPORTED, None);
-                    socks_w
-                        .write(&reply[..])
-                        .await
-                        .context("Couldn't write SOCKS reply")?;
+                    write_all_and_close(&mut socks_w, &reply[..]).await?;
                     return Err(anyhow!(e));
                 }
             };
@@ -275,20 +251,14 @@ where
                     tor_socksproto::SocksStatus::SUCCEEDED,
                     Some(&SocksAddr::Hostname(host.try_into()?)),
                 );
-                socks_w
-                    .write(&reply[..])
-                    .await
-                    .context("Couldn't write SOCKS reply")?;
+                write_all_and_flush(&mut socks_w, &reply[..]).await?;
             }
         }
         _ => {
             // We don't support this SOCKS command.
             warn!("Dropping request; {:?} is unsupported", request.command());
             let reply = request.reply(tor_socksproto::SocksStatus::COMMAND_NOT_SUPPORTED, None);
-            socks_w
-                .write(&reply[..])
-                .await
-                .context("Could't write SOCKS reply")?;
+            write_all_and_close(&mut socks_w, &reply[..]).await?;
         }
     };
 
@@ -296,6 +266,36 @@ where
     // See #211 and #190.
 
     Ok(())
+}
+
+/// write_all the data to the writer & flush the writer if write_all is successful.
+async fn write_all_and_flush<W>(writer: &mut W, buf: &[u8]) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    writer
+        .write_all(buf)
+        .await
+        .context("Error while writing SOCKS reply")?;
+    writer
+        .flush()
+        .await
+        .context("Error while flushing SOCKS stream")
+}
+
+/// write_all the data to the writer & close the writer if write_all is successful.
+async fn write_all_and_close<W>(writer: &mut W, buf: &[u8]) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    writer
+        .write_all(buf)
+        .await
+        .context("Error while writing SOCKS reply")?;
+    writer
+        .close()
+        .await
+        .context("Error while closing SOCKS stream")
 }
 
 /// Copy all the data from `reader` into `writer` until we encounter an EOF or
