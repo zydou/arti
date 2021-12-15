@@ -55,10 +55,9 @@ use tor_netdir::{fallback::FallbackDir, NetDir};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
-use futures::task::SpawnExt;
 use std::convert::TryInto;
-use std::sync::{Arc, Mutex, Weak};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tracing::{debug, info, warn};
 
 pub mod build;
@@ -193,11 +192,6 @@ impl<R: Runtime> CircMgr<R> {
             mgr: Arc::new(mgr),
             predictor: preemptive,
         });
-
-        runtime.spawn(continually_expire_circuits(
-            runtime.clone(),
-            Arc::downgrade(&circmgr),
-        ))?;
 
         Ok(circmgr)
     }
@@ -418,29 +412,6 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         Ok(())
-    }
-}
-
-/// Periodically expire any circuits that should no longer be given
-/// out for requests.
-///
-/// Exit when we find that `circmgr` is dropped.
-///
-/// This is a daemon task: it runs indefinitely in the background.
-async fn continually_expire_circuits<R: Runtime>(runtime: R, circmgr: Weak<CircMgr<R>>) {
-    // TODO: This is too long for accuracy and too short for
-    // efficiency.  Instead we should have a more clever scheduling
-    // algorithm somehow that gets updated when we have new or newly
-    // dirty circuits only.
-    let interval = Duration::from_secs(5);
-
-    loop {
-        runtime.sleep(interval).await;
-        if let Some(cm) = Weak::upgrade(&circmgr) {
-            cm.expire_circuits();
-        } else {
-            break;
-        }
     }
 }
 
