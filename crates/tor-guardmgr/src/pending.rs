@@ -261,9 +261,6 @@ pub(crate) struct PendingRequest {
     /// (This is an option so that we can safely make reply() once-only.
     /// Otherwise we run into lifetime issues elsewhere.)
     usable: Option<oneshot::Sender<bool>>,
-    /// The time when we gave out this guard.
-    #[allow(dead_code)] // TODO: Remove, or use it to notice stuck requests
-    started_at: Instant,
     /// The time at which the circuit manager told us that this guard was
     /// successful.
     waiting_since: Option<Instant>,
@@ -281,14 +278,12 @@ impl PendingRequest {
         guard_id: GuardId,
         usage: crate::GuardUsage,
         usable: Option<oneshot::Sender<bool>>,
-        started_at: Instant,
         net_has_been_down: bool,
     ) -> Self {
         PendingRequest {
             guard_id,
             usage,
             usable,
-            started_at,
             waiting_since: None,
             net_has_been_down,
         }
