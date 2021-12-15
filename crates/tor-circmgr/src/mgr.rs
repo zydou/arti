@@ -542,6 +542,23 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .retain(|_k, v| !v.should_expire(unused_cutoff, dirty_cutoff));
     }
 
+    /// Remove the circuit with given id based on expiration times.
+    fn expire_circ(
+        &mut self,
+        id: &<B::Circ as AbstractCirc>::Id,
+        unused_cutoff: Instant,
+        dirty_cutoff: Instant,
+    ) {
+        let should_expire = self
+            .open_circs
+            .get(id)
+            .map(|v| v.should_expire(unused_cutoff, dirty_cutoff))
+            .unwrap_or_else(|| false);
+        if should_expire {
+            self.open_circs.remove(id);
+        }
+    }
+
     /// Add `pending` to the set of in-progress circuits.
     fn add_pending_circ(&mut self, pending: Arc<PendingEntry<B>>) {
         self.pending_circs.insert(pending);
@@ -911,7 +928,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
 
         while let Some((src, id)) = incoming.next().await {
             if let Ok(Ok(ref id)) = id {
-                // Great, we have a circuit.  See if we can use it!
+                // Great, we have a circuit. See if we can use it!
                 let mut list = self.circs.lock().expect("poisoned lock");
                 if let Some(ent) = list.get_open_mut(id) {
                     let now = self.runtime.now();
@@ -921,6 +938,15 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                             // pending request now explicitly to remove
                             // it from the list.
                             drop(pending_request);
+                            if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
+                                // For unused circuit, schedule expiration task after `max_dirtiness` from now
+                                spawn_expiration_task(
+                                    &self.runtime,
+                                    Arc::downgrade(&self),
+                                    ent.circ.id(),
+                                    now + self.circuit_timing().max_dirtiness,
+                                );
+                            }
                             return Ok(Arc::clone(&ent.circ));
                         }
                         Err(e) => {
@@ -1042,6 +1068,15 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     Err(e) => (None, Err(e)),
                     Ok((new_spec, circ)) => {
                         let id = circ.id();
+
+                        let use_duration = self.pick_use_duration();
+                        let exp_inst = self.runtime.now() + use_duration;
+                        spawn_expiration_task(
+                            &runtime_copy,
+                            Arc::downgrade(&self),
+                            circ.id(),
+                            exp_inst,
+                        );
                         // I used to call restrict_mut here, but now I'm not so
                         // sure. Doing restrict_mut makes sure that this
                         // circuit will be suitable for the request that asked
@@ -1050,7 +1085,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         // assignment.
                         //
                         // new_spec.restrict_mut(&usage_copy).unwrap();
-                        let use_before = self.pick_use_before_time();
+                        let use_before = ExpirationInfo::new(exp_inst);
                         let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
                         {
                             let mut list = self.circs.lock().expect("poisoned lock");
@@ -1129,6 +1164,14 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         list.expire_circs(now, dirty_cutoff);
     }
 
+    /// Expire the circuit with given circuit id according to the rules
+    /// in `config` and the current time `now`.
+    pub(crate) fn expire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id, now: Instant) {
+        let mut list = self.circs.lock().expect("poisoned lock");
+        let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
+        list.expire_circ(circ_id, now, dirty_cutoff);
+    }
+
     /// Return the number of open circuits held by this circuit manager.
     pub(crate) fn n_circs(&self) -> usize {
         let list = self.circs.lock().expect("poisoned lock");
@@ -1152,29 +1195,66 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         &self.builder
     }
 
-    /// Pick a time when a new circuit should expire if it has not yet
-    /// been used.
-    fn pick_use_before_time(&self) -> ExpirationInfo {
-        let delay = {
-            let timings = self
-                .unused_timing
-                .lock()
-                .expect("Poisoned lock for unused_timing");
+    /// Pick a duration by when a new circuit should expire from now
+    /// if it has not yet been used
+    fn pick_use_duration(&self) -> Duration {
+        let timings = self
+            .unused_timing
+            .lock()
+            .expect("Poisoned lock for unused_timing");
 
-            if self.builder.learning_timeouts() {
-                timings.learning
-            } else {
-                // TODO: In Tor, this calculation also depends on
-                // stuff related to predicted ports and channel
-                // padding.
-                use rand::Rng;
-                let mut rng = rand::thread_rng();
-                rng.gen_range(timings.not_learning..timings.not_learning * 2)
-            }
+        if self.builder.learning_timeouts() {
+            timings.learning
+        } else {
+            // TODO: In Tor, this calculation also depends on
+            // stuff related to predicted ports and channel
+            // padding.
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            rng.gen_range(timings.not_learning..timings.not_learning * 2)
+        }
+    }
+}
+
+/// Spawn an expiration task that expires a circuit at given instant.
+///
+/// If given instant is earlier than now, expire the circuit immediately.
+/// Otherwise, spawn a timer expiration task on given runtime.
+fn spawn_expiration_task<B, R>(
+    runtime: &R,
+    circmgr: Weak<AbstractCircMgr<B, R>>,
+    circ_id: <<B as AbstractCircBuilder>::Circ as AbstractCirc>::Id,
+    exp_inst: Instant,
+) where
+    R: Runtime,
+    B: 'static + AbstractCircBuilder,
+{
+    let now = runtime.now();
+    let rt_copy = runtime.clone();
+    let duration = exp_inst.saturating_duration_since(now);
+
+    if duration == Duration::ZERO {
+        // Circuit should alread expire. Expire it now.
+        let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
+            cm
+        } else {
+            // Circuits manager has already been dropped, so are the references it held.
+            return;
         };
-
-        let now = self.runtime.now();
-        ExpirationInfo::new(now + delay)
+        cm.expire_circ(&circ_id, now);
+    } else {
+        // Spawn a timer expiration task with given expiration instant.
+        runtime
+            .spawn(async move {
+                rt_copy.sleep(duration).await;
+                let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
+                    cm
+                } else {
+                    return;
+                };
+                cm.expire_circ(&circ_id, exp_inst);
+            })
+            .expect("Could not spawn circuit expiration task");
     }
 }
 
