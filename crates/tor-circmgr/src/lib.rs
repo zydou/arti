@@ -369,8 +369,11 @@ impl<R: Runtime> CircMgr<R> {
     /// Expired circuits are not closed while they still have users,
     /// but they are no longer given out for new requests.
     fn expire_circuits(&self) {
-        // TODO: I would prefer not to call this at every request, but it
-        // should be fine for now.
+        // TODO: I would prefer not to call this at every request, but
+        // it should be fine for now.  (At some point we may no longer
+        // need this, or might not need to call it so often, now that
+        // our circuit expiration runs on scheduld timers via
+        // spawn_expiration_task.)
         let now = self.mgr.peek_runtime().now();
         self.mgr.expire_circs(now);
     }

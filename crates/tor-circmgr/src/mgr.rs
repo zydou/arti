@@ -542,7 +542,8 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .retain(|_k, v| !v.should_expire(unused_cutoff, dirty_cutoff));
     }
 
-    /// Remove the circuit with given id based on expiration times.
+    /// Remove the circuit with given `id`, if it is scheduled to
+    /// expire now, according to the provided expiration times.
     fn expire_circ(
         &mut self,
         id: &<B::Circ as AbstractCirc>::Id,
@@ -939,7 +940,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                             // it from the list.
                             drop(pending_request);
                             if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
-                                // For unused circuit, schedule expiration task after `max_dirtiness` from now
+                                // Since this circuit hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
                                 spawn_expiration_task(
                                     &self.runtime,
                                     Arc::downgrade(&self),
@@ -1164,8 +1165,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         list.expire_circs(now, dirty_cutoff);
     }
 
-    /// Expire the circuit with given circuit id according to the rules
-    /// in `config` and the current time `now`.
+    /// Consider expiring the circuit with given circuit `id`,
+    /// according to the rules in `config` and the current time `now`.
     pub(crate) fn expire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
         let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
@@ -1220,6 +1221,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
 ///
 /// If given instant is earlier than now, expire the circuit immediately.
 /// Otherwise, spawn a timer expiration task on given runtime.
+///
+/// When the timeout occurs, if the circuit manager is still present,
+/// the task will ask the manager to expire the circuit, if the circuit
+/// is ready to expire.
 fn spawn_expiration_task<B, R>(
     runtime: &R,
     circmgr: Weak<AbstractCircMgr<B, R>>,
