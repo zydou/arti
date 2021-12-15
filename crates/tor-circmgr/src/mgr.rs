@@ -40,7 +40,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use weak_table::PtrWeakHashSet;
 
 mod streams;
@@ -1249,17 +1249,17 @@ fn spawn_expiration_task<B, R>(
         cm.expire_circ(&circ_id, now);
     } else {
         // Spawn a timer expiration task with given expiration instant.
-        runtime
-            .spawn(async move {
-                rt_copy.sleep(duration).await;
-                let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
-                    cm
-                } else {
-                    return;
-                };
-                cm.expire_circ(&circ_id, exp_inst);
-            })
-            .expect("Could not spawn circuit expiration task");
+        if let Err(e) = runtime.spawn(async move {
+            rt_copy.sleep(duration).await;
+            let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
+                cm
+            } else {
+                return;
+            };
+            cm.expire_circ(&circ_id, exp_inst);
+        }) {
+            warn!("Unable to launch expiration task: {}", e);
+        }
     }
 }
 
