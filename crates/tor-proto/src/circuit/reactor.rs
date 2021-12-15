@@ -839,10 +839,8 @@ impl Reactor {
                 }
             }
         };
-        match hop.sendwindow.put(auth) {
-            Some(_) => Ok(()),
-            None => Err(Error::CircProto("bad auth tag on circuit sendme".into())),
-        }
+        hop.sendwindow.put(auth)?;
+        Ok(())
     }
 
     /// Send a message onto the circuit's channel (to be called with a `Context`)
@@ -1180,9 +1178,7 @@ impl Reactor {
                     // We need to handle sendmes here, not in the stream's
                     // recv() method, or else we'd never notice them if the
                     // stream isn't reading.
-                    // FIXME(eta): I think ignoring the must_use return value here is okay, since
-                    //             the tag is () anyway? or something???
-                    let _ = send_window.put(Some(()));
+                    send_window.put(Some(()))?;
                     return Ok(());
                 }
 

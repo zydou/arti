@@ -49,9 +49,7 @@ impl HalfStream {
     pub(super) fn handle_msg(&mut self, msg: &RelayMsg) -> Result<()> {
         match msg {
             RelayMsg::Sendme(_) => {
-                self.sendw.put(Some(())).ok_or_else(|| {
-                    Error::CircProto("Too many sendmes on a closed stream!".into())
-                })?;
+                self.sendw.put(Some(()))?;
                 Ok(())
             }
             RelayMsg::Data(_) => {
@@ -100,7 +98,7 @@ mod test {
         let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
-            "circuit protocol violation: Too many sendmes on a closed stream!"
+            "circuit protocol violation: Received a SENDME when none was expected"
         );
         Ok(())
     }
