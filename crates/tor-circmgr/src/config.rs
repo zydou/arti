@@ -142,9 +142,11 @@ pub struct PreemptiveCircuitConfig {
 /// This type is immutable once constructed. To create an object of this type,
 /// use [`CircuitTimingBuilder`].
 ///
-/// You can change the CircuitTiming on a running Arti client.  Doing so affects
-/// the expiration times of all circuits that are not currently expired, and the
-/// request timing of all _future_ requests.
+/// You can change the CircuitTiming on a running Arti client.  Doing
+/// so _should_ affect the expiration times of all circuits that are
+/// not currently expired, and the request timing of all _future_
+/// requests.  However, there are currently bugs: see bug
+/// [#263](https://gitlab.torproject.org/tpo/core/arti/-/issues/263).
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
