@@ -1186,6 +1186,7 @@ impl Reactor {
                 sink,
                 send_window,
                 dropped,
+                ref mut received_connected,
                 ..
             }) => {
                 // The stream for this message exists, and is open.
@@ -1196,6 +1197,13 @@ impl Reactor {
                     // stream isn't reading.
                     send_window.put(Some(()))?;
                     return Ok(CellStatus::Continue);
+                }
+
+                if matches!(msg, RelayMsg::Connected(_)) {
+                    // Remember that we've received a Connected cell, and can't get another,
+                    // even if we become a HalfStream.  (This rule is enforced separately at
+                    // DataStreamReader.)
+                    *received_connected = true;
                 }
 
                 // Remember whether this was an end cell: if so we should

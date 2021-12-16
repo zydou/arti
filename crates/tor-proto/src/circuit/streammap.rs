@@ -31,6 +31,9 @@ pub(super) enum StreamEnt {
         /// Number of cells dropped due to the stream disappearing before we can
         /// transform this into an `EndSent`.
         dropped: u16,
+        /// True iff we've received a CONNECTED cell on this stream.
+        /// (This is redundant with `DataStreamReader::connected`.)
+        received_connected: bool,
     },
     /// A stream for which we have received an END cell, but not yet
     /// had the stream object get dropped.
@@ -110,6 +113,7 @@ impl StreamMap {
             rx,
             send_window,
             dropped: 0,
+            received_connected: false,
         };
         // This "65536" seems too aggressive, but it's what tor does.
         //
@@ -182,6 +186,7 @@ impl StreamMap {
             StreamEnt::Open {
                 send_window,
                 dropped,
+                received_connected,
                 // notably absent: the channels for sink and stream, which will get dropped and
                 // closed (meaning reads/writes from/to this stream will now fail)
                 ..
@@ -192,8 +197,8 @@ impl StreamMap {
                 let mut recv_window = StreamRecvWindow::new(RECV_WINDOW_INIT);
                 recv_window.decrement_n(dropped)?;
                 // TODO: would be nice to avoid new_ref.
-                // XXXX: We should set connected_ok properly.
-                let connected_ok = true;
+                // If we haven't gotten a CONNECTED already, we accept one on the half-stream.
+                let connected_ok = !received_connected;
                 let halfstream = HalfStream::new(send_window, recv_window, connected_ok);
                 self.m.insert(id, StreamEnt::EndSent(halfstream));
                 Ok(ShouldSendEnd::Send)
