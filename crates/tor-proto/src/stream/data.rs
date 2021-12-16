@@ -563,9 +563,10 @@ impl DataReaderImpl {
             self.pending = d;
             self.offset = 0;
         } else {
-            // XXXX This has potential to grow `pending` without
-            // bound.  Fortunately, we don't read data in this
-            // (non-empty) case right now.
+            // TODO(nickm) This has potential to grow `pending` without bound.
+            // Fortunately, we don't currently read cells or call this
+            // `add_data` method when pending is nonempty—but if we do in the
+            // future, we'll have to be careful here.
             self.pending.append(&mut d);
         }
     }
