@@ -611,8 +611,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
                 if !self.missing.remove(&digest) {
-                    // XXXX BUG:
-                    // we didn't want this.
+                    warn!("Bug: loaded a microdesc that we didn't want from the cache.");
                     continue;
                 }
                 if let Ok(md) = Microdesc::parse(text.as_str()?) {
