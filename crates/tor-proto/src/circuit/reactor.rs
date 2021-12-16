@@ -319,15 +319,6 @@ where
         self.expected_hop
     }
     fn finish(&mut self, msg: RelayMsg, reactor: &mut Reactor) -> Result<()> {
-        // XXXX If two EXTEND cells are of these are launched on the
-        // same circuit at once, could they collide in this part of
-        // the function?  I don't _think_ so, but it might be a good idea
-        // to have an "extending" bit that keeps two tasks from entering
-        // extend_impl at the same time.
-        //
-        // Also we could enforce that `hop` is still what we expect it
-        // to be at this point.
-
         // Did we get the right response?
         if msg.cmd() != RelayCmd::EXTENDED2 {
             return Err(Error::CircProto(format!(
@@ -965,6 +956,23 @@ impl Reactor {
         self.send_msg_direct(cx, msg)
     }
 
+    /// Try to install a given meta-cell handler to receive any unusual cells on
+    /// this circuit, along with a result channel to notify on completion.
+    fn set_meta_handler(
+        &mut self,
+        handler: Box<dyn MetaCellHandler>,
+        done: ReactorResultChannel<()>,
+    ) -> Result<()> {
+        if self.meta_handler.is_none() {
+            self.meta_handler = Some((handler, done));
+            Ok(())
+        } else {
+            Err(Error::InternalError(
+                "Tried to install a meta-cell handler before the old one was gone.".into(),
+            ))
+        }
+    }
+
     /// Handle a CtrlMsg other than Shutdown.
     fn handle_control(&mut self, cx: &mut Context<'_>, msg: CtrlMsg) -> Result<()> {
         trace!("{}: reactor received {:?}", self.unique_id, msg);
@@ -990,7 +998,7 @@ impl Reactor {
                     self,
                 ) {
                     Ok(e) => {
-                        self.meta_handler = Some((Box::new(e), done));
+                        self.set_meta_handler(Box::new(e), done)?;
                     }
                     Err(e) => {
                         let _ = done.send(Err(e));
