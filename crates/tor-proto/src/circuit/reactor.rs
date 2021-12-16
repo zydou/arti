@@ -775,7 +775,14 @@ impl Reactor {
             return self.handle_sendme(hopnum, s);
         }
         if let RelayMsg::Truncated(t) = msg {
-            warn!("Circuit truncated. Reason: {}", t.reason_string());
+            let reason = t.reason();
+            debug!(
+                "{}: Truncated from hop {}. Reason: {} [{}]",
+                self.unique_id,
+                hopnum,
+                reason.human_str(),
+                reason
+            );
 
             return Ok(CellStatus::CleanShutdown);
         }
@@ -1093,7 +1100,15 @@ impl Reactor {
         use ClientCircChanMsg::*;
         match cell {
             Relay(r) => Ok(self.handle_relay_cell(cx, r)?),
-            Destroy(_) => {
+            Destroy(d) => {
+                let reason = d.reason();
+                debug!(
+                    "{}: Received DESTROY cell. Reason: {} [{}]",
+                    self.unique_id,
+                    reason.human_str(),
+                    reason
+                );
+
                 self.handle_destroy_cell()?;
                 Ok(CellStatus::CleanShutdown)
             }

@@ -503,6 +503,10 @@ impl Destroy {
     pub fn new(reason: DestroyReason) -> Self {
         Destroy { reason }
     }
+    /// Return the provided reason for destroying the circuit.
+    pub fn reason(&self) -> DestroyReason {
+        self.reason
+    }
 }
 impl Body for Destroy {
     fn into_message(self) -> ChanMsg {
@@ -550,6 +554,28 @@ caret_int! {
         DESTROYED = 11,
         /// Request for unknown onion service
         NOSUCHSERVICE = 12
+    }
+}
+
+impl DestroyReason {
+    /// Return a human-readable string for this reason.
+    pub fn human_str(&self) -> &'static str {
+        match *self {
+            DestroyReason::NONE => "No reason",
+            DestroyReason::PROTOCOL => "Protocol violation",
+            DestroyReason::INTERNAL => "Internal error",
+            DestroyReason::REQUESTED => "Client sent a TRUNCATE command",
+            DestroyReason::HIBERNATING => "Relay is hibernating and not accepting requests",
+            DestroyReason::RESOURCELIMIT => "Relay ran out of resources",
+            DestroyReason::CONNECTFAILED => "Couldn't connect to relay",
+            DestroyReason::OR_IDENTITY => "Connected to relay with different OR identity",
+            DestroyReason::CHANNEL_CLOSED => "The OR channels carrying this circuit died",
+            DestroyReason::FINISHED => "Circuit expired for being too dirty or old",
+            DestroyReason::TIMEOUT => "Circuit construction took too long",
+            DestroyReason::DESTROYED => "Circuit was destroyed without client truncate",
+            DestroyReason::NOSUCHSERVICE => "No such onion service",
+            _ => "Unrecognized reason",
+        }
     }
 }
 
@@ -1141,3 +1167,17 @@ msg_into_cell!(Certs);
 msg_into_cell!(AuthChallenge);
 msg_into_cell!(Authenticate);
 msg_into_cell!(Authorize);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn destroy_reason() {
+        let r1 = DestroyReason::CONNECTFAILED;
+
+        assert_eq!(r1.human_str(), "Couldn't connect to relay");
+
+        let r2 = DestroyReason::from(200); // not a specified number.
+        assert_eq!(r2.human_str(), "Unrecognized reason");
+    }
+}
