@@ -1259,11 +1259,20 @@ mod test {
                 assert_eq!(window, 1000 - 301);
                 assert_eq!(tags.len(), 3);
                 // 100
-                assert_eq!(tags[0], hex!("6400000000000000000000000000000000000000"));
+                assert_eq!(
+                    tags[0],
+                    sendme::CircTag::from(hex!("6400000000000000000000000000000000000000"))
+                );
                 // 200
-                assert_eq!(tags[1], hex!("c800000000000000000000000000000000000000"));
+                assert_eq!(
+                    tags[1],
+                    sendme::CircTag::from(hex!("c800000000000000000000000000000000000000"))
+                );
                 // 300
-                assert_eq!(tags[2], hex!("2c01000000000000000000000000000000000000"));
+                assert_eq!(
+                    tags[2],
+                    sendme::CircTag::from(hex!("2c01000000000000000000000000000000000000"))
+                );
             }
 
             let reply_with_sendme_fut = async move {

@@ -17,16 +17,34 @@ use tor_cell::relaycell::RelayCell;
 
 use crate::{Error, Result};
 
+/// Tag type used in regular v1 sendme cells.
+///
 // TODO(nickm):
 // Three problems with this tag:
-//  - First, we need to support unauthenticated flow control.
+//  - First, we need to support unauthenticated flow control, but we
+//    still record the tags that we _would_ expect.
 //  - Second, this tag type could be different for each layer, if we
 //    eventually have an authenticator that isn't 20 bytes long.
-//  - Third, we want the comparison to happen with a constant-time
-//    operation. XXXX
+#[derive(Clone, Debug)]
+pub(crate) struct CircTag([u8; 20]);
 
-/// Tag type used in regular v1 sendme cells.
-pub(crate) type CircTag = [u8; 20];
+impl From<[u8; 20]> for CircTag {
+    fn from(v: [u8; 20]) -> CircTag {
+        Self(v)
+    }
+}
+impl PartialEq for CircTag {
+    fn eq(&self, other: &Self) -> bool {
+        crate::util::ct::bytes_eq(&self.0, &other.0)
+    }
+}
+impl Eq for CircTag {}
+impl PartialEq<[u8; 20]> for CircTag {
+    fn eq(&self, other: &[u8; 20]) -> bool {
+        crate::util::ct::bytes_eq(&self.0, &other[..])
+    }
+}
+
 /// Absence of a tag, as with stream cells.
 pub(crate) type NoTag = ();
 
@@ -116,14 +134,17 @@ where
     /// need to check for it later.
     ///
     /// Return the number of cells left in the window.
-    pub(crate) fn take(&mut self, tag: &T) -> Result<u16> {
+    pub(crate) fn take<U>(&mut self, tag: &U) -> Result<u16>
+    where
+        U: Clone + Into<T>,
+    {
         if let Some(val) = self.window.checked_sub(1) {
             self.window = val;
             if self.window % P::increment() == 0 {
                 // We record this tag.
                 // TODO: I'm not saying that this cell in particular
                 // matches the spec, but Tor seems to like it.
-                self.tags.push_back(tag.clone());
+                self.tags.push_back(tag.clone().into());
             }
 
             Ok(val)
@@ -145,7 +166,10 @@ where
     /// On failure, return None: the caller should close the stream
     /// or circuit with a protocol error.
     #[must_use = "didn't check whether SENDME was expected and tag was right."]
-    pub(crate) fn put(&mut self, tag: Option<T>) -> Result<u16> {
+    pub(crate) fn put<U>(&mut self, tag: Option<U>) -> Result<u16>
+    where
+        T: PartialEq<U>,
+    {
         match (self.tags.front(), tag) {
             (Some(t), Some(tag)) if t == &tag => {} // this is the right tag.
             (Some(_), None) => {}                   // didn't need a tag.
@@ -330,7 +354,8 @@ mod test {
         assert_eq!(w.tags.len(), 3);
 
         // Put without a tag.
-        let n = w.put(None);
+        let x: Option<&str> = None;
+        let n = w.put(x);
         assert_eq!(n?, 799);
         assert_eq!(w.tags.len(), 2);
 
@@ -359,7 +384,8 @@ mod test {
         assert!(n.is_err());
         assert_eq!(w.window, 950);
 
-        let n = w.put(None);
+        let x: Option<&str> = None;
+        let n = w.put(x);
         assert!(n.is_err());
         assert_eq!(w.window, 950);
 
