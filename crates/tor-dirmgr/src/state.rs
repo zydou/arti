@@ -435,6 +435,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         if self.can_advance() {
             let validated = self.unvalidated.check_signature(&self.certs[..])?;
             Ok(Box::new(GetMicrodescsState::new(
+                self.cache_usage,
                 validated,
                 self.consensus_meta,
                 self.writedir,
@@ -457,6 +458,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
 /// Final state: we're fetching or loading microdescriptors
 #[derive(Debug, Clone)]
 struct GetMicrodescsState<DM: WriteNetDir> {
+    /// How should we get the consensus from the cache, if at all?
+    cache_usage: CacheUsage,
     /// The digests of the microdescriptors we are missing.
     missing: HashSet<MdDigest>,
     /// The dirmgr to inform about a usable directory.
@@ -478,7 +481,12 @@ struct GetMicrodescsState<DM: WriteNetDir> {
 impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     /// Create a new [`GetMicrodescsState`] from a provided
     /// microdescriptor consensus.
-    fn new(consensus: MdConsensus, meta: ConsensusMeta, writedir: Weak<DM>) -> Result<Self> {
+    fn new(
+        cache_usage: CacheUsage,
+        consensus: MdConsensus,
+        meta: ConsensusMeta,
+        writedir: Weak<DM>,
+    ) -> Result<Self> {
         let reset_time = consensus.lifetime().valid_until();
 
         let partial_dir = match Weak::upgrade(&writedir) {
@@ -496,6 +504,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
 
         let missing = partial_dir.missing_microdescs().map(Clone::clone).collect();
         let mut result = GetMicrodescsState {
+            cache_usage,
             missing,
             writedir,
             partial: Some(partial_dir),
@@ -688,7 +697,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(Box::new(GetConsensusState::new(
             self.writedir,
-            CacheUsage::MustDownload, // XXXX I believe this is wrong?
+            self.cache_usage,
         )?))
     }
 }
@@ -1103,7 +1112,13 @@ mod test {
                 .dangerously_assume_timely()
                 .dangerously_assume_wellsigned();
             let meta = ConsensusMeta::from_consensus(signed, rest, &consensus);
-            let state = GetMicrodescsState::new(consensus, meta, Arc::downgrade(&rcv)).unwrap();
+            let state = GetMicrodescsState::new(
+                CacheUsage::CacheOkay,
+                consensus,
+                meta,
+                Arc::downgrade(&rcv),
+            )
+            .unwrap();
 
             (rcv, state)
         }
@@ -1114,7 +1129,7 @@ mod test {
         // If we start from scratch and reset, we're back in GetConsensus.
         let (_rcv, state) = new_getmicrodescs_state();
         let state = Box::new(state).reset().unwrap();
-        assert_eq!(&state.describe(), "Downloading a consensus.");
+        assert_eq!(&state.describe(), "Looking for a consensus.");
 
         // Check the basics.
         let (_rcv, mut state) = new_getmicrodescs_state();
