@@ -78,7 +78,6 @@ use futures::{channel::oneshot, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{info, trace, warn};
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
@@ -124,17 +123,8 @@ pub struct DirMgr<R: Runtime> {
     /// users, and replace it once a new directory is bootstrapped.
     netdir: SharedMutArc<NetDir>,
 
-    /// A flag that gets set whenever the _consensus_ part of `netdir` has
-    /// changed.
-    netdir_consensus_changed: AtomicBool,
-
-    /// A flag that gets set whenever the _descriptors_ part of `netdir` has
-    /// changed without adding a new consensus.
-    netdir_descriptors_changed: AtomicBool,
-
-    /// A publisher handle, used to inform others about changes in the
-    /// status of this directory handle.
-    publisher: event::Publisher,
+    /// A publisher handle that we notify whenever the consensus changes.
+    events: event::FlagPublisher<DirEvent>,
 
     /// A circuit manager, if this DirMgr supports downloading.
     circmgr: Option<Arc<CircMgr<R>>>,
@@ -441,10 +431,7 @@ impl<R: Runtime> DirMgr<R> {
             });
             // (It's okay to ignore the error, since it just means that there
             // was no current netdir.)
-            self.netdir_consensus_changed.store(true, Ordering::SeqCst);
-
-            // TODO(nickm): need to make sure that notify gets called.  But first I should probably
-            // refactor notify() to be more like the backend for tor-events.
+            self.events.publish(DirEvent::NewConsensus);
         }
 
         Ok(())
@@ -487,16 +474,13 @@ impl<R: Runtime> DirMgr<R> {
     ) -> Result<Self> {
         let store = Mutex::new(config.open_sqlite_store(readonly)?);
         let netdir = SharedMutArc::new();
-        let netdir_consensus_changed = AtomicBool::new(false);
-        let netdir_descriptors_changed = AtomicBool::new(false);
-        let publisher = event::Publisher::new();
+        let events = event::FlagPublisher::new();
+
         Ok(DirMgr {
             config: config.into(),
             store,
             netdir,
-            netdir_consensus_changed,
-            netdir_descriptors_changed,
-            publisher,
+            events,
             circmgr,
             runtime,
         })
@@ -528,13 +512,14 @@ impl<R: Runtime> DirMgr<R> {
         self.opt_netdir().expect("DirMgr was not bootstrapped!")
     }
 
-    /// Return a new asynchronous stream about events taking place with
-    /// this directory manager.
+    /// Return a new asynchronous stream that will receive notification
+    /// whenever the consensus has changed.
     ///
-    /// The caller must regularly process events from this stream to
-    /// prevent it from blocking.
+    /// Multiple events may be batched up into a single item: each time
+    /// this stream yields an event, all you can assume is that the event has
+    /// occurred at least once.
     pub fn events(&self) -> impl futures::Stream<Item = DirEvent> {
-        self.publisher.subscribe()
+        self.events.subscribe()
     }
 
     /// Try to load the text of a single document described by `doc` from
@@ -573,23 +558,6 @@ impl<R: Runtime> DirMgr<R> {
             self.load_documents_into(&query, &mut result)?;
         }
         Ok(result)
-    }
-
-    /// If the consensus has changed, notify any subscribers.
-    // TODO: I don't like all the different places in `bootstrap`
-    // where we have to call this function.  Can we simplify it or
-    // clean it up somehow?  Maybe we can build some kind of intelligence into
-    // shared_ref?
-    pub(crate) async fn notify(&self) {
-        if self.netdir_consensus_changed.swap(false, Ordering::SeqCst) {
-            self.publisher.send(DirEvent::NewConsensus).await;
-        }
-        if self
-            .netdir_descriptors_changed
-            .swap(false, Ordering::SeqCst)
-        {
-            self.publisher.send(DirEvent::NewDescriptors).await;
-        }
     }
 
     /// Load all the documents for a single DocumentQuery from the store.

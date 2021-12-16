@@ -2657,6 +2657,7 @@ dependencies = [
  "base64",
  "derive_builder",
  "digest 0.10.0",
+ "event-listener",
  "fslock",
  "futures",
  "futures-await-test",

@@ -20,6 +20,7 @@ use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
+use crate::DirEvent;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     retry::DownloadSchedule,
@@ -82,13 +83,10 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
         &self.netdir
     }
     fn netdir_consensus_changed(&self) {
-        use std::sync::atomic::Ordering;
-        self.netdir_consensus_changed.store(true, Ordering::SeqCst);
+        self.events.publish(DirEvent::NewConsensus);
     }
     fn netdir_descriptors_changed(&self) {
-        use std::sync::atomic::Ordering;
-        self.netdir_descriptors_changed
-            .store(true, Ordering::SeqCst);
+        self.events.publish(DirEvent::NewDescriptors);
     }
     fn now(&self) -> SystemTime {
         SystemTime::now()
