@@ -33,6 +33,7 @@ members = [
     "crates/tor-dirmgr",
     "crates/arti-client",
     "crates/arti-config",
+    "crates/arti-bench",
     "crates/arti"
 ]
 
