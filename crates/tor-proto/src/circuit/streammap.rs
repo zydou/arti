@@ -35,10 +35,11 @@ pub(super) enum StreamEnt {
     /// A stream for which we have received an END cell, but not yet
     /// had the stream object get dropped.
     EndReceived,
-    /// A stream for which we have sent an END cell but not yet received
-    /// an END cell.
+    /// A stream for which we have sent an END cell but not yet received an END
+    /// cell.
     ///
-    /// XXXX Can we ever throw this out? Do we really get END cells for these?
+    /// TODO(arti#264) Can we ever throw this out? Do we really get END cells for
+    /// these?
     EndSent(HalfStream),
 }
 
