@@ -433,8 +433,13 @@ impl Readable for Created2 {
 /// in the [crate::relaycell] module.
 #[derive(Clone)]
 pub struct Relay {
-    // XXXX either this shouldn't be boxed, or RelayCellBody should be boxed!
     /// The contents of the relay cell as encoded for transfer.
+    ///
+    /// TODO(nickm): It's nice that this is boxed, since we don't want to copy
+    /// cell data all over the place. But unfortunately, a there are some other
+    /// places where we _don't_ Box things that we should, and more copies than
+    /// necessary happen. We should refactor our data handling until we're mostly
+    /// moving around pointers rather than copying data;  see ticket #7.
     body: Box<RawCellBody>,
 }
 impl Relay {
