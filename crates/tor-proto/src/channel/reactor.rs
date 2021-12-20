@@ -300,12 +300,10 @@ impl Reactor {
     async fn deliver_created(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
         let target = self.circs.advance_from_opening(circid)?;
         let created = msg.try_into()?;
-        // XXXX I think that this one actually means the other side
-        // is closed
+        // TODO(nickm) I think that this one actually means the other side
+        // is closed. See arti#269.
         target.send(created).map_err(|_| {
-            Error::InternalError(
-                "Circuit queue rejected created message. Is it closing? XXX".into(),
-            )
+            Error::InternalError("Circuit queue rejected created message. Is it closing?".into())
         })
     }
 
@@ -325,8 +323,8 @@ impl Reactor {
                 );
                 oneshot
                     .send(msg.try_into()?)
-                    // XXXX I think that this one actually means the other side
-                    // is closed
+                    // TODO(nickm) I think that this one actually means the other side
+                    // is closed. See arti#269.
                     .map_err(|_| {
                         Error::InternalError(
                             "pending circuit wasn't interested in Destroy cell?".into(),
@@ -342,8 +340,8 @@ impl Reactor {
                 );
                 sink.send(msg.try_into()?)
                     .await
-                    // XXXX I think that this one actually means the other side
-                    // is closed
+                    // TODO(nickm) I think that this one actually means the other side
+                    // is closed. See arti#269.
                     .map_err(|_| {
                         Error::InternalError("circuit wasn't interested in destroy cell?".into())
                     })
