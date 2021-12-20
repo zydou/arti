@@ -205,7 +205,11 @@ impl FromStr for Host {
         if let Ok(ip_addr) = s.parse() {
             Ok(Host::Ip(ip_addr))
         } else {
-            // XXXX: reject bad hostnames.
+            // TODO(nickm): we might someday want to reject some kinds of bad
+            // hostnames here, rather than when we're about to connect to them.
+            // But that would be an API break, and maybe not what people want.
+            // Maybe instead we should have a method to check whether a hostname
+            // is "bad"? Not sure; we'll need to decide the right behavior here.
             Ok(Host::Hostname(s.to_owned()))
         }
     }
