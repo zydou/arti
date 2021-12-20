@@ -445,8 +445,6 @@ impl RouterDesc {
         // Extract ed25519 signature.
         let ed_signature: ll::pk::ed25519::ValidatableEd25519Signature = {
             let mut d = ll::d::Sha256::new();
-            // XXXX spec is ambiguous whether this prefix goes on
-            // before or after taking the hash.
             d.update(&b"Tor router descriptor signature v1"[..]);
             let signed_end = ed_sig_pos + b"router-sig-ed25519 ".len();
             d.update(&s[start_offset..signed_end]);
