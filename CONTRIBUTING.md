@@ -144,7 +144,7 @@ Improvements or bugfixes to the existing code would be great.
 Improving the look and feel of the documentation would also rock.
 
 I've made a bunch of notes throughout the document in comments with strings
-like "XXX" or "TODO".
+like "FIXME" or "TODO".
 
 There is a list of features that I wish other crates had in a file called
 `WANT_FROM_OTHER_CRATES`.
