@@ -166,7 +166,8 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         if !keyword_ok(kwd, anno_ok) {
             return Err(Error::BadKeyword(self.pos(pos)));
         }
-        // XXXX spec should allow unicode in args.
+        // TODO(nickm): dir-spec does not yet allow unicode in the arguments, but we're
+        // assuming that proposal 285 is accepted.
         let args = match parts_iter.next() {
             Some(a) => a,
             // take a zero-length slice, so it will be within the string.
