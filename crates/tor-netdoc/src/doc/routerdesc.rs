@@ -322,7 +322,10 @@ pub type UncheckedRouterDesc = signed::SignatureGated<timed::TimerangeBound<Rout
 const ROUTER_EXPIRY_SECONDS: u64 = 5 * 86400;
 
 /// How long before its published time is a router descriptor usable?
-// XXXX use the correct value.  Is it specified?
+// TODO(nickm): This valid doesn't match C tor, which only enforces this rule
+// ("routers should not some from the future") at directory authorities, and
+// there only enforces a 12-hour limit (`ROUTER_ALLOW_SKEW`).  Eventually we
+// should probably harmonize these cutoffs.
 const ROUTER_PRE_VALIDITY_SECONDS: u64 = 86400;
 
 impl RouterDesc {
