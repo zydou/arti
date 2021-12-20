@@ -67,12 +67,14 @@ impl<T> TimerangeBound<T> {
 
     /// Adjust this time-range bound to tolerate an expiration time farther
     /// in the future.
+    #[must_use]
     pub fn extend_tolerance(self, d: time::Duration) -> Self {
         let end = self.end.map(|t| t + d);
         Self { end, ..self }
     }
     /// Adjust this time-range bound to tolerate an initial validity
     /// time farther in the past.
+    #[must_use]
     pub fn extend_pre_tolerance(self, d: time::Duration) -> Self {
         let start = self.start.map(|t| t - d);
         Self { start, ..self }

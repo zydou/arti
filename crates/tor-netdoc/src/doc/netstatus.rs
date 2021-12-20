@@ -1386,6 +1386,7 @@ impl<RS> UnvalidatedConsensus<RS> {
     /// Tell the unvalidated consensus how many authorities we believe in.
     ///
     /// Without knowing this number, we can't validate the signature.
+    #[must_use]
     pub fn set_n_authorities(self, n_authorities: u16) -> Self {
         UnvalidatedConsensus {
             n_authorities: Some(n_authorities),
