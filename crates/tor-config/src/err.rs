@@ -40,6 +40,7 @@ impl From<derive_builder::UninitializedFieldError> for ConfigBuildError {
 impl ConfigBuildError {
     /// Return a new ConfigBuildError that prefixes its field name with
     /// `prefix` and a dot.
+    #[must_use]
     pub fn within(&self, prefix: &str) -> Self {
         use ConfigBuildError::*;
         match self {

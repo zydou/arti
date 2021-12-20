@@ -313,6 +313,7 @@ impl<R: Runtime> TorClient<R> {
     /// Calling this function is usually preferable to creating a
     /// completely separate TorClient instance, since it can share its
     /// internals with the existing `TorClient`.
+    #[must_use]
     pub fn isolated_client(&self) -> TorClient<R> {
         let mut result = self.clone();
         result.client_isolation = IsolationToken::new();

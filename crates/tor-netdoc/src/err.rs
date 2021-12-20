@@ -116,6 +116,7 @@ impl Pos {
     ///
     /// TODO: I wish I knew an efficient safe way to do this that
     /// guaranteed that we we always talking about the right string.
+    #[must_use]
     pub fn within(self, s: &str) -> Self {
         match self {
             Pos::Byte { off } => Self::from_offset(s, off),
@@ -358,6 +359,7 @@ impl Error {
 
     /// Return a new error based on this one, with any byte-based
     /// position mapped to some line within a string.
+    #[must_use]
     pub fn within(mut self, s: &str) -> Error {
         if let Some(p) = self.pos_mut() {
             *p = p.within(s);
@@ -367,6 +369,7 @@ impl Error {
 
     /// Return a new error based on this one, with the position (if
     /// any) replaced by 'p'.
+    #[must_use]
     pub fn at_pos(mut self, p: Pos) -> Error {
         if let Some(mypos) = self.pos_mut() {
             *mypos = p;
@@ -376,6 +379,7 @@ impl Error {
 
     /// Return a new error based on this one, with the position (if
     /// replaced by 'p' if it had no position before.
+    #[must_use]
     pub fn or_at_pos(mut self, p: Pos) -> Error {
         if let Some(mypos) = self.pos_mut() {
             if *mypos == Pos::None {

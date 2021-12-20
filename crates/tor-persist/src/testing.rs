@@ -64,6 +64,7 @@ impl TestingStateMgr {
 
     /// Create a new unlocked [`TestingStateMgr`] that shares the same
     /// underlying storage with this one.
+    #[must_use]
     pub fn new_manager(&self) -> Self {
         let inner = self.inner.lock().expect("Lock poisoned.");
         let new_inner = TestingStateMgrInner {
