@@ -4,6 +4,7 @@ use crate::{PreemptiveCircuitConfig, TargetCircUsage, TargetPort};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
+use tracing::warn;
 
 /// Predicts what circuits might be used in future based on past activity, and suggests
 /// circuits to preemptively build as a result.
@@ -54,11 +55,20 @@ impl PreemptiveCircuitPredictor {
     /// Make some predictions for what circuits should be built.
     pub(crate) fn predict(&self) -> Vec<TargetCircUsage> {
         let config = self.config();
-        let cutoff = Instant::now() - config.prediction_lifetime;
+        let now = Instant::now();
         let circs = config.min_exit_circs_for_port;
         self.usages
             .iter()
-            .filter(|(_, &time)| time > cutoff)
+            .filter(|(_, &time)| {
+                time.checked_add(config.prediction_lifetime)
+                    .map(|t| t > now)
+                    .unwrap_or_else(|| {
+                        // FIXME(eta): this is going to be a bit noisy if it triggers, but that's better
+                        //             than panicking or silently doing the wrong thing?
+                        warn!("failed to represent preemptive circuit prediction lifetime as an Instant");
+                        false
+                    })
+            })
             .map(|(&port, _)| TargetCircUsage::Preemptive { port, circs })
             .collect()
     }
