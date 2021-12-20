@@ -505,7 +505,7 @@ impl RouterDesc {
             }
             let ntor_as_ed =
                 ll::pk::keymanip::convert_curve25519_to_ed25519_public(&ntor_onion_key, sign)
-                    .ok_or_else(|| Error::Internal(cc.pos()))?; // XXX not really 'internal'
+                    .ok_or_else(|| Error::BadArgument(cc.pos(), "Uncheckable crosscert".into()))?;
 
             cc.parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                 .check_cert_type(tor_cert::CertType::NTOR_CC_IDENTITY)?
