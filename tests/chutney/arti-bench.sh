@@ -1,6 +1,11 @@
 #!/bin/bash
 set -xe
 
+if [ -z "$RUST_LOG" ]; then
+    echo "Setting RUST_LOG=info for your convenience."
+    export RUST_LOG=info
+fi
+
 target="chutney/networks/basic"
 cd "$(git rev-parse --show-toplevel)"
 [ -d chutney ] || git clone https://gitlab.torproject.org/tpo/core/chutney
