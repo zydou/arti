@@ -11,7 +11,8 @@ if [ -z "${CHUTNEY_PATH}" ]; then
     else
 	git clone https://gitlab.torproject.org/tpo/core/chutney
     fi
-    export CHUTNEY_PATH="$(pwd)/chutney"
+    CHUTNEY_PATH="$(pwd)/chutney"
+    export CHUTNEY_PATH
 else
     # CHUTNEY_PATH is set; tell the user about that.
     echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
