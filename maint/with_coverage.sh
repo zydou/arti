@@ -115,7 +115,7 @@ echo "Generating report..."
 grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/debug/" \
 	-s "$COVERAGE_BASEDIR/crates/" -o "$COVERAGE_BASEDIR/coverage" -t html --branch \
 	--ignore-not-existing --excl-start '^mod test' --excl-stop '^}' \
-	--ignore="*/tests/*" --ignore="*/examples/*"
+	--ignore="*/tests/*" --ignore="*/examples/*" --ignore="arti-bench/*"
 
 cp "$COVERAGE_BASEDIR/coverage/index.html" "$COVERAGE_BASEDIR/coverage/index_orig.html"
 
