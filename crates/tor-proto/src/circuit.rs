@@ -222,7 +222,11 @@ impl ClientCirc {
         // assuming it's the last hop.
 
         let num_hops = self.hops.load(Ordering::SeqCst);
-        // FIXME(eta): could panic if num_hops is zero
+        if num_hops == 0 {
+            return Err(Error::InternalError(
+                "Number of hops specified is zero, cannot continue".into(),
+            ));
+        }
         let hop_num: HopNum = (num_hops - 1).into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
