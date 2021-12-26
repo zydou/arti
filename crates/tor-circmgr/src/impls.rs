@@ -6,7 +6,6 @@ use crate::usage::{SupportedCircUsage, TargetCircUsage};
 use crate::{DirInfo, Error, Result};
 use async_trait::async_trait;
 use futures::future::OptionFuture;
-use rand::{rngs::StdRng, SeedableRng};
 use std::convert::TryInto;
 use std::sync::Arc;
 use tor_proto::circuit::{CircParameters, ClientCirc};
@@ -83,7 +82,6 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
             guard_status,
             guard_usable,
         } = plan;
-        let rng = StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
 
         let guard_usable: OptionFuture<_> = guard_usable.into();
         let guard_status: Arc<GuardStatusHandle> = Arc::new(guard_status.into());
@@ -97,7 +95,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         // This will probably require a different API for circuit
         // construction.
         match self
-            .build_owned(path, &params, rng, Arc::clone(&guard_status))
+            .build_owned(path, &params, Arc::clone(&guard_status))
             .await
         {
             Ok(circuit) => {
