@@ -532,7 +532,8 @@ pub(crate) mod test {
                 reactor.run_once().await.unwrap();
             };
 
-            let (circ, _) = futures::join!(pending.create_firsthop_fast(circparams), send_response);
+            let (circ, _) =
+                futures::join!(pending.create_firsthop_fast(&circparams), send_response);
             // Make sure statuses are as expected.
             assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
 

@@ -101,8 +101,7 @@ impl Buildable for Arc<ClientCirc> {
         params: &CircParameters,
     ) -> Result<Self> {
         let circ = create_common(chanmgr, rt, rng, ct).await?;
-        // FIXME(eta): don't clone the params?
-        Ok(Arc::new(circ.create_firsthop_fast(params.clone()).await?))
+        Ok(Arc::new(circ.create_firsthop_fast(params).await?))
     }
     async fn create<RNG: CryptoRng + Rng + Send, RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
