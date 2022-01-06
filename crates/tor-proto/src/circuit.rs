@@ -457,7 +457,7 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<ClientCirc> {
+    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<ClientCirc> {
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
@@ -751,7 +751,7 @@ mod test {
             let params = CircParameters::default();
             let ret = if fast {
                 trace!("doing fast create");
-                pending.create_firsthop_fast(params).await
+                pending.create_firsthop_fast(&params).await
             } else {
                 trace!("doing ntor create");
                 pending.create_firsthop_ntor(&target, params).await
