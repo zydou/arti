@@ -114,7 +114,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
                         return Err(Error::Internal("Guard usability status cancelled".into()))
                     }
                 }
-                Ok((final_spec, circuit))
+                Ok((final_spec, Arc::new(circuit)))
             }
             Err(e) => {
                 // The attempt failed; the builder should have set the
