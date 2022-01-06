@@ -77,8 +77,8 @@
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
-#![allow(clippy::print_stderr)]
-#![allow(clippy::print_stdout)]
+#![allow(clippy::print_stderr)] // Allowed in this crate only.
+#![allow(clippy::print_stdout)] // Allowed in this crate only.
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]
@@ -86,8 +86,6 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
-
-// These are allowed in this crate only.
 
 mod exit;
 mod process;
