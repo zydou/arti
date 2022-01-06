@@ -763,6 +763,33 @@ mod test {
         assert!(g.conforms_to_usage(&usage6));
     }
 
+    #[allow(clippy::redundant_clone)]
+    #[test]
+    fn trickier_usages() {
+        let g = basic_guard();
+        use crate::{GuardUsageBuilder, GuardUsageKind};
+        let data_usage = GuardUsageBuilder::new()
+            .kind(GuardUsageKind::Data)
+            .build()
+            .unwrap();
+        let dir_usage = GuardUsageBuilder::new()
+            .kind(GuardUsageKind::OneHopDirectory)
+            .build()
+            .unwrap();
+        assert!(g.conforms_to_usage(&data_usage));
+        assert!(g.conforms_to_usage(&dir_usage));
+
+        let mut g2 = g.clone();
+        g2.microdescriptor_missing = true;
+        assert!(!g2.conforms_to_usage(&data_usage));
+        assert!(g2.conforms_to_usage(&dir_usage));
+
+        let mut g3 = g.clone();
+        g3.is_dir_cache = false;
+        assert!(g3.conforms_to_usage(&data_usage));
+        assert!(!g3.conforms_to_usage(&dir_usage));
+    }
+
     #[test]
     fn retry_interval_check() {
         const MIN: Duration = Duration::from_secs(60);
@@ -953,6 +980,18 @@ mod test {
         .unwrap()
         .unwrap_if_sufficient()
         .unwrap();
+        // Same as above but omit [22] as well as MD for [23].
+        let netdir3 = testnet::construct_custom_netdir(|idx, mut node| {
+            if idx == 22 {
+                node.omit_rs = true;
+            } else if idx == 23 {
+                node.omit_md = true;
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
         //let params = GuardParams::default();
         let now = SystemTime::now();
 
@@ -963,6 +1002,7 @@ mod test {
             now,
         );
         assert_eq!(guard255.unlisted_since, None);
+        assert_eq!(guard255.listed_in(&netdir), Some(false));
         guard255.update_from_netdir(&netdir);
         assert_eq!(
             guard255.unlisted_since,
@@ -973,15 +1013,26 @@ mod test {
         // Try a guard that is in netdir, but not netdir2.
         let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
         let relay22 = guard22.id.get_relay(&netdir).unwrap();
+        assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_netdir(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
+        assert_eq!(guard22.listed_in(&netdir2), Some(false));
         guard22.update_from_netdir(&netdir2);
         assert_eq!(
             guard22.unlisted_since,
             Some(netdir2.lifetime().valid_after())
         );
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
+        assert!(!guard22.microdescriptor_missing);
+
+        // Now see what happens for a guard that's in the consensus, but missing an MD.
+        let mut guard23 = Guard::new(GuardId::new([23; 32].into(), [23; 20].into()), vec![], now);
+        assert_eq!(guard23.listed_in(&netdir2), Some(true));
+        assert_eq!(guard23.listed_in(&netdir3), None);
+        guard23.update_from_netdir(&netdir3);
+        assert!(guard23.microdescriptor_missing);
+        assert!(guard23.is_dir_cache);
     }
 
     #[test]
