@@ -50,6 +50,31 @@ rust-nightly:
   tags:
     - amd64
 
+coverage:
+  stage: test
+  image: rustlang/rust:nightly
+  variables:
+    RUSTFLAGS: "-Zinstrument-coverage"
+    LLVM_PROFILE_FILE: "coverage-%p-%m.profraw"
+  script:
+    - rustup component add llvm-tools-preview
+    - cargo test
+    # generate html report
+    - cargo install grcov
+    - grcov . --binary-path ./target/debug/ -s . -t html --branch --ignore-not-existing --ignore "*cargo*" -o ./coverage/
+    # generate cobertura report for gitlab integration
+    - pip3 install lcov_cobertura
+    - grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "*cargo*" -o coverage.lcov
+    - python3 /usr/local/lib/python3.5/dist-packages/lcov_cobertura.py coverage.lcov
+    # output coverage summary for gitlab parsing
+    - apt-get update && apt-get install -y lcov
+    - lcov --summary coverage.lcov
+  artifacts:
+    paths:
+      - 'coverage'
+    reports:
+      cobertura: coverage.xml
+
 minimal-versions:
   stage: test
   image: rust:1.53
