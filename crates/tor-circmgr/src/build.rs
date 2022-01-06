@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::task::SpawnExt;
 use futures::Future;
-use rand::{rngs::StdRng, CryptoRng, Rng, SeedableRng};
 use std::convert::TryInto;
 use std::sync::{
     atomic::{AtomicU32, Ordering},
@@ -38,30 +37,27 @@ pub(crate) trait Buildable: Sized {
     ///
     /// (Since we don't have a CircTarget here, we can't extend the circuit
     /// to be multihop later on.)
-    async fn create_chantarget<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
-        rng: &mut RNG,
         ct: &OwnedChanTarget,
         params: &CircParameters,
     ) -> Result<Self>;
 
     /// Launch a new circuit through a given relay, given a circuit target
     /// `ct` specifying that relay.
-    async fn create<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn create<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
-        rng: &mut RNG,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<Self>;
 
     /// Extend this circuit-like object by one hop, to the location described
     /// in `ct`.
-    async fn extend<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn extend<RT: Runtime>(
         &self,
         rt: &RT,
-        rng: &mut RNG,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()>;
@@ -72,12 +68,9 @@ pub(crate) trait Buildable: Sized {
 ///
 /// This is common code, shared by all the first-hop functions in the
 /// implementation of `Buildable` for `Arc<ClientCirc>`.
-async fn create_common<RNG: CryptoRng + Rng + Send, RT: Runtime, CT: ChanTarget>(
+async fn create_common<RT: Runtime, CT: ChanTarget>(
     chanmgr: &ChanMgr<RT>,
     rt: &RT,
-    // FIXME(eta): remove this unused RNG parameter!
-    //             (new_circ() used to take it)
-    _rng: &mut RNG,
     target: &CT,
 ) -> Result<PendingClientCirc> {
     let chan = chanmgr.get_or_launch(target).await?;
@@ -93,33 +86,29 @@ async fn create_common<RNG: CryptoRng + Rng + Send, RT: Runtime, CT: ChanTarget>
 // FIXME(eta): de-Arc-ify this
 #[async_trait]
 impl Buildable for Arc<ClientCirc> {
-    async fn create_chantarget<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
-        rng: &mut RNG,
         ct: &OwnedChanTarget,
         params: &CircParameters,
     ) -> Result<Self> {
-        let circ = create_common(chanmgr, rt, rng, ct).await?;
+        let circ = create_common(chanmgr, rt, ct).await?;
         Ok(Arc::new(circ.create_firsthop_fast(params).await?))
     }
-    async fn create<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn create<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
-        rng: &mut RNG,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<Self> {
-        let circ = create_common(chanmgr, rt, rng, ct).await?;
+        let circ = create_common(chanmgr, rt, ct).await?;
         Ok(Arc::new(
             circ.create_firsthop_ntor(ct, params.clone()).await?,
         ))
     }
-    async fn extend<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+    async fn extend<RT: Runtime>(
         &self,
         _rt: &RT,
-        // FIXME(eta): get rid of this RNG parameter?
-        _rng: &mut RNG,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
@@ -166,13 +155,12 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     ///
     /// (TODO: Find
     /// a better design there.)
-    async fn build_notimeout<RNG: CryptoRng + Rng + Send>(
+    async fn build_notimeout(
         self: Arc<Self>,
         path: OwnedPath,
         params: CircParameters,
         start_time: Instant,
         n_hops_built: Arc<AtomicU32>,
-        mut rng: RNG,
         guard_status: Arc<GuardStatusHandle>,
     ) -> Result<C> {
         match path {
@@ -180,8 +168,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 // If we fail now, it's the guard's fault.
                 guard_status.pending(GuardStatus::Failure);
                 let circ =
-                    C::create_chantarget(&self.chanmgr, &self.runtime, &mut rng, &target, &params)
-                        .await?;
+                    C::create_chantarget(&self.chanmgr, &self.runtime, &target, &params).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, true);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -192,8 +179,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 let n_hops = p.len() as u8;
                 // If we fail now, it's the guard's fault.
                 guard_status.pending(GuardStatus::Failure);
-                let circ =
-                    C::create(&self.chanmgr, &self.runtime, &mut rng, &p[0], &params).await?;
+                let circ = C::create(&self.chanmgr, &self.runtime, &p[0], &params).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
                 // If we fail after this point, we can't tell whether it's
@@ -202,7 +188,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
                 let mut hop_num = 1;
                 for relay in p[1..].iter() {
-                    circ.extend(&self.runtime, &mut rng, relay, &params).await?;
+                    circ.extend(&self.runtime, relay, &params).await?;
                     n_hops_built.fetch_add(1, Ordering::SeqCst);
                     self.timeouts.note_hop_completed(
                         hop_num,
@@ -217,11 +203,10 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
     }
 
     /// Build a circuit from an [`OwnedPath`].
-    async fn build_owned<RNG: CryptoRng + Rng + Send + 'static>(
+    async fn build_owned(
         self: &Arc<Self>,
         path: OwnedPath,
         params: &CircParameters,
-        rng: RNG,
         guard_status: Arc<GuardStatusHandle>,
     ) -> Result<C> {
         let action = Action::BuildCircuit { length: path.len() };
@@ -241,7 +226,6 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
             params,
             start_time,
             Arc::clone(&hops_built),
-            rng,
             guard_status,
         );
 
@@ -345,16 +329,13 @@ impl<R: Runtime> CircuitBuilder<R> {
     }
 
     /// Like `build`, but construct a new circuit from an [`OwnedPath`].
-    pub(crate) async fn build_owned<RNG: CryptoRng + Rng + Send + 'static>(
+    pub(crate) async fn build_owned(
         &self,
         path: OwnedPath,
         params: &CircParameters,
-        rng: RNG,
         guard_status: Arc<GuardStatusHandle>,
     ) -> Result<Arc<ClientCirc>> {
-        self.builder
-            .build_owned(path, params, rng, guard_status)
-            .await
+        self.builder.build_owned(path, params, guard_status).await
     }
 
     /// Try to construct a new circuit from a given path, using appropriate
@@ -363,16 +344,13 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// This circuit is _not_ automatically registered with any
     /// circuit manager; if you don't hang on it it, it will
     /// automatically go away when the last reference is dropped.
-    pub async fn build<RNG: CryptoRng + Rng>(
+    pub async fn build(
         &self,
         path: &TorPath<'_>,
         params: &CircParameters,
-        rng: &mut RNG,
     ) -> Result<Arc<ClientCirc>> {
-        let rng = StdRng::from_rng(rng).expect("couldn't construct temporary rng");
         let owned = path.try_into()?;
-        self.build_owned(owned, params, rng, Arc::new(None.into()))
-            .await
+        self.build_owned(owned, params, Arc::new(None.into())).await
     }
 
     /// Return true if this builder is currently learning timeout info.
@@ -597,10 +575,9 @@ mod test {
     }
     #[async_trait]
     impl Buildable for Mutex<FakeCirc> {
-        async fn create_chantarget<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+        async fn create_chantarget<RT: Runtime>(
             _: &ChanMgr<RT>,
             rt: &RT,
-            _: &mut RNG,
             ct: &OwnedChanTarget,
             _: &CircParameters,
         ) -> Result<Self> {
@@ -617,10 +594,9 @@ mod test {
             };
             Ok(Mutex::new(c))
         }
-        async fn create<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+        async fn create<RT: Runtime>(
             _: &ChanMgr<RT>,
             rt: &RT,
-            _: &mut RNG,
             ct: &OwnedCircTarget,
             _: &CircParameters,
         ) -> Result<Self> {
@@ -637,10 +613,9 @@ mod test {
             };
             Ok(Mutex::new(c))
         }
-        async fn extend<RNG: CryptoRng + Rng + Send, RT: Runtime>(
+        async fn extend<RT: Runtime>(
             &self,
             rt: &RT,
-            _: &mut RNG,
             ct: &OwnedCircTarget,
             _: &CircParameters,
         ) -> Result<()> {
@@ -755,13 +730,12 @@ mod test {
             timeouts::Estimator::new(Arc::clone(&timeouts)),
         );
 
-        let rng = StdRng::from_rng(rand::thread_rng()).expect("couldn't construct temporary rng");
         let params = CircParameters::default();
 
         rt.block_advance("manually controlling advances");
         rt.allow_one_advance(advance_initial);
         let outcome = rt
-            .wait_for(Arc::new(builder).build_owned(path, &params, rng, gs()))
+            .wait_for(Arc::new(builder).build_owned(path, &params, gs()))
             .await;
 
         // Now we wait for a success to finally, finally be reported.
