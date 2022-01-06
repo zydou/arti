@@ -270,6 +270,18 @@ impl<R: Runtime> CircMgr<R> {
         self.mgr.peek_builder().update_network_parameters(p);
     }
 
+    /// Return true if `netdir` has enough information to be used for this
+    /// circuit manager.
+    ///
+    /// (This will check whether the netdir is missing any primary guard
+    /// microdescriptors)
+    pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .netdir_is_sufficient(netdir)
+    }
+
     /// Reconfigure this circuit manager using the latest network directory.
     ///
     /// This should be called on _any_ change to the network, as opposed to

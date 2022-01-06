@@ -384,6 +384,18 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
+    /// Return the number of our primary guards are missing their
+    /// microdescriptors in `dir`.
+    pub(crate) fn missing_primary_microdescriptors(&mut self, dir: &NetDir) -> usize {
+        self.primary
+            .iter()
+            .filter(|id| {
+                let g = self.guards.get(id).expect("Inconsistent guard state");
+                g.listed_in(dir).is_none()
+            })
+            .count()
+    }
+
     /// Update the status of every guard  in this sample from a network
     /// directory.
     pub(crate) fn update_status_from_netdir(&mut self, dir: &NetDir) {

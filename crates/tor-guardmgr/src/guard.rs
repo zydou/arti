@@ -336,6 +336,16 @@ impl Guard {
         self.obeys_restrictions(&usage.restrictions[..])
     }
 
+    /// Check whether this guard is listed in the provided [`NetDir`].
+    ///
+    /// Returns `Some(true)` if it is definitely listed, and `Some(false)` if it
+    /// is definitely not listed.  A `None` return indicates that we need to
+    /// download another microdescriptor before we can be certain whether this
+    /// guard is listed or not.
+    pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
+        netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa)
+    }
+
     /// Change this guard's status based on a newly received or newly
     /// updated [`NetDir`].
     ///
@@ -348,7 +358,7 @@ impl Guard {
         // This is a tricky check, since if we're missing a microdescriptor
         // for the RSA id, we won't know whether the ed25519 id is listed or
         // not.
-        let listed_as_guard = match netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa) {
+        let listed_as_guard = match self.listed_in(netdir) {
             Some(true) => {
                 // Definitely listed.
                 let relay = self
