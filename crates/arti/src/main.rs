@@ -57,6 +57,7 @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
+#![deny(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
 #![deny(clippy::cast_lossless)]
@@ -76,6 +77,8 @@
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]
@@ -83,9 +86,8 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+
 // These are allowed in this crate only.
-#![allow(clippy::print_stderr)]
-#![allow(clippy::print_stdout)]
 
 mod exit;
 mod process;
