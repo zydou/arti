@@ -222,7 +222,11 @@ impl ClientCirc {
         // assuming it's the last hop.
 
         let num_hops = self.hops.load(Ordering::SeqCst);
-        // FIXME(eta): could panic if num_hops is zero
+        if num_hops == 0 {
+            return Err(Error::InternalError(
+                "Number of hops specified is zero, cannot continue".into(),
+            ));
+        }
         let hop_num: HopNum = (num_hops - 1).into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
@@ -453,7 +457,7 @@ impl PendingClientCirc {
     /// There's no authentication in CRATE_FAST,
     /// so we don't need to know whom we're connecting to: we're just
     /// connecting to whichever relay the channel is for.
-    pub async fn create_firsthop_fast(self, params: CircParameters) -> Result<ClientCirc> {
+    pub async fn create_firsthop_fast(self, params: &CircParameters) -> Result<ClientCirc> {
         let (tx, rx) = oneshot::channel();
         self.circ
             .control
@@ -747,7 +751,7 @@ mod test {
             let params = CircParameters::default();
             let ret = if fast {
                 trace!("doing fast create");
-                pending.create_firsthop_fast(params).await
+                pending.create_firsthop_fast(&params).await
             } else {
                 trace!("doing ntor create");
                 pending.create_firsthop_ntor(&target, params).await

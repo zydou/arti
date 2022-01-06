@@ -409,7 +409,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     // unwrap_or_else() here, but that should be somewhat
     // hidden by the rest of the computation.
     okay &= ct::bool_to_choice(reply.is_some());
-    let reply = reply.unwrap_or_else(Vec::new);
+    let reply = reply.unwrap_or_default();
 
     // If we reach this point, we are actually replying, or pretending
     // that we're going to reply.

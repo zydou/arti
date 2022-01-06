@@ -6,6 +6,7 @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
+#![deny(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cargo_common_metadata)]
 #![deny(clippy::cast_lossless)]
@@ -31,8 +32,9 @@
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
-// FIXME(eta): this uses `unwrap()` a fair deal, but this is probably fine?
-// #![deny(clippy::unwrap_used)]
+// This file uses `unwrap()` a fair deal, but this is fine in test/bench code
+// because it's OK if tests and benchmarks simply crash if things go wrong.
+#![allow(clippy::unwrap_used)]
 
 use anyhow::{anyhow, Result};
 use arti_client::{TorAddr, TorClient};
