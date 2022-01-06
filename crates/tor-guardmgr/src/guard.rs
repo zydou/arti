@@ -118,6 +118,11 @@ pub(crate) struct Guard {
     #[serde(with = "humantime_serde")]
     unlisted_since: Option<SystemTime>,
 
+    /// True if this guard is listed in the latest consensus, but we don't
+    /// have a microdescriptor for it.
+    #[serde(skip)]
+    microdescriptor_missing: bool,
+
     /// When did we last give out this guard in response to a request?
     #[serde(skip)]
     last_tried_to_connect_at: Option<Instant>,
@@ -204,6 +209,7 @@ impl Guard {
 
             confirmed_at: None,
             unlisted_since: None,
+            microdescriptor_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             failing_since: None,
@@ -313,8 +319,19 @@ impl Guard {
     /// Return true if this guard is suitable to use for the provided `usage`.
     pub(crate) fn conforms_to_usage(&self, usage: &GuardUsage) -> bool {
         use crate::GuardUsageKind;
-        if usage.kind == GuardUsageKind::OneHopDirectory && !self.is_dir_cache {
-            return false;
+        match usage.kind {
+            GuardUsageKind::OneHopDirectory => {
+                if !self.is_dir_cache {
+                    return false;
+                }
+            }
+            GuardUsageKind::Data => {
+                // We need a "definitely listed" guard to build a multihop
+                // circuit.
+                if self.microdescriptor_missing {
+                    return false;
+                }
+            }
         }
         self.obeys_restrictions(&usage.restrictions[..])
     }
@@ -331,7 +348,7 @@ impl Guard {
         // This is a tricky check, since if we're missing a microdescriptor
         // for the RSA id, we won't know whether the ed25519 id is listed or
         // not.
-        let listed = match netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa) {
+        let listed_as_guard = match netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa) {
             Some(true) => {
                 // Definitely listed.
                 let relay = self
@@ -346,10 +363,19 @@ impl Guard {
                 relay.is_flagged_guard()
             }
             Some(false) => false, // Definitely not listed.
-            None => return,       // Nothing to do: we can't tell if it's listed.
+            None => {
+                // We can't tell if this is listed: The RSA id is present, but
+                // the microdescriptor is missing so we don't know the Ed25519 ID.
+                self.microdescriptor_missing = true;
+                return;
+            }
         };
 
-        if listed {
+        // We got a definite answer, so we aren't missing a microdesc for this
+        // guard.
+        self.microdescriptor_missing = false;
+
+        if listed_as_guard {
             // Definitely listed, so clear unlisted_since.
             self.mark_listed();
         } else {
