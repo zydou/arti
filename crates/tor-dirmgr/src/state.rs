@@ -695,9 +695,22 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         Some(self.reset_time)
     }
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
+        let cache_usage = if self.cache_usage == CacheUsage::CacheOnly {
+            // Cache only means we can't ever download.
+            CacheUsage::CacheOnly
+        } else if self.is_ready(Readiness::Usable) {
+            // If we managed to bootstrap a usable consensus, then we won't
+            // accept our next consensus from the cache.
+            CacheUsage::MustDownload
+        } else {
+            // If we didn't manage to bootstrap a usable consensus, then we can
+            // indeed try again with the one in the cache.
+            // TODO(nickm) is this right?
+            CacheUsage::CacheOkay
+        };
         Ok(Box::new(GetConsensusState::new(
             self.writedir,
-            self.cache_usage,
+            cache_usage,
         )?))
     }
 }
