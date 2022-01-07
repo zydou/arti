@@ -1291,8 +1291,8 @@ mod test {
     }
 
     impl FakeCirc {
-        fn eq(self: &Arc<Self>, other: &Arc<Self>) -> bool {
-            Arc::ptr_eq(self, other)
+        fn eq(self: &Self, other: &Self) -> bool {
+            self.id == other.id
         }
     }
 
