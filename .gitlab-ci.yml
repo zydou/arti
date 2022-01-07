@@ -55,24 +55,20 @@ coverage:
   image: rust:latest
   variables:
     RUSTFLAGS: "-Zinstrument-coverage"
-    LLVM_PROFILE_FILE: "coverage-%p-%m.profraw"
+    LLVM_PROFILE_FILE: "arti-%p-%m.profraw"
   script:
     - rustup toolchain add nightly
     - rustup default nightly
     - rustup component add llvm-tools-preview
-    - apt-get update && apt-get install -y lcov python3-pip python3-setuptools
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     # generate html report
     - cargo install grcov
     - grcov . --binary-path ./target/x86_64-unknown-linux-gnu/ -s . -t html --branch --ignore-not-existing --ignore "*cargo*" -o ./coverage/
     # generate cobertura report for gitlab integration
-    - pip3 install lcov_cobertura
-    - grcov . --binary-path ./target/x86_64-unknown-linux-gnu/ -s . -t lcov --branch --ignore-not-existing --ignore "*cargo*" -o coverage.lcov
-    - pip3 show lcov_cobertura
-    - python3 /usr/local/lib/python3.9/dist-packages/lcov_cobertura.py coverage.lcov
+    - grcov . --binary-path ./target/x86_64-unknown-linux-gnu/ -s . -t cobertura --branch --ignore-not-existing --ignore "*cargo*" -o coverage.xml
     # output coverage summary for gitlab parsing
-
-    - lcov --summary coverage.lcov
+    - apt-get update && apt-get install -y lcov
+    - lcov --summary coverage.xml
   artifacts:
     paths:
       - 'coverage'
