@@ -109,7 +109,7 @@ impl Buildable for ClientCirc {
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<()> {
-        ClientCirc::extend_ntor(self, ct, params).await?;
+        self.extend_ntor(ct, params).await?;
         Ok(())
     }
 }
