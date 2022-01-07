@@ -1290,6 +1290,12 @@ mod test {
         id: FakeId,
     }
 
+    impl FakeCirc {
+        fn eq(self: &Arc<Self>, other: &Arc<Self>) -> bool {
+            Arc::ptr_eq(self, other)
+        }
+    }
+
     impl AbstractCirc for FakeCirc {
         type Id = FakeId;
         fn id(&self) -> FakeId {
@@ -1499,7 +1505,7 @@ mod test {
             let c2 = mgr.get_or_launch(&port80, di()).await;
 
             let c2 = c2.unwrap();
-            assert!(Arc::ptr_eq(&c1, &c2));
+            assert!(FakeCirc::eq(&c1, &c2));
             assert_eq!(mgr.n_circs(), 1);
 
             // Now try launching two circuits "at once" to make sure that our
@@ -1517,8 +1523,8 @@ mod test {
 
             let c3 = c3.unwrap();
             let c4 = c4.unwrap();
-            assert!(!Arc::ptr_eq(&c1, &c3));
-            assert!(Arc::ptr_eq(&c3, &c4));
+            assert!(!FakeCirc::eq(&c1, &c3));
+            assert!(FakeCirc::eq(&c3, &c4));
             assert_eq!(c3.id(), c4.id());
             assert_eq!(mgr.n_circs(), 2);
 
@@ -1526,7 +1532,7 @@ mod test {
             // same as c4, so removing c4 will give us None.
             let c3_taken = mgr.take_circ(&c3.id()).unwrap();
             let now_its_gone = mgr.take_circ(&c4.id());
-            assert!(Arc::ptr_eq(&c3_taken, &c3));
+            assert!(FakeCirc::eq(&c3_taken, &c3));
             assert!(now_its_gone.is_none());
             assert_eq!(mgr.n_circs(), 1);
 
@@ -1534,8 +1540,8 @@ mod test {
             // sure we get a different circuit.
             let c5 = rt.wait_for(mgr.get_or_launch(&dnsport, di())).await;
             let c5 = c5.unwrap();
-            assert!(!Arc::ptr_eq(&c3, &c5));
-            assert!(!Arc::ptr_eq(&c4, &c5));
+            assert!(!FakeCirc::eq(&c3, &c5));
+            assert!(!FakeCirc::eq(&c4, &c5));
             assert_eq!(mgr.n_circs(), 2);
 
             // Now try launch_by_usage.
@@ -1705,7 +1711,7 @@ mod test {
             let c1 = c1.unwrap();
             let c2 = c2.unwrap();
 
-            assert!(Arc::ptr_eq(&c1, &c2));
+            assert!(FakeCirc::eq(&c1, &c2));
         });
     }
 
@@ -1760,8 +1766,8 @@ mod test {
                 let c_iso2 = c_iso2.unwrap();
                 let c_none = c_none.unwrap();
 
-                assert!(!Arc::ptr_eq(&c_iso1, &c_iso2));
-                assert!(Arc::ptr_eq(&c_iso1, &c_none) || Arc::ptr_eq(&c_iso2, &c_none));
+                assert!(!FakeCirc::eq(&c_iso1, &c_iso2));
+                assert!(FakeCirc::eq(&c_iso1, &c_none) || FakeCirc::eq(&c_iso2, &c_none));
             }
         });
     }
@@ -1800,7 +1806,7 @@ mod test {
                 .await;
 
             if let (Ok(c1), Ok(c2)) = (c1, c2) {
-                assert!(Arc::ptr_eq(&c1, &c2));
+                assert!(FakeCirc::eq(&c1, &c2));
             } else {
                 panic!();
             };
@@ -1845,7 +1851,7 @@ mod test {
 
             // If we had launched these separately, they wouldn't share
             // a circuit.
-            assert!(Arc::ptr_eq(&c1, &c2));
+            assert!(FakeCirc::eq(&c1, &c2));
         });
     }
 
@@ -1900,8 +1906,8 @@ mod test {
             let pop2 = pop2.unwrap();
             let imap2 = imap2.unwrap();
 
-            assert!(!Arc::ptr_eq(&pop2, &pop1));
-            assert!(Arc::ptr_eq(&imap2, &imap1));
+            assert!(!FakeCirc::eq(&pop2, &pop1));
+            assert!(FakeCirc::eq(&imap2, &imap1));
         });
     }
 
