@@ -119,7 +119,7 @@ pub(crate) fn abstract_spec_find_supported<'a, 'b, S: AbstractSpec, C: AbstractC
 ///
 /// From this module's point of view, circuits are simply objects
 /// with unique identities, and a possible closed-state.
-pub(crate) trait AbstractCirc: Debug {
+pub(crate) trait AbstractCirc: Clone + Debug {
     /// Type for a unique identifier for circuits.
     type Id: Clone + Debug + Hash + Eq + Send + Sync;
     /// Return the unique identifier for this circuit.
