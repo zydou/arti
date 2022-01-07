@@ -83,9 +83,8 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     Ok(pending_circ)
 }
 
-// FIXME(eta): de-Arc-ify this
 #[async_trait]
-impl Buildable for Arc<ClientCirc> {
+impl Buildable for ClientCirc {
     async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
@@ -93,7 +92,7 @@ impl Buildable for Arc<ClientCirc> {
         params: &CircParameters,
     ) -> Result<Self> {
         let circ = create_common(chanmgr, rt, ct).await?;
-        Ok(Arc::new(circ.create_firsthop_fast(params).await?))
+        Ok(circ.create_firsthop_fast(params).await?)
     }
     async fn create<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
@@ -102,9 +101,7 @@ impl Buildable for Arc<ClientCirc> {
         params: &CircParameters,
     ) -> Result<Self> {
         let circ = create_common(chanmgr, rt, ct).await?;
-        Ok(Arc::new(
-            circ.create_firsthop_ntor(ct, params.clone()).await?,
-        ))
+        Ok(circ.create_firsthop_ntor(ct, params.clone()).await?)
     }
     async fn extend<RT: Runtime>(
         &self,
@@ -251,7 +248,7 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
 /// unless you are choosing your own paths.
 pub struct CircuitBuilder<R: Runtime> {
     /// The underlying [`Builder`] object
-    builder: Arc<Builder<R, Arc<ClientCirc>>>,
+    builder: Arc<Builder<R, ClientCirc>>,
     /// Configuration for how to choose paths for circuits.
     path_config: tor_config::MutCfg<crate::PathConfig>,
     /// State-manager object to use in storing current state.
@@ -334,7 +331,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         path: OwnedPath,
         params: &CircParameters,
         guard_status: Arc<GuardStatusHandle>,
-    ) -> Result<Arc<ClientCirc>> {
+    ) -> Result<ClientCirc> {
         self.builder.build_owned(path, params, guard_status).await
     }
 
@@ -344,11 +341,7 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// This circuit is _not_ automatically registered with any
     /// circuit manager; if you don't hang on it it, it will
     /// automatically go away when the last reference is dropped.
-    pub async fn build(
-        &self,
-        path: &TorPath<'_>,
-        params: &CircParameters,
-    ) -> Result<Arc<ClientCirc>> {
+    pub async fn build(&self, path: &TorPath<'_>, params: &CircParameters) -> Result<ClientCirc> {
         let owned = path.try_into()?;
         self.build_owned(owned, params, Arc::new(None.into())).await
     }
