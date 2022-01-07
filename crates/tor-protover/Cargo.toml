@@ -13,4 +13,4 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 caret = { path="../caret", version = "0.0.2"}
 
-thiserror = "1.0.24"
+thiserror = "1"

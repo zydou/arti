@@ -17,12 +17,12 @@ tor-bytes = { path="../tor-bytes", version = "0.0.2"}
 tor-cert = { path="../tor-cert", version = "0.0.2"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
 
-arrayref = "0.3.6"
-bitflags = "1.2.1"
-bytes = "1.0.1"
-rand = "0.8.3"
-thiserror = "1.0.24"
+arrayref = "0.3"
+bitflags = "1"
+bytes = "1"
+rand = "0.8"
+thiserror = "1"
 
 [dev-dependencies]
-hex-literal = "0.3.1"
-hex = "0.4.3"
+hex-literal = "0.3"
+hex = "0.4"

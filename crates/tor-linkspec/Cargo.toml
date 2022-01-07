@@ -16,4 +16,4 @@ tor-bytes = { path="../tor-bytes", version = "0.0.2"}
 tor-protover = { path="../tor-protover", version = "0.0.2"}
 
 [dev-dependencies]
-hex-literal = "0.3.1"
+hex-literal = "0.3"

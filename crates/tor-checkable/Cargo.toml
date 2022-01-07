@@ -13,7 +13,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 
-signature = "1.3.0"
-thiserror = "1.0.24"
+signature = "1"
+thiserror = "1"
 
 

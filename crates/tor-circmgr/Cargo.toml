@@ -29,22 +29,22 @@ tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
 tor-persist = {  path="../tor-persist", version = "0.0.2"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2"}
 
-async-trait = "0.1.48"
-bounded-vec-deque = "0.1.1"
-derive_builder = "0.10.2"
-futures = "0.3.13"
-humantime-serde = "1.0.1"
+async-trait = "0.1.2"
+bounded-vec-deque = "0.1"
+derive_builder = "0.10"
+futures = "0.3"
+humantime-serde = "1"
 itertools = "0.10.1"
-tracing = "0.1.26"
-pin-project = "1.0.5"
-rand = "0.8.3"
-serde = { version = "1.0.124", features = ["derive"] }
-static_assertions = "1.1.0"
-thiserror = "1.0.24"
+tracing = "0.1.18"
+pin-project = "1"
+rand = "0.8"
+serde = { version = "1.0.103", features = ["derive"] }
+static_assertions = "1"
+thiserror = "1"
 weak-table = "0.3.0"
 
 [dev-dependencies]
-async_executors = { version = "0.4.2", default-features=false, features = [ "tokio_tp" ] }
+async_executors = { version = "0.4", default-features = false, features = [ "tokio_tp" ] }
 futures-await-test = "0.3.0"
 tor-rtmock = { path="../tor-rtmock", version = "0.0.2"}
 tor-guardmgr = { path="../tor-guardmgr", version = "0.0.2", features=["testing"]}

@@ -24,16 +24,16 @@ tor-proto = { path="../tor-proto", version = "0.0.2"}
 tor-netdoc = { path="../tor-netdoc", version = "0.0.2"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2"}
 
-async-compression = { version = "0.3.7", features=["futures-io", "zlib"] }
+async-compression = { version = "0.3.5", features = ["futures-io", "zlib"] }
 base64 = "0.13.0"
-futures = "0.3.13"
-hex = "0.4.3"
-http = "0.2.3"
-httpdate = "1.0.0"
-httparse = "1.4.0"
-tracing = "0.1.26"
-memchr = "2.4.0"
-thiserror = "1.0.24"
+futures = "0.3"
+hex = "0.4"
+http = "0.2"
+httpdate = "1.0"
+httparse = "1.2"
+tracing = "0.1.18"
+memchr = "2"
+thiserror = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
