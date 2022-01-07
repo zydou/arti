@@ -281,7 +281,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,
     /// launching it if necessary.
-    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<Arc<ClientCirc>> {
+    pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<ClientCirc> {
         self.expire_circuits();
         let usage = TargetCircUsage::Dir;
         self.mgr.get_or_launch(&usage, netdir).await
@@ -297,7 +297,7 @@ impl<R: Runtime> CircMgr<R> {
         netdir: DirInfo<'_>, // TODO: This has to be a NetDir.
         ports: &[TargetPort],
         isolation: StreamIsolation,
-    ) -> Result<Arc<ClientCirc>> {
+    ) -> Result<ClientCirc> {
         self.expire_circuits();
         let time = Instant::now();
         {

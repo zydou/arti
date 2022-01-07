@@ -417,7 +417,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         exit_ports: &[TargetPort],
         flags: &ConnectPrefs,
-    ) -> Result<Arc<ClientCirc>> {
+    ) -> Result<ClientCirc> {
         let dir = self.dirmgr.netdir();
 
         let isolation = {
