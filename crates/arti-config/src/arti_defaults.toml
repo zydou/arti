@@ -11,10 +11,8 @@ socks_port = 9150
 # Configure logging
 [logging]
 
-# Enable logging to journald where available
-journald = false
-
-# Specify filtering directives for tracing.
+# Specify filtering directives for sending trace messages to the console
+# (via standard output).
 #
 # It can be as simple as a single loglevel, or as complicated as a
 # list with per-module settings.
@@ -25,7 +23,20 @@ journald = false
 #     trace_filter = "info,tor_proto::channel=trace"
 #
 # For more information, see https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html
-trace_filter = "debug"
+console = "debug"
+
+# As above, but specify filtering directives for sending trace messages to 
+# the journald logging system.
+#
+#journald = ""
+
+# You can also configure one or more log files, with different filters, and optional
+# rotation.
+#
+#file = [
+#   {path = "~/logs/debug.log", filter="debug"},
+#   {path = "~/logs/trace.log", filter="trace", rotate="daily"},
+#]
 
 # Locations to use for storing things on disk.
 #

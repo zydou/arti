@@ -202,7 +202,7 @@ fn main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into()?;
 
-    trace::setup_logging(config.logging(), matches.value_of("loglevel"));
+    let _log_guards = trace::setup_logging(config.logging(), matches.value_of("loglevel"))?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
