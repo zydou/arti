@@ -1291,7 +1291,7 @@ mod test {
     }
 
     impl FakeCirc {
-        fn eq(self: &Self, other: &Self) -> bool {
+        fn eq(&self, other: &Self) -> bool {
             self.id == other.id
         }
     }
@@ -1969,7 +1969,7 @@ mod test {
                 policy: ep_full,
                 isolation: None,
             },
-            fake_circ.clone(),
+            fake_circ,
             expiration,
         );
         let mut entry_full_c = entry_full.clone();
