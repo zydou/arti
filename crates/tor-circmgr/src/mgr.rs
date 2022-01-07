@@ -206,7 +206,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// that was originally passed to `plan_circuit`.  It _must_ also
     /// contain the spec that was originally returned by
     /// `plan_circuit`.
-    async fn build_circuit(&self, plan: Self::Plan) -> Result<(Self::Spec, Arc<Self::Circ>)>;
+    async fn build_circuit(&self, plan: Self::Plan) -> Result<(Self::Spec, Self::Circ)>;
 
     /// Return a "parallelism factor" with which circuits should be
     /// constructed for a given purpose.
@@ -285,7 +285,7 @@ pub(crate) struct OpenEntry<S, C> {
     /// Current AbstractCircSpec for this circuit's permitted usages.
     spec: S,
     /// The circuit under management.
-    circ: Arc<C>,
+    circ: C,
     /// When does this circuit expire?
     ///
     /// (Note that expired circuits are removed from the manager,
@@ -296,7 +296,7 @@ pub(crate) struct OpenEntry<S, C> {
 
 impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// Make a new OpenEntry for a given circuit and spec.
-    fn new(spec: S, circ: Arc<C>, expiration: ExpirationInfo) -> Self {
+    fn new(spec: S, circ: C, expiration: ExpirationInfo) -> Self {
         OpenEntry {
             spec,
             circ,
@@ -684,7 +684,7 @@ pub(crate) struct AbstractCircMgr<B: AbstractCircBuilder, R: Runtime> {
 /// An action to take in order to satisfy a request for a circuit.
 enum Action<B: AbstractCircBuilder> {
     /// We found an open circuit: return immediately.
-    Open(Arc<B::Circ>),
+    Open(B::Circ),
     /// We found one or more pending circuits: wait until one succeeds,
     /// or all fail.
     Wait(FuturesUnordered<Shared<oneshot::Receiver<PendResult<B>>>>),
@@ -735,7 +735,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: &Arc<Self>,
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
-    ) -> Result<Arc<B::Circ>> {
+    ) -> Result<B::Circ> {
         let circuit_timing = self.circuit_timing();
         let wait_for_circ = circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
@@ -878,7 +878,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: Arc<Self>,
         act: Action<B>,
         usage: &<B::Spec as AbstractSpec>::Usage,
-    ) -> std::result::Result<Arc<B::Circ>, RetryError<Box<Error>>> {
+    ) -> std::result::Result<B::Circ, RetryError<Box<Error>>> {
         // Get or make a stream of futures to wait on.
         let wait_on_stream = match act {
             Action::Open(c) => {
@@ -1138,7 +1138,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// out to any future requests.
     ///
     /// Return None if we have no circuit with the given ID.
-    pub(crate) fn take_circ(&self, id: &<B::Circ as AbstractCirc>::Id) -> Option<Arc<B::Circ>> {
+    pub(crate) fn take_circ(&self, id: &<B::Circ as AbstractCirc>::Id) -> Option<B::Circ> {
         let mut list = self.circs.lock().expect("poisoned lock");
         list.take_open(id).map(|e| e.circ)
     }
@@ -1416,14 +1416,14 @@ mod test {
             Ok((plan, spec.clone()))
         }
 
-        async fn build_circuit(&self, plan: FakePlan) -> Result<(FakeSpec, Arc<FakeCirc>)> {
+        async fn build_circuit(&self, plan: FakePlan) -> Result<(FakeSpec, FakeCirc)> {
             let op = plan.op;
             let sl = self.runtime.sleep(FAKE_CIRC_DELAY);
             self.runtime.allow_one_advance(FAKE_CIRC_DELAY);
             sl.await;
             match op {
-                FakeOp::Succeed => Ok((plan.spec, Arc::new(FakeCirc { id: FakeId::next() }))),
-                FakeOp::WrongSpec(s) => Ok((s, Arc::new(FakeCirc { id: FakeId::next() }))),
+                FakeOp::Succeed => Ok((plan.spec, FakeCirc { id: FakeId::next() })),
+                FakeOp::WrongSpec(s) => Ok((s, FakeCirc { id: FakeId::next() })),
                 FakeOp::Fail => Err(Error::PendingFailed),
                 FakeOp::Delay(d) => {
                     let sl = self.runtime.sleep(d);
@@ -1941,7 +1941,7 @@ mod test {
     #[test]
     fn test_find_supported() {
         let (ep_none, ep_web, ep_full) = get_exit_policies();
-        let fake_circ = Arc::new(FakeCirc { id: FakeId::next() });
+        let fake_circ = FakeCirc { id: FakeId::next() };
         let expiration = ExpirationInfo::Unused {
             use_before: Instant::now() + Duration::from_secs(60 * 60),
         };

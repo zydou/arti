@@ -79,6 +79,23 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
 #[derive(Clone, Debug)]
 /// A circuit that we have constructed over the Tor network.
+///
+/// This struct is the interface used by the rest of the code, It is fairly
+/// cheaply cloneable.  None of the public methods need mutable access, since
+/// they all actually communicate with the Reactor which contains the primary
+/// mutable state, and does the actual work.
+//
+// Effectively, this struct contains two Arcs: one for `hops` and one for
+// `control` (which surely has soemthing Arc-like in it).  We cannot unify
+// these by putting a single Arc around the whole struct, and passing
+// an Arc strong reference to the `Reactor`, because then `control` would
+// not be dropped when the last user of the circuit goes away.  We could
+// make the reactor have a weak reference but weak references are more
+// expensive to dereference.
+//
+// Because of the above, cloning this struct is always going to involve
+// two atomic refcount changes/checks.  Wrapping it in another Arc would
+// be overkill.
 pub struct ClientCirc {
     /// Number of hops on this circuit.
     ///
@@ -264,7 +281,7 @@ impl ClientCirc {
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
     async fn begin_data_stream(
-        self: Arc<Self>,
+        self: Self,
         msg: RelayMsg,
         optimistic: bool,
     ) -> Result<DataStream> {
@@ -282,7 +299,7 @@ impl ClientCirc {
     /// The use of a string for the address is intentional: you should let
     /// the remote Tor relay do the hostname lookup for you.
     pub async fn begin_stream(
-        self: Arc<Self>,
+        self: Self,
         target: &str,
         port: u16,
         parameters: Option<StreamParameters>,
@@ -297,7 +314,7 @@ impl ClientCirc {
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
     // FIXME(eta): get rid of Arc here!!!
-    pub async fn begin_dir_stream(self: Arc<Self>) -> Result<DataStream> {
+    pub async fn begin_dir_stream(self: Self) -> Result<DataStream> {
         // Note that we always open begindir connections optimistically.
         // Since they are local to a relay that we've already authenticated
         // with and built a circuit to, there should be no additional checks
@@ -310,7 +327,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve(self: Arc<Self>, hostname: &str) -> Result<Vec<IpAddr>> {
+    pub async fn resolve(self: Self, hostname: &str) -> Result<Vec<IpAddr>> {
         let resolve_msg = Resolve::new(hostname);
 
         let resolved_msg = self.try_resolve(resolve_msg).await?;
@@ -331,7 +348,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve_ptr(self: Arc<Self>, addr: IpAddr) -> Result<Vec<String>> {
+    pub async fn resolve_ptr(self: Self, addr: IpAddr) -> Result<Vec<String>> {
         let resolve_ptr_msg = Resolve::new_reverse(&addr);
 
         let resolved_msg = self.try_resolve(resolve_ptr_msg).await?;
@@ -352,7 +369,7 @@ impl ClientCirc {
 
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
-    async fn try_resolve(self: &Arc<Self>, msg: Resolve) -> Result<Resolved> {
+    async fn try_resolve(self: &Self, msg: Resolve) -> Result<Resolved> {
         let (reader, _) = self.begin_stream_impl(msg.into()).await?;
         let mut resolve_stream = ResolveStream::new(reader);
         resolve_stream.read_msg().await
@@ -1107,7 +1124,7 @@ mod test {
             let begin_and_send_fut = async move {
                 // Here we'll say we've got a circuit, and we want to
                 // make a simple BEGINDIR request with it.
-                let mut stream = Arc::new(circ).begin_dir_stream().await.unwrap();
+                let mut stream = circ.begin_dir_stream().await.unwrap();
                 stream.write_all(b"HTTP/1.0 GET /\r\n").await.unwrap();
                 stream.flush().await.unwrap();
                 let mut buf = [0_u8; 1024];
@@ -1181,7 +1198,7 @@ mod test {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;
 
-        let circ_clone = Arc::new(circ.clone());
+        let circ_clone = circ.clone();
         let begin_and_send_fut = async move {
             // Take our circuit and make a stream on it.
             let mut stream = circ_clone

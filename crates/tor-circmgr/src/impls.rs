@@ -72,7 +72,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         Ok((plan, final_spec))
     }
 
-    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, Arc<ClientCirc>)> {
+    async fn build_circuit(&self, plan: Plan) -> Result<(SupportedCircUsage, ClientCirc)> {
         use crate::build::GuardStatusHandle;
         use tor_guardmgr::GuardStatus;
         let Plan {
@@ -114,7 +114,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
                         return Err(Error::Internal("Guard usability status cancelled".into()))
                     }
                 }
-                Ok((final_spec, Arc::new(circuit)))
+                Ok((final_spec, circuit))
             }
             Err(e) => {
                 // The attempt failed; the builder should have set the
