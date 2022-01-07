@@ -58,6 +58,7 @@ coverage:
     LLVM_PROFILE_FILE: "coverage-%p-%m.profraw"
   script:
     - rustup component add llvm-tools-preview
+    - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     # generate html report
     - cargo install grcov
