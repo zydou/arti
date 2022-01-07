@@ -60,7 +60,6 @@ coverage:
     - rustup toolchain add nightly
     - rustup default nightly
     - rustup component add llvm-tools-preview
-    - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     # generate html report
     - cargo install grcov
