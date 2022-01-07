@@ -280,11 +280,7 @@ impl ClientCirc {
 
     /// Start a DataStream (anonymized connection) to the given
     /// address and port, using a BEGIN cell.
-    async fn begin_data_stream(
-        self: Self,
-        msg: RelayMsg,
-        optimistic: bool,
-    ) -> Result<DataStream> {
+    async fn begin_data_stream(&self, msg: RelayMsg, optimistic: bool) -> Result<DataStream> {
         let (reader, target) = self.begin_stream_impl(msg).await?;
         let mut stream = DataStream::new(reader, target);
         if !optimistic {
@@ -299,7 +295,7 @@ impl ClientCirc {
     /// The use of a string for the address is intentional: you should let
     /// the remote Tor relay do the hostname lookup for you.
     pub async fn begin_stream(
-        self: Self,
+        &self,
         target: &str,
         port: u16,
         parameters: Option<StreamParameters>,
@@ -313,8 +309,7 @@ impl ClientCirc {
 
     /// Start a new stream to the last relay in the circuit, using
     /// a BEGIN_DIR cell.
-    // FIXME(eta): get rid of Arc here!!!
-    pub async fn begin_dir_stream(self: Self) -> Result<DataStream> {
+    pub async fn begin_dir_stream(&self) -> Result<DataStream> {
         // Note that we always open begindir connections optimistically.
         // Since they are local to a relay that we've already authenticated
         // with and built a circuit to, there should be no additional checks
@@ -327,7 +322,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve(self: Self, hostname: &str) -> Result<Vec<IpAddr>> {
+    pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
         let resolve_msg = Resolve::new(hostname);
 
         let resolved_msg = self.try_resolve(resolve_msg).await?;
@@ -348,7 +343,7 @@ impl ClientCirc {
     ///
     /// Note that this function does not check for timeouts; that's
     /// the caller's responsibility.
-    pub async fn resolve_ptr(self: Self, addr: IpAddr) -> Result<Vec<String>> {
+    pub async fn resolve_ptr(&self, addr: IpAddr) -> Result<Vec<String>> {
         let resolve_ptr_msg = Resolve::new_reverse(&addr);
 
         let resolved_msg = self.try_resolve(resolve_ptr_msg).await?;
@@ -369,7 +364,7 @@ impl ClientCirc {
 
     /// Helper: Send the resolve message, and read resolved message from
     /// resolve stream.
-    async fn try_resolve(self: &Self, msg: Resolve) -> Result<Resolved> {
+    async fn try_resolve(&self, msg: Resolve) -> Result<Resolved> {
         let (reader, _) = self.begin_stream_impl(msg.into()).await?;
         let mut resolve_stream = ResolveStream::new(reader);
         resolve_stream.read_msg().await
