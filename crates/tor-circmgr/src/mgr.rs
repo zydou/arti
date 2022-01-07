@@ -838,7 +838,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             // TODO: If we have fewer circuits here than our select
             // parallelism, perhaps we should launch more?
 
-            return Ok(Action::Open(Arc::clone(&best.circ)));
+            return Ok(Action::Open(best.circ.clone()));
         }
 
         if let Some(pending) = list.find_pending_circs(usage) {
@@ -944,7 +944,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                     now + self.circuit_timing().max_dirtiness,
                                 );
                             }
-                            return Ok(Arc::clone(&ent.circ));
+                            return Ok(ent.circ.clone());
                         }
                         Err(e) => {
                             // TODO: as below, improve this log message.
@@ -1945,7 +1945,7 @@ mod test {
                 policy: ep_none,
                 isolation: None,
             },
-            Arc::clone(&fake_circ),
+            fake_circ.clone(),
             expiration.clone(),
         );
         let mut entry_none_c = entry_none.clone();
@@ -1954,7 +1954,7 @@ mod test {
                 policy: ep_web,
                 isolation: None,
             },
-            Arc::clone(&fake_circ),
+            fake_circ.clone(),
             expiration.clone(),
         );
         let mut entry_web_c = entry_web.clone();
@@ -1963,7 +1963,7 @@ mod test {
                 policy: ep_full,
                 isolation: None,
             },
-            Arc::clone(&fake_circ),
+            fake_circ.clone(),
             expiration,
         );
         let mut entry_full_c = entry_full.clone();
