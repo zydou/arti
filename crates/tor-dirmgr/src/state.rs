@@ -67,6 +67,14 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// [`Self::netdir()`] have been changed.
     fn netdir_descriptors_changed(&self);
 
+    /// Checks whether the given [`netdir`] is ready to replace the previous
+    /// one.
+    ///
+    /// This is in addition to checks used when upgrading from a PartialNetDir.
+    fn netdir_is_sufficient(&self, _netdir: &NetDir) -> bool {
+        true
+    }
+
     /// Called to find the current time.
     ///
     /// This is just `SystemTime::now()` in production, but for
@@ -87,6 +95,12 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
     }
     fn netdir_descriptors_changed(&self) {
         self.events.publish(DirEvent::NewDescriptors);
+    }
+    fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
+        match &self.circmgr {
+            Some(circmgr) => circmgr.netdir_is_sufficient(netdir),
+            None => true, // no circmgr? then we can use anything.
+        }
     }
     fn now(&self) -> SystemTime {
         SystemTime::now()
@@ -464,9 +478,9 @@ struct GetMicrodescsState<DM: WriteNetDir> {
     missing: HashSet<MdDigest>,
     /// The dirmgr to inform about a usable directory.
     writedir: Weak<DM>,
-    /// A NetDir that we are currently building, but which doesn't
-    /// have enough microdescs yet.
-    partial: Option<PartialNetDir>,
+    /// The current status of our netdir, if it is not yet ready to become the
+    /// main netdir in use for the TorClient.
+    partial: Option<PendingNetDir>,
     /// Metadata for the current consensus.
     meta: ConsensusMeta,
     /// A pending list of microdescriptor digests whose
@@ -476,6 +490,56 @@ struct GetMicrodescsState<DM: WriteNetDir> {
     /// find a new one.  Since this is randomized, we only compute it
     /// once.
     reset_time: SystemTime,
+}
+
+/// A network directory that is not yet ready to become _the_ current network directory.
+#[derive(Debug, Clone)]
+enum PendingNetDir {
+    /// A NetDir for which we have a consensus, but not enough microdescriptors.
+    Partial(PartialNetDir),
+    /// A NetDir that is "good enough to build circuits", but which we can't yet
+    /// use because our `writedir` says that it isn't yet sufficient. Probably
+    /// that is because we're waiting to download a microdescriptor for one or
+    /// more primary guards.
+    WaitingForGuards(NetDir),
+}
+
+impl PendingNetDir {
+    /// Add the provided microdescriptor to this pending directory.
+    ///
+    /// Return true if we indeed wanted (and added) this descriptor.
+    fn add_microdesc(&mut self, md: Microdesc) -> bool {
+        match self {
+            PendingNetDir::Partial(partial) => partial.add_microdesc(md),
+            PendingNetDir::WaitingForGuards(netdir) => netdir.add_microdesc(md),
+        }
+    }
+
+    /// Try to move `self` as far as possible towards a complete, netdir with
+    /// enough directory information (according to `writedir`).
+    ///
+    /// On success, return `Ok(netdir)` with a new usable [`NetDir`].  On error,
+    /// return a [`PendingNetDir`] representing any progress we were able to
+    /// make.
+    fn upgrade<WD: WriteNetDir>(mut self, writedir: &WD) -> std::result::Result<NetDir, Self> {
+        loop {
+            match self {
+                PendingNetDir::Partial(partial) => match partial.unwrap_if_sufficient() {
+                    Ok(netdir) => {
+                        self = PendingNetDir::WaitingForGuards(netdir);
+                    }
+                    Err(partial) => return Err(PendingNetDir::Partial(partial)),
+                },
+                PendingNetDir::WaitingForGuards(netdir) => {
+                    if writedir.netdir_is_sufficient(&netdir) {
+                        return Ok(netdir);
+                    } else {
+                        return Err(PendingNetDir::WaitingForGuards(netdir));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<DM: WriteNetDir> GetMicrodescsState<DM> {
@@ -507,7 +571,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
             cache_usage,
             missing,
             writedir,
-            partial: Some(partial_dir),
+            partial: Some(PendingNetDir::Partial(partial_dir)),
             meta,
             newly_listed: Vec::new(),
             reset_time,
@@ -547,10 +611,10 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     /// dirmgr about it and return true; otherwise return false.
     fn consider_upgrade(&mut self) -> bool {
         if let Some(p) = self.partial.take() {
-            match p.unwrap_if_sufficient() {
-                Ok(mut netdir) => {
-                    self.reset_time = pick_download_time(netdir.lifetime());
-                    if let Some(wd) = Weak::upgrade(&self.writedir) {
+            if let Some(wd) = Weak::upgrade(&self.writedir) {
+                match p.upgrade(wd.as_ref()) {
+                    Ok(mut netdir) => {
+                        self.reset_time = pick_download_time(netdir.lifetime());
                         // We re-set the parameters here, in case they have been
                         // reconfigured.
                         netdir.replace_overridden_parameters(wd.config().override_net_params());
@@ -559,8 +623,8 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
                         wd.netdir_descriptors_changed();
                         return true;
                     }
+                    Err(pending) => self.partial = Some(pending),
                 }
-                Err(partial) => self.partial = Some(partial),
             }
         }
         false

@@ -118,6 +118,11 @@ pub(crate) struct Guard {
     #[serde(with = "humantime_serde")]
     unlisted_since: Option<SystemTime>,
 
+    /// True if this guard is listed in the latest consensus, but we don't
+    /// have a microdescriptor for it.
+    #[serde(skip)]
+    microdescriptor_missing: bool,
+
     /// When did we last give out this guard in response to a request?
     #[serde(skip)]
     last_tried_to_connect_at: Option<Instant>,
@@ -204,6 +209,7 @@ impl Guard {
 
             confirmed_at: None,
             unlisted_since: None,
+            microdescriptor_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             failing_since: None,
@@ -313,10 +319,31 @@ impl Guard {
     /// Return true if this guard is suitable to use for the provided `usage`.
     pub(crate) fn conforms_to_usage(&self, usage: &GuardUsage) -> bool {
         use crate::GuardUsageKind;
-        if usage.kind == GuardUsageKind::OneHopDirectory && !self.is_dir_cache {
-            return false;
+        match usage.kind {
+            GuardUsageKind::OneHopDirectory => {
+                if !self.is_dir_cache {
+                    return false;
+                }
+            }
+            GuardUsageKind::Data => {
+                // We need a "definitely listed" guard to build a multihop
+                // circuit.
+                if self.microdescriptor_missing {
+                    return false;
+                }
+            }
         }
         self.obeys_restrictions(&usage.restrictions[..])
+    }
+
+    /// Check whether this guard is listed in the provided [`NetDir`].
+    ///
+    /// Returns `Some(true)` if it is definitely listed, and `Some(false)` if it
+    /// is definitely not listed.  A `None` return indicates that we need to
+    /// download another microdescriptor before we can be certain whether this
+    /// guard is listed or not.
+    pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
+        netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa)
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -331,7 +358,7 @@ impl Guard {
         // This is a tricky check, since if we're missing a microdescriptor
         // for the RSA id, we won't know whether the ed25519 id is listed or
         // not.
-        let listed = match netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa) {
+        let listed_as_guard = match self.listed_in(netdir) {
             Some(true) => {
                 // Definitely listed.
                 let relay = self
@@ -346,10 +373,19 @@ impl Guard {
                 relay.is_flagged_guard()
             }
             Some(false) => false, // Definitely not listed.
-            None => return,       // Nothing to do: we can't tell if it's listed.
+            None => {
+                // We can't tell if this is listed: The RSA id is present, but
+                // the microdescriptor is missing so we don't know the Ed25519 ID.
+                self.microdescriptor_missing = true;
+                return;
+            }
         };
 
-        if listed {
+        // We got a definite answer, so we aren't missing a microdesc for this
+        // guard.
+        self.microdescriptor_missing = false;
+
+        if listed_as_guard {
             // Definitely listed, so clear unlisted_since.
             self.mark_listed();
         } else {
@@ -727,6 +763,33 @@ mod test {
         assert!(g.conforms_to_usage(&usage6));
     }
 
+    #[allow(clippy::redundant_clone)]
+    #[test]
+    fn trickier_usages() {
+        let g = basic_guard();
+        use crate::{GuardUsageBuilder, GuardUsageKind};
+        let data_usage = GuardUsageBuilder::new()
+            .kind(GuardUsageKind::Data)
+            .build()
+            .unwrap();
+        let dir_usage = GuardUsageBuilder::new()
+            .kind(GuardUsageKind::OneHopDirectory)
+            .build()
+            .unwrap();
+        assert!(g.conforms_to_usage(&data_usage));
+        assert!(g.conforms_to_usage(&dir_usage));
+
+        let mut g2 = g.clone();
+        g2.microdescriptor_missing = true;
+        assert!(!g2.conforms_to_usage(&data_usage));
+        assert!(g2.conforms_to_usage(&dir_usage));
+
+        let mut g3 = g.clone();
+        g3.is_dir_cache = false;
+        assert!(g3.conforms_to_usage(&data_usage));
+        assert!(!g3.conforms_to_usage(&dir_usage));
+    }
+
     #[test]
     fn retry_interval_check() {
         const MIN: Duration = Duration::from_secs(60);
@@ -917,6 +980,18 @@ mod test {
         .unwrap()
         .unwrap_if_sufficient()
         .unwrap();
+        // Same as above but omit [22] as well as MD for [23].
+        let netdir3 = testnet::construct_custom_netdir(|idx, mut node| {
+            if idx == 22 {
+                node.omit_rs = true;
+            } else if idx == 23 {
+                node.omit_md = true;
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
         //let params = GuardParams::default();
         let now = SystemTime::now();
 
@@ -927,6 +1002,7 @@ mod test {
             now,
         );
         assert_eq!(guard255.unlisted_since, None);
+        assert_eq!(guard255.listed_in(&netdir), Some(false));
         guard255.update_from_netdir(&netdir);
         assert_eq!(
             guard255.unlisted_since,
@@ -937,15 +1013,26 @@ mod test {
         // Try a guard that is in netdir, but not netdir2.
         let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
         let relay22 = guard22.id.get_relay(&netdir).unwrap();
+        assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_netdir(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
+        assert_eq!(guard22.listed_in(&netdir2), Some(false));
         guard22.update_from_netdir(&netdir2);
         assert_eq!(
             guard22.unlisted_since,
             Some(netdir2.lifetime().valid_after())
         );
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
+        assert!(!guard22.microdescriptor_missing);
+
+        // Now see what happens for a guard that's in the consensus, but missing an MD.
+        let mut guard23 = Guard::new(GuardId::new([23; 32].into(), [23; 20].into()), vec![], now);
+        assert_eq!(guard23.listed_in(&netdir2), Some(true));
+        assert_eq!(guard23.listed_in(&netdir3), None);
+        guard23.update_from_netdir(&netdir3);
+        assert!(guard23.microdescriptor_missing);
+        assert!(guard23.is_dir_cache);
     }
 
     #[test]

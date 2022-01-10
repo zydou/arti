@@ -306,6 +306,12 @@ impl<R: Runtime> GuardMgr<R> {
         Ok(())
     }
 
+    /// Return true if `netdir` has enough information to safely become our new netdir.
+    pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        inner.active_guards.missing_primary_microdescriptors(netdir) == 0
+    }
+
     /// Update the state of this [`GuardMgr`] based on a new or modified
     /// [`NetDir`] object.
     ///
@@ -319,7 +325,6 @@ impl<R: Runtime> GuardMgr<R> {
         let now = self.runtime.wallclock();
 
         let mut inner = self.inner.lock().expect("Poisoned lock");
-
         inner.update(now, Some(netdir));
     }
 
@@ -478,6 +483,11 @@ impl GuardMgrInner {
         self.active_guards.expire_old_guards(&self.params, now);
 
         if let Some(netdir) = netdir {
+            if self.active_guards.missing_primary_microdescriptors(netdir) > 0 {
+                // We are missing primary guard descriptors, so we shouldn't update our guard
+                // status.
+                return;
+            }
             self.active_guards.update_status_from_netdir(netdir);
             loop {
                 let added_any =

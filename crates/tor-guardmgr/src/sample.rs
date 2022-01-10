@@ -384,6 +384,18 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
+    /// Return the number of our primary guards are missing their
+    /// microdescriptors in `dir`.
+    pub(crate) fn missing_primary_microdescriptors(&mut self, dir: &NetDir) -> usize {
+        self.primary
+            .iter()
+            .filter(|id| {
+                let g = self.guards.get(id).expect("Inconsistent guard state");
+                g.listed_in(dir).is_none()
+            })
+            .count()
+    }
+
     /// Update the status of every guard  in this sample from a network
     /// directory.
     pub(crate) fn update_status_from_netdir(&mut self, dir: &NetDir) {
@@ -1125,5 +1137,37 @@ mod test {
         let (kind, p_id3) = guards.pick_guard(&usage, &params).unwrap();
         assert_eq!(kind, ListKind::Primary);
         assert_eq!(p_id3, p_id1);
+    }
+
+    #[test]
+    fn count_missing_mds() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 2,
+            max_sample_bw_fraction: 1.0,
+            ..GuardParams::default()
+        };
+        let usage = crate::GuardUsageBuilder::default().build().unwrap();
+        let mut guards = GuardSet::new();
+        guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+        guards.select_primary_guards(&params);
+        assert_eq!(guards.primary.len(), 2);
+
+        let (_kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
+        guards.record_success(&p_id1, &params, SystemTime::now());
+        assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
+
+        use tor_netdir::testnet;
+        let netdir2 = testnet::construct_custom_netdir(|idx, bld| {
+            if idx == p_id1.ed25519.as_bytes()[0] as usize {
+                bld.omit_md = true;
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+
+        assert_eq!(guards.missing_primary_microdescriptors(&netdir2), 1);
     }
 }
