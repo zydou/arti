@@ -6,7 +6,7 @@
 //! `TorClient::connect()`.
 use crate::address::IntoTorAddr;
 
-use crate::config::{ClientAddrConfig, ClientTimeoutConfig, TorClientConfig};
+use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
@@ -52,7 +52,7 @@ pub struct TorClient<R: Runtime> {
     /// Client address configuration
     addrcfg: Arc<MutCfg<ClientAddrConfig>>,
     /// Client DNS configuration
-    timeoutcfg: Arc<MutCfg<ClientTimeoutConfig>>,
+    timeoutcfg: Arc<MutCfg<StreamTimeoutConfig>>,
     /// Mutex used to serialize concurrent attempts to reconfigure a TorClient.
     ///
     /// See [`TorClient::reconfigure`] for more information on its use.

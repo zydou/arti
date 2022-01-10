@@ -50,10 +50,10 @@ pub struct ClientAddrConfig {
     pub(crate) allow_local_addrs: bool,
 }
 
-/// Configuration for client behavior relating to connection timeouts
+/// Configuration for client behavior relating to stream connection timeouts
 ///
 /// This type is immutable once constructed. To create an object of this type,
-/// use [`ClientTimeoutConfigBuilder`].
+/// use [`StreamTimeoutConfigBuilder`].
 ///
 /// You can replace this configuration on a running Arti client.  Doing so will
 /// affect new streams and requests, but will have no effect on existing streams
@@ -62,7 +62,7 @@ pub struct ClientAddrConfig {
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
-pub struct ClientTimeoutConfig {
+pub struct StreamTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
@@ -107,15 +107,15 @@ impl ClientAddrConfig {
 }
 
 #[allow(clippy::unwrap_used)]
-impl Default for ClientTimeoutConfig {
+impl Default for StreamTimeoutConfig {
     fn default() -> Self {
-        ClientTimeoutConfigBuilder::default().build().unwrap()
+        StreamTimeoutConfigBuilder::default().build().unwrap()
     }
 }
 
-impl From<ClientTimeoutConfig> for ClientTimeoutConfigBuilder {
-    fn from(cfg: ClientTimeoutConfig) -> ClientTimeoutConfigBuilder {
-        let mut builder = ClientTimeoutConfigBuilder::default();
+impl From<StreamTimeoutConfig> for StreamTimeoutConfigBuilder {
+    fn from(cfg: StreamTimeoutConfig) -> StreamTimeoutConfigBuilder {
+        let mut builder = StreamTimeoutConfigBuilder::default();
         builder
             .connect_timeout(cfg.connect_timeout)
             .resolve_timeout(cfg.resolve_timeout)
@@ -125,10 +125,10 @@ impl From<ClientTimeoutConfig> for ClientTimeoutConfigBuilder {
     }
 }
 
-impl ClientTimeoutConfig {
-    /// Return a new [`ClientTimeoutConfigBuilder`].
-    pub fn builder() -> ClientTimeoutConfigBuilder {
-        ClientTimeoutConfigBuilder::default()
+impl StreamTimeoutConfig {
+    /// Return a new [`StreamTimeoutConfigBuilder`].
+    pub fn builder() -> StreamTimeoutConfigBuilder {
+        StreamTimeoutConfigBuilder::default()
     }
 }
 
@@ -274,7 +274,7 @@ pub struct TorClientConfig {
     pub(crate) address_filter: ClientAddrConfig,
 
     /// Information about timing out client requests.
-    pub(crate) stream_timeouts: ClientTimeoutConfig,
+    pub(crate) stream_timeouts: StreamTimeoutConfig,
 }
 
 impl Default for TorClientConfig {
@@ -336,9 +336,8 @@ pub struct TorClientConfigBuilder {
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
     address_filter: ClientAddrConfigBuilder,
-    /// Inner builder for the `stream_timeouts
-    //` section.
-    stream_timeouts: ClientTimeoutConfigBuilder,
+    /// Inner builder for the `stream_timeouts` section.
+    stream_timeouts: StreamTimeoutConfigBuilder,
 }
 
 impl TorClientConfigBuilder {
@@ -469,6 +468,15 @@ impl TorClientConfigBuilder {
     /// circuits, and when to give up on attempts to launch them.
     pub fn circuit_timing(&mut self) -> &mut circ::CircuitTimingBuilder {
         &mut self.circuit_timing
+    }
+
+    /// Return a mutable reference to a [`StreamTimeoutConfigBuilder`].
+    ///
+    /// This section overrides Arti's rules for deciding how long a stream
+    /// request (that is, an attempt to connect or resolve) should wait
+    /// for a response before deciding that the stream has timed out.
+    pub fn stream_timeouts(&mut self) -> &mut StreamTimeoutConfigBuilder {
+        &mut self.stream_timeouts
     }
 
     /// Return a mutable reference to a [`ClientAddrConfigBuilder`].
