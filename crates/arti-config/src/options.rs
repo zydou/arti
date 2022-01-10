@@ -3,8 +3,8 @@
 use arti_client::config::{
     circ,
     dir::{self, DownloadScheduleConfig, NetworkConfig},
-    ClientAddrConfig, ClientAddrConfigBuilder, ClientTimeoutConfig, ClientTimeoutConfigBuilder,
-    StorageConfig, StorageConfigBuilder, TorClientConfig, TorClientConfigBuilder,
+    ClientAddrConfig, ClientAddrConfigBuilder, StorageConfig, StorageConfigBuilder,
+    StreamTimeoutConfig, StreamTimeoutConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -162,7 +162,7 @@ pub struct ArtiConfig {
     address_filter: ClientAddrConfig,
 
     /// Information about when to time out client requests.
-    stream_timeouts: ClientTimeoutConfig,
+    stream_timeouts: StreamTimeoutConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -243,7 +243,7 @@ pub struct ArtiConfigBuilder {
     /// Builder for the address_filter section.
     address_filter: ClientAddrConfigBuilder,
     /// Builder for the stream timeout rules.
-    stream_timeouts: ClientTimeoutConfigBuilder,
+    stream_timeouts: StreamTimeoutConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -385,11 +385,11 @@ impl ArtiConfigBuilder {
         &mut self.address_filter
     }
 
-    /// Return a mutable reference to a [`ClientTimeoutConfigBuilder`].
+    /// Return a mutable reference to a [`StreamTimeoutConfigBuilder`].
     ///
     /// This section controls how Arti should handle an exit relay's DNS
     /// resolution.
-    pub fn stream_timeouts(&mut self) -> &mut ClientTimeoutConfigBuilder {
+    pub fn stream_timeouts(&mut self) -> &mut StreamTimeoutConfigBuilder {
         &mut self.stream_timeouts
     }
 }
