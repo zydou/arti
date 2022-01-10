@@ -187,5 +187,5 @@ pub use tor_proto::stream::DataStream;
 mod err;
 pub use err::Error;
 
-/// Result type used by this crate
-type Result<T> = std::result::Result<T, Error>;
+/// Alias for the [`Result`] type used by the `arti_client` crate.
+pub type Result<T> = std::result::Result<T, Error>;
