@@ -100,6 +100,7 @@ impl ListKind {
 
 impl GuardSet {
     /// Return a new empty guard set.
+    #[allow(unused)] // only used for tests right now.
     pub(crate) fn new() -> Self {
         Self::default()
     }
