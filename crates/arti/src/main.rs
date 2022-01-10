@@ -90,20 +90,18 @@
 mod exit;
 mod process;
 mod proxy;
+mod trace;
 
 use std::sync::Arc;
 
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::{ArtiConfig, LoggingConfig};
+use arti_config::ArtiConfig;
 use tor_rtcompat::{Runtime, SpawnBlocking};
 
 use anyhow::Result;
 use clap::{App, AppSettings, Arg, SubCommand};
 use std::path::PathBuf;
 use tracing::{info, warn};
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, registry, EnvFilter};
 
 /// Run the main loop of the proxy.
 async fn run<R: Runtime>(
@@ -123,44 +121,6 @@ async fn run<R: Runtime>(
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
-}
-
-/// As [`EnvFilter::new`], but print a message if any directive in the
-/// log is invalid.
-fn filt_from_str_verbose(s: &str, source: &str) -> EnvFilter {
-    match EnvFilter::try_new(s) {
-        Ok(s) => s,
-        Err(_) => {
-            eprintln!("Problem in {}:", source);
-            EnvFilter::new(s)
-        }
-    }
-}
-
-/// Set up logging
-fn setup_logging(config: &LoggingConfig, cli: Option<&str>) {
-    let env_filter =
-        match cli.map(|s| filt_from_str_verbose(s, "--log-level command line parameter")) {
-            Some(f) => f,
-            None => filt_from_str_verbose(
-                config.trace_filter.as_str(),
-                "trace_filter configuration option",
-            ),
-        };
-
-    let registry = registry().with(fmt::Layer::default()).with(env_filter);
-
-    if config.journald {
-        #[cfg(feature = "journald")]
-        if let Ok(journald) = tracing_journald::layer() {
-            registry.with(journald).init();
-            return;
-        }
-        #[cfg(not(feature = "journald"))]
-        warn!("journald logging was selected, but arti was built without journald support.");
-    }
-
-    registry.init();
 }
 
 fn main() -> Result<()> {
@@ -242,7 +202,7 @@ fn main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into()?;
 
-    setup_logging(config.logging(), matches.value_of("loglevel"));
+    let _log_guards = trace::setup_logging(config.logging(), matches.value_of("loglevel"))?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
