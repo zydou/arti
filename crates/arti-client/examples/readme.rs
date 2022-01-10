@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     eprintln!("connecting to example.com...");
 
     // Initiate a connection over Tor to example.com, port 80.
-    let mut stream = tor_client.connect(("example.com", 80), None).await?;
+    let mut stream = tor_client.connect(("example.com", 80)).await?;
 
     eprintln!("sending request...");
 

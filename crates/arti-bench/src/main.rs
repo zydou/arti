@@ -347,7 +347,7 @@ fn main() -> Result<()> {
     let dp = Arc::clone(&download_payload);
     let stats = runtime.block_on(async move {
         let stream = tor_client
-            .connect(TorAddr::dangerously_from(connect_addr).unwrap(), None)
+            .connect(TorAddr::dangerously_from(connect_addr).unwrap())
             .await
             .unwrap();
         client(stream, up, dp).await

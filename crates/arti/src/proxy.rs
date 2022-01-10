@@ -187,7 +187,9 @@ where
         SocksCmd::CONNECT => {
             // The SOCKS request wants us to connect to a given address.
             // So, launch a connection over Tor.
-            let tor_stream = tor_client.connect((addr.clone(), port), Some(prefs)).await;
+            let tor_stream = tor_client
+                .connect_with_prefs((addr.clone(), port), prefs)
+                .await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
                 // In the case of a stream timeout, send the right SOCKS reply.
@@ -224,7 +226,7 @@ where
         SocksCmd::RESOLVE => {
             // We've been asked to perform a regular hostname lookup.
             // (This is a tor-specific SOCKS extension.)
-            let addrs = tor_client.resolve(&addr, Some(prefs)).await?;
+            let addrs = tor_client.resolve_with_prefs(&addr, prefs).await?;
             if let Some(addr) = addrs.first() {
                 let reply = request.reply(
                     tor_socksproto::SocksStatus::SUCCEEDED,
@@ -245,7 +247,7 @@ where
                     return Err(anyhow!(e));
                 }
             };
-            let hosts = tor_client.resolve_ptr(addr, Some(prefs)).await?;
+            let hosts = tor_client.resolve_ptr_with_prefs(addr, prefs).await?;
             if let Some(host) = hosts.into_iter().next() {
                 let reply = request.reply(
                     tor_socksproto::SocksStatus::SUCCEEDED,

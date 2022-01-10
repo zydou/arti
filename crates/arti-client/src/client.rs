@@ -325,16 +325,25 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
-    pub async fn connect<A: IntoTorAddr>(
+    pub async fn connect<A: IntoTorAddr>(&self, target: A) -> Result<DataStream> {
+        self.connect_with_prefs(target, ConnectPrefs::default())
+            .await
+    }
+
+    /// Launch an anonymized connection to the provided address and
+    /// port over the Tor network with connection preference flags.
+    ///
+    /// Note that because Tor prefers to do DNS resolution on the remote
+    /// side of the network, this function takes its address as a string.
+    pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
-        flags: Option<ConnectPrefs>,
+        flags: ConnectPrefs,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
 
-        let flags = flags.unwrap_or_default();
         let exit_ports = [flags.wrap_target_port(port)];
         let circ = self.get_or_launch_exit_circ(&exit_ports, &flags).await?;
         info!("Got a circuit for {}:{}", addr, port);
@@ -350,15 +359,20 @@ impl<R: Runtime> TorClient<R> {
     }
 
     /// On success, return a list of IP addresses.
-    pub async fn resolve(
+    pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
+        self.resolve_with_prefs(hostname, ConnectPrefs::default())
+            .await
+    }
+
+    /// On success, return a list of IP addresses, but use flags.
+    pub async fn resolve_with_prefs(
         &self,
         hostname: &str,
-        flags: Option<ConnectPrefs>,
+        flags: ConnectPrefs,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
 
         let resolve_future = circ.resolve(hostname);
@@ -373,12 +387,19 @@ impl<R: Runtime> TorClient<R> {
     /// Perform a remote DNS reverse lookup with the provided IP address.
     ///
     /// On success, return a list of hostnames.
-    pub async fn resolve_ptr(
+    pub async fn resolve_ptr(&self, addr: IpAddr) -> Result<Vec<String>> {
+        self.resolve_ptr_with_prefs(addr, ConnectPrefs::default())
+            .await
+    }
+
+    /// Perform a remote DNS reverse lookup with the provided IP address.
+    ///
+    /// On success, return a list of hostnames.
+    pub async fn resolve_ptr_with_prefs(
         &self,
         addr: IpAddr,
-        flags: Option<ConnectPrefs>,
+        flags: ConnectPrefs,
     ) -> Result<Vec<String>> {
-        let flags = flags.unwrap_or_default();
         let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);

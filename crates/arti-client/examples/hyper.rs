@@ -110,7 +110,7 @@ impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
             let (host, port) = uri_to_host_port(req)?;
             // Initiate a new Tor connection, producing a `DataStream` if successful.
             let ds = client
-                .connect((&host as &str, port).into_tor_addr()?, None)
+                .connect((&host as &str, port).into_tor_addr()?)
                 .await?;
             Ok(ArtiHttpConnection { inner: ds })
         })
