@@ -67,7 +67,7 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// [`Self::netdir()`] have been changed.
     fn netdir_descriptors_changed(&self);
 
-    /// Checks whether the given [`netdir`] is ready to replace the previous
+    /// Checks whether the given `netdir` is ready to replace the previous
     /// one.
     ///
     /// This is in addition to checks used when upgrading from a PartialNetDir.
