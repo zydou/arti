@@ -99,12 +99,6 @@ impl ListKind {
 }
 
 impl GuardSet {
-    /// Return a new empty guard set.
-    #[allow(unused)] // only used for tests right now.
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     /// Return the lengths of the different elements of the guard set.
     ///
     /// Used to report bugs or corruption in consistency.
@@ -798,7 +792,7 @@ mod test {
 
         let mut samples: Vec<HashSet<GuardId>> = Vec::new();
         for _ in 0..3 {
-            let mut guards = GuardSet::new();
+            let mut guards = GuardSet::default();
             guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
             assert_eq!(guards.guards.len(), params.min_filtered_sample_size);
             assert_eq!(guards.confirmed.len(), 0);
@@ -836,7 +830,7 @@ mod test {
         let t1 = SystemTime::now();
         let t2 = SystemTime::now() + Duration::from_secs(20);
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(t1, &params, &netdir);
 
         // Pick a guard and mark it as confirmed.
@@ -873,7 +867,7 @@ mod test {
         let t2 = SystemTime::now() + Duration::from_secs(20);
         let t3 = SystemTime::now() + Duration::from_secs(30);
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(t1, &params, &netdir);
 
         // Pick a guard and mark it as confirmed.
@@ -917,7 +911,7 @@ mod test {
         let params = GuardParams::default();
         let t1 = SystemTime::now();
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(t1, &params, &netdir);
         // note that there are only 10 Guard+V2Dir nodes in the netdir().
         assert_eq!(guards.sample.len(), 10);
@@ -953,7 +947,7 @@ mod test {
         let i1 = Instant::now();
         let sec = Duration::from_secs(1);
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(st1, &params, &netdir);
         guards.select_primary_guards(&params);
 
@@ -1077,7 +1071,7 @@ mod test {
         let sec = Duration::from_secs(1);
         let usage = crate::GuardUsageBuilder::default().build().unwrap();
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
 
         guards.extend_sample_as_needed(st, &params, &netdir);
         guards.select_primary_guards(&params);
@@ -1112,7 +1106,7 @@ mod test {
         };
         let usage = crate::GuardUsageBuilder::default().build().unwrap();
 
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
 
         guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
         guards.select_primary_guards(&params);
@@ -1150,7 +1144,7 @@ mod test {
             ..GuardParams::default()
         };
         let usage = crate::GuardUsageBuilder::default().build().unwrap();
-        let mut guards = GuardSet::new();
+        let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
         guards.select_primary_guards(&params);
         assert_eq!(guards.primary.len(), 2);
