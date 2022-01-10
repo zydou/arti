@@ -775,6 +775,8 @@ pub enum PickGuardError {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
+
     use super::*;
     use std::time::Duration;
 
@@ -788,7 +790,38 @@ mod test {
 
     #[test]
     fn sample_test() {
-        let netdir = netdir();
+        // Make a test network that gives every relay equal weight, and which
+        // has 20 viable (Guard + V2Dir + DirCache=2) candidates.  Otherwise the
+        // calculation of collision probability at the end of this function is
+        // too tricky.
+        let netdir = tor_netdir::testnet::construct_custom_netdir(|idx, builder| {
+            // Give every node eequal bandwidth.
+            builder.rs.weight(RelayWeight::Measured(1000));
+            // The default network has 40 relays, and the first 10 are
+            // not Guard by default.
+            if idx >= 10 {
+                builder.rs.add_flags(RelayFlags::GUARD);
+                if idx >= 20 {
+                    builder.rs.protos("DirCache=2".parse().unwrap());
+                } else {
+                    builder.rs.protos("".parse().unwrap());
+                }
+            }
+        })
+        .unwrap()
+        .unwrap_if_sufficient()
+        .unwrap();
+        // Make sure that we got the numbers we expected.
+        assert_eq!(40, netdir.relays().count());
+        assert_eq!(30, netdir.relays().filter(Relay::is_flagged_guard).count());
+        assert_eq!(
+            20,
+            netdir
+                .relays()
+                .filter(|r| r.is_flagged_guard() && r.is_dir_cache())
+                .count()
+        );
+
         let params = GuardParams {
             min_filtered_sample_size: 5,
             max_sample_bw_fraction: 1.0,
@@ -808,6 +841,7 @@ mod test {
             for (g, guard) in &guards.guards {
                 let relay = g.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
+                assert!(relay.is_dir_cache());
                 assert!(guards.contains_relay(&relay));
                 assert!(!guard.is_expired(&params, SystemTime::now()));
             }
@@ -820,8 +854,8 @@ mod test {
             samples.push(guards.sample.into_iter().collect());
         }
 
-        // The probability of getting the same sample every time should be
-        // pretty low, but I haven't calculated it.
+        // The probability of getting the same sample 3 times in a row is (20 choose 5)^-2,
+        // which is pretty low.  (About 1 in 240 million.)
         assert!(samples[0] != samples[1] || samples[1] != samples[2]);
     }
 
