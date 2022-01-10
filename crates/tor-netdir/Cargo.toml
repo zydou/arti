@@ -32,19 +32,19 @@ tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 tor-protover = { path="../tor-protover", version = "0.0.2"}
 tor-units = { path="../tor-units", version = "0.0.2"}
 
-bitflags = "1.2.1"
-derive_builder = "0.10.2"
-derive_more = "0.99.0"
-hex = { version= "0.4.3", optional = true }
-hex-literal = { version= "0.3.1", optional = true }
-rand = "0.8.3"
-serde = { version = "1.0.124", features = ["derive"] }
-signature = "1.3.0"
-thiserror = "1.0.24"
-tracing = "0.1.26"
+bitflags = "1"
+derive_builder = "0.10"
+derive_more = "0.99"
+hex = { version = "0.4", optional = true }
+hex-literal = { version = "0.3", optional = true }
+rand = "0.8"
+serde = { version = "1.0.103", features = ["derive"] }
+signature = "1"
+thiserror = "1"
+tracing = "0.1.18"
 
 [dev-dependencies]
-hex = "0.4.3"
-hex-literal = "0.3.1"
+hex = "0.4"
+hex-literal = "0.3"
 tor-netdoc = { path="../tor-netdoc", version = "0.0.2", features=["build_docs"] }
-rand_chacha = "0.3.1"
+rand_chacha = "0.3"

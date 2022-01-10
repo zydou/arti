@@ -18,13 +18,13 @@ tor-proto = { path="../tor-proto", version = "0.0.2"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 
-async-trait = "0.1.48"
-futures = "0.3.13"
-tracing = "0.1.26"
-thiserror = "1.0.24"
+async-trait = "0.1.2"
+futures = "0.3"
+tracing = "0.1.18"
+thiserror = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-hex-literal = "0.3.1"
+hex-literal = "0.3"
 tor-rtmock = { path="../tor-rtmock", version = "0.0.2"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2", features=["tokio"] }

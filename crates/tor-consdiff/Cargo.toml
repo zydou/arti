@@ -19,5 +19,5 @@ slow-diff-apply = []
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
 
 digest = "0.10.0"
-hex = "0.4.3"
-thiserror = "1.0.24"
+hex = "0.4"
+thiserror = "1"

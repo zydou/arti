@@ -11,14 +11,14 @@ categories = [ "asynchronous" ]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-clap = "2.33"
-rand = "0.8.3"
-anyhow = "1.0.38"
-serde = { version = "1.0.124", features = ["derive"] }
-serde_json = "1.0"
-tracing = "0.1.26"
+clap = "2.33.0"
+rand = "0.8"
+anyhow = "1.0.5"
+serde = { version = "1.0.103", features = ["derive"] }
+serde_json = "1.0.50"
+tracing = "0.1.18"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
-tokio = { version = "1.7.0", features = ["full"] }
+tokio = { version = "1.4", features = ["full"] }
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2", features = ["tokio"] }
 arti-config = { path="../arti-config", version = "0.0.2"}
 arti-client = { package="arti-client", path = "../arti-client", version = "0.0.2"}

@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# Downgrades every one of our dependencies in Cargo.lock to the
+# earliest version listed in our Cargo.toml files.  (And then
+# re-upgrades a few second-order dependencies that aren't actually
+# supported by our first-order dependencies in their oldest versions.)
+
+cargo +nightly update -Z minimal-versions
+cargo update \
+      -p crc32fast \
+      -p lexical-core \
+      -p quote:0.6.3 \
+      -p synstructure:0.12.0

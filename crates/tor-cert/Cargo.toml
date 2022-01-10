@@ -17,8 +17,8 @@ tor-bytes = { path="../tor-bytes", version = "0.0.2"}
 tor-checkable = { path="../tor-checkable", version = "0.0.2"}
 
 digest = "0.10.0"
-signature = "1.3.0"
+signature = "1"
 
 [dev-dependencies]
 base64 = "0.13.0"
-hex-literal = "0.3.1"
+hex-literal = "0.3"

@@ -14,8 +14,8 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 caret = { path="../caret", version = "0.0.2"}
 tor-bytes = { path="../tor-bytes", version = "0.0.2"}
 
-thiserror = "1.0.24"
+thiserror = "1"
 
 [dev-dependencies]
-hex-literal = "0.3.1"
+hex-literal = "0.3"
 
