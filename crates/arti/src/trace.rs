@@ -55,7 +55,7 @@ where
 /// optionally rotating logfile.
 ///
 /// On success, return that layer, along with a WorkerGuard that needs to be
-/// dropped when the program exits.
+/// dropped when the program exits, to flush buffered messages.
 fn logfile_layer<S>(
     config: &LogfileConfig,
 ) -> Result<(impl Layer<S> + Send + Sync + Sized, WorkerGuard)>
@@ -117,7 +117,8 @@ where
     Ok((Some(layer), guards))
 }
 
-/// Opaque structure that gets dropped only when the logs are no longer needed.
+/// Opaque structure that gets dropped when the program is shutting down,
+/// after logs are no longer needed.  The `Drop` impl flushes buffered messages.
 pub(crate) struct LogGuards {
     /// The actual list of guards we're returning.
     #[allow(unused)]
@@ -126,8 +127,8 @@ pub(crate) struct LogGuards {
 
 /// Set up logging.
 ///
-/// Note that the returned LogGuard shouldn't be dropped while the program
-/// is running; they're used to ensure that all the log files are cleaned up.
+/// Note that the returned LogGuard must be dropped precisely when the program
+/// quits; they're used to ensure that all the log messges are flushed.
 pub(crate) fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGuards> {
     // Important: We have to make sure that the individual layers we add here
     // are not filters themselves.  That means, for example, that we can't add
