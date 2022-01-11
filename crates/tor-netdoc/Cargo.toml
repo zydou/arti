@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdoc"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -24,11 +24,11 @@ routerdesc = []
 ns_consensus = []
 
 [dependencies]
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
-tor-bytes = { path="../tor-bytes", version = "0.0.2"}
-tor-cert = { path="../tor-cert", version = "0.0.2"}
-tor-protover = { path="../tor-protover", version = "0.0.2"}
-tor-checkable = { path="../tor-checkable", version = "0.0.2"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
+tor-bytes = { path="../tor-bytes", version = "0.0.3"}
+tor-cert = { path="../tor-cert", version = "0.0.3"}
+tor-protover = { path="../tor-protover", version = "0.0.3"}
+tor-checkable = { path="../tor-checkable", version = "0.0.3"}
 
 base64 = "0.13.0"
 bitflags = "1"

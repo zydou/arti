@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,10 +18,10 @@ static = [ "arti-client/static" ]
 journald = [ "tracing-journald" ]
 
 [dependencies]
-arti-client = { package="arti-client", path = "../arti-client", version = "0.0.2"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2", default-features=false }
-tor-socksproto = { path="../tor-socksproto", version = "0.0.2"}
-arti-config = { path="../arti-config", version = "0.0.2"}
+arti-client = { package="arti-client", path = "../arti-client", version = "0.0.3"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", default-features=false }
+tor-socksproto = { path="../tor-socksproto", version = "0.0.3"}
+arti-config = { path="../arti-config", version = "0.0.3"}
 
 anyhow = "1.0.5"
 async-ctrlc = { version = "1.2.0", optional = true }

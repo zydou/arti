@@ -1,6 +1,6 @@
 [package]
 name = "tor-guardmgr"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,14 +18,14 @@ default = []
 testing = []
 
 [dependencies]
-tor-config = { path="../tor-config", version = "0.0.2"}
-tor-netdir = { path="../tor-netdir", version = "0.0.2"}
-tor-linkspec = { path="../tor-linkspec", version = "0.0.2"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.2"}
-tor-persist = {  path="../tor-persist", version = "0.0.2"}
-tor-proto = {  path="../tor-proto", version = "0.0.2", features=["traffic-timestamp"] }
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2"}
-tor-units = { path="../tor-units", version = "0.0.2"}
+tor-config = { path="../tor-config", version = "0.0.3"}
+tor-netdir = { path="../tor-netdir", version = "0.0.3"}
+tor-linkspec = { path="../tor-linkspec", version = "0.0.3"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
+tor-persist = {  path="../tor-persist", version = "0.0.3"}
+tor-proto = {  path="../tor-proto", version = "0.0.3", features=["traffic-timestamp"] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3"}
+tor-units = { path="../tor-units", version = "0.0.3"}
 
 derive_builder = "0.10"
 futures = "0.3"
@@ -39,7 +39,7 @@ thiserror = "1"
 tracing = "0.1.18"
 
 [dev-dependencies]
-tor-netdir = { path="../tor-netdir", version = "0.0.2", features=["testing"]}
-tor-persist = {  path="../tor-persist", version = "0.0.2", features=["testing"]}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.2", features=["tokio"]}
-tor-rtmock = { path="../tor-rtmock", version = "0.0.2"}
+tor-netdir = { path="../tor-netdir", version = "0.0.3", features=["testing"]}
+tor-persist = {  path="../tor-persist", version = "0.0.3", features=["testing"]}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio"]}
+tor-rtmock = { path="../tor-rtmock", version = "0.0.3"}
