@@ -3,4 +3,6 @@
 #2 WARNING: This file MUST be sorted.
 David Goulet
 eta
+Ian Jackson
 Nick Mathewson
+Tor CI Release
