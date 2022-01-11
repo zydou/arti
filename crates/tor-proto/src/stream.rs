@@ -14,7 +14,7 @@ mod params;
 mod raw;
 mod resolve;
 
-pub use data::DataStream;
+pub use data::{DataReader, DataStream, DataWriter};
 pub use params::StreamParameters;
 pub use raw::StreamReader;
 pub use resolve::ResolveStream;

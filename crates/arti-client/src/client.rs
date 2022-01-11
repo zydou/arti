@@ -23,6 +23,10 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::{Error, Result};
+#[cfg(feature = "async-std")]
+use tor_rtcompat::async_std::AsyncStdRuntime;
+#[cfg(feature = "tokio")]
+use tor_rtcompat::tokio::TokioRuntimeHandle;
 use tracing::{debug, error, info, warn};
 
 /// An active client session on the Tor network.
@@ -166,10 +170,49 @@ impl ConnectPrefs {
     // TODO: Add some way to be IPFlexible, and require exit to support both.
 }
 
-impl<R: Runtime> TorClient<R> {
-    /// Bootstrap a network connection configured by `dir_cfg` and `circ_cfg`.
+#[cfg(feature = "tokio")]
+impl TorClient<TokioRuntimeHandle> {
+    /// Bootstrap a connection to the Tor network, using the current Tokio runtime.
     ///
-    /// Return a client once there is enough directory material to
+    /// Returns a client once there is enough directory material to
+    /// connect safely over the Tor network.
+    ///
+    /// This is a convenience wrapper around [`TorClient::bootstrap`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if called outside of the context of a Tokio runtime.
+    pub async fn bootstrap_with_tokio(
+        config: TorClientConfig,
+    ) -> Result<TorClient<TokioRuntimeHandle>> {
+        let rt = tor_rtcompat::tokio::current_runtime().expect("called outside of Tokio runtime");
+        Self::bootstrap(rt, config).await
+    }
+}
+
+#[cfg(feature = "async-std")]
+impl TorClient<AsyncStdRuntime> {
+    /// Bootstrap a connection to the Tor network, using the current async-std runtime.
+    ///
+    /// Returns a client once there is enough directory material to
+    /// connect safely over the Tor network.
+    ///
+    /// This is a convenience wrapper around [`TorClient::bootstrap`].
+    pub async fn bootstrap_with_async_std(
+        config: TorClientConfig,
+    ) -> Result<TorClient<AsyncStdRuntime>> {
+        // FIXME(eta): not actually possible for this to fail
+        let rt =
+            tor_rtcompat::async_std::current_runtime().expect("failed to get async-std runtime");
+        Self::bootstrap(rt, config).await
+    }
+}
+
+impl<R: Runtime> TorClient<R> {
+    /// Bootstrap a connection to the Tor network, using the provided `config` and `runtime` (a
+    /// [`tor_rtcompat`] [`Runtime`](tor_rtcompat::Runtime)).
+    ///
+    /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
     pub async fn bootstrap(runtime: R, config: TorClientConfig) -> Result<TorClient<R>> {
         let circ_cfg = config.get_circmgr_config()?;

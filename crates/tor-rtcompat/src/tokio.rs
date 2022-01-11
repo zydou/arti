@@ -32,7 +32,7 @@ pub fn create_runtime() -> std::io::Result<impl Runtime> {
 ///
 /// Once you have a runtime returned by this function, you should
 /// just create more handles to it via [`Clone`].
-pub fn current_runtime() -> std::io::Result<impl Runtime> {
+pub fn current_runtime() -> std::io::Result<TokioRuntimeHandle> {
     let handle = tokio_crate::runtime::Handle::try_current()
         .map_err(|e| IoError::new(ErrorKind::Other, e))?;
     Ok(TokioRuntimeHandle::new(handle))
