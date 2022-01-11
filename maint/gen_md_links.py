@@ -1,0 +1,136 @@
+#!/usr/bin/python
+
+"""
+Given some markdown text of the general kind we use in Arti changelogs,
+look for reference-style links to MRs, issues, and commits, and generate
+the appropriate https URLs for them.
+
+Takes input either from a file, or from stdin.
+
+Example:
+  ./gen_md_links.py < new_changelog
+"""
+
+import re, subprocess
+from enum import Enum
+
+LINK_PATTERN = re.compile(r'''
+  \[([^\]]*)\] # Match [, then some non-] characters, then ]...
+  (?!\()       # But only when not followed by (.
+''',re.X)
+
+
+def links(s):
+    """Extract unresolved markdown links from a string.
+
+       This is a naive algorithm, and could eventually be replaced
+       with a real markdown parsing library.  But for our changelogs,
+       it should be fine.
+
+       >>> list(links("Hello [world]. This [is a link]"))
+       ['world', 'is a link']
+       >>> list(links("This [link](is resolved)."))
+       []
+    """
+
+    for m in LINK_PATTERN.finditer(s):
+        yield m.group(1)
+
+def is_commit(s):
+    """Return true if `s` looks like a git commit.
+
+       >>> is_commit("a3bcD445")
+       True
+       >>> is_commit("xyzzy123")
+       False
+    """
+
+    if len(s) >= 6:
+        try:
+            int(s, 16)
+            return True
+        except ValueError:
+            pass
+    return False
+
+def lookup_git_commit(short):
+    """Expand a git commit from its short version.
+
+       >>> lookup_git_commit("214c251e41")
+       '214c251e41a7583397cc5939b9447b89752ee323'
+       >>> lookup_git_commit("00000000000000")
+       Traceback (most recent call last):
+           ...
+       ValueError: Unrecognized git commit 00000000000000
+    """
+
+    p = subprocess.Popen(["git", "rev-parse", short], stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL)
+    p.wait()
+    if p.returncode != 0:
+        raise ValueError(f"Unrecognized git commit {short}")
+    return p.stdout.read().strip().decode("ascii")
+
+class LinkType:
+    MergeRequest = 1
+    Issue = 2
+    Commit = 3
+    Other = 4
+
+class Link:
+    def __init__(self, s):
+        self._s = s
+        if s.startswith("!") and s[1:].isdecimal():
+            self._type = LinkType.MergeRequest
+            self._id = int(s[1:])
+        elif s.startswith("#") and s[1:].isdecimal():
+            self._type = LinkType.Issue
+            self._id = int(s[1:])
+        elif is_commit(s):
+            self._type = LinkType.Commit
+            self._id = s.lower()
+        else:
+            self._type = LinkType.Other
+            self._id = s
+
+    def sort_key(self):
+        return (self._type, self._id)
+
+    def link(self):
+        if self._type == LinkType.MergeRequest:
+            return f"https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/{self._id}"
+        elif self._type == LinkType.Issue:
+            return f"https://gitlab.torproject.org/tpo/core/arti/-/issues/{self._id}"
+        elif self._type == LinkType.Commit:
+            full_id = lookup_git_commit(self._id)
+            return f"https://gitlab.torproject.org/tpo/core/arti/-/commit/{full_id}"
+        elif self._type == LinkType.Other:
+            return ""
+
+    def text(self):
+        return "[{}]: {}\n".format(self._s, self.link())
+
+
+def process(s):
+    """Given a string with a bunch of markdown links in the style we use
+       in our changelog, generate the following material to insert in
+       the changelog.
+
+       >>> print(process("Hello [#123] [!456]"), end="")
+       [!456]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/456
+       [#123]: https://gitlab.torproject.org/tpo/core/arti/-/issues/123
+    """
+
+    items = sorted((Link(lnk) for lnk in set(links(s))), key=Link.sort_key)
+    return "".join(lnk.text() for lnk in items)
+
+if __name__ == '__main__':
+    import fileinput, sys
+    if len(sys.argv) == 1 or sys.argv[1] == "-":
+        in_file = sys.stdin
+    else:
+        in_file = open(sys.argv[1], 'r')
+
+    text = in_file.read()
+    print(process(text))
+
