@@ -126,6 +126,7 @@ pub struct DataWriter {
 /// If the `tokio` crate feature is enabled, this type also implements
 /// [`tokio::io::AsyncRead`](tokio_crate::io::AsyncRead) for easier integration
 /// with code that expects that trait.
+//
 // # Semver note
 //
 // Note that this type is re-exported as a part of the public API of
