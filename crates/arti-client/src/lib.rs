@@ -182,7 +182,7 @@ pub use client::{ConnectPrefs, TorClient};
 pub use config::TorClientConfig;
 
 pub use tor_circmgr::IsolationToken;
-pub use tor_proto::stream::DataStream;
+pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
 pub use err::Error;

@@ -74,6 +74,12 @@ use tor_cell::relaycell::msg::{Data, RelayMsg};
 /// data has actually been sent, you need to make sure that
 /// [`AsyncWrite::poll_flush`] runs to completion: probably via
 /// [`AsyncWriteExt::flush`](futures::io::AsyncWriteExt::flush).
+///
+/// # Splitting the type
+///
+/// This type is internally composed of a [`DataReader`] and a [`DataWriter`]; the
+/// `DataStream::split` method can be used to split it into those two parts, for more
+/// convenient usage with e.g. stream combinators.
 // # Semver note
 //
 // Note that this type is re-exported as a part of the public API of
@@ -86,11 +92,22 @@ pub struct DataStream {
     r: DataReader,
 }
 
-/// Wrapper for the Write part of a DataStream.
+/// The write half of a [`DataStream`], implementing [`futures::io::AsyncWrite`].
 ///
-/// Note that this implementation writes Tor cells lazily, so it is
-/// essential to flush the stream when you need the data to be sent
-/// out right away.
+/// See the [`DataStream`] docs for more information. In particular, note
+/// that this writer requires `poll_flush` to complete in order to guarantee that
+/// all data has been written.
+///
+/// # Usage with Tokio
+///
+/// If the `tokio` crate feature is enabled, this type also implements
+/// [`tokio::io::AsyncWrite`](tokio_crate::io::AsyncWrite) for easier integration
+/// with code that expects that trait.
+// # Semver note
+//
+// Note that this type is re-exported as a part of the public API of
+// the `arti-client` crate.  Any changes to its API here in
+// `tor-proto` need to be reflected above.
 pub struct DataWriter {
     /// Internal state for this writer
     ///
@@ -100,7 +117,21 @@ pub struct DataWriter {
     state: Option<DataWriterState>,
 }
 
-/// Wrapper for the Read part of a DataStream
+/// The read half of a [`DataStream`], implementing [`futures::io::AsyncRead`].
+///
+/// See the [`DataStream`] docs for more information.
+///
+/// # Usage with Tokio
+///
+/// If the `tokio` crate feature is enabled, this type also implements
+/// [`tokio::io::AsyncRead`](tokio_crate::io::AsyncRead) for easier integration
+/// with code that expects that trait.
+//
+// # Semver note
+//
+// Note that this type is re-exported as a part of the public API of
+// the `arti-client` crate.  Any changes to its API here in
+// `tor-proto` need to be reflected above.
 pub struct DataReader {
     /// Internal state for this reader.
     ///

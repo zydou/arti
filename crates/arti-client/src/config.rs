@@ -8,9 +8,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
-use tor_config::CfgPath;
-
-pub use tor_config::ConfigBuildError;
+pub use tor_config::{CfgPath, ConfigBuildError};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
