@@ -5,7 +5,7 @@
   I made the toplevel changelog for 0.0.1 by reading 'git shortlog
   arti-v0.0.0..' and summarizing the best stuff.
 
-  There is a ./maint/thanks.sh script to generate the acknowledgements.
+  There is a ./maint/thanks.sh script to generate the acknowledgments.
 
 2. Make sure we're up-to-date.  Try to run:
   * cargo update
@@ -35,6 +35,8 @@
 
    ; for crate in $(./maint/list_crates.py); do cargo publish -p "$crate"; echo "Sleeping"; sleep 30; done
 
-    (The "sleep 30" is probably too long, but some delay seems to be necessary to give crates.io to publish each crate before the next crate tries to download it.)
+    (The "sleep 30" is probably too long, but some delay seems to be
+    necessary to give crates.io time to publish each crate before the next
+    crate tries to download it.)
 
 7. We tag the repository with arti-v0.0.1
