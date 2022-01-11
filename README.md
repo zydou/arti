@@ -110,11 +110,11 @@ get our project manager to sign off on them.
 
  * Arti 0.1.0: Okay for experimental embedding (Goal: Mid March, 2022??)
    * Target audience: **beta testers**
-   * [ ] Performance: preemptive circuit construction
-   * [ ] Performance: circuit build timeout inference
-   * [ ] API support for embedding
+   * [x] Performance: preemptive circuit construction
+   * [x] Performance: circuit build timeout inference
+   * [x] API support for embedding
    * [ ] API support for status reporting
-   * [ ] Correct timeout behavior
+   * [x] Correct timeout behavior
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/7)
 
  * Arti 1.0.0: Initial stable release (Goal: Mid September, 2022??)
