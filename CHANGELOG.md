@@ -80,7 +80,7 @@ release 0.1.0 (scheduled March 2022).
 
 ### Acknowledgments
 
-Thanks to everbody who has contributed to this release, including dagon,
+Thanks to everybody who has contributed to this release, including dagon,
 Daniel Eades, Muhammad Falak R Wani, Neel Chauhan, Trinity Pointard, and
 Yuan Lyu!
 
