@@ -54,7 +54,7 @@ If you really want to connect to a raw IP address and know what you're doing, ta
 ```rust
 // The client configuration describes how to connect to the Tor network,
 // and what directories to use for storing persistent state.
-let config = TorClientConfig::sane_defaults()?;
+let config = TorClientConfig::default();
 // Arti needs a handle to an async runtime in order to spawn tasks and use the
 // network. (See "Multiple runtime support" below.)
 let rt = tor_rtcompat::tokio::current_runtime()?;
@@ -65,7 +65,7 @@ let rt = tor_rtcompat::tokio::current_runtime()?;
 let tor_client = TorClient::bootstrap(rt, config).await?;
 
 // Initiate a connection over Tor to example.com, port 80.
-let mut stream = tor_client.connect(("example.com", 80), None).await?;
+let mut stream = tor_client.connect(("example.com", 80)).await?;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
