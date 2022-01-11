@@ -4,6 +4,113 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we will
 probably switch to using a separate changelog for each crate.
 
+# Arti 0.0.3 — 11 Jan 2022
+
+This release adds support for preemptive circuit construction, refactors
+Arti's configuration code and behavior, and adds numerous smaller features
+needed for a correct Tor client implementation.
+
+It breaks compatibility with previous releases, as is expected before
+release 0.1.0 (scheduled March 2022).
+
+### New features
+
+- Arti now builds preemptive circuits in order to anticipate the user's
+  predicted needs.  This change matches Tor's behavior more closely, and
+  should reduce latency for stream creation. ([!154])
+- The configuration for a [`TorClient`] object can be changed while the
+  client is running. ([!181])
+- Guard selection now obeys family restrictions concerning exit nodes.
+  ([!139])
+- Better support for overriding the [`TcpProvider`] on an Arti client and
+  having this change affect the [`TlsProvider`]. This helps with testing
+  support, with cases where TCP streams must be constructed specially, etc.
+  ([!166])
+- We no longer consider a directory to be "complete" until we have
+  microdescriptors for all of our primary guards. ([!220])
+
+### Breaking changes
+
+- Configuration files have been reorganized, and we have an all-new API for
+  creating configuration objects. ([!135], [!137])
+- A few unused types and functions have been removed. ([214c251e] etc)
+- `CircMgr` now returns `ClientCirc` directly, not wrapped in an `Arc`.
+  (ClientCirc instances are already cheap to clone.) ([!224])
+- `TorClient` now has separate `connect` and `connect_with_prefs` methods.
+  ([!229])
+- Various other API refactorings and revisions. (Please remember that we plan
+  to break backward compatibility with _every_ release between now and 0.1.0
+  in early March.)
+
+### Major bugfixes
+
+- We fixed a bug in handling stream-level SENDMEs that would sometimes result
+  in an Arti client sending too much data, causing the exit relay to close
+  the circuit. ([!194])
+
+### Infrastructure
+
+- We now have an experimental benchmarking tool to compare Arti's performance
+  with Tor's, when running over a chutney network. So far, we seem
+  competitive, but we'll probably find cases where we underperform. ([!195])
+- Our coverage tool now post-processes grcov's output to produce per-crate
+  results. ([!163])
+- Our integration test scripts are more robust to cases where the user has
+  already configured a `CHUTNEY_PATH`. ([!168])
+- We have lowered the required dependency versions in our Cargo.toml files
+  so that each one is the lowest version that actually works with our code.
+  ([!227])
+
+### Cleanups, minor features, and minor bugfixes
+
+- We store fewer needless fields from Tor directory documents. ([!151],
+  [!165])
+- We've gone through and converted _every_ `XXXX` comment in our code (which
+  indicated a must-fix issue) into a ticket, or a `TODO`. ([#231])
+- Our SOCKS code is much more careful about sending error messages if
+  an error occurs before the SOCKS connection succeeds. ([!189])
+- We no longer build non-directory circuits when the consensus is
+  super-old. ([!90])
+- We no longer consider timeouts to indicate that our circuits are all timing
+  out unless we have seen _some_ recent incoming network traffic. ([!207])
+- You can now configure logging to files, with support for rotating the
+  files hourly or daily. You can have separate filters for each logging
+  target. ([!222])
+- Too many others to list!
+
+### Acknowledgments
+
+Thanks to everbody who has contributed to this release, including dagon,
+Daniel Eades, Muhammad Falak R Wani, Neel Chauhan, Trinity Pointard, and
+Yuan Lyu!
+
+[!90]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/90
+[!135]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/135
+[!137]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/137
+[!139]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/139
+[!151]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/151
+[!154]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/154
+[!163]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/163
+[!165]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/165
+[!166]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/166
+[!168]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/168
+[!181]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/181
+[!189]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/189
+[!194]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/194
+[!195]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/195
+[!207]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/207
+[!220]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/220
+[!222]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/222
+[!224]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/224
+[!227]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/227
+[!229]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/229
+[#231]: https://gitlab.torproject.org/tpo/core/arti/-/issues/231
+[214c251e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/214c251e41a7583397cc5939b9447b89752ee323
+[`TcpProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.TcpProvider.html
+[`TlsProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.TlsProvider.html
+[`TorClient`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/struct.TorClient.html
+
+
 # Arti 0.0.2 — 30 Nov 2021
 
 This release tries to move us towards a more permanent API, and sets the
@@ -46,7 +153,7 @@ release 0.1.0 (scheduled March 2022).
   reactor architecture, and reduce the need for locks. ([#205], [#217]).
 - By default, `cargo build --release` now chooses a more aggressive set
   of optimization flags. ([!124])
-- Too many smaller fixes to list.
+  - Too many smaller fixes to list.
 
 ### Acknowledgments
 
