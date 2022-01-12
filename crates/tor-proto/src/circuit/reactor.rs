@@ -1156,6 +1156,10 @@ impl Reactor {
         };
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
+            // This always sends a V1 (tagged) sendme cell, and thereby assumes
+            // that SendmeEmitMinVersion is at least 1.  If the authorities
+            // every increase that parameter to a higher number, this will
+            // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag);
             let cell = RelayCell::new(0.into(), sendme.into());
             self.send_relay_cell(cx, hopnum, false, cell)?;
