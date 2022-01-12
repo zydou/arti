@@ -194,6 +194,14 @@ pub(super) enum RequireSendmeAuth {
 impl RequireSendmeAuth {
     /// Create an appropriate [`RequireSendmeAuth`] for a given set of relay
     /// subprotocol versions.
+    //
+    // TODO(nickm): At some point in the future, once there are no 0.3.5 relays
+    // on the Tor network, we can safely require authenticated SENDMEs from all
+    // relays.
+    //
+    // At that point, if we have a relay implementation in Rust, it should look
+    // at the network parameter `SendmeAcceptMinVersion` when deciding whether
+    // to require authenticated SENDMEs.
     pub(super) fn from_protocols(protocols: &tor_protover::Protocols) -> Self {
         if protocols.supports_known_subver(tor_protover::ProtoKind::FlowCtrl, 1) {
             // The relay supports FlowCtrl=1, and therefore will authenticate.
