@@ -23,7 +23,8 @@ use serde::Deserialize;
 ///
 /// These variables are implemented using the `directories` crate, and
 /// so should use appropriate system-specific overrides under the
-/// hood. For more information, see that crate's documentation.
+/// hood. (Some of those overrides are based on environment variables.)
+/// For more information, see that crate's documentation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
