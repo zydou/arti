@@ -749,8 +749,9 @@ impl Reactor {
         rev: Box<dyn InboundClientLayer + 'static + Send>,
         params: &CircParameters,
     ) {
+        let auth_sendme_optional = !supports_flowctrl_1;
         let hop = crate::circuit::reactor::CircHop::new(
-            supports_flowctrl_1,
+            auth_sendme_optional,
             params.initial_send_window(),
         );
         self.hops.push(hop);
