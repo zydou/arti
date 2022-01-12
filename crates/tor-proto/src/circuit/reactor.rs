@@ -78,7 +78,8 @@ pub(super) enum CtrlMsg {
         /// The handshake type to use for the first hop.
         handshake: CircuitHandshake,
         /// Whether the hop supports authenticated SENDME cells.
-        supports_authenticated_sendme: bool,
+        /// (And therefore, whether we should require them.)
+        require_sendme_auth: RequireSendmeAuth,
         /// Other parameters relevant for circuit creation.
         params: CircParameters,
         /// Oneshot channel to notify on completion.
@@ -91,7 +92,8 @@ pub(super) enum CtrlMsg {
         /// Information about how to connect to the relay we're extending to.
         linkspecs: Vec<LinkSpec>,
         /// Whether the hop supports authenticated SENDME cells.
-        supports_authenticated_sendme: bool,
+        /// (And therefore, whether we should require them.)
+        require_sendme_auth: RequireSendmeAuth,
         /// Other parameters relevant for circuit extension.
         params: CircParameters,
         /// Oneshot channel to notify on completion.
@@ -161,7 +163,7 @@ pub(super) struct CircHop {
     recvwindow: sendme::CircRecvWindow,
     /// If true, this hop is using an older link protocol and we
     /// shouldn't expect good authenticated SENDMEs from it.
-    auth_sendme_optional: bool,
+    auth_sendme_required: RequireSendmeAuth,
     /// Window used to say how many cells we can send.
     sendwindow: sendme::CircSendWindow,
     /// Buffer for messages we can't send to this hop yet due to congestion control.
@@ -172,6 +174,34 @@ pub(super) struct CircHop {
     /// doing things that would result in it growing (and stop before growing it
     /// if popping things off it can't be done).
     outbound: VecDeque<([u8; 20], ChanCell)>,
+}
+
+/// Enumeration to determine whether we require circuit-level SENDME cells to be
+/// authenticated.
+///
+/// (This is an enumeration rather than a boolean to prevent accidental sense
+/// inversion.)
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub(super) enum RequireSendmeAuth {
+    /// Sendme authentication is expected from this hop, and therefore is
+    /// required.
+    Yes,
+    /// Sendme authentication is not expected from this hop, and therefore not
+    /// required.
+    No,
+}
+
+impl RequireSendmeAuth {
+    /// Create an appropriate [`RequireSendmeAuth`] for a given set of relay
+    /// subprotocol versions.
+    pub(super) fn from_protocols(protocols: &tor_protover::Protocols) -> Self {
+        if protocols.supports_known_subver(tor_protover::ProtoKind::FlowCtrl, 1) {
+            // The relay supports FlowCtrl=1, and therefore will authenticate.
+            RequireSendmeAuth::Yes
+        } else {
+            RequireSendmeAuth::No
+        }
+    }
 }
 
 /// An indicator on what we should do when we receive a cell for a circuit.
@@ -185,11 +215,11 @@ enum CellStatus {
 
 impl CircHop {
     /// Create a new hop.
-    pub(super) fn new(auth_sendme_optional: bool, initial_window: u16) -> Self {
+    pub(super) fn new(auth_sendme_required: RequireSendmeAuth, initial_window: u16) -> Self {
         CircHop {
             map: streammap::StreamMap::new(),
             recvwindow: sendme::CircRecvWindow::new(1000),
-            auth_sendme_optional,
+            auth_sendme_required,
             sendwindow: sendme::CircSendWindow::new(initial_window),
             outbound: VecDeque::new(),
         }
@@ -227,7 +257,8 @@ where
     /// Handshake state.
     state: Option<H::StateType>,
     /// Whether the hop supports authenticated SENDME cells.
-    supports_flowctrl_1: bool,
+    /// (And therefore, whether we require them.)
+    require_sendme_auth: RequireSendmeAuth,
     /// Parameters used for this extension.
     params: CircParameters,
     /// An identifier for logging about this reactor's circuit.
@@ -263,7 +294,7 @@ where
         handshake_id: u16,
         key: &H::KeyType,
         linkspecs: Vec<LinkSpec>,
-        supports_flowctrl_1: bool,
+        require_sendme_auth: RequireSendmeAuth,
         params: CircParameters,
         reactor: &mut Reactor,
     ) -> Result<Self> {
@@ -297,7 +328,7 @@ where
 
         Ok(Self {
             state: Some(state),
-            supports_flowctrl_1,
+            require_sendme_auth,
             params,
             unique_id,
             expected_hop: hop,
@@ -355,7 +386,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
-            self.supports_flowctrl_1,
+            self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
             &self.params,
@@ -580,7 +611,7 @@ impl Reactor {
         if let Some(CtrlMsg::Create {
             recv_created,
             handshake,
-            supports_authenticated_sendme,
+            require_sendme_auth,
             params,
             done,
         }) = create_message
@@ -597,7 +628,7 @@ impl Reactor {
                         recv_created,
                         ed_identity,
                         public_key,
-                        supports_authenticated_sendme,
+                        require_sendme_auth,
                         &params,
                     )
                     .await
@@ -626,7 +657,7 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         wrap: &W,
         key: &H::KeyType,
-        supports_flowctrl_1: bool,
+        require_sendme_auth: RequireSendmeAuth,
         params: &CircParameters,
     ) -> Result<()>
     where
@@ -668,7 +699,7 @@ impl Reactor {
 
         let (layer_fwd, layer_back) = layer.split();
         self.add_hop(
-            supports_flowctrl_1,
+            require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
             params,
@@ -693,7 +724,7 @@ impl Reactor {
             recvcreated,
             &wrap,
             &(),
-            false,
+            RequireSendmeAuth::No,
             params,
         )
         .await
@@ -708,7 +739,7 @@ impl Reactor {
         recvcreated: oneshot::Receiver<CreateResponse>,
         ed_identity: pk::ed25519::Ed25519Identity,
         pubkey: NtorPublicKey,
-        supports_flowctrl_1: bool,
+        require_sendme_auth: RequireSendmeAuth,
         params: &CircParameters,
     ) -> Result<()> {
         // Exit now if we have an Ed25519 or RSA identity mismatch.
@@ -735,7 +766,7 @@ impl Reactor {
             recvcreated,
             &wrap,
             &pubkey,
-            supports_flowctrl_1,
+            require_sendme_auth,
             params,
         )
         .await
@@ -744,14 +775,13 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
-        supports_flowctrl_1: bool,
+        require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
         params: &CircParameters,
     ) {
-        let auth_sendme_optional = !supports_flowctrl_1;
         let hop = crate::circuit::reactor::CircHop::new(
-            auth_sendme_optional,
+            require_sendme_auth,
             params.initial_send_window(),
         );
         self.hops.push(hop);
@@ -835,7 +865,7 @@ impl Reactor {
                 }
             }
             None => {
-                if !hop.auth_sendme_optional {
+                if hop.auth_sendme_required == RequireSendmeAuth::Yes {
                     return Err(Error::CircProto("missing tag on circuit sendme".into()));
                 } else {
                     None
@@ -985,7 +1015,7 @@ impl Reactor {
             CtrlMsg::ExtendNtor {
                 public_key,
                 linkspecs,
-                supports_authenticated_sendme,
+                require_sendme_auth,
                 params,
                 done,
             } => {
@@ -994,7 +1024,7 @@ impl Reactor {
                     0x02,
                     &public_key,
                     linkspecs,
-                    supports_authenticated_sendme,
+                    require_sendme_auth,
                     params,
                     self,
                 ) {
@@ -1031,9 +1061,16 @@ impl Reactor {
             } => {
                 use crate::circuit::test::DummyCrypto;
 
+                // This kinds of conversion is okay for testing, but just for testing.
+                let require_sendme_auth = if supports_flowctrl_1 {
+                    RequireSendmeAuth::Yes
+                } else {
+                    RequireSendmeAuth::No
+                };
+
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(supports_flowctrl_1, fwd, rev, &params);
+                self.add_hop(require_sendme_auth, fwd, rev, &params);
                 let _ = done.send(Ok(()));
             }
             #[cfg(test)]
@@ -1158,7 +1195,7 @@ impl Reactor {
         // If we do need to send a circuit-level SENDME cell, do so.
         if send_circ_sendme {
             // This always sends a V1 (tagged) sendme cell, and thereby assumes
-            // that SendmeEmitMinVersion is at least 1.  If the authorities
+            // that SendmeEmitMinVersion is no more than 1.  If the authorities
             // every increase that parameter to a higher number, this will
             // become incorrect.  (Higher numbers are not currently defined.)
             let sendme = Sendme::new_tag(tag);
