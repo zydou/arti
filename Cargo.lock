@@ -108,11 +108,13 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "derive_builder",
+ "derive_more",
  "directories",
  "futures",
  "humantime-serde",
  "hyper",
  "pin-project",
+ "postage",
  "serde",
  "thiserror",
  "tokio",

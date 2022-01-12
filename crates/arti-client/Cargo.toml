@@ -33,8 +33,10 @@ tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3"}
 
 humantime-serde = "1"
 derive_builder = "0.10"
+derive_more = "0.99"
 directories = "4"
 futures = "0.3"
+postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
 tracing = "0.1.18"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
