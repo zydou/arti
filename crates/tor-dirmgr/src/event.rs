@@ -1,9 +1,11 @@
 //! Code for notifying other modules about changes in the directory.
-// TODO(nickm): After we have enough experience with this code, we might want to
-// make it a public interface. If we do it should probably move into another
-// crate.
+
+// TODO(nickm): After we have enough experience with this FlagPublisher, we
+// might want to make it a public interface. If we do it should probably move
+// into another crate.
 
 use std::{
+    fmt,
     marker::PhantomData,
     pin::Pin,
     sync::{
@@ -11,9 +13,12 @@ use std::{
         Arc,
     },
     task::Poll,
+    time::SystemTime,
 };
 
-use futures::{stream::Stream, Future};
+use futures::{stream::Stream, Future, StreamExt};
+use time::OffsetDateTime;
+use tor_netdoc::doc::netstatus;
 
 /// An event that a DirMgr can broadcast to indicate that a change in
 /// the status of its directory.
@@ -231,9 +236,299 @@ impl<F: FlagEvent> Stream for FlagListener<F> {
     }
 }
 
+/// Description of the directory manager's current bootstrapping status.
+///
+/// This status does not necessarily increase monotonically: it can go backwards
+/// if (for example) our directory information expires before we're able to get
+/// new information.
+#[derive(Clone, Debug, Default)]
+pub struct DirBootstrapStatus {
+    /// The status for the current directory that we're using right now.
+    pub(crate) current: DirStatus,
+    /// The status for a directory that we're downloading to replace the current
+    /// directory.
+    ///
+    /// This is "None" if we haven't started fetching the next consensus yet.
+    pub(crate) next: Option<DirStatus>,
+}
+
+/// The status for a single directory.
+#[derive(Clone, Debug)]
+pub struct DirStatus(DirStatusInner);
+
+/// The contents of a single DirStatus.
+///
+/// This is a separate type so that we don't make the variants public.
+#[derive(Clone, Debug)]
+pub(crate) enum DirStatusInner {
+    /// We don't have any information yet.
+    NoConsensus {
+        /// If present, we are fetching a consensus whose valid-after time
+        /// postdates this time.
+        after: Option<SystemTime>,
+    },
+    /// We've downloaded a consensus, but we haven't validated it yet.
+    FetchingCerts {
+        /// The lifetime of the consensus.
+        lifetime: netstatus::Lifetime,
+        /// A fraction (in (numerator,denominator) format) of the certificates
+        /// we have for this consensus.
+        n_certs: (u16, u16),
+    },
+    /// We've validated a consensus and we're fetching (or have fetched) its
+    /// microdescriptors.
+    Validated {
+        /// The lifetime of the consensus.
+        lifetime: netstatus::Lifetime,
+        /// A fraction (in (numerator,denominator) form) of the microdescriptors
+        /// that we have for this consensus.
+        n_mds: (u32, u32),
+        /// True iff we've decided that the consensus is usable.
+        usable: bool,
+        // TODO(nickm) Someday we could add a field about whether any primary
+        // guards are missing microdescriptors, to give a better explanation for
+        // the case where we won't switch our consensus because of that.
+    },
+}
+
+impl Default for DirStatus {
+    fn default() -> Self {
+        DirStatus(DirStatusInner::NoConsensus { after: None })
+    }
+}
+
+impl From<DirStatusInner> for DirStatus {
+    fn from(inner: DirStatusInner) -> DirStatus {
+        DirStatus(inner)
+    }
+}
+
+impl fmt::Display for DirStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        /// Format this time in a format useful for displaying
+        /// lifetime boundaries.
+        fn fmt_time(t: SystemTime) -> String {
+            use once_cell::sync::Lazy;
+            /// Formatter object for lifetime boundaries.
+            ///
+            /// We use "YYYY-MM-DD HH:MM:SS UTC" here, since we never have
+            /// sub-second times here, and using non-UTC offsets is confusing
+            /// in this context.
+            static FORMAT: Lazy<Vec<time::format_description::FormatItem>> = Lazy::new(|| {
+                time::format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second] UTC")
+                    .expect("Invalid time format")
+            });
+            OffsetDateTime::from(t)
+                .format(&FORMAT)
+                .unwrap_or_else(|_| "(could not format)".into())
+        }
+
+        match &self.0 {
+            DirStatusInner::NoConsensus { .. } => write!(f, "fetching a consensus"),
+            DirStatusInner::FetchingCerts { n_certs, .. } => write!(
+                f,
+                "fetching authority certificates ({}/{})",
+                n_certs.0, n_certs.1
+            ),
+            DirStatusInner::Validated {
+                usable: false,
+                n_mds,
+                ..
+            } => write!(f, "fetching microdescriptors ({}/{})", n_mds.0, n_mds.1),
+            DirStatusInner::Validated {
+                usable: true,
+                lifetime,
+                ..
+            } => write!(
+                f,
+                "usable, fresh until {}, and valid until {}",
+                fmt_time(lifetime.fresh_until()),
+                fmt_time(lifetime.valid_until())
+            ),
+        }
+    }
+}
+
+impl fmt::Display for DirBootstrapStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "directory is {}", self.current)?;
+        if let Some(ref next) = self.next {
+            write!(f, "; next directory is {}", next)?;
+        }
+        Ok(())
+    }
+}
+
+impl DirBootstrapStatus {
+    /// Return the fraction of completion for directory download, in a form
+    /// suitable for a progress bar at some particular time.
+    ///
+    /// This value is not monotonic, and can go down as one directory is
+    /// replaced with another.
+    ///
+    /// Callers _should not_ depend on the specific meaning of any particular
+    /// fraction; we may change these fractions in the future.
+    pub fn frac_at(&self, when: SystemTime) -> f32 {
+        self.current
+            .frac_at(when)
+            .or_else(|| self.next.as_ref().and_then(|next| next.frac_at(when)))
+            .unwrap_or(0.0)
+    }
+
+    /// Return true if this status indicates that we have a current usable
+    /// directory.
+    pub fn usable_at(&self, now: SystemTime) -> bool {
+        self.current.usable() && self.current.valid_at(now)
+    }
+
+    /// Update this status by replacing its current status (or its next status)
+    /// with `new_status`, as appropriate.
+    pub(crate) fn update(&mut self, new_status: DirStatus) {
+        if new_status.usable() {
+            // This is a usable directory, but it might be a stale one still
+            // getting updated.  Make sure that it is at least as new as the one
+            // in `current` before we set `current`.
+            if new_status.at_least_as_new_as(&self.current) {
+                // This one will be `current`. Should we clear `next`? Only if
+                // this one is at least as recent as `next` too.
+                if let Some(ref next) = self.next {
+                    if new_status.at_least_as_new_as(next) {
+                        self.next = None;
+                    }
+                }
+                self.current = new_status;
+            }
+        } else if !self.current.usable() {
+            // Not a usable directory, but we don't _have_ a usable directory. This is therefore current.
+            self.current = new_status;
+        } else {
+            // This is _not_ a usable directory, so it can only be `next`.
+            self.next = Some(new_status);
+        }
+    }
+}
+
+impl DirStatus {
+    /// Return the consensus lifetime for this directory, if we have one.
+    fn lifetime(&self) -> Option<&netstatus::Lifetime> {
+        match &self.0 {
+            DirStatusInner::NoConsensus { .. } => None,
+            DirStatusInner::FetchingCerts { lifetime, .. } => Some(lifetime),
+            DirStatusInner::Validated { lifetime, .. } => Some(lifetime),
+        }
+    }
+
+    /// Return true if the directory is valid at the given time.
+    fn valid_at(&self, when: SystemTime) -> bool {
+        if let Some(lifetime) = self.lifetime() {
+            lifetime.valid_after() <= when && when < lifetime.valid_until()
+        } else {
+            false
+        }
+    }
+
+    /// As frac_at, but return None if this consensus is not valid at the given time.
+    fn frac_at(&self, when: SystemTime) -> Option<f32> {
+        if self.valid_at(when) {
+            Some(self.frac())
+        } else {
+            None
+        }
+    }
+
+    /// Return true if this status indicates a usable directory.
+    fn usable(&self) -> bool {
+        matches!(self.0, DirStatusInner::Validated { usable: true, .. })
+    }
+
+    /// Return the fraction of completion for directory download, in a form
+    /// suitable for a progress bar.
+    ///
+    /// This is monotonically increasing for a single directory, but can go down
+    /// as one directory is replaced with another.
+    ///
+    /// Callers _should not_ depend on the specific meaning of any particular
+    /// fraction; we may change these fractions in the future.
+    fn frac(&self) -> f32 {
+        // We arbitrarily decide that 25% is downloading the consensus, 10% is
+        // downloading the certificates, and the remaining 65% is downloading
+        // the microdescriptors until we become usable.  We may want to re-tune that in the future, but
+        // the documentation of this function should allow us to do so.
+        match &self.0 {
+            DirStatusInner::NoConsensus { .. } => 0.0,
+            DirStatusInner::FetchingCerts { n_certs, .. } => {
+                0.25 + f32::from(n_certs.0) / f32::from(n_certs.1) * 0.10
+            }
+            DirStatusInner::Validated {
+                usable: false,
+                n_mds,
+                ..
+            } => 0.35 + (n_mds.0 as f32) / (n_mds.1 as f32) * 0.65,
+            DirStatusInner::Validated { usable: true, .. } => 1.0,
+        }
+    }
+
+    /// Return true if the consensus in this DirStatus (if any) is at least as
+    /// new as the one in `other`.
+    fn at_least_as_new_as(&self, other: &DirStatus) -> bool {
+        /// return a candidate "valid after" time for a DirStatus, for comparison purposes.
+        fn start_time(st: &DirStatus) -> Option<SystemTime> {
+            match &st.0 {
+                DirStatusInner::NoConsensus { after: Some(t) } => {
+                    Some(*t + std::time::Duration::new(1, 0)) // Make sure this sorts _after_ t.
+                }
+                DirStatusInner::FetchingCerts { lifetime, .. } => Some(lifetime.valid_after()),
+                DirStatusInner::Validated { lifetime, .. } => Some(lifetime.valid_after()),
+                _ => None,
+            }
+        }
+
+        match (start_time(self), start_time(other)) {
+            // If both have a lifetime, compare their valid_after times.
+            (Some(l1), Some(l2)) => l1 >= l2,
+            // Any consensus is newer than none.
+            (Some(_), None) => true,
+            // No consensus is never newer than anything.
+            (None, _) => false,
+        }
+    }
+}
+
+/// A stream of [`DirBootstrapStatus`] events.
+#[derive(Clone)]
+pub struct DirBootstrapEvents {
+    /// The `postage::watch::Receiver` that we're wrapping.
+    ///
+    /// We wrap this type so that we don't expose its entire API, and so that we
+    /// can migrate to some other implementation in the future if we want.
+    pub(crate) inner: postage::watch::Receiver<DirBootstrapStatus>,
+}
+
+impl Stream for DirBootstrapEvents {
+    type Item = DirBootstrapStatus;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl std::fmt::Debug for DirBootstrapEvents {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DirBootstrapStatusEvents")
+            .finish_non_exhaustive()
+    }
+}
+
+#[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use super::*;
+    use float_eq::assert_float_eq;
     use futures::stream::StreamExt;
     use tor_rtcompat::test_with_all_runtimes;
 
@@ -358,5 +653,171 @@ mod test {
     #[test]
     fn failed_conversion() {
         assert_eq!(DirEvent::from_index(999), None);
+    }
+
+    #[test]
+    fn dir_status_basics() {
+        let now = SystemTime::now();
+        let hour = Duration::new(3600, 0);
+
+        let nothing = DirStatus(DirStatusInner::NoConsensus { after: None });
+        let unval = DirStatus(DirStatusInner::FetchingCerts {
+            lifetime: netstatus::Lifetime::new(now, now + hour, now + hour * 2).unwrap(),
+            n_certs: (3, 5),
+        });
+        let with_c = DirStatus(DirStatusInner::Validated {
+            lifetime: netstatus::Lifetime::new(now + hour, now + hour * 2, now + hour * 3).unwrap(),
+            n_mds: (30, 40),
+            usable: false,
+        });
+
+        // lifetime()
+        assert!(nothing.lifetime().is_none());
+        assert_eq!(unval.lifetime().unwrap().valid_after(), now);
+        assert_eq!(with_c.lifetime().unwrap().valid_until(), now + hour * 3);
+
+        // at_least_as_new_as()
+        assert!(!nothing.at_least_as_new_as(&nothing));
+        assert!(unval.at_least_as_new_as(&nothing));
+        assert!(unval.at_least_as_new_as(&unval));
+        assert!(!unval.at_least_as_new_as(&with_c));
+        assert!(with_c.at_least_as_new_as(&unval));
+        assert!(with_c.at_least_as_new_as(&with_c));
+
+        // frac() (It's okay if we change the actual numbers here later; the
+        // current ones are more or less arbitrary.)
+        const TOL: f32 = 0.00001;
+        assert_float_eq!(nothing.frac(), 0.0, abs <= TOL);
+        assert_float_eq!(unval.frac(), 0.25 + 0.06, abs <= TOL);
+        assert_float_eq!(with_c.frac(), 0.35 + 0.65 * 0.75, abs <= TOL);
+
+        // frac_at()
+        let t1 = now + hour / 2;
+        let t2 = t1 + hour * 2;
+        assert!(nothing.frac_at(t1).is_none());
+        assert_float_eq!(unval.frac_at(t1).unwrap(), 0.25 + 0.06, abs <= TOL);
+        assert!(with_c.frac_at(t1).is_none());
+        assert!(nothing.frac_at(t2).is_none());
+        assert!(unval.frac_at(t2).is_none());
+        assert_float_eq!(with_c.frac_at(t2).unwrap(), 0.35 + 0.65 * 0.75, abs <= TOL);
+    }
+
+    #[test]
+    fn dir_status_display() {
+        use time::macros::datetime;
+        let t1: SystemTime = datetime!(2022-01-17 11:00:00 UTC).into();
+        let hour = Duration::new(3600, 0);
+        let lifetime = netstatus::Lifetime::new(t1, t1 + hour, t1 + hour * 3).unwrap();
+
+        let ds = DirStatus(DirStatusInner::NoConsensus { after: None });
+        assert_eq!(ds.to_string(), "fetching a consensus");
+
+        let ds = DirStatus(DirStatusInner::FetchingCerts {
+            lifetime: lifetime.clone(),
+            n_certs: (3, 5),
+        });
+        assert_eq!(ds.to_string(), "fetching authority certificates (3/5)");
+
+        let ds = DirStatus(DirStatusInner::Validated {
+            lifetime: lifetime.clone(),
+            n_mds: (30, 40),
+            usable: false,
+        });
+        assert_eq!(ds.to_string(), "fetching microdescriptors (30/40)");
+
+        let ds = DirStatus(DirStatusInner::Validated {
+            lifetime,
+            n_mds: (30, 40),
+            usable: true,
+        });
+        assert_eq!(
+            ds.to_string(),
+            "usable, fresh until 2022-01-17 12:00:00 UTC, and valid until 2022-01-17 14:00:00 UTC"
+        );
+    }
+
+    #[test]
+    fn bootstrap_status() {
+        use time::macros::datetime;
+        let t1: SystemTime = datetime!(2022-01-17 11:00:00 UTC).into();
+        let hour = Duration::new(3600, 0);
+        let lifetime = netstatus::Lifetime::new(t1, t1 + hour, t1 + hour * 3).unwrap();
+        let lifetime2 = netstatus::Lifetime::new(t1 + hour, t1 + hour * 2, t1 + hour * 4).unwrap();
+
+        let ds1: DirStatus = DirStatusInner::Validated {
+            lifetime: lifetime.clone(),
+            n_mds: (3, 40),
+            usable: true,
+        }
+        .into();
+        let ds2: DirStatus = DirStatusInner::Validated {
+            lifetime: lifetime2.clone(),
+            n_mds: (5, 40),
+            usable: false,
+        }
+        .into();
+
+        let bs = DirBootstrapStatus {
+            current: ds1.clone(),
+            next: Some(ds2.clone()),
+        };
+
+        assert_eq!(bs.to_string(),
+            "directory is usable, fresh until 2022-01-17 12:00:00 UTC, and valid until 2022-01-17 14:00:00 UTC; next directory is fetching microdescriptors (5/40)"
+        );
+
+        const TOL: f32 = 0.00001;
+        assert_float_eq!(bs.frac_at(t1 + hour / 2), 1.0, abs <= TOL);
+        assert_float_eq!(
+            bs.frac_at(t1 + hour * 3 + hour / 2),
+            0.35 + 0.65 * 0.125,
+            abs <= TOL
+        );
+
+        // Now try updating.
+
+        // Case 1: we have a usable directory and the updated status isn't usable.
+        let mut bs = bs;
+        let ds3 = DirStatus(DirStatusInner::Validated {
+            lifetime: lifetime2.clone(),
+            n_mds: (10, 40),
+            usable: false,
+        });
+        bs.update(ds3);
+        assert!(matches!(
+            bs.next.as_ref().unwrap().0,
+            DirStatusInner::Validated {
+                n_mds: (10, 40),
+                ..
+            }
+        ));
+
+        // Case 2: The new directory _is_ usable and newer.  It will replace the old one.
+        let ds4 = DirStatus(DirStatusInner::Validated {
+            lifetime: lifetime2.clone(),
+            n_mds: (20, 40),
+            usable: true,
+        });
+        bs.update(ds4);
+        assert!(bs.next.as_ref().is_none());
+        assert_eq!(
+            bs.current.lifetime().unwrap().valid_after(),
+            lifetime2.valid_after()
+        );
+
+        // Case 3: The new directory is usable but older. Nothing will happen.
+        bs.update(ds1);
+        assert!(bs.next.as_ref().is_none());
+        assert_ne!(
+            bs.current.lifetime().unwrap().valid_after(),
+            lifetime.valid_after()
+        );
+
+        // Case 4: starting with an unusable directory, we always replace.
+        let mut bs = DirBootstrapStatus::default();
+        assert!(!ds2.usable());
+        assert!(bs.current.lifetime().is_none());
+        bs.update(ds2);
+        assert!(bs.current.lifetime().is_some());
     }
 }

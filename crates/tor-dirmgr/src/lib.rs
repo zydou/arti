@@ -70,6 +70,7 @@ mod storage;
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
 use crate::shared_ref::SharedMutArc;
 use crate::storage::sqlite::SqliteStore;
+use postage::watch;
 pub use retry::DownloadSchedule;
 use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
@@ -90,7 +91,7 @@ pub use config::{
 };
 pub use docid::DocId;
 pub use err::Error;
-pub use event::DirEvent;
+pub use event::{DirBootstrapEvents, DirBootstrapStatus, DirEvent, DirStatus};
 pub use storage::DocumentText;
 pub use tor_netdir::fallback::{FallbackDir, FallbackDirBuilder};
 
@@ -126,6 +127,17 @@ pub struct DirMgr<R: Runtime> {
 
     /// A publisher handle that we notify whenever the consensus changes.
     events: event::FlagPublisher<DirEvent>,
+
+    /// A publisher handle that we notify whenever our bootstrapping status
+    /// changes.
+    send_status: Mutex<watch::Sender<event::DirBootstrapStatus>>,
+
+    /// A receiver handle that gets notified whenever our bootstrapping status
+    /// changes.
+    ///
+    /// We don't need to keep this drained, since `postage::watch` already knows
+    /// to discard unread events.
+    receive_status: DirBootstrapEvents,
 
     /// A circuit manager, if this DirMgr supports downloading.
     circmgr: Option<Arc<CircMgr<R>>>,
@@ -438,6 +450,25 @@ impl<R: Runtime> DirMgr<R> {
         Ok(())
     }
 
+    /// Return a stream of [`DirBootstrapStatus`] events to tell us about changes
+    /// in the latest directory's bootstrap status.
+    ///
+    /// Note that this stream can be lossy: the caller will not necessarily
+    /// observe every event on the stream
+    pub fn bootstrap_events(&self) -> event::DirBootstrapEvents {
+        self.receive_status.clone()
+    }
+
+    /// Replace the latest status with `new_status` and broadcast to anybody
+    /// watching via a [`DirBootstrapEvents`] stream.
+    fn update_status(&self, new_status: DirStatus) {
+        // TODO(nickm): can I kill off this lock by having something else own the sender?
+        let mut sender = self.send_status.lock().expect("poisoned lock");
+        let mut status = sender.borrow_mut();
+
+        status.update(new_status);
+    }
+
     /// Try to make this a directory manager with read-write access to its
     /// storage.
     ///
@@ -477,11 +508,19 @@ impl<R: Runtime> DirMgr<R> {
         let netdir = SharedMutArc::new();
         let events = event::FlagPublisher::new();
 
+        let (send_status, receive_status) = postage::watch::channel();
+        let send_status = Mutex::new(send_status);
+        let receive_status = DirBootstrapEvents {
+            inner: receive_status,
+        };
+
         Ok(DirMgr {
             config: config.into(),
             store,
             netdir,
             events,
+            send_status,
+            receive_status,
             circmgr,
             runtime,
         })
@@ -766,6 +805,9 @@ trait DirState: Send {
         request: &ClientRequest,
         storage: Option<&Mutex<SqliteStore>>,
     ) -> Result<bool>;
+    /// Return a summary of this state as a [`DirStatus`].
+    fn bootstrap_status(&self) -> event::DirStatus;
+
     /// Return a configuration for attempting downloads.
     fn dl_config(&self) -> Result<DownloadSchedule>;
     /// If possible, advance to the next state.

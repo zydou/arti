@@ -20,6 +20,7 @@ use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
+use crate::event::{DirStatus, DirStatusInner};
 use crate::DirEvent;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
@@ -113,6 +114,13 @@ pub(crate) struct GetConsensusState<DM: WriteNetDir> {
     /// How should we get the consensus from the cache, if at all?
     cache_usage: CacheUsage,
 
+    /// If present, a time that we want our consensus to have been published.
+    //
+    // TODO: This is not yet used everywhere it could be.  In the future maybe
+    // it should be inserted into the DocId::LatestConsensus  alternative rather
+    // than being recalculated in make_consensus_request,
+    after: Option<SystemTime>,
+
     /// If present, our next state.
     ///
     /// (This is present once we have a consensus.)
@@ -133,18 +141,25 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
     /// Create a new GetConsensusState from a weak reference to a
     /// directory manager and a `cache_usage` flag.
     pub(crate) fn new(writedir: Weak<DM>, cache_usage: CacheUsage) -> Result<Self> {
-        let authority_ids: Vec<_> = if let Some(writedir) = Weak::upgrade(&writedir) {
-            writedir
+        let (authority_ids, after) = if let Some(writedir) = Weak::upgrade(&writedir) {
+            let ids: Vec<_> = writedir
                 .config()
                 .authorities()
                 .iter()
                 .map(|auth| *auth.v3ident())
-                .collect()
+                .collect();
+            let after = writedir
+                .netdir()
+                .get()
+                .map(|nd| nd.lifetime().valid_after());
+
+            (ids, after)
         } else {
             return Err(Error::ManagerDropped);
         };
         Ok(GetConsensusState {
             cache_usage,
+            after,
             next: None,
             authority_ids,
             writedir,
@@ -180,6 +195,13 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     }
     fn can_advance(&self) -> bool {
         self.next.is_some()
+    }
+    fn bootstrap_status(&self) -> DirStatus {
+        if let Some(next) = &self.next {
+            next.bootstrap_status()
+        } else {
+            DirStatusInner::NoConsensus { after: self.after }.into()
+        }
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
@@ -347,6 +369,16 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     fn can_advance(&self) -> bool {
         self.unvalidated.key_is_correct(&self.certs[..]).is_ok()
     }
+    fn bootstrap_status(&self) -> DirStatus {
+        let n_certs = self.certs.len();
+        let n_missing_certs = self.missing_certs.len();
+        let total_certs = n_missing_certs + n_certs;
+        DirStatusInner::FetchingCerts {
+            lifetime: self.consensus_meta.lifetime().clone(),
+            n_certs: (n_certs as u16, total_certs as u16),
+        }
+        .into()
+    }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
             Ok(*wd.config().schedule().retry_certs())
@@ -476,6 +508,8 @@ struct GetMicrodescsState<DM: WriteNetDir> {
     cache_usage: CacheUsage,
     /// The digests of the microdescriptors we are missing.
     missing: HashSet<MdDigest>,
+    /// Total number of microdescriptors listed in the consensus.
+    n_microdescs: usize,
     /// The dirmgr to inform about a usable directory.
     writedir: Weak<DM>,
     /// The current status of our netdir, if it is not yet ready to become the
@@ -552,6 +586,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         writedir: Weak<DM>,
     ) -> Result<Self> {
         let reset_time = consensus.lifetime().valid_until();
+        let n_microdescs = consensus.relays().len();
 
         let partial_dir = match Weak::upgrade(&writedir) {
             Some(wd) => {
@@ -569,6 +604,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         let missing = partial_dir.missing_microdescs().map(Clone::clone).collect();
         let mut result = GetMicrodescsState {
             cache_usage,
+            n_microdescs,
             missing,
             writedir,
             partial: Some(PendingNetDir::Partial(partial_dir)),
@@ -665,6 +701,15 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     }
     fn can_advance(&self) -> bool {
         false
+    }
+    fn bootstrap_status(&self) -> DirStatus {
+        let n_present = self.n_microdescs - self.missing.len();
+        DirStatusInner::Validated {
+            lifetime: self.meta.lifetime().clone(),
+            n_mds: (n_present as u32, self.n_microdescs as u32),
+            usable: self.is_ready(Readiness::Usable),
+        }
+        .into()
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
@@ -1005,6 +1050,9 @@ mod test {
         // Basic properties: it doesn't want to reset.
         assert!(state.reset_time().is_none());
 
+        // Its starting DirStatus is "fetching a consensus".
+        assert_eq!(state.bootstrap_status().to_string(), "fetching a consensus");
+
         // Download configuration is simple: only 1 request can be done in
         // parallel.  It uses a consensus retry schedule.
         let retry = state.dl_config().unwrap();
@@ -1111,6 +1159,12 @@ mod test {
         let retry = state.dl_config().unwrap();
         assert_eq!(&retry, DownloadScheduleConfig::default().retry_certs());
 
+        // Bootstrap status okay?
+        assert_eq!(
+            state.bootstrap_status().to_string(),
+            "fetching authority certificates (0/2)"
+        );
+
         // Check that we get the right list of missing docs.
         let missing = state.missing_docs();
         assert_eq!(missing.len(), 2); // We are missing two certificates.
@@ -1131,6 +1185,10 @@ mod test {
         let missing = state.missing_docs();
         assert_eq!(missing.len(), 1); // Now we're only missing one!
         assert!(missing.contains(&DocId::AuthCert(authcert_id_5a23())));
+        assert_eq!(
+            state.bootstrap_status().to_string(),
+            "fetching authority certificates (1/2)"
+        );
 
         // Now try to add the other from a download ... but fail
         // because we didn't ask for it.
@@ -1226,6 +1284,10 @@ mod test {
         }
         let retry = state.dl_config().unwrap();
         assert_eq!(&retry, DownloadScheduleConfig::default().retry_microdescs());
+        assert_eq!(
+            state.bootstrap_status().to_string(),
+            "fetching microdescriptors (0/4)"
+        );
 
         // Now check whether we're missing all the right microdescs.
         let missing = state.missing_docs();
@@ -1257,6 +1319,10 @@ mod test {
         let missing = state.missing_docs();
         assert_eq!(missing.len(), 3);
         assert!(!missing.contains(&DocId::Microdesc(md1)));
+        assert_eq!(
+            state.bootstrap_status().to_string(),
+            "fetching microdescriptors (1/4)"
+        );
 
         // Try adding the rest as if from a download.
         let mut req = tor_dirclient::request::MicrodescRequest::new();
