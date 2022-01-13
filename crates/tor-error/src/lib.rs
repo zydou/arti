@@ -52,6 +52,31 @@ pub use internal::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
+    /// IO error accessing local persistent state
+    ///
+    /// Eg, disk full or permissions problem.
+    /// Usually the source will be [`std::io::Error`].
+    #[display(fmt = "could not read/write persistent state")]
+    PersistentStateAccessFailed,
+
+    /// Tor client's persistent state has been corrupted
+    ///
+    /// This could be because of a bug in the Tor code, or because something else has been messing
+    /// with the data.
+    ///
+    /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    #[display(fmt = "corrupted data in persistent state")]
+    PersistentStateCorrupted,
+
+    /// Tried to write to read-only persistent state.
+    ///
+    /// Usually, errors of this kind should be handled before the user sees
+    /// them: the state manager's locking code is supposed to prevent
+    /// higher level crates from accidentally trying to do this.  This
+    /// error kind can indicate a bug.
+    #[display(fmt = "could not write to read-only persistent state")]
+    PersistentStateReadOnly,
+
     /// Internal error (bug)
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.

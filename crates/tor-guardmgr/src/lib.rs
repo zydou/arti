@@ -1020,9 +1020,10 @@ pub enum GuardRestriction {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum GuardMgrError {
-    /// An error derived from the state manager.
+    /// An error manipulating persistent state
     #[error("Problem accessing persistent state")]
     State(#[from] tor_persist::Error),
+
     /// An error that occurred while trying to spawn a daemon task.
     #[error("Unable to spawn task")]
     Spawn(#[source] Arc<SpawnError>),

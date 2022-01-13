@@ -59,6 +59,8 @@ pub use serde_json::Value as JsonValue;
 #[cfg(feature = "testing")]
 pub use testing::TestingStateMgr;
 
+use tor_error::ErrorKind;
+
 /// An object that can manage persistent state.
 ///
 /// State is implemented as a simple key-value store, where the values
@@ -127,7 +129,10 @@ impl LockStatus {
     }
 }
 
-/// An error type returned from a persistent state manager.
+/// An error manipulating persistent state.
+//
+// Such errors are "global" in the sense that it doesn't relate to any guard or any circuit
+// or anything, so callers may use `#[from]` when they include it in their own error.
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
@@ -136,6 +141,10 @@ pub enum Error {
     IoError(#[source] Arc<std::io::Error>),
 
     /// Tried to save without holding an exclusive lock.
+    //
+    // TODO This error seems to actually be sometimes used to make store a no-op.
+    //      We should consider whether this is best handled as an error, but for now
+    //      this seems adequate.
     #[error("Storage not locked")]
     NoLock,
 
@@ -146,6 +155,20 @@ pub enum Error {
     /// Problem when deserializing JSON data.
     #[error("JSON serialization error")]
     Deserialize(#[source] Arc<serde_json::Error>),
+}
+
+impl tor_error::HasKind for Error {
+    #[rustfmt::skip] // the tabular layout of the `match` makes this a lot clearer
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use tor_error::ErrorKind as K;
+        match self {
+            E::IoError(..)     => K::PersistentStateAccessFailed,
+            E::NoLock          => K::PersistentStateReadOnly,
+            E::Serialize(..)   => K::InternalError,
+            E::Deserialize(..) => K::PersistentStateCorrupted,
+        }
+    }
 }
 
 impl From<std::io::Error> for Error {
