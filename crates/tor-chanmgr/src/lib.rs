@@ -56,7 +56,6 @@ use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_proto::channel::Channel;
 
 pub use err::Error;
-use std::sync::Arc;
 
 use tor_rtcompat::Runtime;
 
@@ -87,7 +86,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// If there is already a channel launch attempt in progress, this
     /// function will wait until that launch is complete, and succeed
     /// or fail depending on its outcome.
-    pub async fn get_or_launch<T: ChanTarget + ?Sized>(&self, target: &T) -> Result<Arc<Channel>> {
+    pub async fn get_or_launch<T: ChanTarget + ?Sized>(&self, target: &T) -> Result<Channel> {
         let ed_identity = target.ed_identity();
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 

@@ -6,14 +6,13 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
 use std::hash::Hash;
-use std::sync::Arc;
 
 mod map;
 
 /// Trait to describe as much of a
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
-pub(crate) trait AbstractChannel {
+pub(crate) trait AbstractChannel: Clone {
     /// Identity type for the other side of the channel.
     type Ident: Hash + Eq + Clone;
     /// Return this channel's identity.
@@ -40,7 +39,7 @@ pub(crate) trait ChannelFactory {
     /// and so on.
     ///
     /// It should not retry; that is handled at a higher level.
-    async fn build_channel(&self, target: &Self::BuildSpec) -> Result<Arc<Self::Channel>>;
+    async fn build_channel(&self, target: &Self::BuildSpec) -> Result<Self::Channel>;
 }
 
 /// A type- and network-agnostic implementation for
@@ -62,11 +61,11 @@ pub(crate) struct AbstractChanMgr<CF: ChannelFactory> {
 
 /// Type alias for a future that we wait on to see when a pending
 /// channel is done or failed.
-type Pending<C> = Shared<oneshot::Receiver<Result<Arc<C>>>>;
+type Pending<C> = Shared<oneshot::Receiver<Result<C>>>;
 
 /// Type alias for the sender we notify when we complete a channel (or
 /// fail to complete it).
-type Sending<C> = oneshot::Sender<Result<Arc<C>>>;
+type Sending<C> = oneshot::Sender<Result<C>>;
 
 impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
@@ -85,7 +84,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C>(&self) -> (map::ChannelState<C>, Sending<C>) {
+    fn setup_launch<C: Clone>(&self) -> (map::ChannelState<C>, Sending<C>) {
         let (snd, rcv) = oneshot::channel();
         let shared = rcv.shared();
         (map::ChannelState::Building(shared), snd)
@@ -104,7 +103,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         &self,
         ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
-    ) -> Result<Arc<CF::Channel>> {
+    ) -> Result<CF::Channel> {
         use map::ChannelState::*;
 
         /// Possible actions that we'll decide to take based on the
@@ -117,7 +116,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
             /// We're going to wait for it to finish.
             Wait(Pending<C>),
             /// We found a usable channel.  We're going to return it.
-            Return(Result<Arc<C>>),
+            Return(Result<C>),
         }
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
@@ -134,7 +133,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                     Some(Open(ref ch)) => {
                         if ch.is_usable() {
                             // Good channel. Return it.
-                            let action = Action::Return(Ok(Arc::clone(ch)));
+                            let action = Action::Return(Ok(ch.clone()));
                             (oldstate, action)
                         } else {
                             // Unusable channel.  Move to the Building
@@ -186,11 +185,10 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                     Ok(chan) => {
                         // The channel got built: remember it, tell the
                         // others, and return it.
-                        self.channels
-                            .replace(ident.clone(), Open(Arc::clone(&chan)))?;
+                        self.channels.replace(ident.clone(), Open(chan.clone()))?;
                         // It's okay if all the receivers went away:
                         // that means that nobody was waiting for this channel.
-                        let _ignore_err = send.send(Ok(Arc::clone(&chan)));
+                        let _ignore_err = send.send(Ok(chan.clone()));
                         return Ok(chan);
                     }
                     Err(e) => {
@@ -214,10 +212,10 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     pub(crate) fn get_nowait(
         &self,
         ident: &<<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
-    ) -> Option<Arc<CF::Channel>> {
+    ) -> Option<CF::Channel> {
         use map::ChannelState::*;
         match self.channels.get(ident) {
-            Ok(Some(Open(ref ch))) if ch.is_usable() => Some(Arc::clone(ch)),
+            Ok(Some(Open(ref ch))) if ch.is_usable() => Some(ch.clone()),
             _ => None,
         }
     }
@@ -231,6 +229,7 @@ mod test {
 
     use futures::join;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
     use std::time::Duration;
 
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
@@ -239,11 +238,18 @@ mod test {
         runtime: RT,
     }
 
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     struct FakeChannel {
         ident: u32,
         mood: char,
-        closing: AtomicBool,
+        closing: Arc<AtomicBool>,
+        detect_reuse: Arc<char>,
+    }
+
+    impl PartialEq for FakeChannel {
+        fn eq(&self, other: &Self) -> bool {
+            Arc::ptr_eq(&self.detect_reuse, &other.detect_reuse)
+        }
     }
 
     impl AbstractChannel for FakeChannel {
@@ -273,7 +279,7 @@ mod test {
         type Channel = FakeChannel;
         type BuildSpec = (u32, char);
 
-        async fn build_channel(&self, target: &Self::BuildSpec) -> Result<Arc<FakeChannel>> {
+        async fn build_channel(&self, target: &Self::BuildSpec) -> Result<FakeChannel> {
             yield_now().await;
             let (ident, mood) = *target;
             match mood {
@@ -285,11 +291,12 @@ mod test {
                 }
                 _ => {}
             }
-            Ok(Arc::new(FakeChannel {
+            Ok(FakeChannel {
                 ident,
                 mood,
-                closing: AtomicBool::new(false),
-            }))
+                closing: Arc::new(AtomicBool::new(false)),
+                detect_reuse: Default::default(),
+            })
         }
     }
 
@@ -302,10 +309,10 @@ mod test {
             let chan1 = mgr.get_or_launch(413, target).await.unwrap();
             let chan2 = mgr.get_or_launch(413, target).await.unwrap();
 
-            assert!(Arc::ptr_eq(&chan1, &chan2));
+            assert_eq!(chan1, chan2);
 
             let chan3 = mgr.get_nowait(&413).unwrap();
-            assert!(Arc::ptr_eq(&chan1, &chan3));
+            assert_eq!(chan1, chan3);
         });
     }
 
@@ -349,9 +356,9 @@ mod test {
             let err_a = ch86a.unwrap_err();
             let err_b = ch86b.unwrap_err();
 
-            assert!(Arc::ptr_eq(&ch3a, &ch3b));
-            assert!(Arc::ptr_eq(&ch44a, &ch44b));
-            assert!(!Arc::ptr_eq(&ch44a, &ch3a));
+            assert_eq!(ch3a, ch3b);
+            assert_eq!(ch44a, ch44b);
+            assert_ne!(ch44a, ch3a);
 
             assert!(matches!(err_a, Error::UnusableTarget(_)));
             assert!(matches!(err_b, Error::UnusableTarget(_)));
@@ -378,7 +385,7 @@ mod test {
             ch5.start_closing();
 
             let ch3_new = mgr.get_or_launch(3, (3, 'b')).await.unwrap();
-            assert!(!Arc::ptr_eq(&ch3, &ch3_new));
+            assert_ne!(ch3, ch3_new);
             assert_eq!(ch3_new.mood, 'b');
 
             mgr.remove_unusable_entries().unwrap();
