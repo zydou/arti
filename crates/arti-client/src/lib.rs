@@ -176,6 +176,7 @@ mod address;
 mod client;
 
 pub mod config;
+pub mod status;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
 pub use client::{ConnectPrefs, TorClient};

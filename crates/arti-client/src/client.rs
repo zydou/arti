@@ -7,6 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
+use futures::channel::oneshot;
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
@@ -22,7 +23,7 @@ use std::net::IpAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use crate::{Error, Result};
+use crate::{status, Error, Result};
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::AsyncStdRuntime;
 #[cfg(feature = "tokio")]
@@ -61,6 +62,13 @@ pub struct TorClient<R: Runtime> {
     ///
     /// See [`TorClient::reconfigure`] for more information on its use.
     reconfigure_lock: Arc<Mutex<()>>,
+
+    /// A stream of bootstrap messages that we can clone when a client asks for
+    /// it.
+    ///
+    /// (We don't need to observe this stream ourselves, since it drops each
+    /// unobserved status change when the next status change occurs.)
+    status_receiver: status::BootstrapEvents,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -227,6 +235,16 @@ impl<R: Runtime> TorClient<R> {
         }
         let addr_cfg = config.address_filter.clone();
         let timeout_cfg = config.stream_timeouts.clone();
+
+        let (status_sender, status_receiver) = postage::watch::channel();
+        let status_receiver = status::BootstrapEvents {
+            inner: status_receiver,
+        };
+        // TODO(nickm): we should use a real set of information sources here.
+        // This is just temporary.
+        let (tor_ready_sender, tor_ready_receiver) = oneshot::channel();
+        runtime.spawn(status::report_status(status_sender, tor_ready_receiver))?;
+
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
@@ -267,6 +285,9 @@ impl<R: Runtime> TorClient<R> {
 
         let client_isolation = IsolationToken::new();
 
+        // At this point, we're bootstrapped.
+        let _ = tor_ready_sender.send(());
+
         Ok(TorClient {
             runtime,
             client_isolation,
@@ -276,6 +297,7 @@ impl<R: Runtime> TorClient<R> {
             addrcfg: Arc::new(addr_cfg.into()),
             timeoutcfg: Arc::new(timeout_cfg.into()),
             reconfigure_lock: Arc::new(Mutex::new(())),
+            status_receiver,
         })
     }
 
@@ -504,6 +526,27 @@ impl<R: Runtime> TorClient<R> {
         drop(dir); // This decreases the refcount on the netdir.
 
         Ok(circ)
+    }
+
+    /// Return a current [`status::BootstrapStatus`] describing how close this client
+    /// is to being ready for user traffic.
+    pub fn bootstrap_status(&self) -> status::BootstrapStatus {
+        self.status_receiver.inner.borrow().clone()
+    }
+
+    /// Return a stream of [`status::BootstrapStatus`] events that will be updated
+    /// whenever the client's status changes.
+    ///
+    /// The receiver might not receive every update sent to this stream, though
+    /// when it does poll the stream it should get the most recent one.
+    //
+    // TODO(nickm): will this also need to implement Send and 'static?
+    //
+    // TODO(nickm): by the time the `TorClient` is visible to the user, this
+    // status is always true.  That will change with #293, however, and will
+    // also change as BootstrapStatus becomes more complex with #96.
+    pub fn bootstrap_events(&self) -> status::BootstrapEvents {
+        self.status_receiver.clone()
     }
 }
 
