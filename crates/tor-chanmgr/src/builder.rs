@@ -8,7 +8,6 @@ use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
 
 use async_trait::async_trait;
 use futures::task::SpawnExt;
-use std::sync::Arc;
 
 /// TLS-based channel builder.
 ///
@@ -37,17 +36,15 @@ impl<R: Runtime> crate::mgr::ChannelFactory for ChanBuilder<R> {
     type Channel = tor_proto::channel::Channel;
     type BuildSpec = OwnedChanTarget;
 
-    async fn build_channel(&self, target: &Self::BuildSpec) -> crate::Result<Arc<Self::Channel>> {
+    async fn build_channel(&self, target: &Self::BuildSpec) -> crate::Result<Self::Channel> {
         use tor_rtcompat::SleepProviderExt;
 
         // TODO: make this an option.  And make a better value.
         let five_seconds = std::time::Duration::new(5, 0);
 
-        // FIXME(eta): there doesn't need to be an `Arc` here; `Channel` implements `Clone`!
         self.runtime
             .timeout(five_seconds, self.build_channel_notimeout(target))
             .await?
-            .map(Arc::new)
     }
 }
 
@@ -169,7 +166,7 @@ mod test {
             // Create the channelbuilder that we want to test.
             let builder = ChanBuilder::new(client_rt);
 
-            let (r1, r2): (Result<Arc<Channel>>, Result<LocalStream>) = futures::join!(
+            let (r1, r2): (Result<Channel>, Result<LocalStream>) = futures::join!(
                 async {
                     // client-side: build a channel!
                     builder.build_channel(&target).await

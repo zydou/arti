@@ -7,7 +7,6 @@
 //! or in the error handling behavior.
 
 use super::circmap::{CircEnt, CircMap};
-use super::UniqId;
 use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
@@ -21,12 +20,13 @@ use futures::stream::Stream;
 use futures::Sink;
 
 use std::convert::TryInto;
+use std::fmt;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::Poll;
 
-use crate::channel::unique_id;
+use crate::channel::{unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
@@ -80,15 +80,23 @@ pub struct Reactor {
     pub(super) output: BoxedChannelSink,
     /// A map from circuit ID to Sinks on which we can deliver cells.
     pub(super) circs: CircMap,
-    /// Logging identifier for this channel
-    pub(super) unique_id: UniqId,
-    /// If true, this channel is closing.
-    pub(super) closed: Arc<AtomicBool>,
+    /// Information shared with the frontend
+    pub(super) details: Arc<ChannelDetails>,
     /// Context for allocating unique circuit log identifiers.
     pub(super) circ_unique_id_ctx: unique_id::CircUniqIdContext,
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
+}
+
+/// Allows us to just say debug!("{}: Reactor did a thing", &self, ...)
+///
+/// There is no risk of confusion because no-one would try to print a
+/// Reactor for some other reason.
+impl fmt::Display for Reactor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.details.unique_id, f)
+    }
 }
 
 impl Reactor {
@@ -98,10 +106,10 @@ impl Reactor {
     /// Once this function returns, the channel is dead, and can't be
     /// used again.
     pub async fn run(mut self) -> Result<()> {
-        if self.closed.load(Ordering::SeqCst) {
+        if self.details.closed.load(Ordering::SeqCst) {
             return Err(Error::ChannelClosed);
         }
-        debug!("{}: Running reactor", self.unique_id);
+        debug!("{}: Running reactor", &self);
         let result: Result<()> = loop {
             match self.run_once().await {
                 Ok(()) => (),
@@ -109,8 +117,8 @@ impl Reactor {
                 Err(ReactorError::Err(e)) => break Err(e),
             }
         };
-        debug!("{}: Reactor stopped: {:?}", self.unique_id, result);
-        self.closed.store(true, Ordering::SeqCst);
+        debug!("{}: Reactor stopped: {:?}", &self, result);
+        self.details.closed.store(true, Ordering::SeqCst);
         result
     }
 
@@ -204,7 +212,7 @@ impl Reactor {
 
     /// Handle a CtrlMsg other than Shutdown.
     async fn handle_control(&mut self, msg: CtrlMsg) -> Result<()> {
-        trace!("{}: reactor received {:?}", self.unique_id, msg);
+        trace!("{}: reactor received {:?}", &self, msg);
         match msg {
             CtrlMsg::Shutdown => panic!(), // was handled in reactor loop.
             CtrlMsg::CloseCircuit(id) => self.outbound_destroy_circ(id).await?,
@@ -214,7 +222,7 @@ impl Reactor {
                 tx,
             } => {
                 let mut rng = rand::thread_rng();
-                let my_unique_id = self.unique_id;
+                let my_unique_id = self.details.unique_id;
                 let circ_unique_id = self.circ_unique_id_ctx.next(my_unique_id);
                 let ret: Result<_> = self
                     .circs
@@ -234,7 +242,7 @@ impl Reactor {
 
         match msg {
             Relay(_) | Padding(_) | VPadding(_) => {} // too frequent to log.
-            _ => trace!("{}: received {} for {}", self.unique_id, msg.cmd(), circid),
+            _ => trace!("{}: received {} for {}", &self, msg.cmd(), circid),
         }
 
         match msg {
@@ -316,11 +324,7 @@ impl Reactor {
             // If the circuit is waiting for CREATED, tell it that it
             // won't get one.
             Some(CircEnt::Opening(oneshot, _)) => {
-                trace!(
-                    "{}: Passing destroy to pending circuit {}",
-                    self.unique_id,
-                    circid
-                );
+                trace!("{}: Passing destroy to pending circuit {}", &self, circid);
                 oneshot
                     .send(msg.try_into()?)
                     // TODO(nickm) I think that this one actually means the other side
@@ -333,11 +337,7 @@ impl Reactor {
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
             Some(CircEnt::Open(mut sink)) => {
-                trace!(
-                    "{}: Passing destroy to open circuit {}",
-                    self.unique_id,
-                    circid
-                );
+                trace!("{}: Passing destroy to open circuit {}", &self, circid);
                 sink.send(msg.try_into()?)
                     .await
                     // TODO(nickm) I think that this one actually means the other side
@@ -350,11 +350,7 @@ impl Reactor {
             Some(CircEnt::DestroySent(_)) => Ok(()),
             // Got a DESTROY cell for a circuit we don't have.
             None => {
-                trace!(
-                    "{}: Destroy for nonexistent circuit {}",
-                    self.unique_id,
-                    circid
-                );
+                trace!("{}: Destroy for nonexistent circuit {}", &self, circid);
                 Err(Error::ChanProto("Destroy for nonexistent circuit".into()))
             }
         }
@@ -369,11 +365,7 @@ impl Reactor {
     /// Called when a circuit goes away: sends a DESTROY cell and removes
     /// the circuit.
     async fn outbound_destroy_circ(&mut self, id: CircId) -> Result<()> {
-        trace!(
-            "{}: Circuit {} is gone; sending DESTROY",
-            self.unique_id,
-            id
-        );
+        trace!("{}: Circuit {} is gone; sending DESTROY", &self, id);
         // Remove the circuit's entry from the map: nothing more
         // can be done with it.
         // TODO: It would be great to have a tighter upper bound for
@@ -391,6 +383,7 @@ impl Reactor {
 pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::channel::UniqId;
     use crate::circuit::CircParameters;
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
