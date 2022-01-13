@@ -74,6 +74,8 @@ use tor_cell::relaycell::StreamId;
 
 use crate::crypto::handshake::ntor::NtorPublicKey;
 
+use self::reactor::RequireSendmeAuth;
+
 /// The size of the buffer for communication between `ClientCirc` and its reactor.
 pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 
@@ -206,9 +208,7 @@ impl ClientCirc {
             linkspecs.retain(|ls| !matches!(ls, LinkSpec::Ed25519Id(_)));
         }
         // FlowCtrl=1 means that this hop supports authenticated SENDMEs
-        let supports_flowctrl_1 = target
-            .protovers()
-            .supports_known_subver(tor_protover::ProtoKind::FlowCtrl, 1);
+        let require_sendme_auth = RequireSendmeAuth::from_protocols(target.protovers());
 
         let (tx, rx) = oneshot::channel();
 
@@ -216,7 +216,7 @@ impl ClientCirc {
             .unbounded_send(CtrlMsg::ExtendNtor {
                 public_key: key,
                 linkspecs,
-                supports_authenticated_sendme: supports_flowctrl_1,
+                require_sendme_auth,
                 params: params.clone(),
                 done: tx,
             })
@@ -476,7 +476,7 @@ impl PendingClientCirc {
             .unbounded_send(CtrlMsg::Create {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::CreateFast,
-                supports_authenticated_sendme: false,
+                require_sendme_auth: RequireSendmeAuth::No,
                 params: params.clone(),
                 done: tx,
             })
@@ -500,9 +500,8 @@ impl PendingClientCirc {
         Tg: tor_linkspec::CircTarget,
     {
         let (tx, rx) = oneshot::channel();
-        let supports_flowctrl_1 = target
-            .protovers()
-            .supports_known_subver(tor_protover::ProtoKind::FlowCtrl, 1);
+        let require_sendme_auth = RequireSendmeAuth::from_protocols(target.protovers());
+
         self.circ
             .control
             .unbounded_send(CtrlMsg::Create {
@@ -514,7 +513,7 @@ impl PendingClientCirc {
                     },
                     ed_identity: *target.ed_identity(),
                 },
-                supports_authenticated_sendme: supports_flowctrl_1,
+                require_sendme_auth,
                 params: params.clone(),
                 done: tx,
             })
