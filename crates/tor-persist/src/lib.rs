@@ -139,9 +139,13 @@ pub enum Error {
     #[error("Storage not locked")]
     NoLock,
 
-    /// Problem when serializing or deserializing JSON data.
+    /// Problem when serializing JSON data.
     #[error("JSON serialization error")]
-    JsonError(#[source] Arc<serde_json::Error>),
+    Serialize(#[source] Arc<serde_json::Error>),
+
+    /// Problem when deserializing JSON data.
+    #[error("JSON serialization error")]
+    Deserialize(#[source] Arc<serde_json::Error>),
 }
 
 impl From<std::io::Error> for Error {
@@ -150,10 +154,14 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<serde_json::Error> for Error {
-    fn from(e: serde_json::Error) -> Error {
-        Error::JsonError(Arc::new(e))
-    }
+/// Error conversion for JSON errors; use only when loading
+fn load_error(e: serde_json::Error) -> Error {
+    Error::Deserialize(Arc::new(e))
+}
+
+/// Error conversion for JSON errors; use only when storing
+fn store_error(e: serde_json::Error) -> Error {
+    Error::Serialize(Arc::new(e))
 }
 
 /// A wrapper type for types whose representation may change in future versions of Arti.
