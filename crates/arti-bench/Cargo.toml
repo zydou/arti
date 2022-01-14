@@ -12,6 +12,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 clap = "2.33.0"
+futures = "0.3"
+float-ord = "0.3"
 rand = "0.8"
 anyhow = "1.0.5"
 serde = { version = "1.0.103", features = ["derive"] }
