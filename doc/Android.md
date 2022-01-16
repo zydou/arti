@@ -8,7 +8,7 @@ waiting until Arti is more stable.)
 
 There are also rough edges, which will hopefully get polished over time. Most of these should be explained below.
 
-This guide assumes you already have install Cargo and Android Studio (but not that you used both together).
+This guide assumes you already have installed Cargo and Android Studio (but not that you used both together).
 
 ## Installing the requirements
 
@@ -42,7 +42,7 @@ $ cargo init <project-name> --lib
 You'll then need to add some content to the Cargo.toml.
 
 First add the subcrates of arti you want to use to the `[dependencies]` section. You'll have to add `features=["static"]` to crates that support this feature
-(at the moment tor-rtcompat and tor-dirmgr): otherwise they will fail either to compile or to run.
+(at the moment tor-rtcompat, tor-dirmgr and arti-client): otherwise they will fail either to compile or to run.
 
 You'll also need to add `jni`, to allow Rust and the Java in your app to work together.
 ```toml
@@ -67,9 +67,9 @@ You should be familiar with this if you used the JNI before.  If not, it's proba
 pub extern "C" fn Java_net_example_MyClass_myMethod( /* parameters omitted */ ) {..}
 ```
 
-Once you are satisfied with your code, you can compile it by running this command. (This is a good time for a coffee break.)
+Once you are satisfied with your code, you can compile it by running this command. (This is a good time to take a coffee break)
 ```sh
- ## build for 32bit and 64bit, x86 (emulator) and arm (most devices). Warning, this won't work out of the box, see caveats below
+ ## build for 32bit and 64bit, x86 (emulator) and arm (most devices).
 $ cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ./jniLibs build
  ## build for 64bit arm only (recents devices).
 $ cargo ndk -t arm64-v8a -o ./jniLibs build
@@ -108,7 +108,7 @@ You can now build your application, and test it in an emulator or on your device
 
 ## Tips and caveats
 
-You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-android-example/).
+You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/).
 It does not respect most good practices ("don't run long tasks on the UI thread" for instance), but should otherwise be a good starting point.
 It's also implementing most of the tips below.
 
@@ -135,7 +135,7 @@ use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::prelude::*;
 
 Subscriber::new()
-  .with(tracing_android::layer("rust.ndk.arti")?)
+  .with(tracing_android::layer("rust.arti")?)
   .init(); // this must be called only once, otherwise your app will probably crash
 ```
 
