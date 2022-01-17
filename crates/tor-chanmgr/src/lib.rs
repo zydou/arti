@@ -48,6 +48,7 @@
 
 mod builder;
 mod err;
+mod event;
 mod mgr;
 #[cfg(test)]
 mod testing;
@@ -62,6 +63,8 @@ use tor_rtcompat::Runtime;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
+pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
+
 /// A Type that remembers a set of live channels, and launches new
 /// ones on request.
 ///
@@ -70,14 +73,21 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
     mgr: mgr::AbstractChanMgr<builder::ChanBuilder<R>>,
+
+    /// Stream of [`ConnStatus`] events.
+    bootstrap_status: event::ConnStatusEvents,
 }
 
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     pub fn new(runtime: R) -> Self {
-        let builder = builder::ChanBuilder::new(runtime);
+        let (sender, receiver) = event::channel();
+        let builder = builder::ChanBuilder::new(runtime, sender);
         let mgr = mgr::AbstractChanMgr::new(builder);
-        ChanMgr { mgr }
+        ChanMgr {
+            mgr,
+            bootstrap_status: receiver,
+        }
     }
 
     /// Try to get a suitable channel to the provided `target`,
@@ -95,5 +105,14 @@ impl<R: Runtime> ChanMgr<R> {
         // what we wanted too.
         chan.check_match(target)?;
         Ok(chan)
+    }
+
+    /// Return a stream of [`ConnStatus`] events to tell us about changes
+    /// in our ability to connect to the internet.
+    ///
+    /// Note that this stream can be lossy: the caller will not necessarily
+    /// observe every event on the stream
+    pub fn bootstrap_events(&self) -> ConnStatusEvents {
+        self.bootstrap_status.clone()
     }
 }

@@ -2642,9 +2642,12 @@ name = "tor-chanmgr"
 version = "0.0.3"
 dependencies = [
  "async-trait",
+ "derive_more",
+ "float_eq",
  "futures",
  "futures-await-test",
  "hex-literal",
+ "postage",
  "thiserror",
  "tor-linkspec",
  "tor-llcrypto",
