@@ -10,6 +10,10 @@ This guide assumes you already have installed Cargo and XCode (but not that you 
 
 Apple requires to have MacOS installed to develop iOS apps, this guide won't work for Linux, Windows or other BSDs.
 
+Finally: These guidelines are correct as far as we know, but they haven't
+been tested by many people. If you find any problems in them, please let us
+know!
+
 ## Installing the requiremments
 
 First install targets so Rust know how to compile to iOS

@@ -10,6 +10,10 @@ There are also rough edges, which will hopefully get polished over time. Most of
 
 This guide assumes you already have installed Cargo and Android Studio (but not that you used both together).
 
+Finally: These guidelines are correct as far as we know, but they haven't
+been tested by many people. If you find any problems in them, please let us
+know!
+
 ## Installing the requirements
 
 First you'll need to install targets so Rust knows how to compile to Android.
