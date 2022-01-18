@@ -207,7 +207,7 @@ impl StorageConfig {
     }
     /// Try to expand `cache_dir` to be a path buffer.
     pub(crate) fn expand_cache_dir(&self) -> Result<PathBuf, ConfigBuildError> {
-        self.state_dir
+        self.cache_dir
             .path()
             .map_err(|e| ConfigBuildError::Invalid {
                 field: "cache_dir".to_owned(),
