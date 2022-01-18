@@ -7,7 +7,6 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
-use futures::channel::oneshot;
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
@@ -240,11 +239,6 @@ impl<R: Runtime> TorClient<R> {
         let status_receiver = status::BootstrapEvents {
             inner: status_receiver,
         };
-        // TODO(nickm): we should use a real set of information sources here.
-        // This is just temporary.
-        let (tor_ready_sender, tor_ready_receiver) = oneshot::channel();
-        runtime.spawn(status::report_status(status_sender, tor_ready_receiver))?;
-
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
@@ -254,6 +248,17 @@ impl<R: Runtime> TorClient<R> {
             Arc::clone(&circmgr),
         )
         .await?;
+
+        // TODO: This happens too late.  We need to create dirmgr and get its
+        // event stream, and only THEN get its status.
+
+        let conn_status = chanmgr.bootstrap_events();
+        let dir_status = dirmgr.bootstrap_events();
+        runtime.spawn(status::report_status(
+            status_sender,
+            conn_status,
+            dir_status,
+        ))?;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
@@ -284,9 +289,6 @@ impl<R: Runtime> TorClient<R> {
         ))?;
 
         let client_isolation = IsolationToken::new();
-
-        // At this point, we're bootstrapped.
-        let _ = tor_ready_sender.send(());
 
         Ok(TorClient {
             runtime,

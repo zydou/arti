@@ -1,10 +1,13 @@
 //! Code to collect and publish information about a client's bootstrapping
 //! status.
 
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, time::SystemTime};
 
 use derive_more::Display;
-use futures::{channel::oneshot, future, Stream, StreamExt};
+use futures::{Stream, StreamExt};
+use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
+use tor_dirmgr::{DirBootstrapEvents, DirBootstrapStatus};
+use tracing::debug;
 
 /// Information about how ready a [`crate::TorClient`] is to handle requests.
 ///
@@ -20,9 +23,10 @@ use futures::{channel::oneshot, future, Stream, StreamExt};
 // its data.
 #[derive(Debug, Clone, Default)]
 pub struct BootstrapStatus {
-    /// A placeholder field: we'll be replacing this as the branch gets support
-    /// for more information sources.
-    ready: bool,
+    /// Status for our connection to the tor network
+    conn_status: ConnStatus,
+    /// Status for our directory information.
+    dir_status: DirBootstrapStatus,
 }
 
 impl BootstrapStatus {
@@ -31,11 +35,8 @@ impl BootstrapStatus {
     ///
     /// 0 is defined as "just started"; 1 is defined as "ready to use."
     pub fn as_frac(&self) -> f32 {
-        if self.ready {
-            1.0
-        } else {
-            0.0
-        }
+        // Coefficients chosen arbitrarily.
+        self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85
     }
 
     /// Return true if the status indicates that the client is ready for
@@ -44,7 +45,8 @@ impl BootstrapStatus {
     /// For the purposes of this function, the client is "ready for traffic" if,
     /// as far as we know, we can start acting on a new client request immediately.
     pub fn ready_for_traffic(&self) -> bool {
-        self.ready
+        let now = SystemTime::now();
+        self.conn_status.usable() && self.dir_status.usable_at(now)
     }
 
     /// If the client is unable to make forward progress for some reason, return
@@ -66,8 +68,23 @@ impl BootstrapStatus {
     /// can't make connections to the internet" rather than "You are
     /// not on the internet."
     pub fn blocked(&self) -> Option<Blockage> {
-        // TODO(nickm): implement this or remove it.
-        None
+        if let Some(b) = self.conn_status.blockage() {
+            let message = b.to_string().into();
+            let kind = b.into();
+            Some(Blockage { kind, message })
+        } else {
+            None
+        }
+    }
+
+    /// Adjust this status based on new connection-status information.
+    fn apply_conn_status(&mut self, status: ConnStatus) {
+        self.conn_status = status;
+    }
+
+    /// Adjust this status based on new directory-status information.
+    fn apply_dir_status(&mut self, status: DirBootstrapStatus) {
+        self.dir_status = status;
     }
 }
 
@@ -87,15 +104,25 @@ pub struct Blockage {
 #[derive(Clone, Debug, Display)]
 #[non_exhaustive]
 pub enum BlockageKind {
-    /// It looks like we can't make connections to the internet.
-    #[display(fmt = "Unable to connect to the internet")]
-    NoInternet,
-    /// It looks like we can't reach any Tor relays.
-    #[display(fmt = "Unable to reach Tor")]
+    /// There is some kind of problem with connecting to the network.
+    #[display(fmt = "We seem to be offline")]
+    Offline,
+    /// We can connect, but our connections seem to be filtered.
+    #[display(fmt = "Our internet connection seems filtered")]
+    Filtering,
+    /// We have some other kind of problem connecting to Tor
+    #[display(fmt = "Can't reach the Tor network")]
     CantReachTor,
-    /// We've been unable to download our directory information for some reason.
-    #[display(fmt = "Stalled fetching a Tor directory")]
-    DirectoryStalled,
+}
+
+impl From<ConnBlockage> for BlockageKind {
+    fn from(b: ConnBlockage) -> BlockageKind {
+        match b {
+            ConnBlockage::NoTcp => BlockageKind::Offline,
+            ConnBlockage::NoHandshake => BlockageKind::Filtering,
+            _ => BlockageKind::CantReachTor,
+        }
+    }
 }
 
 impl fmt::Display for BootstrapStatus {
@@ -109,8 +136,11 @@ impl fmt::Display for BootstrapStatus {
         if let Some(problem) = self.blocked() {
             write!(f, "Stuck at {}%: {}", percent, problem)
         } else {
-            // TODO(nickm): describe what we're doing.
-            write!(f, "{}%", percent)
+            write!(
+                f,
+                "{}%: {}; {}",
+                percent, &self.conn_status, &self.dir_status
+            )
         }
     }
 }
@@ -126,17 +156,27 @@ impl fmt::Display for BootstrapStatus {
 /// dropped.
 pub(crate) async fn report_status(
     mut sender: postage::watch::Sender<BootstrapStatus>,
-    ready: oneshot::Receiver<()>,
+    conn_status: ConnStatusEvents,
+    dir_status: DirBootstrapEvents,
 ) {
-    {
-        sender.borrow_mut().ready = false;
+    /// Internal enumeration to combine incoming status changes.
+    enum Event {
+        /// A connection status change
+        Conn(ConnStatus),
+        /// A directory status change
+        Dir(DirBootstrapStatus),
     }
-    if ready.await.is_ok() {
-        sender.borrow_mut().ready = true;
-    }
+    let mut stream =
+        futures::stream::select(conn_status.map(Event::Conn), dir_status.map(Event::Dir));
 
-    // wait forever.
-    future::pending::<()>().await;
+    while let Some(event) = stream.next().await {
+        let mut b = sender.borrow_mut();
+        match event {
+            Event::Conn(e) => b.apply_conn_status(e),
+            Event::Dir(e) => b.apply_dir_status(e),
+        }
+        debug!("{}", *b);
+    }
 }
 
 /// A [`Stream`] of [`BootstrapStatus`] events.
