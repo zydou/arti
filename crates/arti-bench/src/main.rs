@@ -254,6 +254,7 @@ async fn client<S: AsyncRead + AsyncWrite + Unpin>(
     })
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
@@ -281,6 +282,23 @@ fn main() -> Result<()> {
                 .value_name("COUNT")
                 .default_value("3")
                 .help("How many samples to take per benchmark run.")
+        )
+        .arg(
+            Arg::with_name("num-parallel")
+                .short("p")
+                .long("num-parallel")
+                .takes_value(true)
+                .required(true)
+                .value_name("COUNT")
+                .default_value("3")
+                .help("How many simultaneous streams per benchmark run.")
+        )
+        .arg(
+            Arg::with_name("output")
+                .short("o")
+                .takes_value(true)
+                .value_name("/path/to/output.json")
+                .help("A path to write benchmark results to, in JSON format.")
         )
         .arg(
             Arg::with_name("download-bytes")
@@ -331,6 +349,7 @@ fn main() -> Result<()> {
         .unwrap()
         .parse::<usize>()?;
     let samples = matches.value_of("num-samples").unwrap().parse::<usize>()?;
+    let parallel = matches.value_of("num-parallel").unwrap().parse::<usize>()?;
     info!("Generating test payloads, please wait...");
     let upload_payload = random_payload(upload_bytes).into();
     let download_payload = random_payload(download_bytes).into();
@@ -349,6 +368,7 @@ fn main() -> Result<()> {
     let mut benchmark = Benchmark {
         connect_addr,
         samples,
+        concurrent: parallel,
         upload_payload,
         download_payload,
         runtime: tor_rtcompat::tokio::create_runtime()?,
@@ -370,6 +390,20 @@ fn main() -> Result<()> {
         );
         info!("median: {}", results.results_median);
         info!("  mean: {}", results.results_mean);
+        info!(" worst: {}", results.results_worst);
+        info!("  best: {}", results.results_best);
+    }
+
+    if let Some(output) = matches.value_of("output") {
+        info!("Writing benchmark results to {}...", output);
+        let file = std::fs::File::create(output)?;
+        serde_json::to_writer(
+            &file,
+            &BenchmarkSummary {
+                crate_version: env!("CARGO_PKG_VERSION").to_string(),
+                results: benchmark.results,
+            },
+        )?;
     }
 
     Ok(())
@@ -384,6 +418,7 @@ where
     runtime: R,
     connect_addr: SocketAddr,
     samples: usize,
+    concurrent: usize,
     upload_payload: Arc<[u8]>,
     download_payload: Arc<[u8]>,
     /// All benchmark results conducted, indexed by benchmark type.
@@ -421,6 +456,10 @@ struct BenchmarkResults {
     /// This is only the median if `samples` is an odd number, else it is the
     /// `samples / 2`th sample of each set of metrics in sorted order.
     results_median: TimingSummary,
+    /// The best value recorded for each metric throughout all benchmark runs.
+    results_best: TimingSummary,
+    /// The worst value recorded for each metric throughout all benchmark runs.
+    results_worst: TimingSummary,
     /// The raw benchmark results.
     results_raw: Vec<TimingSummary>,
 }
@@ -459,6 +498,18 @@ impl BenchmarkResults {
                 upload_ttfb_sec: upload_ttfb_secs[samples / 2],
                 upload_rate_megabit: upload_rate_megabits[samples / 2],
             },
+            results_best: TimingSummary {
+                download_ttfb_sec: download_ttfb_secs[0],
+                download_rate_megabit: download_rate_megabits[samples - 1],
+                upload_ttfb_sec: upload_ttfb_secs[0],
+                upload_rate_megabit: upload_rate_megabits[samples - 1],
+            },
+            results_worst: TimingSummary {
+                download_ttfb_sec: download_ttfb_secs[samples - 1],
+                download_rate_megabit: download_rate_megabits[0],
+                upload_ttfb_sec: upload_ttfb_secs[samples - 1],
+                upload_rate_megabit: upload_rate_megabits[0],
+            },
             results_raw: raw,
         }
     }
@@ -476,9 +527,11 @@ struct BenchmarkSummary {
 }
 
 impl<R: Runtime> Benchmark<R> {
-    /// Run the benchmark
+    /// Run a type of benchmark (`ty`), performing `self.samples` benchmark runs, and using
+    /// `self.concurrent` concurrent connections.
     ///
-    /// `stream` should be a try-future which returns `S: AsyncRead + AsyncWrite + Unpin`.
+    /// Uses `stream_generator`, a stream that generates futures that themselves generate streams,
+    /// in order to obtain the required number of streams to run the test over.
     fn run<F, G, S, E>(&mut self, ty: BenchmarkType, stream_generator: F) -> Result<()>
     where
         F: Stream<Item = G> + Unpin,
@@ -488,30 +541,52 @@ impl<R: Runtime> Benchmark<R> {
     {
         let mut results = vec![];
         // NOTE(eta): This could make more streams than we need. We assume this is okay.
-        let mut stream_generator = stream_generator.buffered(1).take(self.samples);
+        let mut stream_generator = stream_generator
+            .buffered(self.concurrent)
+            .take(self.samples * self.concurrent);
         for n in 0..self.samples {
-            let stream = self
-                .runtime
-                .block_on(stream_generator.next())
-                .ok_or_else(|| {
-                    anyhow!("internal error: stream generator couldn't supply enough streams")
-                })??; // one ? for the error above, next ? for G's output
-
-            let up = Arc::clone(&self.upload_payload);
-            let dp = Arc::clone(&self.download_payload);
-            info!("Benchmarking {:?}, run {}/{}...", ty, n + 1, self.samples);
+            let mut streams = vec![];
+            for _ in 0..self.concurrent {
+                let stream =
+                    self.runtime
+                        .block_on(stream_generator.next())
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "internal error: stream generator couldn't supply enough streams"
+                            )
+                        })??; // one ? for the error above, next ? for G's output
+                streams.push(stream);
+            }
+            let futures = streams
+                .into_iter()
+                .map(|stream| {
+                    let up = Arc::clone(&self.upload_payload);
+                    let dp = Arc::clone(&self.download_payload);
+                    Box::pin(async move { client(stream, up, dp).await })
+                })
+                .collect::<futures::stream::FuturesUnordered<_>>()
+                .collect::<Vec<_>>();
+            info!(
+                "Benchmarking {:?} with {} connections, run {}/{}...",
+                ty,
+                self.concurrent,
+                n + 1,
+                self.samples
+            );
             let stats = self
                 .runtime
-                .block_on(async move { client(stream, up, dp).await })?;
-            let timing = TimingSummary::generate(&stats)?;
-            results.push(timing);
+                .block_on(futures)
+                .into_iter()
+                .map(|x| x.and_then(|x| TimingSummary::generate(&x)))
+                .collect::<Result<Vec<_>>>()?;
+            results.extend(stats);
         }
-        let results = BenchmarkResults::generate(ty, 1, results);
+        let results = BenchmarkResults::generate(ty, self.concurrent, results);
         self.results.insert(ty, results);
         Ok(())
     }
 
-    /// Benchmark without Arti
+    /// Benchmark without Arti on loopback.
     fn without_arti(&mut self) -> Result<()> {
         let ca = self.connect_addr;
         self.run(
@@ -520,7 +595,7 @@ impl<R: Runtime> Benchmark<R> {
         )
     }
 
-    /// Benchmark with sock5 proxy
+    /// Benchmark through a SOCKS5 proxy at address `addr`.
     fn with_proxy(&mut self, addr: &str) -> Result<()> {
         let ca = self.connect_addr;
         self.run(
@@ -529,7 +604,7 @@ impl<R: Runtime> Benchmark<R> {
         )
     }
 
-    /// Benchmark with Arti
+    /// Benchmark through Arti, using the provided `TorClientConfig`.
     fn with_arti(&mut self, tcc: TorClientConfig) -> Result<()> {
         info!("Starting Arti...");
         let tor_client = self
