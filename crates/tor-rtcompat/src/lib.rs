@@ -143,6 +143,7 @@
 pub(crate) mod impls;
 pub mod task;
 
+mod compound;
 mod timer;
 mod traits;
 
@@ -166,6 +167,8 @@ pub mod tokio;
 
 #[cfg(feature = "async-std")]
 pub mod async_std;
+
+pub use compound::CompoundRuntime;
 
 /// Try to return an instance of the currently running [`Runtime`].
 ///
