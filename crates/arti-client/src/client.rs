@@ -45,7 +45,13 @@ pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
     /// Default isolation token for streams through this client.
+    ///
+    /// This is eventually used for `owner_token` in `tor-circmgr/src/usage.rs`, and is orthogonal
+    /// to the `stream_token` which comes from `connect_prefs` (or a passed-in `ConnectPrefs`).
+    /// (ie, both must be the same to share a circuit).
     client_isolation: IsolationToken,
+    /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
+    connect_prefs: ConnectPrefs,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -301,6 +307,7 @@ impl<R: Runtime> TorClient<R> {
         Ok(TorClient {
             runtime,
             client_isolation,
+            connect_prefs: Default::default(),
             circmgr,
             dirmgr,
             statemgr,
@@ -404,8 +411,7 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     pub async fn connect<A: IntoTorAddr>(&self, target: A) -> Result<DataStream> {
-        self.connect_with_prefs(target, &ConnectPrefs::default())
-            .await
+        self.connect_with_prefs(target, &self.connect_prefs).await
     }
 
     /// Launch an anonymized connection to the provided address and
@@ -436,10 +442,21 @@ impl<R: Runtime> TorClient<R> {
         Ok(stream)
     }
 
+    /// Sets the default preferences for future connections made with this client.
+    ///
+    /// The preferences set with this function will be inherited by clones of this client, but
+    /// updates to the preferences in those clones will not propagate back to the original.  I.e.,
+    /// the preferences are copied by `clone`.
+    ///
+    /// Connection preferences always override configuration, even configuration set later
+    /// (eg, by a config reload).
+    pub fn set_connect_prefs(&mut self, connect_prefs: ConnectPrefs) {
+        self.connect_prefs = connect_prefs;
+    }
+
     /// On success, return a list of IP addresses.
     pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
-        self.resolve_with_prefs(hostname, &ConnectPrefs::default())
-            .await
+        self.resolve_with_prefs(hostname, &self.connect_prefs).await
     }
 
     /// On success, return a list of IP addresses, but use prefs.
@@ -466,8 +483,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// On success, return a list of hostnames.
     pub async fn resolve_ptr(&self, addr: IpAddr) -> Result<Vec<String>> {
-        self.resolve_ptr_with_prefs(addr, &ConnectPrefs::default())
-            .await
+        self.resolve_ptr_with_prefs(addr, &self.connect_prefs).await
     }
 
     /// Perform a remote DNS reverse lookup with the provided IP address.
