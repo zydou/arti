@@ -64,9 +64,8 @@ for suite in "$@"; do
 done
 
 if [ "$UNIT" = no ] && [ "$INTEGRATION" = no ]; then
-    echo "No test suites listed; nothing will be done."
-    echo "(Run '$0 -h' for help.)"
-    exit 0
+    echo "No test suites listed; nothing will be done. (Run '$0 -h' for help.)"
+    exit 1
 fi
 
 if [ "$CLEAR" = yes ] ; then
