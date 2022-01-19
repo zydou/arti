@@ -163,6 +163,14 @@ impl ConnectPrefs {
 
     /// Indicate which other connections might use the same circuit
     /// as this one.
+    ///
+    /// By default all connections made on all clones of a `TorClient` may share connections.
+    /// Connections made with a particular `isolation_group` may share circuits with each other.
+    ///
+    /// This connection preference is orthogonal to isolation established by
+    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
+    /// clones) will not share circuits with the original client, even if the same
+    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
     pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
         self.isolation_group = Some(isolation_group);
         self
@@ -380,6 +388,9 @@ impl<R: Runtime> TorClient<R> {
     /// Calling this function is usually preferable to creating a
     /// completely separate TorClient instance, since it can share its
     /// internals with the existing `TorClient`.
+    ///
+    /// (Connections made with clones of the returned `TorClient` may
+    /// share circuits with each other.)
     #[must_use]
     pub fn isolated_client(&self) -> TorClient<R> {
         let mut result = self.clone();
