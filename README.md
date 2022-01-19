@@ -77,12 +77,17 @@ security, or stability.
 
 ## Minimum supported Rust Version
 
-Arti should always build with the most recent _stable_ Rust release, and
-_may_ build with one or two older Rust releases.  Eventually, we may
-declare some long-term Minimum Supported Rust Version (MSRV), but while
-Arti is still in its early stages, you'll need to stay up-to-date.
+Our current Minimum Supported Rust Version (MSRV) is 1.53.
 
-As of this writing (24 August 2021), Arti works with Rust 1.53 and later.
+When increasing this MSRV, we won't require any Rust version released in the
+last six months. (That is, we'll only require Rust versions released at least
+six months ago.)
+
+We will not increase MSRV on PATCH releases, though our dependencies might.
+
+We won't increase MSRV just because we can: we'll only do so when we have a
+reason. (We don't guarantee that you'll agree with our reasoning; only that
+it will exist.)
 
 ## Helping out
 
