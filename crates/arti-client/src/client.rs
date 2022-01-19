@@ -409,24 +409,24 @@ impl<R: Runtime> TorClient<R> {
     }
 
     /// Launch an anonymized connection to the provided address and
-    /// port over the Tor network with connection preference flags.
+    /// port over the Tor network, with explicit connection preferences.
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
-        flags: ConnectPrefs,
+        prefs: ConnectPrefs,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
 
-        let exit_ports = [flags.wrap_target_port(port)];
-        let circ = self.get_or_launch_exit_circ(&exit_ports, &flags).await?;
+        let exit_ports = [prefs.wrap_target_port(port)];
+        let circ = self.get_or_launch_exit_circ(&exit_ports, &prefs).await?;
         info!("Got a circuit for {}:{}", addr, port);
 
-        let stream_future = circ.begin_stream(&addr, port, Some(flags.stream_parameters()));
+        let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
@@ -442,16 +442,16 @@ impl<R: Runtime> TorClient<R> {
             .await
     }
 
-    /// On success, return a list of IP addresses, but use flags.
+    /// On success, return a list of IP addresses, but use prefs.
     pub async fn resolve_with_prefs(
         &self,
         hostname: &str,
-        flags: ConnectPrefs,
+        prefs: ConnectPrefs,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
+        let circ = self.get_or_launch_exit_circ(&[], &prefs).await?;
 
         let resolve_future = circ.resolve(hostname);
         let addrs = self
@@ -476,9 +476,9 @@ impl<R: Runtime> TorClient<R> {
     pub async fn resolve_ptr_with_prefs(
         &self,
         addr: IpAddr,
-        flags: ConnectPrefs,
+        prefs: ConnectPrefs,
     ) -> Result<Vec<String>> {
-        let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
+        let circ = self.get_or_launch_exit_circ(&[], &prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
@@ -515,7 +515,7 @@ impl<R: Runtime> TorClient<R> {
     async fn get_or_launch_exit_circ(
         &self,
         exit_ports: &[TargetPort],
-        flags: &ConnectPrefs,
+        prefs: &ConnectPrefs,
     ) -> Result<ClientCirc> {
         let dir = self.dirmgr.netdir();
 
@@ -524,7 +524,7 @@ impl<R: Runtime> TorClient<R> {
             // Always consider our client_isolation.
             b.owner_token(self.client_isolation);
             // Consider stream isolation too, if it's set.
-            if let Some(tok) = flags.isolation_group() {
+            if let Some(tok) = prefs.isolation_group() {
                 b.stream_token(tok);
             }
             // Failure should be impossible with this builder.
