@@ -55,6 +55,12 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
+    impl std::fmt::Debug for $t {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct(stringify!($t)).finish_non_exhaustive()
+        }
+    }
+
     // This boilerplate will fail unless $t implements Runtime.
     const _ : () = {
         fn assert_runtime<R: $crate::Runtime>() {}

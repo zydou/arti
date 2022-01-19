@@ -205,7 +205,12 @@ impl SpawnBlocking for async_executors::AsyncStd {
     }
 }
 
-impl TlsProvider<TcpStream> for async_executors::AsyncStd {
+/// A TlsProvider that uses native_tls and works with the AsyncStd executor.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct NativeTlsAsyncStd {}
+
+impl TlsProvider<TcpStream> for NativeTlsAsyncStd {
     type TlsStream = tls::TlsStream;
     type Connector = tls::TlsConnector;
 
