@@ -454,6 +454,16 @@ impl<R: Runtime> TorClient<R> {
         self.connect_prefs = connect_prefs;
     }
 
+    /// Provides a new handle on this client, but with adjusted default preferences.
+    ///
+    /// Connections made with e.g. [`connect`](TorClient::connect) on the returned handle will use
+    /// `connect_prefs`.  This is a convenience wrapper for `clone` and `set_connect_prefs`.
+    pub fn clone_with_prefs(&self, connect_prefs: ConnectPrefs) -> Self {
+        let mut result = self.clone();
+        result.set_connect_prefs(connect_prefs);
+        result
+    }
+
     /// On success, return a list of IP addresses.
     pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
         self.resolve_with_prefs(hostname, &self.connect_prefs).await
