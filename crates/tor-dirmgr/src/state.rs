@@ -114,7 +114,8 @@ pub(crate) struct GetConsensusState<DM: WriteNetDir> {
     /// How should we get the consensus from the cache, if at all?
     cache_usage: CacheUsage,
 
-    /// If present, a time that we want our consensus to have been published.
+    /// If present, a time after which we want our consensus to have
+    /// been published.
     //
     // TODO: This is not yet used everywhere it could be.  In the future maybe
     // it should be inserted into the DocId::LatestConsensus  alternative rather

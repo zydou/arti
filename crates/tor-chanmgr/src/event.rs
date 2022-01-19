@@ -11,11 +11,19 @@ use std::{
 /// The status of our connection to the internet.
 #[derive(Default, Debug, Clone)]
 pub struct ConnStatus {
+    /// Have we been able to make TCP connections?
+    ///
     /// True if we've been able to make outgoing connections recently.
     /// False if we've definitely been failing.
+    /// None if we haven't succeeded yet, but it's too early to say if
+    /// that's a problem.
     online: Option<bool>,
-    /// True if we've been able to make TLS sessions recently.  
+    /// Have we been able to successfully negotiate full Tor handshakes?
+    ///
+    /// True if we've been able to make TLS sessions recently.
     /// False if we've definitely been failing.
+    /// None if we haven't succeeded yet, but it's too early to say if
+    /// that's a problem.
     tls_works: Option<bool>,
 }
 
@@ -49,6 +57,9 @@ impl ConnStatus {
     /// Return a float representing "how bootstrapped" we are with respect to
     /// connecting to the Tor network, where 0 is "not at all" and 1 is
     /// "successful".
+    ///
+    /// Callers _should not_ depend on the specific meaning of any particular
+    /// fraction; we may change these fractions in the future.
     pub fn frac(&self) -> f32 {
         match self {
             Self {
