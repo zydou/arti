@@ -4,7 +4,7 @@ TOP=$(dirname "$0")/..
 
 TAG="$1"
 
-if [ -z "$TAG"]; then
+if [ -z "$TAG" ]; then
     echo "You need to give a git revision as an argument."
     exit 1
 fi
