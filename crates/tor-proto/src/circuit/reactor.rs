@@ -698,7 +698,7 @@ impl Reactor {
             .await
             .map_err(|_| Error::CircProto("Circuit closed while waiting".into()))?;
 
-        let relay_handshake = wrap.handle_chanmsg(reply)?;
+        let relay_handshake = wrap.decode_chanmsg(reply)?;
         let keygen = H::client2(state, relay_handshake)?;
 
         let layer = L::construct(keygen)?;
