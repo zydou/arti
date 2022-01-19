@@ -627,6 +627,9 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     }
 
     /// Return true if there are no more items in this NetDocReader.
+    // The implementation sadly needs to mutate the inner state, even if it's not *semantically*
+    // mutated..  We don't want inner mutability just to placate clippy for an internal API.
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn is_exhausted(&mut self) -> bool {
         self.iter().peek().is_none()
     }
