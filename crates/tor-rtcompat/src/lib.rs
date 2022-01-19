@@ -144,6 +144,7 @@ pub(crate) mod impls;
 pub mod task;
 
 mod compound;
+mod opaque;
 mod timer;
 mod traits;
 
