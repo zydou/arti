@@ -1,6 +1,8 @@
 //! Implement a concrete type to build channels.
 
-use crate::Error;
+use std::sync::Mutex;
+
+use crate::{event::ChanMgrEventSender, Error};
 
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk;
@@ -16,16 +18,19 @@ use futures::task::SpawnExt;
 pub(crate) struct ChanBuilder<R: Runtime> {
     /// Asynchronous runtime for TLS, TCP, spawning, and timeouts.
     runtime: R,
+    /// Used to update our bootstrap reporting status.
+    event_sender: Mutex<ChanMgrEventSender>,
     /// Object to build TLS connections.
     tls_connector: <R as TlsProvider<R::TcpStream>>::Connector,
 }
 
 impl<R: Runtime> ChanBuilder<R> {
     /// Construct a new ChanBuilder.
-    pub(crate) fn new(runtime: R) -> Self {
+    pub(crate) fn new(runtime: R, event_sender: ChanMgrEventSender) -> Self {
         let tls_connector = runtime.tls_connector();
         ChanBuilder {
             runtime,
+            event_sender: Mutex::new(event_sender),
             tls_connector,
         }
     }
@@ -69,8 +74,22 @@ impl<R: Runtime> ChanBuilder<R> {
 
         tracing::info!("Negotiating TLS with {}", addr);
 
+        {
+            self.event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_attempt();
+        }
+
         // Establish a TCP connection.
         let stream = self.runtime.connect(addr).await?;
+
+        {
+            self.event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_tcp_success();
+        }
 
         // TODO: add a random hostname here if it will be used for SNI?
         let tls = self
@@ -82,6 +101,13 @@ impl<R: Runtime> ChanBuilder<R> {
             .peer_certificate()?
             .ok_or(Error::Internal("TLS connection with no peer certificate"))?;
 
+        {
+            self.event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_tls_finished();
+        }
+
         // 2. Set up the channel.
         let mut builder = ChannelBuilder::new();
         builder.set_declared_addr(*addr);
@@ -89,6 +115,13 @@ impl<R: Runtime> ChanBuilder<R> {
         let now = self.runtime.wallclock();
         let chan = chan.check(target, &peer_cert, Some(now))?;
         let (chan, reactor) = chan.finish().await?;
+
+        {
+            self.event_sender
+                .lock()
+                .expect("Lock poisoned")
+                .record_handshake_done();
+        }
 
         // 3. Launch a task to run the channel reactor.
         self.runtime.spawn(async {
@@ -164,7 +197,8 @@ mod test {
             client_rt.jump_to(now);
 
             // Create the channelbuilder that we want to test.
-            let builder = ChanBuilder::new(client_rt);
+            let (snd, _rcv) = crate::event::channel();
+            let builder = ChanBuilder::new(client_rt, snd);
 
             let (r1, r2): (Result<Channel>, Result<LocalStream>) = futures::join!(
                 async {

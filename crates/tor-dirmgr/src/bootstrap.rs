@@ -122,6 +122,11 @@ async fn load_once<R: Runtime>(
         let documents = load_all(dirmgr, missing)?;
         state.add_from_cache(documents, dirmgr.store_if_rw())
     };
+
+    if matches!(outcome, Ok(true)) {
+        dirmgr.update_status(state.bootstrap_status());
+    }
+
     outcome
 }
 
@@ -187,6 +192,10 @@ async fn download_attempt<R: Runtime>(
                 warn!("Error when expanding directory text: {}", e);
             }
         }
+    }
+
+    if changed {
+        dirmgr.update_status(state.bootstrap_status());
     }
 
     Ok(changed)
@@ -390,6 +399,9 @@ mod test {
     impl DirState for DemoState {
         fn describe(&self) -> String {
             format!("{:?}", &self)
+        }
+        fn bootstrap_status(&self) -> crate::event::DirStatus {
+            crate::event::DirStatus::default()
         }
         fn is_ready(&self, ready: Readiness) -> bool {
             match (ready, self.second_time_around) {

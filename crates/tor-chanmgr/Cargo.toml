@@ -19,11 +19,14 @@ tor-linkspec = { path="../tor-linkspec", version = "0.0.3"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
 
 async-trait = "0.1.2"
+derive_more = "0.99"
 futures = "0.3"
+postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
 tracing = "0.1.18"
 thiserror = "1"
 
 [dev-dependencies]
+float_eq = "0.7"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
 tor-rtmock = { path="../tor-rtmock", version = "0.0.3"}
