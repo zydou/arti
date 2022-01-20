@@ -67,7 +67,7 @@ impl PathConfig {
     ///
     /// In other words, in other words, return true if every circuit permitted
     /// by `other` would also be permitted by this configuration.
-    pub(crate) fn more_permissive_than(&self, other: &Self) -> bool {
+    pub(crate) fn at_least_as_permissive_as(&self, other: &Self) -> bool {
         self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
             && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
     }

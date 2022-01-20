@@ -219,7 +219,9 @@ impl<R: Runtime> CircMgr<R> {
             return Ok(());
         }
 
-        let discard_circuits = !new_config.path_rules.more_permissive_than(&old_path_rules);
+        let discard_circuits = !new_config
+            .path_rules
+            .at_least_as_permissive_as(&old_path_rules);
 
         self.mgr
             .peek_builder()
