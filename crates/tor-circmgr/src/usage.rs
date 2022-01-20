@@ -88,15 +88,15 @@ impl TargetPort {
 /// Using an isolation token to route streams differently over the Tor network:
 ///
 /// ```ignore
-/// use arti_client::ConnectPrefs;
+/// use arti_client::StreamPrefs;
 ///
 /// let token_1 = IsolationToken::new();
 /// let token_2 = IsolationToken::new();
 ///
-/// let mut prefs_1 = ConnectPrefs::new();
+/// let mut prefs_1 = StreamPrefs::new();
 /// prefs_1.set_isolation_group(token_1);
 ///
-/// let mut prefs_2 = ConnectPrefs::new();
+/// let mut prefs_2 = StreamPrefs::new();
 /// prefs_2.set_isolation_group(token_2);
 ///
 /// // These two connections will come from different source IP addresses.
