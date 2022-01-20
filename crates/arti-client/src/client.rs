@@ -197,6 +197,20 @@ impl ConnectPrefs {
         self
     }
 
+    /// Indicate that connections with these preferences should have their own isolation group
+    ///
+    /// This is a convenience method which creates a fresh [`IsolationToken`]
+    /// and sets it for these preferences.
+    ///
+    /// This connection preference is orthogonal to isolation established by
+    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
+    /// clones) will not share circuits with the original client, even if the same
+    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
+    pub fn new_isolation_group(&mut self) -> &mut Self {
+        self.isolation = StreamIsolationPreference::Explicit(IsolationToken::new());
+        self
+    }
+
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
     fn isolation_group(&self) -> Option<IsolationToken> {
