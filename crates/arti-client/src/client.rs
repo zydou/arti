@@ -81,10 +81,27 @@ pub struct TorClient<R: Runtime> {
 pub struct ConnectPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
-    /// Id of the isolation group the connection should be part of
-    isolation_group: Option<IsolationToken>,
+    /// How should we isolate connection(s) ?
+    isolation: StreamIsolationPreference,
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
+}
+
+/// Record of how we are isolating connections
+#[derive(Debug, Clone)]
+enum StreamIsolationPreference {
+    /// No additional isolation
+    None,
+    /// Id of the isolation group the connection should be part of
+    Explicit(IsolationToken),
+    /// Isolate every connection!
+    EveryStream,
+}
+
+impl Default for StreamIsolationPreference {
+    fn default() -> Self {
+        StreamIsolationPreference::None
+    }
 }
 
 impl ConnectPrefs {
@@ -178,14 +195,51 @@ impl ConnectPrefs {
     /// clones) will not share circuits with the original client, even if the same
     /// `isolation_group` is specified via the `ConnectionPrefs` in force.
     pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
-        self.isolation_group = Some(isolation_group);
+        self.isolation = StreamIsolationPreference::Explicit(isolation_group);
+        self
+    }
+
+    /// Indicate that connections with these preferences should have their own isolation group
+    ///
+    /// This is a convenience method which creates a fresh [`IsolationToken`]
+    /// and sets it for these preferences.
+    ///
+    /// This connection preference is orthogonal to isolation established by
+    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
+    /// clones) will not share circuits with the original client, even if the same
+    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
+    pub fn new_isolation_group(&mut self) -> &mut Self {
+        self.isolation = StreamIsolationPreference::Explicit(IsolationToken::new());
+        self
+    }
+
+    /// Indicate that no connection should share a circuit with any other.
+    ///
+    /// **Use with care:** This is likely to have poor performance, and imposes a much greater load
+    /// on the Tor network.  Use this option only to make small numbers of connections each of
+    /// which needs to be isolated from all other connections.
+    ///
+    /// (Don't just use this as a "get more privacy!!" method: the circuits
+    /// that it put connections on will have no more privacy than any other
+    /// circuits.  The only benefit is that these circuits will not be shared
+    /// by multiple streams.)
+    ///
+    /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
+    /// preferences.
+    pub fn isolate_every_stream(&mut self) -> &mut Self {
+        self.isolation = StreamIsolationPreference::EveryStream;
         self
     }
 
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
     fn isolation_group(&self) -> Option<IsolationToken> {
-        self.isolation_group
+        use StreamIsolationPreference as SIP;
+        match self.isolation {
+            SIP::None => None,
+            SIP::Explicit(ig) => Some(ig),
+            SIP::EveryStream => Some(IsolationToken::new()),
+        }
     }
 
     // TODO: Add some way to be IPFlexible, and require exit to support both.
