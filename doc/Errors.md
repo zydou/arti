@@ -102,8 +102,7 @@ The error type looks like this:
 ///
 /// 
 #[derive(Debug,Clone, Display)]
-#[non_exhaustive] // this is belt and braces, since we don't make much API stability guarantee? -diziet // agreed; still it's a good idea to ensure that other crates aren't broken when it changes.
-pub enum Error {
+#[non_exhaustive] // this is belt and braces, since we don't make much API stability guarantee
     ConnectionFailed {
         target: RelayId
         cause: Arc<io::Error>,
@@ -125,9 +124,7 @@ pub enum Error {
     Io(Arc<io::Error>), // no context information!
 }
 
-// I think we can do this impl with thiserror, but we don't use thiserror's `#[from]`
-// +1 -nickm
-// +1 for thiserror ~eta
+// We can do this impl with thiserror, but we don't use thiserror's `#[from]`
 impl std::err::Error for Error { ... }
 
 impl Display for Error { ... }
@@ -151,8 +148,8 @@ impl FromStr for Id {
 ```
 
 We _do_ expose the entire error enumeration from these crates.  That means we might need to break their compatibility more often; so be it.
--> worth documenting this somewhere, perhaps more generally ("tor-* crates are more unstable") ~eta
-```
+
+**TODO**: should be documented somewhere! perhaps more generally ("tor-* crates are more unstable")
 
 ### In a new tor-errorkind crate
 
@@ -166,13 +163,27 @@ We _do_ expose the entire error enumeration from these crates.  That means we mi
 #[derive(Debug,Clone,Copy,Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    // I think many of these kinds are rather more detailed than a caller could usefully do much with.  ISTM that we probably want to distinguish "trouble making connections over the public internet near us" from "problem is definitely within the Tor network" from "problem is on the outer public internet on the far side of the tor network".  But not much more than that.  Or to put it another way, how to operationalise these: "use local network changes as a hint to try again", "other target hosts may work better", "you're stuffed unless you want to try doing thing non-anonymously" (or maybe try restarting tor or using different tor config??)
+    // **Note from Diziet, disposition TBD**
     //
-    // They ought to be operationalisable by users too; categorising errors that way is useful.  So "internal error" is a kind because it means "maybe try upgrading your tor"
+    //     I think many of these kinds are rather more detailed than a caller could usefully do
+    //     much with.  ISTM that we probably want to distinguish "trouble making connections over
+    //     the public internet near us" from "problem is definitely within the Tor network" from
+    //     "problem is on the outer public internet on the far side of the tor network".  But not
+    //     much more than that.  Or to put it another way, how to operationalise these: "use local
+    //     network changes as a hint to try again", "other target hosts may work better", "you're
+    //     stuffed unless you want to try doing thing non-anonymously" (or maybe try restarting tor
+    //     or using different tor config??)
+    //     
+    //     They ought to be operationalisable by users too; categorising errors that way is useful.
+    //     So "internal error" is a kind because it means "maybe try upgrading your tor"
     //
-    // I don't think at this high level we can usefully distinguish ENETUNREACH from a timeout, eg.
-    //
-    // Possibly "someone is *misbehaving* on the tor network and that is why this is going wrong" is operationally useful to a user, as distinguished from "the tor network is not functioning correctly but this is a plausible failure so doesn't necessarily mean peer is buggy or malicious"
+    //     I don't think at this high level we can usefully distinguish ENETUNREACH from a timeout,
+    //     eg.
+    //     
+    //     Possibly "someone is *misbehaving* on the tor network and that is why this is going
+    //     wrong" is operationally useful to a user, as distinguished from "the tor network is not
+    //     functioning correctly but this is a plausible failure so doesn't necessarily mean peer
+    //     is buggy or malicious"
     
     /// An operation found that it couldn't make connections on the internet.
     ///
@@ -210,8 +221,10 @@ pub enum ErrorKind {
 ```
 
 
-## Possibly controversial idea [Diziet]
+## InternalError idea
 
-We might have a single `InternalError` type which Into<everything::Error>.  Matching on internal errors (ie bugs) is not going to be useful for callers.  It might want to have a backtrace in it as well as something resembling an assertion message.
+We will have a single `InternalError` type which `Into<everything::Error>`.
 
-this makes sense and I've seen this work pretty well before; I would additionally suggest an `internal!` macro that works like `panic!` to generate this type ~eta
+Matching on internal errors (ie bugs) is not going to be useful for callers.  It might want to have a backtrace in it as well as something resembling an assertion message.
+
+We'll have something like an `internal!` macro that works like `panic!` to generate this type
