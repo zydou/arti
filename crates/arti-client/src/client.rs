@@ -95,7 +95,7 @@ enum StreamIsolationPreference {
     /// Id of the isolation group the connection should be part of
     Explicit(IsolationToken),
     /// Isolate every connection!
-    EveryConnection,
+    EveryStream,
 }
 
 impl Default for StreamIsolationPreference {
@@ -227,7 +227,7 @@ impl ConnectPrefs {
     /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
     /// preferences.
     pub fn isolate_every_connection(&mut self) -> &mut Self {
-        self.isolation = StreamIsolationPreference::EveryConnection;
+        self.isolation = StreamIsolationPreference::EveryStream;
         self
     }
 
@@ -238,7 +238,7 @@ impl ConnectPrefs {
         match self.isolation {
             SIP::None => None,
             SIP::Explicit(ig) => Some(ig),
-            SIP::EveryConnection => Some(IsolationToken::new()),
+            SIP::EveryStream => Some(IsolationToken::new()),
         }
     }
 
