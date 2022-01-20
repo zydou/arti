@@ -10,7 +10,7 @@ The schema should be reified in serde implementations, our config reader, and bu
 
 We should make client construction using default config file locations easy (at leasat as easy as construction with hardcoded defaults).  That will make it easy for embedders to provide user-tweakable config.
 
-We should add some warnings to the docs for configuration settings which shrink anonmity sets.  (Or possibly blanket warnings.)  This should aim to discourage not only users but also embedders from making poor choices.
+We should add some warnings to the docs for configuration settings which have the potential to deanonymize users.  (Or possibly blanket warnings.)  This should aim to discourage not only users but also embedders from making poor choices.
 
 ## Validation (startup API simplification)
 
@@ -96,7 +96,7 @@ The "sections" in it (ie, the sub-struct names and types) are already public, si
 
 ### `config` vs `figment`
 
-Currently we use `config`.  I looked at others briefly and rather more closely at `figment`.  Certainly `figment is a lot richer.  I think it might be able to produce better errors.  I have to say though that when ended up using a library that used `figment` I found it a bit awkward and confusing.
+Currently we use `config`.  I looked at others briefly and rather more closely at `figment`.  Certainly `figment` is a lot richer.  I think it might be able to produce better errors.  I have to say though that when ended up using a library that used `figment` I found it a bit awkward and confusing.
 
 For now I suggest retaining `config`.  At least, the code that knows we're using it will be fairly self-contained.
 
