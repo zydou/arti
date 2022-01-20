@@ -15,7 +15,7 @@ use std::sync::{self, Arc};
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
-use arti_client::{StreamPrefs, IsolationToken, TorClient};
+use arti_client::{IsolationToken, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
