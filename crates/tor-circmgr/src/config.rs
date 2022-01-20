@@ -308,3 +308,32 @@ impl CircMgrConfig {
         CircMgrConfigBuilder::default()
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn path_config() {
+        let pc1 = PathConfig::default();
+        // Because these configurations consider _fewer_ nodes to be in the same
+        // families, they are _more_ permissive about what circuits we can
+        // build.
+        let pc2 = PathConfig::builder()
+            .ipv4_subnet_family_prefix(32)
+            .build()
+            .unwrap();
+        let pc3 = PathConfig::builder()
+            .ipv6_subnet_family_prefix(128)
+            .build()
+            .unwrap();
+
+        assert!(pc2.at_least_as_permissive_as(&pc1));
+        assert!(pc3.at_least_as_permissive_as(&pc1));
+        assert!(pc1.at_least_as_permissive_as(&pc1));
+        assert!(!pc1.at_least_as_permissive_as(&pc2));
+        assert!(!pc1.at_least_as_permissive_as(&pc3));
+        assert!(!pc3.at_least_as_permissive_as(&pc2));
+    }
+}
