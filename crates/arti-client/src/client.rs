@@ -217,7 +217,12 @@ impl ConnectPrefs {
     ///
     /// **Use with care:** This is likely to have poor performance, and imposes a much greater load
     /// on the Tor network.  Use this option only to make small numbers of connections each of
-    /// which need very high levels of privacy.
+    /// which needs to be isolated from all other connections.
+    ///
+    /// (Don't just use this as a "get more privacy!!" method: the circuits
+    /// that it put connections on will have no more privacy than any other
+    /// circuits.  The only benefit is that these circuits will not be shared
+    /// by multiple streams.)
     ///
     /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
     /// preferences.
