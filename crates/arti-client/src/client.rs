@@ -94,6 +94,8 @@ enum StreamIsolationPreference {
     None,
     /// Id of the isolation group the connection should be part of
     Explicit(IsolationToken),
+    /// Isolate every connection!
+    EveryConnection,
 }
 
 impl Default for StreamIsolationPreference {
@@ -211,6 +213,19 @@ impl ConnectPrefs {
         self
     }
 
+    /// Indicate that no connection should share a circuit with any other.
+    ///
+    /// **Use with care:** This is likely to have poor performance, and imposes a much greater load
+    /// on the Tor network.  Use this option only to make small numbers of connections each of
+    /// which need very high levels of privacy.
+    ///
+    /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
+    /// preferences.
+    pub fn isolate_every_connection(&mut self) -> &mut Self {
+        self.isolation = StreamIsolationPreference::EveryConnection;
+        self
+    }
+
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
     fn isolation_group(&self) -> Option<IsolationToken> {
@@ -218,6 +233,7 @@ impl ConnectPrefs {
         match self.isolation {
             SIP::None => None,
             SIP::Explicit(ig) => Some(ig),
+            SIP::EveryConnection => Some(IsolationToken::new()),
         }
     }
 
