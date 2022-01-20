@@ -1,14 +1,16 @@
-=============================================================================
-=== SUMMARIZED PLAN
+# ERROR HANDLING IN TOR-* AND ARTI-*
 
-1) In arti-client.
+## Plan
+
+### In arti-client.
 
 The arti-client crate is our primary point of entry.  It exposes a mostly-opaque Error type, and an ErrorKind type derived from its inner (hidden) data. 
 
 The stable, supported ways to get information from arti_client::Error are:
-    * display it.
-    * if you must, access its source().
-    * call its kind() method, and match on the ErrorKind.
+
+ * display it.
+ * if you must, access its source().
+ * call its kind() method, and match on the ErrorKind.
 
 The ErrorKind enum contains a number of possible error types.  Each is designed for high-level consumption: its documentation should explain why such an error might occur, and what the application might want to do about it.  (If we cannot write such documentation for an ErrorKind, it is probably wrong.)
 
@@ -19,7 +21,7 @@ Using the "error-details" feature breaks your semver guarantees on the arti-clie
 We are making the arti_client::Error type opaque so that we have freedom to radically refactor ErrorDetail, as well as the Error types from other crates.  We are exposing it behind a feature because we recognize that we will inevitably make some mistakes in our designs, and it's important to allow escape hatches for users with tricky needs.
 
 
-2) In ErrorDetail, and in other crates' Error types.
+### In ErrorDetail, and in other crates' Error types.
 
 Everywhere else besides arti_error::Error, we try to make our error types follow these general patterns:
 
@@ -27,14 +29,17 @@ Everywhere else besides arti_error::Error, we try to make our error types follow
  * When we wrap an inner error, we always include context information describing what was happening when the inner error occurred.  This means that we should usually not `impl From<TheirInner> for MyError`.
  * Whenever appropriate, we have a `pub fn kind(&self) -> ErrorKind` function.
  * When a  public function can fail for a number of reasons that are much more limited than the crate's entire Error type, we should consider give that function its own Error type.
- * We use Box<> as needed to keep the size of the enumeration fairly small.
+ * We use `Box<>` as needed to keep the size of the enumeration fairly small.
  * We allow more instability in these types than we allow in arti_client: these types should be inaccessable from the arti_client when "error-details" is not enabled.
 
 
-=== SOME EXAMPLES
+## SOME EXAMPLES
 
-In arti-client we expose a mostly-type-erased error type with an API like:
+### In arti-client
 
+We expose a mostly-type-erased error type with an API like:
+
+```
 /// A general error produced by a TorClient.
 ///
 /// Specific functions may produce more specific error types.
@@ -86,10 +91,13 @@ impl std::error::Error for ErrorDetail { ... }
 impl ErrorDetail {
     pub fn kind(&self) -> ErrorKind { ... }
 }
+```
 
+### In most mid-level crates
 
-====== In most mid-level crates, the error type looks like this:
+The error type looks like this:
 
+```
 /// A general error from the tor-foo crate.
 ///
 /// 
@@ -127,24 +135,29 @@ impl Display for Error { ... }
 impl Error {
     pub fn kind(&self) -> ErrorKind { ... }
 }
+```
 
-We try to avoid having blanket implementations of From<other::Error> for crate::Error, unless we are _sure_ that they can't lose context.
+We try to avoid having blanket implementations of `From<other::Error>` for crate::Error, unless we are _sure_ that they can't lose context.
 
 
 For error types that are more specific to functions, we use more specific enumerations, as in:
 
+```
 impl FromStr for Id {
 	type Err = ParseIdError; // GOOD!
 	// type Err = crate::Error // BAD!
      ...
 }
+```
 
 We _do_ expose the entire error enumeration from these crates.  That means we might need to break their compatibility more often; so be it.
 -> worth documenting this somewhere, perhaps more generally ("tor-* crates are more unstable") ~eta
+```
+
+### In a new tor-errorkind crate
 
 
-======= In a new tor-errorkind crate:
-
+```
 /// A categorization of error from Arti.
 ///
 /// We try to make this a _useful_ categorization primarily.  Each kind's
@@ -194,10 +207,11 @@ pub enum ErrorKind {
     IdMismatch,
      ...
 }
+```
 
 
-
-==== Possibly controversial idea [Diziet] ====
+## Possibly controversial idea [Diziet]
 
 We might have a single `InternalError` type which Into<everything::Error>.  Matching on internal errors (ie bugs) is not going to be useful for callers.  It might want to have a backtrace in it as well as something resembling an assertion message.
--> this makes sense and I've seen this work pretty well before; I would additionally suggest an `internal!` macro that works like `panic!` to generate this type ~eta
+
+this makes sense and I've seen this work pretty well before; I would additionally suggest an `internal!` macro that works like `panic!` to generate this type ~eta
