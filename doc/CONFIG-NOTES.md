@@ -18,7 +18,7 @@ We should add some warnings to the docs for configuration settings which have th
 
 Few callers will want to validate the configuration separately from using it to make a Tor client (or running copy of the arti executable).  The separation between `FooConfigBuilder` (partially-validated[1] configuration read from file(s) and/or set up with builder pattern methods) and `FooConfig` (validated configuration for Foo) doubles the number of config structs in our API.  ([1] I say "partially" because the types of individual fields are right, although their values may be inappropriate.)
 
-This distinction prevents (typestate-style) a programmer from writing code which directly constructs a client from an only-partially-validated config, but a program which does this is not buggy (if we make the validation happen at construction time) - and actually providing that API is easier for the caller.  And because the `FooConfig` is already partially validated, there is 
+This distinction prevents (typestate-style) a programmer from writing code which directly constructs a client from an only-partially-validated config, but a program which does this is not buggy (if we make the validation happen at construction time) - and actually providing that API is easier for the caller.  And because the `FooConfig` is already *partially* validated, it just provides clutter in the caller's code.
 
 ### Proposal
 
