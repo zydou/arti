@@ -56,9 +56,11 @@ if [ $# -eq 0 ] && [ $interactive = "no" ]; then
     exit 1
 fi
 
-# Validate that +nightly is installed.  This will log a message to stderr
+echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=nightly}. (Override with \$RUST_COVERAGE_TOOLCHAIN)"
+
+# Validate that "+${RUST_COVERAGE_TOOLCHAIN}" is installed.  This will log a message to stderr
 # if it isn't.
-cargo +nightly -h >/dev/null
+cargo "+${RUST_COVERAGE_TOOLCHAIN}" -h >/dev/null
 
 # Validate that grcov is installed.
 if [ "$(which grcov 2>/dev/null)" = "" ]; then
@@ -67,15 +69,15 @@ if [ "$(which grcov 2>/dev/null)" = "" ]; then
 fi
 
 # Validate that llvm-tools-preview is installed.
-if [ "$(rustup +nightly component list --installed | grep llvm-tools-preview)" = "" ]; then
-   echo "llvm-tools-preview appears not to be installed. Try 'rustup +nightly component add llvm-tools-preview'." >&2
+if [ "$(rustup "+${RUST_COVERAGE_TOOLCHAIN}" component list --installed | grep llvm-tools-preview)" = "" ]; then
+   echo "llvm-tools-preview appears not to be installed. Try 'rustup +${RUST_COVERAGE_TOOLCHAIN} component add llvm-tools-preview'." >&2
    exit 1
 fi
 
 COVERAGE_BASEDIR=$(git rev-parse --show-toplevel)
 export RUSTFLAGS="-Z instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
-export RUSTUP_TOOLCHAIN=nightly
+export RUSTUP_TOOLCHAIN="${RUST_COVERAGE_TOOLCHAIN}"
 
 if [ -d "$COVERAGE_BASEDIR/coverage" ]; then
     rm -r "$COVERAGE_BASEDIR/coverage" || true
@@ -91,7 +93,6 @@ mkdir -p "$COVERAGE_BASEDIR/coverage_meta"
 if [ ! -e "$COVERAGE_BASEDIR/coverage_meta/commands" ] ; then
     echo "REVISION: $(git rev-parse HEAD) $(git diff --quiet || echo "[dirty]")" >  "$COVERAGE_BASEDIR/coverage_meta/commands"
 fi
-
 
 if [ $# -ne 0 ]; then
     echo "$@" >> "$COVERAGE_BASEDIR/coverage_meta/commands"
