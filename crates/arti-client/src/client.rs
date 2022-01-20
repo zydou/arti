@@ -450,7 +450,10 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Connection preferences always override configuration, even configuration set later
     /// (eg, by a config reload).
-    pub fn set_connect_prefs(&mut self, connect_prefs: ConnectPrefs) {
+    //
+    // This function is private just because we're not sure we want to provide this API.
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/250#note_2771238
+    fn set_connect_prefs(&mut self, connect_prefs: ConnectPrefs) {
         self.connect_prefs = connect_prefs;
     }
 
