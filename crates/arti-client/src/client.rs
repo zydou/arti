@@ -226,7 +226,7 @@ impl ConnectPrefs {
     ///
     /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
     /// preferences.
-    pub fn isolate_every_connection(&mut self) -> &mut Self {
+    pub fn isolate_every_stream(&mut self) -> &mut Self {
         self.isolation = StreamIsolationPreference::EveryStream;
         self
     }
