@@ -81,10 +81,25 @@ pub struct TorClient<R: Runtime> {
 pub struct ConnectPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
-    /// Id of the isolation group the connection should be part of
-    isolation_group: Option<IsolationToken>,
+    /// How should we isolate connection(s) ?
+    isolation: StreamIsolationPreference,
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
+}
+
+/// Record of how we are isolating connections
+#[derive(Debug, Clone)]
+enum StreamIsolationPreference {
+    /// No additional isolation
+    None,
+    /// Id of the isolation group the connection should be part of
+    Explicit(IsolationToken),
+}
+
+impl Default for StreamIsolationPreference {
+    fn default() -> Self {
+        StreamIsolationPreference::None
+    }
 }
 
 impl ConnectPrefs {
@@ -178,14 +193,18 @@ impl ConnectPrefs {
     /// clones) will not share circuits with the original client, even if the same
     /// `isolation_group` is specified via the `ConnectionPrefs` in force.
     pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
-        self.isolation_group = Some(isolation_group);
+        self.isolation = StreamIsolationPreference::Explicit(isolation_group);
         self
     }
 
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
     fn isolation_group(&self) -> Option<IsolationToken> {
-        self.isolation_group
+        use StreamIsolationPreference as SIP;
+        match self.isolation {
+            SIP::None => None,
+            SIP::Explicit(ig) => Some(ig),
+        }
     }
 
     // TODO: Add some way to be IPFlexible, and require exit to support both.
