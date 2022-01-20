@@ -52,7 +52,7 @@ fn ipv6_prefix_default() -> u8 {
 
 impl PathConfig {
     /// Return a new [`PathConfigBuilder`].
-    pub fn builder(&self) -> PathConfigBuilder {
+    pub fn builder() -> PathConfigBuilder {
         PathConfigBuilder::default()
     }
     /// Return a subnet configuration based on these rules.
