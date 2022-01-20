@@ -45,7 +45,13 @@ pub struct TorClient<R: Runtime> {
     /// Asynchronous runtime object.
     runtime: R,
     /// Default isolation token for streams through this client.
+    ///
+    /// This is eventually used for `owner_token` in `tor-circmgr/src/usage.rs`, and is orthogonal
+    /// to the `stream_token` which comes from `connect_prefs` (or a passed-in `ConnectPrefs`).
+    /// (ie, both must be the same to share a circuit).
     client_isolation: IsolationToken,
+    /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
+    connect_prefs: ConnectPrefs,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -163,6 +169,14 @@ impl ConnectPrefs {
 
     /// Indicate which other connections might use the same circuit
     /// as this one.
+    ///
+    /// By default all connections made on all clones of a `TorClient` may share connections.
+    /// Connections made with a particular `isolation_group` may share circuits with each other.
+    ///
+    /// This connection preference is orthogonal to isolation established by
+    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
+    /// clones) will not share circuits with the original client, even if the same
+    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
     pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
         self.isolation_group = Some(isolation_group);
         self
@@ -293,6 +307,7 @@ impl<R: Runtime> TorClient<R> {
         Ok(TorClient {
             runtime,
             client_isolation,
+            connect_prefs: Default::default(),
             circmgr,
             dirmgr,
             statemgr,
@@ -380,6 +395,9 @@ impl<R: Runtime> TorClient<R> {
     /// Calling this function is usually preferable to creating a
     /// completely separate TorClient instance, since it can share its
     /// internals with the existing `TorClient`.
+    ///
+    /// (Connections made with clones of the returned `TorClient` may
+    /// share circuits with each other.)
     #[must_use]
     pub fn isolated_client(&self) -> TorClient<R> {
         let mut result = self.clone();
@@ -393,29 +411,28 @@ impl<R: Runtime> TorClient<R> {
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     pub async fn connect<A: IntoTorAddr>(&self, target: A) -> Result<DataStream> {
-        self.connect_with_prefs(target, ConnectPrefs::default())
-            .await
+        self.connect_with_prefs(target, &self.connect_prefs).await
     }
 
     /// Launch an anonymized connection to the provided address and
-    /// port over the Tor network with connection preference flags.
+    /// port over the Tor network, with explicit connection preferences.
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
-        flags: ConnectPrefs,
+        prefs: &ConnectPrefs,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
 
-        let exit_ports = [flags.wrap_target_port(port)];
-        let circ = self.get_or_launch_exit_circ(&exit_ports, &flags).await?;
+        let exit_ports = [prefs.wrap_target_port(port)];
+        let circ = self.get_or_launch_exit_circ(&exit_ports, prefs).await?;
         info!("Got a circuit for {}:{}", addr, port);
 
-        let stream_future = circ.begin_stream(&addr, port, Some(flags.stream_parameters()));
+        let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
         // This timeout is needless but harmless for optimistic streams.
         let stream = self
             .runtime
@@ -425,22 +442,47 @@ impl<R: Runtime> TorClient<R> {
         Ok(stream)
     }
 
-    /// On success, return a list of IP addresses.
-    pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
-        self.resolve_with_prefs(hostname, ConnectPrefs::default())
-            .await
+    /// Sets the default preferences for future connections made with this client.
+    ///
+    /// The preferences set with this function will be inherited by clones of this client, but
+    /// updates to the preferences in those clones will not propagate back to the original.  I.e.,
+    /// the preferences are copied by `clone`.
+    ///
+    /// Connection preferences always override configuration, even configuration set later
+    /// (eg, by a config reload).
+    //
+    // This function is private just because we're not sure we want to provide this API.
+    // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/250#note_2771238
+    fn set_connect_prefs(&mut self, connect_prefs: ConnectPrefs) {
+        self.connect_prefs = connect_prefs;
     }
 
-    /// On success, return a list of IP addresses, but use flags.
+    /// Provides a new handle on this client, but with adjusted default preferences.
+    ///
+    /// Connections made with e.g. [`connect`](TorClient::connect) on the returned handle will use
+    /// `connect_prefs`.  This is a convenience wrapper for `clone` and `set_connect_prefs`.
+    #[must_use]
+    pub fn clone_with_prefs(&self, connect_prefs: ConnectPrefs) -> Self {
+        let mut result = self.clone();
+        result.set_connect_prefs(connect_prefs);
+        result
+    }
+
+    /// On success, return a list of IP addresses.
+    pub async fn resolve(&self, hostname: &str) -> Result<Vec<IpAddr>> {
+        self.resolve_with_prefs(hostname, &self.connect_prefs).await
+    }
+
+    /// On success, return a list of IP addresses, but use prefs.
     pub async fn resolve_with_prefs(
         &self,
         hostname: &str,
-        flags: ConnectPrefs,
+        prefs: &ConnectPrefs,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
 
-        let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
+        let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
         let resolve_future = circ.resolve(hostname);
         let addrs = self
@@ -455,8 +497,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// On success, return a list of hostnames.
     pub async fn resolve_ptr(&self, addr: IpAddr) -> Result<Vec<String>> {
-        self.resolve_ptr_with_prefs(addr, ConnectPrefs::default())
-            .await
+        self.resolve_ptr_with_prefs(addr, &self.connect_prefs).await
     }
 
     /// Perform a remote DNS reverse lookup with the provided IP address.
@@ -465,9 +506,9 @@ impl<R: Runtime> TorClient<R> {
     pub async fn resolve_ptr_with_prefs(
         &self,
         addr: IpAddr,
-        flags: ConnectPrefs,
+        prefs: &ConnectPrefs,
     ) -> Result<Vec<String>> {
-        let circ = self.get_or_launch_exit_circ(&[], &flags).await?;
+        let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
         let hostnames = self
@@ -504,7 +545,7 @@ impl<R: Runtime> TorClient<R> {
     async fn get_or_launch_exit_circ(
         &self,
         exit_ports: &[TargetPort],
-        flags: &ConnectPrefs,
+        prefs: &ConnectPrefs,
     ) -> Result<ClientCirc> {
         let dir = self.dirmgr.netdir();
 
@@ -513,7 +554,7 @@ impl<R: Runtime> TorClient<R> {
             // Always consider our client_isolation.
             b.owner_token(self.client_isolation);
             // Consider stream isolation too, if it's set.
-            if let Some(tok) = flags.isolation_group() {
+            if let Some(tok) = prefs.isolation_group() {
                 b.stream_token(tok);
             }
             // Failure should be impossible with this builder.
