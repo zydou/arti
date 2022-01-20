@@ -458,6 +458,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Connections made with e.g. [`connect`](TorClient::connect) on the returned handle will use
     /// `connect_prefs`.  This is a convenience wrapper for `clone` and `set_connect_prefs`.
+    #[must_use]
     pub fn clone_with_prefs(&self, connect_prefs: ConnectPrefs) -> Self {
         let mut result = self.clone();
         result.set_connect_prefs(connect_prefs);
