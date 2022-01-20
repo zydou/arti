@@ -52,7 +52,7 @@ fn ipv6_prefix_default() -> u8 {
 
 impl PathConfig {
     /// Return a new [`PathConfigBuilder`].
-    pub fn builder(&self) -> PathConfigBuilder {
+    pub fn builder() -> PathConfigBuilder {
         PathConfigBuilder::default()
     }
     /// Return a subnet configuration based on these rules.
@@ -67,7 +67,7 @@ impl PathConfig {
     ///
     /// In other words, in other words, return true if every circuit permitted
     /// by `other` would also be permitted by this configuration.
-    pub(crate) fn more_permissive_than(&self, other: &Self) -> bool {
+    pub(crate) fn at_least_as_permissive_as(&self, other: &Self) -> bool {
         self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
             && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
     }
@@ -306,5 +306,34 @@ impl CircMgrConfig {
     /// Return a new [`CircMgrConfigBuilder`].
     pub fn builder() -> CircMgrConfigBuilder {
         CircMgrConfigBuilder::default()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn path_config() {
+        let pc1 = PathConfig::default();
+        // Because these configurations consider _fewer_ nodes to be in the same
+        // families, they are _more_ permissive about what circuits we can
+        // build.
+        let pc2 = PathConfig::builder()
+            .ipv4_subnet_family_prefix(32)
+            .build()
+            .unwrap();
+        let pc3 = PathConfig::builder()
+            .ipv6_subnet_family_prefix(128)
+            .build()
+            .unwrap();
+
+        assert!(pc2.at_least_as_permissive_as(&pc1));
+        assert!(pc3.at_least_as_permissive_as(&pc1));
+        assert!(pc1.at_least_as_permissive_as(&pc1));
+        assert!(!pc1.at_least_as_permissive_as(&pc2));
+        assert!(!pc1.at_least_as_permissive_as(&pc3));
+        assert!(!pc3.at_least_as_permissive_as(&pc2));
     }
 }
