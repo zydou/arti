@@ -10,7 +10,11 @@ keywords = [ "tor", "arti" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 categories = [ "tor" ]
 
+[features]
+default = ["backtrace"]
+
 [dependencies]
+backtrace = { version = "0.3", optional = true }
 derive_more = "0.99"
 
 [dev-dependencies]

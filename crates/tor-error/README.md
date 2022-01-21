@@ -16,6 +16,7 @@ You probably don't want to use this separately from the `tor-*` and `arti-*` cra
 
 ## Compile-time features
 
-None.
+ * `backtrace`: Enables the capturing stack backtraces in internal errors,
+   (via a dependency on the `backtrace` crate).  Enabled by default.
 
 License: MIT OR Apache-2.0

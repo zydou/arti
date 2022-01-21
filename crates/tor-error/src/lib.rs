@@ -38,6 +38,9 @@
 
 use derive_more::Display;
 
+mod internal;
+pub use internal::*;
+
 /// Classification of an error arising from Tor operations
 ///
 /// This `ErrorKind` should suffice for programmatic handling by most applications embedding Tor:
@@ -49,6 +52,11 @@ use derive_more::Display;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
+    /// Internal error (bug)
+    ///
+    /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.
+    #[display(fmt = "internal error (bug)")]
+    InternalError,
 }
 
 /// Errors that can be categorised as belonging to one `tor_error::ErrorKind`
