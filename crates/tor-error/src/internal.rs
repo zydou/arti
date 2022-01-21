@@ -2,6 +2,7 @@
 
 use std::fmt::{self, Debug, Display};
 use std::panic;
+use std::sync::Arc;
 
 use super::*;
 
@@ -54,6 +55,9 @@ mod ie_backtrace {
 // Boxed because it is fairly large (>=12 words), and will be in a variant in many other errors.
 pub struct InternalError(Box<InternalErrorRepr>);
 
+/// The source of an InternalError
+type SourceError = Arc<dyn std::error::Error + Send + Sync + 'static>;
+
 #[derive(Debug, Clone)]
 /// Internal error (a bug)
 struct InternalErrorRepr {
@@ -65,6 +69,9 @@ struct InternalErrorRepr {
 
     /// Backtrace, perhaps
     backtrace: ie_backtrace::Captured,
+
+    /// Source, perhaps
+    source: Option<SourceError>,
 }
 
 impl InternalError {
@@ -74,23 +81,40 @@ impl InternalError {
     /// as that makes it easy to add additional information
     /// via format parameters.
     pub fn new<S: Into<String>>(message: S) -> Self {
-        InternalError::new_inner(message.into())
+        InternalError::new_inner(message.into(), None)
     }
 
     /// Create an internal error
-    fn new_inner(message: String) -> Self {
+    fn new_inner(message: String, source: Option<SourceError>) -> Self {
         InternalError(
             InternalErrorRepr {
                 message,
+                source,
                 location: panic::Location::caller(),
                 backtrace: ie_backtrace::capture(),
             }
             .into(),
         )
     }
+
+    /// Create an internal error from another error, capturing this call site and backtrace
+    pub fn from_error<E, S>(source: E, message: S) -> Self
+    where
+        S: Into<String>,
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        InternalError::new_inner(message.into(), Some(Arc::new(source)))
+    }
 }
 
-impl std::error::Error for InternalError {}
+impl std::error::Error for InternalError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0
+            .source
+            .as_deref()
+            .map(|traitobj| traitobj as _ /* cast away Send and Sync */)
+    }
+}
 
 impl Display for InternalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
