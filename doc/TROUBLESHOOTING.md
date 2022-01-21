@@ -1,7 +1,10 @@
 # Fixing some common (and not-so-common) problems
 
 Here's an infrequently-asked-questions list about fixing some common (and
-not-so-common) issues in your Arti compilation or usage
+not-so-common) issues in your Arti compilation or usage.
+
+If you run into a problem that isn't on this list, please let us know on
+[our bugtracker](../README.md#reporting-bugs).
 
 ## Compilation issues
 
@@ -10,6 +13,30 @@ not-so-common) issues in your Arti compilation or usage
 Arti uses your system's sqlite3 and TLS libraries. Make sure that you have
 development libraries for sqlite3 installed.  You might also need to install
 the development libraries for OpenSSL, if you aren't on Windows or OSX.
+You may also need to install `pkg-config`.
+
+#### In more detail...
+
+We use sqlite3 via the `rusqlite` crate.  Our TLS implementation is the
+`native_tls` crate, which relies on `security-framework` (on OSX),
+`schannel` (on Windows), or `openssl` (elsewhere).
+
+Both of these crates, by default, access their dependencies via
+`pkg-config` or `vpkg` as appropriate.  But you can override this
+behavior if you run into trouble:
+
+  * You can build `arti` or `arti-client` with the `static` feature, and
+    the underlying crates will be told to build their own dependencies
+    from source and link statically.
+
+  * For more information on building `rusqlite` in different
+    environments, see [this section of their README](https://github.com/rusqlite/rusqlite#notes-on-building-rusqlite-and-libsqlite3-sys).
+
+  * For more information on building the `openssl` crate in different
+    environments, see the
+    ["building" section](https://docs.rs/openssl/latest/openssl/#building)
+    of their documentation.
+
 
 ### I get a weird segfault on startup on Alpine Linux!
 
