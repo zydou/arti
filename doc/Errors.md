@@ -151,6 +151,28 @@ We _do_ expose the entire error enumeration from these crates.  That means we mi
 
 **TODO**: should be documented somewhere! perhaps more generally ("tor-* crates are more unstable")
 
+#### Who is responsible for putting calling parameters into the error ?
+
+Eg, tor-chanmgr has this:
+
+    type BuildSpec = OwnedChanTarget;
+    async fn build_channel(&self, target: &Self::BuildSpec) -> crate::Result<Self::Channel> {
+
+If the build fails, then someone is responsible for putting the `OwnedChatTarget` (or some subset of the information in it) into the error structure.
+
+This should be the *calling* crate.  Otherwise the same context information must be duplicated for every variant of the lower crate error.  In the upper crate, it can be in only one variant.
+
+For example, when tor-circmgr calls `build_channel`, it is tor-circmgr which is responsible for putting the context in the outer error variant, ie
+
+```
+  enum tor_circmgr::Error {
+      ...
+      ChannelFailed {
+          target: OwnedChanTarget,
+          cause: tor_chanmgr::Error,
+      }
+```
+
 ### In a new tor-errorkind crate
 
 
