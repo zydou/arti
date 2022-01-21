@@ -3078,6 +3078,8 @@ version = "0.0.1"
 dependencies = [
  "backtrace",
  "derive_more",
+ "futures",
+ "thiserror",
 ]
 
 [[package]]
@@ -3107,6 +3109,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tor-config",
+ "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",

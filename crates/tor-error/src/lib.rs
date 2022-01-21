@@ -77,6 +77,14 @@ pub enum ErrorKind {
     #[display(fmt = "could not write to read-only persistent state")]
     PersistentStateReadOnly,
 
+    /// Tor client's Rust async reactor is shutting down
+    #[display(fmt = "shutting down")]
+    ReactorShuttingDown,
+
+    /// Tor client's Rust async reactor could not spawn a task for unexplained reasons
+    #[display(fmt = "unexplained rust async task spawn failure")]
+    UnexplainedTaskSpawnFailure,
+
     /// Internal error (bug)
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.
@@ -88,4 +96,15 @@ pub enum ErrorKind {
 pub trait HasKind {
     /// The kind
     fn kind(&self) -> ErrorKind;
+}
+
+impl HasKind for futures::task::SpawnError {
+    fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
+        if self.is_shutdown() {
+            EK::ReactorShuttingDown
+        } else {
+            EK::UnexplainedTaskSpawnFailure
+        }
+    }
 }
