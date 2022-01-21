@@ -507,7 +507,7 @@ impl<R: Runtime> TorClient<R> {
     //
     // This function is private just because we're not sure we want to provide this API.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/250#note_2771238
-    fn set_connect_prefs(&mut self, connect_prefs: StreamPrefs) {
+    fn set_stream_prefs(&mut self, connect_prefs: StreamPrefs) {
         self.connect_prefs = connect_prefs;
     }
 
@@ -518,7 +518,7 @@ impl<R: Runtime> TorClient<R> {
     #[must_use]
     pub fn clone_with_prefs(&self, connect_prefs: StreamPrefs) -> Self {
         let mut result = self.clone();
-        result.set_connect_prefs(connect_prefs);
+        result.set_stream_prefs(connect_prefs);
         result
     }
 
