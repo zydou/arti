@@ -47,11 +47,11 @@ pub struct TorClient<R: Runtime> {
     /// Default isolation token for streams through this client.
     ///
     /// This is eventually used for `owner_token` in `tor-circmgr/src/usage.rs`, and is orthogonal
-    /// to the `stream_token` which comes from `connect_prefs` (or a passed-in `ConnectPrefs`).
+    /// to the `stream_token` which comes from `connect_prefs` (or a passed-in `StreamPrefs`).
     /// (ie, both must be the same to share a circuit).
     client_isolation: IsolationToken,
     /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
-    connect_prefs: ConnectPrefs,
+    connect_prefs: StreamPrefs,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -78,7 +78,7 @@ pub struct TorClient<R: Runtime> {
 
 /// Preferences for how to route a stream over the Tor network.
 #[derive(Debug, Clone, Default)]
-pub struct ConnectPrefs {
+pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
     /// How should we isolate connection(s) ?
@@ -104,8 +104,8 @@ impl Default for StreamIsolationPreference {
     }
 }
 
-impl ConnectPrefs {
-    /// Construct a new ConnectPrefs.
+impl StreamPrefs {
+    /// Construct a new StreamPrefs.
     pub fn new() -> Self {
         Self::default()
     }
@@ -476,7 +476,7 @@ impl<R: Runtime> TorClient<R> {
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
-        prefs: &ConnectPrefs,
+        prefs: &StreamPrefs,
     ) -> Result<DataStream> {
         let addr = target.into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
@@ -507,7 +507,7 @@ impl<R: Runtime> TorClient<R> {
     //
     // This function is private just because we're not sure we want to provide this API.
     // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/250#note_2771238
-    fn set_connect_prefs(&mut self, connect_prefs: ConnectPrefs) {
+    fn set_stream_prefs(&mut self, connect_prefs: StreamPrefs) {
         self.connect_prefs = connect_prefs;
     }
 
@@ -516,9 +516,9 @@ impl<R: Runtime> TorClient<R> {
     /// Connections made with e.g. [`connect`](TorClient::connect) on the returned handle will use
     /// `connect_prefs`.  This is a convenience wrapper for `clone` and `set_connect_prefs`.
     #[must_use]
-    pub fn clone_with_prefs(&self, connect_prefs: ConnectPrefs) -> Self {
+    pub fn clone_with_prefs(&self, connect_prefs: StreamPrefs) -> Self {
         let mut result = self.clone();
-        result.set_connect_prefs(connect_prefs);
+        result.set_stream_prefs(connect_prefs);
         result
     }
 
@@ -531,7 +531,7 @@ impl<R: Runtime> TorClient<R> {
     pub async fn resolve_with_prefs(
         &self,
         hostname: &str,
-        prefs: &ConnectPrefs,
+        prefs: &StreamPrefs,
     ) -> Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr()?;
         addr.enforce_config(&self.addrcfg.get())?;
@@ -560,7 +560,7 @@ impl<R: Runtime> TorClient<R> {
     pub async fn resolve_ptr_with_prefs(
         &self,
         addr: IpAddr,
-        prefs: &ConnectPrefs,
+        prefs: &StreamPrefs,
     ) -> Result<Vec<String>> {
         let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
@@ -599,7 +599,7 @@ impl<R: Runtime> TorClient<R> {
     async fn get_or_launch_exit_circ(
         &self,
         exit_ports: &[TargetPort],
-        prefs: &ConnectPrefs,
+        prefs: &StreamPrefs,
     ) -> Result<ClientCirc> {
         let dir = self.dirmgr.netdir();
 

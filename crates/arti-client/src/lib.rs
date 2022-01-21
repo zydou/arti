@@ -106,7 +106,7 @@
 //!
 //! - by calling [`TorClient::isolated_client`], which returns a new [`TorClient`] whose streams
 //!   will use a different circuit
-//! - by generating [`IsolationToken`]s, and passing them in via [`ConnectPrefs`] to
+//! - by generating [`IsolationToken`]s, and passing them in via [`StreamPrefs`] to
 //!   [`TorClient::connect`].
 //!
 //! # Multiple runtime support
@@ -179,7 +179,7 @@ pub mod config;
 pub mod status;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
-pub use client::{ConnectPrefs, TorClient};
+pub use client::{StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
 pub use tor_circmgr::IsolationToken;

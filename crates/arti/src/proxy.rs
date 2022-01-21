@@ -15,7 +15,7 @@ use std::sync::{self, Arc};
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
-use arti_client::{ConnectPrefs, IsolationToken, TorClient};
+use arti_client::{IsolationToken, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -23,8 +23,8 @@ use anyhow::{anyhow, Context, Result};
 
 /// Find out which kind of address family we can/should use for a
 /// given `SocksRequest`.
-fn stream_preference(req: &SocksRequest, addr: &str) -> ConnectPrefs {
-    let mut prefs = ConnectPrefs::new();
+fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
+    let mut prefs = StreamPrefs::new();
     if addr.parse::<Ipv4Addr>().is_ok() {
         // If they asked for an IPv4 address correctly, nothing else will do.
         prefs.ipv4_only();
