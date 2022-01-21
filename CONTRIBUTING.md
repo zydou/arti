@@ -74,11 +74,16 @@ link to your forked arti repository at:
     $ git remote add _name_ git@gitlab.torproject.org:_name_/arti.git
     $ git fetch _name_
 
-> Tip, replace `_name_` in above, and following, commands to reflect your sign
+> *Tip*: replace `_name_` in above, and following, commands to reflect your sign
 > in name.
 >
-> Note, to fork this repository, or contribute to Issues and Merge Requests
-> requires an account. Check the
+> *Note*: to fork this repository, or contribute to Issues and Merge Requests,
+> you will need an account on our gitlab server.  If you don't have an
+> account there, you can either
+> [request an account](https://gitlab.onionize.space/) or
+> [report a bug anonymously](https://anonticket.onionize.space/).
+>
+> Check the
 > [Sign In](https://gitlab.torproject.org/users/sign_in?redirect_to_referer=yes)
 > page for further instructions on requesting access.
 
