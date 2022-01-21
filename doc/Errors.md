@@ -52,20 +52,20 @@ We expose a mostly-type-erased error type with an API like:
 /// ErrorDetail type.  Doing so will void your semver warranty!  If you need to do
 /// this, please let us know: it might be an indication that we should expose more
 /// information in our stable API.
-#[derive(Debug,Clone]
+#[derive(Debug,Clone)]
 pub struct Error {
     detail: ErrorDetail
 }
 
 impl std::error::Error for Error {
     /// Here is the type-erased cause.
-    fn source(&self) -> Option<&(dyn Error + 'static)> {Some(&self.detail) }
+    fn source(&self) -> Option<&(dyn Error + 'static)> { Some(&self.detail) }
 }
 
 impl Display for Error { ... }
 
 impl Error {
-    pub fn kind(&self) -> ErrorKind {self.detail.kind() }
+    pub fn kind(&self) -> ErrorKind { self.detail.kind() }
     #[cfg(feature("error-details"))]
     pub fn detail(&self) -> &ErrorDetail { &self.detail }
 }
