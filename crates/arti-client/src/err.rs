@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 use thiserror::Error;
+use tor_error::ErrorKind;
 use tor_rtcompat::TimeoutError;
 
 /// Represents errors that can occur while doing Tor operations.
@@ -72,5 +73,11 @@ impl From<TimeoutError> for Error {
 impl From<SpawnError> for Error {
     fn from(e: SpawnError) -> Error {
         Arc::new(e).into()
+    }
+}
+
+impl tor_error::HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::TODO
     }
 }

@@ -90,6 +90,12 @@ pub enum ErrorKind {
     /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.
     #[display(fmt = "internal error (bug)")]
     InternalError,
+
+    /// TODO - error still needs to be categorised in tor/arti code
+    ///
+    /// This variant is going to be ABOLISHED!
+    #[display(fmt = "uncategorized error (TODO)r")]
+    TODO,
 }
 
 /// Errors that can be categorised as belonging to one `tor_error::ErrorKind`
