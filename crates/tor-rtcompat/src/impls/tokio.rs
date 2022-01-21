@@ -6,7 +6,7 @@
 use std::convert::TryInto;
 
 /// Types used for networking (tokio implementation)
-mod net {
+pub(crate) mod net {
     use crate::traits;
     use async_trait::async_trait;
 

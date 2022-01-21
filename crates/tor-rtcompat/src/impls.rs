@@ -7,3 +7,6 @@ pub(crate) mod async_std;
 
 #[cfg(all(feature = "tokio"))]
 pub(crate) mod tokio;
+
+#[cfg(all(feature = "rustls"))]
+pub(crate) mod rustls;

@@ -5,6 +5,11 @@ use async_executors::TokioTp;
 use crate::{CompoundRuntime, Runtime, SpawnBlocking};
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 
+#[cfg(feature = "rustls")]
+use crate::impls::rustls::RustlsProvider;
+#[cfg(feature = "rustls")]
+use crate::impls::tokio::net::TcpStream;
+
 /// A [`Runtime`] built around a Handle to a tokio runtime, and `native_tls`.
 ///
 /// # Limitations
@@ -21,6 +26,18 @@ pub struct TokioRuntimeHandle {
 /// Implementation type for a TokioRuntimeHandle.
 type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsTokio>;
 
+/// A [`Runtime`] built around a Handle to a tokio runtime, and `rustls`.
+#[derive(Clone)]
+#[cfg(feature = "rustls")]
+pub struct TokioRustlsRuntimeHandle {
+    /// The actual [`CompoundRuntime`] that implements this.
+    inner: RustlsHandleInner,
+}
+
+/// Implementation for a TokioRuntimeRustlsHandle
+#[cfg(feature = "rustls")]
+type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider<TcpStream>>;
+
 /// A [`Runtime`] built around an owned `TokioTp` executor, and `native_tls`.
 #[derive(Clone)]
 pub struct TokioRuntime {
@@ -28,8 +45,21 @@ pub struct TokioRuntime {
     inner: TokioRuntimeInner,
 }
 
+/// A [`Runtime`] built around an owned `TokioTp` executor, and `rustls`.
+#[derive(Clone)]
+#[cfg(feature = "rustls")]
+pub struct TokioRustlsRuntime {
+    /// The actual [`CompoundRuntime`] that implements this.
+    inner: TokioRustlsRuntimeInner,
+}
+
 /// Implementation type for TokioRuntime.
 type TokioRuntimeInner = CompoundRuntime<TokioTp, TokioTp, TokioTp, NativeTlsTokio>;
+
+/// Implementation type for TokioRustlsRuntime.
+#[cfg(feature = "rustls")]
+type TokioRustlsRuntimeInner =
+    CompoundRuntime<TokioTp, TokioTp, TokioTp, RustlsProvider<TcpStream>>;
 
 crate::opaque::implement_opaque_runtime! {
     TokioRuntimeHandle { inner : HandleInner }
@@ -37,6 +67,16 @@ crate::opaque::implement_opaque_runtime! {
 
 crate::opaque::implement_opaque_runtime! {
     TokioRuntime { inner : TokioRuntimeInner }
+}
+
+#[cfg(feature = "rustls")]
+crate::opaque::implement_opaque_runtime! {
+    TokioRustlsRuntimeHandle { inner : RustlsHandleInner }
+}
+
+#[cfg(feature = "rustls")]
+crate::opaque::implement_opaque_runtime! {
+    TokioRustlsRuntime { inner : TokioRustlsRuntimeInner }
 }
 
 impl From<tokio_crate::runtime::Handle> for TokioRuntimeHandle {
@@ -55,6 +95,14 @@ fn create_tokio_runtime() -> IoResult<TokioRuntime> {
     })
 }
 
+/// Create and return a new Tokio multithreaded runtime configured to use `rustls`.
+#[cfg(feature = "rustls")]
+fn create_tokio_rustls_runtime() -> IoResult<TokioRustlsRuntime> {
+    crate::impls::tokio::create_runtime().map(|r| TokioRustlsRuntime {
+        inner: CompoundRuntime::new(r.clone(), r.clone(), r, RustlsProvider::default()),
+    })
+}
+
 /// Create a new Tokio-based [`Runtime`].
 ///
 /// Generally you should call this function only once, and then use
@@ -67,6 +115,21 @@ fn create_tokio_runtime() -> IoResult<TokioRuntime> {
 /// want with Tokio.
 pub fn create_runtime() -> std::io::Result<impl Runtime> {
     create_tokio_runtime()
+}
+
+/// Create a new Tokio-based [`Runtime`] with `rustls`.
+///
+/// Generally you should call this function only once, and then use
+/// [`Clone::clone()`] to create additional references to that
+/// runtime.
+///
+/// Tokio users may want to avoid this function and instead make a
+/// runtime using [`current_runtime()`]: this function always _builds_ a
+/// runtime, and if you already have a runtime, that isn't what you
+/// want with Tokio.
+#[cfg(feature = "rustls")]
+pub fn create_rustls_runtime() -> std::io::Result<impl Runtime> {
+    create_tokio_rustls_runtime()
 }
 
 /// Try to return an instance of the currently running tokio [`Runtime`].
@@ -87,6 +150,18 @@ pub fn current_runtime() -> std::io::Result<TokioRuntimeHandle> {
     let h = Handle::new(handle);
     Ok(TokioRuntimeHandle {
         inner: CompoundRuntime::new(h.clone(), h.clone(), h, NativeTlsTokio::default()),
+    })
+}
+
+/// Return an instance of the currently running tokio [`Runtime`], wrapped to
+/// use `rustls`.
+#[cfg(feature = "rustls")]
+pub fn current_runtime_rustls() -> std::io::Result<TokioRustlsRuntimeHandle> {
+    let handle = tokio_crate::runtime::Handle::try_current()
+        .map_err(|e| IoError::new(ErrorKind::Other, e))?;
+    let h = Handle::new(handle);
+    Ok(TokioRustlsRuntimeHandle {
+        inner: CompoundRuntime::new(h.clone(), h.clone(), h, RustlsProvider::default()),
     })
 }
 

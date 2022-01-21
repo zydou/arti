@@ -4,20 +4,42 @@ use crate::{compound::CompoundRuntime, SpawnBlocking};
 
 use crate::impls::async_std::NativeTlsAsyncStd;
 
+#[cfg(feature = "rustls")]
+use crate::impls::rustls::RustlsProvider;
+#[cfg(feature = "rustls")]
+use async_std_crate::net::TcpStream;
+
 use async_executors::AsyncStd;
 
 /// A [`Runtime`](crate::Runtime) powered by `async_std` and `native_tls`.
 #[derive(Clone)]
 pub struct AsyncStdRuntime {
     /// The actual runtime object.
-    inner: Inner,
+    inner: NativeTlsInner,
 }
 
 /// Implementation type for AsyncStdRuntime.
-type Inner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsAsyncStd>;
+type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsAsyncStd>;
 
 crate::opaque::implement_opaque_runtime! {
-    AsyncStdRuntime { inner : Inner }
+    AsyncStdRuntime { inner : NativeTlsInner }
+}
+
+#[cfg(feature = "rustls")]
+/// A [`Runtime`](crate::Runtime) powered by `async_std` and `rustls`.
+#[derive(Clone)]
+pub struct AsyncStdRustlsRuntime {
+    /// The actual runtime object.
+    inner: RustlsInner,
+}
+
+/// Implementation type for AsyncStdRustlsRuntime.
+#[cfg(feature = "rustls")]
+type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider<TcpStream>>;
+
+#[cfg(feature = "rustls")]
+crate::opaque::implement_opaque_runtime! {
+    AsyncStdRustlsRuntime { inner: RustlsInner }
 }
 
 /// Return a new async-std-based [`Runtime`](crate::Runtime).
@@ -25,11 +47,19 @@ crate::opaque::implement_opaque_runtime! {
 /// Generally you should call this function only once, and then use
 /// [`Clone::clone()`] to create additional references to that
 /// runtime.
-
 pub fn create_runtime() -> std::io::Result<AsyncStdRuntime> {
     let rt = create_runtime_impl();
     Ok(AsyncStdRuntime {
         inner: CompoundRuntime::new(rt, rt, rt, NativeTlsAsyncStd::default()),
+    })
+}
+
+/// Return a new [`Runtime`](crate::Runtime) based on `async_std` and `rustls`.
+#[cfg(feature = "rustls")]
+pub fn create_rustls_runtime() -> std::io::Result<AsyncStdRustlsRuntime> {
+    let rt = create_runtime_impl();
+    Ok(AsyncStdRustlsRuntime {
+        inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default()),
     })
 }
 
