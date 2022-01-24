@@ -5,8 +5,6 @@
 //!
 //! We'll probably want to support tokio as well in the future.
 
-use std::convert::TryInto;
-
 /// Types used for networking (async_std implementation)
 mod net {
     use crate::traits;
@@ -113,74 +111,8 @@ mod net {
     }
 }
 
-/// Implement TLS using async_std and async_native_tls.
-mod tls {
-    use async_std_crate::net::TcpStream;
-    use async_trait::async_trait;
-    use futures::io::{AsyncRead, AsyncWrite};
-
-    use std::convert::TryFrom;
-    use std::io::{Error as IoError, Result as IoResult};
-
-    /// The TLS-over-TCP type returned by this module.
-    #[allow(unreachable_pub)] // not actually unreachable; depends on features
-    pub type TlsStream = async_native_tls::TlsStream<TcpStream>;
-
-    /// A connection factory for use with async_std.
-    pub struct TlsConnector {
-        /// The internal connector that we're wrapping with a new API
-        connector: async_native_tls::TlsConnector,
-    }
-
-    impl TryFrom<native_tls::TlsConnectorBuilder> for TlsConnector {
-        type Error = std::convert::Infallible;
-        fn try_from(builder: native_tls::TlsConnectorBuilder) -> Result<TlsConnector, Self::Error> {
-            let connector = builder.into();
-            Ok(TlsConnector { connector })
-        }
-    }
-
-    #[async_trait]
-    impl crate::traits::TlsConnector<TcpStream> for TlsConnector {
-        type Conn = TlsStream;
-
-        async fn negotiate_unvalidated(
-            &self,
-            stream: TcpStream,
-            hostname: &str,
-        ) -> IoResult<Self::Conn> {
-            let conn = self
-                .connector
-                .connect(hostname, stream)
-                .await
-                .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
-            Ok(conn)
-        }
-    }
-
-    impl<S> crate::traits::CertifiedConn for async_native_tls::TlsStream<S>
-    where
-        S: AsyncRead + AsyncWrite + Unpin,
-    {
-        fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-            let cert = self.peer_certificate();
-            match cert {
-                Ok(Some(c)) => {
-                    let der = c
-                        .to_der()
-                        .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
-                    Ok(Some(der))
-                }
-                Ok(None) => Ok(None),
-                Err(e) => Err(IoError::new(std::io::ErrorKind::Other, e)),
-            }
-        }
-    }
-}
-
 // ==============================
 
-use async_std_crate::net::TcpStream;
 use futures::{Future, FutureExt};
 use std::pin::Pin;
 use std::time::Duration;
@@ -202,28 +134,5 @@ impl SleepProvider for async_executors::AsyncStd {
 impl SpawnBlocking for async_executors::AsyncStd {
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         async_executors::AsyncStd::block_on(f)
-    }
-}
-
-/// A TlsProvider that uses native_tls and works with the AsyncStd executor.
-#[derive(Clone, Debug, Default)]
-#[non_exhaustive]
-pub struct NativeTlsAsyncStd {}
-
-impl TlsProvider<TcpStream> for NativeTlsAsyncStd {
-    type TlsStream = tls::TlsStream;
-    type Connector = tls::TlsConnector;
-
-    fn tls_connector(&self) -> tls::TlsConnector {
-        let mut builder = native_tls::TlsConnector::builder();
-        // These function names are scary, but they just mean that we
-        // aren't checking whether the signer of this cert
-        // participates in the web PKI, and we aren't checking the
-        // hostname in the cert.
-        builder
-            .danger_accept_invalid_certs(true)
-            .danger_accept_invalid_hostnames(true);
-
-        builder.try_into().expect("Couldn't build a TLS connector!")
     }
 }

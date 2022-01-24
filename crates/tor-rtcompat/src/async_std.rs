@@ -2,11 +2,10 @@
 pub use crate::impls::async_std::create_runtime as create_runtime_impl;
 use crate::{compound::CompoundRuntime, SpawnBlocking};
 
-use crate::impls::async_std::NativeTlsAsyncStd;
+use crate::impls::native_tls::NativeTlsProvider;
 
 #[cfg(feature = "rustls")]
 use crate::impls::rustls::RustlsProvider;
-#[cfg(feature = "rustls")]
 use async_std_crate::net::TcpStream;
 
 use async_executors::AsyncStd;
@@ -19,7 +18,7 @@ pub struct AsyncStdRuntime {
 }
 
 /// Implementation type for AsyncStdRuntime.
-type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsAsyncStd>;
+type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider<TcpStream>>;
 
 crate::opaque::implement_opaque_runtime! {
     AsyncStdRuntime { inner : NativeTlsInner }
@@ -50,7 +49,7 @@ crate::opaque::implement_opaque_runtime! {
 pub fn create_runtime() -> std::io::Result<AsyncStdRuntime> {
     let rt = create_runtime_impl();
     Ok(AsyncStdRuntime {
-        inner: CompoundRuntime::new(rt, rt, rt, NativeTlsAsyncStd::default()),
+        inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default()),
     })
 }
 

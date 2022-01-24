@@ -10,3 +10,5 @@ pub(crate) mod tokio;
 
 #[cfg(all(feature = "rustls"))]
 pub(crate) mod rustls;
+
+pub(crate) mod native_tls;
