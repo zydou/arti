@@ -741,8 +741,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let timeout_at = self.runtime.now() + wait_for_circ;
         let max_tries = circuit_timing.request_max_retries;
 
-        let mut retry_err =
-            RetryError /* ::<Box<Error>> */::in_attempt_to("find or build a circuit");
+        let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a circuit");
 
         for n in 1..(max_tries + 1) {
             // How much time is remaining?
