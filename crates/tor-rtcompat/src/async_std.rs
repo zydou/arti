@@ -1,9 +1,24 @@
 //! Entry points for use with async_std runtimes.
-pub use crate::impls::async_std::create_runtime as create_async_std_runtime;
-use crate::SpawnBlocking;
+pub use crate::impls::async_std::create_runtime as create_runtime_impl;
+use crate::{compound::CompoundRuntime, SpawnBlocking};
 
-/// A [`Runtime`](crate::Runtime) powered by async-std.
-pub use async_executors::AsyncStd as AsyncStdRuntime;
+use crate::impls::async_std::NativeTlsAsyncStd;
+
+use async_executors::AsyncStd;
+
+/// A [`Runtime`](crate::Runtime) powered by `async_std` and `native_tls`.
+#[derive(Clone)]
+pub struct AsyncStdRuntime {
+    /// The actual runtime object.
+    inner: Inner,
+}
+
+/// Implementation type for AsyncStdRuntime.
+type Inner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsAsyncStd>;
+
+crate::opaque::implement_opaque_runtime! {
+    AsyncStdRuntime { inner : Inner }
+}
 
 /// Return a new async-std-based [`Runtime`](crate::Runtime).
 ///
@@ -12,7 +27,10 @@ pub use async_executors::AsyncStd as AsyncStdRuntime;
 /// runtime.
 
 pub fn create_runtime() -> std::io::Result<AsyncStdRuntime> {
-    Ok(create_async_std_runtime())
+    let rt = create_runtime_impl();
+    Ok(AsyncStdRuntime {
+        inner: CompoundRuntime::new(rt, rt, rt, NativeTlsAsyncStd::default()),
+    })
 }
 
 /// Try to return an instance of the currently running async_std
@@ -28,6 +46,6 @@ where
     P: FnOnce(AsyncStdRuntime) -> F,
     F: futures::Future<Output = O>,
 {
-    let runtime = create_async_std_runtime();
-    runtime.block_on(func(runtime))
+    let runtime = current_runtime().expect("Couldn't get global async_std runtime?");
+    runtime.clone().block_on(func(runtime))
 }

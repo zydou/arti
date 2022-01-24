@@ -440,7 +440,7 @@ mod test {
 
     /// Helper type used to help type inference.
     pub(crate) type OptDummyGuardMgr<'a> =
-        Option<&'a tor_guardmgr::GuardMgr<async_executors::TokioTp>>;
+        Option<&'a tor_guardmgr::GuardMgr<tor_rtcompat::tokio::TokioRuntime>>;
 
     #[test]
     fn get_params() {

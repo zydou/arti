@@ -219,6 +219,29 @@ mod tls {
 
 // ==============================
 
+/// A TlsProvider that uses native_tls and works with the Tokio executor.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct NativeTlsTokio {}
+
+impl TlsProvider<net::TcpStream> for NativeTlsTokio {
+    type TlsStream = tls::TlsStream;
+    type Connector = tls::TlsConnector;
+
+    fn tls_connector(&self) -> tls::TlsConnector {
+        let mut builder = native_tls::TlsConnector::builder();
+        // These function names are scary, but they just mean that we
+        // aren't checking whether the signer of this cert
+        // participates in the web PKI, and we aren't checking the
+        // hostname in the cert.
+        builder
+            .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true);
+
+        builder.try_into().expect("Couldn't build a TLS connector!")
+    }
+}
+
 use crate::traits::*;
 use async_trait::async_trait;
 use futures::Future;
@@ -234,24 +257,6 @@ macro_rules! implement_traits_for {
             type SleepFuture = tokio_crate::time::Sleep;
             fn sleep(&self, duration: Duration) -> Self::SleepFuture {
                 tokio_crate::time::sleep(duration)
-            }
-        }
-
-        impl TlsProvider<net::TcpStream> for $runtime {
-            type TlsStream = tls::TlsStream;
-            type Connector = tls::TlsConnector;
-
-            fn tls_connector(&self) -> tls::TlsConnector {
-                let mut builder = native_tls::TlsConnector::builder();
-                // These function names are scary, but they just mean that we
-                // aren't checking whether the signer of this cert
-                // participates in the web PKI, and we aren't checking the
-                // hostname in the cert.
-                builder
-                    .danger_accept_invalid_certs(true)
-                    .danger_accept_invalid_hostnames(true);
-
-                builder.try_into().expect("Couldn't build a TLS connector!")
             }
         }
 
@@ -273,7 +278,7 @@ macro_rules! implement_traits_for {
 }
 
 /// Create and return a new Tokio multithreaded runtime.
-pub fn create_runtime() -> IoResult<async_executors::TokioTp> {
+pub(crate) fn create_runtime() -> IoResult<async_executors::TokioTp> {
     let mut builder = async_executors::TokioTpBuilder::new();
     builder.tokio_builder().enable_all();
     builder.build()
@@ -281,11 +286,16 @@ pub fn create_runtime() -> IoResult<async_executors::TokioTp> {
 
 /// Wrapper around a Handle to a tokio runtime.
 ///
+/// Ideally, this type would go away, and we would just use
+/// `tokio::runtime::Handle` directly.  Unfortunately, we can't implement
+/// `futures::Spawn` on it ourselves because of Rust's orphan rules, so we need
+/// to define a new type here.
+///
 /// # Limitations
 ///
-/// Note that Arti requires that the runtime should have working
-/// implementations for Tokio's time, net, and io facilities, but we have
-/// no good way to check that when creating this object.
+/// Note that Arti requires that the runtime should have working implementations
+/// for Tokio's time, net, and io facilities, but we have no good way to check
+/// that when creating this object.
 #[derive(Clone, Debug)]
 pub struct TokioRuntimeHandle {
     /// The underlying Handle.
@@ -300,7 +310,7 @@ impl TokioRuntimeHandle {
     /// Note that Arti requires that the runtime should have working
     /// implementations for Tokio's time, net, and io facilities, but we have
     /// no good way to check that when creating this object.
-    pub fn new(handle: tokio_crate::runtime::Handle) -> Self {
+    pub(crate) fn new(handle: tokio_crate::runtime::Handle) -> Self {
         handle.into()
     }
 }

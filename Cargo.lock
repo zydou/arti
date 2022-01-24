@@ -2679,7 +2679,6 @@ name = "tor-circmgr"
 version = "0.0.3"
 dependencies = [
  "async-trait",
- "async_executors",
  "bounded-vec-deque",
  "derive_builder",
  "futures",

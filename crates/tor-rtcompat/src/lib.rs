@@ -61,8 +61,8 @@
 //!     using for anything besides Arti, you can use [`create_runtime()`].
 //!
 //!   * If you want to explicitly construct a runtime with a specific
-//!     backend, you can do so with [`async_std::create_async_std_runtime`] or
-//!     [`tokio::create_tokio_runtime`].  Or if you have already constructed a
+//!     backend, you can do so with [`async_std::create_runtime`] or
+//!     [`tokio::create_runtime`].  Or if you have already constructed a
 //!     tokio runtime that you want to use, you can wrap it as a
 //!     [`Runtime`] explicitly with [`tokio::TokioRuntimeHandle`].
 //!
@@ -143,6 +143,8 @@
 pub(crate) mod impls;
 pub mod task;
 
+mod compound;
+mod opaque;
 mod timer;
 mod traits;
 
@@ -166,6 +168,8 @@ pub mod tokio;
 
 #[cfg(feature = "async-std")]
 pub mod async_std;
+
+pub use compound::CompoundRuntime;
 
 /// Try to return an instance of the currently running [`Runtime`].
 ///
@@ -204,7 +208,7 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 ///
 /// Tokio users may want to avoid this function and instead make a
 /// runtime using [`current_user_runtime()`] or
-/// [`tokio::TokioRuntimeHandle::new()`]: this function always _builds_ a
+/// [`tokio::current_runtime()`]: this function always _builds_ a
 /// runtime, and if you already have a runtime, that isn't what you
 /// want with Tokio.
 ///
