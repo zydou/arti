@@ -75,6 +75,9 @@ SOCKS proxy on port 9150.
 Again, do not use this program yet if you seriously need anonymity, privacy,
 security, or stability.
 
+If you run into any trouble building the program, please have a
+look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
+
 ## Minimum supported Rust Version
 
 Our current Minimum Supported Rust Version (MSRV) is 1.53.
@@ -143,6 +146,14 @@ get our project manager to sign off on them.
  * Arti 2.0.0: Feature parity with C tor as a client (not funded, timeframe TBD)
 
  * Arti ?.?.?: Relay support
+
+## <a name="reporting-bugs"></a> How can I report bugs?
+
+When you find bugs, please report them
+[on our bugtracker](https://gitlab.torproject.org/tpo/core/arti/). If you
+don't already have an account there, you can either
+[request an account](https://gitlab.onionize.space/) or
+[report a bug anonymously](https://anonticket.onionize.space/).
 
 ## How can I help out?
 
