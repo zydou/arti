@@ -188,7 +188,9 @@ pub use tor_circmgr::IsolationToken;
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
-pub use err::Error;
+pub use err::{Error, TorError};
 
-/// Alias for the [`Result`] type used by the `arti_client` crate.
+/// Alias for the [`Result`] type used within the `arti_client` crate.
 pub type Result<T> = std::result::Result<T, Error>;
+/// Alias for the [`Result`] type corredponding to the high-level `TorError`
+pub type TorResult<T> = std::result::Result<T, TorError>;

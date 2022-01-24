@@ -19,10 +19,11 @@ use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use crate::{status, Error, Result};
+use crate::{status, Error, Result, TorResult};
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
 #[cfg(feature = "tokio")]
@@ -259,7 +260,7 @@ impl TorClient<PreferredTokioRuntime> {
     /// Panics if called outside of the context of a Tokio runtime.
     pub async fn bootstrap_with_tokio(
         config: TorClientConfig,
-    ) -> Result<TorClient<PreferredTokioRuntime>> {
+    ) -> TorResult<TorClient<PreferredTokioRuntime>> {
         let rt = PreferredTokioRuntime::current().expect("called outside of Tokio runtime");
         Self::bootstrap(rt, config).await
     }
@@ -275,7 +276,7 @@ impl TorClient<PreferredAsyncStdRuntime> {
     /// This is a convenience wrapper around [`TorClient::bootstrap`].
     pub async fn bootstrap_with_async_std(
         config: TorClientConfig,
-    ) -> Result<TorClient<PreferredAsyncStdRuntime>> {
+    ) -> TorResult<TorClient<PreferredAsyncStdRuntime>> {
         // FIXME(eta): not actually possible for this to fail
         let rt = PreferredAsyncStdRuntime::current().expect("failed to get async-std runtime");
         Self::bootstrap(rt, config).await
@@ -288,7 +289,20 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
-    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> Result<TorClient<R>> {
+    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> TorResult<TorClient<R>> {
+        TorClient::bootstrap_inner(runtime, config)
+            .await
+            .map_err(Error::into)
+    }
+
+    /// Implementation; throws crate::Error
+    ///
+    /// Within inner we can take advantage of the `Into` impls for `crate::Error`;
+    /// splitting this out avoids having to manually specify the double error conversion.
+    async fn bootstrap_inner(
+        runtime: R,
+        config: TorClientConfig,
+    ) -> StdResult<TorClient<R>, Error> {
         let circ_cfg = config.get_circmgr_config()?;
         let dir_cfg = config.get_dirmgr_config()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;

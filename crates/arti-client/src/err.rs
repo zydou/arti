@@ -1,11 +1,26 @@
 //! Declare tor client specific errors.
 
+use std::fmt::{self, Display};
 use std::sync::Arc;
 
 use futures::task::SpawnError;
+
 use thiserror::Error;
-use tor_error::ErrorKind;
+use tor_error::{ErrorKind, HasKind};
 use tor_rtcompat::TimeoutError;
+
+/// Main high-level error type for the Arti Tor client
+///
+/// If you need to handle different errors differently,
+/// use the [`kind`](`tor_error::HasKind::kind`) trait method
+/// to check what kind of error it is,
+#[derive(Error, Debug)]
+// TODO #[derive(Clone)] // we need to make everything inside Clone first
+pub struct TorError {
+    /// The actual error
+    #[from]
+    detail: Error,
+}
 
 /// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Debug)]
@@ -62,6 +77,18 @@ pub enum Error {
     /// Unable to spawn task
     #[error("unable to spawn task")]
     Spawn(#[from] Arc<SpawnError>),
+}
+
+impl Display for TorError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "tor: {}: {}", self.detail.kind(), &self.detail)
+    }
+}
+
+impl tor_error::HasKind for TorError {
+    fn kind(&self) -> ErrorKind {
+        self.detail.kind()
+    }
 }
 
 impl From<TimeoutError> for Error {
