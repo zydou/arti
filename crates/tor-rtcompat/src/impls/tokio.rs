@@ -124,33 +124,26 @@ use futures::Future;
 use std::io::Result as IoResult;
 use std::time::Duration;
 
-/// Helper: Declare that a given tokio runtime object implements the
-/// prerequisites for Runtime.
-// TODO: Maybe we can do this more simply with a simpler trait?
-macro_rules! implement_traits_for {
-    ($runtime:ty) => {
-        impl SleepProvider for $runtime {
-            type SleepFuture = tokio_crate::time::Sleep;
-            fn sleep(&self, duration: Duration) -> Self::SleepFuture {
-                tokio_crate::time::sleep(duration)
-            }
-        }
+impl SleepProvider for TokioRuntimeHandle {
+    type SleepFuture = tokio_crate::time::Sleep;
+    fn sleep(&self, duration: Duration) -> Self::SleepFuture {
+        tokio_crate::time::sleep(duration)
+    }
+}
 
-        #[async_trait]
-        impl crate::traits::TcpProvider for $runtime {
-            type TcpStream = net::TcpStream;
-            type TcpListener = net::TcpListener;
+#[async_trait]
+impl crate::traits::TcpProvider for TokioRuntimeHandle {
+    type TcpStream = net::TcpStream;
+    type TcpListener = net::TcpListener;
 
-            async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
-                let s = net::TokioTcpStream::connect(addr).await?;
-                Ok(s.into())
-            }
-            async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
-                let lis = net::TokioTcpListener::bind(*addr).await?;
-                Ok(net::TcpListener { lis })
-            }
-        }
-    };
+    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
+        let s = net::TokioTcpStream::connect(addr).await?;
+        Ok(s.into())
+    }
+    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
+        let lis = net::TokioTcpListener::bind(*addr).await?;
+        Ok(net::TcpListener { lis })
+    }
 }
 
 /// Create and return a new Tokio multithreaded runtime.
@@ -238,5 +231,3 @@ impl futures::task::Spawn for TokioRuntimeHandle {
         Ok(())
     }
 }
-
-implement_traits_for! {TokioRuntimeHandle}
