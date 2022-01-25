@@ -103,13 +103,3 @@ impl<S> Default for NativeTlsProvider<S> {
         Self::new()
     }
 }
-
-// We have to provide this ourselves, since derive(Clone) wrongly infers a
-// `where S: Clone` bound (from the generic argument).
-impl<S> Clone for NativeTlsProvider<S> {
-    fn clone(&self) -> Self {
-        Self {
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}

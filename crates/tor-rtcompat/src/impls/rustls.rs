@@ -100,28 +100,6 @@ impl<S> Default for RustlsProvider<S> {
     }
 }
 
-// We have to provide this ourselves, since derive(Clone) wrongly infers a
-// `where S: Clone` bound (from the generic argument).
-impl<S> Clone for RustlsProvider<S> {
-    fn clone(&self) -> Self {
-        Self {
-            config: Arc::clone(&self.config),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-// We have to provide this ourselves, since derive(Clone) wrongly infers a
-// `where S: Clone` bound (from the generic argument).
-impl<S> Clone for RustlsConnector<S> {
-    fn clone(&self) -> Self {
-        Self {
-            connector: self.connector.clone(),
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
 /// A [`rustls::ServerCertVerifier`] based on the [`x509_signature`] crate.
 ///
 /// This verifier is necessary since Tor relays doesn't participate in the web
