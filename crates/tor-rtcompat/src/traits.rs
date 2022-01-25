@@ -172,10 +172,29 @@ pub trait CertifiedConn {
 /// An object that knows how to wrap a TCP connection (where the type of said TCP
 /// connection is `S`) with TLS.
 ///
-/// (Note that because of Tor's peculiarities, this is not a
+/// # Usage notes
+///
+/// Note that because of Tor's peculiarities, this is not a
 /// general-purpose TLS type.  Unlike typical users, Tor does not want
-/// its TLS library to check whether the certificates are signed
-/// within the web PKI hierarchy, or what their hostnames are.
+/// its TLS library to check whether the certificates used in TLS are signed
+/// within the web PKI hierarchy, or what their hostnames are, or even whether
+/// they are valid.  It *does*, however, check that the subject public key in the
+/// certificate is indeed correctly used to authenticate the TLS handshake.
+///
+/// If you are implementing something other than Tor, this is **not** the
+/// functionality you want.
+///
+/// How can this behavior be remotely safe, even in Tor?  It only works for Tor
+/// because the certificate that a Tor relay uses in TLS is not actually being
+/// used to certify that relay's public key.  Instead, the certificate only used
+/// as a container for the relay's public key.  The real certification happens
+/// later, inside the TLS session, when the relay presents a CERTS cell.
+///
+/// Such sneakiness was especially necessary before TLS 1.3, which encrypts more
+/// of the handshake, and before pluggable transports, which make
+/// "innocuous-looking TLS handshakes" less important than they once were.  Once
+/// TLS 1.3 is completely ubiquitous, we might be able to specify a simpler link
+/// handshake than Tor uses now.
 #[async_trait]
 pub trait TlsConnector<S> {
     /// The type of connection returned by this connector
@@ -183,9 +202,11 @@ pub trait TlsConnector<S> {
 
     /// Start a TLS session over the provided TCP stream `stream`.
     ///
-    /// Declare `sni_hostname` as the desired hostname, but don't
-    /// actually check whether the hostname in the certificate matches
-    /// it.
+    /// Declare `sni_hostname` as the desired hostname, but don't actually check
+    /// whether the hostname in the certificate matches it.  The connector may
+    /// send `sni_hostname` as part of its handshake, if it supports
+    /// [SNI](https://en.wikipedia.org/wiki/Server_Name_Indication) or one of
+    /// the TLS 1.3 equivalents.
     async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn>;
 }
 
@@ -195,6 +216,10 @@ pub trait TlsConnector<S> {
 /// This is separate from [`TlsConnector`] because eventually we may
 /// eventually want to support multiple `TlsConnector` implementations
 /// that use a single [`Runtime`].
+///
+/// See the [`TlsConnector`] documentation for a discussion of the Tor-specific
+/// limitations of this trait: If you are implementing something other than Tor,
+/// this is **not** the functionality you want.
 pub trait TlsProvider<S> {
     /// The Connector object that this provider can return.
     type Connector: TlsConnector<S, Conn = Self::TlsStream> + Send + Sync + Unpin;

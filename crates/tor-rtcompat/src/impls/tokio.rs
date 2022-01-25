@@ -3,10 +3,8 @@
 //! This crate helps define a slim API around our async runtime so that we
 //! can easily swap it out.
 
-use std::convert::TryInto;
-
 /// Types used for networking (tokio implementation)
-mod net {
+pub(crate) mod net {
     use crate::traits;
     use async_trait::async_trait;
 
@@ -118,129 +116,7 @@ mod net {
     }
 }
 
-/// Implement a set of TLS wrappers for use with tokio.
-///
-/// Right now only tokio_native_tls is supported.
-mod tls {
-    use async_trait::async_trait;
-    use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
-
-    use futures::io::{AsyncRead, AsyncWrite};
-
-    use crate::impls::tokio::net::TcpStream;
-    use std::convert::TryFrom;
-    use std::io::{Error as IoError, Result as IoResult};
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
-
-    /// Connection factory for building tls connections with tokio and
-    /// native_tls.
-    pub struct TlsConnector {
-        /// The inner connector object
-        connector: tokio_native_tls::TlsConnector,
-    }
-
-    impl TryFrom<native_tls::TlsConnectorBuilder> for TlsConnector {
-        type Error = native_tls::Error;
-        fn try_from(builder: native_tls::TlsConnectorBuilder) -> native_tls::Result<TlsConnector> {
-            let connector = builder.build()?.into();
-            Ok(TlsConnector { connector })
-        }
-    }
-
-    /// A TLS-over-TCP stream, using Tokio.
-    pub struct TlsStream {
-        /// The inner stream object.
-        s: Compat<tokio_native_tls::TlsStream<tokio_crate::net::TcpStream>>,
-    }
-
-    #[async_trait]
-    impl crate::traits::TlsConnector<TcpStream> for TlsConnector {
-        type Conn = TlsStream;
-
-        async fn negotiate_unvalidated(
-            &self,
-            stream: TcpStream,
-            hostname: &str,
-        ) -> IoResult<Self::Conn> {
-            let stream = stream.into_inner();
-            let conn = self
-                .connector
-                .connect(hostname, stream)
-                .await
-                .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
-            let conn = conn.compat();
-            Ok(TlsStream { s: conn })
-        }
-    }
-
-    impl AsyncRead for TlsStream {
-        fn poll_read(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<IoResult<usize>> {
-            Pin::new(&mut self.s).poll_read(cx, buf)
-        }
-    }
-
-    impl AsyncWrite for TlsStream {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<IoResult<usize>> {
-            Pin::new(&mut self.s).poll_write(cx, buf)
-        }
-        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-            Pin::new(&mut self.s).poll_flush(cx)
-        }
-        fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-            Pin::new(&mut self.s).poll_close(cx)
-        }
-    }
-
-    impl crate::traits::CertifiedConn for TlsStream {
-        fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
-            let cert = self.s.get_ref().get_ref().peer_certificate();
-            match cert {
-                Ok(Some(c)) => {
-                    let der = c
-                        .to_der()
-                        .map_err(|e| IoError::new(std::io::ErrorKind::Other, e))?;
-                    Ok(Some(der))
-                }
-                Ok(None) => Ok(None),
-                Err(e) => Err(IoError::new(std::io::ErrorKind::Other, e)),
-            }
-        }
-    }
-}
-
 // ==============================
-
-/// A TlsProvider that uses native_tls and works with the Tokio executor.
-#[derive(Clone, Debug, Default)]
-#[non_exhaustive]
-pub struct NativeTlsTokio {}
-
-impl TlsProvider<net::TcpStream> for NativeTlsTokio {
-    type TlsStream = tls::TlsStream;
-    type Connector = tls::TlsConnector;
-
-    fn tls_connector(&self) -> tls::TlsConnector {
-        let mut builder = native_tls::TlsConnector::builder();
-        // These function names are scary, but they just mean that we
-        // aren't checking whether the signer of this cert
-        // participates in the web PKI, and we aren't checking the
-        // hostname in the cert.
-        builder
-            .danger_accept_invalid_certs(true)
-            .danger_accept_invalid_hostnames(true);
-
-        builder.try_into().expect("Couldn't build a TLS connector!")
-    }
-}
 
 use crate::traits::*;
 use async_trait::async_trait;
