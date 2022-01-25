@@ -233,6 +233,9 @@ fn convert_scheme(
     use rustls::internal::msgs::enums::SignatureScheme as R;
     use x509_signature::SignatureScheme as X;
 
+    // Yes, we do allow PKCS1 here.  That's fine in practice when PKCS1 is only
+    // used (as in TLS 1.2) for signatures; the attacks against correctly
+    // implemented PKCS1 make sense only when it's used for encryption.
     Ok(match scheme {
         R::RSA_PKCS1_SHA256 => X::RSA_PKCS1_SHA256,
         R::ECDSA_NISTP256_SHA256 => X::ECDSA_NISTP256_SHA256,
