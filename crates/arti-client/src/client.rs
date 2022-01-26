@@ -24,9 +24,9 @@ use std::time::Duration;
 
 use crate::{status, Error, Result};
 #[cfg(feature = "async-std")]
-use tor_rtcompat::async_std::AsyncStdRuntime;
+use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime;
 #[cfg(feature = "tokio")]
-use tor_rtcompat::tokio::TokioRuntime;
+use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tracing::{debug, error, info, warn};
 
 /// An active client session on the Tor network.
@@ -246,7 +246,7 @@ impl StreamPrefs {
 }
 
 #[cfg(feature = "tokio")]
-impl TorClient<TokioRuntime> {
+impl TorClient<TokioNativeTlsRuntime> {
     /// Bootstrap a connection to the Tor network, using the current Tokio runtime.
     ///
     /// Returns a client once there is enough directory material to
@@ -257,14 +257,16 @@ impl TorClient<TokioRuntime> {
     /// # Panics
     ///
     /// Panics if called outside of the context of a Tokio runtime.
-    pub async fn bootstrap_with_tokio(config: TorClientConfig) -> Result<TorClient<TokioRuntime>> {
+    pub async fn bootstrap_with_tokio(
+        config: TorClientConfig,
+    ) -> Result<TorClient<TokioNativeTlsRuntime>> {
         let rt = tor_rtcompat::tokio::current_runtime().expect("called outside of Tokio runtime");
         Self::bootstrap(rt, config).await
     }
 }
 
 #[cfg(feature = "async-std")]
-impl TorClient<AsyncStdRuntime> {
+impl TorClient<AsyncStdNativeTlsRuntime> {
     /// Bootstrap a connection to the Tor network, using the current async-std runtime.
     ///
     /// Returns a client once there is enough directory material to
@@ -273,7 +275,7 @@ impl TorClient<AsyncStdRuntime> {
     /// This is a convenience wrapper around [`TorClient::bootstrap`].
     pub async fn bootstrap_with_async_std(
         config: TorClientConfig,
-    ) -> Result<TorClient<AsyncStdRuntime>> {
+    ) -> Result<TorClient<AsyncStdNativeTlsRuntime>> {
         // FIXME(eta): not actually possible for this to fail
         let rt =
             tor_rtcompat::async_std::current_runtime().expect("failed to get async-std runtime");

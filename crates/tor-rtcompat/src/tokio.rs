@@ -17,7 +17,7 @@ use crate::impls::tokio::net::TcpStream;
 /// implementations for Tokio's time, net, and io facilities, but we have
 /// no good way to check that when creating this object.
 #[derive(Clone)]
-pub struct TokioRuntime {
+pub struct TokioNativeTlsRuntime {
     /// The actual [`CompoundRuntime`] that implements this.
     inner: HandleInner,
 }
@@ -38,7 +38,7 @@ pub struct TokioRustlsRuntime {
 type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider<TcpStream>>;
 
 crate::opaque::implement_opaque_runtime! {
-    TokioRuntime { inner : HandleInner }
+    TokioNativeTlsRuntime { inner : HandleInner }
 }
 
 #[cfg(feature = "rustls")]
@@ -46,10 +46,10 @@ crate::opaque::implement_opaque_runtime! {
     TokioRustlsRuntime { inner : RustlsHandleInner }
 }
 
-impl From<tokio_crate::runtime::Handle> for TokioRuntime {
+impl From<tokio_crate::runtime::Handle> for TokioNativeTlsRuntime {
     fn from(h: tokio_crate::runtime::Handle) -> Self {
         let h = Handle::new(h);
-        TokioRuntime {
+        TokioNativeTlsRuntime {
             inner: CompoundRuntime::new(h.clone(), h.clone(), h, NativeTlsProvider::default()),
         }
     }
@@ -66,8 +66,8 @@ impl From<tokio_crate::runtime::Handle> for TokioRustlsRuntime {
 }
 
 /// Create and return a new Tokio multithreaded runtime.
-fn create_tokio_runtime() -> IoResult<TokioRuntime> {
-    crate::impls::tokio::create_runtime().map(|r| TokioRuntime {
+fn create_tokio_runtime() -> IoResult<TokioNativeTlsRuntime> {
+    crate::impls::tokio::create_runtime().map(|r| TokioNativeTlsRuntime {
         inner: CompoundRuntime::new(r.clone(), r.clone(), r, NativeTlsProvider::default()),
     })
 }
@@ -121,7 +121,7 @@ pub fn create_rustls_runtime() -> std::io::Result<impl Runtime> {
 ///
 /// Once you have a runtime returned by this function, you should
 /// just create more handles to it via [`Clone`].
-pub fn current_runtime() -> std::io::Result<TokioRuntime> {
+pub fn current_runtime() -> std::io::Result<TokioNativeTlsRuntime> {
     Ok(current_handle()?.into())
 }
 
@@ -144,7 +144,7 @@ fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
 /// Panics if we can't create a tokio runtime.
 pub fn test_with_runtime<P, F, O>(func: P) -> O
 where
-    P: FnOnce(TokioRuntime) -> F,
+    P: FnOnce(TokioNativeTlsRuntime) -> F,
     F: futures::Future<Output = O>,
 {
     let runtime = create_tokio_runtime().expect("Failed to create a tokio runtime");
