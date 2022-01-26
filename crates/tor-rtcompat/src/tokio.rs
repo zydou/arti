@@ -24,7 +24,7 @@ pub use TokioNativeTlsRuntime as PreferredRuntime;
 #[cfg(all(feature = "rustls", not(feature = "native-tls")))]
 pub use TokioRustlsRuntime as PreferredRuntime;
 
-/// A [`Runtime`] built around a Handle to a tokio runtime, and `native_tls`.
+/// A [`Runtime`](crate::Runtime) built around a Handle to a tokio runtime, and `native_tls`.
 ///
 /// # Limitations
 ///
@@ -42,7 +42,7 @@ pub struct TokioNativeTlsRuntime {
 #[cfg(feature = "native-tls")]
 type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider<TcpStream>>;
 
-/// A [`Runtime`] built around a Handle to a tokio runtime, and `rustls`.
+/// A [`Runtime`](crate::Runtime) built around a Handle to a tokio runtime, and `rustls`.
 #[derive(Clone)]
 #[cfg(feature = "rustls")]
 pub struct TokioRustlsRuntime {
@@ -107,7 +107,7 @@ impl TokioNativeTlsRuntime {
     /// We should never call this from inside other Arti crates, or from library
     /// crates that want to support multiple runtimes!  This function is for
     /// Arti _users_ who want to wrap some existing Tokio runtime as a
-    /// [`Runtime`].  It is not for library crates that want to work with
+    /// [`Runtime`](crate::Runtime).  It is not for library crates that want to work with
     /// multiple runtimes.
     ///
     /// Once you have a runtime returned by this function, you should just
@@ -154,7 +154,7 @@ impl TokioRustlsRuntime {
     /// We should never call this from inside other Arti crates, or from library
     /// crates that want to support multiple runtimes!  This function is for
     /// Arti _users_ who want to wrap some existing Tokio runtime as a
-    /// [`Runtime`].  It is not for library crates that want to work with
+    /// [`Runtime`](crate::Runtime).  It is not for library crates that want to work with
     /// multiple runtimes.
     ///
     /// Once you have a runtime returned by this function, you should just

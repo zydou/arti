@@ -60,11 +60,13 @@
 //!   * If you want to construct a default runtime that you won't be
 //!     using for anything besides Arti, you can use [`create_runtime()`].
 //!
-//!   * If you want to explicitly construct a runtime with a specific
-//!     backend, you can do so with [`async_std::create_runtime`] or
-//!     [`tokio::create_runtime`].  Or if you have already constructed a
+//!   * If you want to use a runtime with an explicitly chosen backend,
+//!     name its type directly as [`async_std::AsyncStdNativeTlsRuntime`],
+//!     [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
+//!     or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
+//!     call its `create()` method.  Or if you have already constructed a
 //!     tokio runtime that you want to use, you can wrap it as a
-//!     [`Runtime`] explicitly with [`tokio::TokioRuntimeHandle`].
+//!     [`Runtime`] explicitly with `current()`.
 //!
 //! # Cargo features
 //!
@@ -234,7 +236,7 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 ///
 /// Tokio users may want to avoid this function and instead make a
 /// runtime using [`current_user_runtime()`] or
-/// [`tokio::current_runtime()`]: this function always _builds_ a
+/// [`tokio::PreferredRuntime::current()`]: this function always _builds_ a
 /// runtime, and if you already have a runtime, that isn't what you
 /// want with Tokio.
 ///
