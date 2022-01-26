@@ -140,6 +140,10 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub(crate) mod impls;
 pub mod task;
 
@@ -148,7 +152,11 @@ mod opaque;
 mod timer;
 mod traits;
 
-#[cfg(all(test, any(feature = "tokio", feature = "async-std")))]
+#[cfg(all(
+    test,
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 mod test;
 
 pub use traits::{
@@ -163,17 +171,21 @@ pub mod tls {
     pub use crate::traits::{CertifiedConn, TlsConnector};
 }
 
-#[cfg(feature = "tokio")]
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "tokio"))]
 pub mod tokio;
 
-#[cfg(feature = "async-std")]
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "async-std"))]
 pub mod async_std;
 
 pub use compound::CompoundRuntime;
 
-#[cfg(all(feature = "async_std", not(feature = "tokio")))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    feature = "async-std",
+    not(feature = "tokio")
+))]
 use async_std as preferred_backend_mod;
-#[cfg(feature = "tokio")]
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "tokio"))]
 use tokio as preferred_backend_mod;
 
 /// The runtime that we prefer to use, out of all the runtimes compiled into the
@@ -183,7 +195,10 @@ use tokio as preferred_backend_mod;
 /// performance.
 /// If `native_tls` and `rustls` are both available, we prefer `native_tls` since
 /// it has been used in Arti for longer.
-#[cfg(any(feature = "tokio", feature = "async-std"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub use preferred_backend_mod::PreferredRuntime;
 
 /// Try to return an instance of the currently running [`Runtime`].
@@ -203,7 +218,10 @@ pub use preferred_backend_mod::PreferredRuntime;
 ///
 /// Once you have a runtime returned by this function, you should
 /// just create more handles to it via [`Clone`].
-#[cfg(any(feature = "async-std", feature = "tokio"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
     PreferredRuntime::current()
 }
@@ -222,7 +240,10 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 ///
 /// If you need more fine-grained control over a runtime, you can
 /// create it using an appropriate builder type or function.
-#[cfg(any(feature = "async-std", feature = "tokio"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub fn create_runtime() -> std::io::Result<impl Runtime> {
     PreferredRuntime::create()
 }
@@ -249,7 +270,11 @@ pub mod testing__ {
 /// (This is a macro so that it can repeat the closure as two separate
 /// expressions, so it can take on two different types, if needed.)
 #[macro_export]
-#[cfg(all(feature = "tokio", feature = "async-std"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    feature = "tokio",
+    feature = "async-std"
+))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
         use $crate::testing__::TestOutcome;
@@ -260,7 +285,11 @@ macro_rules! test_with_all_runtimes {
 
 /// Run a test closure, passing as argument every supported runtime.
 #[macro_export]
-#[cfg(all(feature = "tokio", not(feature = "async-std")))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    feature = "tokio",
+    not(feature = "async-std")
+))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
         $crate::tokio::test_with_runtime($fn)
@@ -269,7 +298,11 @@ macro_rules! test_with_all_runtimes {
 
 /// Run a test closure, passing as argument every supported runtime.
 #[macro_export]
-#[cfg(all(not(feature = "tokio"), feature = "async-std"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    not(feature = "tokio"),
+    feature = "async-std"
+))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
         $crate::async_std::test_with_runtime($fn)
@@ -291,7 +324,11 @@ macro_rules! test_with_one_runtime {
 ///
 /// (Always prefers tokio if present.)
 #[macro_export]
-#[cfg(all(not(feature = "tokio"), feature = "async-std"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    not(feature = "tokio"),
+    feature = "async-std"
+))]
 macro_rules! test_with_one_runtime {
     ( $fn:expr ) => {{
         $crate::async_std::test_with_runtime($fn)

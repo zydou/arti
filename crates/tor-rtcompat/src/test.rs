@@ -6,6 +6,7 @@ use crate::traits::*;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use futures::stream::StreamExt;
+use native_tls_crate as native_tls;
 use std::io::Result as IoResult;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::{Duration, Instant, SystemTime};
@@ -244,7 +245,7 @@ macro_rules! runtime_tests {
 
 macro_rules! tls_runtime_tests {
     { $($id:ident),* $(,)? } => {
-        #[cfg(feature="tokio")]
+        #[cfg(all(feature="tokio", feature = "native-tls"))]
         mod tokio_native_tls_tests {
             use std::io::Result as IoResult;
             $(
@@ -254,7 +255,7 @@ macro_rules! tls_runtime_tests {
                 }
             )*
         }
-        #[cfg(feature="async-std")]
+        #[cfg(all(feature="async-std", feature = "native-tls"))]
         mod async_std_native_tls_tests {
             use std::io::Result as IoResult;
             $(

@@ -1,10 +1,11 @@
 //! Entry points for use with Tokio runtimes.
-use crate::impls::native_tls::NativeTlsProvider;
 use crate::impls::tokio::TokioRuntimeHandle as Handle;
 
 use crate::{CompoundRuntime, SpawnBlocking};
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 
+#[cfg(feature = "native-tls")]
+use crate::impls::native_tls::NativeTlsProvider;
 #[cfg(feature = "rustls")]
 use crate::impls::rustls::RustlsProvider;
 use crate::impls::tokio::net::TcpStream;
@@ -18,7 +19,10 @@ use crate::impls::tokio::net::TcpStream;
 /// Currently, `native_tls` is preferred over `rustls` when both are available,
 /// because of its maturity within Arti.  However, this might change in the
 /// future.
+#[cfg(feature = "native-tls")]
 pub use TokioNativeTlsRuntime as PreferredRuntime;
+#[cfg(all(feature = "rustls", not(feature = "native-tls")))]
+pub use TokioRustlsRuntime as PreferredRuntime;
 
 /// A [`Runtime`] built around a Handle to a tokio runtime, and `native_tls`.
 ///
@@ -28,12 +32,14 @@ pub use TokioNativeTlsRuntime as PreferredRuntime;
 /// implementations for Tokio's time, net, and io facilities, but we have
 /// no good way to check that when creating this object.
 #[derive(Clone)]
+#[cfg(feature = "native-tls")]
 pub struct TokioNativeTlsRuntime {
     /// The actual [`CompoundRuntime`] that implements this.
     inner: HandleInner,
 }
 
 /// Implementation type for a TokioRuntimeHandle.
+#[cfg(feature = "native-tls")]
 type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider<TcpStream>>;
 
 /// A [`Runtime`] built around a Handle to a tokio runtime, and `rustls`.
@@ -48,6 +54,7 @@ pub struct TokioRustlsRuntime {
 #[cfg(feature = "rustls")]
 type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider<TcpStream>>;
 
+#[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
     TokioNativeTlsRuntime { inner : HandleInner }
 }
@@ -57,6 +64,7 @@ crate::opaque::implement_opaque_runtime! {
     TokioRustlsRuntime { inner : RustlsHandleInner }
 }
 
+#[cfg(feature = "native-tls")]
 impl From<tokio_crate::runtime::Handle> for TokioNativeTlsRuntime {
     fn from(h: tokio_crate::runtime::Handle) -> Self {
         let h = Handle::new(h);
@@ -76,6 +84,7 @@ impl From<tokio_crate::runtime::Handle> for TokioRustlsRuntime {
     }
 }
 
+#[cfg(feature = "native-tls")]
 impl TokioNativeTlsRuntime {
     /// Create a new [`TokioNativeTlsRuntime`].
     ///
@@ -142,6 +151,7 @@ impl TokioRustlsRuntime {
 }
 
 /// As `Handle::try_current()`, but return an IoError on failure.
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
 fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
     tokio_crate::runtime::Handle::try_current().map_err(|e| IoError::new(ErrorKind::Other, e))
 }
@@ -151,6 +161,7 @@ fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
 /// # Panics
 ///
 /// Panics if we can't create a tokio runtime.
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
 pub fn test_with_runtime<P, F, O>(func: P) -> O
 where
     P: FnOnce(PreferredRuntime) -> F,

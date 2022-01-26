@@ -50,4 +50,4 @@ tor-guardmgr = { path="../tor-guardmgr", version = "0.0.3", features=["testing"]
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
 tor-netdir = { path="../tor-netdir", version = "0.0.3", features=["testing"] }
 tor-persist = { path="../tor-persist", version = "0.0.3", features=["testing"] }
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio"] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio", "native-tls" ] }

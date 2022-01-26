@@ -3,8 +3,8 @@ pub use crate::impls::async_std::create_runtime as create_runtime_impl;
 use crate::{compound::CompoundRuntime, SpawnBlocking};
 use std::io::Result as IoResult;
 
+#[cfg(feature = "native-tls")]
 use crate::impls::native_tls::NativeTlsProvider;
-
 #[cfg(feature = "rustls")]
 use crate::impls::rustls::RustlsProvider;
 use async_std_crate::net::TcpStream;
@@ -20,18 +20,25 @@ use async_executors::AsyncStd;
 /// Currently, `native_tls` is preferred over `rustls` when both are available,
 /// because of its maturity within Arti.  However, this might change in the
 /// future.
+#[cfg(all(feature = "native-tls"))]
 pub use AsyncStdNativeTlsRuntime as PreferredRuntime;
+
+#[cfg(all(feature = "rustls", not(feature = "native-tls")))]
+pub use AsyncStdRustlsRuntime as PreferredRuntime;
 
 /// A [`Runtime`](crate::Runtime) powered by `async_std` and `native_tls`.
 #[derive(Clone)]
+#[cfg(all(feature = "native-tls"))]
 pub struct AsyncStdNativeTlsRuntime {
     /// The actual runtime object.
     inner: NativeTlsInner,
 }
 
 /// Implementation type for AsyncStdRuntime.
+#[cfg(all(feature = "native-tls"))]
 type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider<TcpStream>>;
 
+#[cfg(all(feature = "native-tls"))]
 crate::opaque::implement_opaque_runtime! {
     AsyncStdNativeTlsRuntime { inner : NativeTlsInner }
 }
@@ -53,6 +60,7 @@ crate::opaque::implement_opaque_runtime! {
     AsyncStdRustlsRuntime { inner: RustlsInner }
 }
 
+#[cfg(all(feature = "native-tls"))]
 impl AsyncStdNativeTlsRuntime {
     /// Return a new [`AsyncStdNativeTlsRuntime`]
     ///
@@ -103,6 +111,7 @@ impl AsyncStdRustlsRuntime {
 }
 
 /// Run a test function using a freshly created async_std runtime.
+#[cfg(any(feature = "native-tls", feature = "rustls"))]
 pub fn test_with_runtime<P, F, O>(func: P) -> O
 where
     P: FnOnce(PreferredRuntime) -> F,

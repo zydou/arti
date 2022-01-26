@@ -56,7 +56,5 @@ humantime-serde = "1"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
 tempfile = "3"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.3", features = [
-    "tokio",
-] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.3", features = [ "tokio", "native-tls" ] }
 float_eq = "0.7"

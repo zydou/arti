@@ -38,7 +38,11 @@ impl Future for YieldFuture {
     }
 }
 
-#[cfg(all(test, any(feature = "tokio", feature = "async-std")))]
+#[cfg(all(
+    test,
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "tokio", feature = "async-std")
+))]
 mod test {
     use super::yield_now;
     use crate::test_with_all_runtimes;
