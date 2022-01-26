@@ -1,5 +1,6 @@
 //! Declare error types for tor-chanmgr
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use futures::task::SpawnError;
@@ -25,9 +26,16 @@ pub enum Error {
     #[error("Protocol error while opening a channel: {0}")]
     Proto(#[from] tor_proto::Error),
 
-    /// A protocol error while making a channel
-    #[error("I/O error while opening a channel: {0}")]
-    Io(#[source] Arc<std::io::Error>),
+    /// Network IO error or TLS error
+    #[error("Network IO error, or TLS error, talking to {peer}")]
+    Io {
+        /// Who we were talking to
+        peer: SocketAddr,
+
+        /// What happened.  Might be some TLS library error wrapped up in io::Error
+        #[source]
+        source: Arc<std::io::Error>,
+    },
 
     /// Unable to spawn task
     #[error("unable to spawn task")]
@@ -53,11 +61,5 @@ impl From<tor_rtcompat::TimeoutError> for Error {
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(_: std::sync::PoisonError<T>) -> Error {
         Error::Internal("Thread failed while holding lock")
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
-        Error::Io(Arc::new(e))
     }
 }
