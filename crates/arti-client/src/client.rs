@@ -260,7 +260,7 @@ impl TorClient<TokioNativeTlsRuntime> {
     pub async fn bootstrap_with_tokio(
         config: TorClientConfig,
     ) -> Result<TorClient<TokioNativeTlsRuntime>> {
-        let rt = tor_rtcompat::tokio::current_runtime().expect("called outside of Tokio runtime");
+        let rt = TokioNativeTlsRuntime::current().expect("called outside of Tokio runtime");
         Self::bootstrap(rt, config).await
     }
 }
@@ -277,8 +277,7 @@ impl TorClient<AsyncStdNativeTlsRuntime> {
         config: TorClientConfig,
     ) -> Result<TorClient<AsyncStdNativeTlsRuntime>> {
         // FIXME(eta): not actually possible for this to fail
-        let rt =
-            tor_rtcompat::async_std::current_runtime().expect("failed to get async-std runtime");
+        let rt = AsyncStdNativeTlsRuntime::current().expect("failed to get async-std runtime");
         Self::bootstrap(rt, config).await
     }
 }

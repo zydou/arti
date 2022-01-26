@@ -371,7 +371,7 @@ fn main() -> Result<()> {
         concurrent: parallel,
         upload_payload,
         download_payload,
-        runtime: tor_rtcompat::tokio::create_runtime()?,
+        runtime: tor_rtcompat::tokio::TokioNativeTlsRuntime::create()?,
         results: Default::default(),
     };
 

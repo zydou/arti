@@ -225,7 +225,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_runtime()?)
+                    super::$id(&crate::tokio::TokioNativeTlsRuntime::create()?)
                 }
             )*
         }
@@ -235,7 +235,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_runtime()?)
+                    super::$id(&crate::async_std::AsyncStdNativeTlsRuntime::create()?)
                 }
             )*
         }
@@ -250,7 +250,7 @@ macro_rules! tls_runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_runtime()?)
+                    super::$id(&crate::tokio::TokioNativeTlsRuntime::create()?)
                 }
             )*
         }
@@ -260,7 +260,7 @@ macro_rules! tls_runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_runtime()?)
+                    super::$id(&crate::async_std::AsyncStdNativeTlsRuntime::create()?)
                 }
             )*
         }
@@ -271,7 +271,7 @@ macro_rules! tls_runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_rustls_runtime()?)
+                    super::$id(&crate::tokio::TokioRustlsRuntime::create()?)
                 }
             )*
         }
@@ -281,7 +281,7 @@ macro_rules! tls_runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_rustls_runtime()?)
+                    super::$id(&crate::async_std::AsyncStdRustlsRuntime::create()?)
                 }
             )*
         }

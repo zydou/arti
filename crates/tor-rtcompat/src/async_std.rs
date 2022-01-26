@@ -1,6 +1,7 @@
 //! Entry points for use with async_std runtimes.
 pub use crate::impls::async_std::create_runtime as create_runtime_impl;
 use crate::{compound::CompoundRuntime, SpawnBlocking};
+use std::io::Result as IoResult;
 
 use crate::impls::native_tls::NativeTlsProvider;
 
@@ -41,32 +42,53 @@ crate::opaque::implement_opaque_runtime! {
     AsyncStdRustlsRuntime { inner: RustlsInner }
 }
 
-/// Return a new async-std-based [`Runtime`](crate::Runtime).
-///
-/// Generally you should call this function only once, and then use
-/// [`Clone::clone()`] to create additional references to that
-/// runtime.
-pub fn create_runtime() -> std::io::Result<AsyncStdNativeTlsRuntime> {
-    let rt = create_runtime_impl();
-    Ok(AsyncStdNativeTlsRuntime {
-        inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default()),
-    })
+impl AsyncStdNativeTlsRuntime {
+    /// Return a new [`AsyncStdNativeTlsRuntime`]
+    ///
+    /// Generally you should call this function only once, and then use
+    /// [`Clone::clone()`] to create additional references to that
+    /// runtime.
+    pub fn create() -> IoResult<Self> {
+        let rt = create_runtime_impl();
+        Ok(AsyncStdNativeTlsRuntime {
+            inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default()),
+        })
+    }
+
+    /// Return an [`AsyncStdNativeTlsRuntime`] for the currently running
+    /// `async_std` executor.
+    ///
+    /// Note that since async_std executors are global, there is no distinction
+    /// between this method and [`AsyncStdNativeTlsRuntime::create()`]: it is
+    /// provided only for API consistency with the Tokio runtimes.
+    pub fn current() -> IoResult<Self> {
+        Self::create()
+    }
 }
 
-/// Return a new [`Runtime`](crate::Runtime) based on `async_std` and `rustls`.
 #[cfg(feature = "rustls")]
-pub fn create_rustls_runtime() -> std::io::Result<AsyncStdRustlsRuntime> {
-    let rt = create_runtime_impl();
-    Ok(AsyncStdRustlsRuntime {
-        inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default()),
-    })
-}
+impl AsyncStdRustlsRuntime {
+    /// Return a new [`AsyncStdRustlsRuntime`]
+    ///
+    /// Generally you should call this function only once, and then use
+    /// [`Clone::clone()`] to create additional references to that
+    /// runtime.
+    pub fn create() -> IoResult<Self> {
+        let rt = create_runtime_impl();
+        Ok(AsyncStdRustlsRuntime {
+            inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default()),
+        })
+    }
 
-/// Try to return an instance of the currently running async_std
-/// [`Runtime`](crate::Runtime).
-pub fn current_runtime() -> std::io::Result<AsyncStdNativeTlsRuntime> {
-    // In async_std, the runtime is a global singleton.
-    create_runtime()
+    /// Return an [`AsyncStdRustlsRuntime`] for the currently running
+    /// `async_std` executor.
+    ///
+    /// Note that since async_std executors are global, there is no distinction
+    /// between this method and [`AsyncStdNativeTlsRuntime::create()`]: it is
+    /// provided only for API consistency with the Tokio runtimes.
+    pub fn current() -> IoResult<Self> {
+        Self::create()
+    }
 }
 
 /// Run a test function using a freshly created async_std runtime.
@@ -75,6 +97,7 @@ where
     P: FnOnce(AsyncStdNativeTlsRuntime) -> F,
     F: futures::Future<Output = O>,
 {
-    let runtime = current_runtime().expect("Couldn't get global async_std runtime?");
+    let runtime =
+        AsyncStdNativeTlsRuntime::create().expect("Couldn't get global async_std runtime?");
     runtime.clone().block_on(func(runtime))
 }

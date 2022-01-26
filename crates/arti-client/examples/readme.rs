@@ -1,6 +1,7 @@
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
+use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -16,7 +17,7 @@ async fn main() -> Result<()> {
     let config = TorClientConfig::default();
     // Arti needs an async runtime handle to spawn async tasks.
     // (See "Multiple runtime support" below.)
-    let rt = tor_rtcompat::tokio::current_runtime()?;
+    let rt = TokioNativeTlsRuntime::current()?;
 
     eprintln!("connecting to Tor...");
 

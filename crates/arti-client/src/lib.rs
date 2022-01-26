@@ -60,7 +60,7 @@
 //! let config = TorClientConfig::default();
 //! // Arti needs a handle to an async runtime in order to spawn tasks and use the
 //! // network. (See "Multiple runtime support" below.)
-//! let rt = tor_rtcompat::tokio::current_runtime()?;
+//! let rt = tor_rtcompat::tokio::TokioNativeTlsRuntime::current()?;
 //!
 //! // Start the Arti client, and let it bootstrap a connection to the Tor network.
 //! // (This takes a while to gather the necessary directory information.

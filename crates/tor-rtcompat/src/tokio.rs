@@ -2,7 +2,7 @@
 use crate::impls::native_tls::NativeTlsProvider;
 use crate::impls::tokio::TokioRuntimeHandle as Handle;
 
-use crate::{CompoundRuntime, Runtime, SpawnBlocking};
+use crate::{CompoundRuntime, SpawnBlocking};
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 
 #[cfg(feature = "rustls")]
@@ -65,71 +65,69 @@ impl From<tokio_crate::runtime::Handle> for TokioRustlsRuntime {
     }
 }
 
-/// Create and return a new Tokio multithreaded runtime.
-fn create_tokio_runtime() -> IoResult<TokioNativeTlsRuntime> {
-    crate::impls::tokio::create_runtime().map(|r| TokioNativeTlsRuntime {
-        inner: CompoundRuntime::new(r.clone(), r.clone(), r, NativeTlsProvider::default()),
-    })
+impl TokioNativeTlsRuntime {
+    /// Create a new [`TokioNativeTlsRuntime`].
+    ///
+    /// The return value will own the underlying Tokio runtime object, which
+    /// will be dropped when the last copy of this handle is freed.
+    ///
+    /// If you want to use a currently running runtime instead, call
+    /// [`TokioNativeTlsRuntime::current()`].
+    pub fn create() -> IoResult<Self> {
+        crate::impls::tokio::create_runtime().map(|r| TokioNativeTlsRuntime {
+            inner: CompoundRuntime::new(r.clone(), r.clone(), r, NativeTlsProvider::default()),
+        })
+    }
+
+    /// Return a [`TokioNativeTlsRuntime`] wrapping   the currently running
+    /// Tokio runtime.
+    ///
+    /// # Usage note
+    ///
+    /// We should never call this from inside other Arti crates, or from library
+    /// crates that want to support multiple runtimes!  This function is for
+    /// Arti _users_ who want to wrap some existing Tokio runtime as a
+    /// [`Runtime`].  It is not for library crates that want to work with
+    /// multiple runtimes.
+    ///
+    /// Once you have a runtime returned by this function, you should just
+    /// create more handles to it via [`Clone`].
+    pub fn current() -> IoResult<Self> {
+        Ok(current_handle()?.into())
+    }
 }
 
-/// Create and return a new Tokio multithreaded runtime configured to use `rustls`.
 #[cfg(feature = "rustls")]
-fn create_tokio_rustls_runtime() -> IoResult<TokioRustlsRuntime> {
-    crate::impls::tokio::create_runtime().map(|r| TokioRustlsRuntime {
-        inner: CompoundRuntime::new(r.clone(), r.clone(), r, RustlsProvider::default()),
-    })
-}
+impl TokioRustlsRuntime {
+    /// Create a new [`TokioRustlsRuntime`].
+    ///
+    /// The return value will own the underlying Tokio runtime object, which
+    /// will be dropped when the last copy of this handle is freed.
+    ///
+    /// If you want to use a currently running runtime instead, call
+    /// [`TokioRustlsRuntime::current()`].
+    pub fn create() -> IoResult<Self> {
+        crate::impls::tokio::create_runtime().map(|r| TokioRustlsRuntime {
+            inner: CompoundRuntime::new(r.clone(), r.clone(), r, RustlsProvider::default()),
+        })
+    }
 
-/// Create a new Tokio-based [`Runtime`].
-///
-/// Generally you should call this function only once, and then use
-/// [`Clone::clone()`] to create additional references to that
-/// runtime.
-///
-/// Tokio users may want to avoid this function and instead make a
-/// runtime using [`current_runtime()`]: this function always _builds_ a
-/// runtime, and if you already have a runtime, that isn't what you
-/// want with Tokio.
-pub fn create_runtime() -> std::io::Result<impl Runtime> {
-    create_tokio_runtime()
-}
-
-/// Create a new Tokio-based [`Runtime`] with `rustls`.
-///
-/// Generally you should call this function only once, and then use
-/// [`Clone::clone()`] to create additional references to that
-/// runtime.
-///
-/// Tokio users may want to avoid this function and instead make a
-/// runtime using [`current_runtime()`]: this function always _builds_ a
-/// runtime, and if you already have a runtime, that isn't what you
-/// want with Tokio.
-#[cfg(feature = "rustls")]
-pub fn create_rustls_runtime() -> std::io::Result<impl Runtime> {
-    create_tokio_rustls_runtime()
-}
-
-/// Try to return an instance of the currently running tokio [`Runtime`].
-///
-/// # Usage note
-///
-/// We should never call this from inside other Arti crates, or from
-/// library crates that want to support multiple runtimes!  This
-/// function is for Arti _users_ who want to wrap some existing Tokio
-/// runtime as a [`Runtime`].  It is not for library
-/// crates that want to work with multiple runtimes.
-///
-/// Once you have a runtime returned by this function, you should
-/// just create more handles to it via [`Clone`].
-pub fn current_runtime() -> std::io::Result<TokioNativeTlsRuntime> {
-    Ok(current_handle()?.into())
-}
-
-/// Return an instance of the currently running tokio [`Runtime`], wrapped to
-/// use `rustls`.
-#[cfg(feature = "rustls")]
-pub fn current_runtime_rustls() -> std::io::Result<TokioRustlsRuntime> {
-    Ok(current_handle()?.into())
+    /// Return a [`TokioRustlsRuntime`] wrapping the currently running
+    /// Tokio runtime.
+    ///
+    /// # Usage note
+    ///
+    /// We should never call this from inside other Arti crates, or from library
+    /// crates that want to support multiple runtimes!  This function is for
+    /// Arti _users_ who want to wrap some existing Tokio runtime as a
+    /// [`Runtime`].  It is not for library crates that want to work with
+    /// multiple runtimes.
+    ///
+    /// Once you have a runtime returned by this function, you should just
+    /// create more handles to it via [`Clone`].
+    pub fn current() -> IoResult<Self> {
+        Ok(current_handle()?.into())
+    }
 }
 
 /// As `Handle::try_current()`, but return an IoError on failure.
@@ -147,6 +145,6 @@ where
     P: FnOnce(TokioNativeTlsRuntime) -> F,
     F: futures::Future<Output = O>,
 {
-    let runtime = create_tokio_runtime().expect("Failed to create a tokio runtime");
+    let runtime = TokioNativeTlsRuntime::create().expect("Failed to create a tokio runtime");
     runtime.clone().block_on(func(runtime))
 }

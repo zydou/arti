@@ -229,10 +229,12 @@ fn main() -> Result<()> {
 
         process::use_max_file_limit();
 
-        #[cfg(feature = "tokio")]
-        let runtime = tor_rtcompat::tokio::create_runtime()?;
         #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-        let runtime = tor_rtcompat::async_std::create_runtime()?;
+        use tor_rtcompat::tokio::AsyncStdNativeTlsRuntime as ChosenRuntime;
+        #[cfg(feature = "tokio")]
+        use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
+
+        let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
         rt_copy.block_on(run(runtime, socks_port, client_config))?;

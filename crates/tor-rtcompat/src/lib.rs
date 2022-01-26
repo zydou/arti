@@ -192,11 +192,11 @@ pub use compound::CompoundRuntime;
 pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
     #[cfg(feature = "tokio")]
     {
-        crate::tokio::current_runtime()
+        crate::tokio::TokioNativeTlsRuntime::current()
     }
     #[cfg(all(feature = "async-std", not(feature = "tokio")))]
     {
-        crate::async_std::current_runtime()
+        crate::async_std::AsyncStdNativeTlsRuntime::current()
     }
 }
 
@@ -218,11 +218,11 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 pub fn create_runtime() -> std::io::Result<impl Runtime> {
     #[cfg(feature = "tokio")]
     {
-        crate::tokio::create_runtime()
+        crate::tokio::TokioNativeTlsRuntime::create()
     }
     #[cfg(all(feature = "async-std", not(feature = "tokio")))]
     {
-        crate::async_std::create_runtime()
+        crate::async_std::AsyncStdNativeTlsRuntime::create()
     }
 }
 
