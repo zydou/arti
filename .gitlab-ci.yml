@@ -28,11 +28,12 @@ rust-latest:
       - target/x86_64-unknown-linux-gnu/debug/arti
     expire_in: 1 hours
 
-rust-latest-async-std:
+rust-latest-async-std-rustls:
   stage: build
   image: rust:latest
   script:
-    - cd crates/arti-client && cargo check --no-default-features --features=async-std
+    - rustup component add clippy
+    - cd crates/arti-client && cargo clippy --no-default-features --features=async-std,rustls
   tags:
     - amd64
 
