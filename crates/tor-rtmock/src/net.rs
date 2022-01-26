@@ -502,7 +502,7 @@ mod test {
     }
 
     #[test]
-    fn end_to_end() -> IoResult<()> {
+    fn end_to_end() {
         test_with_all_runtimes!(|_rt| async {
             let (client1, client2) = client_pair();
             let lis = client2.listen(&"0.0.0.0:99".parse().unwrap()).await?;
@@ -532,7 +532,7 @@ mod test {
             r1?;
             r2?;
             IoResult::Ok(())
-        })
+        });
     }
 
     #[test]
@@ -573,7 +573,7 @@ mod test {
     }
 
     #[test]
-    fn listener_stream() -> IoResult<()> {
+    fn listener_stream() {
         test_with_all_runtimes!(|_rt| async {
             let (client1, client2) = client_pair();
 
@@ -602,16 +602,18 @@ mod test {
             r1?;
             r2?;
             IoResult::Ok(())
-        })
+        });
     }
 
     #[test]
-    fn tls_basics() -> IoResult<()> {
+    fn tls_basics() {
         let (client1, client2) = client_pair();
         let cert = b"I am certified for something I assure you.";
 
-        let lis = client2.listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())?;
-        let address = lis.local_addr()?;
+        let lis = client2
+            .listen_tls(&"0.0.0.0:0".parse().unwrap(), cert[..].into())
+            .unwrap();
+        let address = lis.local_addr().unwrap();
 
         test_with_all_runtimes!(|_rt| async {
             let (r1, r2): (IoResult<()>, IoResult<()>) = futures::join!(
@@ -642,6 +644,6 @@ mod test {
             r1?;
             r2?;
             IoResult::Ok(())
-        })
+        });
     }
 }

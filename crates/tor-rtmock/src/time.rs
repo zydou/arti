@@ -455,7 +455,7 @@ mod test {
     }
 
     #[test]
-    fn time_moves_on() -> std::io::Result<()> {
+    fn time_moves_on() {
         test_with_all_runtimes!(|_| async {
             use futures::channel::oneshot;
             use std::sync::atomic::AtomicBool;
@@ -514,6 +514,6 @@ mod test {
                 }
             );
             std::io::Result::Ok(())
-        })
+        });
     }
 }

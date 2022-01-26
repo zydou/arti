@@ -250,7 +250,8 @@ pub fn create_runtime() -> std::io::Result<impl Runtime> {
 
 /// Helpers for test_with_all_runtimes
 pub mod testing__ {
-    /// A trait for an object that might represent a test failure.
+    /// A trait for an object that might represent a test failure, or which
+    /// might just be `().
     pub trait TestOutcome {
         /// Abort if the test has failed.
         fn check_ok(&self);
@@ -258,65 +259,88 @@ pub mod testing__ {
     impl TestOutcome for () {
         fn check_ok(&self) {}
     }
-    impl<T, E> TestOutcome for Result<T, E> {
+    impl<E: std::fmt::Debug> TestOutcome for Result<(), E> {
         fn check_ok(&self) {
-            assert!(self.is_ok());
+            self.as_ref().expect("Test failure");
         }
+    }
+}
+
+/// Helper: define a macro that expands a token tree iff a pair of features are
+/// both present.
+macro_rules! declare_conditional_macro {
+    ( $(#[$meta:meta])* macro $name:ident = ($f1:expr, $f2:expr) ) => {
+        $( #[$meta] )*
+        #[cfg(all(feature=$f1, feature=$f2))]
+        #[macro_export]
+        macro_rules! $name {
+            ($tt:tt) => {
+                $tt
+            };
+        }
+
+        $( #[$meta] )*
+        #[cfg(not(all(feature=$f1, feature=$f2)))]
+        #[macro_export]
+        macro_rules! $name {
+            ($tt:tt) => {};
+        }
+
+        // Needed so that we can access this macro at this path, both within the
+        // crate and without.
+        pub use $name;
+    };
+}
+
+/// Defines macros that will expand when certain runtimes are available.
+pub mod cond {
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_tokio_native_tls_present = ("tokio", "native-tls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioRustlsRuntime is available.
+        macro if_tokio_rustls_present = ("tokio", "rustls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_async_std_native_tls_present = ("async-std", "native-tls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_async_std_rustls_present = ("async-std", "rustls")
     }
 }
 
 /// Run a test closure, passing as argument every supported runtime.
 ///
-/// (This is a macro so that it can repeat the closure as two separate
+/// (This is a macro so that it can repeat the closure as multiple separate
 /// expressions, so it can take on two different types, if needed.)
 #[macro_export]
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
-    feature = "tokio",
-    feature = "async-std"
+    any(feature = "tokio", feature = "async-std"),
 ))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
+        use $crate::cond::*;
         use $crate::testing__::TestOutcome;
-        $crate::tokio::test_with_runtime($fn).check_ok();
-        $crate::async_std::test_with_runtime($fn)
-    }};
-}
+        // We have to do this outcome-checking business rather than just using
+        // the ? operator or calling expect() because some of the closures that
+        // we use this macro with return (), and some return Result.
 
-/// Run a test closure, passing as argument every supported runtime.
-#[macro_export]
-#[cfg(all(
-    any(feature = "native-tls", feature = "rustls"),
-    feature = "tokio",
-    not(feature = "async-std")
-))]
-macro_rules! test_with_all_runtimes {
-    ( $fn:expr ) => {{
-        $crate::tokio::test_with_runtime($fn)
-    }};
-}
-
-/// Run a test closure, passing as argument every supported runtime.
-#[macro_export]
-#[cfg(all(
-    any(feature = "native-tls", feature = "rustls"),
-    not(feature = "tokio"),
-    feature = "async-std"
-))]
-macro_rules! test_with_all_runtimes {
-    ( $fn:expr ) => {{
-        $crate::async_std::test_with_runtime($fn)
-    }};
-}
-
-/// Run a test closure, passing as argument one supported runtime.
-///
-/// (Always prefers tokio if present.)
-#[macro_export]
-#[cfg(feature = "tokio")]
-macro_rules! test_with_one_runtime {
-    ( $fn:expr ) => {{
-        $crate::tokio::test_with_runtime($fn)
+        if_tokio_native_tls_present! {{
+           $crate::tokio::TokioNativeTlsRuntime::run_test($fn).check_ok();
+        }}
+        if_tokio_rustls_present! {{
+            $crate::tokio::TokioRustlsRuntime::run_test($fn).check_ok();
+        }}
+        if_async_std_native_tls_present! {{
+            $crate::async_std::AsyncStdNativeTlsRuntime::run_test($fn).check_ok();
+        }}
+        if_async_std_rustls_present! {{
+            $crate::async_std::AsyncStdRustlsRuntime::run_test($fn).check_ok();
+        }}
     }};
 }
 
@@ -326,11 +350,10 @@ macro_rules! test_with_one_runtime {
 #[macro_export]
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
-    not(feature = "tokio"),
-    feature = "async-std"
+    any(feature = "tokio", feature = "async-std"),
 ))]
 macro_rules! test_with_one_runtime {
     ( $fn:expr ) => {{
-        $crate::async_std::test_with_runtime($fn)
+        $crate::PreferredRuntime::run_test($fn)
     }};
 }

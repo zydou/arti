@@ -83,6 +83,20 @@ impl AsyncStdNativeTlsRuntime {
     pub fn current() -> IoResult<Self> {
         Self::create()
     }
+
+    /// Helper to run a single test function in a freshly created runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we can't create this runtime.
+    pub fn run_test<P, F, O>(func: P) -> O
+    where
+        P: FnOnce(Self) -> F,
+        F: futures::Future<Output = O>,
+    {
+        let runtime = Self::create().expect("Failed to create runtime");
+        runtime.clone().block_on(func(runtime))
+    }
 }
 
 #[cfg(feature = "rustls")]
@@ -108,15 +122,18 @@ impl AsyncStdRustlsRuntime {
     pub fn current() -> IoResult<Self> {
         Self::create()
     }
-}
 
-/// Run a test function using a freshly created async_std runtime.
-#[cfg(any(feature = "native-tls", feature = "rustls"))]
-pub fn test_with_runtime<P, F, O>(func: P) -> O
-where
-    P: FnOnce(PreferredRuntime) -> F,
-    F: futures::Future<Output = O>,
-{
-    let runtime = PreferredRuntime::create().expect("Couldn't get global async_std runtime?");
-    runtime.clone().block_on(func(runtime))
+    /// Helper to run a single test function in a freshly created runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we can't create this runtime.
+    pub fn run_test<P, F, O>(func: P) -> O
+    where
+        P: FnOnce(Self) -> F,
+        F: futures::Future<Output = O>,
+    {
+        let runtime = Self::create().expect("Failed to create runtime");
+        runtime.clone().block_on(func(runtime))
+    }
 }

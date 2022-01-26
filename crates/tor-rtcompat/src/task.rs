@@ -50,7 +50,7 @@ mod test {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     #[test]
-    fn test_yield() -> std::io::Result<()> {
+    fn test_yield() {
         test_with_all_runtimes!(|_| async {
             let b = AtomicBool::new(false);
             use Ordering::SeqCst;
@@ -81,7 +81,6 @@ mod test {
                 }
             );
             std::io::Result::Ok(())
-        })?;
-        Ok(())
+        });
     }
 }

@@ -115,6 +115,20 @@ impl TokioNativeTlsRuntime {
     pub fn current() -> IoResult<Self> {
         Ok(current_handle()?.into())
     }
+
+    /// Helper to run a single test function in a freshly created runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we can't create this runtime.
+    pub fn run_test<P, F, O>(func: P) -> O
+    where
+        P: FnOnce(Self) -> F,
+        F: futures::Future<Output = O>,
+    {
+        let runtime = Self::create().expect("Failed to create runtime");
+        runtime.clone().block_on(func(runtime))
+    }
 }
 
 #[cfg(feature = "rustls")]
@@ -148,25 +162,24 @@ impl TokioRustlsRuntime {
     pub fn current() -> IoResult<Self> {
         Ok(current_handle()?.into())
     }
+
+    /// Helper to run a single test function in a freshly created runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we can't create this runtime.
+    pub fn run_test<P, F, O>(func: P) -> O
+    where
+        P: FnOnce(Self) -> F,
+        F: futures::Future<Output = O>,
+    {
+        let runtime = Self::create().expect("Failed to create runtime");
+        runtime.clone().block_on(func(runtime))
+    }
 }
 
 /// As `Handle::try_current()`, but return an IoError on failure.
 #[cfg(any(feature = "native-tls", feature = "rustls"))]
 fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
     tokio_crate::runtime::Handle::try_current().map_err(|e| IoError::new(ErrorKind::Other, e))
-}
-
-/// Run a test function using a freshly created tokio runtime.
-///
-/// # Panics
-///
-/// Panics if we can't create a tokio runtime.
-#[cfg(any(feature = "native-tls", feature = "rustls"))]
-pub fn test_with_runtime<P, F, O>(func: P) -> O
-where
-    P: FnOnce(PreferredRuntime) -> F,
-    F: futures::Future<Output = O>,
-{
-    let runtime = PreferredRuntime::create().expect("Failed to create a tokio runtime");
-    runtime.clone().block_on(func(runtime))
 }
