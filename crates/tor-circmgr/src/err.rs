@@ -6,6 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
+use tor_error::ErrorKind;
 use tor_linkspec::OwnedChanTarget;
 
 /// An error returned while looking up or building a circuit
@@ -118,6 +119,17 @@ impl From<tor_guardmgr::GuardMgrError> for Error {
         match err {
             tor_guardmgr::GuardMgrError::State(e) => Error::State(e),
             _ => Error::GuardMgr(err),
+        }
+    }
+}
+
+impl tor_error::HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::ChanFailed { cause, .. } => cause.kind(),
+            _ => EK::TODO,
         }
     }
 }
