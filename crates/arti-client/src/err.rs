@@ -36,9 +36,9 @@ $vis type Result<T> = std::result::Result<T, Error>;
 // should be $vis
 // but right now we need to re-export it unconditionally
 pub enum Error {
-    /// Error while getting a circuit
-    #[error("Error while getting a circuit {0}")]
-    CircMgr(#[from] tor_circmgr::Error),
+    /// Error setting up the circuit manager
+    #[error("Error setting up the circuit manager {0}")]
+    CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
 
     /// Error while getting a circuit
     #[error("Directory state error {0}")]

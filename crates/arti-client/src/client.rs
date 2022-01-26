@@ -323,7 +323,8 @@ impl<R: Runtime> TorClient<R> {
         };
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
-            tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))?;
+            tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
+                .map_err(Error::CircMgrSetup)?;
         let dirmgr = tor_dirmgr::DirMgr::bootstrap_from_config(
             dir_cfg,
             runtime.clone(),
