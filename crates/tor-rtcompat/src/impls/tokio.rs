@@ -215,7 +215,7 @@ impl From<async_executors::TokioTp> for TokioRuntimeHandle {
     }
 }
 
-impl SpawnBlocking for TokioRuntimeHandle {
+impl BlockOn for TokioRuntimeHandle {
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)
     }

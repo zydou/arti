@@ -96,7 +96,7 @@ use std::sync::Arc;
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::ArtiConfig;
-use tor_rtcompat::{Runtime, SpawnBlocking};
+use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::Result;
 use clap::{App, AppSettings, Arg, SubCommand};

@@ -40,7 +40,7 @@
 //! The `tor-rtcompat` crate provides several traits that
 //! encapsulate different runtime capabilities.
 //!
-//!  * A runtime is a [`SpawnBlocking`] if it can block on a future.
+//!  * A runtime is a [`BlockOn`] if it can block on a future.
 //!  * A runtime is a [`SleepProvider`] if it can make timer futures that
 //!    become Ready after a given interval of time.
 //!  * A runtime is a [`TcpProvider`] if it can make and receive TCP
@@ -92,7 +92,7 @@
 //! We could simplify this code significantly by removing most of the
 //! traits it exposes, and instead just exposing a single
 //! implementation.  For example, instead of exposing a
-//! [`SpawnBlocking`] trait to represent blocking until a task is
+//! [`BlockOn`] trait to represent blocking until a task is
 //! done, we could just provide a single global `block_on` function.
 //!
 //! That simplification would come at a cost, however.  First of all,
@@ -160,7 +160,7 @@ mod traits;
 mod test;
 
 pub use traits::{
-    CertifiedConn, Runtime, SleepProvider, SpawnBlocking, TcpListener, TcpProvider, TlsProvider,
+    BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
 };
 
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};

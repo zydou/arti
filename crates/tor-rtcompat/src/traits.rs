@@ -16,7 +16,7 @@ use std::time::{Duration, Instant, SystemTime};
 /// * [`SleepProvider`] to pause a task for a given amount of time.
 /// * [`TcpProvider`] to launch and accept TCP connections.
 /// * [`TlsProvider`] to launch TLS connections.
-/// * [`SpawnBlocking`] to block on a future and run it to completion
+/// * [`BlockOn`] to block on a future and run it to completion
 ///   (This may become optional in the future, if/when we add WASM
 ///   support).
 ///
@@ -29,7 +29,7 @@ pub trait Runtime:
     Sync
     + Send
     + Spawn
-    + SpawnBlocking
+    + BlockOn
     + Clone
     + SleepProvider
     + TcpProvider
@@ -42,7 +42,7 @@ impl<T> Runtime for T where
     T: Sync
         + Send
         + Spawn
-        + SpawnBlocking
+        + BlockOn
         + Clone
         + SleepProvider
         + TcpProvider
@@ -105,7 +105,7 @@ pub trait SleepProvider {
 }
 
 /// Trait for a runtime that can block on a future.
-pub trait SpawnBlocking {
+pub trait BlockOn {
     /// Run `future` until it is ready, and return its output.
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }

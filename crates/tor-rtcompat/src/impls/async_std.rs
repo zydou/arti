@@ -131,7 +131,7 @@ impl SleepProvider for async_executors::AsyncStd {
     }
 }
 
-impl SpawnBlocking for async_executors::AsyncStd {
+impl BlockOn for async_executors::AsyncStd {
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         async_executors::AsyncStd::block_on(f)
     }
