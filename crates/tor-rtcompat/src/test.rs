@@ -266,7 +266,7 @@ macro_rules! tls_runtime_tests {
         }
 
         #[cfg(all(feature="tokio", feature="rustls"))]
-        mod tokio_rusttls_tests {
+        mod tokio_rustls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
@@ -276,7 +276,7 @@ macro_rules! tls_runtime_tests {
             )*
         }
         #[cfg(all(feature="async-std", feature="rustls"))]
-        mod async_std_rusttls_tests {
+        mod async_std_rustls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
