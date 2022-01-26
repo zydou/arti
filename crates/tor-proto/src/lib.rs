@@ -81,9 +81,6 @@
 //! I bet that there are deadlocks somewhere in this code.  I fixed
 //! all the ones I could find or think of, but it would be great to
 //! find a good way to eliminate every lock that we have.
-//!
-//! This crate doesn't work with rusttls because of a limitation in the
-//! webpki crate.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
