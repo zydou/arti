@@ -6,6 +6,8 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
+use tor_linkspec::OwnedChanTarget;
+
 /// An error returned while looking up or building a circuit
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
@@ -57,9 +59,16 @@ pub enum Error {
     #[error("Internal error: {0}")]
     Internal(String),
 
-    /// Couldn't get a channel for a circuit.
-    #[error("Couldn't get channel for circuit: {0}")]
-    ChanFailed(#[from] tor_chanmgr::Error),
+    /// Problem with channel
+    #[error("Problem with channel to {peer}")]
+    ChanFailed {
+        /// Which relay we were trying to connect to
+        peer: OwnedChanTarget,
+
+        /// What went wrong
+        #[source]
+        cause: tor_chanmgr::Error,
+    },
 
     /// Protocol issue while building a circuit.
     #[error("Problem building a circuit: {0}")]
