@@ -52,6 +52,14 @@ pub use internal::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
+    /// Error connecting to the Tor network
+    ///
+    /// Perhaps the local network is not working, or perhaps the chosen relay is not working
+    /// properly.  Not used for errors that occur within the Tor network, or accessing the public
+    /// internet on the far side of Tor.
+    #[display(fmt = "error connecting to Tor")]
+    TorConnectionFailed,
+
     /// IO error accessing local persistent state
     ///
     /// Eg, disk full or permissions problem.

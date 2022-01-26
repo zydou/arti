@@ -6,6 +6,8 @@ use std::sync::Arc;
 use futures::task::SpawnError;
 use thiserror::Error;
 
+use tor_error::ErrorKind;
+
 /// An error returned by a channel manager.
 #[derive(Debug, Error, Clone)]
 #[non_exhaustive]
@@ -61,5 +63,16 @@ impl From<tor_rtcompat::TimeoutError> for Error {
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(_: std::sync::PoisonError<T>) -> Error {
         Error::Internal("Thread failed while holding lock")
+    }
+}
+
+impl tor_error::HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::Io { .. } => EK::TorConnectionFailed,
+            _ => EK::TODO,
+        }
     }
 }
