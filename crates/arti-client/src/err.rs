@@ -6,6 +6,7 @@ use std::sync::Arc;
 use futures::task::SpawnError;
 
 use thiserror::Error;
+use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 use tor_rtcompat::TimeoutError;
 
@@ -39,6 +40,17 @@ pub enum Error {
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
+
+    /// Failed to obtain exit circuit
+    #[error("Failed to obtain exit circuit for {exit_ports}")]
+    ExitCircuitFailed {
+        /// What for
+        exit_ports: TargetPorts,
+
+        /// What went wrong
+        #[source]
+        cause: tor_circmgr::Error,
+    },
 
     /// Error while getting a circuit
     #[error("Directory state error {0}")]
@@ -118,7 +130,12 @@ impl From<SpawnError> for Error {
 
 impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
-        ErrorKind::TODO
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::ExitCircuitFailed { cause, .. } => cause.kind(),
+            _ => EK::TODO,
+        }
     }
 }
 

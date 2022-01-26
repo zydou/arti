@@ -634,7 +634,10 @@ impl<R: Runtime> TorClient<R> {
             .circmgr
             .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
             .await
-            .map_err(|_| Error::Internal("Unable to launch circuit"))?;
+            .map_err(|cause| Error::ExitCircuitFailed {
+                cause,
+                exit_ports: exit_ports.into(),
+            })?;
         drop(dir); // This decreases the refcount on the netdir.
 
         Ok(circ)
