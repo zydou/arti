@@ -171,6 +171,21 @@ pub mod async_std;
 
 pub use compound::CompoundRuntime;
 
+#[cfg(all(feature = "async_std", not(feature = "tokio")))]
+use async_std as preferred_backend_mod;
+#[cfg(feature = "tokio")]
+use tokio as preferred_backend_mod;
+
+/// The runtime that we prefer to use, out of all the runtimes compiled into the
+/// tor-rtcompat crate.
+///
+/// If `tokio` and `async-std` are both available, we prefer `tokio` for its
+/// performance.
+/// If `native_tls` and `rustls` are both available, we prefer `native_tls` since
+/// it has been used in Arti for longer.
+#[cfg(any(feature = "tokio", feature = "async-std"))]
+pub use preferred_backend_mod::PreferredRuntime;
+
 /// Try to return an instance of the currently running [`Runtime`].
 ///
 /// # Limitations
@@ -190,14 +205,7 @@ pub use compound::CompoundRuntime;
 /// just create more handles to it via [`Clone`].
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
-    #[cfg(feature = "tokio")]
-    {
-        crate::tokio::TokioNativeTlsRuntime::current()
-    }
-    #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-    {
-        crate::async_std::AsyncStdNativeTlsRuntime::current()
-    }
+    PreferredRuntime::current()
 }
 
 /// Return a new instance of the default [`Runtime`].
@@ -216,14 +224,7 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 /// create it using an appropriate builder type or function.
 #[cfg(any(feature = "async-std", feature = "tokio"))]
 pub fn create_runtime() -> std::io::Result<impl Runtime> {
-    #[cfg(feature = "tokio")]
-    {
-        crate::tokio::TokioNativeTlsRuntime::create()
-    }
-    #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-    {
-        crate::async_std::AsyncStdNativeTlsRuntime::create()
-    }
+    PreferredRuntime::create()
 }
 
 /// Helpers for test_with_all_runtimes

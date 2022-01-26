@@ -11,6 +11,17 @@ use async_std_crate::net::TcpStream;
 
 use async_executors::AsyncStd;
 
+/// An alias for the async_std runtime that we prefer to use, based on whatever TLS
+/// implementation has been enabled.
+///
+/// If only one of `native_tls` and `rustls` bas been enabled within the
+/// `tor-rtcompat` crate, that will be the TLS backend that this uses.
+///
+/// Currently, `native_tls` is preferred over `rustls` when both are available,
+/// because of its maturity within Arti.  However, this might change in the
+/// future.
+pub use AsyncStdNativeTlsRuntime as PreferredRuntime;
+
 /// A [`Runtime`](crate::Runtime) powered by `async_std` and `native_tls`.
 #[derive(Clone)]
 pub struct AsyncStdNativeTlsRuntime {
@@ -94,10 +105,9 @@ impl AsyncStdRustlsRuntime {
 /// Run a test function using a freshly created async_std runtime.
 pub fn test_with_runtime<P, F, O>(func: P) -> O
 where
-    P: FnOnce(AsyncStdNativeTlsRuntime) -> F,
+    P: FnOnce(PreferredRuntime) -> F,
     F: futures::Future<Output = O>,
 {
-    let runtime =
-        AsyncStdNativeTlsRuntime::create().expect("Couldn't get global async_std runtime?");
+    let runtime = PreferredRuntime::create().expect("Couldn't get global async_std runtime?");
     runtime.clone().block_on(func(runtime))
 }

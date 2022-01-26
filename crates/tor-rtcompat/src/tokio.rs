@@ -9,6 +9,17 @@ use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use crate::impls::rustls::RustlsProvider;
 use crate::impls::tokio::net::TcpStream;
 
+/// An alias for the Tokio runtime that we prefer to use, based on whatever TLS
+/// implementation has been enabled.
+///
+/// If only one of `native_tls` and `rustls` bas been enabled within the
+/// `tor-rtcompat` crate, that will be the TLS backend that this uses.
+///
+/// Currently, `native_tls` is preferred over `rustls` when both are available,
+/// because of its maturity within Arti.  However, this might change in the
+/// future.
+pub use TokioNativeTlsRuntime as PreferredRuntime;
+
 /// A [`Runtime`] built around a Handle to a tokio runtime, and `native_tls`.
 ///
 /// # Limitations
@@ -142,9 +153,9 @@ fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
 /// Panics if we can't create a tokio runtime.
 pub fn test_with_runtime<P, F, O>(func: P) -> O
 where
-    P: FnOnce(TokioNativeTlsRuntime) -> F,
+    P: FnOnce(PreferredRuntime) -> F,
     F: futures::Future<Output = O>,
 {
-    let runtime = TokioNativeTlsRuntime::create().expect("Failed to create a tokio runtime");
+    let runtime = PreferredRuntime::create().expect("Failed to create a tokio runtime");
     runtime.clone().block_on(func(runtime))
 }

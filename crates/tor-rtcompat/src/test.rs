@@ -225,7 +225,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::TokioNativeTlsRuntime::create()?)
+                    super::$id(&crate::tokio::PreferredRuntime::create()?)
                 }
             )*
         }
@@ -235,7 +235,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::AsyncStdNativeTlsRuntime::create()?)
+                    super::$id(&crate::async_std::PreferredRuntime::create()?)
                 }
             )*
         }
