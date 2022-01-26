@@ -229,10 +229,17 @@ fn main() -> Result<()> {
 
         process::use_max_file_limit();
 
-        #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-        use tor_rtcompat::tokio::PreferredRuntime as ChosenRuntime;
-        #[cfg(feature = "tokio")]
-        use tor_rtcompat::tokio::PreferredRuntime as ChosenRuntime;
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature="tokio", feature="native-tls"))] {
+            use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="tokio", feature="rustls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="async-std", feature="rustls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            }
+        }
 
         let runtime = ChosenRuntime::create()?;
 
