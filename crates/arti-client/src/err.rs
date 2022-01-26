@@ -24,12 +24,20 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 #[allow(clippy::exhaustive_structs)]
 pub struct TorError {
     /// The actual error
-    #[from]
-    $vis detail: Error,
+    #[source]
+    $vis detail: Box<Error>,
 }
 
 /// Alias for the [`Result`] type used within the `arti_client` crate.
 $vis type Result<T> = std::result::Result<T, Error>;
+
+impl From<Error> for TorError {
+    fn from(detail: Error) -> TorError {
+        TorError {
+            detail: detail.into(),
+        }
+    }
+}
 
 /// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Debug)]
