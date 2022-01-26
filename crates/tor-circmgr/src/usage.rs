@@ -2,6 +2,7 @@
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::fmt::{self, Display};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::debug;
@@ -56,6 +57,12 @@ impl TargetPort {
         } else {
             r.supports_exit_port_ipv4(self.port)
         }
+    }
+}
+
+impl Display for TargetPort {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.port, if self.ipv6 { "v6" } else { "v4" })
     }
 }
 
