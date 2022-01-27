@@ -44,7 +44,7 @@ def find_crate(s):
     "Extract a crate name from a path string."
     while "/" in s:
         s, rest = os.path.split(s)
-        if s == '.':
+        if s == 'crates':
             return rest
     return s
 
