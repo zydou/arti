@@ -262,6 +262,7 @@ mod test {
         check_cvt!(ECDSA_NISTP384_SHA384);
         check_cvt!(RSA_PSS_SHA256);
         check_cvt!(RSA_PSS_SHA384);
+        check_cvt!(RSA_PSS_SHA512);
         check_cvt!(ED25519);
         check_cvt!(ED448);
 
