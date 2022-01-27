@@ -18,6 +18,9 @@ Options:
   -i: Run an interactive shell after the command (if any)
   -c: Continue using data from previous runs. (By default, data is deleted.)
   -s: Skip generating a final report.
+  -f <format>: format to use when generating coverage report. one of html (default), ade,
+               lcov, coveralls, coveralls+, files, covdir, or cobertura
+  -o <path>: set the output path for the coverage report (defaiult "coverage")
 
 Notes:
   You need to have grcov, rust-nightly, and llvm-tools-preview installed.
@@ -27,8 +30,10 @@ EOF
 interactive=no
 remove_data=yes
 skip_report=no
+format=html
+output=coverage
 
-while getopts "chis" opt ; do
+while getopts "chisf:o:" opt ; do
     case "$opt" in
 	c) remove_data=no
 	   ;;
@@ -38,6 +43,10 @@ while getopts "chis" opt ; do
 	i) interactive=yes
 	   ;;
 	s) skip_report=yes
+	   ;;
+	f) format="$OPTARG"
+	   ;;
+	o) output="$OPTARG"
 	   ;;
 	*) echo "Unknown option."
 	   exit 1
@@ -79,15 +88,14 @@ export RUSTFLAGS="-Z instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
 export RUSTUP_TOOLCHAIN="${RUST_COVERAGE_TOOLCHAIN}"
 
-if [ -d "$COVERAGE_BASEDIR/coverage" ]; then
-    rm -r "$COVERAGE_BASEDIR/coverage" || true
+if [ -d "$COVERAGE_BASEDIR/$output" ]; then
+    rm -r "$COVERAGE_BASEDIR/$output" || true
 fi
 if [ -d "$COVERAGE_BASEDIR/coverage_meta" ] && [ "$remove_data" = "yes" ]; then
     echo "Removing data from previous runs. (Use -c to suppress this behavior.)"
     rm -r "$COVERAGE_BASEDIR/coverage_meta" || true
 fi
 
-mkdir -p "$COVERAGE_BASEDIR/coverage"
 mkdir -p "$COVERAGE_BASEDIR/coverage_meta"
 
 if [ ! -e "$COVERAGE_BASEDIR/coverage_meta/commands" ] ; then
@@ -114,17 +122,23 @@ fi
 echo "Generating report..."
 
 grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/debug/" \
-	-s "$COVERAGE_BASEDIR/crates/" -o "$COVERAGE_BASEDIR/coverage" -t html --branch \
+	-s "$COVERAGE_BASEDIR/" -o "$COVERAGE_BASEDIR/$output" -t "$format" --branch \
 	--ignore-not-existing --excl-start '^mod test' --excl-stop '^}' \
-	--ignore="*/tests/*" --ignore="*/examples/*" --ignore="arti-bench/*"
+	--ignore="*/tests/*" --ignore="*/examples/*" --ignore="*/github.com-1ecc6299db9ec823/*"
 
-cp "$COVERAGE_BASEDIR/coverage/index.html" "$COVERAGE_BASEDIR/coverage/index_orig.html"
+if [ "$format" != html ]; then
+	# no html post processing when outputing non html result
+	echo "Full report: $COVERAGE_BASEDIR/$output"
+	exit
+fi
+
+cp "$COVERAGE_BASEDIR/$output/index.html" "$COVERAGE_BASEDIR/$output/index_orig.html"
 
 if [ "$(which python3 2>/dev/null)" = "" ]; then
     echo "python3 not installed; not post-processing the index file."
 else
     echo "Postprocessing..."
-    python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage.py" "$COVERAGE_BASEDIR/coverage_meta/commands" "$COVERAGE_BASEDIR/coverage/index.html" "$COVERAGE_BASEDIR/coverage/index.html"
+    python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage.py" "$COVERAGE_BASEDIR/coverage_meta/commands" "$COVERAGE_BASEDIR/$output/index.html" "$COVERAGE_BASEDIR/$output/index.html"
 fi
 
-echo "Full report: $COVERAGE_BASEDIR/coverage/index.html"
+echo "Full report: $COVERAGE_BASEDIR/$output/index.html"

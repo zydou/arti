@@ -50,6 +50,31 @@ rust-nightly:
   tags:
     - amd64
 
+coverage:
+  stage: test
+  image: rust:latest
+  variables:
+    RUSTFLAGS: "-Zinstrument-coverage"
+    LLVM_PROFILE_FILE: "arti-%p-%m.profraw"
+  script:
+    - apt-get update && apt-get install -y python3-pip python3-setuptools
+    - pip3 install beautifulsoup4
+    - rustup toolchain add nightly
+    - rustup default nightly
+    - rustup component add llvm-tools-preview
+    - cargo install grcov
+    # Generate report
+    - ./maint/with_coverage.sh cargo test --verbose --all-features
+    - ./maint/with_coverage.sh -f cobertura -o coverage.xml cargo test --verbose --all-features
+    # - grcov . --binary-path ./target/x86_64-unknown-linux-gnu/ -s . -t html --branch --ignore-not-existing --ignore "*cargo*" -o ./coverage/
+    # # generate cobertura report for gitlab integration
+    # - grcov . --binary-path ./target/x86_64-unknown-linux-gnu/ -s . -t cobertura --branch --ignore-not-existing --ignore "*cargo*" -o coverage.xml
+  artifacts:
+    paths:
+      - 'coverage'
+    reports:
+      cobertura: coverage.xml
+
 minimal-versions:
   stage: test
   image: rust:1.53
