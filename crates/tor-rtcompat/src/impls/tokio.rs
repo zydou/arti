@@ -26,22 +26,6 @@ pub(crate) mod net {
         /// Underlying tokio_util::compat::Compat wrapper.
         s: Compat<TokioTcpStream>,
     }
-    impl TcpStream {
-        /// Get a reference to the underlying tokio `TcpStream`.
-        pub fn get_ref(&self) -> &TokioTcpStream {
-            self.s.get_ref()
-        }
-
-        /// Get a mutable reference to the underlying tokio `TcpStream`.
-        pub fn get_mut(&mut self) -> &mut TokioTcpStream {
-            self.s.get_mut()
-        }
-
-        /// Convert this type into its underlying tokio `TcpStream`.
-        pub fn into_inner(self) -> TokioTcpStream {
-            self.s.into_inner()
-        }
-    }
     impl From<TokioTcpStream> for TcpStream {
         fn from(s: TokioTcpStream) -> TcpStream {
             let s = s.compat();
