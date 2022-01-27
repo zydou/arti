@@ -220,6 +220,12 @@ pub use preferred_backend_mod::PreferredRuntime;
 ///
 /// Once you have a runtime returned by this function, you should
 /// just create more handles to it via [`Clone`].
+///
+/// This function returns a type-erased `impl Runtime` rather than a specific
+/// runtime implementation, so that you can be sure that your code doesn't
+/// depend on any runtime-specific features.  If that's not what you want, you
+/// can call [`PreferredRuntime::current`], or the `create` function on some
+/// specific runtime in the `tokio` or `async_std` modules.
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")
@@ -231,17 +237,21 @@ pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
 /// Return a new instance of the default [`Runtime`].
 ///
 /// Generally you should call this function at most once, and then use
-/// [`Clone::clone()`] to create additional references to that
-/// runtime.
+/// [`Clone::clone()`] to create additional references to that runtime.
 ///
-/// Tokio users may want to avoid this function and instead make a
-/// runtime using [`current_user_runtime()`] or
-/// [`tokio::PreferredRuntime::current()`]: this function always _builds_ a
-/// runtime, and if you already have a runtime, that isn't what you
-/// want with Tokio.
+/// Tokio users may want to avoid this function and instead make a runtime using
+/// [`current_user_runtime()`] or [`tokio::PreferredRuntime::current()`]: this
+/// function always _builds_ a runtime, and if you already have a runtime, that
+/// isn't what you want with Tokio.
 ///
-/// If you need more fine-grained control over a runtime, you can
-/// create it using an appropriate builder type or function.
+/// If you need more fine-grained control over a runtime, you can create it
+/// using an appropriate builder type or function.
+///
+/// This function returns a type-erased `impl Runtime` rather than a specific
+/// runtime implementation, so that you can be sure that your code doesn't
+/// depend on any runtime-specific features.  If that's not what you want, you
+/// can call [`PreferredRuntime::create`], or the `create` function on some
+/// specific runtime in the `tokio` or `async_std` modules.
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")
