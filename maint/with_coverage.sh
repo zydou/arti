@@ -121,10 +121,18 @@ fi
 
 echo "Generating report..."
 
-grcov "$COVERAGE_BASEDIR/coverage_meta" --binary-path "$COVERAGE_BASEDIR/target/debug/" \
-	-s "$COVERAGE_BASEDIR/" -o "$COVERAGE_BASEDIR/$output" -t "$format" --branch \
-	--ignore-not-existing --excl-start '^mod test' --excl-stop '^}' \
-	--ignore="*/tests/*" --ignore="*/examples/*" --ignore="*/github.com-1ecc6299db9ec823/*"
+grcov "$COVERAGE_BASEDIR/coverage_meta" \
+	--binary-path "$COVERAGE_BASEDIR/target/debug/" \
+	-s "$COVERAGE_BASEDIR/" \
+	-o "$COVERAGE_BASEDIR/$output" \
+	-t "$format" \
+	--branch \
+	--ignore-not-existing \
+	--excl-start '^mod test' \
+	--excl-stop '^}' \
+	--ignore="*/tests/*" \
+	--ignore="*/examples/*" \
+	--ignore="*/github.com-1ecc6299db9ec823/*"
 
 if [ "$format" != html ]; then
 	# no html post processing when outputing non html result
