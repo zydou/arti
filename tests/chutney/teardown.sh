@@ -3,7 +3,14 @@ set -xe
 
 cd "$(git rev-parse --show-toplevel)"
 
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
 source tests/chutney/arti.run
+
+# Tells shellcheck that these variables are set; exits early if they
+# are not.
+pid="${pid:?}"
+target="${target:?}"
 
 if [ -z "${CHUTNEY_PATH}" ]; then
     # Use the default chutney path we set up before.
@@ -23,5 +30,12 @@ tail --pid="$pid" -f /dev/null
 
 "${CHUTNEY_PATH}/chutney" stop "${CHUTNEY_PATH}/$target"
 
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
 source tests/chutney/arti.run
+
+# As above, make sure this is defined.  (It won't be defined until
+# this point, so we can't check it earlier.)
+result="${result:?}"
+
 exit "$result"
