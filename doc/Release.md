@@ -14,7 +14,8 @@
   * ./maint/check_licenses.sh
   * ./maint/readmes.sh
 
-3. Then make sure that CI passes.
+3. Then make sure that CI passes. *Also ensure we've run tests for all
+  possible Cargo feature combinations, as per arti#303.*
 
 4. Increase all appropriate version numbers.  This time we'll be moving to
    0.0.1 on all crates.
