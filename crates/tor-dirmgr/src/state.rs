@@ -525,6 +525,11 @@ struct GetMicrodescsState<DM: WriteNetDir> {
     /// find a new one.  Since this is randomized, we only compute it
     /// once.
     reset_time: SystemTime,
+    /// If true, we should tell the storage to expire any outdated
+    /// information when we finish getting a usable consensus.
+    ///
+    /// Only cleared for testing.
+    expire_when_complete: bool,
 }
 
 /// A network directory that is not yet ready to become _the_ current network directory.
@@ -612,6 +617,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
             meta,
             newly_listed: Vec::new(),
             reset_time,
+            expire_when_complete: true,
         };
 
         result.consider_upgrade();
@@ -678,7 +684,9 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
             store.mark_consensus_usable(&self.meta)?;
             // Now that a consensus is usable, older consensuses may
             // need to expire.
-            store.expire_all()?;
+            if self.expire_when_complete {
+                store.expire_all()?;
+            }
         }
         Ok(())
     }
@@ -1327,6 +1335,9 @@ mod test {
 
         // Try adding the rest as if from a download.
         let mut req = tor_dirclient::request::MicrodescRequest::new();
+        // Clear this flag so that the test consensus won't expire the moment
+        // we're done.
+        state.expire_when_complete = false;
         let mut response = "".to_owned();
         for md_digest in [md2, md3, md4] {
             response.push_str(md_text.get(&md_digest).unwrap());
