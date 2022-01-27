@@ -589,77 +589,52 @@ mod test {
         IoResult::Ok(())
     }
 
-    macro_rules! runtime_tests {
-    { $($id:ident),* $(,)? } => {
-        #[cfg(feature="tokio")]
-        mod tokio_runtime_tests {
-            use std::io::Result as IoResult;
+    macro_rules! tests_with_runtime {
+        { $runtime:expr  => $($id:ident),* $(,)? } => {
             $(
                 #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::PreferredRuntime::create()?)
-                }
-            )*
-        }
-        #[cfg(feature="async-std")]
-        mod async_std_runtime_tests {
-            use std::io::Result as IoResult;
-            $(
-                #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::PreferredRuntime::create()?)
+                fn $id() -> std::io::Result<()> {
+                    super::$id($runtime)
                 }
             )*
         }
     }
-}
+
+    macro_rules! runtime_tests {
+        { $($id:ident),* $(,)? } =>
+        {
+           #[cfg(feature="tokio")]
+            mod tokio_runtime_tests {
+                tests_with_runtime! { &crate::tokio::PreferredRuntime::create()? => $($id),* }
+            }
+            #[cfg(feature="async-std")]
+            mod async_std_runtime_tests {
+                tests_with_runtime! { &crate::async_std::PreferredRuntime::create()? => $($id),* }
+            }
+        }
+    }
 
     macro_rules! tls_runtime_tests {
-    { $($id:ident),* $(,)? } => {
-        #[cfg(all(feature="tokio", feature = "native-tls"))]
-        mod tokio_native_tls_tests {
-            use std::io::Result as IoResult;
-            $(
-                #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::TokioNativeTlsRuntime::create()?)
-                }
-            )*
+        { $($id:ident),* $(,)? } =>
+        {
+            #[cfg(all(feature="tokio", feature = "native-tls"))]
+            mod tokio_native_tls_tests {
+                tests_with_runtime! { &crate::tokio::TokioNativeTlsRuntime::create()? => $($id),* }
+            }
+            #[cfg(all(feature="async-std", feature = "native-tls"))]
+            mod async_std_native_tls_tests {
+                tests_with_runtime! { &crate::async_std::AsyncStdNativeTlsRuntime::create()? => $($id),* }
+            }
+            #[cfg(all(feature="tokio", feature="rustls"))]
+            mod tokio_rustls_tests {
+                tests_with_runtime! {  &crate::tokio::TokioRustlsRuntime::create()? => $($id),* }
+            }
+            #[cfg(all(feature="async-std", feature="rustls"))]
+            mod async_std_rustls_tests {
+                tests_with_runtime! {  &crate::async_std::AsyncStdRustlsRuntime::create()? => $($id),* }
+            }
         }
-        #[cfg(all(feature="async-std", feature = "native-tls"))]
-        mod async_std_native_tls_tests {
-            use std::io::Result as IoResult;
-            $(
-                #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::AsyncStdNativeTlsRuntime::create()?)
-                }
-            )*
-        }
-
-        #[cfg(all(feature="tokio", feature="rustls"))]
-        mod tokio_rustls_tests {
-            use std::io::Result as IoResult;
-            $(
-                #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::TokioRustlsRuntime::create()?)
-                }
-            )*
-        }
-        #[cfg(all(feature="async-std", feature="rustls"))]
-        mod async_std_rustls_tests {
-            use std::io::Result as IoResult;
-            $(
-                #[test]
-                fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::AsyncStdRustlsRuntime::create()?)
-                }
-            )*
-        }
-
     }
-}
 
     runtime_tests! {
         small_delay,
