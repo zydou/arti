@@ -99,7 +99,7 @@ impl TokioNativeTlsRuntime {
         })
     }
 
-    /// Return a [`TokioNativeTlsRuntime`] wrapping   the currently running
+    /// Return a [`TokioNativeTlsRuntime`] wrapping the currently running
     /// Tokio runtime.
     ///
     /// # Usage note

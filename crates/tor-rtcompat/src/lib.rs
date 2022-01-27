@@ -253,7 +253,7 @@ pub fn create_runtime() -> std::io::Result<impl Runtime> {
 /// Helpers for test_with_all_runtimes
 pub mod testing__ {
     /// A trait for an object that might represent a test failure, or which
-    /// might just be `().
+    /// might just be `()`.
     pub trait TestOutcome {
         /// Abort if the test has failed.
         fn check_ok(&self);
