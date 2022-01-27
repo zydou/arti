@@ -88,8 +88,10 @@ export RUSTFLAGS="-Z instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
 export RUSTUP_TOOLCHAIN="${RUST_COVERAGE_TOOLCHAIN}"
 
-if [ -d "$COVERAGE_BASEDIR/$output" ]; then
-    rm -r "$COVERAGE_BASEDIR/$output" || true
+# Using :? here to ensure that the script exits the path would
+# otherwise be /
+if [ -d "${COVERAGE_BASEDIR:?}/${output:?}" ]; then
+    rm -r "${COVERAGE_BASEDIR:?}/${output:?}" || true
 fi
 if [ -d "$COVERAGE_BASEDIR/coverage_meta" ] && [ "$remove_data" = "yes" ]; then
     echo "Removing data from previous runs. (Use -c to suppress this behavior.)"
