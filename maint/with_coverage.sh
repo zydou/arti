@@ -132,6 +132,7 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" \
 	--excl-stop '^}' \
 	--ignore="*/tests/*" \
 	--ignore="*/examples/*" \
+	--ignore="crates/arti-bench/*" \
 	--ignore="*/github.com-1ecc6299db9ec823/*"
 
 if [ "$format" != html ]; then
