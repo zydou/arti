@@ -6,6 +6,7 @@ use crate::traits::*;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use futures::stream::StreamExt;
+use native_tls_crate as native_tls;
 use std::io::Result as IoResult;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::{Duration, Instant, SystemTime};
@@ -225,7 +226,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_runtime()?)
+                    super::$id(&crate::tokio::PreferredRuntime::create()?)
                 }
             )*
         }
@@ -235,7 +236,7 @@ macro_rules! runtime_tests {
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_runtime()?)
+                    super::$id(&crate::async_std::PreferredRuntime::create()?)
                 }
             )*
         }
@@ -244,44 +245,44 @@ macro_rules! runtime_tests {
 
 macro_rules! tls_runtime_tests {
     { $($id:ident),* $(,)? } => {
-        #[cfg(feature="tokio")]
+        #[cfg(all(feature="tokio", feature = "native-tls"))]
         mod tokio_native_tls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_runtime()?)
+                    super::$id(&crate::tokio::TokioNativeTlsRuntime::create()?)
                 }
             )*
         }
-        #[cfg(feature="async-std")]
+        #[cfg(all(feature="async-std", feature = "native-tls"))]
         mod async_std_native_tls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_runtime()?)
+                    super::$id(&crate::async_std::AsyncStdNativeTlsRuntime::create()?)
                 }
             )*
         }
 
         #[cfg(all(feature="tokio", feature="rustls"))]
-        mod tokio_rusttls_tests {
+        mod tokio_rustls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::tokio::create_rustls_runtime()?)
+                    super::$id(&crate::tokio::TokioRustlsRuntime::create()?)
                 }
             )*
         }
         #[cfg(all(feature="async-std", feature="rustls"))]
-        mod async_std_rusttls_tests {
+        mod async_std_rustls_tests {
             use std::io::Result as IoResult;
             $(
                 #[test]
                 fn $id() -> IoResult<()> {
-                    super::$id(&crate::async_std::create_rustls_runtime()?)
+                    super::$id(&crate::async_std::AsyncStdRustlsRuntime::create()?)
                 }
             )*
         }

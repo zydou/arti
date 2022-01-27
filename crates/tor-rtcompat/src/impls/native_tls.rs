@@ -4,6 +4,7 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
+use native_tls_crate as native_tls;
 use std::{
     convert::TryInto,
     io::{Error as IoError, Result as IoResult},
@@ -101,15 +102,5 @@ impl<S> NativeTlsProvider<S> {
 impl<S> Default for NativeTlsProvider<S> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-// We have to provide this ourselves, since derive(Clone) wrongly infers a
-// `where S: Clone` bound (from the generic argument).
-impl<S> Clone for NativeTlsProvider<S> {
-    fn clone(&self) -> Self {
-        Self {
-            _phantom: std::marker::PhantomData,
-        }
     }
 }

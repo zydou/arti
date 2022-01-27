@@ -96,7 +96,7 @@ use std::sync::Arc;
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::ArtiConfig;
-use tor_rtcompat::{Runtime, SpawnBlocking};
+use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::Result;
 use clap::{App, AppSettings, Arg, SubCommand};
@@ -229,10 +229,19 @@ fn main() -> Result<()> {
 
         process::use_max_file_limit();
 
-        #[cfg(feature = "tokio")]
-        let runtime = tor_rtcompat::tokio::create_runtime()?;
-        #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-        let runtime = tor_rtcompat::async_std::create_runtime()?;
+        cfg_if::cfg_if! {
+            if #[cfg(all(feature="tokio", feature="native-tls"))] {
+            use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="tokio", feature="rustls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            } else if #[cfg(all(feature="async-std", feature="rustls"))] {
+                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+            }
+        }
+
+        let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
         rt_copy.block_on(run(runtime, socks_port, client_config))?;

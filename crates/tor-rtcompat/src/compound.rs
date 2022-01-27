@@ -10,7 +10,7 @@ use std::io::Result as IoResult;
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
-/// The `SpawnR` component should implements [`Spawn`] and [`SpawnBlocking`];
+/// The `SpawnR` component should implements [`Spawn`] and [`BlockOn`];
 /// the `SleepR` component should implement [`SleepProvider`]; the `TcpR`
 /// component should implement [`TcpProvider`]; and the `TlsR` component should
 /// implement [`TlsProvider`].
@@ -18,7 +18,6 @@ use std::io::Result as IoResult;
 /// You can use this structure to create new runtimes in two ways: either by
 /// overriding a single part of an existing runtime, or by building an entirely
 /// new runtime from pieces.
-#[derive(Clone)]
 pub struct CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
     /// The actual collection of Runtime objects.
     ///
@@ -27,9 +26,19 @@ pub struct CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
     inner: Arc<Inner<SpawnR, SleepR, TcpR, TlsR>>,
 }
 
+// We have to provide this ourselves, since derive(Clone) wrongly infers a
+// `where S: Clone` bound (from the generic argument).
+impl<SpawnR, SleepR, TcpR, TlsR> Clone for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
 /// A collection of objects implementing that traits that make up a [`Runtime`]
 struct Inner<SpawnR, SleepR, TcpR, TlsR> {
-    /// A `Spawn` and `SpawnBlocking` implementation.
+    /// A `Spawn` and `BlockOn` implementation.
     spawn: SpawnR,
     /// A `SleepProvider` implementation.
     sleep: SleepR,
@@ -63,9 +72,9 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> SpawnBlocking for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR> BlockOn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
 where
-    SpawnR: SpawnBlocking,
+    SpawnR: BlockOn,
 {
     #[inline]
     fn block_on<F: futures::Future>(&self, future: F) -> F::Output {

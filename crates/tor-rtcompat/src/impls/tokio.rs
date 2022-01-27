@@ -124,40 +124,34 @@ use futures::Future;
 use std::io::Result as IoResult;
 use std::time::Duration;
 
-/// Helper: Declare that a given tokio runtime object implements the
-/// prerequisites for Runtime.
-// TODO: Maybe we can do this more simply with a simpler trait?
-macro_rules! implement_traits_for {
-    ($runtime:ty) => {
-        impl SleepProvider for $runtime {
-            type SleepFuture = tokio_crate::time::Sleep;
-            fn sleep(&self, duration: Duration) -> Self::SleepFuture {
-                tokio_crate::time::sleep(duration)
-            }
-        }
+impl SleepProvider for TokioRuntimeHandle {
+    type SleepFuture = tokio_crate::time::Sleep;
+    fn sleep(&self, duration: Duration) -> Self::SleepFuture {
+        tokio_crate::time::sleep(duration)
+    }
+}
 
-        #[async_trait]
-        impl crate::traits::TcpProvider for $runtime {
-            type TcpStream = net::TcpStream;
-            type TcpListener = net::TcpListener;
+#[async_trait]
+impl crate::traits::TcpProvider for TokioRuntimeHandle {
+    type TcpStream = net::TcpStream;
+    type TcpListener = net::TcpListener;
 
-            async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
-                let s = net::TokioTcpStream::connect(addr).await?;
-                Ok(s.into())
-            }
-            async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
-                let lis = net::TokioTcpListener::bind(*addr).await?;
-                Ok(net::TcpListener { lis })
-            }
-        }
-    };
+    async fn connect(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpStream> {
+        let s = net::TokioTcpStream::connect(addr).await?;
+        Ok(s.into())
+    }
+    async fn listen(&self, addr: &std::net::SocketAddr) -> IoResult<Self::TcpListener> {
+        let lis = net::TokioTcpListener::bind(*addr).await?;
+        Ok(net::TcpListener { lis })
+    }
 }
 
 /// Create and return a new Tokio multithreaded runtime.
-pub(crate) fn create_runtime() -> IoResult<async_executors::TokioTp> {
+pub(crate) fn create_runtime() -> IoResult<TokioRuntimeHandle> {
     let mut builder = async_executors::TokioTpBuilder::new();
     builder.tokio_builder().enable_all();
-    builder.build()
+    let owned = builder.build()?;
+    Ok(owned.into())
 }
 
 /// Wrapper around a Handle to a tokio runtime.
@@ -174,6 +168,12 @@ pub(crate) fn create_runtime() -> IoResult<async_executors::TokioTp> {
 /// that when creating this object.
 #[derive(Clone, Debug)]
 pub struct TokioRuntimeHandle {
+    /// If present, the tokio executor that we've created (and which we own).
+    ///
+    /// We never access this directly; only through `handle`.  We keep it here
+    /// so that our Runtime types can be agnostic about whether they own the
+    /// executor.
+    owned: Option<async_executors::TokioTp>,
     /// The underlying Handle.
     handle: tokio_crate::runtime::Handle,
 }
@@ -189,21 +189,33 @@ impl TokioRuntimeHandle {
     pub(crate) fn new(handle: tokio_crate::runtime::Handle) -> Self {
         handle.into()
     }
+
+    /// Return true if this handle owns the executor that it points to.
+    pub fn is_owned(&self) -> bool {
+        self.owned.is_some()
+    }
 }
 
 impl From<tokio_crate::runtime::Handle> for TokioRuntimeHandle {
     fn from(handle: tokio_crate::runtime::Handle) -> Self {
-        Self { handle }
+        Self {
+            owned: None,
+            handle,
+        }
     }
 }
 
-impl SpawnBlocking for async_executors::TokioTp {
-    fn block_on<F: Future>(&self, f: F) -> F::Output {
-        async_executors::TokioTp::block_on(self, f)
+impl From<async_executors::TokioTp> for TokioRuntimeHandle {
+    fn from(owner: async_executors::TokioTp) -> TokioRuntimeHandle {
+        let handle = owner.block_on(async { tokio_crate::runtime::Handle::current() });
+        Self {
+            owned: Some(owner),
+            handle,
+        }
     }
 }
 
-impl SpawnBlocking for TokioRuntimeHandle {
+impl BlockOn for TokioRuntimeHandle {
     fn block_on<F: Future>(&self, f: F) -> F::Output {
         self.handle.block_on(f)
     }
@@ -219,6 +231,3 @@ impl futures::task::Spawn for TokioRuntimeHandle {
         Ok(())
     }
 }
-
-implement_traits_for! {async_executors::TokioTp}
-implement_traits_for! {TokioRuntimeHandle}

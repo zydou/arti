@@ -67,6 +67,7 @@ dependencies = [
  "arti-client",
  "arti-config",
  "async-ctrlc",
+ "cfg-if",
  "clap",
  "config",
  "futures",

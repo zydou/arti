@@ -4,7 +4,7 @@
 // we should make it so that more code is more shared.
 
 use crate::net::MockNetProvider;
-use tor_rtcompat::{Runtime, SleepProvider, SpawnBlocking, TcpProvider, TlsProvider};
+use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider};
 
 use crate::io::LocalStream;
 use async_trait::async_trait;
@@ -48,7 +48,7 @@ impl<R: Runtime> Spawn for MockNetRuntime<R> {
     }
 }
 
-impl<R: Runtime> SpawnBlocking for MockNetRuntime<R> {
+impl<R: Runtime> BlockOn for MockNetRuntime<R> {
     fn block_on<F: Future>(&self, future: F) -> F::Output {
         self.runtime.block_on(future)
     }

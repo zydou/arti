@@ -1,0 +1,26 @@
+#!/usr/bin/python
+#
+# Run a provided command over all possible subsets of important
+# tor-rtcompat features.
+
+import sys, subprocess
+
+if sys.argv[1:] == []:
+    print("You need to name a program to run with different features")
+    sys.exit(1)
+
+FEATURES = [ "tokio", "async-std", "native-tls", "rustls" ]
+
+COMBINATIONS = [ [] ]
+
+# Generate all combinations of features.
+for feature in FEATURES:
+    new_combinations = [ c + [ feature ] for c in COMBINATIONS ]
+    COMBINATIONS.extend(new_combinations)
+
+for c in COMBINATIONS:
+    arg = "--features={}".format(",".join(c))
+    commandline = sys.argv[1:] + [arg]
+    print(" ".join(commandline))
+    subprocess.check_call(commandline)
+

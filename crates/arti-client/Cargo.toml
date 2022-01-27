@@ -11,9 +11,11 @@ categories = [ "network-programming", "cryptography" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = [ "tokio" ]
+default = [ "tokio", "native-tls" ]
 async-std = [ "tor-rtcompat/async-std" ]
 tokio = [ "tor-rtcompat/tokio", "tor-proto/tokio" ]
+native-tls = [ "tor-rtcompat/native-tls" ]
+rustls = [ "tor-rtcompat/rustls" ]
 static = [ "tor-rtcompat/static", "tor-dirmgr/static" ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -42,7 +44,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 
 [dev-dependencies]
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio"] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio", "native-tls" ] }
 tokio-crate = { package = "tokio", version = "1.4", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"

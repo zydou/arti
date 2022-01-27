@@ -40,7 +40,7 @@
 //! The `tor-rtcompat` crate provides several traits that
 //! encapsulate different runtime capabilities.
 //!
-//!  * A runtime is a [`SpawnBlocking`] if it can block on a future.
+//!  * A runtime is a [`BlockOn`] if it can block on a future.
 //!  * A runtime is a [`SleepProvider`] if it can make timer futures that
 //!    become Ready after a given interval of time.
 //!  * A runtime is a [`TcpProvider`] if it can make and receive TCP
@@ -60,11 +60,13 @@
 //!   * If you want to construct a default runtime that you won't be
 //!     using for anything besides Arti, you can use [`create_runtime()`].
 //!
-//!   * If you want to explicitly construct a runtime with a specific
-//!     backend, you can do so with [`async_std::create_runtime`] or
-//!     [`tokio::create_runtime`].  Or if you have already constructed a
+//!   * If you want to use a runtime with an explicitly chosen backend,
+//!     name its type directly as [`async_std::AsyncStdNativeTlsRuntime`],
+//!     [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
+//!     or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
+//!     call its `create()` method.  Or if you have already constructed a
 //!     tokio runtime that you want to use, you can wrap it as a
-//!     [`Runtime`] explicitly with [`tokio::TokioRuntimeHandle`].
+//!     [`Runtime`] explicitly with `current()`.
 //!
 //! # Cargo features
 //!
@@ -92,7 +94,7 @@
 //! We could simplify this code significantly by removing most of the
 //! traits it exposes, and instead just exposing a single
 //! implementation.  For example, instead of exposing a
-//! [`SpawnBlocking`] trait to represent blocking until a task is
+//! [`BlockOn`] trait to represent blocking until a task is
 //! done, we could just provide a single global `block_on` function.
 //!
 //! That simplification would come at a cost, however.  First of all,
@@ -140,6 +142,10 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub(crate) mod impls;
 pub mod task;
 
@@ -148,11 +154,15 @@ mod opaque;
 mod timer;
 mod traits;
 
-#[cfg(all(test, any(feature = "tokio", feature = "async-std")))]
+#[cfg(all(
+    test,
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 mod test;
 
 pub use traits::{
-    CertifiedConn, Runtime, SleepProvider, SpawnBlocking, TcpListener, TcpProvider, TlsProvider,
+    BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
 };
 
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
@@ -163,13 +173,35 @@ pub mod tls {
     pub use crate::traits::{CertifiedConn, TlsConnector};
 }
 
-#[cfg(feature = "tokio")]
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "tokio"))]
 pub mod tokio;
 
-#[cfg(feature = "async-std")]
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "async-std"))]
 pub mod async_std;
 
 pub use compound::CompoundRuntime;
+
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    feature = "async-std",
+    not(feature = "tokio")
+))]
+use async_std as preferred_backend_mod;
+#[cfg(all(any(feature = "native-tls", feature = "rustls"), feature = "tokio"))]
+use tokio as preferred_backend_mod;
+
+/// The runtime that we prefer to use, out of all the runtimes compiled into the
+/// tor-rtcompat crate.
+///
+/// If `tokio` and `async-std` are both available, we prefer `tokio` for its
+/// performance.
+/// If `native_tls` and `rustls` are both available, we prefer `native_tls` since
+/// it has been used in Arti for longer.
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
+pub use preferred_backend_mod::PreferredRuntime;
 
 /// Try to return an instance of the currently running [`Runtime`].
 ///
@@ -188,47 +220,50 @@ pub use compound::CompoundRuntime;
 ///
 /// Once you have a runtime returned by this function, you should
 /// just create more handles to it via [`Clone`].
-#[cfg(any(feature = "async-std", feature = "tokio"))]
+///
+/// This function returns a type-erased `impl Runtime` rather than a specific
+/// runtime implementation, so that you can be sure that your code doesn't
+/// depend on any runtime-specific features.  If that's not what you want, you
+/// can call [`PreferredRuntime::current`], or the `create` function on some
+/// specific runtime in the `tokio` or `async_std` modules.
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
-    #[cfg(feature = "tokio")]
-    {
-        crate::tokio::current_runtime()
-    }
-    #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-    {
-        crate::async_std::current_runtime()
-    }
+    PreferredRuntime::current()
 }
 
 /// Return a new instance of the default [`Runtime`].
 ///
 /// Generally you should call this function at most once, and then use
-/// [`Clone::clone()`] to create additional references to that
-/// runtime.
+/// [`Clone::clone()`] to create additional references to that runtime.
 ///
-/// Tokio users may want to avoid this function and instead make a
-/// runtime using [`current_user_runtime()`] or
-/// [`tokio::current_runtime()`]: this function always _builds_ a
-/// runtime, and if you already have a runtime, that isn't what you
-/// want with Tokio.
+/// Tokio users may want to avoid this function and instead make a runtime using
+/// [`current_user_runtime()`] or [`tokio::PreferredRuntime::current()`]: this
+/// function always _builds_ a runtime, and if you already have a runtime, that
+/// isn't what you want with Tokio.
 ///
-/// If you need more fine-grained control over a runtime, you can
-/// create it using an appropriate builder type or function.
-#[cfg(any(feature = "async-std", feature = "tokio"))]
+/// If you need more fine-grained control over a runtime, you can create it
+/// using an appropriate builder type or function.
+///
+/// This function returns a type-erased `impl Runtime` rather than a specific
+/// runtime implementation, so that you can be sure that your code doesn't
+/// depend on any runtime-specific features.  If that's not what you want, you
+/// can call [`PreferredRuntime::create`], or the `create` function on some
+/// specific runtime in the `tokio` or `async_std` modules.
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 pub fn create_runtime() -> std::io::Result<impl Runtime> {
-    #[cfg(feature = "tokio")]
-    {
-        crate::tokio::create_runtime()
-    }
-    #[cfg(all(feature = "async-std", not(feature = "tokio")))]
-    {
-        crate::async_std::create_runtime()
-    }
+    PreferredRuntime::create()
 }
 
 /// Helpers for test_with_all_runtimes
 pub mod testing__ {
-    /// A trait for an object that might represent a test failure.
+    /// A trait for an object that might represent a test failure, or which
+    /// might just be `()`.
     pub trait TestOutcome {
         /// Abort if the test has failed.
         fn check_ok(&self);
@@ -236,42 +271,88 @@ pub mod testing__ {
     impl TestOutcome for () {
         fn check_ok(&self) {}
     }
-    impl<T, E> TestOutcome for Result<T, E> {
+    impl<E: std::fmt::Debug> TestOutcome for Result<(), E> {
         fn check_ok(&self) {
-            assert!(self.is_ok());
+            self.as_ref().expect("Test failure");
         }
+    }
+}
+
+/// Helper: define a macro that expands a token tree iff a pair of features are
+/// both present.
+macro_rules! declare_conditional_macro {
+    ( $(#[$meta:meta])* macro $name:ident = ($f1:expr, $f2:expr) ) => {
+        $( #[$meta] )*
+        #[cfg(all(feature=$f1, feature=$f2))]
+        #[macro_export]
+        macro_rules! $name {
+            ($tt:tt) => {
+                $tt
+            };
+        }
+
+        $( #[$meta] )*
+        #[cfg(not(all(feature=$f1, feature=$f2)))]
+        #[macro_export]
+        macro_rules! $name {
+            ($tt:tt) => {};
+        }
+
+        // Needed so that we can access this macro at this path, both within the
+        // crate and without.
+        pub use $name;
+    };
+}
+
+/// Defines macros that will expand when certain runtimes are available.
+pub mod cond {
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_tokio_native_tls_present = ("tokio", "native-tls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioRustlsRuntime is available.
+        macro if_tokio_rustls_present = ("tokio", "rustls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_async_std_native_tls_present = ("async-std", "native-tls")
+    }
+    declare_conditional_macro! {
+        /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        macro if_async_std_rustls_present = ("async-std", "rustls")
     }
 }
 
 /// Run a test closure, passing as argument every supported runtime.
 ///
-/// (This is a macro so that it can repeat the closure as two separate
+/// (This is a macro so that it can repeat the closure as multiple separate
 /// expressions, so it can take on two different types, if needed.)
 #[macro_export]
-#[cfg(all(feature = "tokio", feature = "async-std"))]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "tokio", feature = "async-std"),
+))]
 macro_rules! test_with_all_runtimes {
     ( $fn:expr ) => {{
+        use $crate::cond::*;
         use $crate::testing__::TestOutcome;
-        $crate::tokio::test_with_runtime($fn).check_ok();
-        $crate::async_std::test_with_runtime($fn)
-    }};
-}
+        // We have to do this outcome-checking business rather than just using
+        // the ? operator or calling expect() because some of the closures that
+        // we use this macro with return (), and some return Result.
 
-/// Run a test closure, passing as argument every supported runtime.
-#[macro_export]
-#[cfg(all(feature = "tokio", not(feature = "async-std")))]
-macro_rules! test_with_all_runtimes {
-    ( $fn:expr ) => {{
-        $crate::tokio::test_with_runtime($fn)
-    }};
-}
-
-/// Run a test closure, passing as argument every supported runtime.
-#[macro_export]
-#[cfg(all(not(feature = "tokio"), feature = "async-std"))]
-macro_rules! test_with_all_runtimes {
-    ( $fn:expr ) => {{
-        $crate::async_std::test_with_runtime($fn)
+        if_tokio_native_tls_present! {{
+           $crate::tokio::TokioNativeTlsRuntime::run_test($fn).check_ok();
+        }}
+        if_tokio_rustls_present! {{
+            $crate::tokio::TokioRustlsRuntime::run_test($fn).check_ok();
+        }}
+        if_async_std_native_tls_present! {{
+            $crate::async_std::AsyncStdNativeTlsRuntime::run_test($fn).check_ok();
+        }}
+        if_async_std_rustls_present! {{
+            $crate::async_std::AsyncStdRustlsRuntime::run_test($fn).check_ok();
+        }}
     }};
 }
 
@@ -279,20 +360,12 @@ macro_rules! test_with_all_runtimes {
 ///
 /// (Always prefers tokio if present.)
 #[macro_export]
-#[cfg(feature = "tokio")]
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "tokio", feature = "async-std"),
+))]
 macro_rules! test_with_one_runtime {
     ( $fn:expr ) => {{
-        $crate::tokio::test_with_runtime($fn)
-    }};
-}
-
-/// Run a test closure, passing as argument one supported runtime.
-///
-/// (Always prefers tokio if present.)
-#[macro_export]
-#[cfg(all(not(feature = "tokio"), feature = "async-std"))]
-macro_rules! test_with_one_runtime {
-    ( $fn:expr ) => {{
-        $crate::async_std::test_with_runtime($fn)
+        $crate::PreferredRuntime::run_test($fn)
     }};
 }

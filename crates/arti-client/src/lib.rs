@@ -60,7 +60,7 @@
 //! let config = TorClientConfig::default();
 //! // Arti needs a handle to an async runtime in order to spawn tasks and use the
 //! // network. (See "Multiple runtime support" below.)
-//! let rt = tor_rtcompat::tokio::current_runtime()?;
+//! let rt = tor_rtcompat::tokio::TokioNativeTlsRuntime::current()?;
 //!
 //! // Start the Arti client, and let it bootstrap a connection to the Tor network.
 //! // (This takes a while to gather the necessary directory information.
@@ -118,14 +118,16 @@
 //! will expect a type that implements [`tor_rtcompat::Runtime`], which can be obtained:
 //!
 //! - for Tokio:
-//!   - by calling [`tor_rtcompat::tokio::current_runtime`], if a Tokio reactor is already running
-//!   - by calling [`tor_rtcompat::tokio::create_runtime`], to start a new reactor if one is not
+//!   - by calling [`tor_rtcompat::tokio::PreferredRuntime::current()`], if a Tokio reactor is already running
+//!   - by calling [`tor_rtcompat::tokio::PreferredRuntime::create()`], to start a new reactor if one is not
 //!     already running
-//!   - by manually creating a [`TokioRuntimeHandle`](tor_rtcompat::tokio::TokioRuntimeHandle) from
-//!     an existing Tokio runtime handle
+//!   - as above, but explicitly specifying [`TokioNativeTlsRuntime`](tor_rtcompat::tokio::TokioNativeTlsRuntime)
+//!     or [`TokioRustlsRuntime`](tor_rtcompat::tokio::TokioRustlsRuntime) in place of `PreferredRuntime`.
 //! - for async-std:
-//!   - by calling [`tor_rtcompat::async_std::current_runtime`], which will create a runtime or
+//!   - by calling [`tor_rtcompat::async_std::PreferredRuntime::current()`], which will create a runtime or
 //!     retrieve the existing one, if one has already been started
+//!   - as above, but explicitly specifying [`AsyncStdNativeTlsRuntime`](tor_rtcompat::async_std::AsyncStdNativeTlsRuntime)
+//!     or [`AsyncStdRustlsRuntime`](tor_rtcompat::async_std::AsyncStdRustlsRuntime) in place of `PreferredRuntime`.
 //!
 //!
 //! # Feature flags
