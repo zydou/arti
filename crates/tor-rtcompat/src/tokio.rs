@@ -183,3 +183,53 @@ impl TokioRustlsRuntime {
 fn current_handle() -> std::io::Result<tokio_crate::runtime::Handle> {
     tokio_crate::runtime::Handle::try_current().map_err(|e| IoError::new(ErrorKind::Other, e))
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn no_current() {
+        // There should be no running tokio runtime in this context.
+
+        #[cfg(feature = "native-tls")]
+        assert!(TokioNativeTlsRuntime::current().is_err());
+
+        #[cfg(feature = "rustls")]
+        assert!(TokioRustlsRuntime::current().is_err());
+    }
+
+    #[test]
+    fn current() {
+        // Now start a tokio runtime and make sure that the "current" functions do work in that case.
+        let runtime = PreferredRuntime::create().unwrap();
+        runtime.block_on(async {
+            #[cfg(feature = "native-tls")]
+            assert!(TokioNativeTlsRuntime::current().is_ok());
+
+            #[cfg(feature = "rustls")]
+            assert!(TokioRustlsRuntime::current().is_ok());
+        });
+    }
+
+    #[test]
+    fn debug() {
+        #[cfg(feature = "native-tls")]
+        assert_eq!(
+            format!("{:?}", TokioNativeTlsRuntime::create().unwrap()),
+            "TokioNativeTlsRuntime { .. }"
+        );
+        #[cfg(feature = "rustls")]
+        assert_eq!(
+            format!("{:?}", TokioRustlsRuntime::create().unwrap()),
+            "TokioRustlsRuntime { .. }"
+        );
+
+        // Just for fun, let's try the Debug output for the Compound.
+        assert_eq!(
+            format!("{:?}", PreferredRuntime::create().unwrap().inner),
+            "CompoundRuntime { .. }"
+        );
+    }
+}

@@ -611,6 +611,9 @@ mod test {
             mod async_std_runtime_tests {
                 tests_with_runtime! { &crate::async_std::PreferredRuntime::create()? => $($id),* }
             }
+            mod default_runtime_tests {
+                tests_with_runtime! { &crate::create_runtime()? => $($id),* }
+            }
         }
     }
 
@@ -632,6 +635,9 @@ mod test {
             #[cfg(all(feature="async-std", feature="rustls"))]
             mod async_std_rustls_tests {
                 tests_with_runtime! {  &crate::async_std::AsyncStdRustlsRuntime::create()? => $($id),* }
+            }
+            mod default_runtime_tls_tests {
+                tests_with_runtime! { &crate::create_runtime()? => $($id),* }
             }
         }
     }

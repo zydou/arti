@@ -137,3 +137,37 @@ impl AsyncStdRustlsRuntime {
         runtime.clone().block_on(func(runtime))
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn current() {
+        // We should actually have to run this inside a runtime with async_std,
+        // but let's do it anyway to make sure that "current" works.
+        let runtime = PreferredRuntime::create().unwrap();
+        runtime.block_on(async {
+            #[cfg(feature = "native-tls")]
+            assert!(AsyncStdNativeTlsRuntime::current().is_ok());
+
+            #[cfg(feature = "rustls")]
+            assert!(AsyncStdRustlsRuntime::current().is_ok());
+        });
+    }
+
+    #[test]
+    fn debug() {
+        #[cfg(feature = "native-tls")]
+        assert_eq!(
+            format!("{:?}", AsyncStdNativeTlsRuntime::create().unwrap()),
+            "AsyncStdNativeTlsRuntime { .. }"
+        );
+        #[cfg(feature = "rustls")]
+        assert_eq!(
+            format!("{:?}", AsyncStdRustlsRuntime::create().unwrap()),
+            "AsyncStdRustlsRuntime { .. }"
+        );
+    }
+}
