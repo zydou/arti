@@ -1,0 +1,37 @@
+#!/usr/bin/python
+#
+# Use BeautifulSoup to deduplicate functions in a grov XML (cobertura)
+# output file.
+
+import sys
+
+try:
+    from bs4 import BeautifulSoup
+    import lxml
+except ImportError:
+    print("Sorry, BeautifulSoup 4 or lxml is not installed.", file=sys.stderr)
+    sys.exit(1)
+
+if len(sys.argv) != 2:
+    print(f"Usage: {sys.argv[0]} <cobertura_file>")
+    print("    Post-process a grcov cobertura.xml file")
+    sys.exit(1)
+
+# Parse the coverage file
+with open(sys.argv[1]) as f:
+    document = BeautifulSoup(f, "lxml")
+
+# Iterate over source files
+for file in document.coverage.packages.findAll("package"):
+    already_seen = set()
+    # Iterate over function
+    for func in file.classes.findChild("class").methods.findAll("method"):
+        name = func["name"]
+        if name in already_seen:
+            # Remove duplicate function
+            func.extract()
+        else:
+            already_seen.add(name)
+
+with open(sys.argv[1], 'w') as out:
+    out.write(document.prettify())
