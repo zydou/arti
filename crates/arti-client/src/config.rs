@@ -224,6 +224,46 @@ impl From<StorageConfig> for StorageConfigBuilder {
     }
 }
 
+/// Configuration for system resources used by Tor.
+///
+/// You cannot change this section on a running Arti client.
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[non_exhaustive]
+pub struct SystemConfig {
+    /// Maximum number of file descriptors we should launch with
+    #[builder(setter(into), default = "default_max_files()")]
+    #[serde(default = "default_max_files")]
+    pub max_files: u64,
+}
+
+/// Return the default maximum number of file descriptors to launch with.
+fn default_max_files() -> u64 {
+    16384
+}
+
+impl Default for SystemConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
+impl SystemConfig {
+    /// Return a new SystemConfigBuilder.
+    pub fn builder() -> SystemConfigBuilder {
+        SystemConfigBuilder::default()
+    }
+}
+
+impl From<SystemConfig> for SystemConfigBuilder {
+    fn from(cfg: SystemConfig) -> SystemConfigBuilder {
+        let mut builder = SystemConfigBuilder::default();
+        builder.max_files(cfg.max_files);
+        builder
+    }
+}
+
 /// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
 ///
 /// In order to connect to the Tor network, Arti needs to know a few
@@ -273,6 +313,9 @@ pub struct TorClientConfig {
 
     /// Information about timing out client requests.
     pub(crate) stream_timeouts: StreamTimeoutConfig,
+
+    /// Information about system resources
+    pub system: SystemConfig,
 }
 
 impl Default for TorClientConfig {
@@ -336,6 +379,8 @@ pub struct TorClientConfigBuilder {
     address_filter: ClientAddrConfigBuilder,
     /// Inner builder for the `stream_timeouts` section.
     stream_timeouts: StreamTimeoutConfigBuilder,
+    /// Inner builder for the `system` section.
+    system: SystemConfigBuilder,
 }
 
 impl TorClientConfigBuilder {
@@ -371,6 +416,7 @@ impl TorClientConfigBuilder {
             .stream_timeouts
             .build()
             .map_err(|e| e.within("stream_timeouts"))?;
+        let system = self.system.build().map_err(|e| e.within("system"))?;
 
         Ok(TorClientConfig {
             tor_network,
@@ -382,6 +428,7 @@ impl TorClientConfigBuilder {
             circuit_timing,
             address_filter,
             stream_timeouts,
+            system,
         })
     }
 
@@ -485,6 +532,13 @@ impl TorClientConfigBuilder {
     pub fn address_filter(&mut self) -> &mut ClientAddrConfigBuilder {
         &mut self.address_filter
     }
+
+    /// Return a mutable reference to a [`SystemConfigBuilder`].
+    ///
+    /// This section is used to configure the system resources used by Arti.
+    pub fn system(&mut self) -> &mut SystemConfigBuilder {
+        &mut self.system
+    }
 }
 
 impl From<TorClientConfig> for TorClientConfigBuilder {
@@ -499,6 +553,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_timing,
             address_filter,
             stream_timeouts,
+            system,
         } = cfg;
 
         TorClientConfigBuilder {
@@ -511,6 +566,7 @@ impl From<TorClientConfig> for TorClientConfigBuilder {
             circuit_timing: circuit_timing.into(),
             address_filter: address_filter.into(),
             stream_timeouts: stream_timeouts.into(),
+            system: system.into(),
         }
     }
 }

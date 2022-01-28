@@ -164,3 +164,10 @@ resolve_timeout = "10 sec"
 
 # How long should we wait before timing out when resolving a DNS PTR record?
 resolve_ptr_timeout = "10 sec"
+
+# Configuration for the system resources used by Arti.
+[system]
+
+# What is the maximum number of file descriptors which should be available
+# to Arti when we launch?
+max_files = 16384

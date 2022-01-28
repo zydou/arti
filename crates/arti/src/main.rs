@@ -227,7 +227,7 @@ fn main() -> Result<()> {
             socks_port
         );
 
-        process::use_max_file_limit();
+        process::use_max_file_limit(&client_config);
 
         cfg_if::cfg_if! {
             if #[cfg(all(feature="tokio", feature="native-tls"))] {
