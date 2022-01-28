@@ -6,6 +6,12 @@ variables:
   # We don't need Husky to install the Git hooks for CI.
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
 
+shellcheck:
+  stage: build
+  image: koalaman/shellcheck-alpine
+  script:
+    - shellcheck **/*.sh
+
 rust-latest:
   stage: build
   image: rust:latest
