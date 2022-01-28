@@ -123,16 +123,20 @@ where
     // For now, we just use higher-level timeouts in `dirmgr`.
     let r = download(runtime, req, &mut stream, Some(source.clone())).await;
 
-    let retire = match &r {
-        Err(e) => e.should_retire_circ(),
-        Ok(dr) => dr.error().map(Error::should_retire_circ) == Some(true),
-    };
-
-    if retire {
+    if should_retire_circ(&r) {
         retire_circ(&circ_mgr, &source, "Partial response");
     }
 
     Ok(r?)
+}
+
+/// Return true if `result` holds an error indicating that we should retire the
+/// circuit used for the corresponding request.
+fn should_retire_circ(result: &Result<DirResponse>) -> bool {
+    match result {
+        Err(e) => e.should_retire_circ(),
+        Ok(dr) => dr.error().map(Error::should_retire_circ) == Some(true),
+    }
 }
 
 /// Fetch a Tor directory object from a provided stream.
@@ -660,6 +664,7 @@ mod test {
             b"GET /tor/micro/d/CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk.z HTTP/1.0\r\n"
         ));
 
+        assert!(!should_retire_circ(&response));
         let response = response?;
         assert_eq!(response.status_code(), 200);
         assert!(!response.is_partial());
@@ -737,6 +742,8 @@ mod test {
         let mut response_text: Vec<u8> = (*b"HTTP/1.0 418 I'm a teapot\r\nX-Too-Many-As: ").into();
         response_text.resize(16384, b'A');
         let (response, _request) = run_download_test(req, &response_text);
+
+        assert!(should_retire_circ(&response));
         assert!(matches!(response, Err(Error::HttparseError(_))));
     }
 
