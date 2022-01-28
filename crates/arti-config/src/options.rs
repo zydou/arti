@@ -4,7 +4,8 @@ use arti_client::config::{
     circ,
     dir::{self, DownloadScheduleConfig, NetworkConfig},
     ClientAddrConfig, ClientAddrConfigBuilder, StorageConfig, StorageConfigBuilder,
-    StreamTimeoutConfig, StreamTimeoutConfigBuilder, TorClientConfig, TorClientConfigBuilder,
+    StreamTimeoutConfig, StreamTimeoutConfigBuilder, SystemConfig, SystemConfigBuilder,
+    TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -247,6 +248,9 @@ pub struct ArtiConfig {
 
     /// Information about when to time out client requests.
     stream_timeouts: StreamTimeoutConfig,
+
+    /// Information on system resources used by Arti.
+    system: SystemConfig,
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -328,6 +332,8 @@ pub struct ArtiConfigBuilder {
     address_filter: ClientAddrConfigBuilder,
     /// Builder for the stream timeout rules.
     stream_timeouts: StreamTimeoutConfigBuilder,
+    /// Builder for system resource configuration.
+    system: SystemConfigBuilder,
 }
 
 impl ArtiConfigBuilder {
@@ -365,6 +371,7 @@ impl ArtiConfigBuilder {
             .stream_timeouts
             .build()
             .map_err(|e| e.within("stream_timeouts"))?;
+        let system = self.system.build().map_err(|e| e.within("system"))?;
         Ok(ArtiConfig {
             proxy,
             logging,
@@ -377,6 +384,7 @@ impl ArtiConfigBuilder {
             circuit_timing,
             address_filter,
             stream_timeouts,
+            system,
         })
     }
 
@@ -476,6 +484,13 @@ impl ArtiConfigBuilder {
     pub fn stream_timeouts(&mut self) -> &mut StreamTimeoutConfigBuilder {
         &mut self.stream_timeouts
     }
+
+    /// Return a mutable reference to a [`SystemConfigBuilder`].
+    ///
+    /// This section controls the system parameters used by Arti.
+    pub fn system(&mut self) -> &mut SystemConfigBuilder {
+        &mut self.system
+    }
 }
 
 impl From<ArtiConfig> for ArtiConfigBuilder {
@@ -492,6 +507,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
             circuit_timing: cfg.circuit_timing.into(),
             address_filter: cfg.address_filter.into(),
             stream_timeouts: cfg.stream_timeouts.into(),
+            system: cfg.system.into(),
         }
     }
 }
