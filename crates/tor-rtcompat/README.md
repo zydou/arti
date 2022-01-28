@@ -42,7 +42,7 @@ traits it provides.
 The `tor-rtcompat` crate provides several traits that
 encapsulate different runtime capabilities.
 
- * A runtime is a [`SpawnBlocking`] if it can block on a future.
+ * A runtime is a [`BlockOn`] if it can block on a future.
  * A runtime is a [`SleepProvider`] if it can make timer futures that
    become Ready after a given interval of time.
  * A runtime is a [`TcpProvider`] if it can make and receive TCP
@@ -62,11 +62,13 @@ You can get a [`Runtime`] in several ways:
   * If you want to construct a default runtime that you won't be
     using for anything besides Arti, you can use [`create_runtime()`].
 
-  * If you want to explicitly construct a runtime with a specific
-    backend, you can do so with [`async_std::create_async_std_runtime`] or
-    [`tokio::create_tokio_runtime`].  Or if you have already constructed a
+  * If you want to use a runtime with an explicitly chosen backend,
+    name its type directly as [`async_std::AsyncStdNativeTlsRuntime`],
+    [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
+    or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
+    call its `create()` method.  Or if you have already constructed a
     tokio runtime that you want to use, you can wrap it as a
-    [`Runtime`] explicitly with [`tokio::TokioRuntimeHandle`].
+    [`Runtime`] explicitly with `current()`.
 
 ## Cargo features
 
@@ -94,7 +96,7 @@ to other environments (like WASM) in the future.
 We could simplify this code significantly by removing most of the
 traits it exposes, and instead just exposing a single
 implementation.  For example, instead of exposing a
-[`SpawnBlocking`] trait to represent blocking until a task is
+[`BlockOn`] trait to represent blocking until a task is
 done, we could just provide a single global `block_on` function.
 
 That simplification would come at a cost, however.  First of all,
