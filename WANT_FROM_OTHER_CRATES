@@ -16,6 +16,10 @@ rust itself:
  * existential types.
  * async functions in traits (without #[async_trait]).
 
+async-rustls:
+  * upgrade to rustls 0.20
+    https://github.com/smol-rs/async-rustls/issues/8
+
 dalek-crypto:
 * Upgrade to latest version of rand crate.
 
@@ -24,6 +28,7 @@ ed25519-dalek:
   (I want a way, given a document D and a signature S, to construct
   a small object representing (SHA(D), S) so that I can check that
   signature later on without having to hold on to all of D.)
+  https://github.com/dalek-cryptography/ed25519-dalek/pull/186
 
 phf:
 * A much cheaper hash function.
@@ -46,6 +51,10 @@ ed25519 trait:
 native-tls:
 * Support for RFC5705 exporters where available.
 
+webpki:
+* Support for cert without extensions and/or without alpn
+  https://github.com/briansmith/webpki/issues/219
+
 
 # Not actually using these crates:
 
@@ -60,8 +69,6 @@ pem: (see arti#146 for discussion)
   base64 multiline.
 * should be stricter?
 
-webpki:
-* Support for cert without extensions and/or without alpn
 
 tls-api:
 * Async support
