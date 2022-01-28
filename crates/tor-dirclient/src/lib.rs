@@ -307,12 +307,14 @@ where
         let status = futures::select! {
             status = stream.read(buf).fuse() => status,
             _ = timer => {
+                result.resize(written_total, 0); // truncate as needed
                 return Err(Error::DirTimeout);
             }
         };
         let written_in_this_loop = match status {
             Ok(n) => n,
             Err(other) => {
+                result.resize(written_total, 0); // truncate as needed
                 return Err(other.into());
             }
         };
