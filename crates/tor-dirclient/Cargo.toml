@@ -26,7 +26,7 @@ tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4"}
 
 async-compression = { version = "0.3.5", features = ["futures-io", "zlib"] }
 base64 = "0.13.0"
-futures = "0.3"
+futures = "0.3.14"
 hex = "0.4"
 http = "0.2"
 httpdate = "1.0"

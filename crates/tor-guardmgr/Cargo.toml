@@ -28,7 +28,7 @@ tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4"}
 tor-units = { path="../tor-units", version = "0.0.3"}
 
 derive_builder = "0.10"
-futures = "0.3"
+futures = "0.3.14"
 humantime-serde = "1"
 itertools = "0.10.1"
 pin-project = "1"
