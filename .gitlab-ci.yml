@@ -10,7 +10,7 @@ shellcheck:
   stage: build
   image: koalaman/shellcheck-alpine
   script:
-    - shellcheck **/*.sh
+    - ./maint/shellcheck_all.sh
 
 rust-latest:
   stage: build
