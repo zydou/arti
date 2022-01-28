@@ -53,7 +53,7 @@ rust-nightly:
     - rustup component add clippy
     # We check these extra warnings on CI only, since we don't want to forbid them while developing.
     - cargo clippy --all-features --tests -- -D clippy::dbg_macro -D clippy::print_stdout -D clippy::print_stderr
-    - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items
+    - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features
   tags:
     - amd64
 
