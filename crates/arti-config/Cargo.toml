@@ -1,6 +1,6 @@
 [package]
 name = "arti-config"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -11,9 +11,9 @@ categories = [ "config" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-arti-client = { package="arti-client", path = "../arti-client", version = "0.0.3"}
-tor-circmgr = { package="tor-circmgr", path="../tor-circmgr", version = "0.0.3"}
-tor-config = { package="tor-config", path = "../tor-config", version = "0.0.3", features = ["expand-paths"]}
+arti-client = { package="arti-client", path = "../arti-client", version = "0.0.4"}
+tor-circmgr = { package="tor-circmgr", path="../tor-circmgr", version = "0.0.4"}
+tor-config = { package="tor-config", path = "../tor-config", version = "0.0.4", features = ["expand-paths"]}
 config = { version = "0.11.0", default-features = false, features = ["toml"] }
 once_cell = "1"
 serde = { version = "1.0.103", features = ["derive"] }

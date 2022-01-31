@@ -1,6 +1,6 @@
 [package]
 name = "tor-rtmock"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -17,9 +17,9 @@ pin-project = "1"
 thiserror = "1"
 tracing = "0.1.18"
 
-tor-rtcompat = { version = "0.0.3", path = "../tor-rtcompat" }
+tor-rtcompat = { version = "0.0.4", path = "../tor-rtcompat" }
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
 rand = "0.8"
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio", "native-tls" ] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio", "native-tls" ] }

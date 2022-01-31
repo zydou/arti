@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirclient"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,11 +18,11 @@ zstd = ["async-compression/zstd"]
 routerdesc = []
 
 [dependencies]
-tor-circmgr = { path="../tor-circmgr", version = "0.0.3"}
+tor-circmgr = { path="../tor-circmgr", version = "0.0.4"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
-tor-proto = { path="../tor-proto", version = "0.0.3"}
-tor-netdoc = { path="../tor-netdoc", version = "0.0.3"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3"}
+tor-proto = { path="../tor-proto", version = "0.0.4"}
+tor-netdoc = { path="../tor-netdoc", version = "0.0.4"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4"}
 
 async-compression = { version = "0.3.5", features = ["futures-io", "zlib"] }
 base64 = "0.13.0"
@@ -37,6 +37,6 @@ thiserror = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtmock = { path="../tor-rtmock", version = "0.0.3"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.0.3", features=["tokio", "native-tls" ] }
+tor-rtmock = { path="../tor-rtmock", version = "0.0.4"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio", "native-tls" ] }
 

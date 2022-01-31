@@ -1,6 +1,6 @@
 [package]
 name = "tor-proto"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -49,6 +49,6 @@ tokio-util = { version = "0.6", features = ["compat"], optional = true }
 coarsetime = { version = "0.1.20", optional = true }
 
 [dev-dependencies]
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.3", features = [ "tokio", "native-tls" ] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.4", features = [ "tokio", "native-tls" ] }
 hex-literal = "0.3"
 hex = "0.4"
