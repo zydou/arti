@@ -4,6 +4,111 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we will
 probably switch to using a separate changelog for each crate.
 
+# Arti 0.0.4 — 31 Jan 2022
+
+This release adds support for bootstrap reporting and `rustls`,
+improves several APIs, fixes a few bugs, and adds numerous smaller
+features for future-proofing and correctness.
+
+It breaks compatibility with previous releases, as is expected before
+release 0.1.0 (scheduled March 2022).
+
+### New features
+
+- Add backends for exposing changes in bootstrap status, either to be
+  queried by a function or read as a stream of events.  These APIs
+  will become more useful once there is a way to actually get an
+  un-bootstrapped `TorClient`. ([#96])
+- `TorClient` now has a `clone_with_prefs` method to make a new client
+  with a different set of default stream
+  preferences. ([7ff16fc252c0121f6607], [#290]])
+- Add a feature for telling a `TorClient` that every stream should be
+  isolated on its own circuit. Please use this sparingly; it can be
+  inefficient. ([!252])
+- Convenience types for overriding parts of the behavior of an
+  asynchronous  `Runtime`. ([!251])
+- Optional support for `rustls` in place of `native_tls`. This is off
+  by default; to turn it on, use the `rustls` feature, and construct
+  your client using one of the `Runtime`s with `Rustls` in its name.
+  ([!260], [#86])
+
+### Breaking changes
+
+- Significant refactoring of exports and constructor functions
+  in the `arti-client` crate. ([!235])
+- Change the persistence format used for guard information, to make it more
+  future-proof. ([#176])
+- Functions and types that used to refer to "Connections" now refer to
+  "Streams" for consistency. ([!256])
+- The types exported by the `tor-rtcompat` crate, and the functions
+  used to create them, have been renamed for consistency. ([!263])
+- The `Runtime` API has changed slightly, to avoid a conflict with
+  newer versions of `async_executors`.  ([bf8fa66d36298561cc86])
+
+### Major bugfixes
+
+- Require authenticated SENDMEs when the relay supports them, and not
+  otherwise. ([#294])
+- Fix the default location for the cache files. (Previously, they were
+  put into the state directory.) ([#297])
+
+### Infrastructure
+
+- Numerous improvements to coverage tooling. ([#248], [!221], [!269], [!253])
+- Improvements to `arti-bench` reliability and usefulness. ([#292])
+
+### Documentation
+
+- Build instructions for iOS. ([#132])
+- Adopt a MSRV policy. ([#283])
+- More information about troubleshooting the build process. ([#277])
+
+### Cleanups, minor features, and minor bugfixes
+
+- The `max_file_limit` setting is now configurable. ([#299])
+- Fix an unreliable test. ([#276])
+- Fix a test that would always fail when run after January 27. ([!268])
+- Avoid possible incomplete reads and writes in Tor channel
+  handshake. ([1d5a480f79e7d878ff], [!249]])
+- Refactor some types to expose `Arc<>` less often. ([!236])
+- Too many others to list!
+
+### Acknowledgments
+
+Thanks to everybody who has contributed to this release, including
+Arturo Marquez, Daniel Eades, Jani Monoses, Neel Chauhan, and Trinity
+Pointard.
+
+[!221]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/221
+[!235]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/235
+[!236]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/236
+[!249]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/249
+[!251]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/251
+[!252]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/252
+[!253]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/253
+[!256]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/256
+[!260]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/260
+[!263]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/263
+[!268]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/268
+[!269]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/269
+[#86]: https://gitlab.torproject.org/tpo/core/arti/-/issues/86
+[#96]: https://gitlab.torproject.org/tpo/core/arti/-/issues/96
+[#132]: https://gitlab.torproject.org/tpo/core/arti/-/issues/132
+[#176]: https://gitlab.torproject.org/tpo/core/arti/-/issues/176
+[#248]: https://gitlab.torproject.org/tpo/core/arti/-/issues/248
+[#276]: https://gitlab.torproject.org/tpo/core/arti/-/issues/276
+[#277]: https://gitlab.torproject.org/tpo/core/arti/-/issues/277
+[#283]: https://gitlab.torproject.org/tpo/core/arti/-/issues/283
+[#290]: https://gitlab.torproject.org/tpo/core/arti/-/issues/290
+[#292]: https://gitlab.torproject.org/tpo/core/arti/-/issues/292
+[#294]: https://gitlab.torproject.org/tpo/core/arti/-/issues/294
+[#297]: https://gitlab.torproject.org/tpo/core/arti/-/issues/297
+[#299]: https://gitlab.torproject.org/tpo/core/arti/-/issues/299
+[1d5a480f79e7d878ff]: https://gitlab.torproject.org/tpo/core/arti/-/commit/1d5a480f79e7d878ff291e6e8fc5225e17328919
+[7ff16fc252c0121f6607]: https://gitlab.torproject.org/tpo/core/arti/-/commit/7ff16fc252c0121f660709a0dda9639eb7131d34
+[bf8fa66d36298561cc86]: https://gitlab.torproject.org/tpo/core/arti/-/commit/bf8fa66d36298561cc868706f748049cec23f5eb
+
+
 # Arti 0.0.3 — 11 Jan 2022
 
 This release adds support for preemptive circuit construction, refactors
