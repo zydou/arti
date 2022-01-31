@@ -6,6 +6,12 @@ variables:
   # We don't need Husky to install the Git hooks for CI.
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
 
+shellcheck:
+  stage: build
+  image: koalaman/shellcheck-alpine
+  script:
+    - ./maint/shellcheck_all.sh
+
 rust-latest:
   stage: build
   image: rust:latest
@@ -78,7 +84,7 @@ minimal-versions:
   image: rust:1.53
   script:
     - rustup install nightly
-    - ./maint/downgrade_dependencies
+    - ./maint/downgrade_dependencies.sh
     - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
   tags:

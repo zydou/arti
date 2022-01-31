@@ -72,7 +72,7 @@ echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=nightly}. (Override with \$RUS
 cargo "+${RUST_COVERAGE_TOOLCHAIN}" -h >/dev/null
 
 # Validate that grcov is installed.
-if [ "$(which grcov 2>/dev/null)" = "" ]; then
+if [ "$(command -v grcov 2>/dev/null)" = "" ]; then
     echo "grcov appears not to be installed.  Try 'cargo install grcov'." >&2
     exit 1
 fi
@@ -145,7 +145,7 @@ fi
 
 cp "$COVERAGE_BASEDIR/$output/index.html" "$COVERAGE_BASEDIR/$output/index_orig.html"
 
-if [ "$(which python3 2>/dev/null)" = "" ]; then
+if [ "$(command -v python3 2>/dev/null)" = "" ]; then
     echo "python3 not installed; not post-processing the index file."
 else
     echo "Postprocessing..."
