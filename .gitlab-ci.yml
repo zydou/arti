@@ -16,9 +16,11 @@ rust-latest:
   stage: build
   image: rust:latest
   script:
+    - rustup show
     - cargo build --verbose --target x86_64-unknown-linux-gnu
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy rustfmt
+    - rustup show
     - cargo clippy --all-features --all-targets -- -D warnings
     - cargo fmt -- --check
     - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
@@ -38,6 +40,7 @@ rust-latest-async-std-rustls:
   stage: build
   image: rust:latest
   script:
+    - rustup show
     - rustup component add clippy
     - cd crates/arti-client && cargo clippy --no-default-features --features=async-std,rustls
   tags:
@@ -48,6 +51,7 @@ rust-nightly:
   image: rustlang/rust:nightly
   allow_failure: true
   script:
+    - rustup show
     - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
     - rustup component add clippy
