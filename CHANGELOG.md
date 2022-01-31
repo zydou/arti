@@ -56,6 +56,7 @@ release 0.1.0 (scheduled March 2022).
 
 - Numerous improvements to coverage tooling. ([#248], [!221], [!269], [!253])
 - Improvements to `arti-bench` reliability and usefulness. ([#292])
+- Our CI now runs `shellcheck` on our shell scripts. ([#275])
 
 ### Documentation
 
@@ -76,8 +77,8 @@ release 0.1.0 (scheduled March 2022).
 ### Acknowledgments
 
 Thanks to everybody who has contributed to this release, including
-Arturo Marquez, Daniel Eades, Jani Monoses, Neel Chauhan, and Trinity
-Pointard.
+Arturo Marquez, Daniel Eades, Daniel Schischkin, Jani Monoses, Neel
+Chauhan, and Trinity Pointard.
 
 [!221]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/221
 [!235]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/235
