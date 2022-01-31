@@ -1,6 +1,6 @@
 [package]
 name = "tor-guardmgr"
-version = "0.0.4"
+version = "0.0.5"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -19,7 +19,7 @@ testing = []
 
 [dependencies]
 tor-config = { path="../tor-config", version = "0.0.4"}
-tor-netdir = { path="../tor-netdir", version = "0.0.3"}
+tor-netdir = { path="../tor-netdir", version = "0.0.4"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.3"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
 tor-persist = {  path="../tor-persist", version = "0.0.3"}
@@ -39,7 +39,7 @@ thiserror = "1"
 tracing = "0.1.18"
 
 [dev-dependencies]
-tor-netdir = { path="../tor-netdir", version = "0.0.3", features=["testing"]}
+tor-netdir = { path="../tor-netdir", version = "0.0.4", features=["testing"]}
 tor-netdoc = { path="../tor-netdoc", version = "0.0.4"}
 tor-persist = {  path="../tor-persist", version = "0.0.3", features=["testing"]}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio", "native-tls"]}

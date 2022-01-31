@@ -2858,7 +2858,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "derive_builder",
  "futures",
@@ -2926,7 +2926,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "bitflags",
  "derive_builder",
