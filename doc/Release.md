@@ -14,6 +14,9 @@
   * ./maint/check_licenses.sh
   * ./maint/readmes.sh
 
+    (Note that not all of the above will make changes on their own; you'll
+    need to understand the output and decide what to do.)
+
 3. Then make sure that CI passes. *Also ensure we've run tests for all
   possible Cargo feature combinations, as per arti#303.*
 
@@ -26,7 +29,17 @@
    thing here, but `cargo set-version --workspace --bump patch` doesn't
    update dependent crates correctly.
 
+   To bump the patch version of _every_ crate, run:
+
    ; for crate in $(./maint/list_crates.py); do cargo set-version -p "$crate" --bump patch; done
+
+   To find only the crates that changed since version 0.0.x, you can run:
+
+   ; ./maint/changed_crates.sh arti-v0.0.x
+
+   But note that you can't just bump _only_ the crates that changed!  Any
+   crate that depends on one of those might now count as changed, even if
+   it wasn't changed before.
 
 5. Then make sure that CI passes, again.
 
