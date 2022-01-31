@@ -267,7 +267,7 @@ impl SqliteStore {
     ) -> Result<SavedBlobHandle<'_>> {
         let digest = hex::encode(digest);
         let digeststr = format!("{}-{}", dtype, digest);
-        let fname = format!("{}:{}", doctype, digeststr);
+        let fname = format!("{}_{}", doctype, digeststr);
         let full_path = self.blob_fname(&fname)?;
 
         let unlinker = Unlinker::new(&full_path);
@@ -1018,7 +1018,7 @@ mod test {
 
         assert_eq!(
             fname1,
-            "greeting:sha1-7b502c3a1f48c8609ae212cdfb639dee39673f5e"
+            "greeting_sha1-7b502c3a1f48c8609ae212cdfb639dee39673f5e"
         );
         assert_eq!(store.blob_fname(&fname1)?, tmp_dir.path().join(&fname1));
         assert_eq!(

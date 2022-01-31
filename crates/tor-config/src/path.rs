@@ -172,6 +172,8 @@ mod test {
         assert_eq!(p.path().unwrap().to_str(), Some("/usr/local/foo"));
     }
 
+    // FIXME: Add test for windows
+    #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_home() {
         let p = CfgPath::new("~/.arti/config".to_string());
@@ -185,6 +187,8 @@ mod test {
         assert_eq!(p.path().unwrap().to_str(), expected.to_str());
     }
 
+    // FIXME: Add test for windows
+    #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_cache() {
         let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
