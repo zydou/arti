@@ -65,7 +65,7 @@ coverage:
     LLVM_PROFILE_FILE: "arti-%p-%m.profraw"
   script:
     - apt-get update && apt-get install -y python3-pip python3-setuptools
-    - pip3 install beautifulsoup4
+    - pip3 install beautifulsoup4 lxml
     - rustup toolchain add nightly
     - rustup default nightly
     - rustup component add llvm-tools-preview

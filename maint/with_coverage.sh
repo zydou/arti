@@ -137,7 +137,11 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" \
 	--ignore="crates/arti-bench/*" \
 	--ignore="*/github.com-1ecc6299db9ec823/*"
 
-if [ "$format" != html ]; then
+if [ "$format" == cobertura ]; then
+	python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage_cobertura.py" "$COVERAGE_BASEDIR/$output"
+	echo "Full report: $COVERAGE_BASEDIR/$output"
+	exit
+elif [ "$format" != html ]; then
 	# no html post processing when outputing non html result
 	echo "Full report: $COVERAGE_BASEDIR/$output"
 	exit
@@ -149,7 +153,7 @@ if [ "$(command -v python3 2>/dev/null)" = "" ]; then
     echo "python3 not installed; not post-processing the index file."
 else
     echo "Postprocessing..."
-    python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage.py" "$COVERAGE_BASEDIR/coverage_meta/commands" "$COVERAGE_BASEDIR/$output/index.html" "$COVERAGE_BASEDIR/$output/index.html"
+    python3 "$COVERAGE_BASEDIR/maint/postprocess_coverage_html.py" "$COVERAGE_BASEDIR/coverage_meta/commands" "$COVERAGE_BASEDIR/$output/index.html" "$COVERAGE_BASEDIR/$output/index.html"
 fi
 
 echo "Full report: $COVERAGE_BASEDIR/$output/index.html"
