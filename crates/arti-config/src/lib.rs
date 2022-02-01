@@ -104,7 +104,10 @@ impl ConfigurationSources {
     pub fn push_option<S: ToOwned<Owned = String> + ?Sized>(&mut self, option: &S) {
         self.options.push(option.to_owned());
     }
-
+    /// Return an iterator over the files that we care about.
+    pub fn files(&self) -> impl Iterator<Item = &Path> {
+        self.files.iter().map(|(f, _)| f.as_path())
+    }
     /// Load the configuration into a new [`config::Config`].
     pub fn load(&self) -> Result<config::Config, config::ConfigError> {
         let mut config = config::Config::new();

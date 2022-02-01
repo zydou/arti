@@ -91,6 +91,7 @@ mod exit;
 mod process;
 mod proxy;
 mod trace;
+mod watch_cfg;
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
@@ -104,6 +105,7 @@ use tracing::{info, warn};
 async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
+    config_sources: arti_config::ConfigurationSources,
     client_config: TorClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
@@ -114,6 +116,7 @@ async fn run<R: Runtime>(
                     runtime.clone(),
                     client_config,
                 ).await?;
+            watch_cfg::watch_for_config_changes(config_sources, client.clone())?;
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
@@ -246,7 +249,7 @@ fn main() -> Result<()> {
         let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
-        rt_copy.block_on(run(runtime, socks_port, client_config))?;
+        rt_copy.block_on(run(runtime, socks_port, cfg_sources, client_config))?;
         Ok(())
     } else {
         panic!("Subcommand added to clap subcommand list, but not yet implemented")
