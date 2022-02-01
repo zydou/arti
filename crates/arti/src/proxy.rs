@@ -106,7 +106,7 @@ impl IsolationMap {
 /// id and the source address for the socks request.
 async fn handle_socks_conn<R, S>(
     runtime: R,
-    tor_client: Arc<TorClient<R>>,
+    tor_client: TorClient<R>,
     socks_stream: S,
     isolation_map: Arc<IsolationMap>,
     isolation_info: (usize, IpAddr),
@@ -388,7 +388,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// network.
 pub(crate) async fn run_socks_proxy<R: Runtime>(
     runtime: R,
-    tor_client: Arc<TorClient<R>>,
+    tor_client: TorClient<R>,
     socks_port: u16,
 ) -> Result<()> {
     let mut listeners = Vec::new();
@@ -443,7 +443,7 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
                 }
             }
         };
-        let client_ref = Arc::clone(&tor_client);
+        let client_ref = tor_client.clone();
         let runtime_copy = runtime.clone();
         let isolation_map_ref = Arc::clone(&isolation_map);
         runtime.spawn(async move {

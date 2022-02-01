@@ -92,8 +92,6 @@ mod process;
 mod proxy;
 mod trace;
 
-use std::sync::Arc;
-
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
 use tor_rtcompat::{BlockOn, Runtime};
@@ -112,11 +110,10 @@ async fn run<R: Runtime>(
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
-            let client =
-                Arc::new(TorClient::bootstrap(
+            let client = TorClient::bootstrap(
                     runtime.clone(),
                     client_config,
-                ).await?);
+                ).await?;
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
