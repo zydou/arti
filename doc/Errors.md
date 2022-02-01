@@ -173,6 +173,29 @@ For example, when tor-circmgr calls `build_channel`, it is tor-circmgr which is 
       }
 ```
 
+#### Describing the error type
+
+When a problem is reported, different error types should generally produce different messages.  Where should this be done ?
+
+Answer: the place where the type is embedded.  For example:
+
+```
+  enum tor_circmgr::Error {
+      /// Problem with channel
+      #[error("Problem with channel to {peer}")]
+      ChanFailed {
+          cause: tor_chanmgr::Error,
+
+  enum tor_chanmgr::Error  {
+      /// Network IO error or TLS error
+      #[error("Network IO error, or TLS error, talking to {peer}")]
+      Io {
+          /// Who we were talking to
+          peer: SocketAddr,
+```
+
+So the channel error does not say that it *is* a channel error, just as an `io::Error` doesn't say that it is an IO error.  `tor_chanmgr::Error::Io` says that it is an IO error; when that is found inside eg a `tor_circmgr::Error`, the circmgr error is responsible for saying it's about a channel (and describing relevant channel properties).
+
 ### In a new tor-errorkind crate
 
 
