@@ -388,10 +388,10 @@ fn main() -> Result<()> {
             "Information for benchmark type {:?} ({} samples taken):",
             ty, benchmark.samples
         );
-        info!("median: {}", results.results_median);
-        info!("  mean: {}", results.results_mean);
-        info!(" worst: {}", results.results_worst);
-        info!("  best: {}", results.results_best);
+        info!("  upload rate: {} Mbit/s", results.upload_rate_megabit);
+        info!("download rate: {} Mbit/s", results.upload_rate_megabit);
+        info!("    TTFB (up): {} msec", results.upload_ttfb_msec);
+        info!("  TTFB (down): {} msec", results.download_ttfb_msec);
     }
 
     if let Some(output) = matches.value_of("output") {
@@ -438,6 +438,65 @@ enum BenchmarkType {
     Arti,
 }
 
+#[derive(Clone, Serialize, Debug)]
+/// Some information about a set of benchmark samples collected during multiple runs.
+struct Statistic {
+    /// The mean value of all samples.
+    mean: f64,
+    /// The low-median value of all samples.
+    /// # Important note
+    ///
+    /// This is only the median if an odd number of samples were collected; otherwise,
+    /// it is the `(number of samples / 2)`th sample after the samples are sorted.
+    median: f64,
+    /// The minimum sample observed.
+    min: f64,
+    /// The maximum sample observed.
+    max: f64,
+    /// The standard deviation of the set of samples.
+    stddev: f64,
+}
+
+impl fmt::Display for Statistic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Statistic {
+            mean,
+            median,
+            min,
+            max,
+            stddev,
+        } = self;
+        write!(
+            f,
+            "min/mean/median/max/stddev = {:>7.2}/{:>7.2}/{:>7.2}/{:>7.2}/{:>7.2}",
+            min, mean, median, max, stddev
+        )
+    }
+}
+
+impl Statistic {
+    /// Generate a summary of the provided `samples`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `samples` is empty.
+    fn from_samples(mut samples: Vec<f64>) -> Self {
+        let n_samples = samples.len();
+        float_ord::sort(&mut samples);
+        let mean = samples.iter().sum::<f64>() / n_samples as f64;
+        // \Sigma (x_i - \mu)^2
+        let samples_minus_mean_sum = samples.iter().map(|xi| (xi - mean).powf(2.0)).sum::<f64>();
+        let stddev = (samples_minus_mean_sum / n_samples as f64).sqrt();
+        Statistic {
+            mean,
+            median: samples[n_samples / 2],
+            min: samples[0],
+            max: samples[n_samples - 1],
+            stddev,
+        }
+    }
+}
+
 /// A set of benchmark results for a given `BenchmarkType`, including information about averages.
 #[derive(Clone, Serialize, Debug)]
 struct BenchmarkResults {
@@ -447,19 +506,15 @@ struct BenchmarkResults {
     samples: usize,
     /// The number of concurrent connections used during the run.
     connections: usize,
-    /// The mean average of all metrics throughout all benchmark runs.
-    results_mean: TimingSummary,
-    /// The "low-median" average of all metrics throughout all benchmark runs.
-    ///
-    /// # Important note
-    ///
-    /// This is only the median if `samples` is an odd number, else it is the
-    /// `samples / 2`th sample of each set of metrics in sorted order.
-    results_median: TimingSummary,
-    /// The best value recorded for each metric throughout all benchmark runs.
-    results_best: TimingSummary,
-    /// The worst value recorded for each metric throughout all benchmark runs.
-    results_worst: TimingSummary,
+    /// The time to first byte (TTFB) for the download benchmark, in milliseconds.
+    download_ttfb_msec: Statistic,
+    /// The average download speed, in megabits per second.
+    download_rate_megabit: Statistic,
+    /// The time to first byte (TTFB) for the upload benchmark, in milliseconds.
+    upload_ttfb_msec: Statistic,
+    /// The average upload speed, in megabits per second.
+    upload_rate_megabit: Statistic,
+
     /// The raw benchmark results.
     results_raw: Vec<TimingSummary>,
 }
@@ -467,49 +522,31 @@ struct BenchmarkResults {
 impl BenchmarkResults {
     /// Generate summarized benchmark results from raw run data.
     fn generate(ty: BenchmarkType, connections: usize, raw: Vec<TimingSummary>) -> Self {
-        let mut download_ttfb_secs = raw.iter().map(|s| s.download_ttfb_sec).collect::<Vec<_>>();
-        float_ord::sort(&mut download_ttfb_secs);
-        let mut download_rate_megabits = raw
+        let download_ttfb_msecs = raw
+            .iter()
+            .map(|s| s.download_ttfb_sec * 1000.0)
+            .collect::<Vec<_>>();
+        let download_rate_megabits = raw
             .iter()
             .map(|s| s.download_rate_megabit)
             .collect::<Vec<_>>();
-        float_ord::sort(&mut download_rate_megabits);
-        let mut upload_ttfb_secs = raw.iter().map(|s| s.upload_ttfb_sec).collect::<Vec<_>>();
-        float_ord::sort(&mut upload_ttfb_secs);
-        let mut upload_rate_megabits = raw
+        let upload_ttfb_msecs = raw
+            .iter()
+            .map(|s| s.upload_ttfb_sec * 1000.0)
+            .collect::<Vec<_>>();
+        let upload_rate_megabits = raw
             .iter()
             .map(|s| s.upload_rate_megabit)
             .collect::<Vec<_>>();
-        float_ord::sort(&mut upload_rate_megabits);
         let samples = raw.len();
         BenchmarkResults {
             ty,
             samples,
             connections,
-            results_mean: TimingSummary {
-                download_ttfb_sec: download_ttfb_secs.iter().sum::<f64>() / samples as f64,
-                download_rate_megabit: download_rate_megabits.iter().sum::<f64>() / samples as f64,
-                upload_ttfb_sec: upload_ttfb_secs.iter().sum::<f64>() / samples as f64,
-                upload_rate_megabit: upload_rate_megabits.iter().sum::<f64>() / samples as f64,
-            },
-            results_median: TimingSummary {
-                download_ttfb_sec: download_ttfb_secs[samples / 2],
-                download_rate_megabit: download_rate_megabits[samples / 2],
-                upload_ttfb_sec: upload_ttfb_secs[samples / 2],
-                upload_rate_megabit: upload_rate_megabits[samples / 2],
-            },
-            results_best: TimingSummary {
-                download_ttfb_sec: download_ttfb_secs[0],
-                download_rate_megabit: download_rate_megabits[samples - 1],
-                upload_ttfb_sec: upload_ttfb_secs[0],
-                upload_rate_megabit: upload_rate_megabits[samples - 1],
-            },
-            results_worst: TimingSummary {
-                download_ttfb_sec: download_ttfb_secs[samples - 1],
-                download_rate_megabit: download_rate_megabits[0],
-                upload_ttfb_sec: upload_ttfb_secs[samples - 1],
-                upload_rate_megabit: upload_rate_megabits[0],
-            },
+            download_ttfb_msec: Statistic::from_samples(download_ttfb_msecs),
+            download_rate_megabit: Statistic::from_samples(download_rate_megabits),
+            upload_ttfb_msec: Statistic::from_samples(upload_ttfb_msecs),
+            upload_rate_megabit: Statistic::from_samples(upload_rate_megabits),
             results_raw: raw,
         }
     }
