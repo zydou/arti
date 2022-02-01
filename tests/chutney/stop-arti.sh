@@ -1,0 +1,16 @@
+#!/bin/bash
+set -xeuo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
+source tests/chutney/arti.run
+
+# Tells shellcheck that these variables are set; exits early if they
+# are not.
+pid="${pid:?}"
+
+kill -s INT "$pid"
+# wait $pid, but $pid was started by a different process
+tail --pid="$pid" -f /dev/null
