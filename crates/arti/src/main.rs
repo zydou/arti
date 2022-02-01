@@ -106,7 +106,7 @@ async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     config_sources: arti_config::ConfigurationSources,
-    app_config: arti_config::ApplicationConfig,
+    arti_config: arti_config::ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
@@ -117,8 +117,8 @@ async fn run<R: Runtime>(
                     runtime.clone(),
                     client_config,
                 ).await?;
-            if app_config.watch_configuration() {
-                watch_cfg::watch_for_config_changes(config_sources, client.clone())?;
+            if arti_config.application().watch_configuration() {
+                watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
             }
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
@@ -252,13 +252,7 @@ fn main() -> Result<()> {
         let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
-        rt_copy.block_on(run(
-            runtime,
-            socks_port,
-            cfg_sources,
-            config.application().clone(),
-            client_config,
-        ))?;
+        rt_copy.block_on(run(runtime, socks_port, cfg_sources, config, client_config))?;
         Ok(())
     } else {
         panic!("Subcommand added to clap subcommand list, but not yet implemented")

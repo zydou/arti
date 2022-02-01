@@ -19,6 +19,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// configuration from them and tell TorClient about it.
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: arti_config::ConfigurationSources,
+    original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std_channel();
@@ -37,8 +38,13 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         debug!("Waiting for FS events");
         while let Ok(event) = rx.recv() {
             debug!("FS event {:?}: reloading configuration.", event);
-            match reconfigure(&sources, &client) {
-                Ok(()) => info!("Successfully reloaded configuration."),
+            match reconfigure(&sources, &original, &client) {
+                Ok(exit) => {
+                    info!("Successfully reloaded configuration.");
+                    if exit {
+                        break;
+                    }
+                }
                 Err(e) => warn!("Couldn't reload configuration: {}", e),
             }
         }
@@ -50,15 +56,28 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 
 /// Reload the configuration files, apply the runtime configuration, and
 /// reconfigure the client as much as we can.
+///
+/// Return true if we should stop watching for configuration changes.
 fn reconfigure<R: Runtime>(
     sources: &arti_config::ConfigurationSources,
+    original: &ArtiConfig,
     client: &TorClient<R>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let config = sources.load()?;
     let config: ArtiConfig = config.try_into()?;
-    // TODO: Also notice changes in the other parts of arti.
-    let config = config.tor_client_config()?;
-    client.reconfigure(&config, Reconfigure::WarnOnFailures)?;
+    if config.proxy() != original.proxy() {
+        warn!("Can't (yet) reconfigure proxy settings while arti is running.");
+    }
+    if config.logging() != original.logging() {
+        warn!("Can't (yet) reconfigure logging settings while arti is running.");
+    }
+    let client_config = config.tor_client_config()?;
+    client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
-    Ok(())
+    if !config.application().watch_configuration() {
+        // Stop watching for configuration changes.
+        return Ok(true);
+    }
+
+    Ok(false)
 }
