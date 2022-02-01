@@ -98,6 +98,10 @@ impl InternalError {
     }
 
     /// Create an internal error from another error, capturing this call site and backtrace
+    ///
+    /// In `map_err`, and perhaps elsewhere, prefer to use [`into_internal!`],
+    /// as that makes it easy to add additional information
+    /// via format parameters.
     pub fn from_error<E, S>(source: E, message: S) -> Self
     where
         S: Into<String>,
@@ -144,10 +148,39 @@ impl Display for InternalError {
 /// # Ok(())
 /// # }
 /// ```
+//
+// In principle this macro could perhaps support internal!(from=source, "format", ...)
+// but there are alternative ways of writing that:
+//    InternalError::new_from(source, format!(...)) or
+//    into_internal!("format", ...)(source)
+// Those are not so bad for what we think will be the rare cases not
+// covered by internal!(...) or map_err(into_internal!(...))
 #[macro_export]
 macro_rules! internal {
     { $( $arg:tt )* } => {
         $crate::InternalError::new(format!($($arg)*))
+    }
+}
+
+/// Helper for converting an error into an InternalError
+///
+/// Returns a closure implementing `FnOnce(E) -> InternalError`.
+/// The source error `E` must be `std::error::Error + Send + Sync + 'static`.
+///
+/// # Examples
+/// ```
+/// use tor_error::into_internal;
+///
+/// # fn main() -> Result<(), tor_error::InternalError> {
+/// # let s = b"";
+/// let s = std::str::from_utf8(s).map_err(into_internal!("bad bytes: {:?}", s))?;
+/// # Ok(())
+/// # }
+/// ```
+#[macro_export]
+macro_rules! into_internal {
+    { $( $arg:tt )* } => {
+        |source| $crate::InternalError::from_error(source, format!($($arg)*))
     }
 }
 
