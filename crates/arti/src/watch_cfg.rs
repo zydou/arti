@@ -32,6 +32,9 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     }
 
     std::thread::spawn(move || {
+        // TODO: If someday we make this facility available outside of the
+        // `arti` application, we probably don't want to have this thread own
+        // the FileWatcher.
         debug!("Waiting for FS events");
         while let Ok(event) = rx.recv() {
             if !watcher.event_matched(&event) {
@@ -59,6 +62,10 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         }
         debug!("Thread exiting");
     });
+
+    // Dropping the thread handle here means that we don't get any special
+    // notification about a panic.  TODO: We should change that at some point in
+    // the future.
 
     Ok(())
 }
