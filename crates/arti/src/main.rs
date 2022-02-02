@@ -92,15 +92,12 @@ mod process;
 mod proxy;
 mod trace;
 
-use std::sync::Arc;
-
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::ArtiConfig;
+use arti_config::{default_config_file, ArtiConfig};
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::Result;
 use clap::{App, AppSettings, Arg, SubCommand};
-use std::path::PathBuf;
 use tracing::{info, warn};
 
 /// Run the main loop of the proxy.
@@ -113,18 +110,23 @@ async fn run<R: Runtime>(
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
-            let client =
-                Arc::new(TorClient::bootstrap(
+            let client = TorClient::bootstrap(
                     runtime.clone(),
                     client_config,
-                ).await?);
+                ).await?;
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
 }
 
 fn main() -> Result<()> {
-    let dflt_config = arti_config::default_config_file().unwrap_or_else(|| "./config.toml".into());
+    // We describe a default here, rather than using `default()`, because the
+    // correct behavior is different depending on whether the filename is given
+    // explicitly or not.
+    let mut config_file_help = "Specify which config file(s) to read.".to_string();
+    if let Some(default) = arti_config::default_config_file() {
+        config_file_help.push_str(&format!(" Defaults to {:?}", default));
+    }
 
     let matches =
         App::new("Arti")
@@ -143,11 +145,10 @@ fn main() -> Result<()> {
                     .long("config")
                     .takes_value(true)
                     .value_name("FILE")
-                    .default_value_os(dflt_config.as_ref())
                     .multiple(true)
                     // NOTE: don't forget the `global` flag on all arguments declared at this level!
                     .global(true)
-                    .help("Specify which config file(s) to read."),
+                    .help(&config_file_help),
             )
             .arg(
                 Arg::with_name("option")
@@ -183,22 +184,23 @@ fn main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let config_files = matches
-        .values_of_os("config-files")
-        // This shouldn't actually be possible given we specify a default.
-        .expect("no config files provided")
-        .into_iter()
-        // The second value in this 2-tuple specifies whether the config file is "required" (as in,
-        // failure to load it is an error). All config files that aren't the default are required.
-        .map(|x| (PathBuf::from(x), x != dflt_config))
-        .collect::<Vec<_>>();
+    let mut cfg_sources = arti_config::ConfigurationSources::new();
 
-    let additional_opts = matches
+    let config_files = matches.values_of_os("config-files").unwrap_or_default();
+    if config_files.len() == 0 {
+        if let Some(default) = default_config_file() {
+            cfg_sources.push_optional_file(default);
+        }
+    } else {
+        config_files.for_each(|f| cfg_sources.push_file(f));
+    }
+
+    matches
         .values_of("option")
-        .map(|x| x.into_iter().map(ToOwned::to_owned).collect::<Vec<_>>())
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default()
+        .for_each(|s| cfg_sources.push_option(s));
 
-    let cfg = arti_config::load(&config_files, additional_opts)?;
+    let cfg = cfg_sources.load()?;
 
     let config: ArtiConfig = cfg.try_into()?;
 

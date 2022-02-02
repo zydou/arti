@@ -52,7 +52,6 @@ use std::future::Future;
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
 use std::ops::Deref;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -329,13 +328,12 @@ fn main() -> Result<()> {
         )
         .get_matches();
     info!("Parsing Arti configuration...");
-    let config_files = matches
+    let mut config_sources = arti_config::ConfigurationSources::new();
+    matches
         .values_of_os("arti-config")
-        .expect("no config files provided")
-        .into_iter()
-        .map(|x| (PathBuf::from(x), true))
-        .collect::<Vec<_>>();
-    let cfg = arti_config::load(&config_files, vec![])?;
+        .unwrap_or_default()
+        .for_each(|f| config_sources.push_file(f));
+    let cfg = config_sources.load()?;
     let config: ArtiConfig = cfg.try_into()?;
     let tcc = config.tor_client_config()?;
     info!("Binding local TCP listener...");
