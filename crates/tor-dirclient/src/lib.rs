@@ -132,7 +132,7 @@ where
         retire_circ(&circ_mgr, &source, "Partial response");
     }
 
-    Ok(r?)
+    r
 }
 
 /// Fetch a Tor directory object from a provided stream.
