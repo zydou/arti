@@ -88,7 +88,7 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 /// mutable state, and does the actual work.
 //
 // Effectively, this struct contains two Arcs: one for `hops` and one for
-// `control` (which surely has soemthing Arc-like in it).  We cannot unify
+// `control` (which surely has something Arc-like in it).  We cannot unify
 // these by putting a single Arc around the whole struct, and passing
 // an Arc strong reference to the `Reactor`, because then `control` would
 // not be dropped when the last user of the circuit goes away.  We could

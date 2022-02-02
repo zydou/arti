@@ -128,7 +128,7 @@ pub(crate) struct LogGuards {
 /// Set up logging.
 ///
 /// Note that the returned LogGuard must be dropped precisely when the program
-/// quits; they're used to ensure that all the log messges are flushed.
+/// quits; they're used to ensure that all the log messages are flushed.
 pub(crate) fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGuards> {
     // Important: We have to make sure that the individual layers we add here
     // are not filters themselves.  That means, for example, that we can't add

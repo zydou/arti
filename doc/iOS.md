@@ -14,7 +14,7 @@ Finally: These guidelines are correct as far as we know, but they haven't
 been tested by many people. If you find any problems in them, please let us
 know!
 
-## Installing the requiremments
+## Installing the requirements
 
 First install targets so Rust know how to compile to iOS
 ```sh
@@ -108,7 +108,7 @@ OTHER_LDFLAGS = (
 
 In the Release section, add the same block, but replace `debug` at the end of each path with `release`.
 
-Now you can start calling your Rust functions from Swift like normal functions. Types are a bit unneasy to
+Now you can start calling your Rust functions from Swift like normal functions. Types are a bit difficult to
 work with, strings get transformed into char\* at the FFI interface, and Swift consider them as 
 `Optional<UnsafeMutablePointer<CChar>>` which need unwrapping and conversion before being used. You also
 need to free such a pointer by passing it back to Rust and dropping the value there. Otherwise these
@@ -119,10 +119,10 @@ You can now build your application, and test it in an emulator or on your device
 ## Tips and caveats
 
 You can find a sample project to build a very basic app using Arti [here](https://gitlab.torproject.org/trinity-1686a/arti-mobile-example/).
-It does not respect most good practices of app developement, but should otherwise be a good starting point.
+It does not respect most good practices of app development, but should otherwise be a good starting point.
 
 ## Generating C headers from Rust code
-Instead of writing C headers manually and hopping to not make misstakes, it's possible to generate them
+Instead of writing C headers manually and hopping to not make mistakes, it's possible to generate them
 automatically by using cbindgen. First install it.
 ```sh
 $ cargo install cbindgen

@@ -1235,7 +1235,7 @@ fn spawn_expiration_task<B, R>(
     let duration = exp_inst.saturating_duration_since(now);
 
     if duration == Duration::ZERO {
-        // Circuit should alread expire. Expire it now.
+        // Circuit should already expire. Expire it now.
         let cm = if let Some(cm) = Weak::upgrade(&circmgr) {
             cm
         } else {

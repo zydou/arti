@@ -77,7 +77,7 @@ where
     _dummy: std::marker::PhantomData<P>,
 }
 
-/// Helper: parameterizes a window to determine its maximum and its increment.
+/// Helper: parametrizes a window to determine its maximum and its increment.
 pub(crate) trait WindowParams {
     /// Largest allowable value for this window.
     fn maximum() -> u16;

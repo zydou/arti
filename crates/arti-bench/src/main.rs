@@ -89,7 +89,7 @@ pub struct ClientTiming {
     started_ts: SystemTime,
     /// When the client received the first byte from the server.
     first_byte_ts: SystemTime,
-    /// When the client finsihed reading the server's payload.
+    /// When the client finished reading the server's payload.
     read_done_ts: SystemTime,
     /// When the payload was successfully written to the server.
     copied_ts: SystemTime,
