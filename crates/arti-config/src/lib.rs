@@ -136,8 +136,6 @@ fn load_mut<P: AsRef<Path>>(
 
     let mut cmdline = CmdLine::new();
     for opt in opts {
-        // TODO: This cloning is infelicitous, but probably won't matter in
-        // practice.
         cmdline.push_toml_line(opt.clone());
     }
     cfg.merge(cmdline)?;
