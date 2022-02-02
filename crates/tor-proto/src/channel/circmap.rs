@@ -108,7 +108,7 @@ impl CircMap {
         ///
         /// TODO: C tor does 64, but that is probably overkill with 4-byte circuit IDs.
         const N_ATTEMPTS: usize = 16;
-        let iter = (&mut self.range).sample_iter(rng).take(N_ATTEMPTS);
+        let iter = self.range.sample_iter(rng).take(N_ATTEMPTS);
         let circ_ent = CircEnt::Opening(createdsink, sink);
         for id in iter {
             let ent = self.m.entry(id);

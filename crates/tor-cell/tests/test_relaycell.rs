@@ -32,7 +32,7 @@ fn decode(body: &str) -> [u8; CELL_BODY_LEN] {
     body.resize(CELL_BODY_LEN, 0xf0); // see BadRng
 
     let mut result = [0; CELL_BODY_LEN];
-    (&mut result[..]).copy_from_slice(&body[..]);
+    result.copy_from_slice(&body[..]);
     result
 }
 
