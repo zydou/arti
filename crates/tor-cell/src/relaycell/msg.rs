@@ -63,6 +63,7 @@ pub trait Body: Sized {
     /// Decode a relay cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self>;
     /// Encode the body of this cell into the end of a vec.
+    #[cfg_attr(ci_arti_nightly, allow(clippy::ptr_arg))]
     fn encode_onto(self, w: &mut Vec<u8>);
 }
 

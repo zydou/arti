@@ -330,7 +330,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// Requires that `ents` is nonempty, and that every element of `ents`
     /// supports `spec`.
     fn find_best<'a>(
-        ents: &'a mut Vec<&'a mut Self>,
+        #[cfg_attr(ci_arti_nightly, allow(clippy::ptr_arg))] ents: &'a mut Vec<&'a mut Self>,
         usage: &<S as AbstractSpec>::Usage,
         parallelism: usize,
     ) -> &'a mut Self {
