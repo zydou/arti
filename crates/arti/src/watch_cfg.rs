@@ -38,6 +38,14 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 trace!("Ignoring FS event {:?}: not a file we care about.", event);
                 continue;
             }
+            while let Ok(_ignore) = rx.try_recv() {
+                // Discard other events, so that we only reload once.
+                //
+                // We can afford to treat both error cases from try_recv [Empty
+                // and Disconnected] as meaning that we've discarded other
+                // events: if we're disconnected, we'll notice it when we next
+                // call recv() in the outer loop.
+            }
             debug!("FS event {:?}: reloading configuration.", event);
             match reconfigure(&sources, &original, &client) {
                 Ok(exit) => {
