@@ -81,6 +81,7 @@ impl ConfigurationSources {
     pub fn new() -> Self {
         Self::default()
     }
+
     /// Add `p` to the list of files that we want to read configuration from.
     ///
     /// Configuration files are loaded and applied in the order that they are
@@ -90,12 +91,14 @@ impl ConfigurationSources {
     pub fn push_file<P: AsRef<Path>>(&mut self, p: P) {
         self.files.push((p.as_ref().to_owned(), MustRead::MustRead));
     }
+
     /// As `push_file`, but if the listed file can't be loaded, loading the
     /// configuration can still succeed.
     pub fn push_optional_file<P: AsRef<Path>>(&mut self, p: P) {
         self.files
             .push((p.as_ref().to_owned(), MustRead::TolerateAbsence));
     }
+
     /// Add `s` to the list of overridden options to apply to our configuration.
     ///
     /// Options are applied after all configuration files are loaded, in the
@@ -105,10 +108,12 @@ impl ConfigurationSources {
     pub fn push_option<S: ToOwned<Owned = String> + ?Sized>(&mut self, option: &S) {
         self.options.push(option.to_owned());
     }
+
     /// Return an iterator over the files that we care about.
     pub fn files(&self) -> impl Iterator<Item = &Path> {
         self.files.iter().map(|(f, _)| f.as_path())
     }
+
     /// Load the configuration into a new [`config::Config`].
     pub fn load(&self) -> Result<config::Config, config::ConfigError> {
         let mut config = config::Config::new();
@@ -120,6 +125,7 @@ impl ConfigurationSources {
         Ok(config)
     }
 }
+
 /// As [`load()`], but load into a mutable `Config` object.
 fn load_mut<P: AsRef<Path>>(
     cfg: &mut config::Config,
