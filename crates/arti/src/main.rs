@@ -190,21 +190,25 @@ fn main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let mut cfg_sources = arti_config::ConfigurationSources::new();
+    let cfg_sources = {
+        let mut cfg_sources = arti_config::ConfigurationSources::new();
 
-    let config_files = matches.values_of_os("config-files").unwrap_or_default();
-    if config_files.len() == 0 {
-        if let Some(default) = default_config_file() {
-            cfg_sources.push_optional_file(default);
+        let config_files = matches.values_of_os("config-files").unwrap_or_default();
+        if config_files.len() == 0 {
+            if let Some(default) = default_config_file() {
+                cfg_sources.push_optional_file(default);
+            }
+        } else {
+            config_files.for_each(|f| cfg_sources.push_file(f));
         }
-    } else {
-        config_files.for_each(|f| cfg_sources.push_file(f));
-    }
 
-    matches
-        .values_of("option")
-        .unwrap_or_default()
-        .for_each(|s| cfg_sources.push_option(s));
+        matches
+            .values_of("option")
+            .unwrap_or_default()
+            .for_each(|s| cfg_sources.push_option(s));
+
+        cfg_sources
+    };
 
     let cfg = cfg_sources.load()?;
 
