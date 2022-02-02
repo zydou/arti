@@ -50,6 +50,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![cfg_attr(ci_arti_nightly, allow(clippy::needless_borrow))]
 
 use tor_chanmgr::ChanMgr;
 use tor_netdir::{fallback::FallbackDir, NetDir};
