@@ -149,7 +149,7 @@ impl StateMgr for FsStateMgr {
         let output = serde_json::to_string_pretty(val)?;
 
         let fname_tmp = fname.with_extension("tmp");
-        std::fs::write(&fname_tmp, (&output).as_bytes())?;
+        std::fs::write(&fname_tmp, &output)?;
         std::fs::rename(fname_tmp, fname)?;
 
         Ok(())

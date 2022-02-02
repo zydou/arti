@@ -143,11 +143,11 @@ where
 
         // reply if needed.
         if action.drain > 0 {
-            (&mut inbuf).copy_within(action.drain..action.drain + n_read, 0);
+            inbuf.copy_within(action.drain..action.drain + n_read, 0);
             n_read -= action.drain;
         }
         if !action.reply.is_empty() {
-            write_all_and_flush(&mut socks_w, &action.reply[..]).await?;
+            write_all_and_flush(&mut socks_w, &action.reply).await?;
         }
         if action.finished {
             break handshake.into_request();

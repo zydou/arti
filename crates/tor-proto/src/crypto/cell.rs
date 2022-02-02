@@ -439,8 +439,8 @@ mod test {
             // outbound cell
             let mut cell = [0_u8; 509];
             let mut cell_orig = [0_u8; 509];
-            rng.fill_bytes(&mut cell_orig[..]);
-            (&mut cell).copy_from_slice(&cell_orig[..]);
+            rng.fill_bytes(&mut cell_orig);
+            cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
             let _tag = cc_out.encrypt(&mut cell, 2.into()).unwrap();
             assert_ne!(&cell.as_ref()[9..], &cell_orig.as_ref()[9..]);
@@ -453,8 +453,8 @@ mod test {
             // inbound cell
             let mut cell = [0_u8; 509];
             let mut cell_orig = [0_u8; 509];
-            rng.fill_bytes(&mut cell_orig[..]);
-            (&mut cell).copy_from_slice(&cell_orig[..]);
+            rng.fill_bytes(&mut cell_orig);
+            cell.copy_from_slice(&cell_orig);
             let mut cell = cell.into();
 
             r3.originate(&mut cell);

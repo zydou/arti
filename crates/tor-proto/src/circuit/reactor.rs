@@ -1182,7 +1182,7 @@ impl Reactor {
             let mut tag_copy = [0_u8; 20];
             // TODO(nickm): This could crash if the tag length changes.  We'll
             // have to refactor it then.
-            (&mut tag_copy).copy_from_slice(tag);
+            tag_copy.copy_from_slice(tag);
             tag_copy
         };
         // Decode the cell.

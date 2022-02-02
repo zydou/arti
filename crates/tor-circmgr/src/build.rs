@@ -399,7 +399,7 @@ where
     // (Technically, we could refrain from unwrapping the future's result,
     // but doing it this way helps make it more certain that we really are
     // collapsing all the layers into one.)
-    Ok(outcome????)
+    outcome???
 }
 
 #[cfg(test)]
