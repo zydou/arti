@@ -1026,12 +1026,12 @@ pub enum GuardMgrError {
 
     /// An error that occurred while trying to spawn a daemon task.
     #[error("Unable to spawn task")]
-    Spawn(#[source] Arc<SpawnError>),
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<SpawnError> for GuardMgrError {
     fn from(e: SpawnError) -> GuardMgrError {
-        GuardMgrError::Spawn(Arc::new(e))
+        Arc::new(e).into()
     }
 }
 
