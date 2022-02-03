@@ -30,7 +30,7 @@ Everywhere else besides arti_error::Error, we try to make our error types follow
  * Whenever appropriate, we have a `pub fn kind(&self) -> ErrorKind` function.
  * When a  public function can fail for a number of reasons that are much more limited than the crate's entire Error type, we should consider give that function its own Error type.
  * We use `Box<>` as needed to keep the size of the enumeration fairly small.
- * We allow more instability in these types than we allow in arti_client: these types should be inaccessable from the arti_client when "error-details" is not enabled.
+ * We allow more instability in these types than we allow in arti_client: these types should be inaccessible from the arti_client when "error-details" is not enabled.
 
 
 ## SOME EXAMPLES

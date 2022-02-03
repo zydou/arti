@@ -99,7 +99,7 @@ pub struct TorAddr {
 }
 
 impl TorAddr {
-    /// Construct a TorAddr from its consituent parts, rejecting it if the
+    /// Construct a TorAddr from its constituent parts, rejecting it if the
     /// port is zero.
     fn new(host: Host, port: u16) -> Result<Self, TorAddrError> {
         if port == 0 {

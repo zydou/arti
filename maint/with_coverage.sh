@@ -142,7 +142,7 @@ if [ "$format" == cobertura ]; then
 	echo "Full report: $COVERAGE_BASEDIR/$output"
 	exit
 elif [ "$format" != html ]; then
-	# no html post processing when outputing non html result
+	# no html post processing when outputting non html result
 	echo "Full report: $COVERAGE_BASEDIR/$output"
 	exit
 fi

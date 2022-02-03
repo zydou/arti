@@ -8,7 +8,7 @@ There should be one coherent schema/data model for our configuration.  It should
 
 The schema should be reified in serde implementations, our config reader, and builder pattern methods etc. - i.e., all these methods should be equivalent.  There shouldn't be different names or semantics depending how the config is fed into our code.
 
-We should make client construction using default config file locations easy (at leasat as easy as construction with hardcoded defaults).  That will make it easy for embedders to provide user-tweakable config.
+We should make client construction using default config file locations easy (at least as easy as construction with hardcoded defaults).  That will make it easy for embedders to provide user-tweakable config.
 
 We should add some warnings to the docs for configuration settings which have the potential to deanonymize users.  (Or possibly blanket warnings.)  This should aim to discourage not only users but also embedders from making poor choices.
 
@@ -34,11 +34,11 @@ Since the "built" config is now private, the builder-generated `build` method be
 
 ## Visibility of `FooConfig` structs
 
-We have decided that `tor-*` crates have much more unstable APIs than `arti-*`.  Configuration is exposed via the config file format, and therefore a semantically equivalent view should be avialable via the APIs.
+We have decided that `tor-*` crates have much more unstable APIs than `arti-*`.  Configuration is exposed via the config file format, and therefore a semantically equivalent view should be available via the APIs.
 
 So each `FooConfig` needs to be re-exported by `arti-client`, and semver-breaking changes to those are semver breaks for arti.
 
-## Division between sources and configs; Loading, embeddding, etc.
+## Division between sources and configs; Loading, embedding, etc.
 
 ### Discussion
 
@@ -57,7 +57,7 @@ All of the `FooConfig` structs should be made directly `Deserialize` and `Serial
 The knowledge of the default config file location(s) and sources should be (exposed) in `arti-client` (not `arti`), with the implication that we hope that most embedders will use it.
 (`tor-config` can continue to be the actual implementation of env vars, default path lookup, etc.)
 
-Individual `tor-*` crates will retain their knowledge of their own configuration.  arti-config will retain the the knowledge of executable-sepcific config settings (notably logging), and can be reused by shallow embedders if they like.
+Individual `tor-*` crates will retain their knowledge of their own configuration.  arti-config will retain the the knowledge of executable-specific config settings (notably logging), and can be reused by shallow embedders if they like.
 
 ### API suggestions
 
@@ -83,7 +83,7 @@ For embedders, `arti-client` should provide a method a bit like this
             #[flatten] tor: TorConfig,
             #[flatten] rest: T,
         }
-        ... load a CombinedCnfig from the usual Tor config files ...
+        ... load a CombinedConfig from the usual Tor config files ...
 ```
 
 On the principle of not having important knowledge only entangled in some more complicated machinery, there should probably be a ```fn usual_config_files() -> Vec<PathBuf>``` (or something).
@@ -107,9 +107,9 @@ For now I suggest retaining `config`.  At least, the code that knows we're using
  * Default config file location is currently `./arti-config.toml`.  This should 
 be changed (to XDG dirs probably)
 
- * `arti_defaults.toml`: this duplicates the default settings baked into the code.  This is kind of inevitable if we want to supplyy an example, but there is a big risk of divergence.  Either (a) there should be a test case that the defaults match the baked-in ones or (b) there should be no baked-in ones and instead things should be read from this file.  Also, it is in danger of being taken as an example config file, which is not great if we ever want to change the defaults.  Suggest we comment out every setting.  (The test case or run-time defaulting will now need to use a mechanically-uncommented versions.)
+ * `arti_defaults.toml`: this duplicates the default settings baked into the code.  This is kind of inevitable if we want to supply an example, but there is a big risk of divergence.  Either (a) there should be a test case that the defaults match the baked-in ones or (b) there should be no baked-in ones and instead things should be read from this file.  Also, it is in danger of being taken as an example config file, which is not great if we ever want to change the defaults.  Suggest we comment out every setting.  (The test case or run-time defaulting will now need to use a mechanically-uncommented versions.)
 
- * Configuration errors will continue to be mapped to `tor_config::ConfigBuildError`; in line with our new error handling proposal, at the toplevel these will turn into a kind on the portmanteau error returned from `bootstrap`.
+ * Configuration errors will continue to be mapped to `tor_config::ConfigBuildError`; in line with our new error handling proposal, at the top level these will turn into a kind on the portmanteau error returned from `bootstrap`.
 
  * IMO we should (generally) enable the `setter(into)` and `try_setter` features of `config`.
 

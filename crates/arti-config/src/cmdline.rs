@@ -46,7 +46,7 @@ impl CmdLine {
     /// Try to adjust the contents of a toml deserialization error so
     /// that instead it refers to a single command-line argument.
     fn convert_toml_error(&self, s: &str, pos: Option<(usize, usize)>) -> String {
-        /// Regex to match an error message fro the toml crate.
+        /// Regex to match an error message from the toml crate.
         static RE: Lazy<Regex> = Lazy::new(|| {
             Regex::new(r"^(.*?) at line [0-9]+ column [0-9]+$").expect("Can't compile regex")
         });
