@@ -277,8 +277,7 @@ struct HeaderStatus {
 }
 
 /// Helper: download directory information from `stream` and
-/// decompress it into a result buffer.  Assumes we've started with
-/// n_in_buf bytes of partially downloaded data in `buf`.
+/// decompress it into a result buffer.  Assumes that `buf` is empty.
 ///
 /// If we get more than maxlen bytes after decompression, give an error.
 ///
