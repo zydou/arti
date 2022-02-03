@@ -1,5 +1,15 @@
 # (Built-in defaults for the arti configuration format.)
 
+# Rules about how arti should behave as an application
+[application]
+# If true, we should watch our configuration files for changes.
+#
+# (Note that this feature may misbehave if you change symlinks in the
+# paths to the directory holding the configuration files, if you
+# remove and recreate those directories, or if those directories
+# change for some other reason.)
+watch_configuration = false
+
 # Set up the Arti program to run as a proxy.
 [proxy]
 # Default port to use when listening to SOCKS connections.  We always

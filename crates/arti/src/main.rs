@@ -91,6 +91,7 @@ mod exit;
 mod process;
 mod proxy;
 mod trace;
+mod watch_cfg;
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
@@ -104,6 +105,8 @@ use tracing::{info, warn};
 async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
+    config_sources: arti_config::ConfigurationSources,
+    arti_config: arti_config::ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
@@ -114,6 +117,9 @@ async fn run<R: Runtime>(
                     runtime.clone(),
                     client_config,
                 ).await?;
+            if arti_config.application().watch_configuration() {
+                watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
+            }
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
@@ -184,21 +190,25 @@ fn main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let mut cfg_sources = arti_config::ConfigurationSources::new();
+    let cfg_sources = {
+        let mut cfg_sources = arti_config::ConfigurationSources::new();
 
-    let config_files = matches.values_of_os("config-files").unwrap_or_default();
-    if config_files.len() == 0 {
-        if let Some(default) = default_config_file() {
-            cfg_sources.push_optional_file(default);
+        let config_files = matches.values_of_os("config-files").unwrap_or_default();
+        if config_files.len() == 0 {
+            if let Some(default) = default_config_file() {
+                cfg_sources.push_optional_file(default);
+            }
+        } else {
+            config_files.for_each(|f| cfg_sources.push_file(f));
         }
-    } else {
-        config_files.for_each(|f| cfg_sources.push_file(f));
-    }
 
-    matches
-        .values_of("option")
-        .unwrap_or_default()
-        .for_each(|s| cfg_sources.push_option(s));
+        matches
+            .values_of("option")
+            .unwrap_or_default()
+            .for_each(|s| cfg_sources.push_option(s));
+
+        cfg_sources
+    };
 
     let cfg = cfg_sources.load()?;
 
@@ -246,7 +256,7 @@ fn main() -> Result<()> {
         let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
-        rt_copy.block_on(run(runtime, socks_port, client_config))?;
+        rt_copy.block_on(run(runtime, socks_port, cfg_sources, config, client_config))?;
         Ok(())
     } else {
         panic!("Subcommand added to clap subcommand list, but not yet implemented")

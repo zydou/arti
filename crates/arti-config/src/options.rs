@@ -15,6 +15,38 @@ use tor_config::{CfgPath, ConfigBuildError};
 /// Default options to use for our configuration.
 pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
 
+/// Structure to hold our application configuration options
+#[derive(Deserialize, Debug, Default, Clone, Builder, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct ApplicationConfig {
+    /// If true, we should watch our configuration files for changes, and reload
+    /// our configuration when they change.
+    ///
+    /// Note that this feature may behave in unexpected ways if the path to the
+    /// directory holding our configuration files changes its identity (because
+    /// an intermediate symlink is changed, because the directory is removed and
+    /// recreated, or for some other reason).
+    #[serde(default)]
+    #[builder(default)]
+    watch_configuration: bool,
+}
+
+impl From<ApplicationConfig> for ApplicationConfigBuilder {
+    fn from(cfg: ApplicationConfig) -> Self {
+        let mut builder = ApplicationConfigBuilder::default();
+        builder.watch_configuration(cfg.watch_configuration);
+        builder
+    }
+}
+
+impl ApplicationConfig {
+    /// Return true if we're configured to watch for configuration changes.
+    pub fn watch_configuration(&self) -> bool {
+        self.watch_configuration
+    }
+}
+
 /// Structure to hold our logging configuration options
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -213,6 +245,9 @@ impl From<ProxyConfig> for ProxyConfigBuilder {
 #[derive(Deserialize, Debug, Clone, Eq, PartialEq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ArtiConfig {
+    /// Configuration for application behavior.
+    application: ApplicationConfig,
+
     /// Configuration for proxy listeners
     proxy: ProxyConfig,
 
@@ -291,6 +326,11 @@ impl ArtiConfig {
         ArtiConfigBuilder::default()
     }
 
+    /// Return the [`ApplicationConfig`] for this configuration.
+    pub fn application(&self) -> &ApplicationConfig {
+        &self.application
+    }
+
     /// Return the [`LoggingConfig`] for this configuration.
     pub fn logging(&self) -> &LoggingConfig {
         &self.logging
@@ -310,6 +350,8 @@ impl ArtiConfig {
 /// inner builder for each section in the [`TorClientConfig`].
 #[derive(Default, Clone)]
 pub struct ArtiConfigBuilder {
+    /// Builder for the application section
+    application: ApplicationConfigBuilder,
     /// Builder for the proxy section.
     proxy: ProxyConfigBuilder,
     /// Builder for the logging section.
@@ -339,6 +381,10 @@ pub struct ArtiConfigBuilder {
 impl ArtiConfigBuilder {
     /// Try to construct a new [`ArtiConfig`] from this builder.
     pub fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
+        let application = self
+            .application
+            .build()
+            .map_err(|e| e.within("application"))?;
         let proxy = self.proxy.build().map_err(|e| e.within("proxy"))?;
         let logging = self.logging.build().map_err(|e| e.within("logging"))?;
         let tor_network = self
@@ -373,6 +419,7 @@ impl ArtiConfigBuilder {
             .map_err(|e| e.within("stream_timeouts"))?;
         let system = self.system.build().map_err(|e| e.within("system"))?;
         Ok(ArtiConfig {
+            application,
             proxy,
             logging,
             tor_network,
@@ -386,6 +433,12 @@ impl ArtiConfigBuilder {
             stream_timeouts,
             system,
         })
+    }
+
+    /// Return a mutable reference to an [`ApplicationConfigBuilder`] to use in
+    /// configuring the Arti process.
+    pub fn application(&mut self) -> &mut ApplicationConfigBuilder {
+        &mut self.application
     }
 
     /// Return a mutable reference to a [`ProxyConfig`] to use in
@@ -496,6 +549,7 @@ impl ArtiConfigBuilder {
 impl From<ArtiConfig> for ArtiConfigBuilder {
     fn from(cfg: ArtiConfig) -> ArtiConfigBuilder {
         ArtiConfigBuilder {
+            application: cfg.application.into(),
             proxy: cfg.proxy.into(),
             logging: cfg.logging.into(),
             storage: cfg.storage.into(),

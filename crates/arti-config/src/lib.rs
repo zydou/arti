@@ -45,8 +45,9 @@ mod options;
 
 pub use cmdline::CmdLine;
 pub use options::{
-    ArtiConfig, ArtiConfigBuilder, LogRotation, LogfileConfig, LogfileConfigBuilder, LoggingConfig,
-    LoggingConfigBuilder, ProxyConfig, ProxyConfigBuilder,
+    ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, LogRotation,
+    LogfileConfig, LogfileConfigBuilder, LoggingConfig, LoggingConfigBuilder, ProxyConfig,
+    ProxyConfigBuilder,
 };
 use tor_config::CfgPath;
 
@@ -80,6 +81,7 @@ impl ConfigurationSources {
     pub fn new() -> Self {
         Self::default()
     }
+
     /// Add `p` to the list of files that we want to read configuration from.
     ///
     /// Configuration files are loaded and applied in the order that they are
@@ -89,12 +91,14 @@ impl ConfigurationSources {
     pub fn push_file<P: AsRef<Path>>(&mut self, p: P) {
         self.files.push((p.as_ref().to_owned(), MustRead::MustRead));
     }
+
     /// As `push_file`, but if the listed file can't be loaded, loading the
     /// configuration can still succeed.
     pub fn push_optional_file<P: AsRef<Path>>(&mut self, p: P) {
         self.files
             .push((p.as_ref().to_owned(), MustRead::TolerateAbsence));
     }
+
     /// Add `s` to the list of overridden options to apply to our configuration.
     ///
     /// Options are applied after all configuration files are loaded, in the
@@ -103,6 +107,11 @@ impl ConfigurationSources {
     /// The format for `s` is as in [`CmdLine`].
     pub fn push_option<S: ToOwned<Owned = String> + ?Sized>(&mut self, option: &S) {
         self.options.push(option.to_owned());
+    }
+
+    /// Return an iterator over the files that we care about.
+    pub fn files(&self) -> impl Iterator<Item = &Path> {
+        self.files.iter().map(|(f, _)| f.as_path())
     }
 
     /// Load the configuration into a new [`config::Config`].
@@ -116,6 +125,7 @@ impl ConfigurationSources {
         Ok(config)
     }
 }
+
 /// As [`load()`], but load into a mutable `Config` object.
 fn load_mut<P: AsRef<Path>>(
     cfg: &mut config::Config,
@@ -132,8 +142,6 @@ fn load_mut<P: AsRef<Path>>(
 
     let mut cmdline = CmdLine::new();
     for opt in opts {
-        // TODO: This cloning is infelicitous, but probably won't matter in
-        // practice.
         cmdline.push_toml_line(opt.clone());
     }
     cfg.merge(cmdline)?;
