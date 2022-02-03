@@ -145,6 +145,11 @@ impl FileWatcher {
     /// Watch a single file (not a directory).  Does nothing if we're already watching that file.
     fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
         // Make the path absolute (without necessarily making it canonical).
+        //
+        // We do this because `notify` reports all of its events in terms of
+        // absolute paths, so if we were to tell it to watch a directory by its
+        // relative path, we'd get reports about the absolute paths of the files
+        // in that directory.
         let cwd = std::env::current_dir()?;
         let path = cwd.join(path.as_ref());
         debug_assert!(path.is_absolute());
