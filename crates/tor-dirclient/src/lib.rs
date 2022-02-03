@@ -635,7 +635,17 @@ mod test {
                 async {
                     // Send back a response.
                     s2_w.write_all(response).await?;
-                    // wait a moment to give the other side time to notice it has data.
+                    // We wait a moment to give the other side time to notice it
+                    // has data.
+                    //
+                    // (Tentative diagnosis: The `async-compress` crate seems to
+                    // be behave differently depending on whether the "close"
+                    // comes right after the incomplete data or whether it comes
+                    // after a delay.  If there's a delay, it notices the
+                    // truncated data and tells us about it. But when there's
+                    // _no_delay, it treats the data as an error and doesn't
+                    // tell our code.)
+
                     // TODO: sleeping in tests is not great.
                     rt2.sleep(Duration::from_millis(50)).await;
                     s2_w.close().await?;
