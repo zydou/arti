@@ -1,5 +1,8 @@
 //! Declare an error type for tor-circmgr
 
+use std::sync::Arc;
+
+use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
@@ -77,6 +80,10 @@ pub enum Error {
     /// We have an expired consensus
     #[error("Consensus is expired")]
     ExpiredConsensus,
+
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {
@@ -85,9 +92,9 @@ impl From<futures::channel::oneshot::Canceled> for Error {
     }
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(_: futures::task::SpawnError) -> Error {
-        Error::Internal("Unable to spawn new task in executor.".into())
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
 

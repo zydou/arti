@@ -1,6 +1,8 @@
 //! Declare error types for tor-chanmgr
 
 use std::sync::Arc;
+
+use futures::task::SpawnError;
 use thiserror::Error;
 
 /// An error returned by a channel manager.
@@ -27,14 +29,18 @@ pub enum Error {
     #[error("I/O error while opening a channel: {0}")]
     Io(#[source] Arc<std::io::Error>),
 
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(_: futures::task::SpawnError) -> Error {
-        Error::Internal("Couldn't spawn channel reactor")
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
 

@@ -1,5 +1,8 @@
 //! Declare tor client specific errors.
 
+use std::sync::Arc;
+
+use futures::task::SpawnError;
 use thiserror::Error;
 use tor_rtcompat::TimeoutError;
 
@@ -54,6 +57,10 @@ pub enum Error {
     /// Unable to change configuration.
     #[error("Reconfiguration failed: {0}")]
     Reconfigure(#[from] tor_config::ReconfigureError),
+
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<TimeoutError> for Error {
@@ -62,8 +69,8 @@ impl From<TimeoutError> for Error {
     }
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(_: futures::task::SpawnError) -> Error {
-        Error::Internal("Couldn't spawn channel reactor")
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
