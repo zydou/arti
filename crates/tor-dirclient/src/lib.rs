@@ -123,16 +123,20 @@ where
     // For now, we just use higher-level timeouts in `dirmgr`.
     let r = download(runtime, req, &mut stream, Some(source.clone())).await;
 
-    let retire = match &r {
-        Err(e) => e.should_retire_circ(),
-        Ok(dr) => dr.error().map(Error::should_retire_circ) == Some(true),
-    };
-
-    if retire {
+    if should_retire_circ(&r) {
         retire_circ(&circ_mgr, &source, "Partial response");
     }
 
     r
+}
+
+/// Return true if `result` holds an error indicating that we should retire the
+/// circuit used for the corresponding request.
+fn should_retire_circ(result: &Result<DirResponse>) -> bool {
+    match result {
+        Err(e) => e.should_retire_circ(),
+        Ok(dr) => dr.error().map(Error::should_retire_circ) == Some(true),
+    }
 }
 
 /// Fetch a Tor directory object from a provided stream.
@@ -273,8 +277,7 @@ struct HeaderStatus {
 }
 
 /// Helper: download directory information from `stream` and
-/// decompress it into a result buffer.  Assumes we've started with
-/// n_in_buf bytes of partially downloaded data in `buf`.
+/// decompress it into a result buffer.  Assumes that `buf` is empty.
 ///
 /// If we get more than maxlen bytes after decompression, give an error.
 ///
@@ -307,12 +310,14 @@ where
         let status = futures::select! {
             status = stream.read(buf).fuse() => status,
             _ = timer => {
+                result.resize(written_total, 0); // truncate as needed
                 return Err(Error::DirTimeout);
             }
         };
         let written_in_this_loop = match status {
             Ok(n) => n,
             Err(other) => {
+                result.resize(written_total, 0); // truncate as needed
                 return Err(other.into());
             }
         };
@@ -545,6 +550,25 @@ mod test {
     }
 
     #[async_test]
+    async fn decomp_unknown() {
+        let compressed = hex::decode("28b52ffd24250d0100c84f6e6520666973682054776f526564426c756520666973680a0200600c0e2509478352cb").unwrap();
+        let limit = 10 << 20;
+        let (s, _r) = decomp_basic(Some("x-proprietary-rle"), &compressed, limit).await;
+
+        assert!(matches!(s, Err(Error::ContentEncoding(_))));
+    }
+
+    #[async_test]
+    async fn decomp_bad_data() {
+        let compressed = b"This is not good zlib data";
+        let limit = 10 << 20;
+        let (s, _r) = decomp_basic(Some("deflate"), compressed, limit).await;
+
+        // This should possibly be a different type in the future.
+        assert!(matches!(s, Err(Error::IoError(_))));
+    }
+
+    #[async_test]
     async fn headers_ok() -> Result<()> {
         let text = b"HTTP/1.0 200 OK\r\nDate: ignored\r\nContent-Encoding: Waffles\r\n\r\n";
 
@@ -581,51 +605,156 @@ mod test {
         Ok(())
     }
 
-    #[async_test]
-    async fn test_download() -> Result<()> {
+    /// Run a trivial download example with a response provided as a binary
+    /// string.
+    ///
+    /// Return the directory response (if any) and the request as encoded (if
+    /// any.)
+    fn run_download_test<Req: request::Requestable>(
+        req: Req,
+        response: &[u8],
+    ) -> (Result<DirResponse>, Result<Vec<u8>>) {
         let (mut s1, s2) = stream_pair();
         let (mut s2_r, mut s2_w) = s2.split();
-        let mock_time = MockSleepProvider::new(std::time::SystemTime::now());
 
+        tor_rtcompat::test_with_one_runtime!(|rt| async move {
+            let rt2 = rt.clone();
+            let (v1, v2, v3): (Result<DirResponse>, Result<Vec<u8>>, Result<()>) = futures::join!(
+                async {
+                    // Run the download function.
+                    let r = download(&rt, &req, &mut s1, None).await;
+                    s1.close().await?;
+                    r
+                },
+                async {
+                    // Take the request from the client, and return it in "v2"
+                    let mut v = Vec::new();
+                    s2_r.read_to_end(&mut v).await?;
+                    Ok(v)
+                },
+                async {
+                    // Send back a response.
+                    s2_w.write_all(response).await?;
+                    // We wait a moment to give the other side time to notice it
+                    // has data.
+                    //
+                    // (Tentative diagnosis: The `async-compress` crate seems to
+                    // be behave differently depending on whether the "close"
+                    // comes right after the incomplete data or whether it comes
+                    // after a delay.  If there's a delay, it notices the
+                    // truncated data and tells us about it. But when there's
+                    // _no_delay, it treats the data as an error and doesn't
+                    // tell our code.)
+
+                    // TODO: sleeping in tests is not great.
+                    rt2.sleep(Duration::from_millis(50)).await;
+                    s2_w.close().await?;
+                    Ok(())
+                }
+            );
+
+            assert!(v3.is_ok());
+
+            (v1, v2)
+        })
+    }
+
+    #[test]
+    fn test_download() -> Result<()> {
         let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
 
-        let (v1, v2, v3): (Result<DirResponse>, Result<Vec<u8>>, Result<()>) = futures::join!(
-            async {
-                let r = download(&mock_time, &req, &mut s1, None).await?;
-                s1.close().await?;
-                Ok(r)
-            },
-            async {
-                let mut v = Vec::new();
-                s2_r.read_to_end(&mut v).await?;
-                Ok(v)
-            },
-            async {
-                s2_w.write_all(b"HTTP/1.0 200 OK\r\n\r\n").await?;
-                s2_w.write_all(b"This is where the descs would go.").await?;
-                s2_w.close().await?;
-                Ok(())
-            }
+        let (response, request) = run_download_test(
+            req,
+            b"HTTP/1.0 200 OK\r\n\r\nThis is where the descs would go.",
         );
 
-        let response = v1?;
-        v3?;
-        let request = v2?;
-
+        let request = request?;
         assert!(request[..].starts_with(
             b"GET /tor/micro/d/CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk.z HTTP/1.0\r\n"
         ));
+
+        assert!(!should_retire_circ(&response));
+        let response = response?;
         assert_eq!(response.status_code(), 200);
         assert!(!response.is_partial());
         assert!(response.error().is_none());
         assert!(response.source().is_none());
+        let out_ref = response.output();
+        assert_eq!(out_ref, b"This is where the descs would go.");
         let out = response.into_output();
         assert_eq!(&out, b"This is where the descs would go.");
 
         Ok(())
     }
 
-    // TODO: test for a partial download with and without partial_ok
+    #[test]
+    fn test_download_truncated() -> Result<()> {
+        // Request only one md, so "partial ok" will not be set.
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let mut response_text: Vec<u8> =
+            (*b"HTTP/1.0 200 OK\r\nContent-Encoding: deflate\r\n\r\n").into();
+        // "One fish two fish" as above twice, but truncated the second time
+        response_text.extend(
+            hex::decode("789cf3cf4b5548cb2cce500829cf8730825253200ca79c52881c00e5970c88").unwrap(),
+        );
+        response_text.extend(
+            hex::decode("789cf3cf4b5548cb2cce500829cf8730825253200ca79c52881c00e5").unwrap(),
+        );
+        let (response, request) = run_download_test(req, &response_text);
+        assert!(request.is_ok());
+        assert!(response.is_err()); // The whole download should fail, since partial_ok wasn't set.
+
+        // request two microdescs, so "partial_ok" will be set.
+        let req: request::MicrodescRequest = vec![[9; 32]; 2].into_iter().collect();
+
+        let (response, request) = run_download_test(req, &response_text);
+        assert!(request.is_ok());
+
+        let response = response?;
+        assert_eq!(response.status_code(), 200);
+        assert!(response.error().is_some());
+        assert!(response.is_partial());
+        assert!(response.output().len() < 37 * 2);
+        assert!(response.output().starts_with(b"One fish"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_404() {
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let response_text = b"HTTP/1.0 418 I'm a teapot\r\n\r\n";
+        let (response, _request) = run_download_test(req, response_text);
+
+        assert!(matches!(response, Err(Error::HttpStatus(Some(418)))));
+    }
+
+    #[test]
+    fn test_headers_truncated() {
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let response_text = b"HTTP/1.0 404 truncation happens here\r\n";
+        let (response, _request) = run_download_test(req, response_text);
+
+        assert!(matches!(response, Err(Error::TruncatedHeaders)));
+
+        // Try a completely empty response.
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let response_text = b"";
+        let (response, _request) = run_download_test(req, response_text);
+
+        assert!(matches!(response, Err(Error::TruncatedHeaders)));
+    }
+
+    #[test]
+    fn test_headers_too_long() {
+        let req: request::MicrodescRequest = vec![[9; 32]].into_iter().collect();
+        let mut response_text: Vec<u8> = (*b"HTTP/1.0 418 I'm a teapot\r\nX-Too-Many-As: ").into();
+        response_text.resize(16384, b'A');
+        let (response, _request) = run_download_test(req, &response_text);
+
+        assert!(should_retire_circ(&response));
+        assert!(matches!(response, Err(Error::HttparseError(_))));
+    }
 
     // TODO: test with bad utf-8
 }
