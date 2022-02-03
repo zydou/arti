@@ -1,4 +1,5 @@
 stages:
+  - check
   - build
   - test
 
@@ -6,8 +7,14 @@ variables:
   # We don't need Husky to install the Git hooks for CI.
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
 
+check-editorconfig:
+  stage: check
+  image: mstruebing/editorconfig-checker
+  script:
+    - ec
+
 shellcheck:
-  stage: build
+  stage: check
   image: koalaman/shellcheck-alpine
   script:
     - ./maint/shellcheck_all.sh
