@@ -142,6 +142,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, info, trace, warn};
 
+use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
@@ -1032,6 +1033,17 @@ pub enum GuardMgrError {
 impl From<SpawnError> for GuardMgrError {
     fn from(e: SpawnError) -> GuardMgrError {
         Arc::new(e).into()
+    }
+}
+
+impl HasKind for GuardMgrError {
+    #[rustfmt::skip] // to preserve table in match
+    fn kind(&self) -> ErrorKind {
+        use GuardMgrError as G;
+        match self {
+            G::State(e)               => e.kind(),
+            G::Spawn(e)               => e.kind(),
+        }
     }
 }
 
