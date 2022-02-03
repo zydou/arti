@@ -34,6 +34,7 @@ rust-latest:
     - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
     - ./maint/cargo_audit.sh
     - cp $CARGO_HOME/bin/cargo-audit .
+    - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
   tags:
     - amd64
   cache:
@@ -42,6 +43,7 @@ rust-latest:
   artifacts:
     paths:
       - target/x86_64-unknown-linux-gnu/debug/arti
+      - target/x86_64-unknown-linux-gnu/release/arti-bench
     expire_in: 1 hours
 
 rust-latest-async-std-rustls:
@@ -127,7 +129,6 @@ build-repro:
     - TPA
     - amd64
 
-
 integration:
   stage: test
   image: debian:stable-slim
@@ -136,6 +137,11 @@ integration:
     - apt install -y tor git python3 curl
     - ./tests/chutney/setup.sh
     - curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+    - ./tests/chutney/stop-arti.sh
+    - RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c ./chutney/net/nodes/arti.toml --socks5 127.0.0.1:9008 -o benchmark_results.json
     - ./tests/chutney/teardown.sh
+  artifacts:
+    paths:
+      - benchmark_results.json
   tags:
     - amd64
