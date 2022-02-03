@@ -6,11 +6,26 @@
 // storage: Search the git history for tor-dirmgr/src/storage/legacy.rs
 // if you ever need to reinstate it.)
 
-pub(crate) mod sqlite;
+use tor_netdoc::doc::authcert::AuthCertKeyIds;
+use tor_netdoc::doc::microdesc::MdDigest;
+use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
+#[cfg(feature = "routerdesc")]
+use tor_netdoc::doc::routerdesc::RdDigest;
+
+use crate::docmeta::{AuthCertMeta, ConsensusMeta};
 use crate::{Error, Result};
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::time::SystemTime;
 use std::{path::Path, str::Utf8Error};
+
+pub(crate) mod sqlite;
+
+pub(crate) use sqlite::SqliteStore;
+
+/// Convenient Sized & dynamic [`Store`]
+pub(crate) type DynStore = Box<dyn Store + Send>;
 
 /// A document returned by a directory manager.
 ///
@@ -160,6 +175,84 @@ impl From<Vec<u8>> for InputString {
             validated: RefCell::new(false),
         }
     }
+}
+
+/// Representation of a storage.
+///
+/// When creating an instance of this [`Store`], it should try to grab the lock during
+/// initialization (`is_readonly() iff some other implementation grabbed it`).
+pub(crate) trait Store {
+    /// Return true if this [`Store`] is opened in read-only mode.
+    fn is_readonly(&self) -> bool;
+    /// Try to upgrade from a read-only connection to a read-write connection.
+    ///
+    /// Return true on success; false if another process had the lock.
+    fn upgrade_to_readwrite(&mut self) -> Result<bool>;
+
+    /// Delete all completely-expired objects from the database.
+    ///
+    /// This is pretty conservative, and only removes things that are
+    /// definitely past their good-by date.
+    fn expire_all(&mut self) -> Result<()>;
+
+    /// Load the latest consensus from disk.
+    ///
+    /// If `pending` is given, we will only return a consensus with
+    /// the given "pending" status.  (A pending consensus doesn't have
+    /// enough descriptors yet.)  If `pending_ok` is None, we'll
+    /// return a consensus with any pending status.
+    fn latest_consensus(
+        &self,
+        flavor: ConsensusFlavor,
+        pending: Option<bool>,
+    ) -> Result<Option<InputString>>;
+    /// Return the information about the latest non-pending consensus,
+    /// including its valid-after time and digest.
+    fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>>;
+    /// Try to read the consensus corresponding to the provided metadata object.
+    fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString>;
+    /// Try to read the consensus whose SHA3-256 digests is the provided
+    /// value, and its metadata.
+    fn consensus_by_sha3_digest_of_signed_part(
+        &self,
+        d: &[u8; 32],
+    ) -> Result<Option<(InputString, ConsensusMeta)>>;
+    /// Write a consensus to disk.
+    fn store_consensus(
+        &mut self,
+        cmeta: &ConsensusMeta,
+        flavor: ConsensusFlavor,
+        pending: bool,
+        contents: &str,
+    ) -> Result<()>;
+    /// Mark the consensus generated from `cmeta` as no longer pending.
+    fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
+    /// Remove the consensus generated from `cmeta`.
+    fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()>;
+
+    /// Read all of the specified authority certs from the cache.
+    fn authcerts(&self, certs: &[AuthCertKeyIds]) -> Result<HashMap<AuthCertKeyIds, String>>;
+    /// Save a list of authority certificates to the cache.
+    fn store_authcerts(&mut self, certs: &[(AuthCertMeta, &str)]) -> Result<()>;
+
+    /// Read all the microdescriptors listed in `input` from the cache.
+    fn microdescs(&self, digests: &[MdDigest]) -> Result<HashMap<MdDigest, String>>;
+    /// Store every microdescriptor in `input` into the cache, and say that
+    /// it was last listed at `when`.
+    fn store_microdescs(&mut self, digests: &[(&str, &MdDigest)], when: SystemTime) -> Result<()>;
+    /// Update the `last-listed` time of every microdescriptor in
+    /// `input` to `when` or later.
+    fn update_microdescs_listed(&mut self, digests: &[MdDigest], when: SystemTime) -> Result<()>;
+
+    /// Read all the microdescriptors listed in `input` from the cache.
+    ///
+    /// Only available when the `routerdesc` feature is present.
+    #[cfg(feature = "routerdesc")]
+    fn routerdescs(&self, digests: &[RdDigest]) -> Result<HashMap<RdDigest, String>>;
+    /// Store every router descriptors in `input` into the cache.
+    #[cfg(feature = "routerdesc")]
+    #[allow(unused)]
+    fn store_routerdescs(&mut self, digests: &[(&str, SystemTime, &RdDigest)]) -> Result<()>;
 }
 
 #[cfg(test)]

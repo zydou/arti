@@ -344,8 +344,9 @@ fn no_more_than_a_week_from(now: SystemTime, v: Option<SystemTime>) -> SystemTim
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::storage::DynStore;
     use crate::test::new_mgr;
-    use crate::{DownloadSchedule, SqliteStore};
+    use crate::DownloadSchedule;
     use std::convert::TryInto;
     use std::sync::Mutex;
     use tor_netdoc::doc::microdesc::MdDigest;
@@ -442,7 +443,7 @@ mod test {
         fn add_from_cache(
             &mut self,
             docs: HashMap<DocId, DocumentText>,
-            _storage: Option<&Mutex<SqliteStore>>,
+            _storage: Option<&Mutex<DynStore>>,
         ) -> Result<bool> {
             let mut changed = false;
             for id in docs.keys() {
@@ -459,7 +460,7 @@ mod test {
             &mut self,
             text: &str,
             _request: &ClientRequest,
-            _storage: Option<&Mutex<SqliteStore>>,
+            _storage: Option<&Mutex<DynStore>>,
         ) -> Result<bool> {
             let mut changed = false;
             for token in text.split_ascii_whitespace() {
@@ -502,7 +503,7 @@ mod test {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
                 for h in [H1, H2, H3, H4, H5] {
                     store
-                        .store_microdescs(vec![("ignore", &h)], SystemTime::now())
+                        .store_microdescs(&[("ignore", &h)], SystemTime::now())
                         .unwrap();
                 }
             }
@@ -535,7 +536,7 @@ mod test {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
                 for h in [H1, H2, H3] {
                     store
-                        .store_microdescs(vec![("ignore", &h)], SystemTime::now())
+                        .store_microdescs(&[("ignore", &h)], SystemTime::now())
                         .unwrap();
                 }
             }
