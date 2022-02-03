@@ -17,7 +17,8 @@ shellcheck:
   stage: check
   image: koalaman/shellcheck-alpine
   script:
-    - ./maint/shellcheck_all.sh
+    - apk add git
+    - ./maint/shellcheck_all
 
 rust-latest:
   stage: build
@@ -99,7 +100,7 @@ minimal-versions:
   image: rust:1.53
   script:
     - rustup install nightly
-    - ./maint/downgrade_dependencies.sh
+    - ./maint/downgrade_dependencies
     - cargo build --verbose --target x86_64-unknown-linux-gnu --all-features
     - cargo test --verbose --target x86_64-unknown-linux-gnu --all-features
   tags:
