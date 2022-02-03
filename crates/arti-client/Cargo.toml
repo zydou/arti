@@ -29,6 +29,7 @@ tor-circmgr = { path="../tor-circmgr", version = "0.0.4"}
 tor-config = { path="../tor-config", version = "0.0.4"}
 tor-chanmgr = { path="../tor-chanmgr", version = "0.0.4"}
 tor-dirmgr = { path="../tor-dirmgr", version = "0.0.4"}
+tor-error = { path="../tor-error", version = "0.0.1" }
 tor-persist = { path="../tor-persist", version = "0.0.3"}
 tor-proto = { path="../tor-proto", version = "0.0.4"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4"}

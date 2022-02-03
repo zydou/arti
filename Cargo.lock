@@ -136,6 +136,7 @@ dependencies = [
  "tor-circmgr",
  "tor-config",
  "tor-dirmgr",
+ "tor-error",
  "tor-persist",
  "tor-proto",
  "tor-rtcompat",
@@ -2931,6 +2932,7 @@ dependencies = [
  "hex-literal",
  "postage",
  "thiserror",
+ "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-proto",
@@ -2967,6 +2969,7 @@ dependencies = [
  "thiserror",
  "tor-chanmgr",
  "tor-config",
+ "tor-error",
  "tor-guardmgr",
  "tor-linkspec",
  "tor-llcrypto",
@@ -3061,6 +3064,7 @@ dependencies = [
  "tor-config",
  "tor-consdiff",
  "tor-dirclient",
+ "tor-error",
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",
@@ -3215,6 +3219,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "tor-error",
 ]
 
 [[package]]
