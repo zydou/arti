@@ -10,7 +10,7 @@ use arti_client::TorClient;
 use arti_config::ArtiConfig;
 use notify::Watcher;
 use tor_rtcompat::Runtime;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, warn};
 
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
@@ -38,7 +38,10 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         debug!("Waiting for FS events");
         while let Ok(event) = rx.recv() {
             if !watcher.event_matched(&event) {
-                trace!("Ignoring FS event {:?}: not a file we care about.", event);
+                // NOTE: Sadly, it's not safe to log in this case.  If the user
+                // has put a configuration file and a logfile in the same
+                // directory, logging about discarded events will make us log
+                // every time we log, and fill up the filesystem.
                 continue;
             }
             while let Ok(_ignore) = rx.try_recv() {
