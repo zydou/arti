@@ -185,8 +185,8 @@ impl FileWatcher {
             notify::DebouncedEvent::Remove(f) => watching(f),
             notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching(f2),
             notify::DebouncedEvent::Rescan => {
-                // Not clear to me whether we need to do anything here.
-                false
+                // We've missed some events: no choice but to reload.
+                true
             }
             notify::DebouncedEvent::Error(_, Some(f)) => watching(f),
             notify::DebouncedEvent::Error(_, _) => false,
