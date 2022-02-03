@@ -1,5 +1,8 @@
 //! Declare an error type for the tor-dirmgr crate.
 
+use std::sync::Arc;
+
+use futures::task::SpawnError;
 use thiserror::Error;
 
 /// An error originated by the directory manager code
@@ -72,6 +75,10 @@ pub enum Error {
     /// An IO error occurred while manipulating storage on disk.
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
+
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<std::str::Utf8Error> for Error {
@@ -92,8 +99,8 @@ impl From<hex::FromHexError> for Error {
     }
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(err: futures::task::SpawnError) -> Self {
-        Error::RuntimeError(err.to_string())
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
