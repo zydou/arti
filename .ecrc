@@ -1,0 +1,20 @@
+{
+    "Verbose": false,
+    "Debug": false,
+    "IgnoreDefaults": false,
+    "SpacesAftertabs": false,
+    "NoColor": false,
+    "Exclude": [
+        ".(der|pfx)$"
+    ],
+    "AllowedContentTypes": [],
+    "PassedFiles": [],
+    "Disable": {
+        "EndOfLine": false,
+        "Indentation": false,
+        "IndentSize": false,
+        "InsertFinalNewline": false,
+        "TrimTrailingWhitespace": false,
+        "MaxLineLength": false
+    }
+}
