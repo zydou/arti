@@ -9,6 +9,10 @@ use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
 use tor_rtcompat::TimeoutError;
 
+/// Wrapper for definitions which need to vary according to `error_details`
+macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
+// We cheat with the indentation, a bit.  Happily rustfmt doesn't seem to mind.
+
 /// Main high-level error type for the Arti Tor client
 ///
 /// If you need to handle different errors differently,
@@ -16,18 +20,21 @@ use tor_rtcompat::TimeoutError;
 /// to check what kind of error it is,
 #[derive(Error, Debug)]
 // TODO #[derive(Clone)] // we need to make everything inside Clone first
+#[allow(clippy::exhaustive_structs)]
 pub struct TorError {
     /// The actual error
     #[from]
-    detail: Error,
+    $vis detail: Error,
 }
 
 /// Alias for the [`Result`] type used within the `arti_client` crate.
-pub type Result<T> = std::result::Result<T, Error>;
+$vis type Result<T> = std::result::Result<T, Error>;
 
 /// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Debug)]
 #[non_exhaustive]
+// should be $vis
+// but right now we need to re-export it unconditionally
 pub enum Error {
     /// Error while getting a circuit
     #[error("Error while getting a circuit {0}")]
@@ -82,6 +89,9 @@ pub enum Error {
     Spawn(#[from] Arc<SpawnError>),
 }
 
+// End of the use of $vis to refer to visibility according to `error_detail`
+} }
+
 impl Display for TorError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "tor: {}: {}", self.detail.kind(), &self.detail)
@@ -111,3 +121,9 @@ impl tor_error::HasKind for Error {
         ErrorKind::TODO
     }
 }
+
+#[cfg(feature = "error_detail")]
+define_according_to_cfg_error_details! { pub }
+
+#[cfg(not(feature = "error_detail"))]
+define_according_to_cfg_error_details! { pub(crate) }
