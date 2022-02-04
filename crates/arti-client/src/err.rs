@@ -20,9 +20,6 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// use the [`kind`](`tor_error::HasKind::kind`) trait method
 /// to check what kind of error it is,
 #[derive(Error, Clone, Debug)]
-// TODO Use assert_impl! or something to ensure this is Send Sync Clone Debug Display 'static
-//   as per https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262#note_2772823
-//   bullet point 5
 #[allow(clippy::exhaustive_structs)]
 pub struct TorError {
     /// The actual error
@@ -154,3 +151,24 @@ define_according_to_cfg_error_details! { pub }
 
 #[cfg(not(feature = "error_detail"))]
 define_according_to_cfg_error_details! { pub(crate) }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// This code makes sure that our errors implement all the traits we want.
+    #[test]
+    fn traits_ok() {
+        // I had intended to use `assert_impl`, but that crate can't check whether
+        // a type is 'static.
+        fn assert<
+            T: Send + Sync + Clone + std::fmt::Debug + Display + std::error::Error + 'static,
+        >() {
+        }
+        fn check() {
+            assert::<TorError>();
+            assert::<Error>();
+        }
+        check(); // doesn't do anything, but avoids "unused function" warnings.
+    }
+}
