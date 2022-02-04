@@ -126,7 +126,8 @@ impl ConfigurationSources {
     }
 }
 
-/// As [`load()`], but load into a mutable `Config` object.
+/// As [`ConfigurationSources::load()`], but load into a mutable `Config`
+/// object.
 fn load_mut<P: AsRef<Path>>(
     cfg: &mut config::Config,
     files: &[(P, MustRead)],
