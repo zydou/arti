@@ -15,18 +15,30 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 
 /// Main high-level error type for the Arti Tor client
 ///
-/// If you need to handle different errors differently,
-/// use the [`kind`](`tor_error::HasKind::kind`) trait method
-/// to check what kind of error it is,
+/// If you need to handle different types of errors differently, use the
+/// [`kind`](`tor_error::HasKind::kind`) trait method to check what kind of
+/// error it is.
+///
+/// Note that although this type implements that standard
+/// [`Error`](std::error::Error) trait, the output of that trait's methods are
+/// not covered by semantic versioning.  Specifically: you should not rely on
+/// the specific output of `Display`, `Debug`, or `Error::source()` when run on
+/// this type; it may change between patch versions without notification.
 #[derive(Error, Clone, Debug)]
 #[allow(clippy::exhaustive_structs)]
 pub struct TorError {
-    /// The actual error
+    /// The actual error.
+    ///
+    /// This field is exposed only if the the `error_detail` feature is enabled.
+    /// Using it will void your semver guarantee.
     #[source]
     $vis detail: Box<Error>,
 }
 
 /// Alias for the [`Result`] type used within the `arti_client` crate.
+///
+/// This is always converted to [`TorResult`](crate::TorResult) before it's
+/// given to a user.
 $vis type Result<T> = std::result::Result<T, Error>;
 
 impl From<Error> for TorError {
@@ -38,6 +50,17 @@ impl From<Error> for TorError {
 }
 
 /// Represents errors that can occur while doing Tor operations.
+///
+/// This enumeration is the inner view of a [`TorError`]: we don't expose it
+/// unless the `error_detail` feature is enabled.
+///
+/// The details of this enumeration are not stable: using the `error_detail`
+/// feature will void your semver guarantee.
+///
+/// Instead of looking at the type, you try to should use the
+/// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
+/// different kinds of [`TorError`].  If that doesn't provide enough information
+/// for your use case, please let us know.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 $vis enum Error {
