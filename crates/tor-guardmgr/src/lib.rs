@@ -142,6 +142,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, info, trace, warn};
 
+use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
@@ -1020,17 +1021,29 @@ pub enum GuardRestriction {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum GuardMgrError {
-    /// An error derived from the state manager.
+    /// An error manipulating persistent state
     #[error("Problem accessing persistent state")]
     State(#[from] tor_persist::Error),
+
     /// An error that occurred while trying to spawn a daemon task.
     #[error("Unable to spawn task")]
-    Spawn(#[source] Arc<SpawnError>),
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<SpawnError> for GuardMgrError {
     fn from(e: SpawnError) -> GuardMgrError {
-        GuardMgrError::Spawn(Arc::new(e))
+        Arc::new(e).into()
+    }
+}
+
+impl HasKind for GuardMgrError {
+    #[rustfmt::skip] // to preserve table in match
+    fn kind(&self) -> ErrorKind {
+        use GuardMgrError as G;
+        match self {
+            G::State(e)               => e.kind(),
+            G::Spawn(e)               => e.kind(),
+        }
     }
 }
 

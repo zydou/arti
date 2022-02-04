@@ -2,6 +2,7 @@
 
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::fmt::{self, Display};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::debug;
@@ -28,7 +29,9 @@ pub(crate) struct ExitPolicy {
 ///
 /// Ordinarily, this is a TCP port, plus a flag to indicate whether we
 /// must support IPv4 or IPv6.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Default,
+)]
 pub struct TargetPort {
     /// True if this is a request to connect to an IPv6 address
     ipv6: bool,
@@ -56,6 +59,43 @@ impl TargetPort {
         } else {
             r.supports_exit_port_ipv4(self.port)
         }
+    }
+}
+
+impl Display for TargetPort {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.port, if self.ipv6 { "v6" } else { "v4" })
+    }
+}
+
+/// Set of requestedd target ports, mostly for use in error reporting
+///
+/// Displays nicely.
+#[derive(Debug, Clone, Default)]
+pub struct TargetPorts(Vec<TargetPort>);
+
+impl From<&'_ [TargetPort]> for TargetPorts {
+    fn from(ports: &'_ [TargetPort]) -> Self {
+        TargetPorts(ports.into())
+    }
+}
+
+impl Display for TargetPorts {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let brackets = self.0.len() != 1;
+        if brackets {
+            write!(f, "[")?;
+        }
+        for (i, port) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", port)?;
+        }
+        if brackets {
+            write!(f, "]")?;
+        }
+        Ok(())
     }
 }
 

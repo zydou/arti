@@ -1,7 +1,12 @@
 //! Declare error types for tor-chanmgr
 
+use std::net::SocketAddr;
 use std::sync::Arc;
+
+use futures::task::SpawnError;
 use thiserror::Error;
+
+use tor_error::ErrorKind;
 
 /// An error returned by a channel manager.
 #[derive(Debug, Error, Clone)]
@@ -23,18 +28,32 @@ pub enum Error {
     #[error("Protocol error while opening a channel: {0}")]
     Proto(#[from] tor_proto::Error),
 
-    /// A protocol error while making a channel
-    #[error("I/O error while opening a channel: {0}")]
-    Io(#[source] Arc<std::io::Error>),
+    /// Network IO error or TLS error
+    #[error("Network IO error, or TLS error, in {action}, talking to {peer}")]
+    Io {
+        /// Who we were talking to
+        peer: SocketAddr,
+
+        /// What we were doing
+        action: &'static str,
+
+        /// What happened.  Might be some TLS library error wrapped up in io::Error
+        #[source]
+        source: Arc<std::io::Error>,
+    },
+
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
 
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(_: futures::task::SpawnError) -> Error {
-        Error::Internal("Couldn't spawn channel reactor")
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
 
@@ -50,8 +69,13 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
-        Error::Io(Arc::new(e))
+impl tor_error::HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::Io { .. } => EK::TorConnectionFailed,
+            _ => EK::TODO,
+        }
     }
 }

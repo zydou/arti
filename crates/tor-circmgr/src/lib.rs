@@ -73,7 +73,7 @@ mod timeouts;
 mod usage;
 
 pub use err::Error;
-pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort};
+pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort, TargetPorts};
 
 pub use config::{
     CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,

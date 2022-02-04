@@ -138,4 +138,7 @@ including sqlite and/or openssl.
 Note that these APIs are NOT covered by semantic versioning guarantees:
 we might break them or remove them between patch versions.
 
+`error_detail` -- Make the `TorError` type transparent, and expose the `Error` within.
+Note that the resulting APIs are not stable.
+
 License: MIT OR Apache-2.0

@@ -1,5 +1,6 @@
 //! Filesystem + JSON implementation of StateMgr.
 
+use crate::{load_error, store_error};
 use crate::{Error, LockStatus, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
@@ -133,7 +134,7 @@ impl StateMgr for FsStateMgr {
             }
         };
 
-        Ok(Some(serde_json::from_str(&string)?))
+        Ok(Some(serde_json::from_str(&string).map_err(load_error)?))
     }
 
     fn store<S>(&self, key: &str, val: &S) -> Result<()>
@@ -146,7 +147,7 @@ impl StateMgr for FsStateMgr {
 
         let fname = self.filename(key);
 
-        let output = serde_json::to_string_pretty(val)?;
+        let output = serde_json::to_string_pretty(val).map_err(store_error)?;
 
         let fname_tmp = fname.with_extension("tmp");
         std::fs::write(&fname_tmp, &output)?;

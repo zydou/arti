@@ -19,6 +19,7 @@ testing = []
 
 [dependencies]
 tor-config = { path="../tor-config", version = "0.0.4"}
+tor-error = { path="../tor-error", version = "0.0.1" }
 tor-netdir = { path="../tor-netdir", version = "0.0.4"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.3"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}

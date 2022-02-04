@@ -13,6 +13,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 [dependencies]
+tor-error = { path="../tor-error", version = "0.0.1"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4"}
 tor-proto = { path="../tor-proto", version = "0.0.4"}
 tor-linkspec = { path="../tor-linkspec", version = "0.0.3"}

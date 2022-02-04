@@ -1,7 +1,13 @@
 //! Declare an error type for tor-circmgr
 
+use std::sync::Arc;
+
+use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
+
+use tor_error::ErrorKind;
+use tor_linkspec::OwnedChanTarget;
 
 /// An error returned while looking up or building a circuit
 #[derive(Error, Debug, Clone)]
@@ -54,9 +60,16 @@ pub enum Error {
     #[error("Internal error: {0}")]
     Internal(String),
 
-    /// Couldn't get a channel for a circuit.
-    #[error("Couldn't get channel for circuit: {0}")]
-    ChanFailed(#[from] tor_chanmgr::Error),
+    /// Problem with channel
+    #[error("Problem with channel to {peer}")]
+    Channel {
+        /// Which relay we were trying to connect to
+        peer: OwnedChanTarget,
+
+        /// What went wrong
+        #[source]
+        cause: tor_chanmgr::Error,
+    },
 
     /// Protocol issue while building a circuit.
     #[error("Problem building a circuit: {0}")]
@@ -77,6 +90,10 @@ pub enum Error {
     /// We have an expired consensus
     #[error("Consensus is expired")]
     ExpiredConsensus,
+
+    /// Unable to spawn task
+    #[error("unable to spawn task")]
+    Spawn(#[from] Arc<SpawnError>),
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {
@@ -85,9 +102,9 @@ impl From<futures::channel::oneshot::Canceled> for Error {
     }
 }
 
-impl From<futures::task::SpawnError> for Error {
-    fn from(_: futures::task::SpawnError) -> Error {
-        Error::Internal("Unable to spawn new task in executor.".into())
+impl From<SpawnError> for Error {
+    fn from(e: SpawnError) -> Error {
+        Arc::new(e).into()
     }
 }
 
@@ -102,6 +119,17 @@ impl From<tor_guardmgr::GuardMgrError> for Error {
         match err {
             tor_guardmgr::GuardMgrError::State(e) => Error::State(e),
             _ => Error::GuardMgr(err),
+        }
+    }
+}
+
+impl tor_error::HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::Channel { cause, .. } => cause.kind(),
+            _ => EK::TODO,
         }
     }
 }

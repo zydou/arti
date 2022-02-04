@@ -151,6 +151,51 @@ We _do_ expose the entire error enumeration from these crates.  That means we mi
 
 **TODO**: should be documented somewhere! perhaps more generally ("tor-* crates are more unstable")
 
+#### Who is responsible for putting calling parameters into the error ?
+
+Eg, tor-chanmgr has this:
+
+    type BuildSpec = OwnedChanTarget;
+    async fn build_channel(&self, target: &Self::BuildSpec) -> crate::Result<Self::Channel> {
+
+If the build fails, then someone is responsible for putting the `OwnedChatTarget` (or some subset of the information in it) into the error structure.
+
+This should be the *calling* crate.  Otherwise the same context information must be duplicated for every variant of the lower crate error.  In the upper crate, it can be in only one variant.
+
+For example, when tor-circmgr calls `build_channel`, it is tor-circmgr which is responsible for putting the context in the outer error variant, ie
+
+```
+  enum tor_circmgr::Error {
+      ...
+      ChannelFailed {
+          target: OwnedChanTarget,
+          cause: tor_chanmgr::Error,
+      }
+```
+
+#### Describing the error type
+
+When a problem is reported, different error types should generally produce different messages.  Where should this be done ?
+
+Answer: the place where the type is embedded.  For example:
+
+```
+  enum tor_circmgr::Error {
+      /// Problem with channel
+      #[error("Problem with channel to {peer}")]
+      ChanFailed {
+          cause: tor_chanmgr::Error,
+
+  enum tor_chanmgr::Error  {
+      /// Network IO error or TLS error
+      #[error("Network IO error, or TLS error, talking to {peer}")]
+      Io {
+          /// Who we were talking to
+          peer: SocketAddr,
+```
+
+So the channel error does not say that it *is* a channel error, just as an `io::Error` doesn't say that it is an IO error.  `tor_chanmgr::Error::Io` says that it is an IO error; when that is found inside eg a `tor_circmgr::Error`, the circmgr error is responsible for saying it's about a channel (and describing relevant channel properties).
+
 ### In a new tor-errorkind crate
 
 

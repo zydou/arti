@@ -1,5 +1,6 @@
 //! Implement a concrete type to build channels.
 
+use std::io;
 use std::sync::Mutex;
 
 use crate::{event::ChanMgrEventSender, Error};
@@ -81,8 +82,20 @@ impl<R: Runtime> ChanBuilder<R> {
                 .record_attempt();
         }
 
+        let map_ioe = |action: &'static str| {
+            move |ioe: io::Error| Error::Io {
+                action,
+                peer: *addr,
+                source: ioe.into(),
+            }
+        };
+
         // Establish a TCP connection.
-        let stream = self.runtime.connect(addr).await?;
+        let stream = self
+            .runtime
+            .connect(addr)
+            .await
+            .map_err(map_ioe("connect"))?;
 
         {
             self.event_sender
@@ -95,10 +108,12 @@ impl<R: Runtime> ChanBuilder<R> {
         let tls = self
             .tls_connector
             .negotiate_unvalidated(stream, "ignored")
-            .await?;
+            .await
+            .map_err(map_ioe("TLS negotiation"))?;
 
         let peer_cert = tls
-            .peer_certificate()?
+            .peer_certificate()
+            .map_err(map_ioe("TLS certs"))?
             .ok_or(Error::Internal("TLS connection with no peer certificate"))?;
 
         {
@@ -208,9 +223,11 @@ mod test {
                 async {
                     // relay-side: accept the channel
                     // (and pretend to know what we're doing).
-                    let (mut con, addr) = lis.accept().await?;
+                    let (mut con, addr) = lis.accept().await.expect("accept failed");
                     assert_eq!(client_addr, addr.ip());
-                    crate::testing::answer_channel_req(&mut con).await?;
+                    crate::testing::answer_channel_req(&mut con)
+                        .await
+                        .expect("answer failed");
                     Ok(con)
                 }
             );

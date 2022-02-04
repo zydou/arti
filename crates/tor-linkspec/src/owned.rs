@@ -1,5 +1,6 @@
 //! Owned variants of [`ChanTarget`] and [`CircTarget`].
 
+use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
@@ -57,6 +58,21 @@ impl OwnedChanTarget {
     }
 }
 
+/// Primarily for error reporting and logging
+impl Display for OwnedChanTarget {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[")?;
+        match &*self.addrs {
+            [] => write!(f, "?")?,
+            [a] => write!(f, "{}", a)?,
+            [a, ..] => write!(f, "{}+", a)?,
+        };
+        write!(f, "{}", &self.ed_identity)?; // short enough to print
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+
 /// OwnedCircTarget is a summary of a [`CircTarget`] that owns all its
 /// members.
 #[derive(Debug, Clone)]
@@ -96,6 +112,13 @@ impl OwnedCircTarget {
             // protovers parsing uses an Arc, IIRC.  Can we expose that here?
             protovers: target.protovers().clone(),
         }
+    }
+}
+
+/// Primarily for error reporting and logging
+impl Display for OwnedCircTarget {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(&self.chan_target, f)
     }
 }
 

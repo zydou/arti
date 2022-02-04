@@ -147,17 +147,17 @@ impl TorAddr {
     pub(crate) fn enforce_config(
         &self,
         cfg: &crate::config::ClientAddrConfig,
-    ) -> Result<(), crate::Error> {
+    ) -> Result<(), crate::err::Error> {
         if !cfg.allow_local_addrs && self.is_local() {
-            return Err(crate::Error::LocalAddress);
+            return Err(crate::err::Error::LocalAddress);
         }
 
         if let Host::Hostname(addr) = &self.host {
             if !is_valid_hostname(addr) {
-                return Err(crate::Error::InvalidHostname);
+                return Err(crate::err::Error::InvalidHostname);
             }
             if addr.to_lowercase().ends_with(".onion") {
-                return Err(crate::Error::OnionAddressNotSupported);
+                return Err(crate::err::Error::OnionAddressNotSupported);
             }
         }
 
@@ -383,7 +383,7 @@ mod test {
 
     #[test]
     fn validate_addr() {
-        use crate::Error;
+        use crate::err::Error;
         fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, Error> {
             let toraddr = addr.into_tor_addr()?;
             toraddr.enforce_config(&Default::default())?;

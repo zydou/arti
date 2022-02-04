@@ -1,0 +1,22 @@
+[package]
+name = "tor-error"
+version = "0.0.1"
+authors = ["Ian Jackson <iwj@torproject.org>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Provides the unified type-erased error type returned my many (esp. high-level) Tor APIs."
+keywords = [ "tor", "arti" ]
+repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+categories = [ "tor" ]
+
+[features]
+default = ["backtrace"]
+
+[dependencies]
+backtrace = { version = "0.3.8", optional = true }
+derive_more = "0.99"
+futures = "0.3"
+thiserror = "1"
+
+[dev-dependencies]
