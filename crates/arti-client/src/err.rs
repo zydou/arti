@@ -51,7 +51,7 @@ pub enum Error {
 
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for {exit_ports}")]
-    ExitCircuitFailed {
+    ObtainExitCircuit {
         /// What for
         exit_ports: TargetPorts,
 
@@ -141,7 +141,7 @@ impl tor_error::HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::ExitCircuitFailed { cause, .. } => cause.kind(),
+            E::ObtainExitCircuit { cause, .. } => cause.kind(),
             _ => EK::TODO,
         }
     }

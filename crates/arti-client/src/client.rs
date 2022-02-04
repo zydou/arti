@@ -634,7 +634,7 @@ impl<R: Runtime> TorClient<R> {
             .circmgr
             .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
             .await
-            .map_err(|cause| Error::ExitCircuitFailed {
+            .map_err(|cause| Error::ObtainExitCircuit {
                 cause,
                 exit_ports: exit_ports.into(),
             })?;

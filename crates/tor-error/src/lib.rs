@@ -97,7 +97,7 @@ pub enum ErrorKind {
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.
     #[display(fmt = "internal error (bug)")]
-    InternalError,
+    Internal,
 
     /// TODO - error still needs to be categorised in tor/arti code
     ///

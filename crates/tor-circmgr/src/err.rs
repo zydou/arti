@@ -62,7 +62,7 @@ pub enum Error {
 
     /// Problem with channel
     #[error("Problem with channel to {peer}")]
-    ChanFailed {
+    Channel {
         /// Which relay we were trying to connect to
         peer: OwnedChanTarget,
 
@@ -128,7 +128,7 @@ impl tor_error::HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::ChanFailed { cause, .. } => cause.kind(),
+            E::Channel { cause, .. } => cause.kind(),
             _ => EK::TODO,
         }
     }

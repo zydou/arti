@@ -186,6 +186,6 @@ macro_rules! into_internal {
 
 impl HasKind for InternalError {
     fn kind(&self) -> ErrorKind {
-        ErrorKind::InternalError
+        ErrorKind::Internal
     }
 }

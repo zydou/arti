@@ -76,7 +76,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     let chan = chanmgr
         .get_or_launch(target)
         .await
-        .map_err(|cause| Error::ChanFailed {
+        .map_err(|cause| Error::Channel {
             peer: OwnedChanTarget::from_chan_target(target),
             cause,
         })?;
