@@ -41,9 +41,9 @@ use derive_more::Display;
 mod internal;
 pub use internal::*;
 
-/// Classification of an error arising from Tor operations
+/// Classification of an error arising from Arti's Tor operations
 ///
-/// This `ErrorKind` should suffice for programmatic handling by most applications embedding Tor:
+/// This `ErrorKind` should suffice for programmatic handling by most applications embedding Arti:
 /// get the kind via [`HasKind::kind`] and compare it to the expected value(s) with equality
 /// or by matching.
 ///
