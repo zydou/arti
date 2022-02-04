@@ -8,7 +8,6 @@ use futures::task::SpawnError;
 use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
-use tor_rtcompat::TimeoutError;
 
 /// Wrapper for definitions which need to vary according to `error_details`
 macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
@@ -41,9 +40,7 @@ impl From<Error> for TorError {
 /// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-// should be $vis
-// but right now we need to re-export it unconditionally
-pub enum Error {
+$vis enum Error {
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
@@ -71,9 +68,9 @@ pub enum Error {
     #[error("Error from state manager: {0}")]
     Persist(#[from] tor_persist::Error),
 
-    /// The directory cache took too long to reply to us.
-    #[error("directory timed out")]
-    Timeout,
+    /// We asked an exit to do something, and waited too long for an answer..
+    #[error("exit timed out")]
+    ExitTimeout,
 
     /// Onion services not supported.
     #[error("Rejecting .onion address as unsupported.")]
@@ -90,10 +87,6 @@ pub enum Error {
     /// Address was local, and that's not allowed.
     #[error("Cannot connect to a local-only address without enabling allow_local_addrs")]
     LocalAddress,
-
-    /// An internal error of some kind that should never occur.
-    #[error("Internal error: {0}")]
-    Internal(&'static str),
 
     /// Building configuration for the client failed.
     #[error("Configuration failed: {0}")]
@@ -123,12 +116,6 @@ impl tor_error::HasKind for TorError {
     }
 }
 
-impl From<TimeoutError> for Error {
-    fn from(_: TimeoutError) -> Self {
-        Error::Timeout
-    }
-}
-
 impl From<SpawnError> for Error {
     fn from(e: SpawnError) -> Error {
         Arc::new(e).into()
@@ -141,6 +128,7 @@ impl tor_error::HasKind for Error {
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
+            E::ExitTimeout => EK::ExitTimeout,
             _ => EK::TODO,
         }
     }

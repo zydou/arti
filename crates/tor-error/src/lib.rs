@@ -93,6 +93,10 @@ pub enum ErrorKind {
     #[display(fmt = "unexplained rust async task spawn failure")]
     UnexplainedTaskSpawnFailure,
 
+    /// An operation failed because we waited too long for an exit to do something.
+    #[display(fmt = "operation timed out at exit")]
+    ExitTimeout,
+
     /// Internal error (bug)
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.

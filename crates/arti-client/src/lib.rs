@@ -185,6 +185,7 @@ pub use client::{StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
 pub use tor_circmgr::IsolationToken;
+pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
@@ -197,10 +198,7 @@ pub use err::TorError;
 // So, we just conditionally `use`.  This means that other bits of this crate can't
 // name them by crate::Error and crate::Result, which is slightly annoying.
 
-//#[cfg(feature = "error_detail")] TODO
-// Right now if we hide this, we get
-// error[E0446]: crate-private type `err::Error` in public interface
-// and also failures in `arti`
+#[cfg(feature = "error_detail")]
 pub use err::Error;
 
 #[cfg(feature = "error_detail")]
