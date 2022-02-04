@@ -68,7 +68,7 @@ impl Display for TargetPort {
     }
 }
 
-/// Set of requestedd target ports, mostly for use in error reporting
+/// Set of requested target ports, mostly for use in error reporting
 ///
 /// Displays nicely.
 #[derive(Debug, Clone, Default)]
@@ -830,5 +830,16 @@ mod test {
         assert!(!no_isolation.may_share_circuit(&some_isolation2));
         assert!(!some_isolation.may_share_circuit(&some_isolation2));
         assert!(some_isolation.may_share_circuit(&some_isolation));
+    }
+
+    #[test]
+    fn display_target_ports() {
+        let ports = [];
+        assert_eq!(TargetPorts::from(&ports[..]).to_string(), "[]");
+
+        let ports = [TargetPort::ipv4(80)];
+        assert_eq!(TargetPorts::from(&ports[..]).to_string(), "80v4");
+        let ports = [TargetPort::ipv4(80), TargetPort::ipv6(443)];
+        assert_eq!(TargetPorts::from(&ports[..]).to_string(), "[80v4,443v6]");
     }
 }
