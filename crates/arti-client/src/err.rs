@@ -19,8 +19,7 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// If you need to handle different errors differently,
 /// use the [`kind`](`tor_error::HasKind::kind`) trait method
 /// to check what kind of error it is,
-#[derive(Error, Debug)]
-// TODO #[derive(Clone)] // we need to make everything inside Clone first
+#[derive(Error, Clone, Debug)]
 // TODO Use assert_impl! or something to ensure this is Send Sync Clone Debug Display 'static
 //   as per https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262#note_2772823
 //   bullet point 5
@@ -43,7 +42,7 @@ impl From<Error> for TorError {
 }
 
 /// Represents errors that can occur while doing Tor operations.
-#[derive(Error, Debug)]
+#[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 // should be $vis
 // but right now we need to re-export it unconditionally
