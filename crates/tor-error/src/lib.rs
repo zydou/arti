@@ -102,7 +102,7 @@ pub enum ErrorKind {
     /// TODO - error still needs to be categorised in tor/arti code
     ///
     /// This variant is going to be ABOLISHED!
-    #[display(fmt = "uncategorized error (TODO)r")]
+    #[display(fmt = "uncategorized error (TODO)")]
     TODO,
 }
 
