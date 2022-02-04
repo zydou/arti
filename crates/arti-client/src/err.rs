@@ -97,12 +97,28 @@ $vis enum Error {
     Reconfigure(#[from] tor_config::ReconfigureError),
 
     /// Unable to spawn task
-    #[error("unable to spawn task")]
-    Spawn(#[from] Arc<SpawnError>),
+    #[error("unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>
+    }
 }
 
 // End of the use of $vis to refer to visibility according to `error_detail`
 } }
+
+impl Error {
+    /// Construct a new `Error` from a `SpawnError`.
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
+        Error::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
+    }
+}
 
 impl Display for TorError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -113,12 +129,6 @@ impl Display for TorError {
 impl tor_error::HasKind for TorError {
     fn kind(&self) -> ErrorKind {
         self.detail.kind()
-    }
-}
-
-impl From<SpawnError> for Error {
-    fn from(e: SpawnError) -> Error {
-        Arc::new(e).into()
     }
 }
 

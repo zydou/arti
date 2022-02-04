@@ -77,8 +77,14 @@ pub enum Error {
     IOError(#[source] Arc<std::io::Error>),
 
     /// Unable to spawn task
-    #[error("unable to spawn task")]
-    Spawn(#[from] Arc<SpawnError>),
+    #[error("unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn
+        spawning: &'static str,
+        /// What happened when we tried to spawn it
+        #[source]
+        cause: Arc<SpawnError>,
+    },
 }
 
 impl From<std::str::Utf8Error> for Error {
@@ -117,8 +123,12 @@ impl From<rusqlite::Error> for Error {
     }
 }
 
-impl From<SpawnError> for Error {
-    fn from(e: SpawnError) -> Error {
-        Arc::new(e).into()
+impl Error {
+    /// Construct a new `Error` from a `SpawnError`.
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
+        Error::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
     }
 }

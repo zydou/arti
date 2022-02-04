@@ -337,39 +337,49 @@ impl<R: Runtime> TorClient<R> {
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
-        runtime.spawn(status::report_status(
-            status_sender,
-            conn_status,
-            dir_status,
-        ))?;
+        runtime
+            .spawn(status::report_status(
+                status_sender,
+                conn_status,
+                dir_status,
+            ))
+            .map_err(|e| Error::from_spawn("top-level status reporter", e))?;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
         // Launch a daemon task to inform the circmgr about new
         // network parameters.
-        runtime.spawn(keep_circmgr_params_updated(
-            dirmgr.events(),
-            Arc::downgrade(&circmgr),
-            Arc::downgrade(&dirmgr),
-        ))?;
+        runtime
+            .spawn(keep_circmgr_params_updated(
+                dirmgr.events(),
+                Arc::downgrade(&circmgr),
+                Arc::downgrade(&dirmgr),
+            ))
+            .map_err(|e| Error::from_spawn("circmgr parameter updater", e))?;
 
-        runtime.spawn(update_persistent_state(
-            runtime.clone(),
-            Arc::downgrade(&circmgr),
-            statemgr.clone(),
-        ))?;
+        runtime
+            .spawn(update_persistent_state(
+                runtime.clone(),
+                Arc::downgrade(&circmgr),
+                statemgr.clone(),
+            ))
+            .map_err(|e| Error::from_spawn("persistent state updater", e))?;
 
-        runtime.spawn(continually_launch_timeout_testing_circuits(
-            runtime.clone(),
-            Arc::downgrade(&circmgr),
-            Arc::downgrade(&dirmgr),
-        ))?;
+        runtime
+            .spawn(continually_launch_timeout_testing_circuits(
+                runtime.clone(),
+                Arc::downgrade(&circmgr),
+                Arc::downgrade(&dirmgr),
+            ))
+            .map_err(|e| Error::from_spawn("timeout-probe circuit launcher", e))?;
 
-        runtime.spawn(continually_preemptively_build_circuits(
-            runtime.clone(),
-            Arc::downgrade(&circmgr),
-            Arc::downgrade(&dirmgr),
-        ))?;
+        runtime
+            .spawn(continually_preemptively_build_circuits(
+                runtime.clone(),
+                Arc::downgrade(&circmgr),
+                Arc::downgrade(&dirmgr),
+            ))
+            .map_err(|e| Error::from_spawn("preemptive circuit launcher", e))?;
 
         let client_isolation = IsolationToken::new();
 

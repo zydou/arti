@@ -43,18 +43,17 @@ pub enum Error {
     },
 
     /// Unable to spawn task
-    #[error("unable to spawn task")]
-    Spawn(#[from] Arc<SpawnError>),
-
+    #[error("unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
     Internal(&'static str),
-}
-
-impl From<SpawnError> for Error {
-    fn from(e: SpawnError) -> Error {
-        Arc::new(e).into()
-    }
 }
 
 impl From<tor_rtcompat::TimeoutError> for Error {
@@ -76,6 +75,16 @@ impl tor_error::HasKind for Error {
         match self {
             E::Io { .. } => EK::TorConnectionFailed,
             _ => EK::TODO,
+        }
+    }
+}
+
+impl Error {
+    /// Construct a new `Error` from a `SpawnError`.
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
+        Error::Spawn {
+            spawning,
+            cause: Arc::new(err),
         }
     }
 }

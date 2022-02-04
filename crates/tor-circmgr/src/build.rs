@@ -84,7 +84,8 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
 
     rt.spawn(async {
         let _ = reactor.run().await;
-    })?;
+    })
+    .map_err(|e| Error::from_spawn("circuit reactor task", e))?;
 
     Ok(pending_circ)
 }
@@ -390,10 +391,12 @@ where
     let inner_timeout_future = rt.timeout(abandon, fut);
     let outer_timeout_future = rt.timeout(timeout, rcv);
 
-    runtime.spawn(async move {
-        let result = inner_timeout_future.await;
-        let _ignore_cancelled_error = snd.send(result);
-    })?;
+    runtime
+        .spawn(async move {
+            let result = inner_timeout_future.await;
+            let _ignore_cancelled_error = snd.send(result);
+        })
+        .map_err(|e| Error::from_spawn("circuit construction task", e))?;
 
     let outcome = outer_timeout_future.await;
     // 4 layers of error to collapse:
