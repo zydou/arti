@@ -112,8 +112,8 @@ fn reconfigure<R: Runtime>(
 /// making new files and then moving them into place over the old ones.
 ///
 /// For more background on the issues with `notify`, see
-/// https://github.com/notify-rs/notify/issues/165 and
-/// https://github.com/notify-rs/notify/pull/166 .
+/// <https://github.com/notify-rs/notify/issues/165> and
+/// <https://github.com/notify-rs/notify/pull/166>.
 ///
 /// TODO: Someday we might want to make this code exported someplace.  If we do,
 /// we should test it, and improve its API a lot.  Right now, the caller needs
