@@ -23,7 +23,8 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use crate::{status, Error, Result, TorResult};
+use crate::err::{Error, Result};
+use crate::{status, TorResult};
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
 #[cfg(feature = "tokio")]

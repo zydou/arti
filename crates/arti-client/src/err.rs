@@ -22,6 +22,9 @@ pub struct TorError {
     detail: Error,
 }
 
+/// Alias for the [`Result`] type used within the `arti_client` crate.
+pub type Result<T> = std::result::Result<T, Error>;
+
 /// Represents errors that can occur while doing Tor operations.
 #[derive(Error, Debug)]
 #[non_exhaustive]
