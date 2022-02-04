@@ -29,15 +29,13 @@ pub enum Error {
     Proto(#[from] tor_proto::Error),
 
     /// Network IO error or TLS error
-    #[error("Network IO error, or TLS error, talking to {peer}")]
+    #[error("Network IO error, or TLS error, in {action}, talking to {peer}")]
     Io {
         /// Who we were talking to
         peer: SocketAddr,
 
-        // TODO
-        // /// What we were doing
-        // action: &'static str,
-        // as per https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262#note_2772820
+        /// What we were doing
+        action: &'static str,
 
         /// What happened.  Might be some TLS library error wrapped up in io::Error
         #[source]

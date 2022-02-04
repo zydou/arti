@@ -82,13 +82,20 @@ impl<R: Runtime> ChanBuilder<R> {
                 .record_attempt();
         }
 
-        let map_ioe = |ioe: io::Error| Error::Io {
-            peer: *addr,
-            source: ioe.into(),
+        let map_ioe = |action: &'static str| {
+            move |ioe: io::Error| Error::Io {
+                action,
+                peer: *addr,
+                source: ioe.into(),
+            }
         };
 
         // Establish a TCP connection.
-        let stream = self.runtime.connect(addr).await.map_err(map_ioe)?;
+        let stream = self
+            .runtime
+            .connect(addr)
+            .await
+            .map_err(map_ioe("connect"))?;
 
         {
             self.event_sender
@@ -102,11 +109,11 @@ impl<R: Runtime> ChanBuilder<R> {
             .tls_connector
             .negotiate_unvalidated(stream, "ignored")
             .await
-            .map_err(map_ioe)?;
+            .map_err(map_ioe("TLS negotiation"))?;
 
         let peer_cert = tls
             .peer_certificate()
-            .map_err(map_ioe)?
+            .map_err(map_ioe("TLS certs"))?
             .ok_or(Error::Internal("TLS connection with no peer certificate"))?;
 
         {
