@@ -34,6 +34,11 @@ pub enum Error {
         /// Who we were talking to
         peer: SocketAddr,
 
+        // TODO
+        // /// What we were doing
+        // action: &'static str,
+        // as per https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262#note_2772820
+
         /// What happened.  Might be some TLS library error wrapped up in io::Error
         #[source]
         source: Arc<std::io::Error>,

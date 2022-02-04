@@ -21,6 +21,9 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// to check what kind of error it is,
 #[derive(Error, Debug)]
 // TODO #[derive(Clone)] // we need to make everything inside Clone first
+// TODO Use assert_impl! or something to ensure this is Send Sync Clone Debug Display 'static
+//   as per https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262#note_2772823
+//   bullet point 5
 #[allow(clippy::exhaustive_structs)]
 pub struct TorError {
     /// The actual error
