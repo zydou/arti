@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use crate::{event::ChanMgrEventSender, Error};
 
+use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
@@ -153,6 +154,9 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     }
     fn is_usable(&self) -> bool {
         !self.is_closing()
+    }
+    fn duration_unused(&self) -> Option<Duration> {
+        self.duration_unused()
     }
 }
 

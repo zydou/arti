@@ -1,11 +1,14 @@
 //! Abstract implementation of a channel manager
 
+use crate::mgr::map::OpenEntry;
 use crate::{Error, Result};
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
+use rand::Rng;
 use std::hash::Hash;
+use std::time::Duration;
 
 mod map;
 
@@ -23,6 +26,9 @@ pub(crate) trait AbstractChannel: Clone {
     /// hit a bug, or for some other reason.  We don't return unusable
     /// channels back to the user.
     fn is_usable(&self) -> bool;
+    /// Return the amount of time a channel has not been in use.
+    /// Return None if the channel is currently in use.
+    fn duration_unused(&self) -> Option<Duration>;
 }
 
 /// Trait to describe how channels are created.
@@ -130,10 +136,10 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
             let action = self
                 .channels
                 .change_state(&ident, |oldstate| match oldstate {
-                    Some(Open(ref ch)) => {
-                        if ch.is_usable() {
+                    Some(Open(ref ent)) => {
+                        if ent.channel.is_usable() {
                             // Good channel. Return it.
-                            let action = Action::Return(Ok(ch.clone()));
+                            let action = Action::Return(Ok(ent.channel.clone()));
                             (oldstate, action)
                         } else {
                             // Unusable channel.  Move to the Building
@@ -185,7 +191,15 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                     Ok(chan) => {
                         // The channel got built: remember it, tell the
                         // others, and return it.
-                        self.channels.replace(ident.clone(), Open(chan.clone()))?;
+                        self.channels.replace(
+                            ident.clone(),
+                            Open(OpenEntry {
+                                channel: chan.clone(),
+                                max_unused_duration: Duration::from_secs(
+                                    rand::thread_rng().gen_range(180..270),
+                                ),
+                            }),
+                        )?;
                         // It's okay if all the receivers went away:
                         // that means that nobody was waiting for this channel.
                         let _ignore_err = send.send(Ok(chan.clone()));
@@ -206,6 +220,18 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         last_err
     }
 
+    /// Expire any channels that have been unused longer than
+    /// their maximum unused duration assigned during creation.
+    ///
+    /// Return a duration from now until next channel expires.
+    ///
+    /// If all channels are in use or there are no open channels,
+    /// return 180 seconds which is the minimum value of
+    /// max_unused_duration.
+    pub(crate) fn expire_channels(&self) -> Duration {
+        self.channels.expire_channels()
+    }
+
     /// Test only: return the current open usable channel with a given
     /// `ident`, if any.
     #[cfg(test)]
@@ -215,7 +241,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     ) -> Option<CF::Channel> {
         use map::ChannelState::*;
         match self.channels.get(ident) {
-            Ok(Some(Open(ref ch))) if ch.is_usable() => Some(ch.clone()),
+            Ok(Some(Open(ref ent))) if ent.channel.is_usable() => Some(ent.channel.clone()),
             _ => None,
         }
     }
@@ -259,6 +285,9 @@ mod test {
         }
         fn is_usable(&self) -> bool {
             !self.closing.load(Ordering::SeqCst)
+        }
+        fn duration_unused(&self) -> Option<Duration> {
+            None
         }
     }
 

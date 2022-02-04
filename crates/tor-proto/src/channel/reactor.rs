@@ -9,6 +9,7 @@
 use super::circmap::{CircEnt, CircMap};
 use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::ReactorError;
+use crate::util::ts::Timestamp;
 use crate::{Error, Result};
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
@@ -229,6 +230,7 @@ impl Reactor {
                     .add_ent(&mut rng, created_sender, sender)
                     .map(|id| (id, circ_unique_id));
                 let _ = tx.send(ret); // don't care about other side going away
+                self.update_disused_since();
             }
         }
         Ok(())
@@ -320,6 +322,7 @@ impl Reactor {
     async fn deliver_destroy(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
         // Remove the circuit from the map: nothing more can be done with it.
         let entry = self.circs.remove(circid);
+        self.update_disused_since();
         match entry {
             // If the circuit is waiting for CREATED, tell it that it
             // won't get one.
@@ -371,11 +374,29 @@ impl Reactor {
         // TODO: It would be great to have a tighter upper bound for
         // the number of relay cells we'll receive.
         self.circs.destroy_sent(id, HalfCirc::new(3000));
+        self.update_disused_since();
         let destroy = Destroy::new(DestroyReason::NONE).into();
         let cell = ChanCell::new(id, destroy);
         self.send_cell(cell).await?;
 
         Ok(())
+    }
+
+    /// Update disused timestamp with current time if this channel is no longer used
+    fn update_disused_since(&self) {
+        if self.circs.open_ent_count() == 0 {
+            // Update disused_since if it is still `None`
+            let mut disused_since = self.details.unused_since.lock().expect("Poisoned lock");
+            if disused_since.is_none() {
+                let now = Timestamp::new();
+                now.update();
+                *disused_since = Some(now);
+            }
+        } else {
+            // Mark this channel as in use
+            let mut disused_since = self.details.unused_since.lock().expect("Poisoned lock");
+            *disused_since = None;
+        }
     }
 }
 
@@ -462,6 +483,7 @@ pub(crate) mod test {
     fn new_circ_closed() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let (chan, mut reactor, mut output, _input) = new_reactor();
+            assert!(chan.duration_unused().is_some()); // unused yet
 
             let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
             let (pending, circr) = ret.unwrap();
@@ -475,6 +497,8 @@ pub(crate) mod test {
 
             let ent = reactor.circs.get_mut(id);
             assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
+            assert!(chan.duration_unused().is_none()); // in use
+
             // Now drop the circuit; this should tell the reactor to remove
             // the circuit from the map.
             drop(pending);
@@ -485,6 +509,7 @@ pub(crate) mod test {
             let cell = output.next().await.unwrap();
             assert_eq!(cell.circid(), id);
             assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
+            assert!(chan.duration_unused().is_some()); // unused again
         });
     }
 

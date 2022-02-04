@@ -66,6 +66,7 @@ use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Rea
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
+use crate::util::ts::Timestamp;
 use crate::{Error, Result};
 use std::pin::Pin;
 use tor_cell::chancell::{msg, ChanCell, CircId};
@@ -79,7 +80,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 
 use futures::{Sink, SinkExt};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use tracing::trace;
@@ -128,6 +129,9 @@ pub(crate) struct ChannelDetails {
     rsa_id: RsaIdentity,
     /// If true, this channel is closing.
     closed: AtomicBool,
+    /// Since when the channel became unused.
+    /// If None, this channle is still in use by at lesat one circuit.
+    unused_since: Mutex<Option<Timestamp>>,
 }
 
 impl Sink<ChanCell> for Channel {
@@ -245,12 +249,16 @@ impl Channel {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (cell_tx, cell_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         let closed = AtomicBool::new(false);
+        let ts = Timestamp::new();
+        ts.update();
+        let unused_since = Mutex::new(Some(ts));
 
         let details = ChannelDetails {
             unique_id,
             ed25519_id,
             rsa_id,
             closed,
+            unused_since,
         };
         let details = Arc::new(details);
 
@@ -314,6 +322,19 @@ impl Channel {
     /// Return true if this channel is closed and therefore unusable.
     pub fn is_closing(&self) -> bool {
         self.details.closed.load(Ordering::SeqCst)
+    }
+
+    /// If the channel is not in use, return the amount of time
+    /// it has had with no circuits.
+    ///
+    /// Return None if the channel is currently in use.
+    pub fn duration_unused(&self) -> Option<std::time::Duration> {
+        self.details
+            .unused_since
+            .lock()
+            .expect("Poisoned lock")
+            .as_ref()
+            .map(|t| t.time_since_update().into())
     }
 
     /// Check whether a cell type is permissible to be _sent_ on an
@@ -423,16 +444,7 @@ pub(crate) mod test {
     use tor_cell::chancell::{msg, ChanCell};
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
-    pub(crate) fn fake_channel() -> Channel {
-        let unique_id = UniqId::new();
-
-        let details = Arc::new(ChannelDetails {
-            unique_id,
-            ed25519_id: [6_u8; 32].into(),
-            rsa_id: [10_u8; 20].into(),
-            closed: AtomicBool::new(false),
-        });
-
+    pub(crate) fn fake_channel(details: Arc<ChannelDetails>) -> Channel {
         Channel {
             control: mpsc::unbounded().0,
             cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
@@ -440,10 +452,23 @@ pub(crate) mod test {
         }
     }
 
+    fn fake_channel_details() -> Arc<ChannelDetails> {
+        let unique_id = UniqId::new();
+        let unused_since = Mutex::new(None);
+
+        Arc::new(ChannelDetails {
+            unique_id,
+            ed25519_id: [6_u8; 32].into(),
+            rsa_id: [10_u8; 20].into(),
+            closed: AtomicBool::new(false),
+            unused_since,
+        })
+    }
+
     #[test]
     fn send_bad() {
         tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
-            let chan = fake_channel();
+            let chan = fake_channel(fake_channel_details());
 
             let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.check_cell(&cell);
@@ -480,7 +505,7 @@ pub(crate) mod test {
     #[test]
     fn check_match() {
         use std::net::SocketAddr;
-        let chan = fake_channel();
+        let chan = fake_channel(fake_channel_details());
 
         struct ChanT {
             ed_id: Ed25519Identity,
@@ -519,8 +544,20 @@ pub(crate) mod test {
 
     #[test]
     fn unique_id() {
-        let ch1 = fake_channel();
-        let ch2 = fake_channel();
+        let ch1 = fake_channel(fake_channel_details());
+        let ch2 = fake_channel(fake_channel_details());
         assert_ne!(ch1.unique_id(), ch2.unique_id());
+    }
+
+    #[test]
+    fn duration_unused_at() {
+        let details = fake_channel_details();
+        let ch = fake_channel(Arc::clone(&details));
+        let now = Timestamp::new();
+        now.update();
+        let mut unused_since = details.unused_since.lock().unwrap();
+        *unused_since = Some(now);
+        drop(unused_since); // release it so that next line doesn't hang
+        assert!(ch.duration_unused().is_some());
     }
 }
