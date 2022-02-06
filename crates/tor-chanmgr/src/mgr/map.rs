@@ -94,8 +94,8 @@ impl<C: AbstractChannel> ChannelState<C> {
         }
     }
 
-    /// Return true if a channel is ready to expire `now`.
-    /// Update  `expire_after` if a smaller duration than
+    /// Return true if a channel is ready to expire.
+    /// Update `expire_after` if a smaller duration than
     /// the given value is required to expire this channel.
     fn ready_to_expire(&self, expire_after: &mut Duration) -> bool {
         if let ChannelState::Open(ent) = self {
@@ -103,19 +103,18 @@ impl<C: AbstractChannel> ChannelState<C> {
             if let Some(unused_duration) = unused_duration {
                 let max_unused_duration = ent.max_unused_duration;
 
-                if unused_duration < max_unused_duration {
-                    *expire_after =
-                        std::cmp::min(*expire_after, max_unused_duration - unused_duration);
-                    true
-                } else {
+                if let Some(remaining) = max_unused_duration.checked_sub(unused_duration) {
+                    *expire_after = std::cmp::min(*expire_after, remaining);
                     false
+                } else {
+                    true
                 }
             } else {
                 // still in use
-                true
+                false
             }
         } else {
-            true
+            false
         }
     }
 }
@@ -224,7 +223,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         self.channels
             .lock()
             .expect("Poisoned lock")
-            .retain(|_id, chan| chan.ready_to_expire(&mut ret));
+            .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
         ret
     }
 }
