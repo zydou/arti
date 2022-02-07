@@ -1,5 +1,7 @@
 //! Simple implementation for the internal map state of a ChanMgr.
 
+use std::time::Duration;
+
 use super::{AbstractChannel, Pending};
 use crate::{Error, Result};
 
@@ -33,7 +35,7 @@ pub(crate) enum ChannelState<C> {
     /// This channel might not be usable: it might be closing or
     /// broken.  We need to check its is_usable() method before
     /// yielding it to the user.
-    Open(C),
+    Open(OpenEntry<C>),
     /// A channel that's getting built.
     Building(Pending<C>),
     /// A temporary invalid state.
@@ -43,13 +45,22 @@ pub(crate) enum ChannelState<C> {
     Poisoned(Priv),
 }
 
+/// An open channel entry.
+#[derive(Clone)]
+pub(crate) struct OpenEntry<C> {
+    /// The underlying open channel.
+    pub(crate) channel: C,
+    /// The maximum unused duration allowed for this channel.
+    pub(crate) max_unused_duration: Duration,
+}
+
 impl<C: Clone> ChannelState<C> {
     /// Create a new shallow copy of this ChannelState.
     #[cfg(test)]
     fn clone_ref(&self) -> Result<Self> {
         use ChannelState::*;
         match self {
-            Open(chan) => Ok(Open(chan.clone())),
+            Open(ent) => Ok(Open(ent.clone())),
             Building(pending) => Ok(Building(pending.clone())),
             Poisoned(_) => Err(Error::Internal("Poisoned state in channel map")),
         }
@@ -60,7 +71,7 @@ impl<C: Clone> ChannelState<C> {
     #[cfg(test)]
     fn unwrap_open(&self) -> C {
         match self {
-            ChannelState::Open(chan) => chan.clone(),
+            ChannelState::Open(ent) => ent.clone().channel,
             _ => panic!("Not an open channel"),
         }
     }
@@ -71,8 +82,8 @@ impl<C: AbstractChannel> ChannelState<C> {
     /// matching identity for this state.
     fn check_ident(&self, ident: &C::Ident) -> Result<()> {
         match self {
-            ChannelState::Open(chan) => {
-                if chan.ident() == ident {
+            ChannelState::Open(ent) => {
+                if ent.channel.ident() == ident {
                     Ok(())
                 } else {
                     Err(Error::Internal("Identity mismatch"))
@@ -80,6 +91,30 @@ impl<C: AbstractChannel> ChannelState<C> {
             }
             ChannelState::Poisoned(_) => Err(Error::Internal("Poisoned state in channel map")),
             ChannelState::Building(_) => Ok(()),
+        }
+    }
+
+    /// Return true if a channel is ready to expire.
+    /// Update `expire_after` if a smaller duration than
+    /// the given value is required to expire this channel.
+    fn ready_to_expire(&self, expire_after: &mut Duration) -> bool {
+        if let ChannelState::Open(ent) = self {
+            let unused_duration = ent.channel.duration_unused();
+            if let Some(unused_duration) = unused_duration {
+                let max_unused_duration = ent.max_unused_duration;
+
+                if let Some(remaining) = max_unused_duration.checked_sub(unused_duration) {
+                    *expire_after = std::cmp::min(*expire_after, remaining);
+                    false
+                } else {
+                    true
+                }
+            } else {
+                // still in use
+                false
+            }
+        } else {
+            false
         }
     }
 }
@@ -123,7 +158,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         let mut map = self.channels.lock()?;
         map.retain(|_, state| match state {
             ChannelState::Poisoned(_) => false,
-            ChannelState::Open(ch) => ch.is_usable(),
+            ChannelState::Open(ent) => ent.channel.is_usable(),
             ChannelState::Building(_) => true,
         });
         Ok(())
@@ -178,6 +213,19 @@ impl<C: AbstractChannel> ChannelMap<C> {
             }
         }
     }
+
+    /// Expire all channels that have been unused for too long.
+    ///
+    /// Return a Duration until the next time at which
+    /// a channel _could_ expire.
+    pub(crate) fn expire_channels(&self) -> Duration {
+        let mut ret = Duration::from_secs(180);
+        self.channels
+            .lock()
+            .expect("Poisoned lock")
+            .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
+        ret
+    }
 }
 
 #[cfg(test)]
@@ -188,6 +236,7 @@ mod test {
     struct FakeChannel {
         ident: &'static str,
         usable: bool,
+        unused_duration: Option<u64>,
     }
     impl AbstractChannel for FakeChannel {
         type Ident = u8;
@@ -197,17 +246,45 @@ mod test {
         fn is_usable(&self) -> bool {
             self.usable
         }
+        fn duration_unused(&self) -> Option<Duration> {
+            self.unused_duration.map(Duration::from_secs)
+        }
     }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
-        ChannelState::Open(FakeChannel {
+        let channel = FakeChannel {
             ident,
             usable: true,
+            unused_duration: None,
+        };
+        ChannelState::Open(OpenEntry {
+            channel,
+            max_unused_duration: Duration::from_secs(180),
+        })
+    }
+    fn ch_with_details(
+        ident: &'static str,
+        max_unused_duration: Duration,
+        unused_duration: Option<u64>,
+    ) -> ChannelState<FakeChannel> {
+        let channel = FakeChannel {
+            ident,
+            usable: true,
+            unused_duration,
+        };
+        ChannelState::Open(OpenEntry {
+            channel,
+            max_unused_duration,
         })
     }
     fn closed(ident: &'static str) -> ChannelState<FakeChannel> {
-        ChannelState::Open(FakeChannel {
+        let channel = FakeChannel {
             ident,
             usable: false,
+            unused_duration: None,
+        };
+        ChannelState::Open(OpenEntry {
+            channel,
+            max_unused_duration: Duration::from_secs(180),
         })
     }
 
@@ -220,20 +297,20 @@ mod test {
         assert!(map.replace(b'w', ch("wello")).unwrap().is_none());
 
         match map.get(&b'h') {
-            Ok(Some(Open(chan))) if chan.ident == "hello" => {}
+            Ok(Some(Open(ent))) if ent.channel.ident == "hello" => {}
             _ => panic!(),
         }
 
         assert!(map.get(&b'W').unwrap().is_none());
 
         match map.replace(b'h', ch("hebbo")) {
-            Ok(Some(Open(chan))) if chan.ident == "hello" => {}
+            Ok(Some(Open(ent))) if ent.channel.ident == "hello" => {}
             _ => panic!(),
         }
 
         assert!(map.remove(&b'Z').unwrap().is_none());
         match map.remove(&b'h') {
-            Ok(Some(Open(chan))) if chan.ident == "hebbo" => {}
+            Ok(Some(Open(ent))) if ent.channel.ident == "hebbo" => {}
             _ => panic!(),
         }
     }
@@ -308,5 +385,53 @@ mod test {
         let e = map.change_state(&b'G', |state| (Some(ch("Wobbledy")), (state, "Hi")));
         assert!(matches!(e, Err(Error::Internal(_))));
         assert!(matches!(map.get(&b'G'), Err(Error::Internal(_))));
+    }
+
+    #[test]
+    fn expire_channels() {
+        let map = ChannelMap::new();
+
+        // Channel that has been unused beyond max duration allowed is expired
+        map.replace(
+            b'w',
+            ch_with_details("wello", Duration::from_secs(180), Some(181)),
+        )
+        .unwrap();
+
+        // Minimum value of max unused duration is 180 seconds
+        assert_eq!(180, map.expire_channels().as_secs());
+        assert!(map.get(&b'w').unwrap().is_none());
+
+        let map = ChannelMap::new();
+
+        // Channel that has been unused for shorter than max unused duration
+        map.replace(
+            b'w',
+            ch_with_details("wello", Duration::from_secs(180), Some(120)),
+        )
+        .unwrap();
+
+        map.replace(
+            b'y',
+            ch_with_details("yello", Duration::from_secs(180), Some(170)),
+        )
+        .unwrap();
+
+        // Channel that has been unused beyond max duration allowed is expired
+        map.replace(
+            b'g',
+            ch_with_details("gello", Duration::from_secs(180), Some(181)),
+        )
+        .unwrap();
+
+        // Closed channel should be retained
+        map.replace(b'h', closed("hello")).unwrap();
+
+        // Return duration untill next channel expires
+        assert_eq!(10, map.expire_channels().as_secs());
+        assert!(map.get(&b'w').unwrap().is_some());
+        assert!(map.get(&b'y').unwrap().is_some());
+        assert!(map.get(&b'h').unwrap().is_some());
+        assert!(map.get(&b'g').unwrap().is_none());
     }
 }

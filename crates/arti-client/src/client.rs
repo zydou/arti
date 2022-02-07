@@ -371,6 +371,11 @@ impl<R: Runtime> TorClient<R> {
             Arc::downgrade(&dirmgr),
         ))?;
 
+        runtime.spawn(continually_expire_channels(
+            runtime.clone(),
+            Arc::downgrade(&chanmgr),
+        ))?;
+
         let client_isolation = IsolationToken::new();
 
         Ok(TorClient {
@@ -817,6 +822,24 @@ async fn continually_preemptively_build_circuits<R: Runtime>(
         cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
             .await;
         rt.sleep(Duration::from_secs(10)).await;
+    }
+}
+/// Periodically expire any channels that have been unused beyond
+/// the maximum duration allowed.
+///
+/// Exist when we find that `chanmgr` is dropped
+///
+/// This is a daemon task that runs indefinitely in the background
+async fn continually_expire_channels<R: Runtime>(rt: R, chanmgr: Weak<tor_chanmgr::ChanMgr<R>>) {
+    loop {
+        let delay = if let Some(cm) = Weak::upgrade(&chanmgr) {
+            cm.expire_channels()
+        } else {
+            // channel manager is closed.
+            return;
+        };
+        // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
+        rt.sleep(Duration::from_secs(delay.as_secs())).await;
     }
 }
 

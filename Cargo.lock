@@ -2931,6 +2931,7 @@ dependencies = [
  "futures-await-test",
  "hex-literal",
  "postage",
+ "rand 0.8.4",
  "thiserror",
  "tor-error",
  "tor-linkspec",

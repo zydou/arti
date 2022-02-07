@@ -168,6 +168,18 @@ impl CircMap {
     pub(super) fn remove(&mut self, id: CircId) -> Option<CircEnt> {
         self.m.remove(&id)
     }
+
+    /// Return the total number of open and opening entries in the map
+    pub(super) fn open_ent_count(&self) -> usize {
+        // TODO: We want to change this from O(n) back to O(1).
+        // Maybe we should have the CircMap keep track of
+        // the open-or-opening entries count.
+        self.m
+            .iter()
+            .filter(|(_id, ent)| matches!(ent, &&CircEnt::Open(_) | &&CircEnt::Opening(_, _)))
+            .count()
+    }
+
     // TODO: Eventually if we want relay support, we'll need to support
     // circuit IDs chosen by somebody else. But for now, we don't need those.
 }
@@ -210,10 +222,19 @@ mod test {
             ids_high.push(id_high);
         }
 
+        // Test open / opening entry counting
+        assert_eq!(128, map_low.open_ent_count());
+        assert_eq!(128, map_high.open_ent_count());
+
         // Test remove
         assert!(map_low.get_mut(ids_low[0]).is_some());
         map_low.remove(ids_low[0]);
         assert!(map_low.get_mut(ids_low[0]).is_none());
+        assert_eq!(127, map_low.open_ent_count());
+
+        // Test DestroySent doesn't count
+        map_low.destroy_sent(CircId::from(256), HalfCirc::new(1));
+        assert_eq!(127, map_low.open_ent_count());
 
         // Test advance_from_opening.
 

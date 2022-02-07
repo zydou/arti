@@ -53,6 +53,7 @@ mod mgr;
 #[cfg(test)]
 mod testing;
 
+use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_proto::channel::Channel;
 
@@ -114,5 +115,12 @@ impl<R: Runtime> ChanMgr<R> {
     /// observe every event on the stream
     pub fn bootstrap_events(&self) -> ConnStatusEvents {
         self.bootstrap_status.clone()
+    }
+
+    /// Expire all channels that have been unused for too long.
+    ///
+    /// Return the duration from now until next channel expires.
+    pub fn expire_channels(&self) -> Duration {
+        self.mgr.expire_channels()
     }
 }
