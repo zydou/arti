@@ -9,10 +9,6 @@ use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
-/// Wrapper for definitions which need to vary according to `error_details`
-macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
-// We cheat with the indentation, a bit.  Happily rustfmt doesn't seem to mind.
-
 /// Main high-level error type for the Arti Tor client
 ///
 /// If you need to handle different types of errors differently, use the
@@ -43,6 +39,57 @@ impl From<ErrorDetail> for Error {
     }
 }
 
+/// Declare an enum as `pub` if `error_details` is enabled, and as `pub(crate)` otherwise.
+#[cfg(feature = "error_detail")]
+macro_rules! pub_if_error_detail {
+    {  $(#[$meta:meta])* enum $e:ident $tt:tt } => {
+        $(#[$meta])* pub enum $e $tt
+    }
+}
+
+/// Declare an enum as `pub` if `error_details` is enabled, and as `pub(crate)` otherwise.
+#[cfg(not(feature = "error_detail"))]
+macro_rules! pub_if_error_detail {
+    {  $(#[$meta:meta])* enum $e:ident $tt:tt } => {
+        $(#[$meta])* pub(crate) enum $e $tt }
+}
+
+// Hello, macro-fans!  There are some other solutions that we considered here
+// but didn't use.
+//
+// 1. For one, `pub_if_error_detail!{} enum ErrorDetail { ... }` would be neat,
+// but Rust doesn't allow macros to appear in that position.
+//
+// 2. We could also declare `ErrorDetail` here as `pub` unconditionally, and
+// rely on `mod err` being private to keep it out of the user's hands.  Then we
+// could conditionally re-export `ErrorDetail` in `lib`:
+//
+// ```
+// mod err {
+//    pub enum ErrorDetail { ... }
+// }
+//
+// #[cfg(feature = "error_detail")]
+// pub use err::ErrorDetail;
+// ```
+//
+// But if we did that, the compiler would no longer warn us if we
+// _unconditionally_ exposed the ErrorDetail type from somewhere else in this
+// crate.  That doesn't seem too safe.
+//
+// 3. At one point we had a macro more like:
+// ```
+// macro_rules! declare_error_detail { { $vis: $vis } } =>
+//  => { ... $vis enum ErrorDetail {...} }
+// ```
+// There's nothing wrong with that in principle, but it's no longer needed,
+// since we used to use $vis in several places but now it's only used in one.
+// Also, it's good to make macro declarations small, and rust-analyzer seems to
+// handle understand format a little bit better.
+
+pub_if_error_detail! {
+// We cheat with the indentation, a bit.  Happily rustfmt doesn't seem to mind.
+
 /// Represents errors that can occur while doing Tor operations.
 ///
 /// This enumeration is the inner view of a
@@ -58,7 +105,7 @@ impl From<ErrorDetail> for Error {
 /// for your use case, please let us know.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-$vis enum ErrorDetail {
+enum ErrorDetail {
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
@@ -126,7 +173,7 @@ $vis enum ErrorDetail {
 }
 
 // End of the use of $vis to refer to visibility according to `error_detail`
-} }
+}
 
 #[cfg(feature = "error_detail")]
 impl Error {
@@ -182,12 +229,6 @@ impl tor_error::HasKind for ErrorDetail {
         }
     }
 }
-
-#[cfg(feature = "error_detail")]
-define_according_to_cfg_error_details! { pub }
-
-#[cfg(not(feature = "error_detail"))]
-define_according_to_cfg_error_details! { pub(crate) }
 
 #[cfg(test)]
 mod test {

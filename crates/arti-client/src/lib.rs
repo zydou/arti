@@ -206,13 +206,6 @@ pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 mod err;
 pub use err::Error;
 
-// Ideally these two `use`s would be pub(crate) or pub, depending on the error_detail
-// feature.  But varying visibility according to a cargo feature is awkward (see
-// how it's done in err.rs), and we want to avoid doing it unless we have to.
-//
-// So, we just conditionally `use`.  This means that other bits of this crate can't
-// name them by crate::Error and crate::Result, which is slightly annoying.
-
 #[cfg(feature = "error_detail")]
 pub use err::ErrorDetail;
 
