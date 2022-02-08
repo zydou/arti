@@ -25,14 +25,14 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// the specific output of `Display`, `Debug`, or `Error::source()` when run on
 /// this type; it may change between patch versions without notification.
 #[derive(Error, Clone, Debug)]
-#[allow(clippy::exhaustive_structs)]
 pub struct TorError {
     /// The actual error.
     ///
-    /// This field is exposed only if the the `error_detail` feature is enabled.
-    /// Using it will void your semver guarantee.
+    /// This field is exposed  via the `detail()` method only if the the
+    /// `error_detail` feature is enabled. Using it will void your semver
+    /// guarantee.
     #[source]
-    $vis detail: Box<Error>,
+    detail: Box<Error>,
 }
 
 /// Alias for the [`Result`] type used within the `arti_client` crate.
@@ -132,6 +132,27 @@ $vis enum Error {
 
 // End of the use of $vis to refer to visibility according to `error_detail`
 } }
+
+#[cfg(feature = "error_detail")]
+impl TorError {
+    /// Return the underlying error object for this error.
+    ///
+    /// In general, it's not a good idea to use this function.  Our
+    /// `arti_client::Error` objects are unstable, and matching on them is
+    /// probably not the best way to achieve whatever you're trying to do.
+    /// Instead, we recommend using  the [`kind`](`tor_error::HasKind::kind`)
+    /// trait method if your program needs to distinguish among different types
+    /// of errors.
+    ///
+    /// (If the above function don't meet your needs, please let us know!)
+    ///
+    /// This function is only available when `arti-client` is built with the
+    /// `error_detail` feature.  Using this function will void your semver
+    /// guarantees.
+    pub fn detail(&self) -> &Error {
+        &self.detail
+    }
+}
 
 impl Error {
     /// Construct a new `Error` from a `SpawnError`.
