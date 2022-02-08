@@ -24,7 +24,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::err::ErrorDetail;
-use crate::{status, TorResult};
+use crate::status;
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
 #[cfg(feature = "tokio")]
@@ -261,7 +261,7 @@ impl TorClient<PreferredTokioRuntime> {
     /// Panics if called outside of the context of a Tokio runtime.
     pub async fn bootstrap_with_tokio(
         config: TorClientConfig,
-    ) -> TorResult<TorClient<PreferredTokioRuntime>> {
+    ) -> crate::Result<TorClient<PreferredTokioRuntime>> {
         let rt = PreferredTokioRuntime::current().expect("called outside of Tokio runtime");
         Self::bootstrap(rt, config).await
     }
@@ -277,7 +277,7 @@ impl TorClient<PreferredAsyncStdRuntime> {
     /// This is a convenience wrapper around [`TorClient::bootstrap`].
     pub async fn bootstrap_with_async_std(
         config: TorClientConfig,
-    ) -> TorResult<TorClient<PreferredAsyncStdRuntime>> {
+    ) -> crate::Result<TorClient<PreferredAsyncStdRuntime>> {
         // FIXME(eta): not actually possible for this to fail
         let rt = PreferredAsyncStdRuntime::current().expect("failed to get async-std runtime");
         Self::bootstrap(rt, config).await
@@ -290,7 +290,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
-    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> TorResult<TorClient<R>> {
+    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> crate::Result<TorClient<R>> {
         TorClient::bootstrap_inner(runtime, config)
             .await
             .map_err(ErrorDetail::into)
@@ -426,7 +426,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         new_config: &TorClientConfig,
         how: tor_config::Reconfigure,
-    ) -> TorResult<()> {
+    ) -> crate::Result<()> {
         // We need to hold this lock while we're reconfiguring the client: even
         // though the individual fields have their own synchronization, we can't
         // safely let two threads change them at once.  If we did, then we'd
@@ -494,7 +494,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
-    pub async fn connect<A: IntoTorAddr>(&self, target: A) -> TorResult<DataStream> {
+    pub async fn connect<A: IntoTorAddr>(&self, target: A) -> crate::Result<DataStream> {
         self.connect_with_prefs(target, &self.connect_prefs).await
     }
 
@@ -507,7 +507,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         target: A,
         prefs: &StreamPrefs,
-    ) -> TorResult<DataStream> {
+    ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
@@ -558,7 +558,7 @@ impl<R: Runtime> TorClient<R> {
     }
 
     /// On success, return a list of IP addresses.
-    pub async fn resolve(&self, hostname: &str) -> TorResult<Vec<IpAddr>> {
+    pub async fn resolve(&self, hostname: &str) -> crate::Result<Vec<IpAddr>> {
         self.resolve_with_prefs(hostname, &self.connect_prefs).await
     }
 
@@ -567,7 +567,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         hostname: &str,
         prefs: &StreamPrefs,
-    ) -> TorResult<Vec<IpAddr>> {
+    ) -> crate::Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
@@ -587,7 +587,7 @@ impl<R: Runtime> TorClient<R> {
     /// Perform a remote DNS reverse lookup with the provided IP address.
     ///
     /// On success, return a list of hostnames.
-    pub async fn resolve_ptr(&self, addr: IpAddr) -> TorResult<Vec<String>> {
+    pub async fn resolve_ptr(&self, addr: IpAddr) -> crate::Result<Vec<String>> {
         self.resolve_ptr_with_prefs(addr, &self.connect_prefs).await
     }
 
@@ -598,7 +598,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         addr: IpAddr,
         prefs: &StreamPrefs,
-    ) -> TorResult<Vec<String>> {
+    ) -> crate::Result<Vec<String>> {
         let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
@@ -690,7 +690,7 @@ impl<R: Runtime> TorClient<R> {
 }
 
 /// Alias for TorError::from(Error)
-pub(crate) fn wrap_err<T>(err: T) -> crate::err::TorError
+pub(crate) fn wrap_err<T>(err: T) -> crate::Error
 where
     ErrorDetail: From<T>,
 {

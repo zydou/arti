@@ -25,7 +25,7 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// the specific output of `Display`, `Debug`, or `Error::source()` when run on
 /// this type; it may change between patch versions without notification.
 #[derive(Error, Clone, Debug)]
-pub struct TorError {
+pub struct Error {
     /// The actual error.
     ///
     /// This field is exposed  via the `detail()` method only if the the
@@ -35,9 +35,9 @@ pub struct TorError {
     detail: Box<ErrorDetail>,
 }
 
-impl From<ErrorDetail> for TorError {
-    fn from(detail: ErrorDetail) -> TorError {
-        TorError {
+impl From<ErrorDetail> for Error {
+    fn from(detail: ErrorDetail) -> Error {
+        Error {
             detail: detail.into(),
         }
     }
@@ -45,15 +45,16 @@ impl From<ErrorDetail> for TorError {
 
 /// Represents errors that can occur while doing Tor operations.
 ///
-/// This enumeration is the inner view of a [`TorError`]: we don't expose it
-/// unless the `error_detail` feature is enabled.
+/// This enumeration is the inner view of a
+/// [`arti_client::Error`](crate::Error): we don't expose it unless the
+/// `error_detail` feature is enabled.
 ///
 /// The details of this enumeration are not stable: using the `error_detail`
 /// feature will void your semver guarantee.
 ///
 /// Instead of looking at the type, you try to should use the
 /// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
-/// different kinds of [`TorError`].  If that doesn't provide enough information
+/// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
@@ -128,8 +129,8 @@ $vis enum ErrorDetail {
 } }
 
 #[cfg(feature = "error_detail")]
-impl TorError {
-    /// Return the underlying error object for this error.
+impl Error {
+    /// Return the underlying error detail object for this error.
     ///
     /// In general, it's not a good idea to use this function.  Our
     /// `arti_client::ErrorDetail` objects are unstable, and matching on them is
@@ -158,13 +159,13 @@ impl ErrorDetail {
     }
 }
 
-impl Display for TorError {
+impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "tor: {}: {}", self.detail.kind(), &self.detail)
     }
 }
 
-impl tor_error::HasKind for TorError {
+impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
         self.detail.kind()
     }
@@ -202,7 +203,7 @@ mod test {
         >() {
         }
         fn check() {
-            assert::<TorError>();
+            assert::<Error>();
             assert::<ErrorDetail>();
         }
         check(); // doesn't do anything, but avoids "unused function" warnings.

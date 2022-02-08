@@ -204,7 +204,7 @@ pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
-pub use err::TorError;
+pub use err::Error;
 
 // Ideally these two `use`s would be pub(crate) or pub, depending on the error_detail
 // feature.  But varying visibility according to a cargo feature is awkward (see
@@ -216,5 +216,5 @@ pub use err::TorError;
 #[cfg(feature = "error_detail")]
 pub use err::ErrorDetail;
 
-/// Alias for the [`Result`] type corresponding to the high-level `TorError`.
-pub type TorResult<T> = std::result::Result<T, TorError>;
+/// Alias for the [`Result`] type corresponding to the high-level [`Error`].
+pub type Result<T> = std::result::Result<T, Error>;
