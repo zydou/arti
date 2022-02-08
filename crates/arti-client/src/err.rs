@@ -9,10 +9,6 @@ use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
-/// Wrapper for definitions which need to vary according to `error_details`
-macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
-// We cheat with the indentation, a bit.  Happily rustfmt doesn't seem to mind.
-
 /// Main high-level error type for the Arti Tor client
 ///
 /// If you need to handle different types of errors differently, use the
@@ -25,45 +21,91 @@ macro_rules! define_according_to_cfg_error_details { { $vis:vis } => {
 /// the specific output of `Display`, `Debug`, or `Error::source()` when run on
 /// this type; it may change between patch versions without notification.
 #[derive(Error, Clone, Debug)]
-#[allow(clippy::exhaustive_structs)]
-pub struct TorError {
+pub struct Error {
     /// The actual error.
     ///
-    /// This field is exposed only if the the `error_detail` feature is enabled.
-    /// Using it will void your semver guarantee.
+    /// This field is exposed  via the `detail()` method only if the the
+    /// `error_detail` feature is enabled. Using it will void your semver
+    /// guarantee.
     #[source]
-    $vis detail: Box<Error>,
+    detail: Box<ErrorDetail>,
 }
 
-/// Alias for the [`Result`] type used within the `arti_client` crate.
-///
-/// This is always converted to [`TorResult`](crate::TorResult) before it's
-/// given to a user.
-$vis type Result<T> = std::result::Result<T, Error>;
-
-impl From<Error> for TorError {
-    fn from(detail: Error) -> TorError {
-        TorError {
+impl From<ErrorDetail> for Error {
+    fn from(detail: ErrorDetail) -> Error {
+        Error {
             detail: detail.into(),
         }
     }
 }
 
+/// Declare an enum as `pub` if `error_details` is enabled, and as `pub(crate)` otherwise.
+#[cfg(feature = "error_detail")]
+macro_rules! pub_if_error_detail {
+    {  $(#[$meta:meta])* enum $e:ident $tt:tt } => {
+        $(#[$meta])* pub enum $e $tt
+    }
+}
+
+/// Declare an enum as `pub` if `error_details` is enabled, and as `pub(crate)` otherwise.
+#[cfg(not(feature = "error_detail"))]
+macro_rules! pub_if_error_detail {
+    {  $(#[$meta:meta])* enum $e:ident $tt:tt } => {
+        $(#[$meta])* pub(crate) enum $e $tt }
+}
+
+// Hello, macro-fans!  There are some other solutions that we considered here
+// but didn't use.
+//
+// 1. For one, `pub_if_error_detail!{} enum ErrorDetail { ... }` would be neat,
+// but Rust doesn't allow macros to appear in that position.
+//
+// 2. We could also declare `ErrorDetail` here as `pub` unconditionally, and
+// rely on `mod err` being private to keep it out of the user's hands.  Then we
+// could conditionally re-export `ErrorDetail` in `lib`:
+//
+// ```
+// mod err {
+//    pub enum ErrorDetail { ... }
+// }
+//
+// #[cfg(feature = "error_detail")]
+// pub use err::ErrorDetail;
+// ```
+//
+// But if we did that, the compiler would no longer warn us if we
+// _unconditionally_ exposed the ErrorDetail type from somewhere else in this
+// crate.  That doesn't seem too safe.
+//
+// 3. At one point we had a macro more like:
+// ```
+// macro_rules! declare_error_detail { { $vis: $vis } } =>
+//  => { ... $vis enum ErrorDetail {...} }
+// ```
+// There's nothing wrong with that in principle, but it's no longer needed,
+// since we used to use $vis in several places but now it's only used in one.
+// Also, it's good to make macro declarations small, and rust-analyzer seems to
+// handle understand format a little bit better.
+
+pub_if_error_detail! {
+// We cheat with the indentation, a bit.  Happily rustfmt doesn't seem to mind.
+
 /// Represents errors that can occur while doing Tor operations.
 ///
-/// This enumeration is the inner view of a [`TorError`]: we don't expose it
-/// unless the `error_detail` feature is enabled.
+/// This enumeration is the inner view of a
+/// [`arti_client::Error`](crate::Error): we don't expose it unless the
+/// `error_detail` feature is enabled.
 ///
 /// The details of this enumeration are not stable: using the `error_detail`
 /// feature will void your semver guarantee.
 ///
 /// Instead of looking at the type, you try to should use the
 /// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
-/// different kinds of [`TorError`].  If that doesn't provide enough information
+/// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-$vis enum Error {
+enum ErrorDetail {
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
@@ -131,33 +173,54 @@ $vis enum Error {
 }
 
 // End of the use of $vis to refer to visibility according to `error_detail`
-} }
+}
 
+#[cfg(feature = "error_detail")]
 impl Error {
+    /// Return the underlying error detail object for this error.
+    ///
+    /// In general, it's not a good idea to use this function.  Our
+    /// `arti_client::ErrorDetail` objects are unstable, and matching on them is
+    /// probably not the best way to achieve whatever you're trying to do.
+    /// Instead, we recommend using  the [`kind`](`tor_error::HasKind::kind`)
+    /// trait method if your program needs to distinguish among different types
+    /// of errors.
+    ///
+    /// (If the above function don't meet your needs, please let us know!)
+    ///
+    /// This function is only available when `arti-client` is built with the
+    /// `error_detail` feature.  Using this function will void your semver
+    /// guarantees.
+    pub fn detail(&self) -> &ErrorDetail {
+        &self.detail
+    }
+}
+
+impl ErrorDetail {
     /// Construct a new `Error` from a `SpawnError`.
-    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
-        Error::Spawn {
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> ErrorDetail {
+        ErrorDetail::Spawn {
             spawning,
             cause: Arc::new(err),
         }
     }
 }
 
-impl Display for TorError {
+impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "tor: {}: {}", self.detail.kind(), &self.detail)
     }
 }
 
-impl tor_error::HasKind for TorError {
+impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
         self.detail.kind()
     }
 }
 
-impl tor_error::HasKind for Error {
+impl tor_error::HasKind for ErrorDetail {
     fn kind(&self) -> ErrorKind {
-        use Error as E;
+        use ErrorDetail as E;
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
@@ -166,12 +229,6 @@ impl tor_error::HasKind for Error {
         }
     }
 }
-
-#[cfg(feature = "error_detail")]
-define_according_to_cfg_error_details! { pub }
-
-#[cfg(not(feature = "error_detail"))]
-define_according_to_cfg_error_details! { pub(crate) }
 
 #[cfg(test)]
 mod test {
@@ -187,8 +244,8 @@ mod test {
         >() {
         }
         fn check() {
-            assert::<TorError>();
             assert::<Error>();
+            assert::<ErrorDetail>();
         }
         check(); // doesn't do anything, but avoids "unused function" warnings.
     }

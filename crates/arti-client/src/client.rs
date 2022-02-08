@@ -23,8 +23,8 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use crate::err::{Error, Result};
-use crate::{status, TorResult};
+use crate::err::ErrorDetail;
+use crate::status;
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
 #[cfg(feature = "tokio")]
@@ -261,7 +261,7 @@ impl TorClient<PreferredTokioRuntime> {
     /// Panics if called outside of the context of a Tokio runtime.
     pub async fn bootstrap_with_tokio(
         config: TorClientConfig,
-    ) -> TorResult<TorClient<PreferredTokioRuntime>> {
+    ) -> crate::Result<TorClient<PreferredTokioRuntime>> {
         let rt = PreferredTokioRuntime::current().expect("called outside of Tokio runtime");
         Self::bootstrap(rt, config).await
     }
@@ -277,7 +277,7 @@ impl TorClient<PreferredAsyncStdRuntime> {
     /// This is a convenience wrapper around [`TorClient::bootstrap`].
     pub async fn bootstrap_with_async_std(
         config: TorClientConfig,
-    ) -> TorResult<TorClient<PreferredAsyncStdRuntime>> {
+    ) -> crate::Result<TorClient<PreferredAsyncStdRuntime>> {
         // FIXME(eta): not actually possible for this to fail
         let rt = PreferredAsyncStdRuntime::current().expect("failed to get async-std runtime");
         Self::bootstrap(rt, config).await
@@ -290,10 +290,10 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
-    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> TorResult<TorClient<R>> {
+    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> crate::Result<TorClient<R>> {
         TorClient::bootstrap_inner(runtime, config)
             .await
-            .map_err(Error::into)
+            .map_err(ErrorDetail::into)
     }
 
     /// Implementation; throws crate::Error
@@ -303,7 +303,7 @@ impl<R: Runtime> TorClient<R> {
     async fn bootstrap_inner(
         runtime: R,
         config: TorClientConfig,
-    ) -> StdResult<TorClient<R>, Error> {
+    ) -> StdResult<TorClient<R>, ErrorDetail> {
         let circ_cfg = config.get_circmgr_config()?;
         let dir_cfg = config.get_dirmgr_config()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
@@ -324,7 +324,7 @@ impl<R: Runtime> TorClient<R> {
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
-                .map_err(Error::CircMgrSetup)?;
+                .map_err(ErrorDetail::CircMgrSetup)?;
         let dirmgr = tor_dirmgr::DirMgr::bootstrap_from_config(
             dir_cfg,
             runtime.clone(),
@@ -343,7 +343,7 @@ impl<R: Runtime> TorClient<R> {
                 conn_status,
                 dir_status,
             ))
-            .map_err(|e| Error::from_spawn("top-level status reporter", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
@@ -355,7 +355,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("circmgr parameter updater", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("circmgr parameter updater", e))?;
 
         runtime
             .spawn(update_persistent_state(
@@ -363,7 +363,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 statemgr.clone(),
             ))
-            .map_err(|e| Error::from_spawn("persistent state updater", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("persistent state updater", e))?;
 
         runtime
             .spawn(continually_launch_timeout_testing_circuits(
@@ -371,7 +371,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("timeout-probe circuit launcher", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("timeout-probe circuit launcher", e))?;
 
         runtime
             .spawn(continually_preemptively_build_circuits(
@@ -379,12 +379,14 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("preemptive circuit launcher", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("preemptive circuit launcher", e))?;
 
-        runtime.spawn(continually_expire_channels(
-            runtime.clone(),
-            Arc::downgrade(&chanmgr),
-        ))?;
+        runtime
+            .spawn(continually_expire_channels(
+                runtime.clone(),
+                Arc::downgrade(&chanmgr),
+            ))
+            .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
 
         let client_isolation = IsolationToken::new();
 
@@ -426,7 +428,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         new_config: &TorClientConfig,
         how: tor_config::Reconfigure,
-    ) -> TorResult<()> {
+    ) -> crate::Result<()> {
         // We need to hold this lock while we're reconfiguring the client: even
         // though the individual fields have their own synchronization, we can't
         // safely let two threads change them at once.  If we did, then we'd
@@ -494,7 +496,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
-    pub async fn connect<A: IntoTorAddr>(&self, target: A) -> TorResult<DataStream> {
+    pub async fn connect<A: IntoTorAddr>(&self, target: A) -> crate::Result<DataStream> {
         self.connect_with_prefs(target, &self.connect_prefs).await
     }
 
@@ -507,7 +509,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         target: A,
         prefs: &StreamPrefs,
-    ) -> TorResult<DataStream> {
+    ) -> crate::Result<DataStream> {
         let addr = target.into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get())?;
         let (addr, port) = addr.into_string_and_port();
@@ -525,7 +527,7 @@ impl<R: Runtime> TorClient<R> {
             .runtime
             .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(stream)
@@ -558,7 +560,7 @@ impl<R: Runtime> TorClient<R> {
     }
 
     /// On success, return a list of IP addresses.
-    pub async fn resolve(&self, hostname: &str) -> TorResult<Vec<IpAddr>> {
+    pub async fn resolve(&self, hostname: &str) -> crate::Result<Vec<IpAddr>> {
         self.resolve_with_prefs(hostname, &self.connect_prefs).await
     }
 
@@ -567,7 +569,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         hostname: &str,
         prefs: &StreamPrefs,
-    ) -> TorResult<Vec<IpAddr>> {
+    ) -> crate::Result<Vec<IpAddr>> {
         let addr = (hostname, 0).into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
@@ -578,7 +580,7 @@ impl<R: Runtime> TorClient<R> {
             .runtime
             .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(addrs)
@@ -587,7 +589,7 @@ impl<R: Runtime> TorClient<R> {
     /// Perform a remote DNS reverse lookup with the provided IP address.
     ///
     /// On success, return a list of hostnames.
-    pub async fn resolve_ptr(&self, addr: IpAddr) -> TorResult<Vec<String>> {
+    pub async fn resolve_ptr(&self, addr: IpAddr) -> crate::Result<Vec<String>> {
         self.resolve_ptr_with_prefs(addr, &self.connect_prefs).await
     }
 
@@ -598,7 +600,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         addr: IpAddr,
         prefs: &StreamPrefs,
-    ) -> TorResult<Vec<String>> {
+    ) -> crate::Result<Vec<String>> {
         let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
 
         let resolve_ptr_future = circ.resolve_ptr(addr);
@@ -609,7 +611,7 @@ impl<R: Runtime> TorClient<R> {
                 resolve_ptr_future,
             )
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(hostnames)
@@ -639,7 +641,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
-    ) -> Result<ClientCirc> {
+    ) -> StdResult<ClientCirc, ErrorDetail> {
         let dir = self.dirmgr.netdir();
 
         let isolation = {
@@ -658,7 +660,7 @@ impl<R: Runtime> TorClient<R> {
             .circmgr
             .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
             .await
-            .map_err(|cause| Error::ObtainExitCircuit {
+            .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
                 exit_ports: exit_ports.into(),
             })?;
@@ -690,11 +692,11 @@ impl<R: Runtime> TorClient<R> {
 }
 
 /// Alias for TorError::from(Error)
-pub(crate) fn wrap_err<T>(err: T) -> crate::err::TorError
+pub(crate) fn wrap_err<T>(err: T) -> crate::Error
 where
-    Error: From<T>,
+    ErrorDetail: From<T>,
 {
-    Error::from(err).into()
+    ErrorDetail::from(err).into()
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update

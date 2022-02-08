@@ -204,20 +204,10 @@ pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
 
 mod err;
-pub use err::TorError;
-
-// Ideally these two `use`s would be pub(crate) or pub, depending on the error_detail
-// feature.  But varying visibility according to a cargo feature is awkward (see
-// how it's done in err.rs), and we want to avoid doing it unless we have to.
-//
-// So, we just conditionally `use`.  This means that other bits of this crate can't
-// name them by crate::Error and crate::Result, which is slightly annoying.
-
-#[cfg(feature = "error_detail")]
 pub use err::Error;
 
 #[cfg(feature = "error_detail")]
-pub use err::Result;
+pub use err::ErrorDetail;
 
-/// Alias for the [`Result`] type corresponding to the high-level `TorError`.
-pub type TorResult<T> = std::result::Result<T, TorError>;
+/// Alias for the [`Result`] type corresponding to the high-level [`Error`].
+pub type Result<T> = std::result::Result<T, Error>;

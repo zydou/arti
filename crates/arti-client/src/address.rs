@@ -1,6 +1,7 @@
 //! Types and traits for converting objects to addresses which
 //! Tor can connect to.
 
+use crate::err::ErrorDetail;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::str::FromStr;
 use thiserror::Error;
@@ -147,17 +148,17 @@ impl TorAddr {
     pub(crate) fn enforce_config(
         &self,
         cfg: &crate::config::ClientAddrConfig,
-    ) -> Result<(), crate::err::Error> {
+    ) -> Result<(), ErrorDetail> {
         if !cfg.allow_local_addrs && self.is_local() {
-            return Err(crate::err::Error::LocalAddress);
+            return Err(ErrorDetail::LocalAddress);
         }
 
         if let Host::Hostname(addr) = &self.host {
             if !is_valid_hostname(addr) {
-                return Err(crate::err::Error::InvalidHostname);
+                return Err(ErrorDetail::InvalidHostname);
             }
             if addr.to_lowercase().ends_with(".onion") {
-                return Err(crate::err::Error::OnionAddressNotSupported);
+                return Err(ErrorDetail::OnionAddressNotSupported);
             }
         }
 
@@ -383,8 +384,8 @@ mod test {
 
     #[test]
     fn validate_addr() {
-        use crate::err::Error;
-        fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, Error> {
+        use crate::err::ErrorDetail;
+        fn val<A: IntoTorAddr>(addr: A) -> Result<TorAddr, ErrorDetail> {
             let toraddr = addr.into_tor_addr()?;
             toraddr.enforce_config(&Default::default())?;
             Ok(toraddr)
@@ -399,17 +400,20 @@ mod test {
 
         assert!(matches!(
             val("-foobar.net:443"),
-            Err(Error::InvalidHostname)
+            Err(ErrorDetail::InvalidHostname)
         ));
         assert!(matches!(
             val("www.torproject.org"),
-            Err(Error::Address(TorAddrError::NoPort))
+            Err(ErrorDetail::Address(TorAddrError::NoPort))
         ));
 
-        assert!(matches!(val("192.168.0.1:80"), Err(Error::LocalAddress)));
+        assert!(matches!(
+            val("192.168.0.1:80"),
+            Err(ErrorDetail::LocalAddress)
+        ));
         assert!(matches!(
             val("eweiibe6tdjsdprb4px6rqrzzcsi22m4koia44kc5pcjr7nec2rlxyad.onion:443"),
-            Err(Error::OnionAddressNotSupported)
+            Err(ErrorDetail::OnionAddressNotSupported)
         ));
     }
 
