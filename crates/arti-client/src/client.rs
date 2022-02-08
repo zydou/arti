@@ -381,10 +381,12 @@ impl<R: Runtime> TorClient<R> {
             ))
             .map_err(|e| ErrorDetail::from_spawn("preemptive circuit launcher", e))?;
 
-        runtime.spawn(continually_expire_channels(
-            runtime.clone(),
-            Arc::downgrade(&chanmgr),
-        ))?;
+        runtime
+            .spawn(continually_expire_channels(
+                runtime.clone(),
+                Arc::downgrade(&chanmgr),
+            ))
+            .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
 
         let client_isolation = IsolationToken::new();
 
