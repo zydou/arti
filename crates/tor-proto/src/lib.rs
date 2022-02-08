@@ -132,7 +132,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// Used to implement [`time_since_last_incoming_traffic`]
 #[cfg(feature = "traffic-timestamp")]
-static LAST_INCOMING_TRAFFIC: util::ts::Timestamp = util::ts::Timestamp::new();
+static LAST_INCOMING_TRAFFIC: util::ts::OptTimestamp = util::ts::OptTimestamp::new();
 
 /// Called whenever we receive incoming traffic.
 ///
@@ -156,7 +156,9 @@ pub(crate) fn note_incoming_traffic() {
 ///
 /// When enabled, this timestamp is updated whenever we receive a valid
 /// cell, and whenever we complete a channel handshake.
+///
+/// Returns `None` if we never received "incoming traffic".
 #[cfg(feature = "traffic-timestamp")]
-pub fn time_since_last_incoming_traffic() -> std::time::Duration {
-    LAST_INCOMING_TRAFFIC.time_since_update().into()
+pub fn time_since_last_incoming_traffic() -> Option<std::time::Duration> {
+    LAST_INCOMING_TRAFFIC.time_since_update().map(Into::into)
 }

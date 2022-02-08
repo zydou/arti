@@ -3,7 +3,8 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// An object for determining when an event last happened.
+/// An object for determining whether an event happened,
+/// and if yes, when it happened.
 ///
 /// Every `Timestamp` has internal mutability.  A timestamp can move
 /// forward in time, but never backwards.
@@ -11,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Internally, it uses the `coarsetime` crate to represent times in a way
 /// that lets us do atomic updates.
 #[derive(Default, Debug)]
-pub(crate) struct Timestamp {
+pub(crate) struct OptTimestamp {
     /// A timestamp (from `coarsetime`) describing when this timestamp
     /// was last updated.
     ///
@@ -19,46 +20,56 @@ pub(crate) struct Timestamp {
     /// an atomic form.
     latest: AtomicU64,
 }
-impl Timestamp {
+impl OptTimestamp {
     /// Construct a new timestamp that has never been updated.
     pub(crate) const fn new() -> Self {
-        Timestamp {
+        OptTimestamp {
             latest: AtomicU64::new(0),
         }
     }
+
     /// Update this timestamp to (at least) the current time.
     pub(crate) fn update(&self) {
         // TODO: Do we want to use 'Instant::recent() instead,' and
         // add an updater thread?
         self.update_to(coarsetime::Instant::now());
     }
-    /// Update this timestamp to (at least) the time `now`.
-    #[inline]
-    pub(crate) fn update_to(&self, now: coarsetime::Instant) {
-        self.latest.fetch_max(now.as_ticks(), Ordering::Relaxed);
+
+    /// Clear the timestamp and make it not updated again.
+    pub(crate) fn clear(&self) {
+        self.latest.store(0, Ordering::Relaxed);
     }
 
     /// Return the time since `update` was last called.
     ///
-    /// Returns 0 if update was never called.
-    pub(crate) fn time_since_update(&self) -> coarsetime::Duration {
+    /// Return `None` if update was never called.
+    pub(crate) fn time_since_update(&self) -> Option<coarsetime::Duration> {
         self.time_since_update_at(coarsetime::Instant::now())
     }
 
-    /// Return the time between the time when `update` was last
+    /// Return the time between the time when `udpate` was last
     /// called, and the time `now`.
     ///
-    /// Returns 0 if `update` was never called, or if `now` is before
+    /// Return `None` if `update` was never called, or `now` is before
     /// that time.
     #[inline]
-    pub(crate) fn time_since_update_at(&self, now: coarsetime::Instant) -> coarsetime::Duration {
+    pub(crate) fn time_since_update_at(
+        &self,
+        now: coarsetime::Instant,
+    ) -> Option<coarsetime::Duration> {
         let earlier = self.latest.load(Ordering::Relaxed);
         let now = now.as_ticks();
         if now >= earlier && earlier != 0 {
-            coarsetime::Duration::from_ticks(now - earlier)
+            Some(coarsetime::Duration::from_ticks(now - earlier))
         } else {
-            coarsetime::Duration::from_secs(0)
+            None
         }
+    }
+
+    /// Update this timestamp to (at least) the time `now`.
+    #[inline]
+    pub(crate) fn update_to(&self, now: coarsetime::Instant) {
+        self.latest.fetch_max(now.as_ticks(), Ordering::Relaxed);
     }
 }
 
@@ -67,10 +78,11 @@ mod test {
     use super::*;
 
     #[test]
-    fn timestamp() {
+    fn opt_timestamp() {
         use coarsetime::{Duration, Instant};
 
-        let ts = Timestamp::new();
+        let ts = OptTimestamp::new();
+        assert!(ts.time_since_update().is_none());
 
         let zero = Duration::from_secs(0);
         let one_sec = Duration::from_secs(1);
@@ -79,21 +91,26 @@ mod test {
         let in_a_bit = first + one_sec * 10;
         let even_later = first + one_sec * 25;
 
-        assert_eq!(ts.time_since_update_at(first), zero);
+        assert!(ts.time_since_update_at(first).is_none());
 
         ts.update_to(first);
-        assert_eq!(ts.time_since_update_at(first), zero);
-        assert_eq!(ts.time_since_update_at(in_a_bit), one_sec * 10);
+        assert_eq!(ts.time_since_update_at(first), Some(zero));
+        assert_eq!(ts.time_since_update_at(in_a_bit), Some(one_sec * 10));
 
         ts.update_to(in_a_bit);
-        assert_eq!(ts.time_since_update_at(first), zero);
-        assert_eq!(ts.time_since_update_at(in_a_bit), zero);
-        assert_eq!(ts.time_since_update_at(even_later), one_sec * 15);
+        assert!(ts.time_since_update_at(first).is_none());
+        assert_eq!(ts.time_since_update_at(in_a_bit), Some(zero));
+        assert_eq!(ts.time_since_update_at(even_later), Some(one_sec * 15));
 
         // Make sure we can't move backwards.
         ts.update_to(first);
-        assert_eq!(ts.time_since_update_at(first), zero);
-        assert_eq!(ts.time_since_update_at(in_a_bit), zero);
-        assert_eq!(ts.time_since_update_at(even_later), one_sec * 15);
+        assert!(ts.time_since_update_at(first).is_none());
+        assert_eq!(ts.time_since_update_at(in_a_bit), Some(zero));
+        assert_eq!(ts.time_since_update_at(even_later), Some(one_sec * 15));
+
+        ts.clear();
+        assert!(ts.time_since_update_at(first).is_none());
+        assert!(ts.time_since_update_at(in_a_bit).is_none());
+        assert!(ts.time_since_update_at(even_later).is_none());
     }
 }
