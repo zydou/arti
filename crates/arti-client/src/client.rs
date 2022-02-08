@@ -23,7 +23,7 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use crate::err::{Error, Result};
+use crate::err::ErrorDetail;
 use crate::{status, TorResult};
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
@@ -293,7 +293,7 @@ impl<R: Runtime> TorClient<R> {
     pub async fn bootstrap(runtime: R, config: TorClientConfig) -> TorResult<TorClient<R>> {
         TorClient::bootstrap_inner(runtime, config)
             .await
-            .map_err(Error::into)
+            .map_err(ErrorDetail::into)
     }
 
     /// Implementation; throws crate::Error
@@ -303,7 +303,7 @@ impl<R: Runtime> TorClient<R> {
     async fn bootstrap_inner(
         runtime: R,
         config: TorClientConfig,
-    ) -> StdResult<TorClient<R>, Error> {
+    ) -> StdResult<TorClient<R>, ErrorDetail> {
         let circ_cfg = config.get_circmgr_config()?;
         let dir_cfg = config.get_dirmgr_config()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
@@ -324,7 +324,7 @@ impl<R: Runtime> TorClient<R> {
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
-                .map_err(Error::CircMgrSetup)?;
+                .map_err(ErrorDetail::CircMgrSetup)?;
         let dirmgr = tor_dirmgr::DirMgr::bootstrap_from_config(
             dir_cfg,
             runtime.clone(),
@@ -343,7 +343,7 @@ impl<R: Runtime> TorClient<R> {
                 conn_status,
                 dir_status,
             ))
-            .map_err(|e| Error::from_spawn("top-level status reporter", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 
         circmgr.update_network_parameters(dirmgr.netdir().params());
 
@@ -355,7 +355,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("circmgr parameter updater", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("circmgr parameter updater", e))?;
 
         runtime
             .spawn(update_persistent_state(
@@ -363,7 +363,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 statemgr.clone(),
             ))
-            .map_err(|e| Error::from_spawn("persistent state updater", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("persistent state updater", e))?;
 
         runtime
             .spawn(continually_launch_timeout_testing_circuits(
@@ -371,7 +371,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("timeout-probe circuit launcher", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("timeout-probe circuit launcher", e))?;
 
         runtime
             .spawn(continually_preemptively_build_circuits(
@@ -379,7 +379,7 @@ impl<R: Runtime> TorClient<R> {
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
-            .map_err(|e| Error::from_spawn("preemptive circuit launcher", e))?;
+            .map_err(|e| ErrorDetail::from_spawn("preemptive circuit launcher", e))?;
 
         runtime.spawn(continually_expire_channels(
             runtime.clone(),
@@ -525,7 +525,7 @@ impl<R: Runtime> TorClient<R> {
             .runtime
             .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(stream)
@@ -578,7 +578,7 @@ impl<R: Runtime> TorClient<R> {
             .runtime
             .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(addrs)
@@ -609,7 +609,7 @@ impl<R: Runtime> TorClient<R> {
                 resolve_ptr_future,
             )
             .await
-            .map_err(|_| Error::ExitTimeout)?
+            .map_err(|_| ErrorDetail::ExitTimeout)?
             .map_err(wrap_err)?;
 
         Ok(hostnames)
@@ -639,7 +639,7 @@ impl<R: Runtime> TorClient<R> {
         &self,
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
-    ) -> Result<ClientCirc> {
+    ) -> StdResult<ClientCirc, ErrorDetail> {
         let dir = self.dirmgr.netdir();
 
         let isolation = {
@@ -658,7 +658,7 @@ impl<R: Runtime> TorClient<R> {
             .circmgr
             .get_or_launch_exit(dir.as_ref().into(), exit_ports, isolation)
             .await
-            .map_err(|cause| Error::ObtainExitCircuit {
+            .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
                 exit_ports: exit_ports.into(),
             })?;
@@ -692,9 +692,9 @@ impl<R: Runtime> TorClient<R> {
 /// Alias for TorError::from(Error)
 pub(crate) fn wrap_err<T>(err: T) -> crate::err::TorError
 where
-    Error: From<T>,
+    ErrorDetail: From<T>,
 {
-    Error::from(err).into()
+    ErrorDetail::from(err).into()
 }
 
 /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update

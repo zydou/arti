@@ -214,10 +214,7 @@ pub use err::TorError;
 // name them by crate::Error and crate::Result, which is slightly annoying.
 
 #[cfg(feature = "error_detail")]
-pub use err::Error;
-
-#[cfg(feature = "error_detail")]
-pub use err::Result;
+pub use err::ErrorDetail;
 
 /// Alias for the [`Result`] type corresponding to the high-level `TorError`.
 pub type TorResult<T> = std::result::Result<T, TorError>;

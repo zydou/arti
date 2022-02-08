@@ -32,17 +32,11 @@ pub struct TorError {
     /// `error_detail` feature is enabled. Using it will void your semver
     /// guarantee.
     #[source]
-    detail: Box<Error>,
+    detail: Box<ErrorDetail>,
 }
 
-/// Alias for the [`Result`] type used within the `arti_client` crate.
-///
-/// This is always converted to [`TorResult`](crate::TorResult) before it's
-/// given to a user.
-$vis type Result<T> = std::result::Result<T, Error>;
-
-impl From<Error> for TorError {
-    fn from(detail: Error) -> TorError {
+impl From<ErrorDetail> for TorError {
+    fn from(detail: ErrorDetail) -> TorError {
         TorError {
             detail: detail.into(),
         }
@@ -63,7 +57,7 @@ impl From<Error> for TorError {
 /// for your use case, please let us know.
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
-$vis enum Error {
+$vis enum ErrorDetail {
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
@@ -138,7 +132,7 @@ impl TorError {
     /// Return the underlying error object for this error.
     ///
     /// In general, it's not a good idea to use this function.  Our
-    /// `arti_client::Error` objects are unstable, and matching on them is
+    /// `arti_client::ErrorDetail` objects are unstable, and matching on them is
     /// probably not the best way to achieve whatever you're trying to do.
     /// Instead, we recommend using  the [`kind`](`tor_error::HasKind::kind`)
     /// trait method if your program needs to distinguish among different types
@@ -149,15 +143,15 @@ impl TorError {
     /// This function is only available when `arti-client` is built with the
     /// `error_detail` feature.  Using this function will void your semver
     /// guarantees.
-    pub fn detail(&self) -> &Error {
+    pub fn detail(&self) -> &ErrorDetail {
         &self.detail
     }
 }
 
-impl Error {
+impl ErrorDetail {
     /// Construct a new `Error` from a `SpawnError`.
-    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
-        Error::Spawn {
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> ErrorDetail {
+        ErrorDetail::Spawn {
             spawning,
             cause: Arc::new(err),
         }
@@ -176,9 +170,9 @@ impl tor_error::HasKind for TorError {
     }
 }
 
-impl tor_error::HasKind for Error {
+impl tor_error::HasKind for ErrorDetail {
     fn kind(&self) -> ErrorKind {
-        use Error as E;
+        use ErrorDetail as E;
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
@@ -209,7 +203,7 @@ mod test {
         }
         fn check() {
             assert::<TorError>();
-            assert::<Error>();
+            assert::<ErrorDetail>();
         }
         check(); // doesn't do anything, but avoids "unused function" warnings.
     }
