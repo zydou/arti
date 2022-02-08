@@ -80,11 +80,13 @@ impl InternalError {
     /// Prefer to use [`internal!`],
     /// as that makes it easy to add additional information
     /// via format parameters.
+    #[track_caller]
     pub fn new<S: Into<String>>(message: S) -> Self {
         InternalError::new_inner(message.into(), None)
     }
 
     /// Create an internal error
+    #[track_caller]
     fn new_inner(message: String, source: Option<SourceError>) -> Self {
         InternalError(
             InternalErrorRepr {
@@ -102,6 +104,7 @@ impl InternalError {
     /// In `map_err`, and perhaps elsewhere, prefer to use [`into_internal!`],
     /// as that makes it easy to add additional information
     /// via format parameters.
+    #[track_caller]
     pub fn from_error<E, S>(source: E, message: S) -> Self
     where
         S: Into<String>,
@@ -124,7 +127,7 @@ impl Display for InternalError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,
-            "internal error (bug): {:?}: {}",
+            "internal error (bug) at {}: {}",
             &self.0.location, &self.0.message
         )?;
         Display::fmt(&self.0.backtrace, f)?;
@@ -187,5 +190,48 @@ macro_rules! into_internal {
 impl HasKind for InternalError {
     fn kind(&self) -> ErrorKind {
         ErrorKind::Internal
+    }
+}
+
+#[allow(clippy::unwrap_used)]
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn internal_macro_test() {
+        let start_of_func = line!();
+
+        let e = internal!("Couldn't {} the {}.", "wobble", "wobbling device");
+        assert_eq!(e.0.message, "Couldn't wobble the wobbling device.");
+        assert!(e.0.location.file().ends_with("internal.rs"));
+        assert!(e.0.location.line() > start_of_func);
+        assert!(e.0.source.is_none());
+
+        let s = e.to_string();
+
+        assert!(s.starts_with("internal error (bug) at "));
+        assert!(s.contains("Couldn't wobble the wobbling device."));
+        #[cfg(feature = "backtrace")]
+        assert!(s.contains("internal_macro_test"));
+    }
+
+    #[test]
+    fn source() {
+        use std::error::Error;
+        use std::str::FromStr;
+
+        let start_of_func = line!();
+        let s = "penguin";
+        let inner = u32::from_str(s).unwrap_err();
+        let outer = u32::from_str(s)
+            .map_err(into_internal!("{} is not a number", s))
+            .unwrap_err();
+
+        let afterwards = line!();
+
+        assert_eq!(outer.source().unwrap().to_string(), inner.to_string());
+        assert!(outer.0.location.line() > start_of_func);
+        assert!(outer.0.location.line() < afterwards);
     }
 }

@@ -284,12 +284,16 @@ impl<R: Runtime> GuardMgr<R> {
         {
             let weak_inner = Arc::downgrade(&inner);
             let rt_clone = runtime.clone();
-            runtime.spawn(daemon::report_status_events(rt_clone, weak_inner, rcv))?;
+            runtime
+                .spawn(daemon::report_status_events(rt_clone, weak_inner, rcv))
+                .map_err(|e| GuardMgrError::from_spawn("guard status event reporter", e))?;
         }
         {
             let rt_clone = runtime.clone();
             let weak_inner = Arc::downgrade(&inner);
-            runtime.spawn(daemon::run_periodic(rt_clone, weak_inner))?;
+            runtime
+                .spawn(daemon::run_periodic(rt_clone, weak_inner))
+                .map_err(|e| GuardMgrError::from_spawn("periodic guard updater", e))?;
         }
         Ok(GuardMgr { runtime, inner })
     }
@@ -1026,14 +1030,14 @@ pub enum GuardMgrError {
     State(#[from] tor_persist::Error),
 
     /// An error that occurred while trying to spawn a daemon task.
-    #[error("Unable to spawn task")]
-    Spawn(#[from] Arc<SpawnError>),
-}
-
-impl From<SpawnError> for GuardMgrError {
-    fn from(e: SpawnError) -> GuardMgrError {
-        Arc::new(e).into()
-    }
+    #[error("Unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn.
+        spawning: &'static str,
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
 }
 
 impl HasKind for GuardMgrError {
@@ -1042,7 +1046,17 @@ impl HasKind for GuardMgrError {
         use GuardMgrError as G;
         match self {
             G::State(e)               => e.kind(),
-            G::Spawn(e)               => e.kind(),
+            G::Spawn{ cause, .. }     => cause.kind(),
+        }
+    }
+}
+
+impl GuardMgrError {
+    /// Construct a new `GuardMgrError` from a `SpawnError`.
+    fn from_spawn(spawning: &'static str, err: SpawnError) -> GuardMgrError {
+        GuardMgrError::Spawn {
+            spawning,
+            cause: Arc::new(err),
         }
     }
 }

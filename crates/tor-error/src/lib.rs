@@ -85,30 +85,57 @@ pub enum ErrorKind {
     #[display(fmt = "could not write to read-only persistent state")]
     PersistentStateReadOnly,
 
-    /// Tor client's Rust async reactor is shutting down
+    /// Tor client's Rust async reactor is shutting down.
+    ///
+    /// This likely indicates that the reactor has encountered a fatal error, or
+    /// has been told to do a clean shutdown, and it isn't possible to spawn new
+    /// tasks.
     #[display(fmt = "shutting down")]
     ReactorShuttingDown,
 
-    /// Tor client's Rust async reactor could not spawn a task for unexplained reasons
+    /// Tor client's Rust async reactor could not spawn a task for unexplained
+    /// reasons
+    ///
+    /// This is probably a bug or configuration problem in the async reactor
+    /// implementation, or in arti's use of it.
     #[display(fmt = "unexplained rust async task spawn failure")]
     UnexplainedTaskSpawnFailure,
 
-    /// Internal error (bug)
+    /// An operation failed because we waited too long for an exit to do
+    /// something.
     ///
-    /// A supposedly impossible problem has arisen.  This indicates a bug in Arti.
+    /// This error can happen if the host you're trying to connect to isn't
+    /// responding to traffic. It can also happen if an exit is overloaded, and
+    /// unable to answer your replies in a timely manner.
+    ///
+    /// In either case, trying later, or on a different circuit, might help.  
+    #[display(fmt = "operation timed out at exit")]
+    ExitTimeout,
+
+    /// Internal error (bug) in Arti.
+    ///
+    /// A supposedly impossible problem has arisen.  This indicates a bug in
+    /// Arti; if the Arti version is relatively recent, please report the bug on
+    /// our [bug tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
     #[display(fmt = "internal error (bug)")]
     Internal,
 
-    /// TODO - error still needs to be categorised in tor/arti code
+    /// TODO - error still needs to be categorized in tor/arti code
     ///
-    /// This variant is going to be ABOLISHED!
+    /// This variant is going to be ABOLISHED!  If you see it in your code,
+    /// then you are using a version of Arti from before we managed to
+    /// remove every error.
     #[display(fmt = "uncategorized error (TODO)")]
     TODO,
 }
 
-/// Errors that can be categorised as belonging to one `tor_error::ErrorKind`
+/// Errors that can be categorized as belonging to an [`ErrorKind`]
+///
+/// The most important implementation of this trait is
+/// `arti_client::TorError`; however, other internal errors throughout Arti
+/// also implement it.
 pub trait HasKind {
-    /// The kind
+    /// Return the kind of this error.
     fn kind(&self) -> ErrorKind;
 }
 

@@ -6,7 +6,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 /// An error originated by the directory manager code
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
     /// We received a document we didn't want at all.
@@ -24,7 +24,7 @@ pub enum Error {
     CacheCorruption(&'static str),
     /// rusqlite gave us an error.
     #[error("sqlite error: {0}")]
-    SqliteError(#[from] rusqlite::Error),
+    SqliteError(#[source] Arc<rusqlite::Error>),
     /// A schema version that says we can't read it.
     #[error("unrecognized data storage schema")]
     UnrecognizedSchema,
@@ -71,14 +71,20 @@ pub enum Error {
     DirClientError(#[from] tor_dirclient::Error),
     /// An error given by the checkable crate.
     #[error("checkable error: {0}")]
-    SignatureError(#[from] signature::Error),
+    SignatureError(#[source] Arc<signature::Error>),
     /// An IO error occurred while manipulating storage on disk.
     #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
+    IOError(#[source] Arc<std::io::Error>),
 
     /// Unable to spawn task
-    #[error("unable to spawn task")]
-    Spawn(#[from] Arc<SpawnError>),
+    #[error("unable to spawn {spawning}")]
+    Spawn {
+        /// What we were trying to spawn
+        spawning: &'static str,
+        /// What happened when we tried to spawn it
+        #[source]
+        cause: Arc<SpawnError>,
+    },
 }
 
 impl From<std::str::Utf8Error> for Error {
@@ -99,8 +105,30 @@ impl From<hex::FromHexError> for Error {
     }
 }
 
-impl From<SpawnError> for Error {
-    fn from(e: SpawnError) -> Error {
-        Arc::new(e).into()
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::IOError(Arc::new(err))
+    }
+}
+
+impl From<signature::Error> for Error {
+    fn from(err: signature::Error) -> Self {
+        Self::SignatureError(Arc::new(err))
+    }
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::SqliteError(Arc::new(err))
+    }
+}
+
+impl Error {
+    /// Construct a new `Error` from a `SpawnError`.
+    pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
+        Error::Spawn {
+            spawning,
+            cause: Arc::new(err),
+        }
     }
 }

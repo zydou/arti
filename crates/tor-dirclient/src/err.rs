@@ -1,10 +1,12 @@
 //! Declare dirclient-specific errors.
 
+use std::sync::Arc;
+
 use thiserror::Error;
 use tor_rtcompat::TimeoutError;
 
 /// An error originating from the tor-dirclient crate.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
     /// We received an object with a suspiciously good compression ratio
@@ -33,7 +35,7 @@ pub enum Error {
 
     /// Io error while reading on connection
     #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    IoError(#[source] Arc<std::io::Error>),
 
     /// A protocol error while launching a stream
     #[error("Protocol error while launching a stream: {0}")]
@@ -49,7 +51,7 @@ pub enum Error {
 
     /// Error while creating http request
     #[error("Couldn't create HTTP request")]
-    HttpError(#[from] http::Error),
+    HttpError(#[source] Arc<http::Error>),
 
     /// Unrecognized content-encoding
     #[error("Unrecognized content encoding: {0:?}")]
@@ -59,6 +61,18 @@ pub enum Error {
 impl From<TimeoutError> for Error {
     fn from(_: TimeoutError) -> Self {
         Error::DirTimeout
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::IoError(Arc::new(err))
+    }
+}
+
+impl From<http::Error> for Error {
+    fn from(err: http::Error) -> Self {
+        Self::HttpError(Arc::new(err))
     }
 }
 

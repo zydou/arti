@@ -216,24 +216,26 @@ impl<R: Runtime> DirMgr<R> {
 
         // Whether we loaded or not, we now start downloading.
         let dirmgr_weak = Arc::downgrade(&dirmgr);
-        runtime.spawn(async move {
-            // NOTE: This is a daemon task.  It should eventually get
-            // treated as one.
+        runtime
+            .spawn(async move {
+                // NOTE: This is a daemon task.  It should eventually get
+                // treated as one.
 
-            // Don't warn when these are Error::ManagerDropped: that
-            // means that the DirMgr has been shut down.
-            if let Err(e) = Self::reload_until_owner(&dirmgr_weak, &mut sender).await {
-                match e {
-                    Error::ManagerDropped => {}
-                    _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
+                // Don't warn when these are Error::ManagerDropped: that
+                // means that the DirMgr has been shut down.
+                if let Err(e) = Self::reload_until_owner(&dirmgr_weak, &mut sender).await {
+                    match e {
+                        Error::ManagerDropped => {}
+                        _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
+                    }
+                } else if let Err(e) = Self::download_forever(dirmgr_weak, sender).await {
+                    match e {
+                        Error::ManagerDropped => {}
+                        _ => warn!("Unrecovered error while downloading: {}", e),
+                    }
                 }
-            } else if let Err(e) = Self::download_forever(dirmgr_weak, sender).await {
-                match e {
-                    Error::ManagerDropped => {}
-                    _ => warn!("Unrecovered error while downloading: {}", e),
-                }
-            }
-        })?;
+            })
+            .map_err(|e| Error::from_spawn("directory updater task", e))?;
 
         if let Some(receiver) = receiver {
             match receiver.await {

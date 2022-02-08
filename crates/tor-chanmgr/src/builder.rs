@@ -140,9 +140,11 @@ impl<R: Runtime> ChanBuilder<R> {
         }
 
         // 3. Launch a task to run the channel reactor.
-        self.runtime.spawn(async {
-            let _ = reactor.run().await;
-        })?;
+        self.runtime
+            .spawn(async {
+                let _ = reactor.run().await;
+            })
+            .map_err(|e| Error::from_spawn("channel reactor", e))?;
         Ok(chan)
     }
 }

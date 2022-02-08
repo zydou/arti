@@ -15,7 +15,7 @@ use std::sync::{self, Arc};
 use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
-use arti_client::{IsolationToken, StreamPrefs, TorClient};
+use arti_client::{ErrorKind, HasKind, IsolationToken, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -197,8 +197,8 @@ where
                     // The connect attempt has failed.  We need to
                     // send an error.  See what kind it is.
                     //
-                    let reply = match e {
-                        arti_client::Error::Timeout => {
+                    let reply = match e.kind() {
+                        ErrorKind::ExitTimeout => {
                             request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
                         }
                         _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
