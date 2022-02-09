@@ -9,6 +9,8 @@ use directories::{BaseDirs, ProjectDirs};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 
+use tor_error::{ErrorKind, HasKind};
+
 /// A path in a configuration file: tilde expansion is performed, along
 /// with expansion of certain variables.
 ///
@@ -61,6 +63,26 @@ pub enum CfgPathError {
     /// We couldn't convert a string to a valid path on the OS.
     #[error("invalid path string: {0:?}")]
     InvalidString(String),
+}
+
+impl HasKind for CfgPathError {
+    fn kind(&self) -> ErrorKind {
+        use CfgPathError as E;
+        use ErrorKind as EK;
+        match self {
+            E::UnknownVar(_) | E::InvalidString(_) => EK::InvalidConfig,
+            E::NoProjectDirs | E::NoBaseDirs => EK::NoHomeDirectory,
+            E::BadUtf8(_) => {
+                // Arguably, this should be a new "unsupported config"  type,
+                // since it isn't truly "invalid" to have a string with bad UTF8
+                // when it's going to be used as a filename.
+                //
+                // With luck, however, this error will cease to exist when shellexpand
+                // improves its character-set handling.
+                EK::InvalidConfig
+            }
+        }
+    }
 }
 
 impl CfgPath {

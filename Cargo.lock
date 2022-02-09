@@ -2995,6 +2995,7 @@ dependencies = [
  "serde",
  "shellexpand",
  "thiserror",
+ "tor-error",
  "tracing",
  "tracing-test",
 ]

@@ -112,6 +112,41 @@ pub enum ErrorKind {
     #[display(fmt = "operation timed out at exit")]
     ExitTimeout,
 
+    /// One or more configuration values were invalid or incompatible.
+    ///
+    /// This kind of error can happen if the user provides an invalid or badly
+    /// formatted configuration file, if some of the options in that file are
+    /// out of their ranges or unparsable, or if the options are not all
+    /// compatible with one another. It can also happen if configuration options
+    /// provided via APIs are out of range.
+    ///
+    /// If this occurs because of user configuration, it's probably best to tell
+    /// the user about the error. If it occurs because of API usage, it's
+    /// probably best to fix the code that causes the error.
+    #[display(fmt = "invalid configuration")]
+    InvalidConfig,
+
+    /// Tried to change the configuration of a running Arti service in a way
+    /// that isn't supported.
+    ///
+    /// This kind of error can happen when you call a `reconfigure()` method on
+    /// a service (or part of a service) and the new configuration is not
+    /// compatible with the previous configuration.
+    #[display(fmt = "invalid configuration transition")]
+    InvalidConfigTransition,
+
+    /// Tried to look up a directory depending on the user's home directory, but
+    /// the user's home directory isn't set or can't be found.
+    ///
+    /// This kind of error can also occur if we're running in an environment
+    /// where users don't have home directories.
+    ///
+    /// To resolve this kind of error, either move to an OS with home
+    /// directories, or make sure that all paths in the configuration are set
+    /// explicitly, and do not depend on any path variables.
+    #[display(fmt = "could not find a home directory")]
+    NoHomeDirectory,
+
     /// Internal error (bug) in Arti.
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in
