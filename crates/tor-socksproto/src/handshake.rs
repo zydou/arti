@@ -6,6 +6,7 @@ use crate::{Error, Result};
 use tor_bytes::Error as BytesError;
 use tor_bytes::Result as BytesResult;
 use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_error::internal;
 
 use std::convert::TryInto;
 use std::net::IpAddr;
@@ -89,8 +90,12 @@ impl SocksHandshake {
             (State::Initial, v) => Err(Error::BadProtocol(v)),
             (State::Socks5Username, 1) => self.s5_uname(input),
             (State::Socks5Wait, 5) => self.s5(input),
-            (State::Done, _) => Err(Error::AlreadyFinished),
-            (State::Failed, _) => Err(Error::AlreadyFinished),
+            (State::Done, _) => Err(Error::AlreadyFinished(internal!(
+                "called handshake() after handshaking was done"
+            ))),
+            (State::Failed, _) => Err(Error::AlreadyFinished(internal!(
+                "called handshake() after handshaking failed"
+            ))),
             (_, _) => Err(Error::Syntax),
         };
         match rv {
@@ -108,7 +113,10 @@ impl SocksHandshake {
         let mut r = Reader::from_slice(input);
         let version = r.take_u8()?.try_into()?;
         if version != SocksVersion::V4 {
-            return Err(Error::Internal);
+            return Err(Error::Internal(internal!(
+                "called s4 on wrong type {:?}",
+                version
+            )));
         }
 
         let cmd: SocksCmd = r.take_u8()?.into();
@@ -149,7 +157,10 @@ impl SocksHandshake {
         let mut r = Reader::from_slice(input);
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
-            return Err(Error::Internal);
+            return Err(Error::Internal(internal!(
+                "called on wrong handshake type {:?}",
+                version
+            )));
         }
 
         /// Constant for Username/Password-style authentication.
@@ -209,14 +220,20 @@ impl SocksHandshake {
 
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
-            return Err(Error::Internal);
+            return Err(Error::Internal(internal!(
+                "called s5 on non socks5 handshake with type {:?}",
+                version
+            )));
         }
         let cmd = r.take_u8()?.into();
         let _ignore = r.take_u8()?;
         let addr = r.extract()?;
         let port = r.take_u16()?;
 
-        let auth = self.socks5_auth.take().ok_or(Error::Internal)?;
+        let auth = self
+            .socks5_auth
+            .take()
+            .ok_or_else(|| Error::Internal(internal!("called s5 without negotiating auth")))?;
 
         let request = SocksRequest::new(version, cmd, addr, port, auth)?;
 
@@ -552,13 +569,13 @@ mod test {
         let r = h.handshake(&hex!("06 01 00"));
         assert!(r.is_err());
         let r = h.handshake(good_socks4a);
-        assert!(matches!(r, Err(Error::AlreadyFinished)));
+        assert!(matches!(r, Err(Error::AlreadyFinished(_))));
 
         // Can't try again after success
         let mut h = SocksHandshake::new();
         let r = h.handshake(good_socks4a);
         assert!(r.is_ok());
         let r = h.handshake(good_socks4a);
-        assert!(matches!(r, Err(Error::AlreadyFinished)));
+        assert!(matches!(r, Err(Error::AlreadyFinished(_))));
     }
 }

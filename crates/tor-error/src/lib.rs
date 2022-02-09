@@ -147,6 +147,31 @@ pub enum ErrorKind {
     #[display(fmt = "could not find a home directory")]
     NoHomeDirectory,
 
+    /// A requested operation was not implemented by Arti.
+    ///
+    /// This kind of error can happen when calling an API that isn't available
+    /// at runtime, or when requesting a piece of protocol functionality that is
+    /// not implemented.
+    ///
+    /// If it happens as a result of a user activity, it's fine to ignore, log,
+    /// or report the error. If it happens as a result of direct API usage, it
+    /// may indicate that you're using something that isn't implemented yet, or
+    /// hasn't been turned on for your build environment.
+    #[display(fmt = "operation not supported")]
+    NoSupport,
+
+    /// Someone or something violated a network protocol.
+    ///
+    /// This kind of error can happen when a remote Tor instance behaves in a
+    /// way we don't expect, or when a local program accessing us over some
+    /// other protocol violates the protocol's requirements.
+    ///
+    /// It usually indicates a programming error: either in their implementation
+    /// of the protocol, or in ours.  It can also indicate an attempted attack,
+    /// though that can be hard to diagnose.
+    #[display(fmt = "network protocol violation")]
+    ProtocolViolation,
+
     /// Internal error (bug) in Arti.
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in

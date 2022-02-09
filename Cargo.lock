@@ -3312,6 +3312,7 @@ dependencies = [
  "hex-literal",
  "thiserror",
  "tor-bytes",
+ "tor-error",
 ]
 
 [[package]]
