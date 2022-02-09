@@ -477,6 +477,7 @@ impl<R: Runtime> GuardMgr<R> {
                     .all_primary_guards_are_unreachable()
                     && duration >= inner.params.internet_down_timeout
             } else {
+                // TODO: Is this the correct behavior in this case?
                 false
             };
 

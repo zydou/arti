@@ -584,6 +584,7 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
             if let Some(last_traffic) = tor_proto::time_since_last_incoming_traffic() {
                 last_traffic < delay
             } else {
+                // TODO: Is this the correct behavior in this case?
                 true
             };
 
