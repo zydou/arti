@@ -136,9 +136,9 @@ where
 
         // try to advance the handshake to the next state.
         let action = match handshake.handshake(&inbuf[..n_read]) {
-            Err(tor_socksproto::Error::Truncated) => continue,
-            Err(e) => return Err(e.into()),
-            Ok(action) => action,
+            Err(_) => continue, // Message truncated.
+            Ok(Err(e)) => return Err(e.into()),
+            Ok(Ok(action)) => action,
         };
 
         // reply if needed.
