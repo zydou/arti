@@ -240,7 +240,8 @@ mod rsa_impls {
     impl Readable for RsaIdentity {
         fn take_from(b: &mut Reader<'_>) -> Result<Self> {
             let m = b.take(RSA_ID_LEN)?;
-            Ok(RsaIdentity::from_bytes(m).expect("take gave wrong length"))
+            RsaIdentity::from_bytes(m)
+                .ok_or_else(|| tor_error::internal!("wrong number of bytes from take").into())
         }
     }
 }
