@@ -78,6 +78,7 @@ rust-nightly:
 coverage:
   stage: test
   image: rust:latest
+  allow_failure: true
   variables:
     RUSTFLAGS: "-Zinstrument-coverage"
     LLVM_PROFILE_FILE: "arti-%p-%m.profraw"
