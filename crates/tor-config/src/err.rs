@@ -1,7 +1,15 @@
 //! Declare error types.
 
+use tor_error::{ErrorKind, HasKind};
+
 /// An error related to an option passed to Arti via a configuration
 /// builder.
+//
+// API NOTE: When possible, we should expose this error type rather than
+// wrapping it in `TorError`. It can provide specific information about  what
+// part of the configuration was invalid.
+//
+// This is part of the public API.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigBuildError {
@@ -59,6 +67,12 @@ impl ConfigBuildError {
     }
 }
 
+impl HasKind for ConfigBuildError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::InvalidConfig
+    }
+}
+
 /// An error caused when attempting to reconfigure an existing Arti client, or one of its modules.
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
@@ -69,6 +83,12 @@ pub enum ReconfigureError {
         /// The field (or fields) that we tried to change.
         field: String,
     },
+}
+
+impl HasKind for ReconfigureError {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::InvalidConfigTransition
+    }
 }
 
 #[cfg(test)]
