@@ -580,8 +580,12 @@ impl super::TimeoutEstimator for ParetoTimeoutEstimator {
     fn note_circ_timeout(&mut self, hop: u8, delay: Duration) {
         // Only record this timeout if we have seen some network activity since
         // we launched the circuit.
-        let last_traffic = tor_proto::time_since_last_incoming_traffic();
-        let have_seen_recent_activity = last_traffic < delay;
+        let have_seen_recent_activity =
+            if let Some(last_traffic) = tor_proto::time_since_last_incoming_traffic() {
+                last_traffic < delay
+            } else {
+                true
+            };
 
         if hop > 0 && have_seen_recent_activity {
             self.history.add_success(false);

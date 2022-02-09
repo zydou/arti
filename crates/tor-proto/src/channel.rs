@@ -66,7 +66,7 @@ use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Rea
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
-use crate::util::ts::Timestamp;
+use crate::util::ts::OptTimestamp;
 use crate::{Error, Result};
 use std::pin::Pin;
 use tor_cell::chancell::{msg, ChanCell, CircId};
@@ -80,7 +80,7 @@ use futures::io::{AsyncRead, AsyncWrite};
 
 use futures::{Sink, SinkExt};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use tracing::trace;
@@ -130,8 +130,10 @@ pub(crate) struct ChannelDetails {
     /// If true, this channel is closing.
     closed: AtomicBool,
     /// Since when the channel became unused.
-    /// If None, this channle is still in use by at lesat one circuit.
-    unused_since: Mutex<Option<Timestamp>>,
+    ///
+    /// If calling `time_since_update` returns None,
+    /// this channel is still in use by at least one circuit.
+    unused_since: OptTimestamp,
 }
 
 impl Sink<ChanCell> for Channel {
@@ -249,9 +251,8 @@ impl Channel {
         let (control_tx, control_rx) = mpsc::unbounded();
         let (cell_tx, cell_rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         let closed = AtomicBool::new(false);
-        let ts = Timestamp::new();
-        ts.update();
-        let unused_since = Mutex::new(Some(ts));
+        let unused_since = OptTimestamp::new();
+        unused_since.update();
 
         let details = ChannelDetails {
             unique_id,
@@ -327,14 +328,12 @@ impl Channel {
     /// If the channel is not in use, return the amount of time
     /// it has had with no circuits.
     ///
-    /// Return None if the channel is currently in use.
+    /// Return `None` if the channel is currently in use.
     pub fn duration_unused(&self) -> Option<std::time::Duration> {
         self.details
             .unused_since
-            .lock()
-            .expect("Poisoned lock")
-            .as_ref()
-            .map(|t| t.time_since_update().into())
+            .time_since_update()
+            .map(Into::into)
     }
 
     /// Check whether a cell type is permissible to be _sent_ on an
@@ -454,7 +453,7 @@ pub(crate) mod test {
 
     fn fake_channel_details() -> Arc<ChannelDetails> {
         let unique_id = UniqId::new();
-        let unused_since = Mutex::new(None);
+        let unused_since = OptTimestamp::new();
 
         Arc::new(ChannelDetails {
             unique_id,
@@ -553,11 +552,7 @@ pub(crate) mod test {
     fn duration_unused_at() {
         let details = fake_channel_details();
         let ch = fake_channel(Arc::clone(&details));
-        let now = Timestamp::new();
-        now.update();
-        let mut unused_since = details.unused_since.lock().unwrap();
-        *unused_since = Some(now);
-        drop(unused_since); // release it so that next line doesn't hang
+        details.unused_since.update();
         assert!(ch.duration_unused().is_some());
     }
 }

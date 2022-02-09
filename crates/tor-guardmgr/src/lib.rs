@@ -469,11 +469,16 @@ impl<R: Runtime> GuardMgr<R> {
         // don't want to acknowledge the net as down before that point, since
         // we don't mark all the primary guards as retriable unless
         // we've been forced to non-primary guards.
-        let net_has_been_down = inner
-            .guards
-            .active_guards_mut()
-            .all_primary_guards_are_unreachable()
-            && tor_proto::time_since_last_incoming_traffic() >= inner.params.internet_down_timeout;
+        let net_has_been_down =
+            if let Some(duration) = tor_proto::time_since_last_incoming_traffic() {
+                inner
+                    .guards
+                    .active_guards_mut()
+                    .all_primary_guards_are_unreachable()
+                    && duration >= inner.params.internet_down_timeout
+            } else {
+                false
+            };
 
         let pending_request =
             pending::PendingRequest::new(guard_id.clone(), usage, usable_sender, net_has_been_down);

@@ -9,7 +9,6 @@
 use super::circmap::{CircEnt, CircMap};
 use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::ReactorError;
-use crate::util::ts::Timestamp;
 use crate::{Error, Result};
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
@@ -384,18 +383,14 @@ impl Reactor {
 
     /// Update disused timestamp with current time if this channel is no longer used
     fn update_disused_since(&self) {
-        if self.circs.open_ent_count() == 0 {
-            // Update disused_since if it is still `None`
-            let mut disused_since = self.details.unused_since.lock().expect("Poisoned lock");
-            if disused_since.is_none() {
-                let now = Timestamp::new();
-                now.update();
-                *disused_since = Some(now);
-            }
+        if self.circs.open_ent_count() == 0
+            && self.details.unused_since.time_since_update().is_none()
+        {
+            // Update disused_since if it still indicates that the channel is in use
+            self.details.unused_since.update();
         } else {
             // Mark this channel as in use
-            let mut disused_since = self.details.unused_since.lock().expect("Poisoned lock");
-            *disused_since = None;
+            self.details.unused_since.clear();
         }
     }
 }
