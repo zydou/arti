@@ -169,7 +169,15 @@ enum ErrorDetail {
         /// What happened when we tried to spawn it.
         #[source]
         cause: Arc<SpawnError>
-    }
+    },
+
+    /// Attempted to use an unbootstrapped `TorClient` for something that requires bootstrapping
+    /// to have completed.
+    #[error("cannot {action} with unbootstrapped client")]
+    BootstrapRequired {
+        /// What we were trying to do that required bootstrapping.
+        action: &'static str
+    },
 }
 
 // End of the use of $vis to refer to visibility according to `error_detail`
@@ -225,6 +233,7 @@ impl tor_error::HasKind for ErrorDetail {
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::ExitTimeout,
+            E::BootstrapRequired { .. } => EK::BootstrapRequired,
             _ => EK::TODO,
         }
     }

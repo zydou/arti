@@ -644,7 +644,7 @@ impl<R: Runtime> Benchmark<R> {
         info!("Starting Arti...");
         let tor_client = self
             .runtime
-            .block_on(TorClient::bootstrap(self.runtime.clone(), tcc))?;
+            .block_on(TorClient::create_bootstrapped(self.runtime.clone(), tcc))?;
 
         let addr = TorAddr::dangerously_from(self.connect_addr)?;
 
