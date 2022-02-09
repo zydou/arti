@@ -23,6 +23,12 @@ routerdesc = []
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental-api = []
+
 [dependencies]
 tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
 tor-bytes = { path="../tor-bytes", version = "0.1.0"}
