@@ -12,6 +12,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.0.3"}
+tor-error = { path="../tor-error", version = "0.0.1" }
 
 arrayref = "0.3"
 bytes = "1"
