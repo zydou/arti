@@ -75,7 +75,7 @@ Once you are satisfied with your code, you can compile it by running this comman
 ```sh
  ## build for 32bit and 64bit, x86 (emulator) and arm (most devices).
 $ cargo ndk -t armeabi-v7a -t arm64-v8a -t x86 -t x86_64 -o ./jniLibs build
- ## build for 64bit arm only (recents devices).
+ ## build for 64bit arm only (recent devices).
 $ cargo ndk -t arm64-v8a -o ./jniLibs build
 ```
 
