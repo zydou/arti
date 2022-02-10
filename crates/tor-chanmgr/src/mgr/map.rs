@@ -427,7 +427,7 @@ mod test {
         // Closed channel should be retained
         map.replace(b'h', closed("hello")).unwrap();
 
-        // Return duration untill next channel expires
+        // Return duration until next channel expires
         assert_eq!(10, map.expire_channels().as_secs());
         assert!(map.get(&b'w').unwrap().is_some());
         assert!(map.get(&b'y').unwrap().is_some());
