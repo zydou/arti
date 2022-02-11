@@ -212,7 +212,15 @@ pub enum ErrorKind {
     #[display(fmt = "Tor network protocol violation (bug, incompatibility, or attack)")]
     TorProtocolViolation,
 
-    /// Bug, for example calling a function with an invalid argument.
+    /// Something went wrong with a network connection or the local network.
+    ///
+    /// This kind of error is usually safe to retry, and shouldn't typically be
+    /// seen.  By the time it reaches the caller, more specific error type
+    /// should typically be available.
+    #[display(fmt = "problem with network or connection")]
+    Network,
+
+        /// Bug, for example calling a function with an invalid argument.
     ///
     /// This kind of error is usually a programming mistake on the caller's part.
     /// This is usually a bug in code calling Arti, but it might be a bug in Arti itself.

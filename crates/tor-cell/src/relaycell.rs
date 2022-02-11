@@ -3,6 +3,7 @@
 use crate::chancell::{RawCellBody, CELL_DATA_LEN};
 use tor_bytes::{Error, Result};
 use tor_bytes::{Reader, Writer};
+use tor_error::internal;
 
 use arrayref::array_mut_ref;
 use caret::caret_int;
@@ -202,9 +203,9 @@ impl RelayCell {
         let encoded = self.encode_to_vec();
         let enc_len = encoded.len();
         if enc_len > CELL_DATA_LEN {
-            return Err(crate::Error::InternalError(
-                "too many bytes in relay cell".into(),
-            ));
+            return Err(crate::Error::Internal(internal!(
+                "too many bytes in relay cell"
+            )));
         }
         let mut raw = [0_u8; CELL_DATA_LEN];
         raw[0..enc_len].copy_from_slice(&encoded);

@@ -87,6 +87,8 @@ use tracing::trace;
 
 // reexport
 use crate::channel::unique_id::CircUniqIdContext;
+#[cfg(test)]
+pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
 /// Type alias: A Sink and Stream that transforms a TLS connection into

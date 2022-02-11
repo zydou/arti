@@ -626,7 +626,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
-    use crate::channel::test::new_reactor;
+    use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
     use chanmsg::{ChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
@@ -703,7 +703,7 @@ mod test {
     ) -> (
         Channel,
         Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, tor_cell::Error>>,
+        Sender<std::result::Result<ChanCell, CodecError>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor();
         rt.spawn(async {
@@ -1187,7 +1187,7 @@ mod test {
         StreamId,
         usize,
         Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, tor_cell::Error>>,
+        Sender<std::result::Result<ChanCell, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;

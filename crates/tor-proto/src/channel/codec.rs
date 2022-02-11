@@ -1,9 +1,38 @@
 //! Wrap tor_cell::...:::ChannelCodec for use with the futures_codec
 //! crate.
+use std::io::Error as IoError;
+
 use tor_cell::chancell::{codec, ChanCell};
 
 use asynchronous_codec as futures_codec;
 use bytes::BytesMut;
+
+/// An error from a ChannelCodec.
+///
+/// This is a separate error type for now because I suspect that we'll want to
+/// handle these differently in the rest of our channel code.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum CodecError {
+    /// An error from the underlying IO stream underneath a codec.
+    ///
+    /// (This isn't wrapped in an Arc, because we don't need this type to be
+    /// clone; it's crate-internal.)
+    #[error("Io error")]
+    Io(#[from] IoError),
+    /// An error from the cell encoding/decoding logic.
+    #[error("encoding/decoding error")]
+    Cell(#[from] tor_cell::Error),
+}
+
+impl From<CodecError> for crate::Error {
+    fn from(err: CodecError) -> Self {
+        // TODO(nickm): we'll want to revise this implementation when we revisit errors in tor-proto.
+        match err {
+            CodecError::Io(e) => e.into(),
+            CodecError::Cell(e) => e.into(),
+        }
+    }
+}
 
 /// Asynchronous wrapper around ChannelCodec in tor_cell, with implementation
 /// for use with futures_codec.
@@ -22,19 +51,20 @@ impl ChannelCodec {
 
 impl futures_codec::Encoder for ChannelCodec {
     type Item = ChanCell;
-    type Error = tor_cell::Error;
+    type Error = CodecError;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        self.0.write_cell(item, dst)
+        self.0.write_cell(item, dst)?;
+        Ok(())
     }
 }
 
 impl futures_codec::Decoder for ChannelCodec {
     type Item = ChanCell;
-    type Error = tor_cell::Error;
+    type Error = CodecError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        self.0.decode_cell(src)
+        Ok(self.0.decode_cell(src)?)
     }
 }
 
