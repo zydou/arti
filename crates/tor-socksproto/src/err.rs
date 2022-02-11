@@ -1,19 +1,25 @@
 //! Declare an error type for tor_socksproto
 use thiserror::Error;
 
+use tor_error::{ErrorKind, HasKind, InternalError};
+
 /// An error that occurs while negotiating a SOCKS handshake.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// Tried to handle a message what wasn't complete: try again.
-    #[error("Message truncated; need to wait for more")]
-    Truncated,
-
     /// The SOCKS client didn't implement SOCKS correctly.
     ///
     /// (Or, more likely, we didn't account for its behavior.)
     #[error("SOCKS protocol syntax violation")]
     Syntax,
+
+    /// Failed to decode a SOCKS message.
+    #[error("Error decoding message")]
+    Decode(#[from] tor_bytes::Error),
+
+    /// Called a function with an invalid argument.
+    #[error("Invalid argument: {0}")]
+    Invalid(&'static str),
 
     /// The SOCKS client declared a SOCKS version number that isn't
     /// one we support.
@@ -31,19 +37,31 @@ pub enum Error {
     /// Tried to progress the SOCKS handshake when it was already
     /// finished.  This is a programming error.
     #[error("SOCKS handshake was finished; no need to call this again")]
-    AlreadyFinished,
+    AlreadyFinished(InternalError),
 
     /// Something went wrong with the programming of this module.
     #[error("Internal programming error while handling SOCKS handshake")]
-    Internal,
+    Internal(InternalError),
 }
 
-impl From<tor_bytes::Error> for Error {
-    fn from(e: tor_bytes::Error) -> Error {
-        use tor_bytes::Error as E;
-        match e {
-            E::Truncated => Error::Truncated,
-            _ => Error::Syntax,
+// Note: at present, tor-socksproto isn't used in any settings where ErrorKind
+// is used.  This is provided for future-proofing, since someday we'll want to
+// have SOCKS protocol support internally as well as in the `arti` proxy.
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::Decode(tor_bytes::Error::Truncated) => {
+                // This variant should always get converted before a user can
+                // see it.
+                EK::Internal
+            }
+            E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::ProtocolViolation,
+            E::Invalid(_) => EK::BadArgument,
+            E::NoSupport => EK::NoSupport,
+            E::AlreadyFinished(_) => EK::Internal,
+            E::Internal(_) => EK::Internal,
         }
     }
 }
