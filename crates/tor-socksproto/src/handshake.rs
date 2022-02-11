@@ -82,7 +82,7 @@ impl SocksHandshake {
     /// and how much of its input to consume.
     pub fn handshake(&mut self, input: &[u8]) -> TResult<Action> {
         if input.is_empty() {
-            return Err(Truncated::Truncated);
+            return Err(Truncated::new());
         }
         let rv = match (self.state, input[0]) {
             (State::Initial, 4) => self.s4(input),
@@ -99,7 +99,7 @@ impl SocksHandshake {
             (_, _) => Err(Error::Syntax),
         };
         match rv {
-            Err(Error::Truncated_internal_) => Err(Truncated::Truncated),
+            Err(Error::Truncated_internal_) => Err(Truncated::new()),
             Err(e) => {
                 self.state = State::Failed;
                 Ok(Err(e))
@@ -554,7 +554,7 @@ mod test {
     #[test]
     fn empty_handshake() {
         let r = SocksHandshake::new().handshake(&[]);
-        assert!(matches!(r, Err(Truncated::Truncated)));
+        assert!(matches!(r, Err(Truncated { .. })));
     }
 
     #[test]

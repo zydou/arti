@@ -41,6 +41,9 @@ use derive_more::Display;
 mod internal;
 pub use internal::*;
 
+mod truncated;
+pub use truncated::*;
+
 /// Classification of an error arising from Arti's Tor operations
 ///
 /// This `ErrorKind` should suffice for programmatic handling by most applications embedding Arti:

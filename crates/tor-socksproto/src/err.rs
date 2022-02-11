@@ -42,21 +42,6 @@ pub enum Error {
     Internal(InternalError),
 }
 
-/// Error type for truncated messages.
-///
-/// This is a separate type because message truncation is not a true error: it
-/// just means you need to read more and try again.
-#[derive(Clone, Debug, Error)]
-#[non_exhaustive]
-pub enum Truncated {
-    /// Indicates that a message has been truncated.
-    ///
-    /// This is not a real problem; you should just read more bytes on the
-    /// handshake and try again.
-    #[error("Message truncated; need to wait for more")]
-    Truncated,
-}
-
 // Note: at present, tor-socksproto isn't used in any settings where ErrorKind
 // is used.  This is provided for future-proofing, since someday we'll want to
 // have SOCKS protocol support internally as well as in the `arti` proxy.
