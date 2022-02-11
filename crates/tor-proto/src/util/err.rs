@@ -2,6 +2,7 @@
 use std::sync::Arc;
 use thiserror::Error;
 use tor_cell::relaycell::msg::EndReason;
+use tor_error::InternalError;
 
 /// An error type for the tor-proto crate.
 ///
@@ -32,7 +33,7 @@ pub enum Error {
     NoSuchHop,
     /// There was a programming error somewhere in the code.
     #[error("Internal programming error: {0}")]
-    InternalError(String),
+    Internal(#[from] InternalError),
     /// The authentication information on this cell was completely wrong,
     /// or the cell was corrupted.
     #[error("bad relay cell authentication")]
@@ -125,7 +126,7 @@ impl From<Error> for std::io::Error {
             BytesErr(_) | MissingKey | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_)
             | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
 
-            InternalError(_) | IdRangeFull | CircExtend(_) | BadConfig(_) | ResolveError(_) => {
+            Internal(_) | IdRangeFull | CircExtend(_) | BadConfig(_) | ResolveError(_) => {
                 ErrorKind::Other
             }
         };

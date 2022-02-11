@@ -38,6 +38,7 @@ use digest::Digest;
 use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};
 use std::convert::TryInto;
+use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
 
@@ -371,7 +372,8 @@ fn hs_ntor_mac(key: &[u8], message: &[u8]) -> Result<MacTag> {
     let result = d.finalize();
     result
         .try_into()
-        .map_err(|_| Error::InternalError("failed MAC computation".into()))
+        .map_err(into_internal!("failed MAC computation"))
+        .map_err(Error::from)
 }
 
 /// Helper function: Compute the part of the HS ntor handshake that generates
@@ -418,10 +420,12 @@ fn get_introduce1_key_material(
     // Extract the keys into arrays
     let enc_key = hs_keys[0..32]
         .try_into()
-        .map_err(|_| Error::InternalError("converting enc_key".into()))?;
+        .map_err(into_internal!("converting enc_key"))
+        .map_err(Error::from)?;
     let mac_key = hs_keys[32..64]
         .try_into()
-        .map_err(|_| Error::InternalError("converting mac_key".into()))?;
+        .map_err(into_internal!("converting mac_key"))
+        .map_err(Error::from)?;
 
     Ok((enc_key, mac_key))
 }

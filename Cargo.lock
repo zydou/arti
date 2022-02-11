@@ -3256,6 +3256,7 @@ dependencies = [
  "tor-cell",
  "tor-cert",
  "tor-checkable",
+ "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-protover",

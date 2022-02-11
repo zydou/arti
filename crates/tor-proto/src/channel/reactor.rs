@@ -18,6 +18,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::sink::SinkExt;
 use futures::stream::Stream;
 use futures::Sink;
+use tor_error::internal;
 
 use std::convert::TryInto;
 use std::fmt;
@@ -312,7 +313,9 @@ impl Reactor {
         // TODO(nickm) I think that this one actually means the other side
         // is closed. See arti#269.
         target.send(created).map_err(|_| {
-            Error::InternalError("Circuit queue rejected created message. Is it closing?".into())
+            Error::Internal(internal!(
+                "Circuit queue rejected created message. Is it closing?"
+            ))
         })
     }
 
@@ -332,9 +335,7 @@ impl Reactor {
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
                     .map_err(|_| {
-                        Error::InternalError(
-                            "pending circuit wasn't interested in Destroy cell?".into(),
-                        )
+                        internal!("pending circuit wasn't interested in destroy cell?").into()
                     })
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
@@ -345,7 +346,7 @@ impl Reactor {
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
                     .map_err(|_| {
-                        Error::InternalError("circuit wasn't interested in destroy cell?".into())
+                        internal!("open circuit wasn't interested in destroy cell?").into()
                     })
             }
             // We've sent a destroy; we can leave this circuit removed.

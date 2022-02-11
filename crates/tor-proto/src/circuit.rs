@@ -60,6 +60,7 @@ use tor_cell::{
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
+use tor_error::internal;
 use tor_linkspec::{CircTarget, LinkSpec};
 
 use futures::channel::{mpsc, oneshot};
@@ -240,9 +241,9 @@ impl ClientCirc {
 
         let num_hops = self.hops.load(Ordering::SeqCst);
         if num_hops == 0 {
-            return Err(Error::InternalError(
-                "Number of hops specified is zero, cannot continue".into(),
-            ));
+            return Err(Error::Internal(internal!(
+                "Can't begin a stream at the 0th hop"
+            )));
         }
         let hop_num: HopNum = (num_hops - 1).into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
