@@ -28,7 +28,7 @@
 //! The main entry point for this crate is the [`TorClient`], an object that
 //! lets you make connections over the Tor network.
 //!
-//! Calling [`TorClient::bootstrap`] establishes a connection to the Tor
+//! Calling [`TorClient::create_bootstrapped`] establishes a connection to the Tor
 //! network, pulling in necessary state about network consensus as required.
 //! This state gets persisted to the locations specified in the
 //! [`TorClientConfig`].
@@ -118,7 +118,7 @@
 //! runtimes; currently, both [Tokio](https://tokio.rs) and
 //! [async-std](https://async.rs) are supported.
 //!
-//! Functions in this crate, like [`TorClient::bootstrap`], will expect a type
+//! Functions in this crate, like [`TorClient::create_bootstrapped`], will expect a type
 //! that implements [`tor_rtcompat::Runtime`], which can be obtained:
 //!
 //! - for Tokio:

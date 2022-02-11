@@ -304,16 +304,16 @@ impl<R: Runtime> TorClient<R> {
         config: TorClientConfig,
     ) -> crate::Result<TorClient<R>> {
         let ret = TorClient::create_unbootstrapped(runtime, config)?;
-        ret.bootstrap_existing().await?;
+        ret.bootstrap().await?;
         Ok(ret)
     }
 
     /// Create a `TorClient` without bootstrapping a connection to the network. The returned client
-    /// will not be usable until [`bootstrap_existing`](TorClient::bootstrap_existing) is called.
+    /// will not be usable until [`bootstrap`](TorClient::bootstrap) is called.
     ///
     /// Attempts to use the client (e.g. by creating connections or resolving hosts over the Tor
-    /// network) before calling [`bootstrap_existing`](TorClient::bootstrap_existing) will fail, and
-    /// return an error that has kind [`ErrorKind::BootstrapRequired`]. However, if a bootstrap
+    /// network) before calling [`bootstrap`](TorClient::bootstrap) will fail, and
+    /// return an error that has kind [`ErrorKind::BootstrapRequired`](crate::ErrorKind::BootstrapRequired). However, if a bootstrap
     /// attempt is in progress but not complete, attempts to use the client will block instead.
     pub fn create_unbootstrapped(runtime: R, config: TorClientConfig) -> crate::Result<Self> {
         TorClient::create_inner(runtime, config).map_err(ErrorDetail::into)
@@ -428,15 +428,13 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// If the bootstrapping process fails, returns an error. This function can safely be called
     /// again later to attempt to bootstrap another time.
-    pub async fn bootstrap_existing(&self) -> crate::Result<()> {
-        self.bootstrap_existing_inner()
-            .await
-            .map_err(ErrorDetail::into)
+    pub async fn bootstrap(&self) -> crate::Result<()> {
+        self.bootstrap_inner().await.map_err(ErrorDetail::into)
     }
 
-    /// Implementation of `bootstrap_existing`, split out in order to avoid manually specifying
+    /// Implementation of `bootstrap`, split out in order to avoid manually specifying
     /// double error conversions.
-    async fn bootstrap_existing_inner(&self) -> StdResult<(), ErrorDetail> {
+    async fn bootstrap_inner(&self) -> StdResult<(), ErrorDetail> {
         // Wait for an existing bootstrap attempt to finish first.
         self.wait_for_bootstrap().await?;
 
