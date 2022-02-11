@@ -491,11 +491,69 @@ impl<R: Runtime> TorClient<R> {
         result
     }
 
-    /// Launch an anonymized connection to the provided address and
-    /// port over the Tor network.
+    /// Launch an anonymized connection to the provided address and port over
+    /// the Tor network.
     ///
-    /// Note that because Tor prefers to do DNS resolution on the remote
-    /// side of the network, this function takes its address as a string.
+    /// Note that because Tor prefers to do DNS resolution on the remote side of
+    /// the network, this function takes its address as a string:
+    ///
+    /// ```no_run
+    /// # use arti_client::*;use tor_rtcompat::Runtime;
+    /// # async fn ex<R:Runtime>(tor_client: TorClient<R>) -> Result<()> {
+    /// // The most usual way to connect is via an address-port tuple.
+    /// let socket = tor_client.connect(("www.example.com", 443)).await?;
+    ///
+    /// // You can also specify an address and port as a colon-separated string.
+    /// let socket = tor_client.connect("www.example.com:443").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Hostnames are _strongly_ preferred here: if this function allowed the
+    /// caller here to provide an IPAddr or [`IpAddr`] or
+    /// [`SocketAddr`](std::net::SocketAddr) address, then  
+    ///
+    /// ```no_run
+    /// # use arti_client::*; use tor_rtcompat::Runtime;
+    /// # async fn ex<R:Runtime>(tor_client: TorClient<R>) -> Result<()> {
+    /// # use std::net::ToSocketAddrs;
+    /// // BAD: We're about to leak our target address to the local resolver!
+    /// let address = "www.example.com:443".to_socket_addrs().unwrap().next().unwrap();
+    /// // 🤯 Oh no! Now any eavesdropper can tell where we're about to connect! 🤯
+    ///
+    /// // Fortunately, this won't compile, since SocketAddr doesn't implement IntoTorAddr.
+    /// // let socket = tor_client.connect(address).await?;
+    /// //                                 ^^^^^^^ the trait `IntoTorAddr` is not implemented for `std::net::SocketAddr`
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// If you really do need to connect to an IP address rather than a
+    /// hostname, and if you're **sure** that the IP address came from a safe
+    /// location, there are a few ways to do so.
+    ///
+    /// ```no_run
+    /// # use arti_client::{TorClient,Result};use tor_rtcompat::Runtime;
+    /// # use std::net::{SocketAddr,IpAddr};
+    /// # async fn ex<R:Runtime>(tor_client: TorClient<R>) -> Result<()> {
+    /// # use std::net::ToSocketAddrs;
+    /// // ⚠️This is risky code!⚠️
+    /// // (Make sure your addresses came from somewhere safe...)
+    ///
+    /// // If we have a fixed address, we can just provide it as a string.
+    /// let socket = tor_client.connect("192.0.2.22:443").await?;
+    /// let socket = tor_client.connect(("192.0.2.22", 443)).await?;
+    ///
+    /// // If we have a SocketAddr or an IpAddr, we can use the
+    /// // DangerouslyIntoTorAddr trait.
+    /// use arti_client::DangerouslyIntoTorAddr;
+    /// let sockaddr = SocketAddr::from(([192, 0, 2, 22], 443));
+    /// let ipaddr = IpAddr::from([192, 0, 2, 22]);
+    /// let socket = tor_client.connect(sockaddr.into_tor_addr_dangerously().unwrap()).await?;
+    /// let socket = tor_client.connect((ipaddr, 443).into_tor_addr_dangerously().unwrap()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn connect<A: IntoTorAddr>(&self, target: A) -> crate::Result<DataStream> {
         self.connect_with_prefs(target, &self.connect_prefs).await
     }
@@ -505,6 +563,7 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Note that because Tor prefers to do DNS resolution on the remote
     /// side of the network, this function takes its address as a string.
+    /// (See [`TorClient::connect()`] for more information.)
     pub async fn connect_with_prefs<A: IntoTorAddr>(
         &self,
         target: A,
