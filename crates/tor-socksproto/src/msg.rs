@@ -169,7 +169,7 @@ impl TryFrom<String> for SocksHostname {
     type Error = Error;
     fn try_from(s: String) -> Result<SocksHostname> {
         if s.len() > 255 {
-            Err(Error::Syntax)
+            Err(Error::Invalid("hostname too long"))
         } else {
             Ok(SocksHostname(s))
         }
