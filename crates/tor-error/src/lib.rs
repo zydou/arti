@@ -63,6 +63,10 @@ pub enum ErrorKind {
     #[display(fmt = "error connecting to Tor")]
     TorConnectionFailed,
 
+    /// An attempt was made to use a Tor client for something without bootstrapping it first.
+    #[display(fmt = "attempted to use unbootstrapped client")]
+    BootstrapRequired,
+
     /// IO error accessing local persistent state
     ///
     /// Eg, disk full or permissions problem.

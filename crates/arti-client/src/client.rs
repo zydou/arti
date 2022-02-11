@@ -1,9 +1,9 @@
 //! A general interface for Tor client usage.
 //!
-//! To construct a client, run the `TorClient::bootstrap()` method.
+//! To construct a client, run the [`TorClient::create_bootstrapped`] method.
 //! Once the client is bootstrapped, you can make anonymous
 //! connections ("streams") over the Tor network using
-//! `TorClient::connect()`.
+//! [`TorClient::connect`].
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
@@ -15,8 +15,10 @@ use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
+use futures::future::Either;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
+use futures::FutureExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
@@ -76,6 +78,10 @@ pub struct TorClient<R: Runtime> {
     /// (We don't need to observe this stream ourselves, since it drops each
     /// unobserved status change when the next status change occurs.)
     status_receiver: status::BootstrapEvents,
+
+    /// Event listener to notify tasks stuck in `wait_for_bootstrap` of
+    /// a failure to bootstrap.
+    bootstrap_failure_listener: Arc<event_listener::Event>,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -254,7 +260,7 @@ impl TorClient<PreferredTokioRuntime> {
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
     ///
-    /// This is a convenience wrapper around [`TorClient::bootstrap`].
+    /// This is a convenience wrapper around [`TorClient::create_bootstrapped`].
     ///
     /// # Panics
     ///
@@ -263,7 +269,7 @@ impl TorClient<PreferredTokioRuntime> {
         config: TorClientConfig,
     ) -> crate::Result<TorClient<PreferredTokioRuntime>> {
         let rt = PreferredTokioRuntime::current().expect("called outside of Tokio runtime");
-        Self::bootstrap(rt, config).await
+        Self::create_bootstrapped(rt, config).await
     }
 }
 
@@ -274,13 +280,13 @@ impl TorClient<PreferredAsyncStdRuntime> {
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
     ///
-    /// This is a convenience wrapper around [`TorClient::bootstrap`].
+    /// This is a convenience wrapper around [`TorClient::create_bootstrapped`].
     pub async fn bootstrap_with_async_std(
         config: TorClientConfig,
     ) -> crate::Result<TorClient<PreferredAsyncStdRuntime>> {
         // FIXME(eta): not actually possible for this to fail
         let rt = PreferredAsyncStdRuntime::current().expect("failed to get async-std runtime");
-        Self::bootstrap(rt, config).await
+        Self::create_bootstrapped(rt, config).await
     }
 }
 
@@ -290,32 +296,37 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
-    pub async fn bootstrap(runtime: R, config: TorClientConfig) -> crate::Result<TorClient<R>> {
-        TorClient::bootstrap_inner(runtime, config)
-            .await
-            .map_err(ErrorDetail::into)
-    }
-
-    /// Implementation; throws crate::Error
     ///
-    /// Within inner we can take advantage of the `Into` impls for `crate::Error`;
-    /// splitting this out avoids having to manually specify the double error conversion.
-    async fn bootstrap_inner(
+    /// Consider using [`create_unbootstrapped`](TorClient::create_unbootstrapped)
+    /// if you wish to create a client immediately, and defer bootstrapping until later.
+    pub async fn create_bootstrapped(
         runtime: R,
         config: TorClientConfig,
-    ) -> StdResult<TorClient<R>, ErrorDetail> {
+    ) -> crate::Result<TorClient<R>> {
+        let ret = TorClient::create_unbootstrapped(runtime, config)?;
+        ret.bootstrap_existing().await?;
+        Ok(ret)
+    }
+
+    /// Create a `TorClient` without bootstrapping a connection to the network. The returned client
+    /// will not be usable until [`bootstrap_existing`](TorClient::bootstrap_existing) is called.
+    ///
+    /// Attempts to use the client (e.g. by creating connections or resolving hosts over the Tor
+    /// network) before calling [`bootstrap_existing`](TorClient::bootstrap_existing) will fail, and
+    /// return an error that has kind [`ErrorKind::BootstrapRequired`]. However, if a bootstrap
+    /// attempt is in progress but not complete, attempts to use the client will block instead.
+    pub fn create_unbootstrapped(runtime: R, config: TorClientConfig) -> crate::Result<Self> {
+        TorClient::create_inner(runtime, config).map_err(ErrorDetail::into)
+    }
+
+    /// Implementation of `create_unbootstrapped`, split out in order to avoid manually specifying
+    /// double error conversions.
+    fn create_inner(runtime: R, config: TorClientConfig) -> StdResult<Self, ErrorDetail> {
         let circ_cfg = config.get_circmgr_config()?;
         let dir_cfg = config.get_dirmgr_config()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
-        if statemgr.try_lock()?.held() {
-            debug!("It appears we have the lock on our state files.");
-        } else {
-            info!(
-                "Another process has the lock on our state files. We'll proceed in read-only mode."
-            );
-        }
         let addr_cfg = config.address_filter.clone();
-        let timeout_cfg = config.stream_timeouts.clone();
+        let timeout_cfg = config.stream_timeouts;
 
         let (status_sender, status_receiver) = postage::watch::channel();
         let status_receiver = status::BootstrapEvents {
@@ -325,15 +336,11 @@ impl<R: Runtime> TorClient<R> {
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
                 .map_err(ErrorDetail::CircMgrSetup)?;
-        let dirmgr = tor_dirmgr::DirMgr::bootstrap_from_config(
+        let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(
             dir_cfg,
             runtime.clone(),
             Arc::clone(&circmgr),
-        )
-        .await?;
-
-        // TODO: This happens too late.  We need to create dirmgr and get its
-        // event stream, and only THEN get its status.
+        )?;
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
@@ -345,7 +352,12 @@ impl<R: Runtime> TorClient<R> {
             ))
             .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 
-        circmgr.update_network_parameters(dirmgr.netdir().params());
+        runtime
+            .spawn(continually_expire_channels(
+                runtime.clone(),
+                Arc::downgrade(&chanmgr),
+            ))
+            .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
 
         // Launch a daemon task to inform the circmgr about new
         // network parameters.
@@ -381,13 +393,6 @@ impl<R: Runtime> TorClient<R> {
             ))
             .map_err(|e| ErrorDetail::from_spawn("preemptive circuit launcher", e))?;
 
-        runtime
-            .spawn(continually_expire_channels(
-                runtime.clone(),
-                Arc::downgrade(&chanmgr),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
-
         let client_isolation = IsolationToken::new();
 
         Ok(TorClient {
@@ -401,7 +406,89 @@ impl<R: Runtime> TorClient<R> {
             timeoutcfg: Arc::new(timeout_cfg.into()),
             reconfigure_lock: Arc::new(Mutex::new(())),
             status_receiver,
+            bootstrap_failure_listener: Arc::new(Default::default()),
         })
+    }
+
+    /// Bootstrap a connection to the Tor network, with a client created by `create_unbootstrapped`.
+    ///
+    /// Since cloned copies of a `TorClient` share internal state, you can bootstrap a client by
+    /// cloning it and running this function in a background task (or similar). This function
+    /// only needs to be called on one client in order to bootstrap all of its clones.
+    ///
+    /// Returns once there is enough directory material to connect safely over the Tor network.
+    /// If the client or one of its clones has already been bootstrapped, returns immediately with
+    /// success. If a bootstrap is in progress, waits for it to finish, then retries it if it
+    /// failed (returning success if it succeeded).
+    ///
+    /// Bootstrap progress can be tracked by listening to the event receiver returned by
+    /// [`bootstrap_events`](TorClient::bootstrap_events).
+    ///
+    /// # Failures
+    ///
+    /// If the bootstrapping process fails, returns an error. This function can safely be called
+    /// again later to attempt to bootstrap another time.
+    pub async fn bootstrap_existing(&self) -> crate::Result<()> {
+        self.bootstrap_existing_inner()
+            .await
+            .map_err(ErrorDetail::into)
+    }
+
+    /// Implementation of `bootstrap_existing`, split out in order to avoid manually specifying
+    /// double error conversions.
+    async fn bootstrap_existing_inner(&self) -> StdResult<(), ErrorDetail> {
+        // Wait for an existing bootstrap attempt to finish first.
+        self.wait_for_bootstrap().await?;
+
+        if self.statemgr.try_lock()?.held() {
+            debug!("It appears we have the lock on our state files.");
+        } else {
+            info!(
+                "Another process has the lock on our state files. We'll proceed in read-only mode."
+            );
+        }
+
+        if let Err(e) = self.dirmgr.bootstrap().await {
+            // Let any tasks stuck in `wait_for_bootstrap` know that we failed.
+            self.bootstrap_failure_listener.notify(usize::MAX);
+            return Err(e.into());
+        }
+
+        self.circmgr
+            .update_network_parameters(self.dirmgr.netdir()?.params());
+
+        Ok(())
+    }
+
+    /// Check whether a bootstrap is in progress; if one is, wait until it finishes
+    /// and then return. (Otherwise, return immediately.)
+    async fn wait_for_bootstrap(&self) -> StdResult<(), ErrorDetail> {
+        if self.dirmgr.opt_netdir().is_some() {
+            return Ok(());
+        }
+        // We have to be careful to not get stuck forever here due to a race condition.
+        if self.dirmgr.bootstrap_started() {
+            let mut events = self.bootstrap_events();
+            let mut failure = self.bootstrap_failure_listener.listen().into_stream();
+            // Poll both the bootstrap events stream, and the failure listener.
+            // If we get a failure notification (Either::Right), this loop exits.
+            // If we get a bootstrap event (Either::Left), we check to see whether we're done.
+            while let Either::Left((Some(_), _)) =
+                futures::future::select(events.next(), failure.next()).await
+            {
+                // Have we finished bootstrapping?
+                if self.dirmgr.opt_netdir().is_some() {
+                    return Ok(());
+                }
+                // This is here as a check for if we failed after we checked bootstrap_started()
+                // but before calling bootstrap_failure_listener.listen() (in which case the
+                // failure listener wouldn't notify us).
+                if !self.dirmgr.bootstrap_started() {
+                    return Ok(());
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Change the configuration of this TorClient to `new_config`.
@@ -412,7 +499,7 @@ impl<R: Runtime> TorClient<R> {
     /// only fatal errors will be reported in this function's return value.
     ///
     /// This function applies its changes to **all** TorClient instances derived
-    /// from the same call to [`TorClient::bootstrap`]: even ones whose circuits
+    /// from the same call to `TorClient::create_*`: even ones whose circuits
     /// are isolated from this handle.
     ///
     /// # Limitations
@@ -701,7 +788,13 @@ impl<R: Runtime> TorClient<R> {
         exit_ports: &[TargetPort],
         prefs: &StreamPrefs,
     ) -> StdResult<ClientCirc, ErrorDetail> {
-        let dir = self.dirmgr.netdir();
+        self.wait_for_bootstrap().await?;
+        let dir = self
+            .dirmgr
+            .opt_netdir()
+            .ok_or(ErrorDetail::BootstrapRequired {
+                action: "launch a circuit",
+            })?;
 
         let isolation = {
             let mut b = StreamIsolationBuilder::new();
@@ -741,10 +834,6 @@ impl<R: Runtime> TorClient<R> {
     /// when it does poll the stream it should get the most recent one.
     //
     // TODO(nickm): will this also need to implement Send and 'static?
-    //
-    // TODO(nickm): by the time the `TorClient` is visible to the user, this
-    // status is always true.  That will change with #293, however, and will
-    // also change as BootstrapStatus becomes more complex with #96.
     pub fn bootstrap_events(&self) -> status::BootstrapEvents {
         self.status_receiver.clone()
     }
@@ -775,8 +864,11 @@ async fn keep_circmgr_params_updated<R: Runtime>(
         match event {
             NewConsensus => {
                 if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                    cm.update_network_parameters(dm.netdir().params());
-                    cm.update_network(&dm.netdir());
+                    let netdir = dm
+                        .netdir()
+                        .expect("got new consensus event, without a netdir?");
+                    cm.update_network_parameters(netdir.params());
+                    cm.update_network(&netdir);
                 } else {
                     debug!("Circmgr or dirmgr has disappeared; task exiting.");
                     break;
@@ -784,7 +876,10 @@ async fn keep_circmgr_params_updated<R: Runtime>(
             }
             NewDescriptors => {
                 if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                    cm.update_network(&dm.netdir());
+                    let netdir = dm
+                        .netdir()
+                        .expect("got new descriptors event, without a netdir?");
+                    cm.update_network(&netdir);
                 } else {
                     debug!("Circmgr or dirmgr has disappeared; task exiting.");
                     break;
@@ -874,18 +969,23 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
     dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
 ) {
     while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        let netdir = dm.netdir();
-        if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-            warn!("Problem launching a timeout testing circuit: {}", e);
-        }
-        let delay = netdir
-            .params()
-            .cbt_testing_delay
-            .try_into()
-            .expect("Out-of-bounds value from BoundedInt32");
+        if let Some(netdir) = dm.opt_netdir() {
+            if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
+                warn!("Problem launching a timeout testing circuit: {}", e);
+            }
+            let delay = netdir
+                .params()
+                .cbt_testing_delay
+                .try_into()
+                .expect("Out-of-bounds value from BoundedInt32");
 
-        drop((cm, dm));
-        rt.sleep(delay).await;
+            drop((cm, dm));
+            rt.sleep(delay).await;
+        } else {
+            // TODO(eta): ideally, this should wait until we successfully bootstrap using
+            //            the bootstrap status API
+            rt.sleep(Duration::from_secs(10)).await;
+        }
     }
 }
 
@@ -906,10 +1006,15 @@ async fn continually_preemptively_build_circuits<R: Runtime>(
     dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
 ) {
     while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        let netdir = dm.netdir();
-        cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
-            .await;
-        rt.sleep(Duration::from_secs(10)).await;
+        if let Some(netdir) = dm.opt_netdir() {
+            cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
+                .await;
+            rt.sleep(Duration::from_secs(10)).await;
+        } else {
+            // TODO(eta): ideally, this should wait until we successfully bootstrap using
+            //            the bootstrap status API
+            rt.sleep(Duration::from_secs(10)).await;
+        }
     }
 }
 /// Periodically expire any channels that have been unused beyond
@@ -942,5 +1047,41 @@ impl<R: Runtime> Drop for TorClient<R> {
             }
             Err(e) => error!("Unable to flush state on client exit: {}", e),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use crate::config::TorClientConfigBuilder;
+    use crate::{ErrorKind, HasKind};
+
+    #[test]
+    fn create_unbootstrapped() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            let _ = TorClient::create_unbootstrapped(rt, cfg).unwrap();
+        });
+    }
+
+    #[test]
+    fn unbootstrapped_client_unusable() {
+        tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let state_dir = tempfile::tempdir().unwrap();
+            let cache_dir = tempfile::tempdir().unwrap();
+            let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
+                .build()
+                .unwrap();
+            let client = TorClient::create_unbootstrapped(rt, cfg).unwrap();
+            let result = client.connect("example.com:80").await;
+            assert!(result.is_err());
+            assert_eq!(result.err().unwrap().kind(), ErrorKind::BootstrapRequired);
+        });
     }
 }

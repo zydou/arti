@@ -67,7 +67,7 @@
 //! // Start the Arti client, and let it bootstrap a connection to the Tor network.
 //! // (This takes a while to gather the necessary directory information.
 //! // It uses cached information when possible.)
-//! let tor_client = TorClient::bootstrap(rt, config).await?;
+//! let tor_client = TorClient::create_bootstrapped(rt, config).await?;
 //!
 //! // Initiate a connection over Tor to example.com, port 80.
 //! let mut stream = tor_client.connect(("example.com", 80)).await?;

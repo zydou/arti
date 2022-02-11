@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
 
     // We now let the Arti client start and bootstrap a connection to the network.
     // (This takes a while to gather the necessary consensus state, etc.)
-    let tor_client = TorClient::bootstrap(rt, config).await?;
+    let tor_client = TorClient::create_bootstrapped(rt, config).await?;
 
     eprintln!("connecting to example.com...");
 

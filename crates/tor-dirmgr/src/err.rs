@@ -75,6 +75,9 @@ pub enum Error {
     /// An IO error occurred while manipulating storage on disk.
     #[error("IO error: {0}")]
     IOError(#[source] Arc<std::io::Error>),
+    /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
+    #[error("cannot bootstrap offline DirMgr")]
+    OfflineMode,
 
     /// Unable to spawn task
     #[error("unable to spawn {spawning}")]

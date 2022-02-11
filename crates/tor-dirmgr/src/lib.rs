@@ -80,6 +80,7 @@ use futures::{channel::oneshot, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{info, trace, warn};
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
@@ -144,6 +145,40 @@ pub struct DirMgr<R: Runtime> {
 
     /// Our asynchronous runtime.
     runtime: R,
+
+    /// Whether or not we're operating in offline mode.
+    offline: bool,
+
+    /// If we're not in offline mode, stores whether or not the `DirMgr` has attempted
+    /// to bootstrap yet or not.
+    ///
+    /// This exists in order to prevent starting two concurrent bootstrap tasks.
+    ///
+    /// (In offline mode, this does nothing.)
+    bootstrap_started: AtomicBool,
+}
+
+/// RAII guard to reset an AtomicBool on drop.
+struct BoolResetter<'a> {
+    /// The bool to reset.
+    inner: &'a AtomicBool,
+    /// What value to store.
+    reset_to: bool,
+    /// What atomic ordering to use.
+    ordering: Ordering,
+}
+
+impl<'a> Drop for BoolResetter<'a> {
+    fn drop(&mut self) {
+        self.inner.store(self.reset_to, self.ordering);
+    }
+}
+
+impl<'a> BoolResetter<'a> {
+    /// Disarm the guard, consuming it to make it not reset any more.
+    fn disarm(self) {
+        std::mem::forget(self);
+    }
 }
 
 impl<R: Runtime> DirMgr<R> {
@@ -180,30 +215,75 @@ impl<R: Runtime> DirMgr<R> {
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<NetDir>> {
         let dirmgr = DirMgr::bootstrap_from_config(config, runtime, circmgr).await?;
-        Ok(dirmgr.netdir())
+        Ok(dirmgr.netdir()?)
     }
 
-    /// Return a new directory manager from a given configuration,
-    /// bootstrapping from the network as necessary.
+    /// Create a new `DirMgr` in online mode, but don't bootstrap it yet.
     ///
-    /// This function will to return until the directory is
-    /// bootstrapped enough to build circuits.  It will also launch a
-    /// background task that fetches any missing information, and that
-    /// replaces the directory when a new one is available.
-    pub async fn bootstrap_from_config(
+    /// The `DirMgr` can be bootstrapped later with `bootstrap`.
+    pub fn create_unbootstrapped(
         config: DirMgrConfig,
         runtime: R,
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<Self>> {
-        let dirmgr = Arc::new(DirMgr::from_config(
+        Ok(Arc::new(DirMgr::from_config(
             config,
-            runtime.clone(),
+            runtime,
             Some(circmgr),
             false,
-        )?);
+        )?))
+    }
+
+    /// Bootstrap a `DirMgr` created in online mode that hasn't been bootstrapped yet.
+    ///
+    /// This function will not return until the directory is bootstrapped enough to build circuits.
+    /// It will also launch a background task that fetches any missing information, and that
+    /// replaces the directory when a new one is available.
+    ///
+    /// This function is intended to be used together with `create_unbootstrapped`. There is no
+    /// need to call this function otherwise.
+    ///
+    /// If bootstrapping has already successfully taken place, returns early with success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if bootstrapping fails. If the error is [`Error::CantAdvanceState`],
+    /// it may be possible to successfully bootstrap later on by calling this function again.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `DirMgr` passed to this function was not created in online mode, such as
+    /// via `load_once`.
+    pub async fn bootstrap(self: &Arc<Self>) -> Result<()> {
+        if self.offline {
+            return Err(Error::OfflineMode);
+        }
+
+        // The semantics of this are "attempt to replace a 'false' value with 'true'.
+        // If the value in bootstrap_started was not 'false' when the attempt was made, returns
+        // `Err`; this means another bootstrap attempt is in progress or has completed, so we
+        // return early.
+
+        // NOTE(eta): could potentially weaken the `Ordering` here in future
+        if self
+            .bootstrap_started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            info!("Attempted to bootstrap twice; ignoring.");
+            return Ok(());
+        }
+
+        // Use a RAII guard to reset `bootstrap_started` to `false` if we return early without
+        // completing bootstrap.
+        let resetter = BoolResetter {
+            inner: &self.bootstrap_started,
+            reset_to: false,
+            ordering: Ordering::SeqCst,
+        };
 
         // Try to load from the cache.
-        let have_directory = dirmgr.load_directory().await?;
+        let have_directory = self.load_directory().await?;
 
         let (mut sender, receiver) = if have_directory {
             info!("Loaded a good directory from cache.");
@@ -215,8 +295,8 @@ impl<R: Runtime> DirMgr<R> {
         };
 
         // Whether we loaded or not, we now start downloading.
-        let dirmgr_weak = Arc::downgrade(&dirmgr);
-        runtime
+        let dirmgr_weak = Arc::downgrade(self);
+        self.runtime
             .spawn(async move {
                 // NOTE: This is a daemon task.  It should eventually get
                 // treated as one.
@@ -241,6 +321,8 @@ impl<R: Runtime> DirMgr<R> {
             match receiver.await {
                 Ok(()) => {
                     info!("We have enough information to build circuits.");
+                    // Disarm the RAII guard, since we succeeded.
+                    resetter.disarm();
                 }
                 Err(_) => {
                     warn!("Bootstrapping task exited before finishing.");
@@ -248,6 +330,24 @@ impl<R: Runtime> DirMgr<R> {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Returns `true` if a bootstrap attempt is in progress, or successfully completed.
+    pub fn bootstrap_started(&self) -> bool {
+        self.bootstrap_started.load(Ordering::SeqCst)
+    }
+
+    /// Return a new directory manager from a given configuration,
+    /// bootstrapping from the network as necessary.
+    pub async fn bootstrap_from_config(
+        config: DirMgrConfig,
+        runtime: R,
+        circmgr: Arc<CircMgr<R>>,
+    ) -> Result<Arc<Self>> {
+        let dirmgr = Self::create_unbootstrapped(config, runtime, circmgr)?;
+
+        dirmgr.bootstrap().await?;
 
         Ok(dirmgr)
     }
@@ -500,13 +600,16 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// Construct a DirMgr from a DirMgrConfig.
+    ///
+    /// If `offline` is set, opens the SQLite store read-only and sets the offline flag in the
+    /// returned manager.
     fn from_config(
         config: DirMgrConfig,
         runtime: R,
         circmgr: Option<Arc<CircMgr<R>>>,
-        readonly: bool,
+        offline: bool,
     ) -> Result<Self> {
-        let store = Mutex::new(config.open_sqlite_store(readonly)?);
+        let store = Mutex::new(config.open_sqlite_store(offline)?);
         let netdir = SharedMutArc::new();
         let events = event::FlagPublisher::new();
 
@@ -525,6 +628,8 @@ impl<R: Runtime> DirMgr<R> {
             receive_status,
             circmgr,
             runtime,
+            offline,
+            bootstrap_started: AtomicBool::new(false),
         })
     }
 
@@ -540,18 +645,18 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// Return an Arc handle to our latest directory, if we have one.
-    ///
-    /// This is a private method, since by the time anybody else has a
-    /// handle to a DirMgr, the NetDir should definitely be
-    /// bootstrapped.
-    fn opt_netdir(&self) -> Option<Arc<NetDir>> {
+    pub fn opt_netdir(&self) -> Option<Arc<NetDir>> {
         self.netdir.get()
     }
 
-    /// Return an Arc handle to our latest directory, if we have one.
+    /// Return an Arc handle to our latest directory, returning an error if there is none.
+    ///
+    /// # Errors
+    ///
+    /// Errors with [`Error::DirectoryNotPresent`] if the `DirMgr` hasn't been bootstrapped yet.
     // TODO: Add variants of this that make sure that it's up-to-date?
-    pub fn netdir(&self) -> Arc<NetDir> {
-        self.opt_netdir().expect("DirMgr was not bootstrapped!")
+    pub fn netdir(&self) -> Result<Arc<NetDir>> {
+        self.opt_netdir().ok_or(Error::DirectoryNotPresent)
     }
 
     /// Return a new asynchronous stream that will receive notification
@@ -1138,5 +1243,32 @@ replacement line
             let expanded = mgr.expand_response_text(r, diff);
             assert!(expanded.is_err());
         });
+    }
+
+    #[test]
+    #[allow(clippy::bool_assert_comparison)]
+    fn bool_resetter_works() {
+        let bool = AtomicBool::new(false);
+        fn example(bool: &AtomicBool) {
+            bool.store(true, Ordering::SeqCst);
+            let _resetter = BoolResetter {
+                inner: bool,
+                reset_to: false,
+                ordering: Ordering::SeqCst,
+            };
+        }
+        fn example_disarm(bool: &AtomicBool) {
+            bool.store(true, Ordering::SeqCst);
+            let resetter = BoolResetter {
+                inner: bool,
+                reset_to: false,
+                ordering: Ordering::SeqCst,
+            };
+            resetter.disarm();
+        }
+        example(&bool);
+        assert_eq!(bool.load(Ordering::SeqCst), false);
+        example_disarm(&bool);
+        assert_eq!(bool.load(Ordering::SeqCst), true);
     }
 }

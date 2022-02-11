@@ -113,7 +113,7 @@ async fn run<R: Runtime>(
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
-            let client = TorClient::bootstrap(
+            let client = TorClient::create_bootstrapped(
                     runtime.clone(),
                     client_config,
                 ).await?;
