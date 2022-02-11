@@ -175,6 +175,12 @@ pub enum ErrorKind {
     #[display(fmt = "network protocol violation")]
     ProtocolViolation,
 
+    /// Called a function with an invalid argument.
+    ///
+    /// This kind of error is usually a programming mistake on the caller's part.
+    #[display(fmt = "invalid argument")]
+    BadArgument,
+
     /// Internal error (bug) in Arti.
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in

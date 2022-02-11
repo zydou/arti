@@ -7,17 +7,19 @@ use tor_error::{ErrorKind, HasKind, InternalError};
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// Tried to handle a message what wasn't complete: try again.
-    #[doc(hidden)]
-    #[error("Message truncated; need to wait for more")]
-    #[allow(non_camel_case_types)]
-    Truncated_internal_,
-
     /// The SOCKS client didn't implement SOCKS correctly.
     ///
     /// (Or, more likely, we didn't account for its behavior.)
     #[error("SOCKS protocol syntax violation")]
     Syntax,
+
+    /// Failed to decode a SOCKS message.
+    #[error("Error decoding message")]
+    Decode(#[from] tor_bytes::Error),
+
+    /// Called a function with an invalid argument.
+    #[error("Invalid argument: {0}")]
+    Invalid(&'static str),
 
     /// The SOCKS client declared a SOCKS version number that isn't
     /// one we support.
@@ -50,24 +52,16 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::Truncated_internal_ => {
-                // Nothing outside this crate should ever see this variant.
+            E::Decode(tor_bytes::Error::Truncated) => {
+                // This variant should always get converted before a user can
+                // see it.
                 EK::Internal
             }
-            E::Syntax | E::BadProtocol(_) => EK::ProtocolViolation,
+            E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::ProtocolViolation,
+            E::Invalid(_) => EK::BadArgument,
             E::NoSupport => EK::NoSupport,
             E::AlreadyFinished(_) => EK::Internal,
             E::Internal(_) => EK::Internal,
-        }
-    }
-}
-
-impl From<tor_bytes::Error> for Error {
-    fn from(e: tor_bytes::Error) -> Error {
-        use tor_bytes::Error as E;
-        match e {
-            E::Truncated => Error::Truncated_internal_,
-            _ => Error::Syntax,
         }
     }
 }
