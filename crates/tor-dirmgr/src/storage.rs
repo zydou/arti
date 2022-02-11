@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::{path::Path, str::Utf8Error};
+use time::Duration;
 
 pub(crate) mod sqlite;
 
@@ -177,6 +178,30 @@ impl From<Vec<u8>> for InputString {
     }
 }
 
+/// Configuration of expiration of each element of a [`Store`].
+pub(crate) struct ExpirationConfig {
+    /// How long to keep expired router descriptors.
+    pub(super) router_descs: Duration,
+    /// How long to keep expired microdescriptors descriptors.
+    pub(super) microdescs: Duration,
+    /// How long to keep expired authority certificate.
+    pub(super) authcerts: Duration,
+    /// How long to keep expired consensus.
+    pub(super) consensuses: Duration,
+}
+
+/// Configuration of expiration shared between [`Store`] implementations.
+pub(crate) const EXPIRATION_DEFAULTS: ExpirationConfig = {
+    ExpirationConfig {
+        // TODO: Choose a more realistic time.
+        router_descs: Duration::days(3 * 30),
+        // TODO: Choose a more realistic time.
+        microdescs: Duration::days(3 * 30),
+        authcerts: Duration::ZERO,
+        consensuses: Duration::days(2),
+    }
+};
+
 /// Representation of a storage.
 ///
 /// When creating an instance of this [`Store`], it should try to grab the lock during
@@ -193,7 +218,7 @@ pub(crate) trait Store {
     ///
     /// This is pretty conservative, and only removes things that are
     /// definitely past their good-by date.
-    fn expire_all(&mut self) -> Result<()>;
+    fn expire_all(&mut self, expiration: &ExpirationConfig) -> Result<()>;
 
     /// Load the latest consensus from disk.
     ///

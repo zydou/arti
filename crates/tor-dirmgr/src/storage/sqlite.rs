@@ -3,6 +3,7 @@
 //! We store most objects in sqlite tables, except for very large ones,
 //! which we store as "blob" files in a separate directory.
 
+use super::ExpirationConfig;
 use crate::docmeta::{AuthCertMeta, ConsensusMeta};
 use crate::storage::{InputString, Store};
 use crate::{Error, Result};
@@ -282,7 +283,7 @@ impl Store for SqliteStore {
         }
         Ok(true)
     }
-    fn expire_all(&mut self) -> Result<()> {
+    fn expire_all(&mut self, expiration: &ExpirationConfig) -> Result<()> {
         let tx = self.conn.transaction()?;
         let expired_blobs: Vec<String> = {
             let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
@@ -293,11 +294,12 @@ impl Store for SqliteStore {
             names
         };
 
+        let now = OffsetDateTime::now_utc();
         tx.execute(DROP_OLD_EXTDOCS, [])?;
-        tx.execute(DROP_OLD_MICRODESCS, [])?;
-        tx.execute(DROP_OLD_AUTHCERTS, [])?;
-        tx.execute(DROP_OLD_CONSENSUSES, [])?;
-        tx.execute(DROP_OLD_ROUTERDESCS, [])?;
+        tx.execute(DROP_OLD_MICRODESCS, [now - expiration.microdescs])?;
+        tx.execute(DROP_OLD_AUTHCERTS, [now - expiration.authcerts])?;
+        tx.execute(DROP_OLD_CONSENSUSES, [now - expiration.consensuses])?;
+        tx.execute(DROP_OLD_ROUTERDESCS, [now - expiration.router_descs])?;
         tx.commit()?;
         for name in expired_blobs {
             let fname = self.blob_fname(name);
@@ -837,34 +839,28 @@ const UPDATE_MD_LISTED: &str = "
 ";
 
 /// Query: Discard every expired extdoc.
-const DROP_OLD_EXTDOCS: &str = "
-  DELETE FROM ExtDocs WHERE expires < datetime('now');
-";
+///
+/// External documents aren't exposed through [`Store`].
+const DROP_OLD_EXTDOCS: &str = "DELETE FROM ExtDocs WHERE expires < datetime('now');";
+
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
 // TODO: Choose a more realistic time.
-const DROP_OLD_ROUTERDESCS: &str = "
-  DELETE FROM RouterDescs WHERE published < datetime('now','-3 months');
-  ";
+const DROP_OLD_ROUTERDESCS: &str = "DELETE FROM RouterDescs WHERE published < ?;";
 /// Query: Discard every microdescriptor that hasn't been listed for 3 months.
 // TODO: Choose a more realistic time.
-const DROP_OLD_MICRODESCS: &str = "
-  DELETE FROM Microdescs WHERE last_listed < datetime('now','-3 months');
-";
+const DROP_OLD_MICRODESCS: &str = "DELETE FROM Microdescs WHERE last_listed < ?;";
 /// Query: Discard every expired authority certificate.
-const DROP_OLD_AUTHCERTS: &str = "
-  DELETE FROM Authcerts WHERE expires < datetime('now');
-";
+const DROP_OLD_AUTHCERTS: &str = "DELETE FROM Authcerts WHERE expires < ?;";
 /// Query: Discard every consensus that's been expired for at least
 /// two days.
-const DROP_OLD_CONSENSUSES: &str = "
-  DELETE FROM Consensuses WHERE valid_until < datetime('now','-2 days');
-";
+const DROP_OLD_CONSENSUSES: &str = "DELETE FROM Consensuses WHERE valid_until < ?;";
 
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::storage::EXPIRATION_DEFAULTS;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
     use time::ext::NumericalDuration;
@@ -971,7 +967,7 @@ mod test {
         assert_eq!(blob.as_str().unwrap(), "Goodbye, dear friends");
 
         // Now expire: the second file should go away.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         assert_eq!(
             &std::fs::read(store.blob_fname(&fname1)?)?[..],
             b"Hello world"
@@ -1143,7 +1139,7 @@ mod test {
         assert_eq!(mds.get(&d4), None);
 
         // Now we'll expire.  that should drop everything but d2.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         let mds = store.microdescs(&[d2, d3, d4])?;
         assert_eq!(mds.len(), 1);
         assert_eq!(mds.get(&d2).unwrap(), "Fake micro 2");
@@ -1180,7 +1176,7 @@ mod test {
         assert_eq!(rds.get(&d4), None);
 
         // Now we'll expire.  that should drop everything but d2.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         let rds = store.routerdescs(&[d2, d3, d4])?;
         assert_eq!(rds.len(), 1);
         assert_eq!(rds.get(&d2).unwrap(), "Fake routerdesc 2");

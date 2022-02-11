@@ -22,8 +22,8 @@ use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
-use crate::storage::DynStore;
 
+use crate::storage::{DynStore, EXPIRATION_DEFAULTS};
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     retry::DownloadSchedule,
@@ -696,7 +696,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
             // Now that a consensus is usable, older consensuses may
             // need to expire.
             if self.expire_when_complete {
-                store.expire_all()?;
+                store.expire_all(&EXPIRATION_DEFAULTS)?;
             }
         }
         Ok(())
