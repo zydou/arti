@@ -154,7 +154,7 @@ impl CircParameters {
             self.initial_send_window = v;
             Ok(())
         } else {
-            Err(Error::BadConfig(
+            Err(Error::BadArgument(
                 "Tried to set an initial send window over 1000".into(),
             ))
         }
@@ -547,12 +547,13 @@ impl CreateHandshakeWrap for CreateFastWrap {
         use CreateResponse::*;
         match msg {
             CreatedFast(m) => Ok(m.into_body()),
-            Destroy(_) => Err(Error::CircExtend(
+            Destroy(_) => Err(Error::CircRefused(
                 "Relay replied to CREATE_FAST with DESTROY.",
             )),
-            _ => Err(Error::CircExtend(
-                "Relay replied to CREATE_FAST with unexpected cell.",
-            )),
+            _ => Err(Error::CircProto(format!(
+                "Relay replied to CREATE_FAST with unexpected cell: {:?}",
+                msg
+            ))),
         }
     }
 }
@@ -570,10 +571,11 @@ impl CreateHandshakeWrap for Create2Wrap {
         use CreateResponse::*;
         match msg {
             Created2(m) => Ok(m.into_body()),
-            Destroy(_) => Err(Error::CircExtend("Relay replied to CREATE2 with DESTROY.")),
-            _ => Err(Error::CircExtend(
-                "Relay replied to CREATE2 with unexpected cell.",
-            )),
+            Destroy(_) => Err(Error::CircRefused("Relay replied to CREATE2 with DESTROY.")),
+            _ => Err(Error::CircProto(format!(
+                "Relay replied to CREATE2 with unexpected cell {:?}",
+                msg
+            ))),
         }
     }
 }

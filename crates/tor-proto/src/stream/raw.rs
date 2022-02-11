@@ -31,7 +31,7 @@ impl StreamReader {
     async fn recv_raw(&mut self) -> Result<RelayMsg> {
         if self.ended {
             // Prevent reading from streams after they've ended.
-            return Err(Error::StreamEnded);
+            return Err(Error::NotConnected);
         }
         let msg = self
             .receiver

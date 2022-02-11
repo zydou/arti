@@ -2,7 +2,7 @@
 use std::sync::Arc;
 use thiserror::Error;
 use tor_cell::relaycell::msg::EndReason;
-use tor_error::InternalError;
+use tor_error::{ErrorKind, HasKind, InternalError};
 
 /// An error type for the tor-proto crate.
 ///
@@ -47,24 +47,18 @@ pub enum Error {
     /// Protocol violation at the circuit level
     #[error("circuit protocol violation: {0}")]
     CircProto(String),
-    /// Circuit destroyed or channel closed.
-    #[error("circuit destroyed: {0}")]
-    CircDestroy(String),
     /// Channel is closed.
     #[error("channel closed")]
     ChannelClosed,
     /// Circuit is closed.
     #[error("circuit closed")]
     CircuitClosed,
-    /// Stream has ended.
-    #[error("stream ended")]
-    StreamEnded,
     /// Can't allocate any more circuit or stream IDs on a channel.
     #[error("too many entries in map: can't allocate ID")]
     IdRangeFull,
-    /// Couldn't extend a circuit.
+    /// Couldn't extend a circuit because the other refused.
     #[error("circuit extension handshake error: {0}")]
-    CircExtend(&'static str),
+    CircRefused(&'static str),
     /// Tried to make or use a stream to an invalid destination address.
     #[error("invalid stream target address")]
     BadStreamAddress,
@@ -80,9 +74,9 @@ pub enum Error {
     /// Channel does not match target
     #[error("channel mismatch: {0}")]
     ChanMismatch(String),
-    /// Tried to configure an impossible value
-    #[error("bad configuration value: {0}")]
-    BadConfig(String),
+    /// Tried to set an argument to an impossible value
+    #[error("bad argument: {0}")]
+    BadArgument(String),
     /// Remote DNS lookup failed.
     #[error("remote resolve failed: {0}")]
     ResolveError(String),
@@ -119,18 +113,50 @@ impl From<Error> for std::io::Error {
 
             EndReceived(end_reason) => end_reason.into(),
 
-            CircDestroy(_) | ChannelClosed | CircuitClosed | StreamEnded => {
-                ErrorKind::ConnectionReset
-            }
+            ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
             BytesErr(_) | MissingKey | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_)
             | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
 
-            Internal(_) | IdRangeFull | CircExtend(_) | BadConfig(_) | ResolveError(_) => {
+            Internal(_) | IdRangeFull | CircRefused(_) | BadArgument(_) | ResolveError(_) => {
                 ErrorKind::Other
             }
         };
         std::io::Error::new(kind, err)
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use tor_bytes::Error as BytesError;
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::BytesErr(BytesError::Internal(_)) => EK::Internal,
+            E::BytesErr(_) => EK::ProtocolViolation,
+            E::IoErr(_) => EK::Network,
+            E::CellErr(e) => e.kind(),
+            E::MissingKey => EK::RequestedResourceAbsent,
+            E::InvalidOutputLength => EK::Internal,
+            E::NoSuchHop => EK::BadArgument,
+            E::Internal(_) => EK::Internal,
+            E::BadCellAuth => EK::ProtocolViolation,
+            E::BadHandshake => EK::ProtocolViolation,
+            E::ChanProto(_) => EK::ProtocolViolation,
+            E::CircProto(_) => EK::ProtocolViolation,
+            E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
+            E::IdRangeFull => EK::NamespaceFull,
+            E::CircRefused(_) => EK::RemoteRefused,
+            E::BadStreamAddress => EK::BadArgument,
+            E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
+            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,
+            E::EndReceived(_) => EK::RemoteStreamError,
+            E::NotConnected => EK::AlreadyClosed,
+            E::StreamProto(_) => EK::ProtocolViolation,
+            E::ChanMismatch(_) => EK::RemoteIdMismatch,
+            E::BadArgument(_) => EK::BadArgument,
+            E::ResolveError(_) => EK::RemoteNameError,
+        }
     }
 }
 
