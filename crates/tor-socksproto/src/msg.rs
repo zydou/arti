@@ -298,7 +298,7 @@ mod test {
             1024,
             SocksAuth::NoAuth,
         );
-        assert!(matches!(e, Err(Error::NoSupport)));
+        assert!(matches!(e, Err(Error::NotImplemented)));
 
         let e = SocksRequest::new(
             SocksVersion::V4,
