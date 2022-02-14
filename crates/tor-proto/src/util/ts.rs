@@ -35,6 +35,16 @@ impl OptTimestamp {
         self.update_to(coarsetime::Instant::now());
     }
 
+    /// If the timestamp is currently unset, then set it to the current time.
+    /// Otherwise leave it alone.
+    pub(crate) fn update_if_none(&self) {
+        let now = coarsetime::Instant::now().as_ticks();
+
+        let _ignore = self
+            .latest
+            .compare_exchange(0, now, Ordering::Relaxed, Ordering::Relaxed);
+    }
+
     /// Clear the timestamp and make it not updated again.
     pub(crate) fn clear(&self) {
         self.latest.store(0, Ordering::Relaxed);
@@ -74,7 +84,9 @@ impl OptTimestamp {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
+
     use super::*;
 
     #[test]
@@ -112,5 +124,29 @@ mod test {
         assert!(ts.time_since_update_at(first).is_none());
         assert!(ts.time_since_update_at(in_a_bit).is_none());
         assert!(ts.time_since_update_at(even_later).is_none());
+    }
+
+    #[test]
+    fn update_if_none() {
+        let ts = OptTimestamp::new();
+        assert!(ts.time_since_update().is_none());
+
+        // Calling "update_if_none" on a None OptTimestamp should set it.
+        let time1 = coarsetime::Instant::now();
+        ts.update_if_none();
+        let d = ts.time_since_update();
+        let time2 = coarsetime::Instant::now();
+        assert!(d.is_some());
+        assert!(d.unwrap() <= time2 - time1);
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        // Calling "update_if_none" on a Some OptTimestamp doesn't change it.
+        let time3 = coarsetime::Instant::now();
+        // If coarsetime doesn't register this, then the rest of our test won't work.
+        assert!(time3 > time2);
+        ts.update_if_none();
+        let d2 = ts.time_since_update();
+        assert!(d2.is_some());
+        assert!(d2.unwrap() > d.unwrap());
     }
 }

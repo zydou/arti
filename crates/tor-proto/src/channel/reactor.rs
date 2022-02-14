@@ -383,11 +383,9 @@ impl Reactor {
 
     /// Update disused timestamp with current time if this channel is no longer used
     fn update_disused_since(&self) {
-        if self.circs.open_ent_count() == 0
-            && self.details.unused_since.time_since_update().is_none()
-        {
+        if self.circs.open_ent_count() == 0 {
             // Update disused_since if it still indicates that the channel is in use
-            self.details.unused_since.update();
+            self.details.unused_since.update_if_none();
         } else {
             // Mark this channel as in use
             self.details.unused_since.clear();
