@@ -57,7 +57,7 @@ impl HasKind for Error {
                 // see it.
                 EK::Internal
             }
-            E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::ProtocolViolation,
+            E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::Invalid(_) => EK::BadArgument,
             E::NoSupport => EK::NoSupport,
             E::AlreadyFinished(_) => EK::Internal,
