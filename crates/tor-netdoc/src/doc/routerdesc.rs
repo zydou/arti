@@ -39,12 +39,13 @@ use crate::types::family::RelayFamily;
 use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
-use crate::{AllowAnnotations, Error, Result};
+use crate::{AllowAnnotations, Error, ParseErrorKind as EK, Result};
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 use std::{net, time};
 use tor_checkable::{signed, timed, Timebound};
+use tor_error::internal;
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -393,7 +394,9 @@ impl RouterDesc {
             // return `Error::MissingToken` if `IDENTITY_ED25519` is not `Ok`
             #[allow(clippy::unwrap_used)]
             if cert_tok.offset_in(s).unwrap() < start_offset {
-                return Err(Error::MisplacedToken("identity-ed25519", cert_tok.pos()));
+                return Err(EK::MisplacedToken
+                    .with_msg("identity-ed25519")
+                    .at_pos(cert_tok.pos()));
             }
             let cert: tor_cert::UncheckedCert = cert_tok
                 .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
@@ -401,7 +404,9 @@ impl RouterDesc {
                 .into_unchecked()
                 .check_key(&None)?;
             let sk = cert.peek_subject_key().as_ed25519().ok_or_else(|| {
-                Error::BadObjectVal(cert_tok.pos(), "no ed25519 signing key".to_string())
+                EK::BadObjectVal
+                    .at_pos(cert_tok.pos())
+                    .with_msg("no ed25519 signing key")
             })?;
             let sk = *sk;
             (cert, sk)
@@ -414,10 +419,9 @@ impl RouterDesc {
             let ed_id: ll::pk::ed25519::Ed25519Identity = ed_id.into();
             if ed_id != identity_cert.peek_signing_key().into() {
                 #[cfg(not(fuzzing))]
-                return Err(Error::BadObjectVal(
-                    master_key_tok.pos(),
-                    "master-key-ed25519 does not match key in identity-ed25519".into(),
-                ));
+                return Err(EK::BadObjectVal
+                    .at_pos(master_key_tok.pos())
+                    .with_msg("master-key-ed25519 does not match key in identity-ed25519"));
             }
         }
 
@@ -439,10 +443,9 @@ impl RouterDesc {
         let rsa_sig_pos = rsa_sig.offset_in(s).unwrap();
 
         if ed_sig_pos > rsa_sig_pos {
-            return Err(Error::UnexpectedToken(
-                ROUTER_SIG_ED25519.to_str(),
-                ed_sig.pos(),
-            ));
+            return Err(EK::UnexpectedToken
+                .with_msg(ROUTER_SIG_ED25519.to_str())
+                .at_pos(ed_sig.pos()));
         }
 
         // Extract ed25519 signature.
@@ -454,7 +457,7 @@ impl RouterDesc {
             let d = d.finalize();
             let sig: B64 = ed_sig.parse_arg(0)?;
             let sig = ll::pk::ed25519::Signature::from_bytes(sig.as_bytes())
-                .map_err(|_| Error::BadSignature(ed_sig.pos()))?;
+                .map_err(|_| EK::BadSignature.at_pos(ed_sig.pos()))?;
 
             ll::pk::ed25519::ValidatableEd25519Signature::new(ed25519_signing_key, sig, &d)
         };
@@ -504,11 +507,15 @@ impl RouterDesc {
             let cc = body.required(NTOR_ONION_KEY_CROSSCERT)?;
             let sign: u8 = cc.parse_arg(0)?;
             if sign != 0 && sign != 1 {
-                return Err(Error::BadArgument(cc.arg_pos(0), "not 0 or 1".to_string()));
+                return Err(EK::BadArgument.at_pos(cc.arg_pos(0)).with_msg("not 0 or 1"));
             }
             let ntor_as_ed =
                 ll::pk::keymanip::convert_curve25519_to_ed25519_public(&ntor_onion_key, sign)
-                    .ok_or_else(|| Error::BadArgument(cc.pos(), "Uncheckable crosscert".into()))?;
+                    .ok_or_else(|| {
+                        EK::BadArgument
+                            .at_pos(cc.pos())
+                            .with_msg("Uncheckable crosscert")
+                    })?;
 
             cc.parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                 .check_cert_type(tor_cert::CertType::NTOR_CC_IDENTITY)?
@@ -541,7 +548,7 @@ impl RouterDesc {
             proto_tok
                 .args_as_str()
                 .parse::<tor_protover::Protocols>()
-                .map_err(|e| Error::BadArgument(proto_tok.pos(), e.to_string()))?
+                .map_err(|e| EK::BadArgument.at_pos(proto_tok.pos()).with_source(e))?
         };
 
         // tunneled-dir-server
@@ -554,10 +561,9 @@ impl RouterDesc {
         if let Some(fp_tok) = body.get(FINGERPRINT) {
             let fp: RsaIdentity = fp_tok.args_as_str().parse::<SpFingerprint>()?.into();
             if fp != rsa_identity.to_rsa_identity() {
-                return Err(Error::BadArgument(
-                    fp_tok.pos(),
-                    "fingerprint does not match RSA identity".into(),
-                ));
+                return Err(EK::BadArgument
+                    .at_pos(fp_tok.pos())
+                    .with_msg("fingerprint does not match RSA identity"));
             }
         }
 
@@ -586,12 +592,17 @@ impl RouterDesc {
                 let accept = match ruletok.kwd_str() {
                     "accept" => RuleKind::Accept,
                     "reject" => RuleKind::Reject,
-                    _ => return Err(Error::Internal(ruletok.pos())),
+                    _ => {
+                        return Err(Error::from(internal!(
+                            "tried to parse a strange line as a policy"
+                        ))
+                        .at_pos(ruletok.pos()))
+                    }
                 };
                 let pat: AddrPortPattern = ruletok
                     .args_as_str()
                     .parse()
-                    .map_err(|e| Error::BadPolicy(ruletok.pos(), e))?;
+                    .map_err(|e| EK::BadPolicy.at_pos(ruletok.pos()).with_source(e))?;
                 pol.push(accept, pat);
             }
             pol
@@ -602,7 +613,7 @@ impl RouterDesc {
             Some(p) => p
                 .args_as_str()
                 .parse()
-                .map_err(|e| Error::BadPolicy(p.pos(), e))?,
+                .map_err(|e| EK::BadPolicy.at_pos(p.pos()).with_source(e))?,
             // Unwrap is safe here because str is not empty
             #[allow(clippy::unwrap_used)]
             None => "reject 1-65535".parse::<PortPolicy>().unwrap(),
@@ -808,29 +819,36 @@ mod test {
 
         check(
             "bad-sig-order",
-            &Error::UnexpectedToken("router-sig-ed25519", Pos::from_line(50, 1)),
+            &EK::UnexpectedToken
+                .with_msg("router-sig-ed25519")
+                .at_pos(Pos::from_line(50, 1)),
         );
         check(
             "bad-start1",
-            &Error::MisplacedToken("identity-ed25519", Pos::from_line(1, 1)),
+            &EK::MisplacedToken
+                .with_msg("identity-ed25519")
+                .at_pos(Pos::from_line(1, 1)),
         );
-        check("bad-start2", &Error::MissingToken("identity-ed25519"));
+        check("bad-start2", &EK::MissingToken.with_msg("identity-ed25519"));
         check(
             "mismatched-fp",
-            &Error::BadArgument(
-                Pos::from_line(12, 1),
-                "fingerprint does not match RSA identity".into(),
-            ),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(12, 1))
+                .with_msg("fingerprint does not match RSA identity"),
         );
-        check("no-ed-sk", &Error::MissingToken("identity-ed25519"));
+        check("no-ed-sk", &EK::MissingToken.with_msg("identity-ed25519"));
 
         check(
             "bad-cc-sign",
-            &Error::BadArgument(Pos::from_line(34, 26), "not 0 or 1".into()),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(34, 26))
+                .with_msg("not 0 or 1"),
         );
         check(
             "bad-ipv6policy",
-            &Error::BadPolicy(Pos::from_line(43, 1), PolicyError::InvalidPolicy),
+            &EK::BadPolicy
+                .at_pos(Pos::from_line(43, 1))
+                .with_source(PolicyError::InvalidPolicy),
         );
     }
 

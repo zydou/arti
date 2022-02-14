@@ -88,7 +88,7 @@ mod err;
 pub mod types;
 mod util;
 
-pub use err::{BuildError, Error, Pos};
+pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;

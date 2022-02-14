@@ -7,9 +7,10 @@
 use crate::parse::keyword::Keyword;
 use crate::types::misc::FromBytes;
 use crate::util::PauseAt;
-use crate::{Error, Pos, Result};
+use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use std::cell::{Ref, RefCell};
 use std::str::FromStr;
+use tor_error::internal;
 
 /// Return true iff a given character is "space" according to the rules
 /// of dir-spec.txt
@@ -29,7 +30,7 @@ fn b64check(s: &str) -> Result<()> {
             b'0'..=b'9' => (),
             b'/' | b'+' => (),
             _ => {
-                return Err(Error::BadObjectBase64(Pos::at(s)));
+                return Err(EK::BadObjectBase64.at_pos(Pos::at(s)));
             }
         };
     }
@@ -114,7 +115,10 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     /// UTF-8 strings apply.)
     fn advance(&mut self, n: usize) -> Result<()> {
         if n > self.remaining() {
-            return Err(Error::Internal(Pos::from_offset(self.s, self.off)));
+            return Err(
+                Error::from(internal!("tried to advance past end of document"))
+                    .at_pos(Pos::from_offset(self.s, self.off)),
+            );
         }
         self.off += n;
         Ok(())
@@ -141,7 +145,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
             Ok(line)
         } else {
             self.advance(remainder.len())?; // drain everything.
-            Err(Error::TruncatedLine(self.pos(self.s.len())))
+            Err(EK::TruncatedLine.at_pos(self.pos(self.s.len())))
         }
     }
 
@@ -161,10 +165,10 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
             Some(k) => k,
             // This case seems like it can't happen: split always returns
             // something, apparently.
-            None => return Err(Error::MissingKeyword(self.pos(pos))),
+            None => return Err(EK::MissingKeyword.at_pos(self.pos(pos))),
         };
         if !keyword_ok(kwd, anno_ok) {
-            return Err(Error::BadKeyword(self.pos(pos)));
+            return Err(EK::BadKeyword.at_pos(self.pos(pos)));
         }
         // TODO(nickm): dir-spec does not yet allow unicode in the arguments, but we're
         // assuming that proposal 285 is accepted.
@@ -195,11 +199,11 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         }
         let line = self.line()?;
         if !line.ends_with(TAG_END) {
-            return Err(Error::BadObjectBeginTag(self.pos(pos)));
+            return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let tag = &line[BEGIN_STR.len()..(line.len() - TAG_END.len())];
         if !tag_keyword_ok(tag) {
-            return Err(Error::BadObjectBeginTag(self.pos(pos)));
+            return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let datapos = self.off;
         let (endlinepos, endline) = loop {
@@ -216,11 +220,11 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
         };
         let data = &self.s[datapos..endlinepos];
         if !endline.ends_with(TAG_END) {
-            return Err(Error::BadObjectEndTag(self.pos(endlinepos)));
+            return Err(EK::BadObjectEndTag.at_pos(self.pos(endlinepos)));
         }
         let endtag = &endline[END_STR.len()..(endline.len() - TAG_END.len())];
         if endtag != tag {
-            return Err(Error::BadObjectMismatchedTag(self.pos(endlinepos)));
+            return Err(EK::BadObjectMismatchedTag.at_pos(self.pos(endlinepos)));
         }
         Ok(Some(Object { tag, data, endline }))
     }
@@ -335,7 +339,7 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// Return the nth argument of this item, or an error if it isn't there.
     pub(crate) fn required_arg(&self, idx: usize) -> Result<&'a str> {
         self.arg(idx)
-            .ok_or_else(|| Error::MissingArgument(Pos::at(self.args)))
+            .ok_or_else(|| EK::MissingArgument.at_pos(Pos::at(self.args)))
     }
     /// Try to parse the nth argument (if it exists) into some type
     /// that supports FromStr.
@@ -366,7 +370,7 @@ impl<'a, K: Keyword> Item<'a, K> {
     {
         match self.parse_optional_arg(idx) {
             Ok(Some(v)) => Ok(v),
-            Ok(None) => Err(Error::MissingArgument(self.arg_pos(idx))),
+            Ok(None) => Err(EK::MissingArgument.at_pos(self.arg_pos(idx))),
             Err(e) => Err(e),
         }
     }
@@ -390,7 +394,7 @@ impl<'a, K: Keyword> Item<'a, K> {
             None => Ok(None),
             Some(obj) => {
                 let decoded = base64_decode_multiline(obj.data)
-                    .map_err(|_| Error::BadObjectBase64(Pos::at(obj.data)))?;
+                    .map_err(|_| EK::BadObjectBase64.at_pos(Pos::at(obj.data)))?;
                 Ok(Some((obj.tag, decoded)))
             }
         }
@@ -399,10 +403,12 @@ impl<'a, K: Keyword> Item<'a, K> {
     /// and make sure that its tag matches 'want_tag'.
     pub(crate) fn obj(&self, want_tag: &str) -> Result<Vec<u8>> {
         match self.obj_raw()? {
-            None => Err(Error::MissingObject(self.kwd.to_str(), self.end_pos())),
+            None => Err(EK::MissingObject
+                .with_msg(self.kwd.to_str())
+                .at_pos(self.end_pos())),
             Some((tag, decoded)) => {
                 if tag != want_tag {
-                    Err(Error::WrongObject(Pos::at(tag)))
+                    Err(EK::WrongObject.at_pos(Pos::at(tag)))
                 } else {
                     Ok(decoded)
                 }
@@ -638,7 +644,9 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     pub(crate) fn should_be_exhausted(&mut self) -> Result<()> {
         match self.iter().peek() {
             None => Ok(()),
-            Some(Ok(t)) => Err(Error::UnexpectedToken(t.kwd().to_str(), t.pos())),
+            Some(Ok(t)) => Err(EK::UnexpectedToken
+                .with_msg(t.kwd().to_str())
+                .at_pos(t.pos())),
             Some(Err(e)) => Err(e.clone()),
         }
     }
@@ -660,7 +668,7 @@ mod test {
     #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::parse::macros::test::Fruit;
-    use crate::{Error, Pos, Result};
+    use crate::{ParseErrorKind as EK, Pos, Result};
 
     #[test]
     fn read_simple() {
@@ -763,7 +771,7 @@ truncated line";
         assert!(toks[0].is_err());
         assert_eq!(
             toks[0].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(1, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(1, 1))
         );
 
         assert!(toks[1].is_ok());
@@ -782,7 +790,7 @@ truncated line";
         assert!(!toks[2].is_ok_with_kwd_not_in(&[ORANGE, UNRECOGNIZED]));
         assert_eq!(
             toks[2].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(3, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(3, 1))
         );
 
         assert!(toks[3].is_ok());
@@ -793,7 +801,7 @@ truncated line";
         assert!(toks[4].is_err());
         assert_eq!(
             toks[4].as_ref().err().unwrap(),
-            &Error::BadObjectMismatchedTag(Pos::from_line(8, 1))
+            &EK::BadObjectMismatchedTag.at_pos(Pos::from_line(8, 1))
         );
 
         assert!(toks[5].is_ok());
@@ -806,13 +814,13 @@ truncated line";
         assert!(toks[6].is_err());
         assert_eq!(
             toks[6].as_ref().err().unwrap(),
-            &Error::BadObjectBase64(Pos::from_line(12, 1))
+            &EK::BadObjectBase64.at_pos(Pos::from_line(12, 1))
         );
 
         assert!(toks[7].is_err());
         assert_eq!(
             toks[7].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(13, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(13, 1))
         );
 
         assert!(toks[8].is_ok());
@@ -823,60 +831,60 @@ truncated line";
         assert!(toks[9].is_err());
         assert_eq!(
             toks[9].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(15, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(15, 1))
         );
 
         // this looks like a few errors.
         assert!(toks[10].is_err());
         assert_eq!(
             toks[10].as_ref().err().unwrap(),
-            &Error::BadObjectBeginTag(Pos::from_line(17, 1))
+            &EK::BadObjectBeginTag.at_pos(Pos::from_line(17, 1))
         );
         assert!(toks[11].is_err());
         assert_eq!(
             toks[11].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(18, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(18, 1))
         );
         assert!(toks[12].is_err());
         assert_eq!(
             toks[12].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(19, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(19, 1))
         );
 
         // so does this.
         assert!(toks[13].is_err());
         assert_eq!(
             toks[13].as_ref().err().unwrap(),
-            &Error::BadObjectBeginTag(Pos::from_line(21, 1))
+            &EK::BadObjectBeginTag.at_pos(Pos::from_line(21, 1))
         );
         assert!(toks[14].is_err());
         assert_eq!(
             toks[14].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(22, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(22, 1))
         );
         assert!(toks[15].is_err());
         assert_eq!(
             toks[15].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(23, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(23, 1))
         );
 
         // not this.
         assert!(toks[16].is_err());
         assert_eq!(
             toks[16].as_ref().err().unwrap(),
-            &Error::BadObjectEndTag(Pos::from_line(27, 1))
+            &EK::BadObjectEndTag.at_pos(Pos::from_line(27, 1))
         );
 
         assert!(toks[17].is_err());
         assert_eq!(
             toks[17].as_ref().err().unwrap(),
-            &Error::BadKeyword(Pos::from_line(28, 1))
+            &EK::BadKeyword.at_pos(Pos::from_line(28, 1))
         );
 
         assert!(toks[18].is_err());
         assert_eq!(
             toks[18].as_ref().err().unwrap(),
-            &Error::TruncatedLine(Pos::from_line(29, 15))
+            &EK::TruncatedLine.at_pos(Pos::from_line(29, 15))
         );
     }
 }

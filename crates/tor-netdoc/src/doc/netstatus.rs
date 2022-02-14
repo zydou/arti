@@ -54,9 +54,10 @@ use crate::parse::parser::{Section, SectionRules};
 use crate::parse::tokenize::{Item, ItemResult, NetDocReader};
 use crate::types::misc::*;
 use crate::util::private::Sealed;
-use crate::{Error, Pos, Result};
+use crate::{Error, ParseErrorKind as EK, Pos, Result};
 use std::collections::{HashMap, HashSet};
 use std::{net, result, time};
+use tor_error::internal;
 use tor_protover::Protocols;
 
 use bitflags::bitflags;
@@ -110,7 +111,7 @@ impl Lifetime {
                 valid_until,
             })
         } else {
-            Err(Error::InvalidLifetime)
+            Err(EK::InvalidLifetime.err())
         }
     }
     /// Return time when this consensus first becomes valid.
@@ -225,7 +226,9 @@ impl ConsensusFlavor {
         match name {
             Some("microdesc") => Ok(ConsensusFlavor::Microdesc),
             Some("ns") | None => Ok(ConsensusFlavor::Ns),
-            _ => Err(Error::BadDocumentType),
+            Some(other) => {
+                Err(EK::BadDocumentType.with_msg(format!("unrecognized flavor {:?}", other)))
+            }
         }
     }
 }
@@ -738,7 +741,7 @@ impl ProtoStatus {
             if let Some(item) = t {
                 item.args_as_str()
                     .parse::<Protocols>()
-                    .map_err(|e| Error::BadArgument(item.pos(), e.to_string()))
+                    .map_err(|e| EK::BadArgument.at_pos(item.pos()).with_source(e))
             } else {
                 Ok(Protocols::new())
             }
@@ -768,14 +771,15 @@ where
         {
             let parts: Vec<_> = p.splitn(2, '=').collect();
             if parts.len() != 2 {
-                return Err(Error::BadArgument(
-                    Pos::at(p),
-                    "Missing = in key=value list".to_string(),
-                ));
+                return Err(EK::BadArgument
+                    .at_pos(Pos::at(p))
+                    .with_msg("Missing = in key=value list"));
             }
-            let num = parts[1]
-                .parse::<U>()
-                .map_err(|e| Error::BadArgument(Pos::at(parts[1]), e.to_string()))?;
+            let num = parts[1].parse::<U>().map_err(|e| {
+                EK::BadArgument
+                    .at_pos(Pos::at(parts[1]))
+                    .with_msg(e.to_string())
+            })?;
             Ok((parts[0].to_string(), num))
         }
 
@@ -799,7 +803,9 @@ impl CommonHeader {
             #[allow(clippy::unwrap_used)]
             let first = sec.first_item().unwrap();
             if first.kwd() != NETWORK_STATUS_VERSION {
-                return Err(Error::UnexpectedToken(first.kwd().to_str(), first.pos()));
+                return Err(EK::UnexpectedToken
+                    .with_msg(first.kwd().to_str())
+                    .at_pos(first.pos()));
             }
         }
 
@@ -807,7 +813,7 @@ impl CommonHeader {
 
         let version: u32 = ver_item.parse_arg(0)?;
         if version != 3 {
-            return Err(Error::BadDocumentVersion(version));
+            return Err(EK::BadDocumentVersion.with_msg(version.to_string()));
         }
         let flavor = ConsensusFlavor::from_opt_name(ver_item.arg(1))?;
 
@@ -880,7 +886,13 @@ impl SharedRandVal {
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<Self> {
         match item.kwd() {
             NetstatusKwd::SHARED_RAND_PREVIOUS_VALUE | NetstatusKwd::SHARED_RAND_CURRENT_VALUE => {}
-            _ => return Err(Error::Internal(item.pos())),
+            _ => {
+                return Err(Error::from(internal!(
+                    "wrong keyword {:?} on shared-random value",
+                    item.kwd()
+                ))
+                .at_pos(item.pos()))
+            }
         }
         let n_reveals: u8 = item.parse_arg(0)?;
         let val: B64 = item.parse_arg(1)?;
@@ -896,7 +908,7 @@ impl ConsensusHeader {
 
         let status: &str = sec.required(VOTE_STATUS)?.arg(0).unwrap_or("");
         if status != "consensus" {
-            return Err(Error::BadDocumentType);
+            return Err(EK::BadDocumentType.err());
         }
 
         // We're ignoring KNOWN_FLAGS in the consensus.
@@ -928,7 +940,10 @@ impl DirSource {
     /// Parse a "dir-source" item
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<Self> {
         if item.kwd() != NetstatusKwd::DIR_SOURCE {
-            return Err(Error::Internal(item.pos()));
+            return Err(
+                Error::from(internal!("Bad keyword {:?} on dir-source", item.kwd()))
+                    .at_pos(item.pos()),
+            );
         }
         let nickname = item.required_arg(0)?.to_string();
         let identity = item.parse_arg::<Fingerprint>(1)?.into();
@@ -955,7 +970,11 @@ impl ConsensusVoterInfo {
         #[allow(clippy::unwrap_used)]
         let first = sec.first_item().unwrap();
         if first.kwd() != DIR_SOURCE {
-            return Err(Error::Internal(first.pos()));
+            return Err(Error::from(internal!(
+                "Wrong keyword {:?} at start of voter info",
+                first.kwd()
+            ))
+            .at_pos(first.pos()));
         }
         let dir_source = DirSource::from_item(sec.required(DIR_SOURCE)?)?;
 
@@ -996,7 +1015,10 @@ impl RelayFlags {
     /// Parse a relay-flags entry from an "s" line.
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayFlags> {
         if item.kwd() != NetstatusKwd::RS_S {
-            return Err(Error::Internal(item.pos()));
+            return Err(
+                Error::from(internal!("Wrong keyword {:?} for S line", item.kwd()))
+                    .at_pos(item.pos()),
+            );
         }
         // These flags are implicit.
         let mut flags: RelayFlags = RelayFlags::RUNNING | RelayFlags::VALID;
@@ -1006,10 +1028,9 @@ impl RelayFlags {
             if let Some(p) = prev {
                 if p >= s {
                     // Arguments out of order.
-                    return Err(Error::BadArgument(
-                        item.pos(),
-                        "Flags out of order".to_string(),
-                    ));
+                    return Err(EK::BadArgument
+                        .at_pos(item.pos())
+                        .with_msg("Flags out of order"));
                 }
             }
             match s.parse() {
@@ -1018,10 +1039,9 @@ impl RelayFlags {
                     prev = Some(s);
                 }
                 Err(_e) => {
-                    return Err(Error::BadArgument(
-                        item.pos(),
-                        "failed to parse flag".to_string(),
-                    ))
+                    return Err(EK::BadArgument
+                        .at_pos(item.pos())
+                        .with_msg("failed to parse flag"))
                 }
             };
         }
@@ -1040,7 +1060,10 @@ impl RelayWeight {
     /// Parse a routerweight from a "w" line.
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<RelayWeight> {
         if item.kwd() != NetstatusKwd::RS_W {
-            return Err(Error::Internal(item.pos()));
+            return Err(
+                Error::from(internal!("Wrong keyword {:?} on W line", item.kwd()))
+                    .at_pos(item.pos()),
+            );
         }
 
         let params: NetParams<u32> = item.args_as_str().parse()?;
@@ -1056,10 +1079,9 @@ impl RelayWeight {
         match unmeas {
             None | Some(0) => Ok(RelayWeight::Measured(bw)),
             Some(1) => Ok(RelayWeight::Unmeasured(bw)),
-            _ => Err(Error::BadArgument(
-                item.pos(),
-                "unmeasured value".to_string(),
-            )),
+            _ => Err(EK::BadArgument
+                .at_pos(item.pos())
+                .with_msg("unmeasured value")),
         }
     }
 }
@@ -1096,7 +1118,11 @@ impl Signature {
     /// Parse a Signature from a directory-signature section
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<Signature> {
         if item.kwd() != NetstatusKwd::DIRECTORY_SIGNATURE {
-            return Err(Error::Internal(item.pos()));
+            return Err(Error::from(internal!(
+                "Wrong keyword {:?} for directory signature",
+                item.kwd()
+            ))
+            .at_pos(item.pos()));
         }
 
         let (alg, id_fp, sk_fp) = if item.n_args() > 2 {
@@ -1278,7 +1304,11 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             (ConsensusHeader::from_section(&header_sec)?, pos)
         };
         if RS::flavor() != header.hdr.flavor {
-            return Err(Error::BadDocumentType);
+            return Err(EK::BadDocumentType.with_msg(format!(
+                "Expected {:?}, got {:?}",
+                RS::flavor(),
+                header.hdr.flavor
+            )));
         }
 
         let mut voters = Vec::new();
@@ -1291,7 +1321,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         while let Some((pos, routerstatus)) = Self::take_routerstatus(r)? {
             if let Some(prev) = relays.last() {
                 if prev.rsa_identity() >= routerstatus.rsa_identity() {
-                    return Err(Error::WrongSortOrder(pos));
+                    return Err(EK::WrongSortOrder.at_pos(pos));
                 }
             }
             relays.push(routerstatus);
@@ -1312,7 +1342,9 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         for item in r.iter() {
             let item = item?;
             if item.kwd() != DIRECTORY_SIGNATURE {
-                return Err(Error::UnexpectedToken(item.kwd().to_str(), item.pos()));
+                return Err(EK::UnexpectedToken
+                    .with_msg(item.kwd().to_str())
+                    .at_pos(item.pos()));
             }
 
             let sig = Signature::from_item(&item)?;
@@ -1323,7 +1355,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
         }
 
         let end_pos = match first_sig {
-            None => return Err(Error::MissingToken("directory-signature")),
+            None => return Err(EK::MissingToken.with_msg("directory-signature")),
             // Unwrap should be safe because `first_sig` was parsed from `r`
             #[allow(clippy::unwrap_used)]
             Some(sig) => sig.offset_in(r.str()).unwrap() + "directory-signature ".len(),
@@ -1434,12 +1466,14 @@ impl<RS> ExternallySigned<Consensus<RS>> for UnvalidatedConsensus<RS> {
     }
     fn is_well_signed(&self, k: &Self::Key) -> result::Result<(), Self::Error> {
         match self.n_authorities {
-            None => Err(Error::Internal(Pos::None)),
+            None => Err(Error::from(internal!(
+                "Didn't set authorities on consensus"
+            ))),
             Some(authority) => {
                 if self.siggroup.validate(authority, k) {
                     Ok(())
                 } else {
-                    Err(Error::BadSignature(Pos::None))
+                    Err(EK::BadSignature.err())
                 }
             }
         }
@@ -1667,32 +1701,39 @@ mod test {
 
         check(
             "bad-flags",
-            &Error::BadArgument(Pos::from_line(27, 1), "Flags out of order".into()),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(27, 1))
+                .with_msg("Flags out of order"),
         );
         check(
             "bad-md-digest",
-            &Error::BadArgument(Pos::from_line(40, 3), "Invalid base64".into()),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(40, 3))
+                .with_msg("Invalid base64"),
         );
         check(
             "bad-weight",
-            &Error::BadArgument(
-                Pos::from_line(67, 141),
-                "invalid digit found in string".into(),
-            ),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(67, 141))
+                .with_msg("invalid digit found in string"),
         );
         check(
             "bad-weights",
-            &Error::BadArgument(
-                Pos::from_line(51, 13),
-                "invalid digit found in string".into(),
-            ),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(51, 13))
+                .with_msg("invalid digit found in string"),
         );
-        check("wrong-order", &Error::WrongSortOrder(Pos::from_line(52, 1)));
+        check(
+            "wrong-order",
+            &EK::WrongSortOrder.at_pos(Pos::from_line(52, 1)),
+        );
         check(
             "wrong-start",
-            &Error::UnexpectedToken("vote-status", Pos::from_line(1, 1)),
+            &EK::UnexpectedToken
+                .with_msg("vote-status")
+                .at_pos(Pos::from_line(1, 1)),
         );
-        check("wrong-version", &Error::BadDocumentVersion(10));
+        check("wrong-version", &EK::BadDocumentVersion.with_msg("10"));
     }
 
     fn gettok(s: &str) -> Result<Item<'_, NetstatusKwd>> {

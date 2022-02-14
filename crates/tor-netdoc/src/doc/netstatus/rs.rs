@@ -12,7 +12,7 @@ mod ns;
 use super::{NetstatusKwd, RelayFlags, RelayWeight};
 use crate::parse::parser::Section;
 use crate::types::misc::*;
-use crate::{Error, Result};
+use crate::{ParseErrorKind as EK, Result};
 use std::{net, time};
 
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -136,8 +136,11 @@ where
         let r_item = sec.required(RS_R)?;
         let nickname = r_item.required_arg(0)?.to_string();
         let ident = r_item.required_arg(1)?.parse::<B64>()?;
-        let identity = RsaIdentity::from_bytes(ident.as_bytes())
-            .ok_or_else(|| Error::BadArgument(r_item.pos(), "Wrong identity length".to_string()))?;
+        let identity = RsaIdentity::from_bytes(ident.as_bytes()).ok_or_else(|| {
+            EK::BadArgument
+                .at_pos(r_item.pos())
+                .with_msg("Wrong identity length")
+        })?;
         let skip = if microdesc_format { 0 } else { 1 };
         // We check that the published time is well-formed, but we never use it
         // for anything in a consensus document.
@@ -175,7 +178,7 @@ where
             let tok = sec.required(RS_PR)?;
             tok.args_as_str()
                 .parse::<Protocols>()
-                .map_err(|e| Error::BadArgument(tok.pos(), e.to_string()))?
+                .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?
         };
 
         // W line

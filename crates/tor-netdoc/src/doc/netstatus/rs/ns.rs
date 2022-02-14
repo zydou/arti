@@ -8,9 +8,10 @@ use crate::doc::netstatus::{
 use crate::doc::routerdesc::RdDigest;
 use crate::types::misc::*;
 use crate::{parse::parser::Section, util::private::Sealed};
-use crate::{Error, Pos, Result};
+use crate::{Error, Result};
 use std::net;
 
+use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
@@ -75,6 +76,6 @@ impl FromRsString for RdDigest {
             .check_len(20..=20)?
             .as_bytes()
             .try_into()
-            .map_err(|_| Error::Internal(Pos::None))
+            .map_err(|_| Error::from(internal!("correct length on digest, but unable to convert")))
     }
 }

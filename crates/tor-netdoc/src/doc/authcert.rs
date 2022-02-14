@@ -11,7 +11,7 @@ use crate::parse::parser::SectionRules;
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::types::misc::{Fingerprint, Iso8601TimeSp, RsaPublic};
 use crate::util::str::Extent;
-use crate::{Error, Result};
+use crate::{ParseErrorKind as EK, Result};
 
 use tor_checkable::{signed, timed};
 use tor_llcrypto::pk::rsa;
@@ -212,10 +212,9 @@ impl AuthCert {
             #[allow(clippy::unwrap_used)]
             let first_item = body.first_item().unwrap();
             if first_item.kwd() != DIR_KEY_CERTIFICATE_VERSION {
-                return Err(Error::WrongStartingToken(
-                    first_item.kwd_str().into(),
-                    first_item.pos(),
-                ));
+                return Err(EK::WrongStartingToken
+                    .with_msg(first_item.kwd_str().to_string())
+                    .at_pos(first_item.pos()));
             }
             first_item.pos()
         };
@@ -225,10 +224,9 @@ impl AuthCert {
             #[allow(clippy::unwrap_used)]
             let last_item = body.last_item().unwrap();
             if last_item.kwd() != DIR_KEY_CERTIFICATION {
-                return Err(Error::WrongEndingToken(
-                    last_item.kwd_str().into(),
-                    last_item.pos(),
-                ));
+                return Err(EK::WrongEndingToken
+                    .with_msg(last_item.kwd_str().to_string())
+                    .at_pos(last_item.pos()));
             }
             last_item.end_pos()
         };
@@ -237,7 +235,7 @@ impl AuthCert {
             .required(DIR_KEY_CERTIFICATE_VERSION)?
             .parse_arg::<u32>(0)?;
         if version != 3 {
-            return Err(Error::BadDocumentVersion(version));
+            return Err(EK::BadDocumentVersion.with_msg(format!("unexpected version {}", version)));
         }
 
         let signing_key: rsa::PublicKey = body
@@ -271,10 +269,9 @@ impl AuthCert {
             let fp_tok = body.required(FINGERPRINT)?;
             let fingerprint: RsaIdentity = fp_tok.args_as_str().parse::<Fingerprint>()?.into();
             if fingerprint != identity_key.to_rsa_identity() {
-                return Err(Error::BadArgument(
-                    fp_tok.pos(),
-                    "fingerprint does not match RSA identity".into(),
-                ));
+                return Err(EK::BadArgument
+                    .at_pos(fp_tok.pos())
+                    .with_msg("fingerprint does not match RSA identity"));
             }
         }
 
@@ -453,22 +450,31 @@ mod test {
             assert_eq!(&cert.err().unwrap(), err);
         }
 
-        check("bad-cc-tag", &Error::WrongObject(Pos::from_line(27, 12)));
+        check(
+            "bad-cc-tag",
+            &EK::WrongObject.at_pos(Pos::from_line(27, 12)),
+        );
         check(
             "bad-fingerprint",
-            &Error::BadArgument(
-                Pos::from_line(2, 1),
-                "fingerprint does not match RSA identity".into(),
-            ),
+            &EK::BadArgument
+                .at_pos(Pos::from_line(2, 1))
+                .with_msg("fingerprint does not match RSA identity"),
         );
-        check("bad-version", &Error::BadDocumentVersion(4));
+        check(
+            "bad-version",
+            &EK::BadDocumentVersion.with_msg("unexpected version 4"),
+        );
         check(
             "wrong-end",
-            &Error::WrongEndingToken("dir-key-crosscert".into(), Pos::from_line(37, 1)),
+            &EK::WrongEndingToken
+                .with_msg("dir-key-crosscert")
+                .at_pos(Pos::from_line(37, 1)),
         );
         check(
             "wrong-start",
-            &Error::WrongStartingToken("fingerprint".into(), Pos::from_line(1, 1)),
+            &EK::WrongStartingToken
+                .with_msg("fingerprint")
+                .at_pos(Pos::from_line(1, 1)),
         );
     }
 

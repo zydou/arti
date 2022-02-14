@@ -275,7 +275,7 @@ impl Default for Protocols {
 }
 
 /// An error representing a failure to parse a set of protocol versions.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq, Clone)]
 #[non_exhaustive]
 pub enum ParseError {
     /// A protocol version was not in the range 0..=63.
