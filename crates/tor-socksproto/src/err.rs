@@ -41,7 +41,7 @@ pub enum Error {
 
     /// Something went wrong with the programming of this module.
     #[error("Internal programming error while handling SOCKS handshake")]
-    Internal(InternalError),
+    Internal(#[from] InternalError),
 }
 
 // Note: at present, tor-socksproto isn't used in any settings where ErrorKind
