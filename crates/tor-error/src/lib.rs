@@ -139,6 +139,9 @@ pub enum ErrorKind {
     /// This kind of error can happen when you call a `reconfigure()` method on
     /// a service (or part of a service) and the new configuration is not
     /// compatible with the previous configuration.
+    ///
+    /// The only available remedy is to tear down the service and make a fresh
+    /// one (for example, by making a new `TorClient`).
     #[display(fmt = "invalid configuration transition")]
     InvalidConfigTransition,
 
