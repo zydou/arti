@@ -187,17 +187,30 @@ pub enum ErrorKind {
     #[display(fmt = "operation not supported because Arti feature disabled")]
     FeatureDisabled,
 
-    /// Someone or something violated a network protocol.
+    /// Someone or something local violated a network protocol.
+    ///
+    /// This kind of error can happen when a local program accessing us over some
+    /// other protocol violates the protocol's requirements.
+    ///
+    /// This usually indicates a programming error: either in that program's
+    /// implementation of the protocol, or in ours.  In any case, the problem
+    /// is with software on the local system (or otherwise sharing a Tor client).
+    ///
+    /// It might also occur if the local system has an incompatible combination of
+    ///
+    #[display(fmt = "local protocol violation (local bug or incompatibility)")]
+    LocalProtocolViolation,
+
+    /// Someone or something on the Tor network violated the Tor protocols.
     ///
     /// This kind of error can happen when a remote Tor instance behaves in a
-    /// way we don't expect, or when a local program accessing us over some
-    /// other protocol violates the protocol's requirements.
+    /// way we don't expect.
     ///
     /// It usually indicates a programming error: either in their implementation
     /// of the protocol, or in ours.  It can also indicate an attempted attack,
     /// though that can be hard to diagnose.
-    #[display(fmt = "network protocol violation")]
-    ProtocolViolation,
+    #[display(fmt = "Tor network protocol violation (bug, incompatibility, or attack)")]
+    TorProtocolViolation,
 
     /// Called a function with an invalid argument.
     ///
