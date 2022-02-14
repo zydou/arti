@@ -215,7 +215,7 @@ impl<R: Runtime> DirMgr<R> {
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<NetDir>> {
         let dirmgr = DirMgr::bootstrap_from_config(config, runtime, circmgr).await?;
-        Ok(dirmgr.netdir()?)
+        dirmgr.netdir()
     }
 
     /// Create a new `DirMgr` in online mode, but don't bootstrap it yet.
