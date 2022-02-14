@@ -267,9 +267,6 @@ pub enum Error {
     /// A consensus lifetime was ill-formed.
     #[error("Invalid consensus lifetime")]
     InvalidLifetime,
-    /// We're unable to finish building an object, for some reason.
-    #[error("Unable to construct object: {0}")]
-    CannotBuild(&'static str),
 }
 
 impl Error {
@@ -307,7 +304,6 @@ impl Error {
             WrongEndingToken(_, p) => Some(p),
             WrongSortOrder(p) => Some(p),
             InvalidLifetime => None,
-            CannotBuild(_) => None,
         }
     }
 
@@ -347,7 +343,6 @@ impl Error {
             WrongEndingToken(_, p) => Some(p),
             WrongSortOrder(p) => Some(p),
             InvalidLifetime => None,
-            CannotBuild(_) => None,
         };
         *pos.unwrap_or(&Pos::Unknown)
     }
@@ -415,4 +410,18 @@ impl From<signature::Error> for Error {
     fn from(_e: signature::Error) -> Error {
         Error::BadSignature(Pos::None)
     }
+}
+
+/// An error that occurs while trying to construct a network document.
+#[derive(Clone, Debug, Error)]
+#[non_exhaustive]
+pub enum BuildError {
+    /// We were unable to build the document, probably due to an invalid
+    /// argument of some kind.
+    #[error("cannot build document: {0}")]
+    CannotBuild(&'static str),
+
+    /// An argument that was given as a string turned out to be unparsable.
+    #[error("unable to parse argument")]
+    Parse(#[from] crate::err::Error),
 }

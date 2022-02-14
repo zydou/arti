@@ -31,4 +31,8 @@ pub enum Error {
     /// We don't have enough directory info to build circuits
     #[error("not enough directory information to build circuits")]
     NotEnoughInfo,
+    /// Failed to construct a testing document.
+    #[cfg(any(test, feature = "testing"))]
+    #[error("could not build testing document")]
+    CannotBuildTestnetDoc(#[from] tor_netdoc::BuildError),
 }
