@@ -159,16 +159,33 @@ pub enum ErrorKind {
 
     /// A requested operation was not implemented by Arti.
     ///
-    /// This kind of error can happen when calling an API that isn't available
-    /// at runtime, or when requesting a piece of protocol functionality that is
-    /// not implemented.
+    /// This kind of error can happen when requesting a piece of protocol
+    /// functionality that has not (yet) been implemented in the Arti project.
     ///
     /// If it happens as a result of a user activity, it's fine to ignore, log,
     /// or report the error. If it happens as a result of direct API usage, it
-    /// may indicate that you're using something that isn't implemented yet, or
-    /// hasn't been turned on for your build environment.
-    #[display(fmt = "operation not supported")]
-    NoSupport,
+    /// may indicate that you're using something that isn't implemented yet.
+    ///
+    /// This kind can relate both to operations which we plan to implement, and
+    /// to operations which we do not.  It does not relate to faciities which
+    /// are disabled (e.g. at build time) or harmful.
+    ///
+    /// It can refer to facilities which were once implemented in Tor or Arti
+    /// but for which support has been removed.
+    #[display(fmt = "operation not implemented")]
+    NotImplemented,
+
+    /// A feature was requested which has been disabled in this build of Arti.
+    ///!
+    /// This kind of error happens when the running Arti was built wityout the
+    /// appropriate feature (usually, cargo feature) enabled.
+    ///!
+    /// This might indicate that the overall running system has been
+    /// mis-configured at build-time.  Alternatively, it can occur if the
+    /// running system is deliberately stripped down, in which case it might be
+    /// reasonable to simply report this error to a user.
+    #[display(fmt = "operation not supported because Arti feature disabled")]
+    FeatureDisabled,
 
     /// Someone or something violated a network protocol.
     ///

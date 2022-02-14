@@ -200,7 +200,7 @@ impl SocksRequest {
         auth: SocksAuth,
     ) -> Result<Self> {
         if !cmd.recognized() {
-            return Err(Error::NoSupport);
+            return Err(Error::NotImplemented);
         }
         if port == 0 && cmd.requires_port() {
             return Err(Error::Syntax);
@@ -298,7 +298,7 @@ mod test {
             1024,
             SocksAuth::NoAuth,
         );
-        assert!(matches!(e, Err(Error::NoSupport)));
+        assert!(matches!(e, Err(Error::NotImplemented)));
 
         let e = SocksRequest::new(
             SocksVersion::V4,
