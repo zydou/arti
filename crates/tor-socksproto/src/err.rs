@@ -18,6 +18,8 @@ pub enum Error {
     Decode(#[from] tor_bytes::Error),
 
     /// Called a function with an invalid argument.
+    //
+    // TODO: this should have a stack trace.
     #[error("Invalid argument: {0}")]
     Invalid(&'static str),
 
@@ -58,7 +60,7 @@ impl HasKind for Error {
                 EK::Internal
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
-            E::Invalid(_) => EK::BadArgument,
+            E::Invalid(_) => EK::BadAPIUsage,
             E::NotImplemented => EK::NotImplemented,
             E::AlreadyFinished(e) => e.kind(),
             E::Internal(e) => e.kind(),
