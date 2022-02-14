@@ -60,8 +60,8 @@ impl HasKind for Error {
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::ProtocolViolation,
             E::Invalid(_) => EK::BadArgument,
             E::NoSupport => EK::NoSupport,
-            E::AlreadyFinished(_) => EK::Internal,
-            E::Internal(_) => EK::Internal,
+            E::AlreadyFinished(e) => e.kind(),
+            E::Internal(e) => e.kind(),
         }
     }
 }
