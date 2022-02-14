@@ -31,8 +31,8 @@ pub enum Error {
 
     /// The SOCKS client tried to use a SOCKS feature that we don't
     /// support at all.
-    #[error("SOCKS feature not supported")]
-    NoSupport,
+    #[error("SOCKS feature not implemented")]
+    NotImplemented,
 
     /// Tried to progress the SOCKS handshake when it was already
     /// finished.  This is a programming error.
@@ -59,7 +59,7 @@ impl HasKind for Error {
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::ProtocolViolation,
             E::Invalid(_) => EK::BadArgument,
-            E::NoSupport => EK::NoSupport,
+            E::NotImplemented => EK::NotImplemented,
             E::AlreadyFinished(_) => EK::Internal,
             E::Internal(_) => EK::Internal,
         }

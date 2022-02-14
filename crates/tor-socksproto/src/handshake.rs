@@ -180,7 +180,7 @@ impl SocksHandshake {
             (State::Socks5Wait, [5, NO_AUTHENTICATION])
         } else {
             // In theory we should reply with "NO ACCEPTABLE METHODS".
-            return Err(Error::NoSupport);
+            return Err(Error::NotImplemented);
         };
 
         self.state = next;
@@ -197,7 +197,7 @@ impl SocksHandshake {
 
         let ver = r.take_u8()?;
         if ver != 1 {
-            return Err(Error::NoSupport);
+            return Err(Error::NotImplemented);
         }
 
         let ulen = r.take_u8()?;
