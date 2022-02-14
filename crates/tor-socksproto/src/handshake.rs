@@ -113,10 +113,7 @@ impl SocksHandshake {
         let mut r = Reader::from_slice(input);
         let version = r.take_u8()?.try_into()?;
         if version != SocksVersion::V4 {
-            return Err(internal!(
-                "called s4 on wrong type {:?}",
-                version
-            ).into());
+            return Err(internal!("called s4 on wrong type {:?}", version).into());
         }
 
         let cmd: SocksCmd = r.take_u8()?.into();
@@ -157,10 +154,7 @@ impl SocksHandshake {
         let mut r = Reader::from_slice(input);
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
-            return Err(internal!(
-                "called on wrong handshake type {:?}",
-                version
-            ).into());
+            return Err(internal!("called on wrong handshake type {:?}", version).into());
         }
 
         /// Constant for Username/Password-style authentication.
@@ -220,10 +214,9 @@ impl SocksHandshake {
 
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
-            return Err(internal!(
-                "called s5 on non socks5 handshake with type {:?}",
-                version
-            ).into());
+            return Err(
+                internal!("called s5 on non socks5 handshake with type {:?}", version).into(),
+            );
         }
         let cmd = r.take_u8()?.into();
         let _ignore = r.take_u8()?;
