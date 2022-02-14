@@ -17,12 +17,6 @@ pub enum Error {
     #[error("Error decoding message")]
     Decode(#[from] tor_bytes::Error),
 
-    /// Called a function with an invalid argument.
-    //
-    // TODO: this should have a stack trace.
-    #[error("Invalid argument: {0}")]
-    Invalid(&'static str),
-
     /// The SOCKS client declared a SOCKS version number that isn't
     /// one we support.
     ///
@@ -60,7 +54,6 @@ impl HasKind for Error {
                 EK::Internal
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
-            E::Invalid(_) => EK::BadAPIUsage,
             E::NotImplemented => EK::NotImplemented,
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
