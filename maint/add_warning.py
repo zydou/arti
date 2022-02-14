@@ -11,7 +11,7 @@ WANT_LINTS = """
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
 #![deny(clippy::cast_lossless)]
 #![deny(clippy::checked_conversions)]
