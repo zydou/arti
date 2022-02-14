@@ -217,6 +217,9 @@ pub enum ErrorKind {
     /// This kind of error is usually a programming mistake on the caller's part.
     /// This is usually a bug in code calling Arti, but it might be a bug in Arti itself.
     //
+    // Usually, use `bad_api_usage!` and `into_bad_api_usage!` and thereby `InternalError`,
+    // rather than inventing a new type with this kind.
+    //
     // Errors with this kind should generally include a stack trace.  They are
     // very like InternalError, in that they represent a bug in the program.
     // The difference is that an InternalError, with kind `Internal`, represents

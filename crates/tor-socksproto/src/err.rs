@@ -1,7 +1,7 @@
 //! Declare an error type for tor_socksproto
 use thiserror::Error;
 
-use tor_error::{ErrorKind, HasKind, InternalError};
+use tor_error::{ErrorKind, HasKind};
 
 /// An error that occurs while negotiating a SOCKS handshake.
 #[derive(Error, Debug)]
@@ -39,11 +39,11 @@ pub enum Error {
     /// Tried to progress the SOCKS handshake when it was already
     /// finished.  This is a programming error.
     #[error("SOCKS handshake was finished; no need to call this again")]
-    AlreadyFinished(InternalError),
+    AlreadyFinished(tor_error::Bug),
 
-    /// Something went wrong with the programming of this module.
-    #[error("Internal programming error while handling SOCKS handshake")]
-    Internal(#[from] InternalError),
+    /// The program (perhaps this module, perhaps Arti, perhaps the caller) is buggy
+    #[error("Bug while handling SOCKS handshake")]
+    Bug(#[from] tor_error::Bug),
 }
 
 // Note: at present, tor-socksproto isn't used in any settings where ErrorKind
@@ -63,7 +63,7 @@ impl HasKind for Error {
             E::Invalid(_) => EK::BadAPIUsage,
             E::NotImplemented => EK::NotImplemented,
             E::AlreadyFinished(e) => e.kind(),
-            E::Internal(e) => e.kind(),
+            E::Bug(e) => e.kind(),
         }
     }
 }
