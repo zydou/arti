@@ -44,7 +44,6 @@ postage = { version = "0.4", default-features = false, features = ["futures-trai
 tracing = "0.1.18"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-event-listener = "2.5"
 
 [dev-dependencies]
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio", "native-tls" ] }

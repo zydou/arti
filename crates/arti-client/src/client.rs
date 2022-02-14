@@ -15,10 +15,9 @@ use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
-use futures::future::Either;
+use futures::lock::Mutex as AsyncMutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
-use futures::FutureExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
@@ -79,9 +78,8 @@ pub struct TorClient<R: Runtime> {
     /// unobserved status change when the next status change occurs.)
     status_receiver: status::BootstrapEvents,
 
-    /// Event listener to notify tasks stuck in `wait_for_bootstrap` of
-    /// a failure to bootstrap.
-    bootstrap_failure_listener: Arc<event_listener::Event>,
+    /// mutex used to prevent two tasks from trying to bootstrap at once.
+    bootstrap_in_progress: Arc<AsyncMutex<()>>,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -406,7 +404,7 @@ impl<R: Runtime> TorClient<R> {
             timeoutcfg: Arc::new(timeout_cfg.into()),
             reconfigure_lock: Arc::new(Mutex::new(())),
             status_receiver,
-            bootstrap_failure_listener: Arc::new(Default::default()),
+            bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
         })
     }
 
@@ -436,7 +434,9 @@ impl<R: Runtime> TorClient<R> {
     /// double error conversions.
     async fn bootstrap_inner(&self) -> StdResult<(), ErrorDetail> {
         // Wait for an existing bootstrap attempt to finish first.
-        self.wait_for_bootstrap().await?;
+        //
+        // This is a futures::lock::Mutex, so it's okay to await while we hold it.
+        let _bootstrap_lock = self.bootstrap_in_progress.lock().await;
 
         if self.statemgr.try_lock()?.held() {
             debug!("It appears we have the lock on our state files.");
@@ -446,11 +446,7 @@ impl<R: Runtime> TorClient<R> {
             );
         }
 
-        if let Err(e) = self.dirmgr.bootstrap().await {
-            // Let any tasks stuck in `wait_for_bootstrap` know that we failed.
-            self.bootstrap_failure_listener.notify(usize::MAX);
-            return Err(e.into());
-        }
+        self.dirmgr.bootstrap().await?;
 
         self.circmgr
             .update_network_parameters(self.dirmgr.netdir()?.params());
@@ -461,31 +457,9 @@ impl<R: Runtime> TorClient<R> {
     /// Check whether a bootstrap is in progress; if one is, wait until it finishes
     /// and then return. (Otherwise, return immediately.)
     async fn wait_for_bootstrap(&self) -> StdResult<(), ErrorDetail> {
-        if self.dirmgr.opt_netdir().is_some() {
-            return Ok(());
-        }
-        // We have to be careful to not get stuck forever here due to a race condition.
-        if self.dirmgr.bootstrap_started() {
-            let mut events = self.bootstrap_events();
-            let mut failure = self.bootstrap_failure_listener.listen().into_stream();
-            // Poll both the bootstrap events stream, and the failure listener.
-            // If we get a failure notification (Either::Right), this loop exits.
-            // If we get a bootstrap event (Either::Left), we check to see whether we're done.
-            while let Either::Left((Some(_), _)) =
-                futures::future::select(events.next(), failure.next()).await
-            {
-                // Have we finished bootstrapping?
-                if self.dirmgr.opt_netdir().is_some() {
-                    return Ok(());
-                }
-                // This is here as a check for if we failed after we checked bootstrap_started()
-                // but before calling bootstrap_failure_listener.listen() (in which case the
-                // failure listener wouldn't notify us).
-                if !self.dirmgr.bootstrap_started() {
-                    return Ok(());
-                }
-            }
-        }
+        // Grab the lock, and immediately release it.  That will ensure that nobody else is trying to bootstrap.
+        self.bootstrap_in_progress.lock().await;
+
         Ok(())
     }
 

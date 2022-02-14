@@ -123,7 +123,6 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "directories",
- "event-listener",
  "futures",
  "humantime-serde",
  "hyper",
