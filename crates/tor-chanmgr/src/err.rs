@@ -70,11 +70,15 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 
 impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
+        use tor_proto::Error as ProtoErr;
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::Io { .. } => EK::TorConnectionFailed,
-            _ => EK::TODO,
+            E::ChanTimeout | E::Io { .. } | E::Proto(ProtoErr::IoErr(_)) => EK::TorConnectionFailed,
+            E::Spawn { cause, .. } => cause.kind(),
+            E::Proto(e) => e.kind(),
+            E::PendingFailed => EK::TorConnectionFailed,
+            E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
         }
     }
 }
