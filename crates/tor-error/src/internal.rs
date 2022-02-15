@@ -55,7 +55,7 @@ mod ie_backtrace {
 // Boxed because it is fairly large (>=12 words), and will be in a variant in many other errors.
 //
 // This is a single Bug type containing a kind in BugRepr, rather than separate InternalError and
-// BadAPIUsage types, primarily because that means that one Bug(#[from] tor_error::Bug) suffices in
+// BadApiUsage types, primarily because that means that one Bug(#[from] tor_error::Bug) suffices in
 // every crate's particular error type.
 pub struct Bug(Box<BugRepr>);
 
@@ -79,7 +79,7 @@ struct BugRepr {
 
     /// Kind
     ///
-    /// `Internal` or `APIUsageBug`
+    /// `Internal` or `BadApiUsage`
     kind: ErrorKind,
 }
 
@@ -191,7 +191,7 @@ macro_rules! internal {
 #[macro_export]
 macro_rules! bad_api_usage {
     { $( $arg:tt )* } => {
-        $crate::Bug::new($crate::ErrorKind::BadAPIUsage, format!($($arg)*))
+        $crate::Bug::new($crate::ErrorKind::BadApiUsage, format!($($arg)*))
     }
 }
 
@@ -235,7 +235,7 @@ macro_rules! into_internal {
 #[macro_export]
 macro_rules! into_bad_api_usage {
     { $( $arg:tt )* } => {
-        |source| $crate::Bug::from_error($crate::ErrorKind::BadAPIUsage, source, format!($($arg)*))
+        |source| $crate::Bug::from_error($crate::ErrorKind::BadApiUsage, source, format!($($arg)*))
     }
 }
 

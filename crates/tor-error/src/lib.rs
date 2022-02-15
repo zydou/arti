@@ -226,7 +226,7 @@ pub enum ErrorKind {
     // a bug in arti, whereas errors with kind BadArgument represent bugs which
     // could be (often, are likely to be) outside arti.
     #[display(fmt = "Bad API usage (bug)")]
-    BadAPIUsage,
+    BadApiUsage,
 
     /// Internal error (bug) in Arti.
     ///
