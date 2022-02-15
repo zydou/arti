@@ -225,7 +225,7 @@ pub enum ErrorKind {
     // The difference is that an InternalError, with kind `Internal`, represents
     // a bug in arti, whereas errors with kind BadArgument represent bugs which
     // could be (often, are likely to be) outside arti.
-    #[display(fmt = "Bad API usage (bug)")]
+    #[display(fmt = "bad API usage (bug)")]
     BadApiUsage,
 
     /// Internal error (bug) in Arti.
