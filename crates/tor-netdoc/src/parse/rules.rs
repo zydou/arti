@@ -2,7 +2,7 @@
 
 use crate::parse::keyword::Keyword;
 use crate::parse::tokenize::Item;
-use crate::{Error, Result};
+use crate::{ParseErrorKind as EK, Result};
 
 /// May an Item take an object?
 #[derive(Copy, Clone)]
@@ -45,12 +45,16 @@ impl<T: Keyword> TokenFmt<T> {
         let n_args = item.n_args();
         if let Some(max) = self.max_args {
             if n_args > max {
-                return Err(Error::TooManyArguments(self.kwd.to_str(), item.pos()));
+                return Err(EK::TooManyArguments
+                    .with_msg(self.kwd.to_str())
+                    .at_pos(item.pos()));
             }
         }
         if let Some(min) = self.min_args {
             if n_args < min {
-                return Err(Error::TooFewArguments(self.kwd.to_str(), item.pos()));
+                return Err(EK::TooFewArguments
+                    .with_msg(self.kwd.to_str())
+                    .at_pos(item.pos()));
             }
         }
         Ok(())
@@ -60,10 +64,12 @@ impl<T: Keyword> TokenFmt<T> {
     /// to its object's presence and type.
     fn item_matches_obj<'a>(&self, item: &Item<'a, T>) -> Result<()> {
         match (&self.obj, item.has_obj()) {
-            (ObjKind::NoObj, true) => Err(Error::UnexpectedObject(self.kwd.to_str(), item.pos())),
-            (ObjKind::RequireObj, false) => {
-                Err(Error::MissingObject(self.kwd.to_str(), item.pos()))
-            }
+            (ObjKind::NoObj, true) => Err(EK::UnexpectedObject
+                .with_msg(self.kwd.to_str())
+                .at_pos(item.pos())),
+            (ObjKind::RequireObj, false) => Err(EK::MissingObject
+                .with_msg(self.kwd.to_str())
+                .at_pos(item.pos())),
             (_, _) => Ok(()),
         }
     }
@@ -80,13 +86,15 @@ impl<T: Keyword> TokenFmt<T> {
         match items.len() {
             0 => {
                 if self.required {
-                    return Err(Error::MissingToken(self.kwd.to_str()));
+                    return Err(EK::MissingToken.with_msg(self.kwd.to_str()));
                 }
             }
             1 => (),
             _ => {
                 if !self.may_repeat {
-                    return Err(Error::DuplicateToken(self.kwd.to_str(), items[1].pos()));
+                    return Err(EK::DuplicateToken
+                        .with_msg(self.kwd.to_str())
+                        .at_pos(items[1].pos()));
                 }
             }
         }

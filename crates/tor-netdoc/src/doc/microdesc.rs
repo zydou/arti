@@ -20,7 +20,8 @@ use crate::types::misc::*;
 use crate::types::policy::PortPolicy;
 use crate::util;
 use crate::util::str::Extent;
-use crate::{AllowAnnotations, Error, Result};
+use crate::{AllowAnnotations, Error, ParseErrorKind as EK, Result};
+use tor_error::internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::{curve25519, ed25519, rsa};
 
@@ -251,10 +252,9 @@ impl Microdesc {
             #[allow(clippy::unwrap_used)]
             let first = body.first_item().unwrap();
             if first.kwd() != ONION_KEY {
-                return Err(Error::WrongStartingToken(
-                    first.kwd_str().into(),
-                    first.pos(),
-                ));
+                return Err(EK::WrongStartingToken
+                    .with_msg(first.kwd_str().to_string())
+                    .at_pos(first.pos()));
             }
             // Unwrap is safe here because we are parsing these strings from s
             #[allow(clippy::unwrap_used)]
@@ -300,7 +300,7 @@ impl Microdesc {
                 .find(|item| item.arg(0) == Some("ed25519"));
             match id_tok {
                 None => {
-                    return Err(Error::MissingToken("id ed25519"));
+                    return Err(EK::MissingToken.with_msg("id ed25519"));
                 }
                 Some(tok) => tok.parse_arg::<Ed25519Public>(1)?.into(),
             }
@@ -311,9 +311,10 @@ impl Microdesc {
             // had there not been at least one item.
             #[allow(clippy::unwrap_used)]
             let last_item = body.last_item().unwrap();
-            last_item
-                .offset_after(s)
-                .ok_or_else(|| Error::Internal(last_item.end_pos()))?
+            last_item.offset_after(s).ok_or_else(|| {
+                Error::from(internal!("last item was not within source string"))
+                    .at_pos(last_item.end_pos())
+            })?
         };
 
         let text = &s[start_pos..end_pos];
@@ -502,11 +503,15 @@ mod test {
 
         check(
             "wrong-start",
-            &Error::WrongStartingToken("family".into(), Pos::from_line(1, 1)),
+            &EK::WrongStartingToken
+                .with_msg("family")
+                .at_pos(Pos::from_line(1, 1)),
         );
         check(
             "bogus-policy",
-            &Error::BadPolicy(Pos::from_line(9, 1), PolicyError::InvalidPort),
+            &EK::BadPolicy
+                .at_pos(Pos::from_line(9, 1))
+                .with_source(PolicyError::InvalidPort),
         );
     }
 

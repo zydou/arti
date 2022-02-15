@@ -9,7 +9,7 @@ use super::{
     Footer, Lifetime, NetParams, ProtoStatus, RouterStatus, SharedRandVal,
 };
 
-use crate::{Error, Result};
+use crate::{BuildError as Error, BuildResult as Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 

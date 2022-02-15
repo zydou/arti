@@ -30,7 +30,7 @@ pub(crate) trait FromBytes: Sized {
 
 /// Types for decoding base64-encoded values.
 mod b64impl {
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
     use std::ops::RangeBounds;
 
     /// A byte array, encoded in base64 with optional padding.
@@ -39,8 +39,11 @@ mod b64impl {
     impl std::str::FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let bytes = base64::decode_config(s, base64::STANDARD_NO_PAD)
-                .map_err(|_| Error::BadArgument(Pos::at(s), "Invalid base64".into()))?;
+            let bytes = base64::decode_config(s, base64::STANDARD_NO_PAD).map_err(|_| {
+                EK::BadArgument
+                    .with_msg("Invalid base64")
+                    .at_pos(Pos::at(s))
+            })?;
             Ok(B64(bytes))
         }
     }
@@ -56,10 +59,7 @@ mod b64impl {
             if bounds.contains(&self.0.len()) {
                 Ok(self)
             } else {
-                Err(Error::BadObjectVal(
-                    Pos::Unknown,
-                    "Invalid length on base64 data".to_string(),
-                ))
+                Err(EK::BadObjectVal.with_msg("Invalid length on base64 data"))
             }
         }
     }
@@ -75,7 +75,7 @@ mod b64impl {
 
 /// Types for decoding hex-encoded values.
 mod b16impl {
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
 
     /// A byte array encoded in hexadecimal.
     pub(crate) struct B16(Vec<u8>);
@@ -83,8 +83,11 @@ mod b16impl {
     impl std::str::FromStr for B16 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let bytes = hex::decode(s)
-                .map_err(|_| Error::BadArgument(Pos::at(s), "invalid hexadecimal".to_string()))?;
+            let bytes = hex::decode(s).map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("invalid hexadecimal")
+            })?;
             Ok(B16(bytes))
         }
     }
@@ -109,7 +112,7 @@ mod b16impl {
 /// Types for decoding curve25519 keys
 mod curve25519impl {
     use super::B64;
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
     use std::convert::TryInto;
     use tor_llcrypto::pk::curve25519::PublicKey;
 
@@ -121,7 +124,9 @@ mod curve25519impl {
         fn from_str(s: &str) -> Result<Self> {
             let b64: B64 = s.parse()?;
             let array: [u8; 32] = b64.as_bytes().try_into().map_err(|_| {
-                Error::BadArgument(Pos::at(s), "bad length for curve25519 key.".into())
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("bad length for curve25519 key.")
             })?;
             Ok(Curve25519Public(array.into()))
         }
@@ -139,7 +144,7 @@ mod curve25519impl {
 /// Types for decoding ed25519 keys
 mod ed25519impl {
     use super::B64;
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     /// An alleged ed25519 public key, encoded in base64 with optional
@@ -151,13 +156,14 @@ mod ed25519impl {
         fn from_str(s: &str) -> Result<Self> {
             let b64: B64 = s.parse()?;
             if b64.as_bytes().len() != 32 {
-                return Err(Error::BadArgument(
-                    Pos::at(s),
-                    "bad length for ed25519 key.".into(),
-                ));
+                return Err(EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("bad length for ed25519 key."));
             }
             let key = Ed25519Identity::from_bytes(b64.as_bytes()).ok_or_else(|| {
-                Error::BadArgument(Pos::at(s), "bad value for ed25519 key.".into())
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("bad value for ed25519 key.")
             })?;
             Ok(Ed25519Public(key))
         }
@@ -174,7 +180,7 @@ mod ed25519impl {
 
 /// Types for decoding times and dates
 mod timeimpl {
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
     use std::time::SystemTime;
     use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
 
@@ -191,8 +197,11 @@ mod timeimpl {
     impl std::str::FromStr for Iso8601TimeSp {
         type Err = Error;
         fn from_str(s: &str) -> Result<Iso8601TimeSp> {
-            let d = PrimitiveDateTime::parse(s, &ISO_8601SP_FMT)
-                .map_err(|e| Error::BadArgument(Pos::at(s), format!("invalid time: {}", e)))?;
+            let d = PrimitiveDateTime::parse(s, &ISO_8601SP_FMT).map_err(|e| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg(format!("invalid time: {}", e))
+            })?;
             Ok(Iso8601TimeSp(d.assume_utc().into()))
         }
     }
@@ -206,7 +215,7 @@ mod timeimpl {
 
 /// Types for decoding RSA keys
 mod rsa {
-    use crate::{Error, Pos, Result};
+    use crate::{ParseErrorKind as EK, Pos, Result};
     use std::ops::RangeBounds;
     use tor_llcrypto::pk::rsa::PublicKey;
 
@@ -221,9 +230,8 @@ mod rsa {
     }
     impl super::FromBytes for RsaPublic {
         fn from_bytes(b: &[u8], pos: Pos) -> Result<Self> {
-            let key = PublicKey::from_der(b).ok_or_else(|| {
-                Error::BadObjectVal(Pos::None, "unable to decode RSA public key".into())
-            })?;
+            let key = PublicKey::from_der(b)
+                .ok_or_else(|| EK::BadObjectVal.with_msg("unable to decode RSA public key"))?;
             Ok(RsaPublic(key, pos))
         }
     }
@@ -233,7 +241,9 @@ mod rsa {
             if self.0.exponent_is(e) {
                 Ok(self)
             } else {
-                Err(Error::BadObjectVal(self.1, "invalid RSA exponent".into()))
+                Err(EK::BadObjectVal
+                    .at_pos(self.1)
+                    .with_msg("invalid RSA exponent"))
             }
         }
         /// Give an error if the length of of this key's modulus, in
@@ -242,7 +252,9 @@ mod rsa {
             if bounds.contains(&self.0.bits()) {
                 Ok(self)
             } else {
-                Err(Error::BadObjectVal(self.1, "invalid RSA length".into()))
+                Err(EK::BadObjectVal
+                    .at_pos(self.1)
+                    .with_msg("invalid RSA length"))
             }
         }
         /// Give an error if the length of of this key's modulus, in
@@ -256,7 +268,7 @@ mod rsa {
 /// Types for decoding Ed25519 certificates
 #[cfg(feature = "routerdesc")]
 mod edcert {
-    use crate::{Error, Pos, Result};
+    use crate::{ParseErrorKind as EK, Pos, Result};
     use tor_cert::{CertType, Ed25519Cert, KeyUnknownCert};
     use tor_llcrypto::pk::ed25519;
 
@@ -266,8 +278,13 @@ mod edcert {
 
     impl super::FromBytes for UnvalidatedEdCert {
         fn from_bytes(b: &[u8], p: Pos) -> Result<Self> {
-            let cert = Ed25519Cert::decode(b)
-                .map_err(|e| Error::BadObjectVal(p, format!("Bad certificate: {}", e)))?;
+            let cert = Ed25519Cert::decode(b).map_err(|e| {
+                EK::BadObjectVal
+                    .at_pos(p)
+                    .with_msg("Bad certificate")
+                    .with_source(e)
+            })?;
+
             Ok(Self(cert, p))
         }
         fn from_vec(v: Vec<u8>, p: Pos) -> Result<Self> {
@@ -278,21 +295,20 @@ mod edcert {
         /// Give an error if this certificate's type is not `desired_type`.
         pub(crate) fn check_cert_type(self, desired_type: CertType) -> Result<Self> {
             if self.0.peek_cert_type() != desired_type {
-                return Err(Error::BadObjectVal(
-                    self.1,
-                    format!(
-                        "bad certificate type {} (wanted {})",
-                        self.0.peek_cert_type(),
-                        desired_type
-                    ),
-                ));
+                return Err(EK::BadObjectVal.at_pos(self.1).with_msg(format!(
+                    "bad certificate type {} (wanted {})",
+                    self.0.peek_cert_type(),
+                    desired_type
+                )));
             }
             Ok(self)
         }
         /// Give an error if this certificate's subject_key is not `pk`
         pub(crate) fn check_subject_key_is(self, pk: &ed25519::PublicKey) -> Result<Self> {
             if self.0.peek_subject_key().as_ed25519() != Some(pk) {
-                return Err(Error::BadObjectVal(self.1, "incorrect subject key".into()));
+                return Err(EK::BadObjectVal
+                    .at_pos(self.1)
+                    .with_msg("incorrect subject key"));
             }
             Ok(self)
         }
@@ -305,7 +321,7 @@ mod edcert {
 
 /// Types for decoding RSA fingerprints
 mod fingerprint {
-    use crate::{Error, Pos, Result};
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
     use tor_llcrypto::pk::rsa::RsaIdentity;
 
     /// A hex-encoded fingerprint with spaces in it.
@@ -338,10 +354,15 @@ mod fingerprint {
     /// Helper: parse an identity from a hexadecimal string
     fn parse_hex_ident(s: &str) -> Result<RsaIdentity> {
         let bytes = hex::decode(s).map_err(|_| {
-            Error::BadArgument(Pos::at(s), "invalid hexadecimal in fingerprint".into())
+            EK::BadArgument
+                .at_pos(Pos::at(s))
+                .with_msg("invalid hexadecimal in fingerprint")
         })?;
-        RsaIdentity::from_bytes(&bytes)
-            .ok_or_else(|| Error::BadArgument(Pos::at(s), "wrong length on fingerprint".into()))
+        RsaIdentity::from_bytes(&bytes).ok_or_else(|| {
+            EK::BadArgument
+                .at_pos(Pos::at(s))
+                .with_msg("wrong length on fingerprint")
+        })
     }
 
     impl std::str::FromStr for SpFingerprint {

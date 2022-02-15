@@ -3,7 +3,7 @@
 use super::{GenericRouterStatus, MdConsensusRouterStatus};
 use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{ConsensusBuilder, RelayFlags, RelayWeight};
-use crate::{Error, Result};
+use crate::{BuildError as Error, BuildResult as Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 

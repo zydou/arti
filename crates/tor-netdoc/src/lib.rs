@@ -88,10 +88,14 @@ mod err;
 pub mod types;
 mod util;
 
-pub use err::{Error, Pos};
+pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Alias for the Result type returned by document-builder functions in this
+/// module.
+pub type BuildResult<T> = std::result::Result<T, BuildError>;
 
 /// Indicates whether we should parse an annotated list of objects or a
 /// non-annotated list.

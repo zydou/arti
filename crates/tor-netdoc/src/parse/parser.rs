@@ -16,7 +16,7 @@
 use crate::parse::keyword::Keyword;
 use crate::parse::rules::*;
 use crate::parse::tokenize::*;
-use crate::{Error, Result};
+use crate::{ParseErrorKind as EK, Result};
 
 /// Describe the rules for one section of a document.
 ///
@@ -137,7 +137,8 @@ impl<'a, T: Keyword> Section<'a, T> {
     /// It is usually a mistake to use this function on a Keyword that is
     /// not required.
     pub(crate) fn required(&self, t: T) -> Result<&Item<'a, T>> {
-        self.get(t).ok_or_else(|| Error::MissingToken(t.to_str()))
+        self.get(t)
+            .ok_or_else(|| EK::MissingToken.with_msg(t.to_str()))
     }
     /// Return a proxy MaybeItem object for some keyword.
     //
@@ -230,7 +231,9 @@ impl<T: Keyword> SectionRules<T> {
                 rule.check_multiplicity(section.v[tok_idx].as_slice())?;
             } else {
                 // We don't have a rule for this token.
-                return Err(Error::UnexpectedToken(tok.to_str(), item.pos()));
+                return Err(EK::UnexpectedToken
+                    .with_msg(tok.to_str())
+                    .at_pos(item.pos()));
             }
         }
         Ok(())
@@ -300,7 +303,7 @@ mod test {
     use crate::parse::keyword::Keyword;
     use crate::parse::macros::test::Fruit;
     use crate::parse::tokenize::{Item, NetDocReader};
-    use crate::{Error, Result};
+    use crate::{Error, ParseErrorKind as EK, Result};
     use once_cell::sync::Lazy;
 
     /// Rules for parsing a set of router annotations.
@@ -381,33 +384,43 @@ lemon
         // unrecognized tokens aren't allowed here
         check(
             "orange foo\nfoobar x\n@tasty yes\n",
-            &Error::UnexpectedToken("<unrecognized>", Pos::from_line(2, 1)),
+            &EK::UnexpectedToken
+                .with_msg("<unrecognized>")
+                .at_pos(Pos::from_line(2, 1)),
         );
 
         // Only one orange per customer.
         check(
             "@tasty yes\norange foo\norange bar\n",
-            &Error::DuplicateToken("orange", Pos::from_line(3, 1)),
+            &EK::DuplicateToken
+                .with_msg("orange")
+                .at_pos(Pos::from_line(3, 1)),
         );
 
         // There needs to be a declaration of tastiness.
-        check("orange foo\n", &Error::MissingToken("@tasty"));
+        check("orange foo\n", &EK::MissingToken.with_msg("@tasty"));
 
         // You can't have an orange without an argument.
         check(
             "@tasty nope\norange\n",
-            &Error::TooFewArguments("orange", Pos::from_line(2, 1)),
+            &EK::TooFewArguments
+                .with_msg("orange")
+                .at_pos(Pos::from_line(2, 1)),
         );
         // You can't have an more than one argument on "tasty".
         check(
             "@tasty yup indeed\norange normal\n",
-            &Error::TooManyArguments("@tasty", Pos::from_line(1, 1)),
+            &EK::TooManyArguments
+                .with_msg("@tasty")
+                .at_pos(Pos::from_line(1, 1)),
         );
 
         // Every lemon needs an object
         check(
             "@tasty yes\nlemon\norange no\n",
-            &Error::MissingObject("lemon", Pos::from_line(2, 1)),
+            &EK::MissingObject
+                .with_msg("lemon")
+                .at_pos(Pos::from_line(2, 1)),
         );
     }
 }

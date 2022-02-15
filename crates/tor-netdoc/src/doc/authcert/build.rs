@@ -5,7 +5,7 @@
 
 use super::{AuthCert, AuthCertKeyIds};
 
-use crate::{Error, Result};
+use crate::{BuildError as Error, BuildResult};
 use std::net::SocketAddrV4;
 use std::ops::Range;
 use std::time::SystemTime;
@@ -87,7 +87,7 @@ impl AuthCertBuilder {
     /// here has not, in fact, attested to the signing key.
     ///
     /// You should only use this function for testing.
-    pub fn dangerous_testing_cert(&self) -> Result<AuthCert> {
+    pub fn dangerous_testing_cert(&self) -> BuildResult<AuthCert> {
         let published = self
             .published
             .ok_or(Error::CannotBuild("Missing published time"))?;

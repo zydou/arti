@@ -29,10 +29,12 @@ tor-bytes = { path="../tor-bytes", version = "0.0.3"}
 tor-cert = { path="../tor-cert", version = "0.0.3"}
 tor-protover = { path="../tor-protover", version = "0.0.3"}
 tor-checkable = { path="../tor-checkable", version = "0.0.3"}
+tor-error = { path="../tor-error", version = "0.0.1"}
 
 base64 = "0.13.0"
 bitflags = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
+derive_more = "0.99"
 digest = "0.10.0"
 hex = "0.4"
 once_cell = "1"

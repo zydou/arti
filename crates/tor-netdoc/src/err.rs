@@ -2,7 +2,7 @@
 use thiserror::Error;
 
 use crate::types::policy::PolicyError;
-use std::fmt;
+use std::{borrow::Cow, fmt, sync::Arc};
 
 /// A position within a directory object. Used to tell where an error
 /// occurred.
@@ -164,197 +164,201 @@ impl fmt::Display for Pos {
     }
 }
 
-/// An error that occurred while parsing a directory object of some kind.
-#[derive(Error, Debug, Clone, PartialEq)]
+/// A variety of parsing error.
+#[derive(Copy, Clone, Debug, derive_more::Display, PartialEq)]
 #[non_exhaustive]
-pub enum Error {
+pub enum ParseErrorKind {
     /// An internal error in the parser: these should never happen.
-    #[error("internal error{0}")]
-    Internal(Pos), // TODO string.
+    #[display(fmt = "internal error")]
+    Internal,
     /// An entry was found with no keyword.
-    #[error("no keyword for entry{0}")]
-    MissingKeyword(Pos),
+    #[display(fmt = "no keyword for entry")]
+    MissingKeyword,
     /// An entry was found with no newline at the end.
-    #[error("line truncated before newline{0}")]
-    TruncatedLine(Pos),
+    #[display(fmt = "line truncated before newline")]
+    TruncatedLine,
     /// A bad string was found in the keyword position.
-    #[error("invalid keyword{0}")]
-    BadKeyword(Pos),
+    #[display(fmt = "invalid keyword")]
+    BadKeyword,
     /// We found an ill-formed "BEGIN FOO" tag.
-    #[error("invalid PEM BEGIN tag{0}")]
-    BadObjectBeginTag(Pos),
+    #[display(fmt = "invalid PEM BEGIN tag")]
+    BadObjectBeginTag,
     /// We found an ill-formed "END FOO" tag.
-    #[error("invalid PEM END tag{0}")]
-    BadObjectEndTag(Pos),
+    #[display(fmt = "invalid PEM END tag")]
+    BadObjectEndTag,
     /// We found a "BEGIN FOO" tag with an "END FOO" tag that didn't match.
-    #[error("mismatched PEM tags{0}")]
-    BadObjectMismatchedTag(Pos),
+    #[display(fmt = "mismatched PEM tags")]
+    BadObjectMismatchedTag,
     /// We found a base64 object with an invalid base64 encoding.
-    #[error("invalid base64 in object around byte {0}")]
-    BadObjectBase64(Pos),
+    #[display(fmt = "invalid base64 in object")]
+    BadObjectBase64,
     /// The document is not supposed to contain more than one of some
     /// kind of entry, but we found one anyway.
-    #[error("duplicate entry for {0}{1}")]
-    DuplicateToken(&'static str, Pos),
+    #[display(fmt = "duplicate entry")]
+    DuplicateToken,
     /// The document is not supposed to contain any of some particular kind
     /// of entry, but we found one anyway.
-    #[error("entry {0} unexpected{1}")]
-    UnexpectedToken(&'static str, Pos),
+    #[display(fmt = "unexpected entry")]
+    UnexpectedToken,
     /// The document is supposed to contain any of some particular kind
     /// of entry, but we didn't find one one anyway.
-    #[error("didn't find required entry {0}")]
-    MissingToken(&'static str),
+    #[display(fmt = "didn't find required entry")]
+    MissingToken,
     /// The document was supposed to have one of these, but not where we
     /// found it.
-    #[error("found {0} out of place{1}")]
-    MisplacedToken(&'static str, Pos),
+    #[display(fmt = "entry out of place")]
+    MisplacedToken,
     /// We found more arguments on an entry than it is allowed to have.
-    #[error("too many arguments for {0}{1}")]
-    TooManyArguments(&'static str, Pos),
+    #[display(fmt = "too many arguments")]
+    TooManyArguments,
     /// We didn't fine enough arguments for some entry.
-    #[error("too few arguments for {0}{1}")]
-    TooFewArguments(&'static str, Pos),
+    #[display(fmt = "too few arguments")]
+    TooFewArguments,
     /// We found an object attached to an entry that isn't supposed to
     /// have one.
-    #[error("unexpected object for {0}{1}")]
-    UnexpectedObject(&'static str, Pos),
+    #[display(fmt = "unexpected object")]
+    UnexpectedObject,
     /// An entry was supposed to have an object, but it didn't.
-    #[error("missing object for {0}{1}")]
-    MissingObject(&'static str, Pos),
+    #[display(fmt = "missing object")]
+    MissingObject,
     /// We found an object on an entry, but the type was wrong.
-    #[error("wrong object type for entry{0}")]
-    WrongObject(Pos),
+    #[display(fmt = "wrong object type")]
+    WrongObject,
     /// We tried to find an argument that we were sure would be there,
     /// but it wasn't!
     ///
     /// This error should never occur in correct code; it should be
     /// caught earlier by TooFewArguments.
-    #[error("missing argument for entry{0}")]
-    MissingArgument(Pos),
+    #[display(fmt = "missing argument")]
+    MissingArgument,
     /// We found an argument that couldn't be parsed.
-    #[error("bad argument for entry{0}: {1}")]
-    BadArgument(Pos, String),
+    #[display(fmt = "bad argument for entry")]
+    BadArgument,
     /// We found an object that couldn't be parsed after it was decoded.
-    #[error("bad object for entry{0}: {1}")]
-    BadObjectVal(Pos, String),
+    #[display(fmt = "bad object for entry")]
+    BadObjectVal,
     /// There was some signature that we couldn't validate.
-    #[error("couldn't validate signature{0}")]
-    BadSignature(Pos), // TODO(nickm): say which kind of signature.
+    #[display(fmt = "couldn't validate signature")]
+    BadSignature, // TODO(nickm): say which kind of signature.
     /// There was a tor version we couldn't parse.
-    #[error("couldn't parse Tor version{0}")]
-    BadTorVersion(Pos),
+    #[display(fmt = "couldn't parse Tor version")]
+    BadTorVersion,
     /// There was an ipv4 or ipv6 policy entry that we couldn't parse.
-    #[error("invalid policy entry{0}: {1}")]
-    BadPolicy(Pos, #[source] PolicyError),
-    /// An object was expired or not yet valid.
-    #[error("untimely object{0}: {1}")]
-    Untimely(Pos, #[source] tor_checkable::TimeValidityError),
+    #[display(fmt = "invalid policy entry")]
+    BadPolicy,
     /// An underlying byte sequence couldn't be decoded.
-    #[error("decoding error{0}: {1}")]
-    Undecodable(Pos, #[source] tor_bytes::Error),
+    #[display(fmt = "decoding error")]
+    Undecodable,
     /// Versioned document with an unrecognized version.
-    #[error("unrecognized document version {0}")]
-    BadDocumentVersion(u32),
+    #[display(fmt = "unrecognized document version")]
+    BadDocumentVersion,
     /// Unexpected document type
-    #[error("unexpected document type")]
+    #[display(fmt = "unexpected document type")]
     BadDocumentType,
     /// Document or section started with wrong token
-    #[error("Wrong starting token {0}{1}")]
-    WrongStartingToken(String, Pos),
+    #[display(fmt = "Wrong starting token")]
+    WrongStartingToken,
     /// Document or section ended with wrong token
-    #[error("Wrong ending token {0}{1}")]
-    WrongEndingToken(String, Pos),
+    #[display(fmt = "Wrong ending token")]
+    WrongEndingToken,
     /// Items not sorted as expected
-    #[error("Incorrect sort order{0}")]
-    WrongSortOrder(Pos),
+    #[display(fmt = "Incorrect sort order")]
+    WrongSortOrder,
     /// A consensus lifetime was ill-formed.
-    #[error("Invalid consensus lifetime")]
+    #[display(fmt = "Invalid consensus lifetime")]
     InvalidLifetime,
-    /// We're unable to finish building an object, for some reason.
-    #[error("Unable to construct object: {0}")]
-    CannotBuild(&'static str),
+}
+
+/// The underlying source for an [`Error`].
+#[derive(Clone, Debug, Error)]
+#[non_exhaustive]
+pub(crate) enum ParseErrorSource {
+    /// An error when parsing a binary object.
+    #[error("Error parsing binary object")]
+    Bytes(#[from] tor_bytes::Error),
+    /// An error when parsing an exit policy.
+    #[error("Error parsing policy")]
+    Policy(#[from] PolicyError),
+    /// An error when parsing an integer.
+    #[error("Couldn't parse integer")]
+    Int(#[from] std::num::ParseIntError),
+    /// An error when parsing an IP or socket address.
+    #[error("Couldn't parse address")]
+    Address(#[from] std::net::AddrParseError),
+    /// An error when validating a signature.
+    #[error("Invalid signature")]
+    Signature(#[source] Arc<signature::Error>),
+    /// Invalid protocol versions.
+    #[error("Protocol versions")]
+    Protovers(#[from] tor_protover::ParseError),
+    /// Internal error.
+    #[error("Internal error")]
+    Internal(#[from] tor_error::InternalError),
+}
+
+impl ParseErrorKind {
+    /// Construct a new Error with this kind.
+    #[must_use]
+    pub(crate) fn err(self) -> Error {
+        Error {
+            kind: self,
+            msg: None,
+            pos: None,
+            source: None,
+        }
+    }
+
+    /// Construct a new error with this kind at a given position.
+    #[must_use]
+    pub(crate) fn at_pos(self, pos: Pos) -> Error {
+        self.err().at_pos(pos)
+    }
+
+    /// Construct a new error with this kind and a given message.
+    #[must_use]
+    pub(crate) fn with_msg<T>(self, msg: T) -> Error
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        self.err().with_msg(msg)
+    }
+}
+
+impl From<signature::Error> for ParseErrorSource {
+    fn from(err: signature::Error) -> Self {
+        ParseErrorSource::Signature(Arc::new(err))
+    }
+}
+
+/// An error that occurred while parsing a directory object of some kind.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct Error {
+    /// What kind of error occurred?
+    kind: ParseErrorKind,
+    /// Do we have more information about the error?>
+    msg: Option<Cow<'static, str>>,
+    /// Where did the error occur?
+    pos: Option<Pos>,
+    /// Was this caused by another error?
+    source: Option<ParseErrorSource>,
+}
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.msg == other.msg && self.pos == other.pos
+    }
 }
 
 impl Error {
     /// Helper: return a mutable reference to this error's position (if any)
     fn pos_mut(&mut self) -> Option<&mut Pos> {
-        use Error::*;
-        match self {
-            Internal(p) => Some(p),
-            MissingKeyword(p) => Some(p),
-            TruncatedLine(p) => Some(p),
-            BadKeyword(p) => Some(p),
-            BadObjectBeginTag(p) => Some(p),
-            BadObjectEndTag(p) => Some(p),
-            BadObjectMismatchedTag(p) => Some(p),
-            BadObjectBase64(p) => Some(p),
-            DuplicateToken(_, p) => Some(p),
-            UnexpectedToken(_, p) => Some(p),
-            MissingToken(_) => None,
-            MisplacedToken(_, p) => Some(p),
-            TooManyArguments(_, p) => Some(p),
-            TooFewArguments(_, p) => Some(p),
-            UnexpectedObject(_, p) => Some(p),
-            MissingObject(_, p) => Some(p),
-            WrongObject(p) => Some(p),
-            MissingArgument(p) => Some(p),
-            BadArgument(p, _) => Some(p),
-            BadObjectVal(p, _) => Some(p),
-            BadSignature(p) => Some(p),
-            BadTorVersion(p) => Some(p),
-            BadPolicy(p, _) => Some(p),
-            Untimely(p, _) => Some(p),
-            Undecodable(p, _) => Some(p),
-            BadDocumentVersion(_) => None,
-            BadDocumentType => None,
-            WrongStartingToken(_, p) => Some(p),
-            WrongEndingToken(_, p) => Some(p),
-            WrongSortOrder(p) => Some(p),
-            InvalidLifetime => None,
-            CannotBuild(_) => None,
-        }
+        self.pos.as_mut()
     }
 
     /// Helper: return this error's position.
     pub(crate) fn pos(&self) -> Pos {
-        // TODO(nickm): This duplicate code is yucky. We should
-        // refactor this error type to use an ErrorKind pattern.
-        use Error::*;
-        let pos = match self {
-            Internal(p) => Some(p),
-            MissingKeyword(p) => Some(p),
-            TruncatedLine(p) => Some(p),
-            BadKeyword(p) => Some(p),
-            BadObjectBeginTag(p) => Some(p),
-            BadObjectEndTag(p) => Some(p),
-            BadObjectMismatchedTag(p) => Some(p),
-            BadObjectBase64(p) => Some(p),
-            DuplicateToken(_, p) => Some(p),
-            UnexpectedToken(_, p) => Some(p),
-            MissingToken(_) => None,
-            MisplacedToken(_, p) => Some(p),
-            TooManyArguments(_, p) => Some(p),
-            TooFewArguments(_, p) => Some(p),
-            UnexpectedObject(_, p) => Some(p),
-            MissingObject(_, p) => Some(p),
-            WrongObject(p) => Some(p),
-            MissingArgument(p) => Some(p),
-            BadArgument(p, _) => Some(p),
-            BadObjectVal(p, _) => Some(p),
-            BadSignature(p) => Some(p),
-            BadTorVersion(p) => Some(p),
-            BadPolicy(p, _) => Some(p),
-            Untimely(p, _) => Some(p),
-            Undecodable(p, _) => Some(p),
-            BadDocumentVersion(_) => None,
-            BadDocumentType => None,
-            WrongStartingToken(_, p) => Some(p),
-            WrongEndingToken(_, p) => Some(p),
-            WrongSortOrder(p) => Some(p),
-            InvalidLifetime => None,
-            CannotBuild(_) => None,
-        };
-        *pos.unwrap_or(&Pos::Unknown)
+        self.pos.unwrap_or(Pos::Unknown)
     }
 
     /// Return a new error based on this one, with any byte-based
@@ -388,42 +392,83 @@ impl Error {
         }
         self
     }
+
+    /// Return a new error based on this one, with the message
+    /// value set to a provided static string.
+    #[must_use]
+    pub(crate) fn with_msg<T>(mut self, message: T) -> Error
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        self.msg = Some(message.into());
+        self
+    }
+
+    /// Return a new error based on this one, with the source-error
+    /// value set to the provided error.
+    #[must_use]
+    pub(crate) fn with_source<T>(mut self, source: T) -> Error
+    where
+        T: Into<ParseErrorSource>,
+    {
+        self.source = Some(source.into());
+        self
+    }
 }
 
-/// Create a From<> implementation to construct an Error::BadArgument
-/// from another error type.
-macro_rules! derive_from_err{
-    { $etype:ty } => {
-        impl From<$etype> for Error {
-            fn from(e: $etype) -> Error {
-                Error::BadArgument(Pos::None, e.to_string())
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.kind, self.pos.unwrap_or(Pos::None))?;
+        if let Some(msg) = &self.msg {
+            write!(f, ": {}", msg)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.source {
+            Some(e) => Some(e),
+            None => None,
+        }
+    }
+}
+
+/// Helper: declare an Into<> implementation to automatically convert a $source
+/// into an Error with kind $kind.
+macro_rules! declare_into  {
+    {$source:ty => $kind:ident} => {
+        impl From<$source> for Error {
+            fn from(source: $source) -> Error {
+                Error {
+                    kind: ParseErrorKind::$kind,
+                    msg: None,
+                    pos: None,
+                    source: Some(source.into())
+                }
             }
         }
     }
 }
-derive_from_err! {std::num::ParseIntError}
-derive_from_err! {std::net::AddrParseError}
 
-impl From<crate::types::policy::PolicyError> for Error {
-    fn from(e: crate::types::policy::PolicyError) -> Error {
-        Error::BadPolicy(Pos::None, e)
-    }
-}
+declare_into! { signature::Error => BadSignature }
+declare_into! { tor_bytes::Error => Undecodable }
+declare_into! { std::num::ParseIntError => BadArgument }
+declare_into! { std::net::AddrParseError => BadArgument }
+declare_into! { PolicyError => BadPolicy }
+declare_into! { tor_error::InternalError => Internal }
 
-impl From<tor_bytes::Error> for Error {
-    fn from(e: tor_bytes::Error) -> Error {
-        Error::Undecodable(Pos::None, e)
-    }
-}
+/// An error that occurs while trying to construct a network document.
+#[derive(Clone, Debug, Error)]
+#[non_exhaustive]
+pub enum BuildError {
+    /// We were unable to build the document, probably due to an invalid
+    /// argument of some kind.
+    #[error("cannot build document: {0}")]
+    CannotBuild(&'static str),
 
-impl From<tor_checkable::TimeValidityError> for Error {
-    fn from(e: tor_checkable::TimeValidityError) -> Error {
-        Error::Untimely(Pos::None, e)
-    }
-}
-
-impl From<signature::Error> for Error {
-    fn from(_e: signature::Error) -> Error {
-        Error::BadSignature(Pos::None)
-    }
+    /// An argument that was given as a string turned out to be unparsable.
+    #[error("unable to parse argument")]
+    Parse(#[from] crate::err::Error),
 }

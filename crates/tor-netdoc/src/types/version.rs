@@ -42,7 +42,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use crate::{Error, Pos};
+use crate::{ParseErrorKind as EK, Pos};
 
 /// Represents the status tag on a Tor version number
 ///
@@ -131,18 +131,18 @@ impl FromStr for TorVersion {
             // NOTE: If `dev_part` cannot be unwrapped then there are bigger
             // problems with `s` input
             #[allow(clippy::unwrap_used)]
-            return Err(Error::BadTorVersion(Pos::at_end_of(dev_part.unwrap())));
+            return Err(EK::BadTorVersion.at_pos(Pos::at_end_of(dev_part.unwrap())));
         }
 
         // Split the version on "." into 3 or 4 numbers.
         let vers: Result<Vec<_>, _> = ver_part
-            .ok_or_else(|| Error::BadTorVersion(Pos::at(s)))?
+            .ok_or_else(|| EK::BadTorVersion.at_pos(Pos::at(s)))?
             .splitn(4, '.')
             .map(|v| v.parse::<u8>())
             .collect();
-        let vers = vers.map_err(|_| Error::BadTorVersion(Pos::at(s)))?;
+        let vers = vers.map_err(|_| EK::BadTorVersion.at_pos(Pos::at(s)))?;
         if vers.len() < 3 {
-            return Err(Error::BadTorVersion(Pos::at(s)));
+            return Err(EK::BadTorVersion.at_pos(Pos::at(s)));
         }
         let major = vers[0];
         let minor = vers[1];
@@ -160,7 +160,7 @@ impl FromStr for TorVersion {
         let dev = match (status_part, dev_part) {
             (_, Some("dev")) => true,
             (_, Some(s)) => {
-                return Err(Error::BadTorVersion(Pos::at(s)));
+                return Err(EK::BadTorVersion.at_pos(Pos::at(s)));
             }
             (Some("dev"), None) => true,
             (_, _) => false,

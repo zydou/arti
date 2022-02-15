@@ -7,7 +7,7 @@ use super::Microdesc;
 
 use crate::types::family::RelayFamily;
 use crate::types::policy::PortPolicy;
-use crate::{Error, Result};
+use crate::{BuildError as Error, BuildResult as Result, Error as ParseError};
 use tor_llcrypto::pk::{curve25519, ed25519};
 
 use rand::Rng;
@@ -98,7 +98,7 @@ impl MicrodescBuilder {
     ///
     /// By default, this policy is `reject 1-65535`.
     pub fn parse_ipv4_policy(&mut self, policy: &str) -> Result<&mut Self> {
-        Ok(self.ipv4_policy(policy.parse()?))
+        Ok(self.ipv4_policy(policy.parse().map_err(ParseError::from)?))
     }
 
     /// Set the ipv6 exit policy of this relay based on parsing
@@ -106,7 +106,7 @@ impl MicrodescBuilder {
     ///
     /// By default, this policy is `reject 1-65535`.
     pub fn parse_ipv6_policy(&mut self, policy: &str) -> Result<&mut Self> {
-        Ok(self.ipv6_policy(policy.parse()?))
+        Ok(self.ipv6_policy(policy.parse().map_err(ParseError::from)?))
     }
 
     /// Try to build a microdescriptor from the settings on this builder.

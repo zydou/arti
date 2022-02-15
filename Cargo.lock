@@ -3198,6 +3198,7 @@ version = "0.0.4"
 dependencies = [
  "base64",
  "bitflags",
+ "derive_more",
  "digest 0.10.1",
  "hex",
  "hex-literal",
@@ -3211,6 +3212,7 @@ dependencies = [
  "tor-bytes",
  "tor-cert",
  "tor-checkable",
+ "tor-error",
  "tor-llcrypto",
  "tor-protover",
  "weak-table",
