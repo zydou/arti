@@ -24,8 +24,8 @@ pub enum Error {
     ///
     /// We use this one in lieu of calling assert() and expect() and
     /// unwrap() from within parsing code.
-    #[error("internal programming error")]
-    Internal(#[from] tor_error::InternalError),
+    #[error("bug")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl PartialEq for Error {

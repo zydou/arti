@@ -50,17 +50,21 @@ mod ie_backtrace {
 }
 
 #[derive(Debug, Clone)]
-/// Internal error (a bug)
+/// Programming error (a bug)
 //
 // Boxed because it is fairly large (>=12 words), and will be in a variant in many other errors.
-pub struct InternalError(Box<InternalErrorRepr>);
+//
+// This is a single Bug type containing a kind in BugRepr, rather than separate InternalError and
+// BadApiUsage types, primarily because that means that one Bug(#[from] tor_error::Bug) suffices in
+// every crate's particular error type.
+pub struct Bug(Box<BugRepr>);
 
-/// The source of an InternalError
+/// The source of an Bug
 type SourceError = Arc<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Debug, Clone)]
 /// Internal error (a bug)
-struct InternalErrorRepr {
+struct BugRepr {
     /// Message, usually from internal!() like format!
     message: String,
 
@@ -72,49 +76,53 @@ struct InternalErrorRepr {
 
     /// Source, perhaps
     source: Option<SourceError>,
+
+    /// Kind
+    ///
+    /// `Internal` or `BadApiUsage`
+    kind: ErrorKind,
 }
 
-impl InternalError {
-    /// Create an internal error capturing this call site and backtrace
+impl Bug {
+    /// Create a bug error report capturing this call site and backtrace
     ///
     /// Prefer to use [`internal!`],
     /// as that makes it easy to add additional information
     /// via format parameters.
     #[track_caller]
-    pub fn new<S: Into<String>>(message: S) -> Self {
-        InternalError::new_inner(message.into(), None)
+    pub fn new<S: Into<String>>(kind: ErrorKind, message: S) -> Self {
+        Bug::new_inner(kind, message.into(), None)
     }
 
     /// Create an internal error
     #[track_caller]
-    fn new_inner(message: String, source: Option<SourceError>) -> Self {
-        InternalError(
-            InternalErrorRepr {
-                message,
-                source,
-                location: panic::Location::caller(),
-                backtrace: ie_backtrace::capture(),
-            }
-            .into(),
-        )
+    fn new_inner(kind: ErrorKind, message: String, source: Option<SourceError>) -> Self {
+        Bug(BugRepr {
+            kind,
+            message,
+            source,
+            location: panic::Location::caller(),
+            backtrace: ie_backtrace::capture(),
+        }
+        .into())
     }
 
-    /// Create an internal error from another error, capturing this call site and backtrace
+    /// Create an bug error report from another error, capturing this call site and backtrace
     ///
     /// In `map_err`, and perhaps elsewhere, prefer to use [`into_internal!`],
     /// as that makes it easy to add additional information
     /// via format parameters.
     #[track_caller]
-    pub fn from_error<E, S>(source: E, message: S) -> Self
+    pub fn from_error<E, S>(kind: ErrorKind, source: E, message: S) -> Self
     where
         S: Into<String>,
         E: std::error::Error + Send + Sync + 'static,
     {
-        InternalError::new_inner(message.into(), Some(Arc::new(source)))
+        Bug::new_inner(kind, message.into(), Some(Arc::new(source)))
     }
 }
 
-impl std::error::Error for InternalError {
+impl std::error::Error for Bug {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.0
             .source
@@ -123,12 +131,12 @@ impl std::error::Error for InternalError {
     }
 }
 
-impl Display for InternalError {
+impl Display for Bug {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,
-            "internal error (bug) at {}: {}",
-            &self.0.location, &self.0.message
+            "{} at {}: {}",
+            self.0.kind, &self.0.location, &self.0.message
         )?;
         Display::fmt(&self.0.backtrace, f)?;
         Ok(())
@@ -145,7 +153,7 @@ impl Display for InternalError {
 /// ```
 /// use tor_error::internal;
 ///
-/// # fn main() -> Result<(), tor_error::InternalError> {
+/// # fn main() -> Result<(), tor_error::Bug> {
 /// # let mut cells = [()].iter();
 /// let need_cell = cells.next().ok_or_else(|| internal!("no cells"))?;
 /// # Ok(())
@@ -154,27 +162,49 @@ impl Display for InternalError {
 //
 // In principle this macro could perhaps support internal!(from=source, "format", ...)
 // but there are alternative ways of writing that:
-//    InternalError::new_from(source, format!(...)) or
+//    Bug::new_from(source, format!(...)) or
 //    into_internal!("format", ...)(source)
 // Those are not so bad for what we think will be the rare cases not
 // covered by internal!(...) or map_err(into_internal!(...))
 #[macro_export]
 macro_rules! internal {
     { $( $arg:tt )* } => {
-        $crate::InternalError::new(format!($($arg)*))
+        $crate::Bug::new($crate::ErrorKind::Internal, format!($($arg)*))
     }
 }
 
-/// Helper for converting an error into an InternalError
+/// Create a bad API usage error, including a message like `format!`, and capturing this call site
 ///
-/// Returns a closure implementing `FnOnce(E) -> InternalError`.
+/// The calling stack backtrace is also captured,
+/// when the `backtrace` cargo feature this is enabled.
+///
+/// # Examples
+///
+/// ```
+/// use tor_error::bad_api_usage;
+///
+/// # fn main() -> Result<(), tor_error::Bug> {
+/// # let mut targets = [()].iter();
+/// let need_target = targets.next().ok_or_else(|| bad_api_usage!("no targets"))?;
+/// # Ok(())
+/// # }
+#[macro_export]
+macro_rules! bad_api_usage {
+    { $( $arg:tt )* } => {
+        $crate::Bug::new($crate::ErrorKind::BadApiUsage, format!($($arg)*))
+    }
+}
+
+/// Helper for converting an error into an internal error
+///
+/// Returns a closure implementing `FnOnce(E) -> Bug`.
 /// The source error `E` must be `std::error::Error + Send + Sync + 'static`.
 ///
 /// # Examples
 /// ```
 /// use tor_error::into_internal;
 ///
-/// # fn main() -> Result<(), tor_error::InternalError> {
+/// # fn main() -> Result<(), tor_error::Bug> {
 /// # let s = b"";
 /// let s = std::str::from_utf8(s).map_err(into_internal!("bad bytes: {:?}", s))?;
 /// # Ok(())
@@ -183,13 +213,35 @@ macro_rules! internal {
 #[macro_export]
 macro_rules! into_internal {
     { $( $arg:tt )* } => {
-        |source| $crate::InternalError::from_error(source, format!($($arg)*))
+        |source| $crate::Bug::from_error($crate::ErrorKind::Internal, source, format!($($arg)*))
     }
 }
 
-impl HasKind for InternalError {
+/// Helper for converting an error into an bad API usage error
+///
+/// Returns a closure implementing `FnOnce(E) -> InternalError`.
+/// The source error `E` must be `std::error::Error + Send + Sync + 'static`.
+///
+/// # Examples
+/// ```
+/// use tor_error::into_bad_api_usage;
+///
+/// # fn main() -> Result<(), tor_error::Bug> {
+/// # let host = b"";
+/// let host = std::str::from_utf8(host).map_err(into_bad_api_usage!("hostname is bad UTF-8: {:?}", host))?;
+/// # Ok(())
+/// # }
+/// ```
+#[macro_export]
+macro_rules! into_bad_api_usage {
+    { $( $arg:tt )* } => {
+        |source| $crate::Bug::from_error($crate::ErrorKind::BadApiUsage, source, format!($($arg)*))
+    }
+}
+
+impl HasKind for Bug {
     fn kind(&self) -> ErrorKind {
-        ErrorKind::Internal
+        self.0.kind
     }
 }
 

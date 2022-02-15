@@ -7,6 +7,8 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::net::IpAddr;
 
+use tor_error::bad_api_usage;
+
 /// A supported SOCKS version.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -169,7 +171,7 @@ impl TryFrom<String> for SocksHostname {
     type Error = Error;
     fn try_from(s: String) -> Result<SocksHostname> {
         if s.len() > 255 {
-            Err(Error::Invalid("hostname too long"))
+            Err(bad_api_usage!("hostname too long").into())
         } else {
             Ok(SocksHostname(s))
         }

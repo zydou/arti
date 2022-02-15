@@ -212,11 +212,21 @@ pub enum ErrorKind {
     #[display(fmt = "Tor network protocol violation (bug, incompatibility, or attack)")]
     TorProtocolViolation,
 
-    /// Called a function with an invalid argument.
+    /// Bug, for example calling a function with an invalid argument.
     ///
     /// This kind of error is usually a programming mistake on the caller's part.
-    #[display(fmt = "invalid argument")]
-    BadArgument,
+    /// This is usually a bug in code calling Arti, but it might be a bug in Arti itself.
+    //
+    // Usually, use `bad_api_usage!` and `into_bad_api_usage!` and thereby `InternalError`,
+    // rather than inventing a new type with this kind.
+    //
+    // Errors with this kind should generally include a stack trace.  They are
+    // very like InternalError, in that they represent a bug in the program.
+    // The difference is that an InternalError, with kind `Internal`, represents
+    // a bug in arti, whereas errors with kind BadArgument represent bugs which
+    // could be (often, are likely to be) outside arti.
+    #[display(fmt = "bad API usage (bug)")]
+    BadApiUsage,
 
     /// Internal error (bug) in Arti.
     ///
