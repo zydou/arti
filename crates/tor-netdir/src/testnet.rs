@@ -13,11 +13,14 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::unwrap_used)]
 
-use super::*;
+use crate::{MdDigest, MdReceiver, PartialNetDir};
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
-use tor_netdoc::doc::microdesc::MicrodescBuilder;
+use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
+use tor_netdoc::doc::netstatus::MdConsensus;
 use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RelayWeight, RouterStatusBuilder};
+
+pub use tor_netdoc::{BuildError, BuildResult};
 
 /// A set of builder objects for a single node.
 #[derive(Debug, Clone)]
@@ -45,12 +48,12 @@ pub struct NodeBuilders {
 fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
-pub fn construct_netdir() -> Result<PartialNetDir> {
+pub fn construct_netdir() -> BuildResult<PartialNetDir> {
     construct_custom_netdir(simple_net_func)
 }
 
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].
-pub fn construct_custom_netdir<F>(func: F) -> Result<PartialNetDir>
+pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
 where
     F: FnMut(usize, &mut NodeBuilders),
 {
@@ -65,7 +68,7 @@ where
 
 /// As [`construct_custom_network`], but do not require a
 /// customization function.
-pub fn construct_network() -> Result<(MdConsensus, Vec<Microdesc>)> {
+pub fn construct_network() -> BuildResult<(MdConsensus, Vec<Microdesc>)> {
     construct_custom_network(simple_net_func)
 }
 
@@ -122,7 +125,7 @@ pub fn construct_network() -> Result<(MdConsensus, Vec<Microdesc>)> {
 /// Instead, refactor this function so that it takes a
 /// description of what kind of network to build, and then builds it from
 /// that description.
-pub fn construct_custom_network<F>(mut func: F) -> Result<(MdConsensus, Vec<Microdesc>)>
+pub fn construct_custom_network<F>(mut func: F) -> BuildResult<(MdConsensus, Vec<Microdesc>)>
 where
     F: FnMut(usize, &mut NodeBuilders),
 {
