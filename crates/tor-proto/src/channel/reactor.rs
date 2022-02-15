@@ -313,7 +313,7 @@ impl Reactor {
         // TODO(nickm) I think that this one actually means the other side
         // is closed. See arti#269.
         target.send(created).map_err(|_| {
-            Error::Internal(internal!(
+            Error::from(internal!(
                 "Circuit queue rejected created message. Is it closing?"
             ))
         })

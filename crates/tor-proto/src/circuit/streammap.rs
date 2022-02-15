@@ -180,9 +180,11 @@ impl StreamMap {
     /// ought to be sent.
     pub(super) fn terminate(&mut self, id: StreamId) -> Result<ShouldSendEnd> {
         // Progress the stream's state machine accordingly
-        match self.m.remove(&id).ok_or_else(|| {
-            Error::Internal(internal!("Somehow we terminated a nonexistent stream?"))
-        })? {
+        match self
+            .m
+            .remove(&id)
+            .ok_or_else(|| Error::from(internal!("Somehow we terminated a nonexistent stream?")))?
+        {
             StreamEnt::EndReceived => Ok(ShouldSendEnd::DontSend),
             StreamEnt::Open {
                 send_window,

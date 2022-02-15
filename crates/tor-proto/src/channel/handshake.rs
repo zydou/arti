@@ -179,7 +179,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                     if netinfo.is_some() {
                         // This should be impossible, since we would
                         // exit this loop on the first netinfo cell.
-                        return Err(Error::Internal(internal!(
+                        return Err(Error::from(internal!(
                             "Somehow tried to record a duplicate NETINFO cell"
                         )));
                     }

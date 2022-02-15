@@ -345,12 +345,12 @@ impl Channel {
         use msg::ChanMsg::*;
         let msg = cell.msg();
         match msg {
-            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::Internal(internal!(
+            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
                 "Can't send {} cell on client channel",
                 msg.cmd()
             ))),
             Certs(_) | Versions(_) | Authenticate(_) | Authorize(_) | AuthChallenge(_)
-            | Netinfo(_) => Err(Error::Internal(internal!(
+            | Netinfo(_) => Err(Error::from(internal!(
                 "Can't send {} cell after handshake is done",
                 msg.cmd()
             ))),

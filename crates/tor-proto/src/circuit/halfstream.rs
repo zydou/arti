@@ -67,7 +67,7 @@ impl HalfStream {
                     ))
                 }
             }
-            RelayMsg::End(_) => Err(Error::Internal(internal!(
+            RelayMsg::End(_) => Err(Error::from(internal!(
                 "END cell in HalfStream::handle_msg()"
             ))),
             _ => Err(Error::CircProto(format!(

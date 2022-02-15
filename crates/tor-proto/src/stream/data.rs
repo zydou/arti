@@ -189,7 +189,7 @@ impl DataStream {
             self.r.state = Some(DataReaderState::Ready(imp));
             result
         } else {
-            Err(Error::Internal(internal!(
+            Err(Error::from(internal!(
                 "Expected ready state, got {:?}",
                 state
             )))

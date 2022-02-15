@@ -188,7 +188,7 @@ where
         let v = self
             .window
             .checked_add(P::increment())
-            .ok_or_else(|| Error::Internal(internal!("Overflow on SENDME window")))?;
+            .ok_or_else(|| Error::from(internal!("Overflow on SENDME window")))?;
         self.window = v;
         Ok(v)
     }

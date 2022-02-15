@@ -60,7 +60,7 @@ use tor_cell::{
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, LinkSpec};
 
 use futures::channel::{mpsc, oneshot};
@@ -154,9 +154,9 @@ impl CircParameters {
             self.initial_send_window = v;
             Ok(())
         } else {
-            Err(Error::BadArgument(
-                "Tried to set an initial send window over 1000".into(),
-            ))
+            Err(Error::from(bad_api_usage!(
+                "Tried to set an initial send window over 1000"
+            )))
         }
     }
 
@@ -241,7 +241,7 @@ impl ClientCirc {
 
         let num_hops = self.hops.load(Ordering::SeqCst);
         if num_hops == 0 {
-            return Err(Error::Internal(internal!(
+            return Err(Error::from(internal!(
                 "Can't begin a stream at the 0th hop"
             )));
         }

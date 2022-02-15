@@ -259,7 +259,7 @@ pub(crate) mod tor1 {
         }
         fn initialize(seed: &[u8]) -> Result<Self> {
             if seed.len() != Self::seed_len() {
-                return Err(Error::Internal(internal!(
+                return Err(Error::from(internal!(
                     "seed length {} was invalid",
                     seed.len()
                 )));
