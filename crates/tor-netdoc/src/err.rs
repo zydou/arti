@@ -293,7 +293,7 @@ pub(crate) enum ParseErrorSource {
     Protovers(#[from] tor_protover::ParseError),
     /// Internal error.
     #[error("Internal error")]
-    Internal(#[from] tor_error::InternalError),
+    Internal(#[from] tor_error::Bug),
 }
 
 impl ParseErrorKind {
@@ -457,7 +457,7 @@ declare_into! { tor_bytes::Error => Undecodable }
 declare_into! { std::num::ParseIntError => BadArgument }
 declare_into! { std::net::AddrParseError => BadArgument }
 declare_into! { PolicyError => BadPolicy }
-declare_into! { tor_error::InternalError => Internal }
+declare_into! { tor_error::Bug => Internal }
 
 /// An error that occurs while trying to construct a network document.
 #[derive(Clone, Debug, Error)]
