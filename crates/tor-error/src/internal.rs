@@ -135,8 +135,8 @@ impl Display for Bug {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,
-            "internal error (bug) at {}: {}",
-            &self.0.location, &self.0.message
+            "{} at {}: {}",
+            self.0.kind, &self.0.location, &self.0.message
         )?;
         Display::fmt(&self.0.backtrace, f)?;
         Ok(())
