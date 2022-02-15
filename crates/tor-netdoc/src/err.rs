@@ -272,7 +272,7 @@ pub enum ParseErrorKind {
     InvalidLifetime,
 }
 
-/// The underlying source for an [`Error`].
+/// The underlying source for an [`Error`](crate::Error).
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum ParseErrorSource {
