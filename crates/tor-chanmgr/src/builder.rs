@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use crate::{event::ChanMgrEventSender, Error};
 
 use std::time::Duration;
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
@@ -69,10 +70,9 @@ impl<R: Runtime> ChanBuilder<R> {
         // TODO: This just uses the first address. Instead we could be
         // smarter, or use "happy eyeballs", or whatever.  Maybe we will
         // want to refactor as we do so?
-        let addr = target
-            .addrs()
-            .get(0)
-            .ok_or_else(|| Error::UnusableTarget("No addresses for chosen relay".into()))?;
+        let addr = target.addrs().get(0).ok_or_else(|| {
+            Error::UnusableTarget(bad_api_usage!("No addresses for chosen relay"))
+        })?;
 
         tracing::info!("Negotiating TLS with {}", addr);
 
@@ -115,7 +115,7 @@ impl<R: Runtime> ChanBuilder<R> {
         let peer_cert = tls
             .peer_certificate()
             .map_err(map_ioe("TLS certs"))?
-            .ok_or(Error::Internal("TLS connection with no peer certificate"))?;
+            .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?;
 
         {
             self.event_sender
