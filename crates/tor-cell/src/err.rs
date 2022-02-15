@@ -16,7 +16,7 @@ pub enum Error {
     BytesErr(#[from] tor_bytes::Error),
     /// There was a programming error somewhere in the code.
     #[error("Internal programming error: {0}")]
-    Internal(tor_error::InternalError),
+    Internal(tor_error::Bug),
     /// Protocol violation at the channel level
     #[error("channel protocol violation: {0}")]
     ChanProto(String),
@@ -35,10 +35,10 @@ impl HasKind for Error {
         use ErrorKind as EK;
         match self {
             E::BytesErr(ByE::Truncated) => EK::Internal,
-            E::BytesErr(_) => EK::ProtocolViolation,
+            E::BytesErr(_) => EK::TorProtocolViolation,
             E::Internal(_) => EK::Internal,
-            E::ChanProto(_) => EK::ProtocolViolation,
-            E::BadStreamAddress => EK::BadArgument,
+            E::ChanProto(_) => EK::TorProtocolViolation,
+            E::BadStreamAddress => EK::BadApiUsage,
             E::CantEncode => EK::Internal,
         }
     }
