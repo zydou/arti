@@ -93,7 +93,7 @@ pub use err::{BuildError, Error, ParseErrorKind, Pos};
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Alias for the Resut type returned by document-builder functions in this
+/// Alias for the Result type returned by document-builder functions in this
 /// module.
 pub type BuildResult<T> = std::result::Result<T, BuildError>;
 
