@@ -414,14 +414,6 @@ pub enum ErrorKind {
     /// our [bug tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
     #[display(fmt = "internal error (bug)")]
     Internal,
-
-    /// TODO - error still needs to be categorized in tor/arti code
-    ///
-    /// This variant is going to be ABOLISHED!  If you see it in your code,
-    /// then you are using a version of Arti from before we managed to
-    /// remove every error.
-    #[display(fmt = "uncategorized error (TODO)")]
-    TODO,
 }
 
 /// Errors that can be categorized as belonging to an [`ErrorKind`]
