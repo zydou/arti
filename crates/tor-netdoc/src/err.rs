@@ -171,6 +171,9 @@ pub enum ParseErrorKind {
     /// An internal error in the parser: these should never happen.
     #[display(fmt = "internal error")]
     Internal,
+    /// Invoked an API in an incorrect manner.
+    #[display(fmt = "bad API usage")]
+    BadApiUsage,
     /// An entry was found with no keyword.
     #[display(fmt = "no keyword for entry")]
     MissingKeyword,
@@ -269,7 +272,7 @@ pub enum ParseErrorKind {
     InvalidLifetime,
 }
 
-/// The underlying source for an [`Error`].
+/// The underlying source for an [`Error`](crate::Error).
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub(crate) enum ParseErrorSource {
@@ -291,9 +294,9 @@ pub(crate) enum ParseErrorSource {
     /// Invalid protocol versions.
     #[error("Protocol versions")]
     Protovers(#[from] tor_protover::ParseError),
-    /// Internal error.
-    #[error("Internal error")]
-    Internal(#[from] tor_error::Bug),
+    /// A bug in our programming, or somebody else's.
+    #[error("Internal error or bug")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl ParseErrorKind {
@@ -457,7 +460,23 @@ declare_into! { tor_bytes::Error => Undecodable }
 declare_into! { std::num::ParseIntError => BadArgument }
 declare_into! { std::net::AddrParseError => BadArgument }
 declare_into! { PolicyError => BadPolicy }
-declare_into! { tor_error::Bug => Internal }
+
+impl From<tor_error::Bug> for Error {
+    fn from(err: tor_error::Bug) -> Self {
+        use tor_error::HasKind;
+        let kind = match err.kind() {
+            tor_error::ErrorKind::BadApiUsage => ParseErrorKind::BadApiUsage,
+            _ => ParseErrorKind::Internal,
+        };
+
+        Error {
+            kind,
+            msg: None,
+            pos: None,
+            source: Some(err.into()),
+        }
+    }
+}
 
 /// An error that occurs while trying to construct a network document.
 #[derive(Clone, Debug, Error)]
