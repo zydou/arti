@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::DocSource;
 use futures::task::SpawnError;
 use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
@@ -59,8 +60,14 @@ pub enum Error {
     #[error("Invalid hexadecimal id in directory cache")]
     BadHexInCache(#[source] hex::FromHexError),
     /// An error given by the network document crate.
-    #[error("netdoc error: {0}")]
-    NetDocError(#[from] tor_netdoc::Error),
+    #[error("netdoc error from {source}: {cause}")]
+    NetDocError {
+        /// Where the document came from.
+        source: DocSource,
+        /// What error we got.
+        #[source]
+        cause: tor_netdoc::Error,
+    },
     /// An error given by dirclient
     #[error("dirclient error: {0}")]
     DirClientError(#[from] tor_dirclient::Error),
@@ -109,6 +116,13 @@ impl Error {
             cause: Arc::new(err),
         }
     }
+
+    /// Construct a new `Error` from `tor_netdoc::Error`.
+    ///
+    /// Also takes a source so that we can keep track of where the document came from.
+    pub(crate) fn from_netdoc(source: DocSource, cause: tor_netdoc::Error) -> Error {
+        Error::NetDocError { source, cause }
+    }
 }
 
 impl From<rusqlite::Error> for Error {
@@ -143,7 +157,10 @@ impl HasKind for Error {
             E::CantAdvanceState => EK::DirectoryStalled,
             E::StorageError(_) => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
-            E::NetDocError(_) => todo!(), // TODO: depends on source
+            E::NetDocError { source, .. } => match source {
+                DocSource::LocalCache => EK::CacheCorrupted,
+                DocSource::DirServer { .. } => EK::TorProtocolViolation,
+            },
             E::DirClientError(e) => e.kind(),
             E::SignatureError(_) => EK::TorProtocolViolation,
             E::IOError(_) => EK::CacheAccessFailed,

@@ -704,7 +704,8 @@ fn cmeta_from_row(row: &rusqlite::Row<'_>) -> Result<ConsensusMeta> {
     let vu: OffsetDateTime = row.get(2)?;
     let d_signed: String = row.get(3)?;
     let d_all: String = row.get(4)?;
-    let lifetime = Lifetime::new(va.into(), fu.into(), vu.into())?;
+    let lifetime = Lifetime::new(va.into(), fu.into(), vu.into())
+        .map_err(|_| Error::CacheCorruption("inconsistent lifetime in database"))?;
     Ok(ConsensusMeta::new(
         lifetime,
         digest_from_hex(&d_signed)?,
