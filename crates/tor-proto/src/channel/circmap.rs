@@ -14,6 +14,7 @@ use futures::channel::{mpsc, oneshot};
 use rand::distributions::Distribution;
 use rand::Rng;
 use std::collections::{hash_map::Entry, HashMap};
+use std::ops::{Deref, DerefMut};
 
 /// Which group of circuit IDs are we allowed to allocate in this map?
 ///
@@ -91,20 +92,27 @@ pub(super) struct MutCircEnt<'a> {
     was_open: bool,
 }
 
-impl<'a> AsMut<CircEnt> for MutCircEnt<'a> {
-    fn as_mut(&mut self) -> &mut CircEnt {
-        self.value
-    }
-}
-
 impl<'a> Drop for MutCircEnt<'a> {
     fn drop(&mut self) {
         let is_open = !matches!(self.value, CircEnt::DestroySent(_));
         match (self.was_open, is_open) {
-            (false, true) => *self.open_count += 1,
-            (true, false) => *self.open_count -= 1,
-            (_, _) => {}
-        }
+            (false, true) => *self.open_count = self.open_count.saturating_add(1),
+            (true, false) => *self.open_count = self.open_count.saturating_sub(1),
+            (_, _) => (),
+        };
+    }
+}
+
+impl<'a> Deref for MutCircEnt<'a> {
+    type Target = CircEnt;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a> DerefMut for MutCircEnt<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
     }
 }
 
@@ -255,8 +263,8 @@ mod test {
             ids_low.push(id_low);
 
             assert!(matches!(
-                map_low.get_mut(id_low).unwrap().as_mut(),
-                &mut CircEnt::Opening(_, _)
+                *map_low.get_mut(id_low).unwrap(),
+                CircEnt::Opening(_, _)
             ));
 
             let (csnd, _) = oneshot::channel();
@@ -286,14 +294,14 @@ mod test {
         // Good case.
         assert!(map_high.get_mut(ids_high[0]).is_some());
         assert!(matches!(
-            map_high.get_mut(ids_high[0]).unwrap().as_mut(),
-            &mut CircEnt::Opening(_, _)
+            *map_high.get_mut(ids_high[0]).unwrap(),
+            CircEnt::Opening(_, _)
         ));
         let adv = map_high.advance_from_opening(ids_high[0]);
         assert!(adv.is_ok());
         assert!(matches!(
-            map_high.get_mut(ids_high[0]).unwrap().as_mut(),
-            &mut CircEnt::Open(_)
+            *map_high.get_mut(ids_high[0]).unwrap(),
+            CircEnt::Open(_)
         ));
 
         // Can't double-advance.
