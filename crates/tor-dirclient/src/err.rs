@@ -9,10 +9,6 @@ use tor_rtcompat::TimeoutError;
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
-    /// We received an object with a suspiciously good compression ratio
-    #[error("possible compression bomb")]
-    CompressionBomb,
-
     /// The directory cache took too long to reply to us.
     #[error("directory timed out")]
     DirTimeout,
