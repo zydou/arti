@@ -9,6 +9,7 @@ use futures::future::{FutureExt, Shared};
 use rand::Rng;
 use std::hash::Hash;
 use std::time::Duration;
+use tor_error::internal;
 
 mod map;
 
@@ -128,7 +129,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         const N_ATTEMPTS: usize = 2;
 
         // TODO(nickm): It would be neat to use tor_retry instead.
-        let mut last_err = Err(Error::Internal("Error was never set!?"));
+        let mut last_err = Err(Error::Internal(internal!("Error was never set!?")));
 
         for _ in 0..N_ATTEMPTS {
             // First, see what state we're in, and what we should do
@@ -158,7 +159,9 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         // is a bug.
                         (
                             None,
-                            Action::Return(Err(Error::Internal("Found a poisoned entry"))),
+                            Action::Return(Err(Error::Internal(internal!(
+                                "Found a poisoned entry"
+                            )))),
                         )
                     }
                     None => {
@@ -183,7 +186,8 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         last_err = Err(e);
                     }
                     Err(_) => {
-                        last_err = Err(Error::Internal("channel build task disappeared"));
+                        last_err =
+                            Err(Error::Internal(internal!("channel build task disappeared")));
                     }
                 },
                 // We need to launch a channel.
@@ -257,6 +261,7 @@ mod test {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
+    use tor_error::bad_api_usage;
 
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
@@ -313,7 +318,7 @@ mod test {
             let (ident, mood) = *target;
             match mood {
                 // "X" means never connect.
-                '❌' | '🔥' => return Err(Error::UnusableTarget("emoji".into())),
+                '❌' | '🔥' => return Err(Error::UnusableTarget(bad_api_usage!("emoji"))),
                 // "zzz" means wait for 15 seconds then succeed.
                 '💤' => {
                     self.runtime.sleep(Duration::new(15, 0)).await;

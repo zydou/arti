@@ -6,6 +6,7 @@ use super::{AbstractChannel, Pending};
 use crate::{Error, Result};
 
 use std::collections::{hash_map, HashMap};
+use tor_error::internal;
 
 /// A map from channel id to channel state.
 ///
@@ -62,7 +63,7 @@ impl<C: Clone> ChannelState<C> {
         match self {
             Open(ent) => Ok(Open(ent.clone())),
             Building(pending) => Ok(Building(pending.clone())),
-            Poisoned(_) => Err(Error::Internal("Poisoned state in channel map")),
+            Poisoned(_) => Err(Error::Internal(internal!("Poisoned state in channel map"))),
         }
     }
 
@@ -86,10 +87,12 @@ impl<C: AbstractChannel> ChannelState<C> {
                 if ent.channel.ident() == ident {
                     Ok(())
                 } else {
-                    Err(Error::Internal("Identity mismatch"))
+                    Err(Error::Internal(internal!("Identity mismatch")))
                 }
             }
-            ChannelState::Poisoned(_) => Err(Error::Internal("Poisoned state in channel map")),
+            ChannelState::Poisoned(_) => {
+                Err(Error::Internal(internal!("Poisoned state in channel map")))
+            }
             ChannelState::Building(_) => Ok(()),
         }
     }

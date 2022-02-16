@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::task::SpawnError;
 use thiserror::Error;
 
-use tor_error::ErrorKind;
+use tor_error::{internal, ErrorKind};
 
 /// An error returned by a channel manager.
 #[derive(Debug, Error, Clone)]
@@ -14,7 +14,7 @@ use tor_error::ErrorKind;
 pub enum Error {
     /// A ChanTarget was given for which no channel could be built.
     #[error("Target was unusable: {0}")]
-    UnusableTarget(String),
+    UnusableTarget(#[source] tor_error::Bug),
 
     /// We were waiting on a pending channel, but it didn't succeed.
     #[error("Pending channel failed to launch")]
@@ -53,7 +53,7 @@ pub enum Error {
     },
     /// An internal error of some kind that should never occur.
     #[error("Internal error: {0}")]
-    Internal(&'static str),
+    Internal(#[from] tor_error::Bug),
 }
 
 impl From<tor_rtcompat::TimeoutError> for Error {
@@ -64,17 +64,21 @@ impl From<tor_rtcompat::TimeoutError> for Error {
 
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(_: std::sync::PoisonError<T>) -> Error {
-        Error::Internal("Thread failed while holding lock")
+        Error::Internal(internal!("Thread failed while holding lock"))
     }
 }
 
 impl tor_error::HasKind for Error {
     fn kind(&self) -> ErrorKind {
+        use tor_proto::Error as ProtoErr;
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::Io { .. } => EK::TorConnectionFailed,
-            _ => EK::TODO,
+            E::ChanTimeout | E::Io { .. } | E::Proto(ProtoErr::IoErr(_)) => EK::TorConnectionFailed,
+            E::Spawn { cause, .. } => cause.kind(),
+            E::Proto(e) => e.kind(),
+            E::PendingFailed => EK::TorConnectionFailed,
+            E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
         }
     }
 }
