@@ -211,7 +211,7 @@ pub enum ErrorKind {
     /// may indicate that you're using something that isn't implemented yet.
     ///
     /// This kind can relate both to operations which we plan to implement, and
-    /// to operations which we do not.  It does not relate to faciities which
+    /// to operations which we do not.  It does not relate to facilities which
     /// are disabled (e.g. at build time) or harmful.
     ///
     /// It can refer to facilities which were once implemented in Tor or Arti
@@ -220,10 +220,10 @@ pub enum ErrorKind {
     NotImplemented,
 
     /// A feature was requested which has been disabled in this build of Arti.
-    ///!
-    /// This kind of error happens when the running Arti was built wityout the
+    ///
+    /// This kind of error happens when the running Arti was built without the
     /// appropriate feature (usually, cargo feature) enabled.
-    ///!
+    ///
     /// This might indicate that the overall running system has been
     /// mis-configured at build-time.  Alternatively, it can occur if the
     /// running system is deliberately stripped down, in which case it might be
