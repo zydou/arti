@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use thiserror::Error;
+use tor_error::{ErrorKind, HasKind};
 use tor_rtcompat::TimeoutError;
 
 /// An error originating from the tor-dirclient crate.
@@ -79,5 +80,28 @@ impl Error {
         // TODO: probably this is too aggressive, and we should
         // actually _not_ dump the circuit under all circumstances.
         true
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::DirTimeout => EK::ExitTimeout,
+            E::TruncatedHeaders => EK::TorProtocolViolation,
+            E::HttpStatus(_) => EK::RemoteRefused,
+            E::ResponseTooLong(_) => EK::TorProtocolViolation,
+            E::Utf8Encoding(_) => EK::TorProtocolViolation,
+            // TODO: it would be good to get more information out of the IoError
+            // in this case, but that would require a bunch of gnarly
+            // downcasting.
+            E::IoError(_) => EK::RemoteStreamError,
+            E::Proto(e) => e.kind(),
+            E::CircMgr(e) => e.kind(),
+            E::HttparseError(_) => EK::TorProtocolViolation,
+            E::HttpError(_) => EK::Internal,
+            E::ContentEncoding(_) => EK::TorProtocolViolation,
+        }
     }
 }

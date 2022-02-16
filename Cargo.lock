@@ -3028,6 +3028,7 @@ dependencies = [
  "memchr",
  "thiserror",
  "tor-circmgr",
+ "tor-error",
  "tor-llcrypto",
  "tor-netdoc",
  "tor-proto",
