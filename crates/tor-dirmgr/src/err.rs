@@ -49,9 +49,15 @@ pub enum Error {
     /// An error given by the consensus diff crate.
     #[error("consdiff error: {0}")]
     ConsensusDiffError(#[from] tor_consdiff::Error),
-    /// A string parsing error.
-    #[error("string parsing error: {0}")]
-    StringParsingError(String),
+    /// Invalid UTF8 in directory response.
+    #[error("invalid utf-8 from directory server")]
+    BadUtf8FromDirectory(#[source] std::string::FromUtf8Error),
+    /// Invalid UTF8 from our cache.
+    #[error("Invalid utf-8 in directory cache")]
+    BadUtf8InCache(#[source] std::str::Utf8Error),
+    /// Invalid hexadecimal value in the cache.
+    #[error("Invalid hexadecimal id in directory cache")]
+    BadHexInCache(#[source] hex::FromHexError),
     /// An error given by the network document crate.
     #[error("netdoc error: {0}")]
     NetDocError(#[from] tor_netdoc::Error),
@@ -81,24 +87,6 @@ pub enum Error {
     /// A programming problem, either in our code or the code calling it.
     #[error("programming problem: {0}")]
     Bug(#[from] tor_error::Bug),
-}
-
-impl From<std::str::Utf8Error> for Error {
-    fn from(err: std::str::Utf8Error) -> Self {
-        Error::StringParsingError(err.to_string())
-    }
-}
-
-impl From<std::string::FromUtf8Error> for Error {
-    fn from(err: std::string::FromUtf8Error) -> Self {
-        Error::StringParsingError(err.to_string())
-    }
-}
-
-impl From<hex::FromHexError> for Error {
-    fn from(err: hex::FromHexError) -> Self {
-        Error::StringParsingError(err.to_string())
-    }
 }
 
 impl From<std::io::Error> for Error {
@@ -147,13 +135,15 @@ impl HasKind for Error {
             E::UnrecognizedSchema => EK::CacheCorrupted,
             E::BadNetworkConfig(_) => EK::InvalidConfig,
             E::DirectoryNotPresent => EK::DirectoryExpired,
+            E::BadUtf8FromDirectory(_) => EK::TorProtocolViolation,
+            E::BadUtf8InCache(_) => EK::CacheCorrupted,
+            E::BadHexInCache(_) => EK::CacheCorrupted,
             E::UnrecognizedAuthorities => EK::TorProtocolViolation,
             E::ManagerDropped => EK::TorShuttingDown,
             E::CantAdvanceState => EK::DirectoryStalled,
             E::StorageError(_) => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
-            E::StringParsingError(_) => todo!(), //TODO: refactor.
-            E::NetDocError(_) => todo!(),        // TODO: depends on source
+            E::NetDocError(_) => todo!(), // TODO: depends on source
             E::DirClientError(e) => e.kind(),
             E::SignatureError(_) => EK::TorProtocolViolation,
             E::IOError(_) => EK::CacheAccessFailed,

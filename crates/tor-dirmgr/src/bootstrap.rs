@@ -177,7 +177,8 @@ async fn download_attempt<R: Runtime>(
     let missing = state.missing_docs();
     let fetched = fetch_multiple(Arc::clone(dirmgr), missing, parallelism).await?;
     for (client_req, dir_response) in fetched {
-        let text = String::from_utf8(dir_response.into_output())?;
+        let text =
+            String::from_utf8(dir_response.into_output()).map_err(Error::BadUtf8FromDirectory)?;
         match dirmgr.expand_response_text(&client_req, text) {
             Ok(text) => {
                 let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));

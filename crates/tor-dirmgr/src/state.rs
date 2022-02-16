@@ -229,7 +229,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
             _ => return Err(Error::Unwanted("Not an md consensus")),
         };
 
-        self.add_consensus_text(true, text.as_str()?)
+        self.add_consensus_text(true, text.as_str().map_err(Error::BadUtf8InCache)?)
             .map(|meta| meta.is_some())
     }
     fn add_from_download(
@@ -398,7 +398,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         // our input and remembering them.
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
-                let parsed = AuthCert::parse(cert.as_str()?)?.check_signature()?;
+                let parsed = AuthCert::parse(cert.as_str().map_err(Error::BadUtf8InCache)?)?
+                    .check_signature()?;
                 let now = current_time(&self.writedir)?;
                 if let Ok(cert) = parsed.check_valid_at(&now) {
                     self.missing_certs.remove(cert.key_ids());
@@ -740,7 +741,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
                     warn!("Bug: loaded a microdesc that we didn't want from the cache.");
                     continue;
                 }
-                if let Ok(md) = Microdesc::parse(text.as_str()?) {
+                if let Ok(md) = Microdesc::parse(text.as_str().map_err(Error::BadUtf8InCache)?) {
                     if md.digest() == &digest {
                         microdescs.push(md);
                         continue;

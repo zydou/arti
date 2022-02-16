@@ -677,7 +677,8 @@ impl Drop for Unlinker {
 
 /// Convert a hexadecimal sha3-256 digest from the database into an array.
 fn digest_from_hex(s: &str) -> Result<[u8; 32]> {
-    hex::decode(s)?
+    hex::decode(s)
+        .map_err(Error::BadHexInCache)?
         .try_into()
         .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
 }
@@ -686,7 +687,8 @@ fn digest_from_hex(s: &str) -> Result<[u8; 32]> {
 /// digest column from the database into an array.
 fn digest_from_dstr(s: &str) -> Result<[u8; 32]> {
     if let Some(stripped) = s.strip_prefix("sha3-256-") {
-        hex::decode(stripped)?
+        hex::decode(stripped)
+            .map_err(Error::BadHexInCache)?
             .try_into()
             .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
     } else {
