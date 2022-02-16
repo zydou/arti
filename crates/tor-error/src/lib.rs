@@ -280,6 +280,18 @@ pub enum ErrorKind {
     #[display(fmt = "target object already closed")]
     AlreadyClosed,
 
+    /// An operation failed in a transient way.
+    ///
+    /// This kind of error indicates that some kind of operation failed in a way
+    /// where retrying it again could likely have made it work, but we ran out of
+    /// time or attempts before we could reattempt it.
+    ///
+    /// You should not generally see this kind of error; it usually indicates a
+    /// defect in Arti, where we didn't retry something for long enough.  If you
+    /// encounter these, please let us know.
+    #[display(fmt = "un-retried transient failure")]
+    TransientFailure,
+
     /// Bug, for example calling a function with an invalid argument.
     ///
     /// This kind of error is usually a programming mistake on the caller's part.

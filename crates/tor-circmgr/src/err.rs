@@ -129,7 +129,7 @@ impl HasKind for Error {
             E::NoExit(_) => EK::NoExit,
             E::PendingFailed => EK::TODO, // circuit failed, but it would be neat to have the error.
             E::CircTimeout => EK::CircuitTimeout,
-            E::GuardNotUsable => EK::TODO, // ?????  This one is for speculative guard selection for guards we decided not to use.
+            E::GuardNotUsable => EK::TransientFailure,
             E::RequestTimeout => EK::CircuitTimeout,
             E::RequestFailed(e) => e
                 .sources()
