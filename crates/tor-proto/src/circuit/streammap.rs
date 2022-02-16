@@ -11,6 +11,7 @@ use tor_cell::relaycell::{msg::RelayMsg, StreamId};
 use futures::channel::mpsc;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use tor_error::internal;
 
 use rand::Rng;
 
@@ -179,9 +180,11 @@ impl StreamMap {
     /// ought to be sent.
     pub(super) fn terminate(&mut self, id: StreamId) -> Result<ShouldSendEnd> {
         // Progress the stream's state machine accordingly
-        match self.m.remove(&id).ok_or_else(|| {
-            Error::InternalError("Somehow we terminated a nonexistent connection‽".into())
-        })? {
+        match self
+            .m
+            .remove(&id)
+            .ok_or_else(|| Error::from(internal!("Somehow we terminated a nonexistent stream?")))?
+        {
             StreamEnt::EndReceived => Ok(ShouldSendEnd::DontSend),
             StreamEnt::Open {
                 send_window,

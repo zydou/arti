@@ -2904,6 +2904,7 @@ dependencies = [
  "thiserror",
  "tor-bytes",
  "tor-cert",
+ "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
 ]
@@ -3257,6 +3258,7 @@ dependencies = [
  "tor-cell",
  "tor-cert",
  "tor-checkable",
+ "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-protover",

@@ -5,6 +5,7 @@ use crate::chancell::{msg, ChanCell, ChanCmd, CircId};
 use crate::Error;
 use arrayref::{array_mut_ref, array_ref};
 use tor_bytes::{self, Reader, Writer};
+use tor_error::internal;
 
 use bytes::BytesMut;
 
@@ -59,7 +60,7 @@ impl ChannelCodec {
             msg.write_body_onto(dst);
             let len = dst.len() - pos - 2;
             if len > std::u16::MAX as usize {
-                return Err(Error::InternalError("ran out of space for varcell".into()));
+                return Err(Error::Internal(internal!("ran out of space for varcell")));
             }
             // go back and set the length.
             *(array_mut_ref![&mut dst[pos..pos + 2], 0, 2]) = (len as u16).to_be_bytes();
@@ -67,7 +68,7 @@ impl ChannelCodec {
             msg.write_body_onto(dst);
             let len = dst.len() - pos;
             if len > CELL_DATA_LEN {
-                return Err(Error::InternalError("ran out of space for cell".into()));
+                return Err(Error::Internal(internal!("ran out of space for cell")));
             }
             // pad to end of fixed-length cell
             dst.write_zeros(CELL_DATA_LEN - len);

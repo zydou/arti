@@ -10,6 +10,7 @@
 use crate::{Error, Result};
 use std::convert::TryInto;
 use tor_cell::chancell::RawCellBody;
+use tor_error::internal;
 
 use generic_array::GenericArray;
 
@@ -258,7 +259,10 @@ pub(crate) mod tor1 {
         }
         fn initialize(seed: &[u8]) -> Result<Self> {
             if seed.len() != Self::seed_len() {
-                return Err(Error::InternalError("length is invalid".to_string()));
+                return Err(Error::from(internal!(
+                    "seed length {} was invalid",
+                    seed.len()
+                )));
             }
             let keylen = SC::KeySize::to_usize();
             let dlen = D::OutputSize::to_usize();

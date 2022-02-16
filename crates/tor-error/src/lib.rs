@@ -212,6 +212,54 @@ pub enum ErrorKind {
     #[display(fmt = "Tor network protocol violation (bug, incompatibility, or attack)")]
     TorProtocolViolation,
 
+    /// Something went wrong with a network connection or the local network.
+    ///
+    /// This kind of error is usually safe to retry, and shouldn't typically be
+    /// seen.  By the time it reaches the caller, more specific error type
+    /// should typically be available.
+    #[display(fmt = "problem with network or connection")]
+    Network,
+
+    /// A remote host had an identity other than the one we expected.
+    ///
+    /// This could indicate a MITM attack, but more likely indicates that the
+    /// relay has changed its identity but the new identity hasn't propagated
+    /// through the directory system yet.
+    #[display(fmt = "identity mismatch")]
+    RemoteIdMismatch,
+
+    /// An attempt to do something remotely through the Tor network failed
+    /// because the circuit it was using shut down before the operation could
+    /// finish.
+    #[display(fmt = "circuit collapsed")]
+    CircuitCollapse,
+
+    /// An operation finished because a remote stream was closed successfully.
+    ///
+    /// This can indicate that the target server closed the TCP connection,
+    /// or that the exit told us that it closed the TCP connection.
+    /// Callers should generally treat this like a closed TCP connection.
+    #[display(fmt = "remote stream closed")]
+    RemoteStreamClosed,
+
+    /// An operation finished because a remote stream was closed unsuccessfully,
+    ///
+    /// This indicates that the exit reported some error message for the stream.
+    #[display(fmt = "remote stream error")]
+    RemoteStreamError,
+
+    /// An operation finished because a remote name lookup was unsuccessful.
+    ///
+    /// Trying at another exit might succeed, or the address might be
+    /// unresolvable.
+    #[display(fmt = "remote name-lookup failure")]
+    RemoteNameError,
+
+    /// An operation won't work because it's trying to use an object that's
+    /// already in a shutting-down state.
+    #[display(fmt = "target object already closed")]
+    AlreadyClosed,
+
     /// Bug, for example calling a function with an invalid argument.
     ///
     /// This kind of error is usually a programming mistake on the caller's part.
@@ -227,6 +275,32 @@ pub enum ErrorKind {
     // could be (often, are likely to be) outside arti.
     #[display(fmt = "bad API usage (bug)")]
     BadApiUsage,
+
+    /// An operation failed because a local namespace is too full to grow.
+    ///
+    /// This error can occur if you try to put too many steams onto a single
+    /// circuit, or too many circuits onto a single channel.  Both are very
+    /// unlikely in practice.
+    ///
+    /// If you see this kind of error when opening a stream, try opening the
+    /// stream on a different circuit.  If you see this kind of error when
+    /// opening a circuit, then there is probably a bug in your program.
+    #[display(fmt = "namespace full")]
+    NamespaceFull,
+
+    /// An operation failed because a remote party on the Tor expected us to
+    /// have a resource or identity that we do not.
+    ///
+    /// Clients should never encounter this kind of error.
+    #[display(fmt = "requested resource is not available")]
+    RequestedResourceAbsent,
+
+    /// We asked a remote host to do something, and it declined.
+    ///
+    /// Either it gave an error message indicating that it refused to perform
+    /// the request, or the protocol gives it no room to explain what happened.
+    #[display(fmt = "remote host refused our request")]
+    RemoteRefused,
 
     /// Internal error (bug) in Arti.
     ///

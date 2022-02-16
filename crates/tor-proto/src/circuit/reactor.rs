@@ -22,6 +22,7 @@ use tor_cell::relaycell::{RelayCell, RelayCmd, StreamId};
 use futures::channel::{mpsc, oneshot};
 use futures::Sink;
 use futures::Stream;
+use tor_error::internal;
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
@@ -375,7 +376,13 @@ where
 
         let msg = match msg {
             RelayMsg::Extended2(e) => e,
-            _ => return Err(Error::InternalError("Body didn't match cmd".into())),
+            _ => {
+                return Err(Error::from(internal!(
+                    "Message body {:?} didn't match cmd {:?}",
+                    msg,
+                    msg.cmd()
+                )))
+            }
         };
         let relay_handshake = msg.into_body();
 
@@ -1033,9 +1040,9 @@ impl Reactor {
             self.meta_handler = Some((handler, done));
             Ok(())
         } else {
-            Err(Error::InternalError(
-                "Tried to install a meta-cell handler before the old one was gone.".into(),
-            ))
+            Err(Error::from(internal!(
+                "Tried to install a meta-cell handler before the old one was gone."
+            )))
         }
     }
 
@@ -1113,9 +1120,10 @@ impl Reactor {
                 let _ = done.send(if let Some(hop) = self.hop_mut(hop) {
                     Ok(hop.sendwindow.window_and_expected_tags())
                 } else {
-                    Err(Error::InternalError(
-                        "received QuerySendWindow for unknown hop".into(),
-                    ))
+                    Err(Error::from(internal!(
+                        "received QuerySendWindow for unknown hop {:?}",
+                        hop
+                    )))
                 });
             }
             #[cfg(test)]
@@ -1138,7 +1146,7 @@ impl Reactor {
     ) -> Result<StreamId> {
         let hop = self
             .hop_mut(hopnum)
-            .ok_or_else(|| Error::InternalError(format!("No such hop {:?}", hopnum)))?;
+            .ok_or_else(|| Error::from(internal!("No such hop {:?}", hopnum)))?;
         let send_window = StreamSendWindow::new(SEND_WINDOW_INIT);
         let r = hop.map.add_ent(sender, rx, send_window)?;
         let cell = RelayCell::new(r, message);
@@ -1153,7 +1161,10 @@ impl Reactor {
     fn close_stream(&mut self, cx: &mut Context<'_>, hopnum: HopNum, id: StreamId) -> Result<()> {
         // Mark the stream as closing.
         let hop = self.hop_mut(hopnum).ok_or_else(|| {
-            Error::InternalError("Tried to close a stream on a hop that wasn't there?".into())
+            Error::from(internal!(
+                "Tried to close a stream on a hop {:?} that wasn't there?",
+                hopnum
+            ))
         })?;
 
         let should_send_end = hop.map.terminate(id)?;
@@ -1238,7 +1249,10 @@ impl Reactor {
             self.send_relay_cell(cx, hopnum, false, cell)?;
             self.hop_mut(hopnum)
                 .ok_or_else(|| {
-                    Error::InternalError("Trying to send SENDME to nonexistent hop".to_string())
+                    Error::from(internal!(
+                        "Trying to send SENDME to nonexistent hop {:?}",
+                        hopnum
+                    ))
                 })?
                 .recvwindow
                 .put();

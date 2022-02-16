@@ -2,6 +2,7 @@
 use std::sync::Arc;
 use thiserror::Error;
 use tor_cell::relaycell::msg::EndReason;
+use tor_error::{ErrorKind, HasKind};
 
 /// An error type for the tor-proto crate.
 ///
@@ -30,9 +31,6 @@ pub enum Error {
     /// We tried to encrypt a message to a hop that wasn't there.
     #[error("tried to encrypt to nonexistent hop")]
     NoSuchHop,
-    /// There was a programming error somewhere in the code.
-    #[error("Internal programming error: {0}")]
-    InternalError(String),
     /// The authentication information on this cell was completely wrong,
     /// or the cell was corrupted.
     #[error("bad relay cell authentication")]
@@ -46,24 +44,19 @@ pub enum Error {
     /// Protocol violation at the circuit level
     #[error("circuit protocol violation: {0}")]
     CircProto(String),
-    /// Circuit destroyed or channel closed.
-    #[error("circuit destroyed: {0}")]
-    CircDestroy(String),
     /// Channel is closed.
     #[error("channel closed")]
     ChannelClosed,
     /// Circuit is closed.
     #[error("circuit closed")]
     CircuitClosed,
-    /// Stream has ended.
-    #[error("stream ended")]
-    StreamEnded,
     /// Can't allocate any more circuit or stream IDs on a channel.
     #[error("too many entries in map: can't allocate ID")]
     IdRangeFull,
-    /// Couldn't extend a circuit.
+    /// Couldn't extend a circuit because the extending relay or the
+    /// target relay refused our request.
     #[error("circuit extension handshake error: {0}")]
-    CircExtend(&'static str),
+    CircRefused(&'static str),
     /// Tried to make or use a stream to an invalid destination address.
     #[error("invalid stream target address")]
     BadStreamAddress,
@@ -79,9 +72,9 @@ pub enum Error {
     /// Channel does not match target
     #[error("channel mismatch: {0}")]
     ChanMismatch(String),
-    /// Tried to configure an impossible value
-    #[error("bad configuration value: {0}")]
-    BadConfig(String),
+    /// There was a programming error somewhere in our code, or the calling code.
+    #[error("Programming error: {0}")]
+    Bug(#[from] tor_error::Bug),
     /// Remote DNS lookup failed.
     #[error("remote resolve failed: {0}")]
     ResolveError(String),
@@ -118,18 +111,49 @@ impl From<Error> for std::io::Error {
 
             EndReceived(end_reason) => end_reason.into(),
 
-            CircDestroy(_) | ChannelClosed | CircuitClosed | StreamEnded => {
-                ErrorKind::ConnectionReset
-            }
+            ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
             BytesErr(_) | MissingKey | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_)
             | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
 
-            InternalError(_) | IdRangeFull | CircExtend(_) | BadConfig(_) | ResolveError(_) => {
-                ErrorKind::Other
-            }
+            Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
+
+            IdRangeFull | CircRefused(_) | ResolveError(_) | Bug(_) => ErrorKind::Other,
         };
         std::io::Error::new(kind, err)
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use tor_bytes::Error as BytesError;
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::BytesErr(BytesError::Bug(e)) => e.kind(),
+            E::BytesErr(_) => EK::TorProtocolViolation,
+            E::IoErr(_) => EK::Network,
+            E::CellErr(e) => e.kind(),
+            E::MissingKey => EK::RequestedResourceAbsent,
+            E::InvalidOutputLength => EK::Internal,
+            E::NoSuchHop => EK::BadApiUsage,
+            E::BadCellAuth => EK::TorProtocolViolation,
+            E::BadHandshake => EK::TorProtocolViolation,
+            E::ChanProto(_) => EK::TorProtocolViolation,
+            E::CircProto(_) => EK::TorProtocolViolation,
+            E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
+            E::IdRangeFull => EK::NamespaceFull,
+            E::CircRefused(_) => EK::RemoteRefused,
+            E::BadStreamAddress => EK::BadApiUsage,
+            E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
+            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,
+            E::EndReceived(_) => EK::RemoteStreamError,
+            E::NotConnected => EK::AlreadyClosed,
+            E::StreamProto(_) => EK::TorProtocolViolation,
+            E::ChanMismatch(_) => EK::RemoteIdMismatch,
+            E::ResolveError(_) => EK::RemoteNameError,
+            E::Bug(e) => e.kind(),
+        }
     }
 }
 

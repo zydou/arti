@@ -1,6 +1,6 @@
 //! Define an error type for the tor-cell crate.
-use std::sync::Arc;
 use thiserror::Error;
+use tor_error::{ErrorKind, HasKind};
 
 /// An error type for the tor-cell crate.
 ///
@@ -14,12 +14,9 @@ pub enum Error {
     /// object.
     #[error("parsing error: {0}")]
     BytesErr(#[from] tor_bytes::Error),
-    /// An error that occurred from the io system.
-    #[error("io error: {0}")]
-    IoErr(#[source] Arc<std::io::Error>),
     /// There was a programming error somewhere in the code.
     #[error("Internal programming error: {0}")]
-    InternalError(String),
+    Internal(tor_error::Bug),
     /// Protocol violation at the channel level
     #[error("channel protocol violation: {0}")]
     ChanProto(String),
@@ -31,8 +28,18 @@ pub enum Error {
     CantEncode,
 }
 
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Error {
-        Error::IoErr(Arc::new(e))
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use tor_bytes::Error as ByE;
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::BytesErr(ByE::Truncated) => EK::Internal,
+            E::BytesErr(_) => EK::TorProtocolViolation,
+            E::Internal(_) => EK::Internal,
+            E::ChanProto(_) => EK::TorProtocolViolation,
+            E::BadStreamAddress => EK::BadApiUsage,
+            E::CantEncode => EK::Internal,
+        }
     }
 }

@@ -18,6 +18,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::sink::SinkExt;
 use futures::stream::Stream;
 use futures::Sink;
+use tor_error::internal;
 
 use std::convert::TryInto;
 use std::fmt;
@@ -26,16 +27,16 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::Poll;
 
-use crate::channel::{unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
 /// A boxed trait object that can provide `ChanCell`s.
 pub(super) type BoxedChannelStream =
-    Box<dyn Stream<Item = std::result::Result<ChanCell, tor_cell::Error>> + Send + Unpin + 'static>;
+    Box<dyn Stream<Item = std::result::Result<ChanCell, CodecError>> + Send + Unpin + 'static>;
 /// A boxed trait object that can sink `ChanCell`s.
 pub(super) type BoxedChannelSink =
-    Box<dyn Sink<ChanCell, Error = tor_cell::Error> + Send + Unpin + 'static>;
+    Box<dyn Sink<ChanCell, Error = CodecError> + Send + Unpin + 'static>;
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
@@ -145,7 +146,7 @@ impl Reactor {
 
             // See if the output sink can have cells written to it yet.
             if let Poll::Ready(ret) = Pin::new(&mut self.output).poll_ready(cx) {
-                let _ = ret.map_err(Error::CellErr)?;
+                let _ = ret.map_err(Error::from)?;
                 // If it can, check whether we have any cells to send it from `Channel` senders.
                 if let Poll::Ready(msg) = Pin::new(&mut self.cells).poll_next(cx) {
                     match msg {
@@ -172,7 +173,7 @@ impl Reactor {
             if let Poll::Ready(ret) = Pin::new(&mut self.input).poll_next(cx) {
                 match ret {
                     None => return Poll::Ready(Err(ReactorError::Shutdown)),
-                    Some(r) => input = Some(r.map_err(Error::CellErr)?),
+                    Some(r) => input = Some(r.map_err(Error::from)?),
                 }
             }
 
@@ -180,7 +181,7 @@ impl Reactor {
             // we just want to keep flushing it (hence the _).
             let _ = Pin::new(&mut self.output)
                 .poll_flush(cx)
-                .map_err(Error::CellErr)?;
+                .map_err(Error::from)?;
 
             // If all three values aren't present, return Pending and wait to get polled again
             // so that one of them is present.
@@ -201,11 +202,11 @@ impl Reactor {
         if let Some(cts) = cell_to_send {
             Pin::new(&mut self.output)
                 .start_send(cts)
-                .map_err(Error::CellErr)?;
+                .map_err(Error::from)?;
             // Give the sink a little flush, to make sure it actually starts doing things.
             futures::future::poll_fn(|cx| Pin::new(&mut self.output).poll_flush(cx))
                 .await
-                .map_err(Error::CellErr)?;
+                .map_err(Error::from)?;
         }
         Ok(()) // Run again.
     }
@@ -312,7 +313,9 @@ impl Reactor {
         // TODO(nickm) I think that this one actually means the other side
         // is closed. See arti#269.
         target.send(created).map_err(|_| {
-            Error::InternalError("Circuit queue rejected created message. Is it closing?".into())
+            Error::from(internal!(
+                "Circuit queue rejected created message. Is it closing?"
+            ))
         })
     }
 
@@ -332,9 +335,7 @@ impl Reactor {
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
                     .map_err(|_| {
-                        Error::InternalError(
-                            "pending circuit wasn't interested in Destroy cell?".into(),
-                        )
+                        internal!("pending circuit wasn't interested in destroy cell?").into()
                     })
             }
             // It's an open circuit: tell it that it got a DESTROY cell.
@@ -345,7 +346,7 @@ impl Reactor {
                     // TODO(nickm) I think that this one actually means the other side
                     // is closed. See arti#269.
                     .map_err(|_| {
-                        Error::InternalError("circuit wasn't interested in destroy cell?".into())
+                        internal!("open circuit wasn't interested in destroy cell?").into()
                     })
             }
             // We've sent a destroy; we can leave this circuit removed.
@@ -403,7 +404,7 @@ pub(crate) mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
 
-    type CodecResult = std::result::Result<ChanCell, tor_cell::Error>;
+    type CodecResult = std::result::Result<ChanCell, CodecError>;
 
     pub(crate) fn new_reactor() -> (
         crate::channel::Channel,
@@ -419,7 +420,7 @@ pub(crate) mod test {
         let rsa_id = [10; 20].into();
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {}", e);
-            tor_cell::Error::ChanProto("dummy message".into())
+            CodecError::Cell(tor_cell::Error::ChanProto("dummy message".into()))
         });
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,

@@ -6,6 +6,7 @@
 use crate::circuit::sendme::{StreamRecvWindow, StreamSendWindow};
 use crate::{Error, Result};
 use tor_cell::relaycell::msg::RelayMsg;
+use tor_error::internal;
 
 /// Type to track state of half-closed streams.
 ///
@@ -66,9 +67,9 @@ impl HalfStream {
                     ))
                 }
             }
-            RelayMsg::End(_) => Err(Error::InternalError(
-                "END cell in HalfStream::handle_msg().".into(),
-            )),
+            RelayMsg::End(_) => Err(Error::from(internal!(
+                "END cell in HalfStream::handle_msg()"
+            ))),
             _ => Err(Error::CircProto(format!(
                 "Bad {} cell on a closed stream!",
                 msg.cmd()

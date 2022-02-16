@@ -60,6 +60,7 @@ use tor_cell::{
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
+use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{CircTarget, LinkSpec};
 
 use futures::channel::{mpsc, oneshot};
@@ -153,9 +154,9 @@ impl CircParameters {
             self.initial_send_window = v;
             Ok(())
         } else {
-            Err(Error::BadConfig(
-                "Tried to set an initial send window over 1000".into(),
-            ))
+            Err(Error::from(bad_api_usage!(
+                "Tried to set an initial send window over 1000"
+            )))
         }
     }
 
@@ -240,9 +241,9 @@ impl ClientCirc {
 
         let num_hops = self.hops.load(Ordering::SeqCst);
         if num_hops == 0 {
-            return Err(Error::InternalError(
-                "Number of hops specified is zero, cannot continue".into(),
-            ));
+            return Err(Error::from(internal!(
+                "Can't begin a stream at the 0th hop"
+            )));
         }
         let hop_num: HopNum = (num_hops - 1).into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
@@ -546,12 +547,13 @@ impl CreateHandshakeWrap for CreateFastWrap {
         use CreateResponse::*;
         match msg {
             CreatedFast(m) => Ok(m.into_body()),
-            Destroy(_) => Err(Error::CircExtend(
+            Destroy(_) => Err(Error::CircRefused(
                 "Relay replied to CREATE_FAST with DESTROY.",
             )),
-            _ => Err(Error::CircExtend(
-                "Relay replied to CREATE_FAST with unexpected cell.",
-            )),
+            _ => Err(Error::CircProto(format!(
+                "Relay replied to CREATE_FAST with unexpected cell: {:?}",
+                msg
+            ))),
         }
     }
 }
@@ -569,10 +571,11 @@ impl CreateHandshakeWrap for Create2Wrap {
         use CreateResponse::*;
         match msg {
             Created2(m) => Ok(m.into_body()),
-            Destroy(_) => Err(Error::CircExtend("Relay replied to CREATE2 with DESTROY.")),
-            _ => Err(Error::CircExtend(
-                "Relay replied to CREATE2 with unexpected cell.",
-            )),
+            Destroy(_) => Err(Error::CircRefused("Relay replied to CREATE2 with DESTROY.")),
+            _ => Err(Error::CircProto(format!(
+                "Relay replied to CREATE2 with unexpected cell {:?}",
+                msg
+            ))),
         }
     }
 }
@@ -626,7 +629,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
-    use crate::channel::test::new_reactor;
+    use crate::channel::{test::new_reactor, CodecError};
     use crate::crypto::cell::RelayCellBody;
     use chanmsg::{ChanMsg, Created2, CreatedFast};
     use futures::channel::mpsc::{Receiver, Sender};
@@ -703,7 +706,7 @@ mod test {
     ) -> (
         Channel,
         Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, tor_cell::Error>>,
+        Sender<std::result::Result<ChanCell, CodecError>>,
     ) {
         let (channel, chan_reactor, rx, tx) = new_reactor();
         rt.spawn(async {
@@ -1187,7 +1190,7 @@ mod test {
         StreamId,
         usize,
         Receiver<ChanCell>,
-        Sender<std::result::Result<ChanCell, tor_cell::Error>>,
+        Sender<std::result::Result<ChanCell, CodecError>>,
     ) {
         let (chan, mut rx, sink2) = working_fake_channel(rt);
         let (circ, mut sink) = newcirc(rt, chan).await;

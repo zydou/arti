@@ -14,6 +14,7 @@ use std::collections::VecDeque;
 
 use tor_cell::relaycell::msg::RelayMsg;
 use tor_cell::relaycell::RelayCell;
+use tor_error::internal;
 
 use crate::{Error, Result};
 
@@ -187,7 +188,7 @@ where
         let v = self
             .window
             .checked_add(P::increment())
-            .ok_or_else(|| Error::InternalError("Overflow on SENDME window".into()))?;
+            .ok_or_else(|| Error::from(internal!("Overflow on SENDME window")))?;
         self.window = v;
         Ok(v)
     }

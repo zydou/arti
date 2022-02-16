@@ -21,6 +21,7 @@ use std::pin::Pin;
 use crate::circuit::StreamTarget;
 use crate::stream::StreamReader;
 use tor_cell::relaycell::msg::{Data, RelayMsg};
+use tor_error::internal;
 
 /// An anonymized stream over the Tor network.
 ///
@@ -188,9 +189,10 @@ impl DataStream {
             self.r.state = Some(DataReaderState::Ready(imp));
             result
         } else {
-            Err(Error::InternalError(
-                "Expected ready state of a new stream.".to_owned(),
-            ))
+            Err(Error::from(internal!(
+                "Expected ready state, got {:?}",
+                state
+            )))
         }
     }
 }
@@ -449,6 +451,16 @@ enum DataReaderState {
     /// The reader is currently fetching a cell: this future is the
     /// progress it is making.
     ReadingCell(Pin<Box<dyn Future<Output = (DataReaderImpl, Result<()>)> + Send>>),
+}
+
+impl std::fmt::Debug for DataReaderState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Closed => write!(f, "Closed"),
+            Self::Ready(_) => write!(f, "Ready"),
+            Self::ReadingCell(_) => write!(f, "ReadingCell"),
+        }
+    }
 }
 
 /// Wrapper for the read part of a DataStream

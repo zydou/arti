@@ -5,6 +5,7 @@ use asynchronous_codec as futures_codec;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
+use tor_error::internal;
 
 use crate::channel::codec::ChannelCodec;
 use crate::channel::UniqId;
@@ -178,9 +179,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                     if netinfo.is_some() {
                         // This should be impossible, since we would
                         // exit this loop on the first netinfo cell.
-                        return Err(Error::InternalError(
-                            "Somehow tried to record a duplicate NETINFO cell".into(),
-                        ));
+                        return Err(Error::from(internal!(
+                            "Somehow tried to record a duplicate NETINFO cell"
+                        )));
                     }
                     netinfo = Some(n);
                     break;

@@ -70,6 +70,7 @@ use crate::util::ts::OptTimestamp;
 use crate::{Error, Result};
 use std::pin::Pin;
 use tor_cell::chancell::{msg, ChanCell, CircId};
+use tor_error::internal;
 use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -87,6 +88,8 @@ use tracing::trace;
 
 // reexport
 use crate::channel::unique_id::CircUniqIdContext;
+#[cfg(test)]
+pub(crate) use codec::CodecError;
 pub use handshake::{OutboundClientHandshake, UnverifiedChannel, VerifiedChannel};
 
 /// Type alias: A Sink and Stream that transforms a TLS connection into
@@ -342,12 +345,12 @@ impl Channel {
         use msg::ChanMsg::*;
         let msg = cell.msg();
         match msg {
-            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::InternalError(format!(
+            Created(_) | Created2(_) | CreatedFast(_) => Err(Error::from(internal!(
                 "Can't send {} cell on client channel",
                 msg.cmd()
             ))),
             Certs(_) | Versions(_) | Authenticate(_) | Authorize(_) | AuthChallenge(_)
-            | Netinfo(_) => Err(Error::InternalError(format!(
+            | Netinfo(_) => Err(Error::from(internal!(
                 "Can't send {} cell after handshake is done",
                 msg.cmd()
             ))),
@@ -472,17 +475,13 @@ pub(crate) mod test {
             let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
-            assert_eq!(
-                format!("{}", e.unwrap_err()),
-                "Internal programming error: Can't send CREATED2 cell on client channel"
-            );
+            assert!(format!("{}", e.unwrap_err())
+                .contains("Can't send CREATED2 cell on client channel"));
             let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
-            assert_eq!(
-                format!("{}", e.unwrap_err()),
-                "Internal programming error: Can't send CERTS cell after handshake is done"
-            );
+            assert!(format!("{}", e.unwrap_err())
+                .contains("Can't send CERTS cell after handshake is done"));
 
             let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());
             let e = chan.check_cell(&cell);
