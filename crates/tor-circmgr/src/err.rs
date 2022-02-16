@@ -133,9 +133,7 @@ impl HasKind for Error {
             E::RequestTimeout => EK::CircuitTimeout,
             E::RequestFailed(e) => e
                 .sources()
-                // Treat the *final* failure reason as why we failed.
-                // TODO(nickm) Is it reasonable to do so?
-                .last()
+                .max_by_key(|e| e.severity())
                 .map(|e| e.kind())
                 .unwrap_or(EK::Internal),
             E::CircCanceled => EK::Canceled,
@@ -155,6 +153,31 @@ impl Error {
         Error::Spawn {
             spawning,
             cause: Arc::new(err),
+        }
+    }
+
+    /// Return an integer representing the relative severity of this error.
+    ///
+    /// Used to determine which error to use when determining the kind of a retry error.
+    fn severity(&self) -> usize {
+        use Error as E;
+        match self {
+            E::GuardNotUsable => 10,
+            E::PendingFailed => 20,
+            E::CircCanceled => 20,
+            E::CircTimeout => 30,
+            E::RequestTimeout => 30,
+            E::NoPath(_) => 40,
+            E::NoExit(_) => 40,
+            E::GuardMgr(_) => 40,
+            E::Guard(_) => 40,
+            E::RequestFailed(_) => 40,
+            E::Channel { .. } => 40,
+            E::Protocol(_) => 45,
+            E::ExpiredConsensus => 50,
+            E::Spawn { .. } => 90,
+            E::State(_) => 90,
+            E::Bug(_) => 100,
         }
     }
 }
