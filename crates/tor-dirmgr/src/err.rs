@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 use thiserror::Error;
+use tor_error::{ErrorKind, HasKind};
 
 /// An error originated by the directory manager code
 #[derive(Error, Debug, Clone)]
@@ -28,9 +29,6 @@ pub enum Error {
     /// A schema version that says we can't read it.
     #[error("unrecognized data storage schema")]
     UnrecognizedSchema,
-    /// An updater no longer has anything to update.
-    #[error("directory updater has shut down")]
-    UpdaterShutdown,
     /// We couldn't configure the network.
     #[error("bad network configuration")]
     BadNetworkConfig(&'static str),
@@ -38,9 +36,6 @@ pub enum Error {
     /// bootstrapped directory, but we didn't have one.
     #[error("directory not present or not up-to-date")]
     DirectoryNotPresent,
-    /// Another process has locked the store for writing.
-    #[error("couldn't get write lock on directory cache")]
-    CacheIsLocked,
     /// A consensus document is signed by an unrecognized authority set.
     #[error("authorities on consensus do not match what we expect.")]
     UnrecognizedAuthorities,
@@ -51,9 +46,6 @@ pub enum Error {
     /// state of a download.
     #[error("unable to finish bootstrapping a directory")]
     CantAdvanceState,
-    /// An error emitted by the runtime. The argument is the formatted error of the runtime.
-    #[error("runtime error: {0}")]
-    RuntimeError(String),
     /// Blob storage error
     #[error("storage error: {0}")]
     StorageError(String),
@@ -132,6 +124,35 @@ impl Error {
         Error::Spawn {
             spawning,
             cause: Arc::new(err),
+        }
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::Unwanted(_) => EK::TorProtocolViolation,
+            E::NoDownloadSupport => EK::NotImplemented,
+            E::BadArgument(_) => EK::BadApiUsage, // TODO: move to bug.
+            E::CacheCorruption(_) => EK::CacheCorrupted,
+            E::SqliteError(_) => EK::Internal, // TODO: move to bug.
+            E::UnrecognizedSchema => EK::CacheCorrupted,
+            E::BadNetworkConfig(_) => EK::InvalidConfig,
+            E::DirectoryNotPresent => EK::DirectoryExpired,
+            E::UnrecognizedAuthorities => EK::TorProtocolViolation,
+            E::ManagerDropped => EK::TorShuttingDown,
+            E::CantAdvanceState => EK::DirectoryStalled,
+            E::StorageError(_) => EK::CacheAccessFailed,
+            E::ConsensusDiffError(_) => EK::TorProtocolViolation,
+            E::StringParsingError(_) => todo!(), //TODO: refactor.
+            E::NetDocError(_) => todo!(),        // TODO: depends on source
+            E::DirClientError(e) => e.kind(),
+            E::SignatureError(_) => EK::TorProtocolViolation,
+            E::IOError(_) => EK::CacheAccessFailed,
+            E::OfflineMode => EK::BadApiUsage,
+            E::Spawn { cause, .. } => cause.kind(),
         }
     }
 }

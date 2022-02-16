@@ -81,6 +81,14 @@ pub enum ErrorKind {
     #[display(fmt = "network directory is expired.")]
     DirectoryExpired,
 
+    /// Despite numerous retries, we have been unable to get a network
+    /// directory.
+    ///
+    /// This may indicate that we are offline, or that our network access is
+    /// censored.
+    #[display(fmt = "directory download stalled")]
+    DirectoryStalled,
+
     /// IO error accessing local persistent state
     ///
     /// Eg, disk full or permissions problem.
@@ -106,13 +114,35 @@ pub enum ErrorKind {
     #[display(fmt = "could not write to read-only persistent state")]
     PersistentStateReadOnly,
 
+    /// Tor client's cache has been corrupted.
+    ///
+    /// This could be because of a bug in the Tor code, or because something else has been messing
+    /// with the data.
+    ///
+    /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    #[display(fmt = "corrupted data in cache")]
+    CacheCorrupted,
+
+    /// We had a problem reading or writing to our data cache.
+    ///
+    /// This may be a disk error, a file permission error, or similar.
+    #[display(fmt = "cache access problem")]
+    CacheAccessFailed,
+
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or
     /// has been told to do a clean shutdown, and it isn't possible to spawn new
     /// tasks.
-    #[display(fmt = "shutting down")]
+    #[display(fmt = "reactor is shutting down")]
     ReactorShuttingDown,
+
+    /// Tor client is shutting down.
+    ///
+    /// This likely indicates that the last handle to the `TorClient` has been
+    /// dropped, and is preventing other operations from completing.
+    #[display(fmt = "Tor client is shutting down.")]
+    TorShuttingDown,
 
     /// Tor client's Rust async reactor could not spawn a task for unexplained
     /// reasons
