@@ -1008,20 +1008,6 @@ async fn continually_expire_channels<R: Runtime>(rt: R, chanmgr: Weak<tor_chanmg
     }
 }
 
-impl<R: Runtime> Drop for TorClient<R> {
-    // TODO: Consider moving this into tor-circmgr after we have more
-    // experience with the state system.
-    fn drop(&mut self) {
-        match self.circmgr.store_persistent_state() {
-            Ok(()) => info!("Flushed persistent state at exit."),
-            Err(tor_circmgr::Error::State(tor_persist::Error::NoLock)) => {
-                debug!("Lock not held; no state to flush.");
-            }
-            Err(e) => error!("Unable to flush state on client exit: {}", e),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
