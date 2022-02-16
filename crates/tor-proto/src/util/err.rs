@@ -53,7 +53,8 @@ pub enum Error {
     /// Can't allocate any more circuit or stream IDs on a channel.
     #[error("too many entries in map: can't allocate ID")]
     IdRangeFull,
-    /// Couldn't extend a circuit because the other refused.
+    /// Couldn't extend a circuit because the extending relay or the
+    /// target relay refused our request.
     #[error("circuit extension handshake error: {0}")]
     CircRefused(&'static str),
     /// Tried to make or use a stream to an invalid destination address.
