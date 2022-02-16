@@ -16,6 +16,7 @@ use std::fmt::Debug;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
+use tor_error::internal;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
@@ -418,7 +419,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     ) -> Result<bool> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
-            _ => return Err(Error::BadArgument("Mismatched request")),
+            _ => return Err(internal!("expected an AuthCert request").into()),
         };
 
         let mut newcerts = Vec::new();
@@ -767,7 +768,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
             req.digests().collect()
         } else {
-            return Err(Error::BadArgument("Mismatched request"));
+            return Err(internal!("expected a microdesc request").into());
         };
         let mut new_mds = Vec::new();
         for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {

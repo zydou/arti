@@ -16,9 +16,6 @@ pub enum Error {
     /// This DirMgr doesn't support downloads.
     #[error("tried to download information on a DirMgr with no download support")]
     NoDownloadSupport,
-    /// A bad argument was provided to some configuration function.
-    #[error("bad argument: {0}")]
-    BadArgument(&'static str),
     /// We couldn't read something from disk that we should have been
     /// able to read.
     #[error("corrupt cache: {0}")]
@@ -80,6 +77,10 @@ pub enum Error {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// A programming problem, either in our code or the code calling it.
+    #[error("programming problem: {0}")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl From<std::str::Utf8Error> for Error {
@@ -112,12 +113,6 @@ impl From<signature::Error> for Error {
     }
 }
 
-impl From<rusqlite::Error> for Error {
-    fn from(err: rusqlite::Error) -> Self {
-        Self::SqliteError(Arc::new(err))
-    }
-}
-
 impl Error {
     /// Construct a new `Error` from a `SpawnError`.
     pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {
@@ -128,6 +123,12 @@ impl Error {
     }
 }
 
+impl From<rusqlite::Error> for Error {
+    fn from(err: rusqlite::Error) -> Self {
+        Self::SqliteError(Arc::new(err))
+    }
+}
+
 impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use Error as E;
@@ -135,9 +136,14 @@ impl HasKind for Error {
         match self {
             E::Unwanted(_) => EK::TorProtocolViolation,
             E::NoDownloadSupport => EK::NotImplemented,
-            E::BadArgument(_) => EK::BadApiUsage, // TODO: move to bug.
             E::CacheCorruption(_) => EK::CacheCorrupted,
-            E::SqliteError(_) => EK::Internal, // TODO: move to bug.
+            E::SqliteError(e) => match e.as_ref() {
+                rusqlite::Error::SqliteFailure(code, _) => sqlite_error_kind(code),
+                // TODO: Some of the other sqlite error types can sometimes represent
+                // possible database corruption (like UTF8Error.)  But I haven't
+                // found a way to distinguish when.
+                _ => EK::Internal,
+            },
             E::UnrecognizedSchema => EK::CacheCorrupted,
             E::BadNetworkConfig(_) => EK::InvalidConfig,
             E::DirectoryNotPresent => EK::DirectoryExpired,
@@ -153,6 +159,40 @@ impl HasKind for Error {
             E::IOError(_) => EK::CacheAccessFailed,
             E::OfflineMode => EK::BadApiUsage,
             E::Spawn { cause, .. } => cause.kind(),
+            E::Bug(e) => e.kind(),
         }
+    }
+}
+
+/// Convert a sqlite error code into a real ErrorKind.
+fn sqlite_error_kind(e: &rusqlite::ffi::Error) -> ErrorKind {
+    use rusqlite::ErrorCode as RE;
+    use ErrorKind as EK;
+    match e.code {
+        RE::DatabaseCorrupt => EK::CacheCorrupted,
+        RE::SchemaChanged
+        | RE::TooBig
+        | RE::ConstraintViolation
+        | RE::TypeMismatch
+        | RE::ApiMisuse
+        | RE::NoLargeFileSupport
+        | RE::ParameterOutOfRange
+        | RE::OperationInterrupted
+        | RE::ReadOnly
+        | RE::OperationAborted
+        | RE::DatabaseBusy
+        | RE::DatabaseLocked
+        | RE::OutOfMemory
+        | RE::InternalMalfunction => EK::Internal,
+
+        RE::FileLockingProtocolFailed
+        | RE::AuthorizationForStatementDenied
+        | RE::NotFound
+        | RE::DiskFull
+        | RE::CannotOpen
+        | RE::SystemIoFailure
+        | RE::PermissionDenied => EK::CacheAccessFailed,
+        RE::NotADatabase => EK::InvalidConfig,
+        _ => EK::Internal,
     }
 }
