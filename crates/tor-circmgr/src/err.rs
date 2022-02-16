@@ -6,7 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
-use tor_error::ErrorKind;
+use tor_error::{Bug, ErrorKind};
 use tor_linkspec::OwnedChanTarget;
 
 /// An error returned while looking up or building a circuit
@@ -55,10 +55,10 @@ pub enum Error {
     #[error("Circuit cancelled")]
     CircCancelled,
 
-    /// An error caused by a programming issue or a failure in another
+    /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
-    #[error("Internal error: {0}")]
-    Internal(String),
+    #[error("Programming issue: {0}")]
+    Bug(#[from] Bug),
 
     /// Problem with channel
     #[error("Problem with channel to {peer}")]
@@ -129,6 +129,7 @@ impl tor_error::HasKind for Error {
         use ErrorKind as EK;
         match self {
             E::Channel { cause, .. } => cause.kind(),
+            E::Bug(e) => e.kind(),
             _ => EK::TODO,
         }
     }

@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use futures::future::OptionFuture;
 use std::convert::TryInto;
 use std::sync::Arc;
+use tor_error::internal;
 use tor_proto::circuit::{CircParameters, ClientCirc};
 use tor_rtcompat::Runtime;
 
@@ -111,7 +112,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
                     Some(Ok(true)) | None => (),
                     Some(Ok(false)) => return Err(Error::GuardNotUsable),
                     Some(Err(_)) => {
-                        return Err(Error::Internal("Guard usability status cancelled".into()))
+                        return Err(internal!("Guard usability status cancelled").into());
                     }
                 }
                 Ok((final_spec, circuit))

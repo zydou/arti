@@ -4,6 +4,7 @@ use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use std::time::{Duration, SystemTime};
+use tor_error::internal;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
@@ -158,7 +159,10 @@ impl<'a> ExitPathBuilder<'a> {
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
                 let guard = guard.get_relay(netdir).ok_or_else(|| {
-                    Error::Internal("Somehow the guardmgr gave us an unlisted guard!".to_owned())
+                    Error::Bug(internal!(
+                        "Somehow the guardmgr gave us an unlisted guard {:?}!",
+                        guard
+                    ))
                 })?;
                 if !path_is_fully_random {
                     // We were given a specific exit relay to use, and
