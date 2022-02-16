@@ -67,6 +67,20 @@ pub enum ErrorKind {
     #[display(fmt = "attempted to use unbootstrapped client")]
     BootstrapRequired,
 
+    /// Our network directory has expired before we were able to replace it.
+    ///
+    /// This kind of error can indicate one of several possible problems:
+    /// * It can occur if the client used to be on the network, but has been
+    ///   unable to make directory connections for a while.
+    /// * It can occur if the client has been suspended or sleeping for a long
+    ///   time, and has suddenly woken up without having a chance to replace its
+    ///   network directory.
+    /// * It can happen if the client has a sudden clock jump.
+    ///
+    /// Often, retrying after a minute or so will resolve this issue.
+    #[display(fmt = "network directory is expired.")]
+    DirectoryExpired,
+
     /// IO error accessing local persistent state
     ///
     /// Eg, disk full or permissions problem.
@@ -234,6 +248,12 @@ pub enum ErrorKind {
     #[display(fmt = "circuit collapsed")]
     CircuitCollapse,
 
+    /// One or more circuits took too long to build.
+    ///
+    /// This may indicate a network problem.
+    #[display(fmt = "circuit timed out")]
+    CircuitTimeout,
+
     /// An operation finished because a remote stream was closed successfully.
     ///
     /// This can indicate that the target server closed the TCP connection,
@@ -301,6 +321,33 @@ pub enum ErrorKind {
     /// the request, or the protocol gives it no room to explain what happened.
     #[display(fmt = "remote host refused our request")]
     RemoteRefused,
+
+    /// An operation was canceled before it could complete.
+    ///
+    /// This kind of error usually indicates that the piece of code you're using
+    /// was told to stop some or all of its in-progress tasks.
+    #[display(fmt = "operation canceled")]
+    Canceled,
+
+    /// We were unable to construct a path through the Tor network.
+    ///
+    /// Usually this indicates that there are too many user-supplied
+    /// restrictions for us to comply with.  
+    ///
+    /// On test networks, it likely indicates that there aren't enough relays,
+    /// or that there aren't enough relays in distinct families.
+    #[display(fmt = "could not construct a path")]
+    NoPath,
+
+    /// We were unable to find an exit relay with a certain set of desired
+    /// properties.
+    ///
+    /// Usually this indicates that there were too many user-supplied
+    /// restrictions on the exit for us to comply with, or that there was no
+    /// exit on the network supporting all of the ports that the user asked for.
+
+    #[display(fmt = "no exit available for path")]
+    NoExit,
 
     /// Internal error (bug) in Arti.
     ///

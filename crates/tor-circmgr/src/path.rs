@@ -6,13 +6,14 @@
 pub mod dirpath;
 pub mod exitpath;
 
+use tor_error::bad_api_usage;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::{fallback::FallbackDir, Relay};
 
 use std::convert::TryFrom;
 
 use crate::usage::ExitPolicy;
-use crate::{Error, Result};
+use crate::Result;
 
 /// A list of Tor relays through the network.
 pub struct TorPath<'a> {
@@ -106,7 +107,7 @@ impl<'a> TryFrom<&TorPath<'a>> for OwnedPath {
                 OwnedPath::Normal(p.iter().map(OwnedCircTarget::from_circ_target).collect())
             }
             Path(_) => {
-                return Err(Error::NoRelays("Path with no entries!".into()));
+                return Err(bad_api_usage!("Path with no entries!").into());
             }
         })
     }

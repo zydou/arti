@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tor_error::bad_api_usage;
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
@@ -14,7 +15,7 @@ use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry};
-use crate::{Error, Result};
+use crate::Result;
 
 /// An exit policy, as supported by the last hop of a circuit.
 #[derive(Clone, Debug, PartialEq)]
@@ -434,10 +435,10 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 Ok(())
             }
             (Exit { .. }, TargetCircUsage::Exit { .. }) => {
-                Err(Error::UsageNotSupported("Bad isolation".into()))
+                Err(bad_api_usage!("Isolation not compatible").into())
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
-            (_, _) => Err(Error::UsageNotSupported("Incompatible usage".into())),
+            (_, _) => Err(bad_api_usage!("Mismatched usage types").into()),
         }
     }
 

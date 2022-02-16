@@ -6,7 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
-use tor_error::{Bug, ErrorKind};
+use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::OwnedChanTarget;
 
 /// An error returned while looking up or building a circuit
@@ -14,13 +14,12 @@ use tor_linkspec::OwnedChanTarget;
 #[non_exhaustive]
 pub enum Error {
     /// No suitable relays for a request
-    #[error("no relays for circuit: {0}")]
-    NoRelays(String),
+    #[error("Can't build path for circuit: {0}")]
+    NoPath(String),
 
-    /// We need to have a consensus directory to build this kind of
-    /// circuits, and we only got a list of fallbacks.
-    #[error("Consensus directory needed")]
-    NeedConsensus,
+    /// No suitable exit relay for a request.
+    #[error("Can't find exit for circuit: {0}")]
+    NoExit(String),
 
     /// We were waiting on a pending circuit, but it didn't succeed.
     #[error("Pending circuit(s) failed to launch")]
@@ -35,10 +34,6 @@ pub enum Error {
     #[error("Discarded circuit because of speculative guard selection")]
     GuardNotUsable,
 
-    /// Tried to take a circuit for a purpose it doesn't support.
-    #[error("Circuit usage not supported: {0}")]
-    UsageNotSupported(String),
-
     /// A request spent too long waiting for a circuit
     #[error("Spent too long waiting for a circuit to build")]
     RequestTimeout,
@@ -52,8 +47,8 @@ pub enum Error {
     /// Circuits can be cancelled either by a call to
     /// `retire_all_circuits()`, or by a configuration change that
     /// makes old paths unusable.
-    #[error("Circuit cancelled")]
-    CircCancelled,
+    #[error("Circuit canceled")]
+    CircCanceled,
 
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
@@ -123,14 +118,33 @@ impl From<tor_guardmgr::GuardMgrError> for Error {
     }
 }
 
-impl tor_error::HasKind for Error {
+impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use Error as E;
         use ErrorKind as EK;
         match self {
             E::Channel { cause, .. } => cause.kind(),
             E::Bug(e) => e.kind(),
-            _ => EK::TODO,
+            E::NoPath(_) => EK::NoPath,
+            E::NoExit(_) => EK::NoExit,
+            E::PendingFailed => EK::TODO, // circuit failed, but it would be neat to have the error.
+            E::CircTimeout => EK::CircuitTimeout,
+            E::GuardNotUsable => EK::TODO, // ?????  This one is for speculative guard selection for guards we decided not to use.
+            E::RequestTimeout => EK::CircuitTimeout,
+            E::RequestFailed(e) => e
+                .sources()
+                // Treat the *final* failure reason as why we failed.
+                // TODO(nickm) Is it reasonable to do so?
+                .last()
+                .map(|e| e.kind())
+                .unwrap_or(EK::Internal),
+            E::CircCanceled => EK::Canceled,
+            E::Protocol(e) => e.kind(),
+            E::State(e) => e.kind(),
+            E::GuardMgr(e) => e.kind(),
+            E::Guard(_) => EK::NoPath,
+            E::ExpiredConsensus => EK::DirectoryExpired,
+            E::Spawn { cause, .. } => cause.kind(),
         }
     }
 }

@@ -1095,7 +1095,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                             } else {
                                 // This circuit is no longer pending! It must have been cancelled.
                                 drop(pending); // ibid
-                                (None, Err(Error::CircCancelled))
+                                (None, Err(Error::CircCanceled))
                             }
                         }
                     }
@@ -1266,6 +1266,7 @@ mod test {
     use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
+    use tor_error::bad_api_usage;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockSleepRuntime;
@@ -1324,13 +1325,13 @@ mod test {
         }
         fn restrict_mut(&mut self, other: &FakeSpec) -> Result<()> {
             if !self.ports.is_superset(&other.ports) {
-                return Err(Error::UsageNotSupported("Missing ports".into()));
+                return Err(bad_api_usage!("not supported").into());
             }
             let new_iso = match (self.isolation_group, other.isolation_group) {
                 (None, x) => x,
                 (x, None) => x,
                 (Some(a), Some(b)) if a == b => Some(a),
-                (_, _) => return Err(Error::UsageNotSupported("Bad isolation".into())),
+                (_, _) => return Err(bad_api_usage!("not supported").into()),
             };
 
             self.isolation_group = new_iso;
@@ -1406,7 +1407,7 @@ mod test {
         fn plan_circuit(&self, spec: &FakeSpec, _dir: DirInfo<'_>) -> Result<(FakePlan, FakeSpec)> {
             let next_op = self.next_op(spec);
             if matches!(next_op, FakeOp::NoPlan) {
-                return Err(Error::NoRelays("No relays for you".into()));
+                return Err(Error::NoPath("No relays for you".into()));
             }
             let plan = FakePlan {
                 spec: spec.clone(),

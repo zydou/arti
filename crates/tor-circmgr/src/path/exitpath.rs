@@ -4,7 +4,7 @@ use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use std::time::{Duration, SystemTime};
-use tor_error::internal;
+use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
@@ -85,7 +85,7 @@ impl<'a> ExitPathBuilder<'a> {
                 });
                 match (exit, strict) {
                     (Some(exit), _) => return Ok(exit),
-                    (None, true) => return Err(Error::NoRelays("No exit relay found".into())),
+                    (None, true) => return Err(Error::NoExit("No exit relay found".into())),
                     (None, false) => {}
                 }
 
@@ -95,7 +95,7 @@ impl<'a> ExitPathBuilder<'a> {
                     .pick_relay(rng, WeightRole::Exit, |r| {
                         relays_can_share_circuit_opt(r, guard, config)
                     })
-                    .ok_or_else(|| Error::NoRelays("No relay found".into()))
+                    .ok_or_else(|| Error::NoExit("No relay found".into()))
             }
 
             ExitPathBuilderInner::WantsPorts(wantports) => Ok(netdir
@@ -103,7 +103,7 @@ impl<'a> ExitPathBuilder<'a> {
                     relays_can_share_circuit_opt(r, guard, config)
                         && wantports.iter().all(|p| p.is_supported_by(r))
                 })
-                .ok_or_else(|| Error::NoRelays("No exit relay found".into()))?),
+                .ok_or_else(|| Error::NoExit("No exit relay found".into()))?),
 
             ExitPathBuilderInner::ChosenExit(exit_relay) => {
                 // NOTE that this doesn't check
@@ -124,7 +124,12 @@ impl<'a> ExitPathBuilder<'a> {
         config: &PathConfig,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
-            DirInfo::Fallbacks(_) => return Err(Error::NeedConsensus),
+            DirInfo::Fallbacks(_) => {
+                return Err(bad_api_usage!(
+                    "Tried to build a multihop path using only a list of fallback caches"
+                )
+                .into())
+            }
             DirInfo::Directory(d) => d,
         };
         let subnet_config = config.subnet_config();
@@ -181,7 +186,7 @@ impl<'a> ExitPathBuilder<'a> {
                         r.is_flagged_guard()
                             && relays_can_share_circuit_opt(r, chosen_exit, subnet_config)
                     })
-                    .ok_or_else(|| Error::NoRelays("No entry relay found".into()))?;
+                    .ok_or_else(|| Error::NoPath("No suitable  entry relay found".into()))?;
                 (entry, None, None)
             }
         };
@@ -193,7 +198,7 @@ impl<'a> ExitPathBuilder<'a> {
                 relays_can_share_circuit(r, &exit, subnet_config)
                     && relays_can_share_circuit(r, &guard, subnet_config)
             })
-            .ok_or_else(|| Error::NoRelays("No middle relay found".into()))?;
+            .ok_or_else(|| Error::NoPath("No suitable middle relay found".into()))?;
 
         Ok((
             TorPath::new_multihop(vec![guard, middle, exit]),
@@ -353,12 +358,12 @@ mod test {
         let outcome = ExitPathBuilder::from_target_ports(vec![TargetPort::ipv4(80)])
             .pick_path(&mut rng, dirinfo, guards, &config);
         assert!(outcome.is_err());
-        assert!(matches!(outcome, Err(Error::NoRelays(_))));
+        assert!(matches!(outcome, Err(Error::NoExit(_))));
 
         // For any exit
         let outcome = ExitPathBuilder::for_any_exit().pick_path(&mut rng, dirinfo, guards, &config);
         assert!(outcome.is_err());
-        assert!(matches!(outcome, Err(Error::NoRelays(_))));
+        assert!(matches!(outcome, Err(Error::NoExit(_))));
 
         // For any exit (non-strict, so this will work).
         let outcome =
