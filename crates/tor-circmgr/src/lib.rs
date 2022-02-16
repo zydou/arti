@@ -60,7 +60,7 @@ use tor_rtcompat::Runtime;
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub mod build;
 mod config;
@@ -431,6 +431,18 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         Ok(())
+    }
+}
+
+impl<R: Runtime> Drop for CircMgr<R> {
+    fn drop(&mut self) {
+        match self.store_persistent_state() {
+            Ok(()) => info!("Flushed persistent state at exit."),
+            Err(Error::State(tor_persist::Error::NoLock)) => {
+                debug!("Lock not held; no state to flush.");
+            }
+            Err(e) => error!("Unable to flush state on circuit manager drop: {}", e),
+        }
     }
 }
 
