@@ -126,6 +126,7 @@ dependencies = [
  "futures",
  "humantime-serde",
  "hyper",
+ "once_cell",
  "pin-project",
  "postage",
  "serde",
