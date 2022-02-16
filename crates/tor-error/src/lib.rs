@@ -305,6 +305,22 @@ pub enum ErrorKind {
     #[display(fmt = "remote name-lookup failure")]
     RemoteNameError,
 
+    /// We were asked to make an anonymous connection to a misformed address.
+    ///
+    /// This is probably because of a bad input from a user.
+    InvalidStreamTarget,
+
+    /// We were asked to make an anonymous connection to a _locally_ disabled
+    /// address.
+    ///
+    /// For example, this kind of error can happen when try to connect to (e.g.)
+    /// `127.0.0.1` using a client that isn't configured with allow_local_addrs.
+    ///
+    /// Usually this means that you intended to reject the request as
+    /// nonsensical; but if you didn't, it probably means you should change your
+    /// configuration to allow what you want.
+    ForbiddenStreamTarget,
+
     /// An operation won't work because it's trying to use an object that's
     /// already in a shutting-down state.
     #[display(fmt = "target object already closed")]
