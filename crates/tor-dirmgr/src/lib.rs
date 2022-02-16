@@ -78,7 +78,7 @@ use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use futures::{channel::oneshot, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::{info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -270,7 +270,7 @@ impl<R: Runtime> DirMgr<R> {
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            info!("Attempted to bootstrap twice; ignoring.");
+            debug!("Attempted to bootstrap twice; ignoring.");
             return Ok(());
         }
 

@@ -196,7 +196,7 @@ pub mod config;
 pub mod status;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
-pub use client::{StreamPrefs, TorClient};
+pub use client::{BootstrapBehavior, StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
 pub use tor_circmgr::IsolationToken;
