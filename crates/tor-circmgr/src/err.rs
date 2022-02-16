@@ -21,9 +21,10 @@ pub enum Error {
     #[error("Can't find exit for circuit: {0}")]
     NoExit(String),
 
-    /// We were waiting on a pending circuit, but it didn't succeed.
-    #[error("Pending circuit(s) failed to launch")]
-    PendingFailed,
+    /// We were waiting on a pending circuit, but it failed to report
+    /// success _or_ failure.
+    #[error("Pending circuit(s) failed without reporting status")]
+    PendingCanceled,
 
     /// A circuit build took too long to finish.
     #[error("Circuit took too long to build")]
@@ -99,7 +100,7 @@ pub enum Error {
 
 impl From<futures::channel::oneshot::Canceled> for Error {
     fn from(_: futures::channel::oneshot::Canceled) -> Error {
-        Error::PendingFailed
+        Error::PendingCanceled
     }
 }
 
@@ -127,7 +128,7 @@ impl HasKind for Error {
             E::Bug(e) => e.kind(),
             E::NoPath(_) => EK::NoPath,
             E::NoExit(_) => EK::NoExit,
-            E::PendingFailed => EK::TODO, // circuit failed, but it would be neat to have the error.
+            E::PendingCanceled => EK::Canceled,
             E::CircTimeout => EK::CircuitTimeout,
             E::GuardNotUsable => EK::TransientFailure,
             E::RequestTimeout => EK::CircuitTimeout,
@@ -163,7 +164,7 @@ impl Error {
         use Error as E;
         match self {
             E::GuardNotUsable => 10,
-            E::PendingFailed => 20,
+            E::PendingCanceled => 20,
             E::CircCanceled => 20,
             E::CircTimeout => 30,
             E::RequestTimeout => 30,

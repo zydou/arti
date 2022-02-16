@@ -1424,12 +1424,12 @@ mod test {
             match op {
                 FakeOp::Succeed => Ok((plan.spec, FakeCirc { id: FakeId::next() })),
                 FakeOp::WrongSpec(s) => Ok((s, FakeCirc { id: FakeId::next() })),
-                FakeOp::Fail => Err(Error::PendingFailed),
+                FakeOp::Fail => Err(Error::PendingCanceled),
                 FakeOp::Delay(d) => {
                     let sl = self.runtime.sleep(d);
                     self.runtime.allow_one_advance(d);
                     sl.await;
-                    Err(Error::PendingFailed)
+                    Err(Error::PendingCanceled)
                 }
                 FakeOp::Timeout => unreachable!(), // should be converted to the below
                 FakeOp::TimeoutReleaseAdvance(reason) => {
