@@ -31,7 +31,7 @@
 
    To bump the patch version of _every_ crate, run:
 
-   ; for crate in $(./maint/list_crates.py); do cargo set-version -p "$crate" --bump patch; done
+   ; for crate in $(./maint/list_crates); do cargo set-version -p "$crate" --bump patch; done
 
    To find only the crates that changed since version 0.0.x, you can run:
 
@@ -47,7 +47,7 @@
    a list of crates from lowest- to highest-level, see the top-level
    Cargo.toml.
 
-   ; for crate in $(./maint/list_crates.py); do cargo publish -p "$crate"; echo "Sleeping"; sleep 30; done
+   ; for crate in $(./maint/list_crates); do cargo publish -p "$crate"; echo "Sleeping"; sleep 30; done
 
     (The "sleep 30" is probably too long, but some delay seems to be
     necessary to give crates.io time to publish each crate before the next

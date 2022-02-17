@@ -8,7 +8,7 @@ the appropriate https URLs for them.
 Takes input either from a file, or from stdin.
 
 Example:
-  ./gen_md_links.py < new_changelog
+  ./gen_md_links < new_changelog
 """
 
 import re, subprocess
