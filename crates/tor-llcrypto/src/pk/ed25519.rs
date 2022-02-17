@@ -75,7 +75,7 @@ impl From<[u8; 32]> for Ed25519Identity {
 
 impl From<PublicKey> for Ed25519Identity {
     fn from(pk: PublicKey) -> Self {
-        pk.into()
+        (&pk).into()
     }
 }
 
@@ -97,7 +97,7 @@ impl TryFrom<&Ed25519Identity> for PublicKey {
 impl TryFrom<Ed25519Identity> for PublicKey {
     type Error = ed25519_dalek::SignatureError;
     fn try_from(id: Ed25519Identity) -> Result<PublicKey, Self::Error> {
-        id.try_into()
+        (&id).try_into()
     }
 }
 

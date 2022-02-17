@@ -109,7 +109,7 @@ impl From<&SocketAddr> for LinkSpec {
 }
 impl From<SocketAddr> for LinkSpec {
     fn from(sa: SocketAddr) -> Self {
-        sa.into()
+        (&sa).into()
     }
 }
 impl From<RsaIdentity> for LinkSpec {
