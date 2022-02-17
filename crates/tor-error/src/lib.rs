@@ -364,6 +364,7 @@ pub enum ErrorKind {
     /// We were asked to make an anonymous connection to a misformed address.
     ///
     /// This is probably because of a bad input from a user.
+    #[display(fmt = "target address was invalid")]
     InvalidStreamTarget,
 
     /// We were asked to make an anonymous connection to a _locally_ disabled
@@ -375,6 +376,7 @@ pub enum ErrorKind {
     /// Usually this means that you intended to reject the request as
     /// nonsensical; but if you didn't, it probably means you should change your
     /// configuration to allow what you want.
+    #[display(fmt = "target address disabled locally")]
     ForbiddenStreamTarget,
 
     /// An operation won't work because it's trying to use an object that's
