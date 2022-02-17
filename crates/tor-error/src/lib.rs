@@ -119,14 +119,6 @@ pub enum ErrorKind {
     #[display(fmt = "network directory is expired.")]
     DirectoryExpired,
 
-    /// Despite numerous retries, we have been unable to get a network
-    /// directory.
-    ///
-    /// This may indicate that we are offline, or that our network access is
-    /// censored.
-    #[display(fmt = "directory download stalled")]
-    DirectoryStalled,
-
     /// IO error accessing local persistent state
     ///
     /// For example, the disk might be full, or there may be a permissions problem.
