@@ -58,7 +58,7 @@ impl DirPathBuilder {
                 }
             }
         }
-        Err(Error::NoRelays(
+        Err(Error::NoPath(
             "No relays found for use as directory cache".into(),
         ))
     }
@@ -143,7 +143,7 @@ mod test {
         let guards: OptDummyGuardMgr<'_> = None;
 
         let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
-        assert!(matches!(err, Err(Error::NoRelays(_))));
+        assert!(matches!(err, Err(Error::NoPath(_))));
     }
 
     #[test]

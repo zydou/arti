@@ -181,6 +181,24 @@ impl<'a> BoolResetter<'a> {
     }
 }
 
+/// The possible origins of a document.
+///
+/// Used (for example) to report where we got a document from if it fails to
+/// parse.
+#[derive(Debug, Clone, derive_more::Display)]
+#[non_exhaustive]
+pub enum DocSource {
+    /// We loaded the document from our cache.
+    #[display(fmt = "local cache")]
+    LocalCache,
+    /// We fetched the document from a server.
+    //
+    // TODO: we'll should add a lot more information here in the future, once
+    // it's available from tor_dirclient::DirSource,
+    #[display(fmt = "directory server")]
+    DirServer {},
+}
+
 impl<R: Runtime> DirMgr<R> {
     /// Try to load the directory from disk, without launching any
     /// kind of update process.

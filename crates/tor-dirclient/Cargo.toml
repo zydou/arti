@@ -19,6 +19,7 @@ routerdesc = []
 
 [dependencies]
 tor-circmgr = { path="../tor-circmgr", version = "0.0.4"}
+tor-error = { path="../tor-error", version = "0.0.1"}
 tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
 tor-proto = { path="../tor-proto", version = "0.0.4"}
 tor-netdoc = { path="../tor-netdoc", version = "0.0.4"}

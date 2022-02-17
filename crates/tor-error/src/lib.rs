@@ -52,6 +52,38 @@ pub use truncated::*;
 ///
 /// When forwarding or reporting errors, use the whole error (e.g., `TorError`), not just the kind:
 /// the error itself will contain more detail and context which is useful to humans.
+//
+// Splitting vs lumping guidelines:
+//
+// # Split on the place which caused the error
+//
+// We should distinguish, insofar as we can, within whose bailiwick
+// the error originated:
+//     - This very process, Tor code (EK::Internal)
+//     - This very process, application code (EK::BadApiUsage)
+//     - Some other process on the same machine (eg EK::LocalProtocolViolation)
+//     - The local network
+//     - The Tor network
+//     - The "far end", ie the public internet outside an exit node
+//       or (when we support it) the onion service we are connecting to
+// Obviously in many cases we may not be able to say for sure, so each
+// error kind represents not *one* of the above, but a specified *subset*.
+//
+// # Lump parts/aspects/subprotocols of Tor
+//
+// Unless we expect and intend the user or programmer to excercise an ability to influence which
+// remote entities we try to use, we should not distinguish between the different kinds of remote
+// Tor entity, nor between the different protocols or protocol layers which we use.
+//
+// For example, Failures getting directory information from directory caches should be lumped with
+// failures to extend a circuit through a relay.
+//
+// This is because we expect applications not to have detailed knowledge of Tor.
+//
+// # Avoid exposing implementation details
+//
+// ErrorKinds should not relate to particular code paths in the Arti codebase.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -67,19 +99,46 @@ pub enum ErrorKind {
     #[display(fmt = "attempted to use unbootstrapped client")]
     BootstrapRequired,
 
+    /// Our network directory has expired before we were able to replace it.
+    ///
+    /// This kind of error can indicate one of several possible problems:
+    /// * It can occur if the client used to be on the network, but has been
+    ///   unable to make directory connections for a while.
+    /// * It can occur if the client has been suspended or sleeping for a long
+    ///   time, and has suddenly woken up without having a chance to replace its
+    ///   network directory.
+    /// * It can happen if the client has a sudden clock jump.
+    ///
+    /// Often, retrying after a minute or so will resolve this issue.
+    ///
+    // TODO this is pretty shonky.  "try again after a minute or so", seriously?
+    //
+    /// Future versions of Arti may resolve this situation automatically without caller
+    /// intervention, possibly depending on preferences and API usage, in which case this kind of
+    /// error will never occur.
+    #[display(fmt = "network directory is expired.")]
+    DirectoryExpired,
+
     /// IO error accessing local persistent state
     ///
-    /// Eg, disk full or permissions problem.
+    /// For example, the disk might be full, or there may be a permissions problem.
     /// Usually the source will be [`std::io::Error`].
+    ///
+    /// Note that this kind of error only applies to problems in your `state_dir`:
+    /// problems with your cache are another kind.
     #[display(fmt = "could not read/write persistent state")]
     PersistentStateAccessFailed,
 
     /// Tor client's persistent state has been corrupted
     ///
-    /// This could be because of a bug in the Tor code, or because something else has been messing
-    /// with the data.
+    /// This could be because of a bug in the Tor code, or because something
+    /// else has been messing with the data.
     ///
-    /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    /// This might also occur if the Tor code was upgraded and the new Tor is
+    /// not compatible.
+    ///
+    /// Note that this kind of error only applies to problems in your
+    /// `state_dir`: problems with your cache are another kind.
     #[display(fmt = "corrupted data in persistent state")]
     PersistentStateCorrupted,
 
@@ -89,16 +148,47 @@ pub enum ErrorKind {
     /// them: the state manager's locking code is supposed to prevent
     /// higher level crates from accidentally trying to do this.  This
     /// error kind can indicate a bug.
+    ///
+    /// Note that this kind of error only applies to problems in your `state_dir`:
+    /// problems with your cache are another kind.
     #[display(fmt = "could not write to read-only persistent state")]
     PersistentStateReadOnly,
+
+    /// Tor client's cache has been corrupted.
+    ///
+    /// This could be because of a bug in the Tor code, or because something else has been messing
+    /// with the data.
+    ///
+    /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    ///
+    /// Note that this kind of error only applies to problems in your `cache_dir`:
+    /// problems with your persistent state are another kind.
+    #[display(fmt = "corrupted data in cache")]
+    CacheCorrupted,
+
+    /// We had a problem reading or writing to our data cache.
+    ///
+    /// This may be a disk error, a file permission error, or similar.
+    ///
+    /// Note that this kind of error only applies to problems in your `cache_dir`:
+    /// problems with your persistent state are another kind.
+    #[display(fmt = "cache access problem")]
+    CacheAccessFailed,
 
     /// Tor client's Rust async reactor is shutting down.
     ///
     /// This likely indicates that the reactor has encountered a fatal error, or
     /// has been told to do a clean shutdown, and it isn't possible to spawn new
     /// tasks.
-    #[display(fmt = "shutting down")]
+    #[display(fmt = "reactor is shutting down")]
     ReactorShuttingDown,
+
+    /// Tor client is shutting down.
+    ///
+    /// This likely indicates that the last handle to the `TorClient` has been
+    /// dropped, and is preventing other operations from completing.
+    #[display(fmt = "Tor client is shutting down.")]
+    TorShuttingDown,
 
     /// Tor client's Rust async reactor could not spawn a task for unexplained
     /// reasons
@@ -117,7 +207,7 @@ pub enum ErrorKind {
     ///
     /// In either case, trying later, or on a different circuit, might help.  
     #[display(fmt = "operation timed out at exit")]
-    ExitTimeout,
+    RemoteNetworkTimeout,
 
     /// One or more configuration values were invalid or incompatible.
     ///
@@ -176,10 +266,10 @@ pub enum ErrorKind {
     NotImplemented,
 
     /// A feature was requested which has been disabled in this build of Arti.
-    ///!
+    ///
     /// This kind of error happens when the running Arti was built without the
     /// appropriate feature (usually, cargo feature) enabled.
-    ///!
+    ///
     /// This might indicate that the overall running system has been
     /// mis-configured at build-time.  Alternatively, it can occur if the
     /// running system is deliberately stripped down, in which case it might be
@@ -234,6 +324,22 @@ pub enum ErrorKind {
     #[display(fmt = "circuit collapsed")]
     CircuitCollapse,
 
+    /// An operation timed out on the tor network.
+    ///
+    /// This may indicate a network problem, either with the local network
+    /// environment's ability to contact the Tor network, or with the Tor
+    /// network itself.
+    #[display(fmt = "tor operation timed out")]
+    TorNetworkTimeout,
+
+    /// An operation failed somewhere in the tor network.
+    ///
+    /// This generally indicates a kind of error that we couldn't identify more
+    /// specifically, but where we are fairly comfortable in blaming it on a
+    /// remote Tor relay.
+    #[display(fmt = "tor network operation failed")]
+    TorNetworkError,
+
     /// An operation finished because a remote stream was closed successfully.
     ///
     /// This can indicate that the target server closed the TCP connection,
@@ -255,10 +361,37 @@ pub enum ErrorKind {
     #[display(fmt = "remote name-lookup failure")]
     RemoteNameError,
 
+    /// We were asked to make an anonymous connection to a misformed address.
+    ///
+    /// This is probably because of a bad input from a user.
+    InvalidStreamTarget,
+
+    /// We were asked to make an anonymous connection to a _locally_ disabled
+    /// address.
+    ///
+    /// For example, this kind of error can happen when try to connect to (e.g.)
+    /// `127.0.0.1` using a client that isn't configured with allow_local_addrs.
+    ///
+    /// Usually this means that you intended to reject the request as
+    /// nonsensical; but if you didn't, it probably means you should change your
+    /// configuration to allow what you want.
+    ForbiddenStreamTarget,
+
     /// An operation won't work because it's trying to use an object that's
     /// already in a shutting-down state.
     #[display(fmt = "target object already closed")]
     AlreadyClosed,
+
+    /// An operation failed in a transient way.
+    ///
+    /// This kind of error indicates that some kind of operation failed in a way
+    /// where retrying it again could likely have made it work.
+    ///
+    /// You should not generally see this kind of error returned directly to you
+    /// for high-level functions.  It should only be returned from lower-level
+    /// crates that do not automatically retry these failures.
+    #[display(fmt = "un-retried transient failure")]
+    TransientFailure,
 
     /// Bug, for example calling a function with an invalid argument.
     ///
@@ -299,8 +432,41 @@ pub enum ErrorKind {
     ///
     /// Either it gave an error message indicating that it refused to perform
     /// the request, or the protocol gives it no room to explain what happened.
+    ///
+    /// The remote host in question is on the public internet, or an onion service.
+    /// This error does not relate to refusals by part of the Tor network.
     #[display(fmt = "remote host refused our request")]
     RemoteRefused,
+
+    /// An operation was canceled before it could complete.
+    ///
+    /// This kind of error usually indicates that the piece of code you're using
+    /// was told to stop some or all of its in-progress tasks.
+    ///
+    /// Normally this kind of error ought to be expected and hancled, rather than
+    /// shown to a user.
+    #[display(fmt = "operation canceled")]
+    Canceled,
+
+    /// We were unable to construct a path through the Tor network.
+    ///
+    /// Usually this indicates that there are too many user-supplied
+    /// restrictions for us to comply with.  
+    ///
+    /// On test networks, it likely indicates that there aren't enough relays,
+    /// or that there aren't enough relays in distinct families.
+    #[display(fmt = "could not construct a path")]
+    NoPath,
+
+    /// We were unable to find an exit relay with a certain set of desired
+    /// properties.
+    ///
+    /// Usually this indicates that there were too many user-supplied
+    /// restrictions on the exit for us to comply with, or that there was no
+    /// exit on the network supporting all of the ports that the user asked for.
+
+    #[display(fmt = "no exit available for path")]
+    NoExit,
 
     /// Internal error (bug) in Arti.
     ///
@@ -309,14 +475,6 @@ pub enum ErrorKind {
     /// our [bug tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
     #[display(fmt = "internal error (bug)")]
     Internal,
-
-    /// TODO - error still needs to be categorized in tor/arti code
-    ///
-    /// This variant is going to be ABOLISHED!  If you see it in your code,
-    /// then you are using a version of Arti from before we managed to
-    /// remove every error.
-    #[display(fmt = "uncategorized error (TODO)")]
-    TODO,
 }
 
 /// Errors that can be categorized as belonging to an [`ErrorKind`]

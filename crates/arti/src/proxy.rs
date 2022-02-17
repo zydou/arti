@@ -198,7 +198,7 @@ where
                     // send an error.  See what kind it is.
                     //
                     let reply = match e.kind() {
-                        ErrorKind::ExitTimeout => {
+                        ErrorKind::RemoteNetworkTimeout => {
                             request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
                         }
                         _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),

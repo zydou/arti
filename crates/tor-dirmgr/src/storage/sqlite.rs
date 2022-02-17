@@ -677,7 +677,8 @@ impl Drop for Unlinker {
 
 /// Convert a hexadecimal sha3-256 digest from the database into an array.
 fn digest_from_hex(s: &str) -> Result<[u8; 32]> {
-    hex::decode(s)?
+    hex::decode(s)
+        .map_err(Error::BadHexInCache)?
         .try_into()
         .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
 }
@@ -686,7 +687,8 @@ fn digest_from_hex(s: &str) -> Result<[u8; 32]> {
 /// digest column from the database into an array.
 fn digest_from_dstr(s: &str) -> Result<[u8; 32]> {
     if let Some(stripped) = s.strip_prefix("sha3-256-") {
-        hex::decode(stripped)?
+        hex::decode(stripped)
+            .map_err(Error::BadHexInCache)?
             .try_into()
             .map_err(|_| Error::CacheCorruption("Invalid digest in database"))
     } else {
@@ -702,7 +704,8 @@ fn cmeta_from_row(row: &rusqlite::Row<'_>) -> Result<ConsensusMeta> {
     let vu: OffsetDateTime = row.get(2)?;
     let d_signed: String = row.get(3)?;
     let d_all: String = row.get(4)?;
-    let lifetime = Lifetime::new(va.into(), fu.into(), vu.into())?;
+    let lifetime = Lifetime::new(va.into(), fu.into(), vu.into())
+        .map_err(|_| Error::CacheCorruption("inconsistent lifetime in database"))?;
     Ok(ConsensusMeta::new(
         lifetime,
         digest_from_hex(&d_signed)?,

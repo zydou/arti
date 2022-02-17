@@ -3,16 +3,13 @@
 use std::sync::Arc;
 
 use thiserror::Error;
+use tor_error::{ErrorKind, HasKind};
 use tor_rtcompat::TimeoutError;
 
 /// An error originating from the tor-dirclient crate.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
-    /// We received an object with a suspiciously good compression ratio
-    #[error("possible compression bomb")]
-    CompressionBomb,
-
     /// The directory cache took too long to reply to us.
     #[error("directory timed out")]
     DirTimeout,
@@ -50,6 +47,10 @@ pub enum Error {
     HttparseError(#[from] httparse::Error),
 
     /// Error while creating http request
+    //
+    // TODO this should be abolished, in favour of a `Bug` variant,
+    // so that we get a stack trace, as per the notes for EK::Internal.
+    // We could convert via into_internal!, or a custom `From` impl.
     #[error("Couldn't create HTTP request")]
     HttpError(#[source] Arc<http::Error>),
 
@@ -83,5 +84,28 @@ impl Error {
         // TODO: probably this is too aggressive, and we should
         // actually _not_ dump the circuit under all circumstances.
         true
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        use ErrorKind as EK;
+        match self {
+            E::DirTimeout => EK::TorNetworkTimeout,
+            E::TruncatedHeaders => EK::TorProtocolViolation,
+            E::HttpStatus(_) => EK::RemoteRefused,
+            E::ResponseTooLong(_) => EK::TorProtocolViolation,
+            E::Utf8Encoding(_) => EK::TorProtocolViolation,
+            // TODO: it would be good to get more information out of the IoError
+            // in this case, but that would require a bunch of gnarly
+            // downcasting.
+            E::IoError(_) => EK::TorNetworkError,
+            E::Proto(e) => e.kind(),
+            E::CircMgr(e) => e.kind(),
+            E::HttparseError(_) => EK::TorProtocolViolation,
+            E::HttpError(_) => EK::Internal,
+            E::ContentEncoding(_) => EK::TorProtocolViolation,
+        }
     }
 }

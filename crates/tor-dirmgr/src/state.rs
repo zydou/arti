@@ -16,12 +16,12 @@ use std::fmt::Debug;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
+use tor_error::internal;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
-use crate::DirEvent;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     retry::DownloadSchedule,
@@ -30,6 +30,7 @@ use crate::{
     CacheUsage, ClientRequest, DirMgrConfig, DirState, DocId, DocumentText, Error, Readiness,
     Result,
 };
+use crate::{DirEvent, DocSource};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::{
@@ -228,7 +229,8 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
             _ => return Err(Error::Unwanted("Not an md consensus")),
         };
 
-        self.add_consensus_text(true, text.as_str()?)
+        let source = DocSource::LocalCache;
+        self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?)
             .map(|meta| meta.is_some())
     }
     fn add_from_download(
@@ -237,7 +239,8 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
         _request: &ClientRequest,
         storage: Option<&Mutex<SqliteStore>>,
     ) -> Result<bool> {
-        if let Some(meta) = self.add_consensus_text(false, text)? {
+        let source = DocSource::DirServer {};
+        if let Some(meta) = self.add_consensus_text(source, text)? {
             if let Some(store) = storage {
                 let mut w = store.lock().expect("Directory storage lock poisoned");
                 w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
@@ -267,12 +270,13 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
     /// correct, or if it is ill-formed.
     fn add_consensus_text(
         &mut self,
-        from_cache: bool,
+        source: DocSource,
         text: &str,
     ) -> Result<Option<&ConsensusMeta>> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
-            let (signedval, remainder, parsed) = MdConsensus::parse(text)?;
+            let (signedval, remainder, parsed) =
+                MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
             let now = current_time(&self.writedir)?;
             if let Ok(timely) = parsed.check_valid_at(&now) {
                 let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
@@ -302,7 +306,7 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
 
         self.next = Some(GetCertsState {
             cache_usage: self.cache_usage,
-            from_cache,
+            consensus_source: source,
             unvalidated,
             consensus_meta,
             missing_certs: desired_certs,
@@ -333,9 +337,8 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
 struct GetCertsState<DM: WriteNetDir> {
     /// The cache usage we had in mind when we began.  Used to reset.
     cache_usage: CacheUsage,
-    /// True iff we loaded the consensus from our cache.
-    #[allow(dead_code)]
-    from_cache: bool,
+    /// Where did we get our consensus?
+    consensus_source: DocSource,
     /// The consensus that we are trying to validate.
     unvalidated: UnvalidatedMdConsensus,
     /// Metadata for the consensus.
@@ -397,7 +400,10 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
         // our input and remembering them.
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
-                let parsed = AuthCert::parse(cert.as_str()?)?.check_signature()?;
+                let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
+                let parsed = AuthCert::parse(text)
+                    .map_err(|e| Error::from_netdoc(DocSource::LocalCache, e))?
+                    .check_signature()?;
                 let now = current_time(&self.writedir)?;
                 if let Ok(cert) = parsed.check_valid_at(&now) {
                     self.missing_certs.remove(cert.key_ids());
@@ -418,7 +424,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     ) -> Result<bool> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
-            _ => return Err(Error::BadArgument("Mismatched request")),
+            _ => return Err(internal!("expected an AuthCert request").into()),
         };
 
         let mut newcerts = Vec::new();
@@ -480,7 +486,11 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         if self.can_advance() {
-            let validated = self.unvalidated.check_signature(&self.certs[..])?;
+            let consensus_source = self.consensus_source.clone();
+            let validated = self
+                .unvalidated
+                .check_signature(&self.certs[..])
+                .map_err(|e| Error::from_netdoc(consensus_source, e))?;
             Ok(Box::new(GetMicrodescsState::new(
                 self.cache_usage,
                 validated,
@@ -739,7 +749,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
                     warn!("Bug: loaded a microdesc that we didn't want from the cache.");
                     continue;
                 }
-                if let Ok(md) = Microdesc::parse(text.as_str()?) {
+                if let Ok(md) = Microdesc::parse(text.as_str().map_err(Error::BadUtf8InCache)?) {
                     if md.digest() == &digest {
                         microdescs.push(md);
                         continue;
@@ -767,7 +777,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
             req.digests().collect()
         } else {
-            return Err(Error::BadArgument("Mismatched request"));
+            return Err(internal!("expected a microdesc request").into());
         };
         let mut new_mds = Vec::new();
         for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {
@@ -1084,7 +1094,7 @@ mod test {
         let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
         let req = crate::docid::ClientRequest::Consensus(req);
         let outcome = state.add_from_download("this isn't a consensus", &req, Some(&store));
-        assert!(matches!(outcome, Err(Error::NetDocError(_))));
+        assert!(matches!(outcome, Err(Error::NetDocError { .. })));
         // make sure it wasn't stored...
         assert!(store
             .lock()

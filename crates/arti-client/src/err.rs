@@ -232,9 +232,18 @@ impl tor_error::HasKind for ErrorDetail {
         use ErrorKind as EK;
         match self {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
-            E::ExitTimeout => EK::ExitTimeout,
+            E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
-            _ => EK::TODO,
+            E::CircMgrSetup(e) => e.kind(),
+            E::DirMgr(e) => e.kind(),
+            E::Proto(e) => e.kind(),
+            E::Persist(e) => e.kind(),
+            E::Configuration(e) => e.kind(),
+            E::Reconfigure(e) => e.kind(),
+            E::Spawn { cause, .. } => cause.kind(),
+            E::OnionAddressNotSupported => EK::NotImplemented,
+            E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
+            E::LocalAddress => EK::ForbiddenStreamTarget,
         }
     }
 }
