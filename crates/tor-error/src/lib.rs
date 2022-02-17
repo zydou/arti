@@ -78,6 +78,12 @@ pub enum ErrorKind {
     /// * It can happen if the client has a sudden clock jump.
     ///
     /// Often, retrying after a minute or so will resolve this issue.
+    ///
+    // TODO this is pretty shonky.  "try again after a minute or so", seriously?
+    //
+    /// Future versions of Arti may resolve this situation automatically without caller
+    /// intervention, possibly depending on preferences and API usage, in which case this kind of
+    /// error will never occur.
     #[display(fmt = "network directory is expired.")]
     DirectoryExpired,
 
