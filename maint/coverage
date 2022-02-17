@@ -6,7 +6,7 @@ function usage()
 ${SCRIPT_NAME}: Generate coverage using grcov.
 
 Usage:
-  coverage.sh [opts] [suites...] : Run the provided test suites.
+  coverage [opts] [suites...] : Run the provided test suites.
 
 Options:
   -h: Print this message.
@@ -71,12 +71,12 @@ fi
 if [ "$CLEAR" = yes ] ; then
     # Clear the old coverage report.  We do this by default unless
     # we are given the -c option.
-    ./maint/with_coverage.sh -s /bin/true
+    ./maint/with_coverage -s /bin/true
 fi
 
 if [ "$UNIT" = yes ] ; then
     # Run the unit tests, with coverage.
-    ./maint/with_coverage.sh -c -s cargo test --all-features
+    ./maint/with_coverage -c -s cargo test --all-features
 fi
 
 if [ "$INTEGRATION" = yes ] ; then
@@ -88,13 +88,13 @@ if [ "$INTEGRATION" = yes ] ; then
     # TODO: we might want, at some point, to have a the following stuff
     # go into a basic extensible integration-testing script that gets
     # run both from here and from the .gitlab-ci.yml file.
-    trap ./tests/chutney/teardown.sh 0
-    ./maint/with_coverage.sh -c -s ./tests/chutney/setup.sh
+    trap ./tests/chutney/teardown 0
+    ./maint/with_coverage -c -s ./tests/chutney/setup
     curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
     trap - 0
-    ./tests/chutney/teardown.sh
+    ./tests/chutney/teardown
 fi
 
 # Generate the coverage report.
-./maint/with_coverage.sh -c /bin/true
+./maint/with_coverage -c /bin/true
 
