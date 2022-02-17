@@ -368,12 +368,11 @@ pub enum ErrorKind {
     /// An operation failed in a transient way.
     ///
     /// This kind of error indicates that some kind of operation failed in a way
-    /// where retrying it again could likely have made it work, but we ran out of
-    /// time or attempts before we could reattempt it.
+    /// where retrying it again could likely have made it work.
     ///
-    /// You should not generally see this kind of error; it usually indicates a
-    /// defect in Arti, where we didn't retry something for long enough.  If you
-    /// encounter these, please let us know.
+    /// You should not generally see this kind of error returned directly to you
+    /// for high-level functions.  It should only be returned from lower-level
+    /// crates that do not automatically retry these failures.
     #[display(fmt = "un-retried transient failure")]
     TransientFailure,
 
