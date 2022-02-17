@@ -452,7 +452,7 @@ impl Relay {
         let mut r = [0_u8; CELL_DATA_LEN];
         // TODO: This will panic if body is too long, but that would be a
         // programming error anyway.
-        (&mut r[..body.len()]).copy_from_slice(body);
+        r[..body.len()].copy_from_slice(body);
         Relay { body: Box::new(r) }
     }
     /// Construct a Relay message from its body.
@@ -488,7 +488,7 @@ impl Body for Relay {
 impl Readable for Relay {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let mut body = Box::new([0_u8; CELL_DATA_LEN]);
-        (&mut body[..]).copy_from_slice(r.take(CELL_DATA_LEN)?);
+        body.copy_from_slice(r.take(CELL_DATA_LEN)?);
         Ok(Relay { body })
     }
 }
@@ -629,7 +629,7 @@ fn take_one_netinfo_addr(r: &mut Reader<'_>) -> Result<Option<IpAddr>> {
         (0x06, 16) => {
             // TODO(nickm) is there a better way?
             let mut bytes = [0_u8; 16];
-            (&mut bytes[..]).copy_from_slice(abody);
+            bytes.copy_from_slice(abody);
             Ok(Some(IpAddr::V6(bytes.into())))
         }
         (0x04, _) => Ok(None),

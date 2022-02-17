@@ -330,6 +330,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// Requires that `ents` is nonempty, and that every element of `ents`
     /// supports `spec`.
     fn find_best<'a>(
+        // we do not mutate `ents`, but to return `&mut Self` we must have a mutable borrow
         ents: &'a mut [&'a mut Self],
         usage: &<S as AbstractSpec>::Usage,
         parallelism: usize,
