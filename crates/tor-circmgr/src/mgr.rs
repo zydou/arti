@@ -319,7 +319,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
         Ok(())
     }
 
-    /// Find the "best" entry from a vector of OpenEntry for supporting
+    /// Find the "best" entry from a slice of OpenEntry for supporting
     /// a given `usage`.
     ///
     /// If `parallelism` is some N greater than 1, we pick randomly
@@ -330,7 +330,7 @@ impl<S: AbstractSpec, C: AbstractCirc> OpenEntry<S, C> {
     /// Requires that `ents` is nonempty, and that every element of `ents`
     /// supports `spec`.
     fn find_best<'a>(
-        #[cfg_attr(ci_arti_nightly, allow(clippy::ptr_arg))] ents: &'a mut Vec<&'a mut Self>,
+        ents: &'a mut [&'a mut Self],
         usage: &<S as AbstractSpec>::Usage,
         parallelism: usize,
     ) -> &'a mut Self {
