@@ -13,35 +13,15 @@ use tor_linkspec::OwnedChanTarget;
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
-    /// No suitable relays for a request
-    #[error("Can't build path for circuit: {0}")]
-    NoPath(String),
-
-    /// No suitable exit relay for a request.
-    #[error("Can't find exit for circuit: {0}")]
-    NoExit(String),
-
-    /// We were waiting on a pending circuit, but it failed to report
-    /// success _or_ failure.
-    #[error("Pending circuit(s) failed without reporting status")]
-    PendingCanceled,
-
-    /// A circuit build took too long to finish.
-    #[error("Circuit took too long to build")]
-    CircTimeout,
-
     /// We started building a circuit on a guard, but later decided not
     /// to use that guard.
     #[error("Discarded circuit because of speculative guard selection")]
     GuardNotUsable,
 
-    /// A request spent too long waiting for a circuit
-    #[error("Spent too long waiting for a circuit to build")]
-    RequestTimeout,
-
-    /// Unable to get or build a circuit, despite retrying.
-    #[error("{0}")]
-    RequestFailed(RetryError<Box<Error>>),
+    /// We were waiting on a pending circuit, but it failed to report
+    /// success _or_ failure.
+    #[error("Pending circuit(s) failed without reporting status")]
+    PendingCanceled,
 
     /// A circuit succeeded, but was cancelled before it could be used.
     ///
@@ -51,10 +31,33 @@ pub enum Error {
     #[error("Circuit canceled")]
     CircCanceled,
 
-    /// An error caused by a programming issue . or a failure in another
-    /// library that we can't work around.
-    #[error("Programming issue: {0}")]
-    Bug(#[from] Bug),
+    /// A circuit build took too long to finish.
+    #[error("Circuit took too long to build")]
+    CircTimeout,
+
+    /// A request spent too long waiting for a circuit
+    #[error("Spent too long waiting for a circuit to build")]
+    RequestTimeout,
+
+    /// No suitable relays for a request
+    #[error("Can't build path for circuit: {0}")]
+    NoPath(String),
+
+    /// No suitable exit relay for a request.
+    #[error("Can't find exit for circuit: {0}")]
+    NoExit(String),
+
+    /// Problem creating or updating a guard manager.
+    #[error("Problem creating or updating guards list: {0}")]
+    GuardMgr(#[source] tor_guardmgr::GuardMgrError),
+
+    /// Problem selecting a guard relay.
+    #[error("Unable to select a guard relay: {0}")]
+    Guard(#[from] tor_guardmgr::PickGuardError),
+
+    /// Unable to get or build a circuit, despite retrying.
+    #[error("{0}")]
+    RequestFailed(RetryError<Box<Error>>),
 
     /// Problem with channel
     #[error("Problem with channel to {peer}")]
@@ -71,18 +74,6 @@ pub enum Error {
     #[error("Problem building a circuit: {0}")]
     Protocol(#[from] tor_proto::Error),
 
-    /// Problem loading or storing persistent state.
-    #[error("Problem loading or storing state: {0}")]
-    State(#[from] tor_persist::Error),
-
-    /// Problem creating or updating a guard manager.
-    #[error("Problem creating or updating guards list: {0}")]
-    GuardMgr(#[source] tor_guardmgr::GuardMgrError),
-
-    /// Problem selecting a guard relay.
-    #[error("Unable to select a guard relay: {0}")]
-    Guard(#[from] tor_guardmgr::PickGuardError),
-
     /// We have an expired consensus
     #[error("Consensus is expired")]
     ExpiredConsensus,
@@ -96,6 +87,15 @@ pub enum Error {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// Problem loading or storing persistent state.
+    #[error("Problem loading or storing state: {0}")]
+    State(#[from] tor_persist::Error),
+
+    /// An error caused by a programming issue . or a failure in another
+    /// library that we can't work around.
+    #[error("Programming issue: {0}")]
+    Bug(#[from] Bug),
 }
 
 impl From<futures::channel::oneshot::Canceled> for Error {
