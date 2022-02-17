@@ -94,9 +94,18 @@ async fn fetch_multiple<R: Runtime>(
 
     let mut useful_responses = Vec::new();
     for r in responses {
+        // TODO: on some error cases we might want to stop using this source.
         match r {
-            Ok(x) => useful_responses.push(x),
-            // TODO: in this case we might want to stop using this source.
+            Ok((request, response)) => {
+                if response.status_code() == 200 {
+                    useful_responses.push((request, response));
+                } else {
+                    trace!(
+                        "cache declined request; reported status {:?}",
+                        response.status_code()
+                    );
+                }
+            }
             Err(e) => warn!("error while downloading: {:?}", e),
         }
     }
