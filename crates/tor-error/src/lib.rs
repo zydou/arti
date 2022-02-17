@@ -384,6 +384,9 @@ pub enum ErrorKind {
     ///
     /// Either it gave an error message indicating that it refused to perform
     /// the request, or the protocol gives it no room to explain what happened.
+    ///
+    /// The remote host in question is on the public internet, or an onion service.
+    /// This error does not relate to refusals by part of the Tor network.
     #[display(fmt = "remote host refused our request")]
     RemoteRefused,
 
