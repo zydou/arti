@@ -164,10 +164,10 @@ impl<'a> ExitPathBuilder<'a> {
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
                 let guard = guard.get_relay(netdir).ok_or_else(|| {
-                    Error::Bug(internal!(
+                    internal!(
                         "Somehow the guardmgr gave us an unlisted guard {:?}!",
                         guard
-                    ))
+                    )
                 })?;
                 if !path_is_fully_random {
                     // We were given a specific exit relay to use, and
