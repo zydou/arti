@@ -129,17 +129,24 @@ pub enum ErrorKind {
 
     /// IO error accessing local persistent state
     ///
-    /// Eg, disk full or permissions problem.
+    /// For example, the disk might be full, or there may be a permissions problem.
     /// Usually the source will be [`std::io::Error`].
+    ///
+    /// Note that this kind of error only applies to problems in your `state_dir`:
+    /// problems with your cache are another kind.
     #[display(fmt = "could not read/write persistent state")]
     PersistentStateAccessFailed,
 
     /// Tor client's persistent state has been corrupted
     ///
-    /// This could be because of a bug in the Tor code, or because something else has been messing
-    /// with the data.
+    /// This could be because of a bug in the Tor code, or because something
+    /// else has been messing with the data.
     ///
-    /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    /// This might also occur if the Tor code was upgraded and the new Tor is
+    /// not compatible.
+    ///
+    /// Note that this kind of error only applies to problems in your
+    /// `state_dir`: problems with your cache are another kind.
     #[display(fmt = "corrupted data in persistent state")]
     PersistentStateCorrupted,
 
@@ -149,6 +156,9 @@ pub enum ErrorKind {
     /// them: the state manager's locking code is supposed to prevent
     /// higher level crates from accidentally trying to do this.  This
     /// error kind can indicate a bug.
+    ///
+    /// Note that this kind of error only applies to problems in your `state_dir`:
+    /// problems with your cache are another kind.
     #[display(fmt = "could not write to read-only persistent state")]
     PersistentStateReadOnly,
 
@@ -158,12 +168,18 @@ pub enum ErrorKind {
     /// with the data.
     ///
     /// This might also occur if the Tor code was upgraded and the new Tor is not compatible.
+    ///
+    /// Note that this kind of error only applies to problems in your `cache_dir`:
+    /// problems with your persistent state are another kind.
     #[display(fmt = "corrupted data in cache")]
     CacheCorrupted,
 
     /// We had a problem reading or writing to our data cache.
     ///
     /// This may be a disk error, a file permission error, or similar.
+    ///
+    /// Note that this kind of error only applies to problems in your `cache_dir`:
+    /// problems with your persistent state are another kind.
     #[display(fmt = "cache access problem")]
     CacheAccessFailed,
 
