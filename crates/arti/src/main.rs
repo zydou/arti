@@ -109,8 +109,9 @@ async fn run<R: Runtime>(
     arti_config: arti_config::ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
+    use arti_client::BootstrapBehavior::Manual;
     use futures::FutureExt;
-    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config)?;
+    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config, Manual)?;
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
