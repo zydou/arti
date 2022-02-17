@@ -445,7 +445,7 @@ pub enum ErrorKind {
     /// This kind of error usually indicates that the piece of code you're using
     /// was told to stop some or all of its in-progress tasks.
     ///
-    /// Normally this kind of error ought to be expected and hancled, rather than
+    /// Normally this kind of error ought to be expected and handled, rather than
     /// shown to a user.
     #[display(fmt = "operation canceled")]
     Canceled,
