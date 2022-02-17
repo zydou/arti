@@ -47,6 +47,10 @@ pub enum Error {
     HttparseError(#[from] httparse::Error),
 
     /// Error while creating http request
+    //
+    // TODO this should be abolished, in favour of a `Bug` variant,
+    // so that we get a stack trace, as per the notes for EK::Internal.
+    // We could convert via into_internal!, or a custom `From` impl.
     #[error("Couldn't create HTTP request")]
     HttpError(#[source] Arc<http::Error>),
 
