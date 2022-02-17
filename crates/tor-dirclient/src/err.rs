@@ -92,7 +92,7 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::DirTimeout => EK::RemoteNetworkTimeout,
+            E::DirTimeout => EK::TorNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
             E::HttpStatus(_) => EK::RemoteRefused,
             E::ResponseTooLong(_) => EK::TorProtocolViolation,
@@ -100,7 +100,7 @@ impl HasKind for Error {
             // TODO: it would be good to get more information out of the IoError
             // in this case, but that would require a bunch of gnarly
             // downcasting.
-            E::IoError(_) => EK::RemoteStreamError,
+            E::IoError(_) => EK::TorNetworkError,
             E::Proto(e) => e.kind(),
             E::CircMgr(e) => e.kind(),
             E::HttparseError(_) => EK::TorProtocolViolation,

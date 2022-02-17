@@ -324,6 +324,14 @@ pub enum ErrorKind {
     #[display(fmt = "tor operation timed out")]
     TorNetworkTimeout,
 
+    /// An operation failed somewhere in the tor network.
+    ///
+    /// This generally indicates a kind of error that we couldn't identify more
+    /// specifically, but where we are fairly comfortable in blaming it on a
+    /// remote Tor relay.
+    #[display(fmt = "tor network operation failed")]
+    TorNetworkError,
+
     /// An operation finished because a remote stream was closed successfully.
     ///
     /// This can indicate that the target server closed the TCP connection,
