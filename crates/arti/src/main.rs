@@ -110,16 +110,15 @@ async fn run<R: Runtime>(
     client_config: TorClientConfig,
 ) -> Result<()> {
     use futures::FutureExt;
+    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config)?;
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
         r = async {
-            let client = TorClient::create_bootstrapped(
-                    runtime.clone(),
-                    client_config,
-                ).await?;
             if arti_config.application().watch_configuration() {
                 watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
             }
+            client.bootstrap().await?;
+            info!("Sufficiently bootstrapped; opening SOCKS proxy listeners.");
             proxy::run_socks_proxy(runtime, client, socks_port).await
         }.fuse() => r,
     )
