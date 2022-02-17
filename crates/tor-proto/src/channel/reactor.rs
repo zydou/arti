@@ -288,20 +288,25 @@ impl Reactor {
 
     /// Give the RELAY cell `msg` to the appropriate circuit.
     async fn deliver_relay(&mut self, circid: CircId, msg: ChanMsg) -> Result<()> {
-        match self.circs.get_mut(circid) {
-            Some(CircEnt::Open(s)) => {
+        let mut ent = self
+            .circs
+            .get_mut(circid)
+            .ok_or_else(|| Error::ChanProto("Relay cell on nonexistent circuit".into()))?;
+
+        match &mut *ent {
+            CircEnt::Open(s) => {
                 // There's an open circuit; we can give it the RELAY cell.
                 if s.send(msg.try_into()?).await.is_err() {
+                    drop(ent);
                     // The circuit's receiver went away, so we should destroy the circuit.
                     self.outbound_destroy_circ(circid).await?;
                 }
                 Ok(())
             }
-            Some(CircEnt::Opening(_, _)) => Err(Error::ChanProto(
+            CircEnt::Opening(_, _) => Err(Error::ChanProto(
                 "Relay cell on pending circuit before CREATED* received".into(),
             )),
-            Some(CircEnt::DestroySent(hs)) => hs.receive_cell(),
-            None => Err(Error::ChanProto("Relay cell on nonexistent circuit".into())),
+            CircEnt::DestroySent(hs) => hs.receive_cell(),
         }
     }
 
@@ -490,7 +495,7 @@ pub(crate) mod test {
             let id = pending.peek_circid();
 
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
+            assert!(matches!(*ent.unwrap(), CircEnt::Opening(_, _)));
             assert!(chan.duration_unused().is_none()); // in use
 
             // Now drop the circuit; this should tell the reactor to remove
@@ -499,7 +504,7 @@ pub(crate) mod test {
 
             reactor.run_once().await.unwrap();
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
+            assert!(matches!(*ent.unwrap(), CircEnt::DestroySent(_)));
             let cell = output.next().await.unwrap();
             assert_eq!(cell.circid(), id);
             assert!(matches!(cell.msg(), ChanMsg::Destroy(_)));
@@ -531,7 +536,7 @@ pub(crate) mod test {
             let id = pending.peek_circid();
 
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::Opening(_, _))));
+            assert!(matches!(*ent.unwrap(), CircEnt::Opening(_, _)));
 
             #[allow(clippy::clone_on_copy)]
             let rtc = rt.clone();
@@ -558,7 +563,7 @@ pub(crate) mod test {
 
             // But the next run if the reactor will make the circuit get closed.
             let ent = reactor.circs.get_mut(id);
-            assert!(matches!(ent, Some(CircEnt::DestroySent(_))));
+            assert!(matches!(*ent.unwrap(), CircEnt::DestroySent(_)));
         });
     }
 

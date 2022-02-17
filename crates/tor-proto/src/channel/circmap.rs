@@ -14,6 +14,7 @@ use futures::channel::{mpsc, oneshot};
 use rand::distributions::Distribution;
 use rand::Rng;
 use std::collections::{hash_map::Entry, HashMap};
+use std::ops::{Deref, DerefMut};
 
 /// Which group of circuit IDs are we allowed to allocate in this map?
 ///
@@ -76,12 +77,53 @@ pub(super) enum CircEnt {
     DestroySent(HalfCirc),
 }
 
+/// An "smart pointer" that wraps an exclusive reference
+/// of a `CircEnt`.
+///
+/// When being dropped, this object updates the open or opening entries
+/// counter of the `CircMap`.
+pub(super) struct MutCircEnt<'a> {
+    /// An exclusive reference to the `CircEnt`.
+    value: &'a mut CircEnt,
+    /// An exclusive reference to the open or opening
+    ///  entries counter.
+    open_count: &'a mut usize,
+    /// True if the entry was open or opening when borrowed.
+    was_open: bool,
+}
+
+impl<'a> Drop for MutCircEnt<'a> {
+    fn drop(&mut self) {
+        let is_open = !matches!(self.value, CircEnt::DestroySent(_));
+        match (self.was_open, is_open) {
+            (false, true) => *self.open_count = self.open_count.saturating_add(1),
+            (true, false) => *self.open_count = self.open_count.saturating_sub(1),
+            (_, _) => (),
+        };
+    }
+}
+
+impl<'a> Deref for MutCircEnt<'a> {
+    type Target = CircEnt;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a> DerefMut for MutCircEnt<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
+    }
+}
+
 /// A map from circuit IDs to circuit entries. Each channel has one.
 pub(super) struct CircMap {
     /// Map from circuit IDs to entries
     m: HashMap<CircId, CircEnt>,
     /// Rule for allocating new circuit IDs.
     range: CircIdRange,
+    /// Number of open or opening entry in this map.
+    open_count: usize,
 }
 
 impl CircMap {
@@ -90,6 +132,7 @@ impl CircMap {
         CircMap {
             m: HashMap::new(),
             range: idrange,
+            open_count: 0,
         }
     }
 
@@ -114,6 +157,7 @@ impl CircMap {
             let ent = self.m.entry(id);
             if let Entry::Vacant(_) = &ent {
                 ent.or_insert(circ_ent);
+                self.open_count += 1;
                 return Ok(id);
             }
         }
@@ -128,8 +172,13 @@ impl CircMap {
     }
 
     /// Return the entry for `id` in this map, if any.
-    pub(super) fn get_mut(&mut self, id: CircId) -> Option<&mut CircEnt> {
-        self.m.get_mut(&id)
+    pub(super) fn get_mut(&mut self, id: CircId) -> Option<MutCircEnt> {
+        let open_count = &mut self.open_count;
+        self.m.get_mut(&id).map(move |ent| MutCircEnt {
+            open_count,
+            was_open: !matches!(ent, CircEnt::DestroySent(_)),
+            value: ent,
+        })
     }
 
     /// See whether 'id' is an opening circuit.  If so, mark it "open" and
@@ -161,23 +210,27 @@ impl CircMap {
     /// a "HalfCirc" object to track how many cells we get on this
     /// circuit, and to prevent us from reusing it immediately.
     pub(super) fn destroy_sent(&mut self, id: CircId, hs: HalfCirc) {
-        self.m.insert(id, CircEnt::DestroySent(hs));
+        if let Some(replaced) = self.m.insert(id, CircEnt::DestroySent(hs)) {
+            if !matches!(replaced, CircEnt::DestroySent(_)) {
+                // replaced an Open/Opening entry with DestroySent
+                self.open_count = self.open_count.saturating_sub(1);
+            }
+        }
     }
 
     /// Extract the value from this map with 'id' if any
     pub(super) fn remove(&mut self, id: CircId) -> Option<CircEnt> {
-        self.m.remove(&id)
+        self.m.remove(&id).map(|removed| {
+            if !matches!(removed, CircEnt::DestroySent(_)) {
+                self.open_count = self.open_count.saturating_sub(1);
+            }
+            removed
+        })
     }
 
     /// Return the total number of open and opening entries in the map
     pub(super) fn open_ent_count(&self) -> usize {
-        // TODO: We want to change this from O(n) back to O(1).
-        // Maybe we should have the CircMap keep track of
-        // the open-or-opening entries count.
-        self.m
-            .iter()
-            .filter(|(_id, ent)| matches!(ent, &&CircEnt::Open(_) | &&CircEnt::Opening(_, _)))
-            .count()
+        self.open_count
     }
 
     // TODO: Eventually if we want relay support, we'll need to support
@@ -210,8 +263,8 @@ mod test {
             ids_low.push(id_low);
 
             assert!(matches!(
-                map_low.get_mut(id_low),
-                Some(&mut CircEnt::Opening(_, _))
+                *map_low.get_mut(id_low).unwrap(),
+                CircEnt::Opening(_, _)
             ));
 
             let (csnd, _) = oneshot::channel();
@@ -241,14 +294,14 @@ mod test {
         // Good case.
         assert!(map_high.get_mut(ids_high[0]).is_some());
         assert!(matches!(
-            map_high.get_mut(ids_high[0]),
-            Some(&mut CircEnt::Opening(_, _))
+            *map_high.get_mut(ids_high[0]).unwrap(),
+            CircEnt::Opening(_, _)
         ));
         let adv = map_high.advance_from_opening(ids_high[0]);
         assert!(adv.is_ok());
         assert!(matches!(
-            map_high.get_mut(ids_high[0]),
-            Some(&mut CircEnt::Open(_))
+            *map_high.get_mut(ids_high[0]).unwrap(),
+            CircEnt::Open(_)
         ));
 
         // Can't double-advance.
