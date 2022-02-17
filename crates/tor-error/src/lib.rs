@@ -316,12 +316,13 @@ pub enum ErrorKind {
     #[display(fmt = "circuit collapsed")]
     CircuitCollapse,
 
-    /// One or more circuits took too long to build.
+    /// An operation timed out on the tor network.
     ///
     /// This may indicate a network problem, either with the local network
-    /// environment, or with the Tor network.
-    #[display(fmt = "circuit timed out")]
-    CircuitTimeout,
+    /// environment's ability to contact the Tor network, or with the Tor
+    /// network itself.
+    #[display(fmt = "tor operation timed out")]
+    TorNetworkTimeout,
 
     /// An operation finished because a remote stream was closed successfully.
     ///

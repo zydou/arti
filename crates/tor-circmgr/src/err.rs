@@ -129,9 +129,9 @@ impl HasKind for Error {
             E::NoPath(_) => EK::NoPath,
             E::NoExit(_) => EK::NoExit,
             E::PendingCanceled => EK::Canceled,
-            E::CircTimeout => EK::CircuitTimeout,
+            E::CircTimeout => EK::TorNetworkTimeout,
             E::GuardNotUsable => EK::TransientFailure,
-            E::RequestTimeout => EK::CircuitTimeout,
+            E::RequestTimeout => EK::TorNetworkTimeout,
             E::RequestFailed(e) => e
                 .sources()
                 .max_by_key(|e| e.severity())
