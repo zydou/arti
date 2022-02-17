@@ -199,7 +199,7 @@ pub enum ErrorKind {
     ///
     /// In either case, trying later, or on a different circuit, might help.  
     #[display(fmt = "operation timed out at exit")]
-    ExitTimeout,
+    RemoteNetworkTimeout,
 
     /// One or more configuration values were invalid or incompatible.
     ///

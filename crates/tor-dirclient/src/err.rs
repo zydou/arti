@@ -92,7 +92,7 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::DirTimeout => EK::ExitTimeout,
+            E::DirTimeout => EK::RemoteNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
             E::HttpStatus(_) => EK::RemoteRefused,
             E::ResponseTooLong(_) => EK::TorProtocolViolation,
