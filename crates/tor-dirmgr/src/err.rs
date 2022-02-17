@@ -139,13 +139,7 @@ impl HasKind for Error {
             E::Unwanted(_) => EK::TorProtocolViolation,
             E::NoDownloadSupport => EK::NotImplemented,
             E::CacheCorruption(_) => EK::CacheCorrupted,
-            E::SqliteError(e) => match e.as_ref() {
-                rusqlite::Error::SqliteFailure(code, _) => sqlite_error_kind(code),
-                // TODO: Some of the other sqlite error types can sometimes represent
-                // possible database corruption (like UTF8Error.)  But I haven't
-                // found a way to distinguish when.
-                _ => EK::Internal,
-            },
+            E::SqliteError(e) => sqlite_error_kind(e),
             E::UnrecognizedSchema => EK::CacheCorrupted,
             E::BadNetworkConfig(_) => EK::InvalidConfig,
             E::DirectoryNotPresent => EK::DirectoryExpired,
@@ -172,34 +166,42 @@ impl HasKind for Error {
 }
 
 /// Convert a sqlite error code into a real ErrorKind.
-fn sqlite_error_kind(e: &rusqlite::ffi::Error) -> ErrorKind {
+fn sqlite_error_kind(e: &rusqlite::Error) -> ErrorKind {
     use rusqlite::ErrorCode as RE;
     use ErrorKind as EK;
-    match e.code {
-        RE::DatabaseCorrupt => EK::CacheCorrupted,
-        RE::SchemaChanged
-        | RE::TooBig
-        | RE::ConstraintViolation
-        | RE::TypeMismatch
-        | RE::ApiMisuse
-        | RE::NoLargeFileSupport
-        | RE::ParameterOutOfRange
-        | RE::OperationInterrupted
-        | RE::ReadOnly
-        | RE::OperationAborted
-        | RE::DatabaseBusy
-        | RE::DatabaseLocked
-        | RE::OutOfMemory
-        | RE::InternalMalfunction => EK::Internal,
 
-        RE::FileLockingProtocolFailed
-        | RE::AuthorizationForStatementDenied
-        | RE::NotFound
-        | RE::DiskFull
-        | RE::CannotOpen
-        | RE::SystemIoFailure
-        | RE::PermissionDenied => EK::CacheAccessFailed,
-        RE::NotADatabase => EK::InvalidConfig,
+    match e {
+        rusqlite::Error::SqliteFailure(code, _) => match code.code {
+            RE::DatabaseCorrupt => EK::CacheCorrupted,
+            RE::SchemaChanged
+            | RE::TooBig
+            | RE::ConstraintViolation
+            | RE::TypeMismatch
+            | RE::ApiMisuse
+            | RE::NoLargeFileSupport
+            | RE::ParameterOutOfRange
+            | RE::OperationInterrupted
+            | RE::ReadOnly
+            | RE::OperationAborted
+            | RE::DatabaseBusy
+            | RE::DatabaseLocked
+            | RE::OutOfMemory
+            | RE::InternalMalfunction => EK::Internal,
+
+            RE::FileLockingProtocolFailed
+            | RE::AuthorizationForStatementDenied
+            | RE::NotFound
+            | RE::DiskFull
+            | RE::CannotOpen
+            | RE::SystemIoFailure
+            | RE::PermissionDenied => EK::CacheAccessFailed,
+            RE::NotADatabase => EK::InvalidConfig,
+            _ => EK::Internal,
+        },
+
+        // TODO: Some of the other sqlite error types can sometimes represent
+        // possible database corruption (like UTF8Error.)  But I haven't
+        // found a way to distinguish when.
         _ => EK::Internal,
     }
 }
