@@ -286,7 +286,8 @@ pub enum ErrorKind {
 
     /// One or more circuits took too long to build.
     ///
-    /// This may indicate a network problem.
+    /// This may indicate a network problem, either with the local network
+    /// environment, or with the Tor network.
     #[display(fmt = "circuit timed out")]
     CircuitTimeout,
 
