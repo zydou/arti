@@ -52,6 +52,38 @@ pub use truncated::*;
 ///
 /// When forwarding or reporting errors, use the whole error (e.g., `TorError`), not just the kind:
 /// the error itself will contain more detail and context which is useful to humans.
+//
+// Splitting vs lumping guidelines:
+//
+// # Split on the place which caused the error
+//
+// We should distinguish, insofar as we can, within whose bailiwick
+// the error originated:
+//     - This very process, Tor code (EK::Internal)
+//     - This very process, application code (EK::BadApiUsage)
+//     - Some other process on the same machine (eg EK::LocalProtocolViolation)
+//     - The local network
+//     - The Tor network
+//     - The "far end", ie the public internet outside an exit node
+//       or (when we support it) the onion service we are connecting to
+// Obviously in many cases we may not be able to say for sure, so each
+// error kind represents not *one* of the above, but a specified *subset*.
+//
+// # Lump parts/aspects/subprotocols of Tor
+//
+// Unless we expect and intend the user or programmer to excercise an ability to influence which
+// remote entities we try to use, we should not distinguish between the different kinds of remote
+// Tor entity, nor between the different protocols or protocol layers which we use.
+//
+// For example, Failures getting directory information from directory caches should be lumped with
+// failures to extend a circuit through a relay.
+//
+// This is because we expect applications not to have detailed knowledge of Tor.
+//
+// # Avoid exposing implementation details
+//
+// ErrorKinds should not relate to particular code paths in the Arti codebase.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 #[non_exhaustive]
 pub enum ErrorKind {
