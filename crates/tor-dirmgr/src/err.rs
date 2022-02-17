@@ -127,7 +127,15 @@ impl Error {
 
 impl From<rusqlite::Error> for Error {
     fn from(err: rusqlite::Error) -> Self {
-        Self::SqliteError(Arc::new(err))
+        use ErrorKind as EK;
+        let kind = sqlite_error_kind(&err);
+        match kind {
+            EK::Internal | EK::BadApiUsage => {
+                // TODO: should this be a .is_bug() on EK ?
+                tor_error::Bug::from_error(kind, err, "sqlite detected bug").into()
+            }
+            _ => Self::SqliteError(Arc::new(err)),
+        }
     }
 }
 
