@@ -97,7 +97,7 @@ use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
 use tor_rtcompat::{BlockOn, Runtime};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::{info, warn};
 
@@ -118,13 +118,16 @@ async fn run<R: Runtime>(
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
     futures::select!(
-        r = exit::wait_for_ctrl_c().fuse() => r,
-        r = proxy::run_socks_proxy(runtime, client.clone(), socks_port).fuse() => r,
+        r = exit::wait_for_ctrl_c().fuse()
+            => r.context("waiting for termination signal"),
+        r = proxy::run_socks_proxy(runtime, client.clone(), socks_port).fuse()
+            => r.context("SOCKS proxy failure"),
         r = async {
             client.bootstrap().await?;
             info!("Sufficiently bootstrapped; system SOCKS now functional.");
-            futures::future::pending().await
-        }.fuse() => r,
+            futures::future::pending::<Result<()>>().await
+        }.fuse()
+            => r.context("bootstrap"),
     )
 }
 
