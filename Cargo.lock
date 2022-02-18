@@ -86,6 +86,7 @@ dependencies = [
  "rlimit",
  "serde",
  "tokio",
+ "tor-error",
  "tor-rtcompat",
  "tor-socksproto",
  "tracing",

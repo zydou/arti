@@ -125,7 +125,11 @@ async fn run<R: Runtime>(
     )
 }
 
-fn main() -> Result<()> {
+fn main() {
+    main_main().unwrap_or_else(tor_error::report_and_exit)
+}
+
+fn main_main() -> Result<()> {
     // We describe a default here, rather than using `default()`, because the
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
