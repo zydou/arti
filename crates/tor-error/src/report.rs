@@ -7,7 +7,10 @@ use std::fmt::{self, Debug, Display};
 #[allow(clippy::exhaustive_structs)] // this is a transparent wrapper
 pub struct Report<E>(pub E);
 
-impl<E> Display for Report<E> where E: AsRef<dyn std::error::Error> {
+impl<E> Display for Report<E>
+where
+    E: AsRef<dyn std::error::Error>,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Non-generic inner function avoids code bloat
         fn inner(mut e: &dyn std::error::Error, f: &mut fmt::Formatter) -> fmt::Result {
@@ -18,7 +21,7 @@ impl<E> Display for Report<E> where E: AsRef<dyn std::error::Error> {
             let mut last = String::new();
             loop {
                 let this = e.to_string();
-                if ! last.contains(&this) {
+                if !last.contains(&this) {
                     write!(f, ": {}", &this)?;
                 }
                 last = this;
@@ -26,7 +29,7 @@ impl<E> Display for Report<E> where E: AsRef<dyn std::error::Error> {
                 if let Some(ne) = e.source() {
                     e = ne;
                 } else {
-                    break
+                    break;
                 }
             }
             Ok(())
@@ -39,7 +42,10 @@ impl<E> Display for Report<E> where E: AsRef<dyn std::error::Error> {
 /// Report the error E to stderr, and exit the program
 ///
 /// Does not return.  Return type is any type R, for convenience with eg `unwrap_or_else`.
-pub fn report_and_exit<E, R>(e: E) -> R where E: AsRef<dyn std::error::Error> {
+pub fn report_and_exit<E, R>(e: E) -> R
+where
+    E: AsRef<dyn std::error::Error>,
+{
     eprintln!("{}", Report(e));
     std::process::exit(127)
 }
