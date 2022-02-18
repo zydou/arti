@@ -10,7 +10,7 @@ target="networks/basic"
 cd "$(git rev-parse --show-toplevel)"
 
 # TODO: Much of the setup logic below is boilerplate.  Maybe the
-# common parts of this script and setup.sh/teardown.sh should be
+# common parts of this script and setup/teardown should be
 # extracted.
 if [ -z "${CHUTNEY_PATH}" ]; then
     # CHUTNEY_PATH isn't set; try cloning or updating a local chutney.

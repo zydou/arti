@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# binary_size.sh: Build arti with a given set of options, and
+# binary_size: Build arti with a given set of options, and
 # dump the binary size in a json format.
 
 set -eu

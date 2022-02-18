@@ -1,4 +1,4 @@
-#0 Contributors to exclude when running maint/thanks.sh.
+#0 Contributors to exclude when running maint/thanks.
 #1 Include members of the Tor Project here.
 #2 WARNING: This file MUST be sorted.
 David Goulet

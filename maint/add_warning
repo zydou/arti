@@ -108,7 +108,7 @@ def main(lints,files):
 
     if not files:
         print("No files provided.  Example usage:")
-        print("   ./maint/add_warning.py ./maint/add_warning.py crates/*/src/{lib,main}.rs")
+        print("   ./maint/add_warning crates/*/src/{lib,main}.rs")
 
     for fn in files:
         process(lints, fn)

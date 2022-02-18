@@ -32,7 +32,7 @@ rust-latest:
     - cargo clippy --all-features --all-targets -- -D warnings
     - cargo fmt -- --check
     - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
-    - ./maint/cargo_audit.sh
+    - ./maint/cargo_audit
     - cp $CARGO_HOME/bin/cargo-audit .
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
   tags:
@@ -90,8 +90,8 @@ coverage:
     - rustup component add llvm-tools-preview
     - cargo install grcov
     # Generate report
-    - ./maint/with_coverage.sh cargo test --verbose --all-features
-    - ./maint/with_coverage.sh -f cobertura -o coverage.xml -c true
+    - ./maint/with_coverage cargo test --verbose --all-features
+    - ./maint/with_coverage -f cobertura -o coverage.xml -c true
   artifacts:
     paths:
       - 'coverage'
@@ -116,7 +116,7 @@ build-repro:
   stage: build
   image: rust:1.54.0-alpine3.14
   script:
-    - ./maint/reproducible_build.sh linux windows macos
+    - ./maint/reproducible_build linux windows macos
   artifacts:
     paths:
       - arti-linux
@@ -136,11 +136,11 @@ integration:
   script:
     - apt update
     - apt install -y tor git python3 curl
-    - ./tests/chutney/setup.sh
+    - ./tests/chutney/setup
     - curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
-    - ./tests/chutney/stop-arti.sh
+    - ./tests/chutney/stop-arti
     - RUST_LOG=debug target/x86_64-unknown-linux-gnu/release/arti-bench -c ./chutney/net/nodes/arti.toml --socks5 127.0.0.1:9008 -o benchmark_results.json
-    - ./tests/chutney/teardown.sh
+    - ./tests/chutney/teardown
   artifacts:
     paths:
       - benchmark_results.json
