@@ -109,18 +109,21 @@ async fn run<R: Runtime>(
     arti_config: arti_config::ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
-    use arti_client::BootstrapBehavior::Manual;
+    // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
+    // for bootstrap to complete, rather than getting errors.
+    use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
-    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config, Manual)?;
+    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config, OnDemand)?;
     if arti_config.application().watch_configuration() {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse() => r,
+        r = proxy::run_socks_proxy(runtime, client.clone(), socks_port).fuse() => r,
         r = async {
             client.bootstrap().await?;
-            info!("Sufficiently bootstrapped; opening SOCKS proxy listeners.");
-            proxy::run_socks_proxy(runtime, client, socks_port).await
+            info!("Sufficiently bootstrapped; system SOCKS now functional.");
+            futures::future::pending().await
         }.fuse() => r,
     )
 }
