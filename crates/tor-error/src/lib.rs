@@ -71,7 +71,7 @@ pub use truncated::*;
 //
 // # Lump parts/aspects/subprotocols of Tor
 //
-// Unless we expect and intend the user or programmer to excercise an ability to influence which
+// Unless we expect and intend the user or programmer to exercise an ability to influence which
 // remote entities we try to use, we should not distinguish between the different kinds of remote
 // Tor entity, nor between the different protocols or protocol layers which we use.
 //
@@ -361,7 +361,7 @@ pub enum ErrorKind {
     #[display(fmt = "remote name-lookup failure")]
     RemoteNameError,
 
-    /// We were asked to make an anonymous connection to a misformed address.
+    /// We were asked to make an anonymous connection to a malformed address.
     ///
     /// This is probably because of a bad input from a user.
     #[display(fmt = "target address was invalid")]
