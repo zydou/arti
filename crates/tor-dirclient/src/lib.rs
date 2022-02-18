@@ -179,7 +179,12 @@ where
     // TODO: should there be a separate timeout here?
     let header = read_headers(&mut buffered).await?;
     if header.status != Some(200) {
-        return Err(Error::HttpStatus(header.status));
+        return Ok(DirResponse::new(
+            header.status.unwrap_or(0),
+            None,
+            vec![],
+            source,
+        ));
     }
 
     let mut decoder = get_decoder(buffered, header.encoding.as_deref())?;
@@ -726,7 +731,7 @@ mod test {
         let response_text = b"HTTP/1.0 418 I'm a teapot\r\n\r\n";
         let (response, _request) = run_download_test(req, response_text);
 
-        assert!(matches!(response, Err(Error::HttpStatus(Some(418)))));
+        assert_eq!(response.unwrap().status_code(), 418);
     }
 
     #[test]

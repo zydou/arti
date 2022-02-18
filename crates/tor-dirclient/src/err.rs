@@ -18,10 +18,6 @@ pub enum Error {
     #[error("truncated HTTP headers")]
     TruncatedHeaders,
 
-    /// Got an HTTP status other than 200
-    #[error("unexpected HTTP status {0:?}")]
-    HttpStatus(Option<u16>),
-
     /// Received a response that was longer than we expected.
     #[error("response too long; gave up after {0} bytes")]
     ResponseTooLong(usize),
@@ -94,7 +90,6 @@ impl HasKind for Error {
         match self {
             E::DirTimeout => EK::TorNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
-            E::HttpStatus(_) => EK::RemoteRefused,
             E::ResponseTooLong(_) => EK::TorProtocolViolation,
             E::Utf8Encoding(_) => EK::TorProtocolViolation,
             // TODO: it would be good to get more information out of the IoError
