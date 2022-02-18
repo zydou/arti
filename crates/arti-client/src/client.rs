@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::err::ErrorDetail;
-use crate::{status, TorClientBuilder};
+use crate::{status, util, TorClientBuilder};
 #[cfg(feature = "async-std")]
 use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
 #[cfg(feature = "tokio")]
@@ -472,10 +472,17 @@ impl<R: Runtime> TorClient<R> {
             );
         }
 
+        // If we fail to bootstrap (i.e. we return before the disarm() point below), attempt to
+        // unlock the state files.
+        let unlock_guard = util::StateMgrUnlockGuard::new(&self.statemgr);
+
         self.dirmgr.bootstrap().await?;
 
         self.circmgr
             .update_network_parameters(self.dirmgr.netdir()?.params());
+
+        // Since we succeeded, disarm the unlock guard.
+        unlock_guard.disarm();
 
         Ok(())
     }

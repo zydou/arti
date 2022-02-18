@@ -98,6 +98,10 @@ pub trait StateMgr: Clone {
     /// `[StateMgr::can_store()`] to see if the lock is held.
     fn try_lock(&self) -> Result<LockStatus>;
 
+    /// Release any locks held and become a read-only state manager
+    /// again. If no locks were held, do nothing.
+    fn unlock(&self) -> Result<()>;
+
     /// Make a new [`StorageHandle`] to store values of particular type
     /// at a particular key.
     fn create_handle<T>(self, key: impl Into<String>) -> DynStorageHandle<T>
