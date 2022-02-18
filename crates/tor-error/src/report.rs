@@ -34,6 +34,9 @@ impl<E> Display for Report<E> where E: AsRef<dyn std::error::Error> {
     }
 }
 
+/// Report the error E to stderr, and exit the program
+///
+/// Does not return.  Return type is any type R, for convenience with eg `unwrap_or_else`.
 pub fn report_and_exit<E, R>(e: E) -> R where E: AsRef<dyn std::error::Error> {
     eprintln!("{}", Report(e));
     std::process::exit(127)
