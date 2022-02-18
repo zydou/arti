@@ -44,4 +44,6 @@ fi
 	wait "$pid"
 	echo "result=$?" >> tests/chutney/arti.run
 ) & disown
-sleep 5
+# Wait for arti to start listening (it does so "immediately", but we don't want to get there first)
+# Really there should be a proper daemon startup protocol here, but arti doesn't have one yet.
+sleep 1
