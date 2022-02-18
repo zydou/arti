@@ -27,6 +27,7 @@ use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
 use tor_config::MutCfg;
+use tor_error::internal;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -38,6 +39,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
@@ -1060,7 +1062,16 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         runtime
             .spawn(async move {
                 let self_clone = Arc::clone(&self);
-                let (new_spec, reply) = self_clone.do_launch(plan, pending).await;
+                let future = AssertUnwindSafe(self_clone.do_launch(plan, pending)).catch_unwind();
+                let (new_spec, reply) = match future.await {
+                    Ok(x) => x, // Success or regular failure
+                    Err(e) => {
+                        // Okay, this is a panic.  We have to tell the calling
+                        // thread about it, then exit this circuit builder task.
+                        let _ = sender.send(Err(internal!("circuit build task panicked").into()));
+                        std::panic::panic_any(e);
+                    }
+                };
 
                 // Tell anybody who was listening about it that this
                 // circuit is now usable or failed.
