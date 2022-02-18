@@ -97,7 +97,7 @@ use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
 use tor_rtcompat::{BlockOn, Runtime};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::{info, warn};
 
@@ -216,7 +216,7 @@ fn main_main() -> Result<()> {
 
     let cfg = cfg_sources.load()?;
 
-    let config: ArtiConfig = cfg.try_into()?;
+    let config: ArtiConfig = cfg.try_into().context("read configuration")?;
 
     let _log_guards = trace::setup_logging(config.logging(), matches.value_of("loglevel"))?;
 
