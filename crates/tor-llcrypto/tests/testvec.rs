@@ -1,5 +1,3 @@
-#![cfg_attr(ci_arti_nightly, allow(clippy::needless_borrow))]
-
 use cipher::{NewCipher, StreamCipher};
 use digest::{self, Digest, ExtendableOutput};
 use hex_literal::hex;
