@@ -428,18 +428,6 @@ pub enum ErrorKind {
     #[display(fmt = "bad API usage (bug)")]
     BadApiUsage,
 
-    /// An operation failed because a local namespace is too full to grow.
-    ///
-    /// This error can occur if you try to put too many streams onto a single
-    /// circuit, or too many circuits onto a single channel.  Both are very
-    /// unlikely in practice.
-    ///
-    /// If you see this kind of error when opening a stream, try opening the
-    /// stream on a different circuit.  If you see this kind of error when
-    /// opening a circuit, then there is probably a bug in your program.
-    #[display(fmt = "namespace full")]
-    NamespaceFull,
-
     /// An operation failed because a remote party on the Tor expected us to
     /// have a resource or identity that we do not.
     ///
