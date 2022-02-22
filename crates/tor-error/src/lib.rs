@@ -217,14 +217,6 @@ pub enum ErrorKind {
     #[display(fmt = "Tor client is shutting down.")]
     ArtiShuttingDown,
 
-    /// Tor client's Rust async reactor could not spawn a task for unexplained
-    /// reasons
-    ///
-    /// This is probably a bug or configuration problem in the async reactor
-    /// implementation, or in arti's use of it.
-    #[display(fmt = "unexplained rust async task spawn failure")]
-    UnexplainedTaskSpawnFailure,
-
     /// An operation failed because we waited too long for an exit to do
     /// something.
     ///
@@ -515,7 +507,7 @@ impl HasKind for futures::task::SpawnError {
         if self.is_shutdown() {
             EK::ReactorShuttingDown
         } else {
-            EK::UnexplainedTaskSpawnFailure
+            EK::Internal
         }
     }
 }
