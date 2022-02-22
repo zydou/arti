@@ -409,11 +409,6 @@ pub enum ErrorKind {
     #[display(fmt = "target address disabled locally")]
     ForbiddenStreamTarget,
 
-    /// An operation won't work because it's trying to use an object that's
-    /// already in a shutting-down state.
-    #[display(fmt = "target object already closed")]
-    AlreadyClosed,
-
     /// An operation failed in a transient way.
     ///
     /// This kind of error indicates that some kind of operation failed in a way

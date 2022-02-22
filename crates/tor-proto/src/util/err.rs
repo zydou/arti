@@ -148,7 +148,7 @@ impl HasKind for Error {
             E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
             E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,
             E::EndReceived(_) => EK::RemoteStreamError,
-            E::NotConnected => EK::AlreadyClosed,
+            E::NotConnected => EK::BadApiUsage,
             E::StreamProto(_) => EK::TorProtocolViolation,
             E::ChanMismatch(_) => EK::RemoteIdMismatch,
             E::ResolveError(_) => EK::RemoteNameError,
