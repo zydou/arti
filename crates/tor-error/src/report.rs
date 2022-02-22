@@ -14,9 +14,6 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Non-generic inner function avoids code bloat
         fn inner(mut e: &dyn std::error::Error, f: &mut fmt::Formatter) -> fmt::Result {
-            if let Some(progname) = std::env::args().next() {
-                write!(f, "{}: ", progname)?;
-            }
             write!(f, "error")?;
             let mut last = String::new();
             loop {
@@ -47,6 +44,14 @@ pub fn report_and_exit<E, R>(e: E) -> R
 where
     E: AsRef<dyn std::error::Error>,
 {
+    /// Non-generic inner function avoids code bloat
+    fn eprint_progname() {
+        if let Some(progname) = std::env::args().next() {
+            eprint!("{}: ", progname);
+        }
+    }
+
+    eprint_progname();
     eprintln!("{}", Report(e));
     std::process::exit(127)
 }
