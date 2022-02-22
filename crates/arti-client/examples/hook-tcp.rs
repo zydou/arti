@@ -54,6 +54,7 @@ struct CustomTcpProvider<T> {
 struct CustomTcpStream<T> {
     inner: T,
     addr: SocketAddr,
+    closed: bool,
 }
 
 struct CustomTcpListener<T> {
@@ -88,6 +89,7 @@ where
                 r.map(|stream| CustomTcpStream {
                     inner: stream,
                     addr: *addr,
+                    closed: false,
                 })
             })
             .boxed()
@@ -151,6 +153,7 @@ where
         let res = Pin::new(&mut self.inner).poll_close(cx);
         if res.is_ready() {
             println!("closed a connecion to {}", self.addr);
+            self.closed = true;
         }
         res
     }
@@ -161,6 +164,14 @@ where
         bufs: &[std::io::IoSlice<'_>],
     ) -> Poll<IoResult<usize>> {
         Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
+    }
+}
+
+impl<T> Drop for CustomTcpStream<T> {
+    fn drop(&mut self) {
+        if !self.closed {
+            println!("closed a connecion to {}", self.addr);
+        }
     }
 }
 
@@ -193,6 +204,7 @@ where
                         CustomTcpStream {
                             inner: stream,
                             addr,
+                            closed: false,
                         },
                         addr,
                     )
@@ -224,6 +236,7 @@ where
                 CustomTcpStream {
                     inner: stream,
                     addr,
+                    closed: false,
                 },
                 addr,
             )))),
