@@ -143,7 +143,7 @@ impl HasKind for Error {
             E::CircProto(_) => EK::TorProtocolViolation,
             E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
             E::IdRangeFull => EK::NamespaceFull,
-            E::CircRefused(_) => EK::RemoteRefused,
+            E::CircRefused(_) => EK::CircuitRefused,
             E::BadStreamAddress => EK::BadApiUsage,
             E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
             E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,

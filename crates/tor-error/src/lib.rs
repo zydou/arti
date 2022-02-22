@@ -455,15 +455,15 @@ pub enum ErrorKind {
     #[display(fmt = "requested resource is not available")]
     RequestedResourceAbsent,
 
-    /// We asked a remote host to do something, and it declined.
+    /// We asked a relay to create or extend a circuit, and it declined.
     ///
     /// Either it gave an error message indicating that it refused to perform
     /// the request, or the protocol gives it no room to explain what happened.
     ///
-    /// The remote host in question is on the public internet, or an onion service.
-    /// This error does not relate to refusals by part of the Tor network.
+    /// You shouldn't typically see this kind of error; generally, higher-level
+    /// code should retry it.
     #[display(fmt = "remote host refused our request")]
-    RemoteRefused,
+    CircuitRefused,
 
     /// We were unable to construct a path through the Tor network.
     ///
