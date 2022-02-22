@@ -21,10 +21,10 @@ while true; do
 	pushd "$(dirname "$d")"
 	for fuzzer in $(cargo fuzz list); do
 	    cargo +nightly fuzz run "$fuzzer" -- \
-		-jobs=${JOBS:-0} \
-		-workers=${JOBS:-0} \
+		-jobs="${JOBS:-0}" \
+		-workers="${JOBS:-0}" \
 		-max_total_time=$((DURATION * 60)) \
-		-seed=${SEED:-0}
+		-seed="${SEED:-0}"
 	done
 	popd
     done
