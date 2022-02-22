@@ -15,6 +15,9 @@ use tor_linkspec::OwnedChanTarget;
 pub enum Error {
     /// We started building a circuit on a guard, but later decided not
     /// to use that guard.
+    //
+    // TODO: We shouldn't count this as an error for the purposes of the number
+    // of allowable failures of a circuit request.
     #[error("Discarded circuit because of speculative guard selection")]
     GuardNotUsable,
 
@@ -27,6 +30,9 @@ pub enum Error {
     /// Circuits can be cancelled either by a call to
     /// `retire_all_circuits()`, or by a configuration change that
     /// makes old paths unusable.
+    //
+    // TODO: We shouldn't count this as an error for the purposes of the number
+    // of allowable failures of a circuit request.
     #[error("Circuit canceled")]
     CircCanceled,
 
@@ -136,7 +142,7 @@ impl HasKind for Error {
                 .max_by_key(|e| e.severity())
                 .map(|e| e.kind())
                 .unwrap_or(EK::Internal),
-            E::CircCanceled => EK::Canceled,
+            E::CircCanceled => EK::TransientFailure,
             E::Protocol(e) => e.kind(),
             E::State(e) => e.kind(),
             E::GuardMgr(e) => e.kind(),

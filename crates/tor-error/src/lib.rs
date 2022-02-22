@@ -465,16 +465,6 @@ pub enum ErrorKind {
     #[display(fmt = "remote host refused our request")]
     RemoteRefused,
 
-    /// An operation was canceled before it could complete.
-    ///
-    /// This kind of error usually indicates that the piece of code you're using
-    /// was told to stop some or all of its in-progress tasks.
-    ///
-    /// Normally this kind of error ought to be expected and handled, rather than
-    /// shown to a user.
-    #[display(fmt = "operation canceled")]
-    Canceled,
-
     /// We were unable to construct a path through the Tor network.
     ///
     /// Usually this indicates that there are too many user-supplied
