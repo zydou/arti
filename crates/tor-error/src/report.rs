@@ -5,7 +5,9 @@ use std::fmt::{self, Debug, Display};
 /// Wraps any Error, providing a nicely-reporting Display impl
 #[derive(Debug, Copy, Clone)]
 #[allow(clippy::exhaustive_structs)] // this is a transparent wrapper
-pub struct Report<E>(pub E);
+pub struct Report<E>(pub E)
+where
+    E: AsRef<dyn std::error::Error>;
 
 impl<E> Display for Report<E>
 where
