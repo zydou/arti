@@ -340,13 +340,13 @@ pub enum ErrorKind {
     #[display(fmt = "problem with network or connection")]
     Network,
 
-    /// A remote host had an identity other than the one we expected.
+    /// A relay had an identity other than the one we expected.
     ///
     /// This could indicate a MITM attack, but more likely indicates that the
     /// relay has changed its identity but the new identity hasn't propagated
     /// through the directory system yet.
     #[display(fmt = "identity mismatch")]
-    RemoteIdMismatch,
+    RelayIdMismatch,
 
     /// An attempt to do something remotely through the Tor network failed
     /// because the circuit it was using shut down before the operation could

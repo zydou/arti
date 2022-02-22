@@ -150,7 +150,7 @@ impl HasKind for Error {
             E::EndReceived(_) => EK::RemoteStreamError,
             E::NotConnected => EK::BadApiUsage,
             E::StreamProto(_) => EK::TorProtocolViolation,
-            E::ChanMismatch(_) => EK::RemoteIdMismatch,
+            E::ChanMismatch(_) => EK::RelayIdMismatch,
             E::ResolveError(_) => EK::RemoteNameError,
             E::Bug(e) => e.kind(),
         }
