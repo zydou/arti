@@ -1,6 +1,6 @@
 //! Implements the ntor handshake, as used in modern Tor.
 
-use super::KeyGenerator;
+use super::{KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result, SecretBytes};
 use tor_bytes::{Reader, Writer};
@@ -44,7 +44,7 @@ impl super::ServerHandshake for NtorServer {
         rng: &mut R,
         key: &[Self::KeyType],
         msg: T,
-    ) -> Result<(Self::KeyGen, Vec<u8>)> {
+    ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         server_handshake_ntor_v1(rng, msg, key)
     }
 }
@@ -249,7 +249,7 @@ fn server_handshake_ntor_v1<R, T>(
     rng: &mut R,
     msg: T,
     keys: &[NtorSecretKey],
-) -> Result<(NtorHkdfKeyGenerator, Vec<u8>)>
+) -> RelayHandshakeResult<(NtorHkdfKeyGenerator, Vec<u8>)>
 where
     R: RngCore + CryptoRng,
     T: AsRef<[u8]>,
@@ -270,7 +270,7 @@ fn server_handshake_ntor_v1_no_keygen<T>(
     ephem: EphemeralSecret,
     msg: T,
     keys: &[NtorSecretKey],
-) -> Result<(NtorHkdfKeyGenerator, Vec<u8>)>
+) -> RelayHandshakeResult<(NtorHkdfKeyGenerator, Vec<u8>)>
 where
     T: AsRef<[u8]>,
 {
@@ -283,11 +283,11 @@ where
     let keypair = ct::lookup(keys, |key| key.matches_pk(&my_key));
     let keypair = match keypair {
         Some(k) => k,
-        None => return Err(Error::MissingKey),
+        None => return Err(RelayHandshakeError::MissingKey),
     };
 
     if my_id != keypair.pk.id {
-        return Err(Error::MissingKey);
+        return Err(RelayHandshakeError::MissingKey);
     }
 
     let xy = ephem.diffie_hellman(&their_pk);
@@ -305,7 +305,7 @@ where
     if okay.into() {
         Ok((keygen, reply))
     } else {
-        Err(Error::BadHandshake)
+        Err(RelayHandshakeError::BadHandshake)
     }
 }
 
@@ -334,7 +334,7 @@ mod tests {
         };
         let relay_ntsks = [relay_ntsk];
 
-        let (skeygen, smsg) = NtorServer::server(&mut rng, &relay_ntsks, &cmsg)?;
+        let (skeygen, smsg) = NtorServer::server(&mut rng, &relay_ntsks, &cmsg).unwrap();
 
         let ckeygen = NtorClient::client2(state, smsg)?;
 
@@ -383,7 +383,8 @@ mod tests {
         let ephem = make_fake_ephem_key(&y_sk[..]);
         let ephem_pub = y_pk.into();
         let (s_keygen, created_msg) =
-            server_handshake_ntor_v1_no_keygen(ephem_pub, ephem, &create_msg[..], &[relay_sk])?;
+            server_handshake_ntor_v1_no_keygen(ephem_pub, ephem, &create_msg[..], &[relay_sk])
+                .unwrap();
         assert_eq!(&created_msg[..], &server_handshake[..]);
 
         let c_keygen = client_handshake2_ntor_v1(created_msg, &state)?;

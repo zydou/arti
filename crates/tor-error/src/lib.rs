@@ -428,13 +428,6 @@ pub enum ErrorKind {
     #[display(fmt = "bad API usage (bug)")]
     BadApiUsage,
 
-    /// An operation failed because a remote party on the Tor expected us to
-    /// have a resource or identity that we do not.
-    ///
-    /// Clients should never encounter this kind of error.
-    #[display(fmt = "requested resource is not available")]
-    RequestedResourceAbsent,
-
     /// We asked a relay to create or extend a circuit, and it declined.
     ///
     /// Either it gave an error message indicating that it refused to perform
