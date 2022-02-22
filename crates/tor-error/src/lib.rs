@@ -215,7 +215,7 @@ pub enum ErrorKind {
     /// This likely indicates that the last handle to the `TorClient` has been
     /// dropped, and is preventing other operations from completing.
     #[display(fmt = "Tor client is shutting down.")]
-    TorShuttingDown,
+    ArtiShuttingDown,
 
     /// Tor client's Rust async reactor could not spawn a task for unexplained
     /// reasons
