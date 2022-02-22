@@ -169,18 +169,6 @@ pub enum ErrorKind {
     #[display(fmt = "corrupted data in persistent state")]
     PersistentStateCorrupted,
 
-    /// Tried to write to read-only persistent state.
-    ///
-    /// Usually, errors of this kind should be handled before the user sees
-    /// them: the state manager's locking code is supposed to prevent
-    /// higher level crates from accidentally trying to do this.  This
-    /// error kind can indicate a bug.
-    ///
-    /// Note that this kind of error only applies to problems in your `state_dir`:
-    /// problems with your cache are another kind.
-    #[display(fmt = "could not write to read-only persistent state")]
-    PersistentStateReadOnly,
-
     /// Tor client's cache has been corrupted.
     ///
     /// This could be because of a bug in the Tor code, or because something else has been messing
