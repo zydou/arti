@@ -9,7 +9,7 @@ use crate::address::IntoTorAddr;
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
-use tor_dirmgr::DirEvent;
+use tor_dirmgr::{event::FlagListener, DirEvent};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -59,7 +59,7 @@ pub struct TorClient<R: Runtime> {
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
-    dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
+    dirmgr: Arc<dyn tor_dirmgr::DirProvider<R, EventStream = FlagListener<DirEvent>>>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -474,8 +474,12 @@ impl<R: Runtime> TorClient<R> {
 
         self.dirmgr.bootstrap().await?;
 
-        self.circmgr
-            .update_network_parameters(self.dirmgr.netdir()?.params());
+        self.circmgr.update_network_parameters(
+            self.dirmgr
+                .latest_netdir()
+                .ok_or(ErrorDetail::DirMgr(tor_dirmgr::Error::DirectoryNotPresent))?
+                .params(),
+        );
 
         Ok(())
     }
@@ -779,7 +783,9 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn dirmgr(&self) -> Arc<tor_dirmgr::DirMgr<R>> {
+    pub fn dirmgr(
+        &self,
+    ) -> Arc<dyn tor_dirmgr::DirProvider<R, EventStream = FlagListener<DirEvent>>> {
         Arc::clone(&self.dirmgr)
     }
 
@@ -802,7 +808,7 @@ impl<R: Runtime> TorClient<R> {
         self.wait_for_bootstrap().await?;
         let dir = self
             .dirmgr
-            .opt_netdir()
+            .latest_netdir()
             .ok_or(ErrorDetail::BootstrapRequired {
                 action: "launch a circuit",
             })?;
