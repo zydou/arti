@@ -140,6 +140,9 @@ pub enum ErrorKind {
     /// Future versions of Arti may resolve this situation automatically without caller
     /// intervention, possibly depending on preferences and API usage, in which case this kind of
     /// error will never occur.
+    //
+    // TODO: We should distinguish among the actual issues here, and report a
+    // real bootstrapping problem when it exists.
     #[display(fmt = "network directory is expired.")]
     DirectoryExpired,
 
@@ -230,6 +233,9 @@ pub enum ErrorKind {
     /// unable to answer your replies in a timely manner.
     ///
     /// In either case, trying later, or on a different circuit, might help.  
+    //
+    // TODO: Say that this is distinct from the case where the exit _tells you_
+    // that there is a timeout.
     #[display(fmt = "operation timed out at exit")]
     RemoteNetworkTimeout,
 
@@ -477,10 +483,14 @@ pub enum ErrorKind {
     /// We were unable to construct a path through the Tor network.
     ///
     /// Usually this indicates that there are too many user-supplied
-    /// restrictions for us to comply with.  
+    /// restrictions for us to comply with.
     ///
     /// On test networks, it likely indicates that there aren't enough relays,
     /// or that there aren't enough relays in distinct families.
+    //
+    // TODO: in the future, errors of this type should distinguish between
+    // cases where this happens because of a user restriction and cases where it
+    // happens because of a severely broken directory.
     #[display(fmt = "could not construct a path")]
     NoPath,
 
@@ -490,7 +500,8 @@ pub enum ErrorKind {
     /// Usually this indicates that there were too many user-supplied
     /// restrictions on the exit for us to comply with, or that there was no
     /// exit on the network supporting all of the ports that the user asked for.
-
+    //
+    // TODO: same as for NoPath.
     #[display(fmt = "no exit available for path")]
     NoExit,
 
