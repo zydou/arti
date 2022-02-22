@@ -12,4 +12,4 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dev-dependencies]
 
-anyhow = "1.0.5"
+anyhow = "1.0.23"

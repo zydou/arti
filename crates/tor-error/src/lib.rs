@@ -41,6 +41,9 @@ use derive_more::Display;
 mod internal;
 pub use internal::*;
 
+mod report;
+pub use report::*;
+
 mod truncated;
 pub use truncated::*;
 
