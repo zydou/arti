@@ -19,7 +19,6 @@ pub enum Error {
     GuardNotUsable,
 
     /// We were waiting on a pending circuit, but it failed to report
-    /// success _or_ failure.
     #[error("Pending circuit(s) failed without reporting status")]
     PendingCanceled,
 
@@ -128,7 +127,7 @@ impl HasKind for Error {
             E::Bug(e) => e.kind(),
             E::NoPath(_) => EK::NoPath,
             E::NoExit(_) => EK::NoExit,
-            E::PendingCanceled => EK::Canceled,
+            E::PendingCanceled => EK::ReactorShuttingDown,
             E::CircTimeout => EK::TorNetworkTimeout,
             E::GuardNotUsable => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,

@@ -27,6 +27,7 @@ use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
 use tor_config::MutCfg;
+use tor_error::internal;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -38,6 +39,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
@@ -806,7 +808,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         if let Action::Build(plans) = action {
             for plan in plans {
                 let self_clone = Arc::clone(self);
-                let _ignore_receiver = self_clone.launch(usage, plan);
+                let _ignore_receiver = self_clone.spawn_launch(usage, plan);
             }
         }
 
@@ -890,7 +892,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 for plan in plans {
                     let self_clone = Arc::clone(&self);
                     // (This is where we actually launch circuits.)
-                    futures.push(self_clone.launch(usage, plan));
+                    futures.push(self_clone.spawn_launch(usage, plan));
                 }
                 futures
             }
@@ -1025,14 +1027,14 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             .expect("Poisoned lock for circuit list")
             .add_pending_circ(pending);
 
-        Ok(Arc::clone(self).launch(usage, plan))
+        Ok(Arc::clone(self).spawn_launch(usage, plan))
     }
 
-    /// Actually launch a circuit in a background task.
+    /// Spawn a background task to launch a circuit, and report its status.
     ///
     /// The `usage` argument is the usage from the original request that made
     /// us build this circuit.
-    fn launch(
+    fn spawn_launch(
         self: Arc<Self>,
         usage: &<B::Spec as AbstractSpec>::Usage,
         plan: CircBuildPlan<B>,
@@ -1059,48 +1061,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
 
         runtime
             .spawn(async move {
-                let outcome = self.builder.build_circuit(plan).await;
-
-                let (new_spec, reply) = match outcome {
-                    Err(e) => (None, Err(e)),
-                    Ok((new_spec, circ)) => {
-                        let id = circ.id();
-
-                        let use_duration = self.pick_use_duration();
-                        let exp_inst = self.runtime.now() + use_duration;
-                        spawn_expiration_task(
-                            &runtime_copy,
-                            Arc::downgrade(&self),
-                            circ.id(),
-                            exp_inst,
-                        );
-                        // I used to call restrict_mut here, but now I'm not so
-                        // sure. Doing restrict_mut makes sure that this
-                        // circuit will be suitable for the request that asked
-                        // for us in the first place, but that should be
-                        // ensured anyway by our tracking its tentative
-                        // assignment.
-                        //
-                        // new_spec.restrict_mut(&usage_copy).unwrap();
-                        let use_before = ExpirationInfo::new(exp_inst);
-                        let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
-                        {
-                            let mut list = self.circs.lock().expect("poisoned lock");
-                            if list.circ_is_pending(&pending) {
-                                list.add_open(open_ent);
-                                // We drop our reference to 'pending' here:
-                                // this should make all the weak references to
-                                // the `PendingEntry` become dangling.
-                                drop(pending);
-                                (Some(new_spec), Ok(id))
-                            } else {
-                                // This circuit is no longer pending! It must have been cancelled.
-                                drop(pending); // ibid
-                                (None, Err(Error::CircCanceled))
-                            }
-                        }
+                let self_clone = Arc::clone(&self);
+                let future = AssertUnwindSafe(self_clone.do_launch(plan, pending)).catch_unwind();
+                let (new_spec, reply) = match future.await {
+                    Ok(x) => x, // Success or regular failure
+                    Err(e) => {
+                        // Okay, this is a panic.  We have to tell the calling
+                        // thread about it, then exit this circuit builder task.
+                        let _ = sender.send(Err(internal!("circuit build task panicked").into()));
+                        std::panic::panic_any(e);
                     }
                 };
+
                 // Tell anybody who was listening about it that this
                 // circuit is now usable or failed.
                 //
@@ -1130,6 +1102,53 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             .expect("Couldn't spawn circuit-building task");
 
         wait_on_future
+    }
+
+    /// Run in the background to launch a circuit. Return a 2-tuple of the new
+    /// circuit spec and the outcome that should be sent to the initiator.
+    async fn do_launch(
+        self: Arc<Self>,
+        plan: <B as AbstractCircBuilder>::Plan,
+        pending: Arc<PendingEntry<B>>,
+    ) -> (Option<<B as AbstractCircBuilder>::Spec>, PendResult<B>) {
+        let outcome = self.builder.build_circuit(plan).await;
+
+        match outcome {
+            Err(e) => (None, Err(e)),
+            Ok((new_spec, circ)) => {
+                let id = circ.id();
+
+                let use_duration = self.pick_use_duration();
+                let exp_inst = self.runtime.now() + use_duration;
+                let runtime_copy = self.runtime.clone();
+                spawn_expiration_task(&runtime_copy, Arc::downgrade(&self), circ.id(), exp_inst);
+                // I used to call restrict_mut here, but now I'm not so
+                // sure. Doing restrict_mut makes sure that this
+                // circuit will be suitable for the request that asked
+                // for us in the first place, but that should be
+                // ensured anyway by our tracking its tentative
+                // assignment.
+                //
+                // new_spec.restrict_mut(&usage_copy).unwrap();
+                let use_before = ExpirationInfo::new(exp_inst);
+                let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
+                {
+                    let mut list = self.circs.lock().expect("poisoned lock");
+                    if list.circ_is_pending(&pending) {
+                        list.add_open(open_ent);
+                        // We drop our reference to 'pending' here:
+                        // this should make all the weak references to
+                        // the `PendingEntry` become dangling.
+                        drop(pending);
+                        (Some(new_spec), Ok(id))
+                    } else {
+                        // This circuit is no longer pending! It must have been cancelled.
+                        drop(pending); // ibid
+                        (None, Err(Error::CircCanceled))
+                    }
+                }
+            }
+        }
     }
 
     /// Remove the circuit with a given `id` from this manager.
