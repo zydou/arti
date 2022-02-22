@@ -57,3 +57,59 @@ where
     eprintln!("{}", Report(e));
     std::process::exit(127)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::error::Error as StdError;
+    use std::io;
+    use thiserror::Error;
+
+    #[derive(Error, Debug)]
+    #[error("terse")]
+    struct TerseError {
+        #[from]
+        source: Box<dyn StdError>,
+    }
+
+    #[derive(Error, Debug)]
+    #[error("verbose - {source}")]
+    struct VerboseError {
+        #[from]
+        source: Box<dyn StdError>,
+    }
+
+    #[derive(Error, Debug)]
+    #[error("shallow")]
+    struct ShallowError;
+
+    fn chk<E: StdError + 'static>(e: E, expected: &str) {
+        let e: Box<dyn StdError> = Box::new(e);
+        let got = Report(&e).to_string();
+        assert_eq!(got, expected, "\nmismatch: {:?}", &e);
+    }
+
+    #[test]
+    #[rustfmt::skip] // preserve layout of chk calls
+    fn test() {
+        chk(ShallowError,
+            "error: shallow");
+
+        let terse_1 = || TerseError { source: ShallowError.into() };
+        chk(terse_1(),
+            "error: terse: shallow");
+
+        let verbose_1 = || VerboseError { source: ShallowError.into() };
+        chk(verbose_1(),
+            "error: verbose - shallow");
+
+        chk(VerboseError { source: terse_1().into() },
+            "error: verbose - terse: shallow");
+
+        chk(TerseError { source: verbose_1().into() },
+            "error: terse: verbose - shallow");
+
+        chk(io::Error::new(io::ErrorKind::Other, ShallowError),
+            "error: shallow");
+    }
+}
