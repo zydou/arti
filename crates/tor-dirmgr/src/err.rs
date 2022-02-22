@@ -156,7 +156,7 @@ impl HasKind for Error {
             E::BadHexInCache(_) => EK::CacheCorrupted,
             E::UnrecognizedAuthorities => EK::TorProtocolViolation,
             E::ManagerDropped => EK::ArtiShuttingDown,
-            E::CantAdvanceState => EK::TorConnectionFailed,
+            E::CantAdvanceState => EK::TorAccessFailed,
             E::StorageError(_) => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
             E::NetDocError { source, .. } => match source {

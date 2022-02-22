@@ -117,7 +117,7 @@ pub enum ErrorKind {
     /// properly.  Not used for errors that occur within the Tor network, or accessing the public
     /// internet on the far side of Tor.
     #[display(fmt = "error connecting to Tor")]
-    TorConnectionFailed,
+    TorAccessFailed,
 
     /// An attempt was made to use a Tor client for something without bootstrapping it first.
     #[display(fmt = "attempted to use unbootstrapped client")]
