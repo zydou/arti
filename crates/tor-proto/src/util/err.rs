@@ -146,12 +146,12 @@ impl HasKind for Error {
             E::CircRefused(_) => EK::CircuitRefused,
             E::BadStreamAddress => EK::BadApiUsage,
             E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
-            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,
+            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteHostNotFound,
             E::EndReceived(_) => EK::RemoteStreamError,
             E::NotConnected => EK::BadApiUsage,
             E::StreamProto(_) => EK::TorProtocolViolation,
             E::ChanMismatch(_) => EK::RelayIdMismatch,
-            E::ResolveError(_) => EK::RemoteNameError,
+            E::ResolveError(_) => EK::RemoteHostNotFound,
             E::Bug(e) => e.kind(),
         }
     }

@@ -376,12 +376,12 @@ pub enum ErrorKind {
     #[display(fmt = "remote stream error")]
     RemoteStreamError,
 
-    /// An operation finished because a remote name lookup was unsuccessful.
+    /// An operation finished because an exit failed to look up a hostname.
     ///
-    /// Trying at another exit might succeed, or the address might be
+    /// Trying at another exit might succeed, or the address might truly be
     /// unresolvable.
-    #[display(fmt = "remote name-lookup failure")]
-    RemoteNameError,
+    #[display(fmt = "remote hostname lookup failure")]
+    RemoteHostNotFound,
 
     /// We were asked to make an anonymous connection to a malformed address.
     ///
