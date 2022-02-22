@@ -60,28 +60,49 @@ pub use truncated::*;
 //
 // # Split on the place which caused the error
 //
-// We should distinguish, insofar as we can, within whose bailiwick
-// the error originated:
-//     - This very process, Tor code (EK::Internal)
-//     - This very process, application code (EK::BadApiUsage)
-//     - Some other process on the same machine (eg EK::LocalProtocolViolation)
-//     - The local network
-//     - The Tor network
-//     - The "far end", ie the public internet outside an exit node
-//       or (when we support it) the onion service we are connecting to
-// Obviously in many cases we may not be able to say for sure, so each
-// error kind represents not *one* of the above, but a specified *subset*.
+// Every ErrorKind should generally have an associated "location" in
+// which it occurred.  If a problem can happen in two different
+// "locations", it should have two different ErrorKinds.  (This goal
+// may be frustrated sometimes by difficulty in determining where exactly
+// a given error occurred.)
 //
-// # Lump parts/aspects/subprotocols of Tor
+// The location of an ErrorKind should always be clear from its name.  If is not
+// clear, add a location-related word to the name of the ErrorKind.
 //
-// Unless we expect and intend the user or programmer to exercise an ability to influence which
-// remote entities we try to use, we should not distinguish between the different kinds of remote
-// Tor entity, nor between the different protocols or protocol layers which we use.
+// For the purposes of this discussion, the following locations exist:
+//   - Process:  Our code, or the application code using it.  These errors don't
+//     usually need a special prefix.
+//   - Host: A problem with our local computing  environment.  These errors
+//     usually reflect trying to run under impossible circumstances (no file
+//     system, no permissions, etc).
+//   - Local: Another process on the same machine, or on the network between us
+//     and the Tor network.  Errors in this location often indicate an outage,
+//     misconfiguration, or a censorship event.
+//   - Tor: Anywhere within the Tor network, or connections between Tor relays.
+//     The words "Exit" and "Relay" also indicate this location.
+//   - Remote: Anywhere _beyond_ the Tor exit. Can be a problem in the Tor
+//     exit's connection to the real internet,  or with the remote host that the
+//     exit is talking to.  (This kind of error can also indicate that the exit
+//     is lying.)
 //
-// For example, Failures getting directory information from directory caches should be lumped with
-// failures to extend a circuit through a relay.
+// ## Lump any locations more fine-grained than that.
 //
-// This is because we expect applications not to have detailed knowledge of Tor.
+// We do not split locations more finely unless there's a good reason to do so.
+// For example, we don't typically split errors within the "Tor" location based
+// on whether they happened at a guard, a directory, or an exit.  (Errors with
+// "Exit" or "Guard" in their names are okay, so long as that kind of error can
+// _only_ occur at an Exit or Guard.)
+//
+// # Split based on reasonable response and semantics
+//
+// We also should split ErrorKinds based on what it's reasonable for the
+// receiver to do with them.  Users may find more applications for our errors
+// than we do, so we shouldn't assume that we can predict every reasonable use
+// in advance.
+//
+// ErrorKinds should be more specific than just the locations in which they
+// happen: for example, there shouldn't be a `TorNetworkError` or
+// a `RemoteFailure`.
 //
 // # Avoid exposing implementation details
 //
