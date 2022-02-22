@@ -354,13 +354,13 @@ pub enum ErrorKind {
     #[display(fmt = "tor operation timed out")]
     TorNetworkTimeout,
 
-    /// An operation failed somewhere in the tor network.
+    /// We tried but failed to download a piece of directory information.
     ///
-    /// This generally indicates a kind of error that we couldn't identify more
-    /// specifically, but where we are fairly comfortable in blaming it on a
-    /// remote Tor relay.
-    #[display(fmt = "tor network operation failed")]
-    TorNetworkError,
+    /// This is a lower-level kind of error; in general it should be retried
+    /// before the user can see it.   In the future it is likely to be split
+    /// into several other kinds.
+    #[display(fmt = "directory fetch attempt failed")]
+    TorDirectoryError,
 
     /// An operation finished because a remote stream was closed successfully.
     ///
