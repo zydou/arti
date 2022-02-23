@@ -113,7 +113,10 @@ async fn run<R: Runtime>(
     // for bootstrap to complete, rather than getting errors.
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
-    let client = TorClient::create_unbootstrapped(runtime.clone(), client_config, OnDemand)?;
+    let client = TorClient::builder(runtime.clone())
+        .config(client_config)
+        .bootstrap_behavior(OnDemand)
+        .create_unbootstrapped()?;
     if arti_config.application().watch_configuration() {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }

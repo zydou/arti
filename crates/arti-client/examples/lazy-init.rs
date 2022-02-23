@@ -1,5 +1,5 @@
 use anyhow::Result;
-use arti_client::{BootstrapBehavior, TorClient, TorClientConfig};
+use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
@@ -29,12 +29,10 @@ pub fn get_tor_client() -> Result<TorClient<TokioNativeTlsRuntime>> {
         eprintln!("creating unbootstrapped Tor client");
 
         // Create an unbootstrapped Tor client. Bootstrapping will happen when the client is used,
-        // since we specified `BootstrapBehavior::Ondemand`.
-        Ok(TorClient::create_unbootstrapped(
-            rt,
-            config,
-            BootstrapBehavior::OnDemand,
-        )?)
+        // since `BootstrapBehavior::OnDemand` is the default.
+        Ok(TorClient::builder(rt)
+            .config(config)
+            .create_unbootstrapped()?)
     })?;
 
     Ok(client.clone())

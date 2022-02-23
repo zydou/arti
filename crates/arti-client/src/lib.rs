@@ -190,12 +190,14 @@
 #![deny(clippy::unwrap_used)]
 
 mod address;
+mod builder;
 mod client;
 
 pub mod config;
 pub mod status;
 
 pub use address::{DangerouslyIntoTorAddr, IntoTorAddr, TorAddr, TorAddrError};
+pub use builder::TorClientBuilder;
 pub use client::{BootstrapBehavior, StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
