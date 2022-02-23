@@ -6,7 +6,7 @@ use std::{borrow::Cow, fmt, time::SystemTime};
 use derive_more::Display;
 use futures::{Stream, StreamExt};
 use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
-use tor_dirmgr::{DirBootstrapEvents, DirBootstrapStatus};
+use tor_dirmgr::DirBootstrapStatus;
 use tracing::debug;
 
 /// Information about how ready a [`crate::TorClient`] is to handle requests.
@@ -157,7 +157,7 @@ impl fmt::Display for BootstrapStatus {
 pub(crate) async fn report_status(
     mut sender: postage::watch::Sender<BootstrapStatus>,
     conn_status: ConnStatusEvents,
-    dir_status: DirBootstrapEvents,
+    dir_status: impl Stream<Item = DirBootstrapStatus> + Unpin,
 ) {
     /// Internal enumeration to combine incoming status changes.
     enum Event {
