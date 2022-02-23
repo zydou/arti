@@ -15,6 +15,11 @@ use tor_rtcompat::{CompoundRuntime, TcpListener, TcpProvider};
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
+// This example showcase using a custom TcpProvider to get a hook before connections are initiated
+// and after they are closed. This might be useful in situations where you open dynamicaly ports
+// on a very restrictive firewall, or set custom routing rules to force all traffic to arti somehow,
+// and don't want arti to be sent to itself.
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -54,7 +59,15 @@ struct CustomTcpProvider<T> {
 struct CustomTcpStream<T> {
     inner: T,
     addr: SocketAddr,
-    closed: bool,
+    state: TcpState,
+}
+
+#[derive(PartialEq)]
+enum TcpState {
+    Open,
+    SendClosed,
+    RecvClosed,
+    Closed,
 }
 
 struct CustomTcpListener<T> {
@@ -89,7 +102,7 @@ where
                 r.map(|stream| CustomTcpStream {
                     inner: stream,
                     addr: *addr,
-                    closed: false,
+                    state: TcpState::Open,
                 })
             })
             .boxed()
@@ -121,7 +134,20 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<IoResult<usize>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf)
+        let res = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(0)) = res {
+            if !buf.is_empty() {
+                match self.state {
+                    TcpState::Closed | TcpState::RecvClosed => (),
+                    TcpState::Open => self.state = TcpState::RecvClosed,
+                    TcpState::SendClosed => {
+                        println!("closed a connecion to {}", self.addr);
+                        self.state = TcpState::Closed;
+                    }
+                }
+            }
+        }
+        res
     }
 
     fn poll_read_vectored(
@@ -129,7 +155,20 @@ where
         cx: &mut Context<'_>,
         bufs: &mut [std::io::IoSliceMut<'_>],
     ) -> Poll<IoResult<usize>> {
-        Pin::new(&mut self.inner).poll_read_vectored(cx, bufs)
+        let res = Pin::new(&mut self.inner).poll_read_vectored(cx, bufs);
+        if let Poll::Ready(Ok(0)) = res {
+            if bufs.iter().any(|buf| !buf.is_empty()) {
+                match self.state {
+                    TcpState::Closed | TcpState::RecvClosed => (),
+                    TcpState::Open => self.state = TcpState::RecvClosed,
+                    TcpState::SendClosed => {
+                        println!("closed a connecion to {}", self.addr);
+                        self.state = TcpState::Closed;
+                    }
+                }
+            }
+        }
+        res
     }
 }
 
@@ -152,8 +191,14 @@ where
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         let res = Pin::new(&mut self.inner).poll_close(cx);
         if res.is_ready() {
-            println!("closed a connecion to {}", self.addr);
-            self.closed = true;
+            match self.state {
+                TcpState::Closed | TcpState::SendClosed => (),
+                TcpState::Open => self.state = TcpState::SendClosed,
+                TcpState::RecvClosed => {
+                    println!("closed a connecion to {}", self.addr);
+                    self.state = TcpState::Closed;
+                }
+            }
         }
         res
     }
@@ -169,7 +214,7 @@ where
 
 impl<T> Drop for CustomTcpStream<T> {
     fn drop(&mut self) {
-        if !self.closed {
+        if self.state != TcpState::Closed {
             println!("closed a connecion to {}", self.addr);
         }
     }
@@ -204,7 +249,7 @@ where
                         CustomTcpStream {
                             inner: stream,
                             addr,
-                            closed: false,
+                            state: TcpState::Open,
                         },
                         addr,
                     )
@@ -236,7 +281,7 @@ where
                 CustomTcpStream {
                     inner: stream,
                     addr,
-                    closed: false,
+                    state: TcpState::Open,
                 },
                 addr,
             )))),
