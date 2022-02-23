@@ -1,11 +1,13 @@
 //! Implementation for the (deprecated) CreateFast handshake.
 //!
 
+use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::crypto::ll::kdf::{Kdf, LegacyKdf};
 use crate::util::ct::bytes_eq;
 use crate::{Error, Result};
 
 use rand::{CryptoRng, RngCore};
+use tor_error::into_internal;
 
 /// Number of bytes used for a "CREATE_FAST" handshake by the initiator.
 pub(crate) const FAST_C_HANDSHAKE_LEN: usize = 20;
@@ -66,10 +68,10 @@ impl super::ServerHandshake for CreateFastServer {
         rng: &mut R,
         _key: &[Self::KeyType],
         msg: T,
-    ) -> Result<(Self::KeyGen, Vec<u8>)> {
+    ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)> {
         let msg = msg.as_ref();
         if msg.len() != FAST_C_HANDSHAKE_LEN {
-            return Err(Error::BadHandshake);
+            return Err(RelayHandshakeError::BadHandshake);
         }
         let mut reply = vec![0_u8; FAST_S_HANDSHAKE_LEN];
         rng.fill_bytes(&mut reply[0..20]);
@@ -77,7 +79,9 @@ impl super::ServerHandshake for CreateFastServer {
         let mut inp = Vec::new();
         inp.extend(msg);
         inp.extend(&reply[0..20]);
-        let kh = LegacyKdf::new(0).derive(&inp[..], 20)?;
+        let kh = LegacyKdf::new(0)
+            .derive(&inp[..], 20)
+            .map_err(into_internal!("Can't expand key"))?;
         reply[20..].copy_from_slice(&kh);
 
         Ok((super::TapKeyGenerator::new(inp.into()), reply))

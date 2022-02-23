@@ -163,7 +163,7 @@ impl tor_error::HasKind for Error {
         use tor_error::ErrorKind as K;
         match self {
             E::IoError(..)     => K::PersistentStateAccessFailed,
-            E::NoLock          => K::PersistentStateReadOnly,
+            E::NoLock          => K::BadApiUsage,
             E::Serialize(..)   => K::Internal,
             E::Deserialize(..) => K::PersistentStateCorrupted,
         }

@@ -95,7 +95,7 @@ impl HasKind for Error {
             // TODO: it would be good to get more information out of the IoError
             // in this case, but that would require a bunch of gnarly
             // downcasting.
-            E::IoError(_) => EK::TorNetworkError,
+            E::IoError(_) => EK::TorDirectoryError,
             E::Proto(e) => e.kind(),
             E::CircMgr(e) => e.kind(),
             E::HttparseError(_) => EK::TorProtocolViolation,

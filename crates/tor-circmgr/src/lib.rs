@@ -258,9 +258,10 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Flush state to the state manager, if there is any unsaved state and
     /// we have the lock.
-    pub fn store_persistent_state(&self) -> Result<()> {
-        self.mgr.peek_builder().save_state()?;
-        Ok(())
+    ///
+    /// Return true if we saved something; false if we didn't have the lock.
+    pub fn store_persistent_state(&self) -> Result<bool> {
+        self.mgr.peek_builder().save_state()
     }
 
     /// Reconfigure this circuit manager using the latest set of
@@ -436,10 +437,8 @@ impl<R: Runtime> CircMgr<R> {
 impl<R: Runtime> Drop for CircMgr<R> {
     fn drop(&mut self) {
         match self.store_persistent_state() {
-            Ok(()) => info!("Flushed persistent state at exit."),
-            Err(Error::State(tor_persist::Error::NoLock)) => {
-                debug!("Lock not held; no state to flush.");
-            }
+            Ok(true) => info!("Flushed persistent state at exit."),
+            Ok(false) => debug!("Lock not held; no state to flush."),
             Err(e) => error!("Unable to flush state on circuit manager drop: {}", e),
         }
     }

@@ -13,6 +13,7 @@
 // This module is still unused: so allow some dead code for now.
 #![allow(dead_code)]
 
+use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result};
 use tor_bytes::{Reader, Writeable, Writer};
@@ -352,7 +353,7 @@ fn server_handshake_ntor_v3<RNG: CryptoRng + RngCore, REPLY: MsgReply>(
     message: &[u8],
     keys: &[NtorV3SecretKey],
     verification: &[u8],
-) -> Result<(Vec<u8>, impl digest::XofReader)> {
+) -> RelayHandshakeResult<(Vec<u8>, impl digest::XofReader)> {
     let secret_key_y = curve25519::StaticSecret::new(rng.rng_compat());
     server_handshake_ntor_v3_no_keygen(reply_fn, &secret_key_y, message, keys, verification)
 }
@@ -364,7 +365,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     message: &[u8],
     keys: &[NtorV3SecretKey],
     verification: &[u8],
-) -> Result<(Vec<u8>, impl digest::XofReader)> {
+) -> RelayHandshakeResult<(Vec<u8>, impl digest::XofReader)> {
     // Decode the message.
     let mut r = Reader::from_slice(message);
     let id: Ed25519Identity = r.extract()?;
@@ -382,7 +383,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     let keypair = ct::lookup(keys, |key| key.matches(id, requested_pk));
     let keypair = match keypair {
         Some(k) => k,
-        None => return Err(Error::MissingKey),
+        None => return Err(RelayHandshakeError::MissingKey),
     };
 
     let xb = keypair.sk.diffie_hellman(&client_pk);
@@ -467,7 +468,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     if okay.into() {
         Ok((reply, keystream))
     } else {
-        Err(Error::BadHandshake)
+        Err(RelayHandshakeError::BadHandshake)
     }
 }
 

@@ -117,7 +117,7 @@ pub enum ErrorKind {
     /// properly.  Not used for errors that occur within the Tor network, or accessing the public
     /// internet on the far side of Tor.
     #[display(fmt = "error connecting to Tor")]
-    TorConnectionFailed,
+    TorAccessFailed,
 
     /// An attempt was made to use a Tor client for something without bootstrapping it first.
     #[display(fmt = "attempted to use unbootstrapped client")]
@@ -140,6 +140,9 @@ pub enum ErrorKind {
     /// Future versions of Arti may resolve this situation automatically without caller
     /// intervention, possibly depending on preferences and API usage, in which case this kind of
     /// error will never occur.
+    //
+    // TODO: We should distinguish among the actual issues here, and report a
+    // real bootstrapping problem when it exists.
     #[display(fmt = "network directory is expired.")]
     DirectoryExpired,
 
@@ -165,18 +168,6 @@ pub enum ErrorKind {
     /// `state_dir`: problems with your cache are another kind.
     #[display(fmt = "corrupted data in persistent state")]
     PersistentStateCorrupted,
-
-    /// Tried to write to read-only persistent state.
-    ///
-    /// Usually, errors of this kind should be handled before the user sees
-    /// them: the state manager's locking code is supposed to prevent
-    /// higher level crates from accidentally trying to do this.  This
-    /// error kind can indicate a bug.
-    ///
-    /// Note that this kind of error only applies to problems in your `state_dir`:
-    /// problems with your cache are another kind.
-    #[display(fmt = "could not write to read-only persistent state")]
-    PersistentStateReadOnly,
 
     /// Tor client's cache has been corrupted.
     ///
@@ -212,15 +203,7 @@ pub enum ErrorKind {
     /// This likely indicates that the last handle to the `TorClient` has been
     /// dropped, and is preventing other operations from completing.
     #[display(fmt = "Tor client is shutting down.")]
-    TorShuttingDown,
-
-    /// Tor client's Rust async reactor could not spawn a task for unexplained
-    /// reasons
-    ///
-    /// This is probably a bug or configuration problem in the async reactor
-    /// implementation, or in arti's use of it.
-    #[display(fmt = "unexplained rust async task spawn failure")]
-    UnexplainedTaskSpawnFailure,
+    ArtiShuttingDown,
 
     /// An operation failed because we waited too long for an exit to do
     /// something.
@@ -230,6 +213,9 @@ pub enum ErrorKind {
     /// unable to answer your replies in a timely manner.
     ///
     /// In either case, trying later, or on a different circuit, might help.  
+    //
+    // TODO: Say that this is distinct from the case where the exit _tells you_
+    // that there is a timeout.
     #[display(fmt = "operation timed out at exit")]
     RemoteNetworkTimeout,
 
@@ -334,13 +320,13 @@ pub enum ErrorKind {
     #[display(fmt = "problem with network or connection")]
     Network,
 
-    /// A remote host had an identity other than the one we expected.
+    /// A relay had an identity other than the one we expected.
     ///
     /// This could indicate a MITM attack, but more likely indicates that the
     /// relay has changed its identity but the new identity hasn't propagated
     /// through the directory system yet.
     #[display(fmt = "identity mismatch")]
-    RemoteIdMismatch,
+    RelayIdMismatch,
 
     /// An attempt to do something remotely through the Tor network failed
     /// because the circuit it was using shut down before the operation could
@@ -356,13 +342,14 @@ pub enum ErrorKind {
     #[display(fmt = "tor operation timed out")]
     TorNetworkTimeout,
 
-    /// An operation failed somewhere in the tor network.
+    /// We tried but failed to download a piece of directory information.
     ///
-    /// This generally indicates a kind of error that we couldn't identify more
-    /// specifically, but where we are fairly comfortable in blaming it on a
-    /// remote Tor relay.
-    #[display(fmt = "tor network operation failed")]
-    TorNetworkError,
+    /// This is a lower-level kind of error; in general it should be retried
+    /// before the user can see it.   In the future it is likely to be split
+    /// into several other kinds.
+    // TODO ^
+    #[display(fmt = "directory fetch attempt failed")]
+    TorDirectoryError,
 
     /// An operation finished because a remote stream was closed successfully.
     ///
@@ -378,12 +365,17 @@ pub enum ErrorKind {
     #[display(fmt = "remote stream error")]
     RemoteStreamError,
 
-    /// An operation finished because a remote name lookup was unsuccessful.
+    /// An operation finished because an exit failed to look up a hostname.
     ///
-    /// Trying at another exit might succeed, or the address might be
+    /// Unfortunately, the Tor protocol does not distinguish failure of DNS
+    /// services ("we couldn't find out if this host exists and what its name is")
+    /// from confirmed denials ("this is not a hostname").  So this kind
+    /// conflates both those sorts of error.
+    ///
+    /// Trying at another exit might succeed, or the address might truly be
     /// unresolvable.
-    #[display(fmt = "remote name-lookup failure")]
-    RemoteNameError,
+    #[display(fmt = "remote hostname lookup failure")]
+    RemoteHostNotFound,
 
     /// We were asked to make an anonymous connection to a malformed address.
     ///
@@ -402,11 +394,6 @@ pub enum ErrorKind {
     /// configuration to allow what you want.
     #[display(fmt = "target address disabled locally")]
     ForbiddenStreamTarget,
-
-    /// An operation won't work because it's trying to use an object that's
-    /// already in a shutting-down state.
-    #[display(fmt = "target object already closed")]
-    AlreadyClosed,
 
     /// An operation failed in a transient way.
     ///
@@ -435,52 +422,27 @@ pub enum ErrorKind {
     #[display(fmt = "bad API usage (bug)")]
     BadApiUsage,
 
-    /// An operation failed because a local namespace is too full to grow.
-    ///
-    /// This error can occur if you try to put too many streams onto a single
-    /// circuit, or too many circuits onto a single channel.  Both are very
-    /// unlikely in practice.
-    ///
-    /// If you see this kind of error when opening a stream, try opening the
-    /// stream on a different circuit.  If you see this kind of error when
-    /// opening a circuit, then there is probably a bug in your program.
-    #[display(fmt = "namespace full")]
-    NamespaceFull,
-
-    /// An operation failed because a remote party on the Tor expected us to
-    /// have a resource or identity that we do not.
-    ///
-    /// Clients should never encounter this kind of error.
-    #[display(fmt = "requested resource is not available")]
-    RequestedResourceAbsent,
-
-    /// We asked a remote host to do something, and it declined.
+    /// We asked a relay to create or extend a circuit, and it declined.
     ///
     /// Either it gave an error message indicating that it refused to perform
     /// the request, or the protocol gives it no room to explain what happened.
     ///
-    /// The remote host in question is on the public internet, or an onion service.
-    /// This error does not relate to refusals by part of the Tor network.
+    /// This error is returned by higher-level functions only if it is the most informative
+    /// error after appropriate retries etc.
     #[display(fmt = "remote host refused our request")]
-    RemoteRefused,
-
-    /// An operation was canceled before it could complete.
-    ///
-    /// This kind of error usually indicates that the piece of code you're using
-    /// was told to stop some or all of its in-progress tasks.
-    ///
-    /// Normally this kind of error ought to be expected and handled, rather than
-    /// shown to a user.
-    #[display(fmt = "operation canceled")]
-    Canceled,
+    CircuitRefused,
 
     /// We were unable to construct a path through the Tor network.
     ///
     /// Usually this indicates that there are too many user-supplied
-    /// restrictions for us to comply with.  
+    /// restrictions for us to comply with.
     ///
     /// On test networks, it likely indicates that there aren't enough relays,
     /// or that there aren't enough relays in distinct families.
+    //
+    // TODO: in the future, errors of this type should distinguish between
+    // cases where this happens because of a user restriction and cases where it
+    // happens because of a severely broken directory.
     #[display(fmt = "could not construct a path")]
     NoPath,
 
@@ -490,7 +452,8 @@ pub enum ErrorKind {
     /// Usually this indicates that there were too many user-supplied
     /// restrictions on the exit for us to comply with, or that there was no
     /// exit on the network supporting all of the ports that the user asked for.
-
+    //
+    // TODO: same as for NoPath.
     #[display(fmt = "no exit available for path")]
     NoExit,
 
@@ -519,7 +482,7 @@ impl HasKind for futures::task::SpawnError {
         if self.is_shutdown() {
             EK::ReactorShuttingDown
         } else {
-            EK::UnexplainedTaskSpawnFailure
+            EK::Internal
         }
     }
 }

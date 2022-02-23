@@ -296,13 +296,18 @@ impl<R: Runtime> CircuitBuilder<R> {
         self.path_config.replace(new_config);
     }
 
-    /// Flush state to the state manager.
-    pub(crate) fn save_state(&self) -> Result<()> {
+    /// Flush state to the state manager if we own the lock.
+    ///
+    /// Return `Ok(true)` if we saved, and `Ok(false)` if we didn't hold the lock.
+    pub(crate) fn save_state(&self) -> Result<bool> {
+        if !self.storage.can_store() {
+            return Ok(false);
+        }
         // TODO: someday we'll want to only do this if there is something
         // changed.
         self.builder.timeouts.save_state(&self.storage)?;
         self.guardmgr.store_persistent_state()?;
-        Ok(())
+        Ok(true)
     }
 
     /// Replace our state with a new owning state, assuming we have

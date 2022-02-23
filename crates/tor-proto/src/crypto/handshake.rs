@@ -62,7 +62,7 @@ pub(crate) trait ServerHandshake {
         rng: &mut R,
         key: &[Self::KeyType],
         msg: T,
-    ) -> Result<(Self::KeyGen, Vec<u8>)>;
+    ) -> RelayHandshakeResult<(Self::KeyGen, Vec<u8>)>;
 }
 
 /// A KeyGenerator is returned by a handshake, and used to generate
@@ -118,3 +118,24 @@ impl KeyGenerator for ShakeKeyGenerator {
         ShakeKdf::new().derive(&self.seed[..], keylen)
     }
 }
+
+/// An error produced by a Relay's attempt to handle a client's onion handshake.
+#[derive(Clone, Debug, thiserror::Error)]
+pub(crate) enum RelayHandshakeError {
+    /// An error in parsing or encoding a handshake message.
+    #[error("problem in handshake format.")]
+    Fmt(#[from] tor_bytes::Error),
+    /// The client asked for a key we didn't have.
+    #[error("unrecognized key or identity in handshake")]
+    MissingKey,
+    /// The client did something wrong with their handshake or cryptography.
+    #[error("bad handshake from client")]
+    BadHandshake,
+    /// An internal error.
+    #[error("internal error")]
+    Internal(#[from] tor_error::Bug),
+}
+
+/// Type alias for results from a relay's attempt to handle a client's onion
+/// handshake.
+pub(crate) type RelayHandshakeResult<T> = std::result::Result<T, RelayHandshakeError>;

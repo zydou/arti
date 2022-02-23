@@ -22,9 +22,6 @@ pub enum Error {
     /// An error occurred in the cell-handling layer.
     #[error("cell encoding error: {0}")]
     CellErr(#[source] tor_cell::Error),
-    /// Somebody asked for a key that we didn't have.
-    #[error("specified key was missing")]
-    MissingKey,
     /// We tried to produce too much output for some function.
     #[error("couldn't produce that much output")]
     InvalidOutputLength,
@@ -113,8 +110,8 @@ impl From<Error> for std::io::Error {
 
             ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_) | MissingKey | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_)
-            | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
+            BytesErr(_) | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_) | CellErr(_)
+            | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -134,7 +131,6 @@ impl HasKind for Error {
             E::BytesErr(_) => EK::TorProtocolViolation,
             E::IoErr(_) => EK::Network,
             E::CellErr(e) => e.kind(),
-            E::MissingKey => EK::RequestedResourceAbsent,
             E::InvalidOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,
@@ -142,16 +138,16 @@ impl HasKind for Error {
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::CircProto(_) => EK::TorProtocolViolation,
             E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
-            E::IdRangeFull => EK::NamespaceFull,
-            E::CircRefused(_) => EK::RemoteRefused,
+            E::IdRangeFull => EK::BadApiUsage,
+            E::CircRefused(_) => EK::CircuitRefused,
             E::BadStreamAddress => EK::BadApiUsage,
             E::EndReceived(EndReason::DONE) => EK::RemoteStreamClosed,
-            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteNameError,
+            E::EndReceived(EndReason::RESOLVEFAILED) => EK::RemoteHostNotFound,
             E::EndReceived(_) => EK::RemoteStreamError,
-            E::NotConnected => EK::AlreadyClosed,
+            E::NotConnected => EK::BadApiUsage,
             E::StreamProto(_) => EK::TorProtocolViolation,
-            E::ChanMismatch(_) => EK::RemoteIdMismatch,
-            E::ResolveError(_) => EK::RemoteNameError,
+            E::ChanMismatch(_) => EK::RelayIdMismatch,
+            E::ResolveError(_) => EK::RemoteHostNotFound,
             E::Bug(e) => e.kind(),
         }
     }
