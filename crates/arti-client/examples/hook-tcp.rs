@@ -170,7 +170,7 @@ where
 
         // Check for a zero-byte read, indicating closure.
         if let Poll::Ready(Ok(0)) = res {
-            // Ignore if buf is zero-lenght, reading 0 bytes doesn't mean eof in that case
+            // Ignore if buf is zero-length, reading 0 bytes doesn't mean eof in that case
             if !buf.is_empty() {
                 match self.state {
                     // If we're already closed, do nothing.
@@ -181,7 +181,7 @@ where
                     // We've closed the stream on our end, and the other side has now closed it
                     // too, so the stream is now fully closed.
                     TcpState::SendClosed => {
-                        println!("closed a connecion to {}", self.addr);
+                        println!("closed a connection to {}", self.addr);
                         self.state = TcpState::Closed;
                     }
                 }
@@ -204,7 +204,7 @@ where
                     TcpState::Closed | TcpState::RecvClosed => (),
                     TcpState::Open => self.state = TcpState::RecvClosed,
                     TcpState::SendClosed => {
-                        println!("closed a connecion to {}", self.addr);
+                        println!("closed a connection to {}", self.addr);
                         self.state = TcpState::Closed;
                     }
                 }
