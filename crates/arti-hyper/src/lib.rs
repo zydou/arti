@@ -31,8 +31,20 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+use std::future::Future;
+use std::io::Error;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use arti_client::{DataStream, IntoTorAddr, TorClient};
+use hyper::client::connect::{Connected, Connection};
+use hyper::http::uri::Scheme;
 use hyper::http::Uri;
+use hyper::service::Service;
+use pin_project::pin_project;
 use thiserror::Error;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tor_rtcompat::Runtime;
 
 /// Error making or using http connection
 ///
@@ -57,4 +69,104 @@ pub enum ConnectionError {
     /// Tor connection failed
     #[error("Tor connection failed")]
     Arti(#[from] arti_client::Error),
+}
+
+/// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
+///
+/// Only supports plaintext HTTP for now.
+#[derive(Clone)]
+pub struct ArtiHttpConnector<R: Runtime> {
+    client: TorClient<R>,
+}
+
+impl<R: Runtime> ArtiHttpConnector<R> {
+    /// Make a new `ArtiHttpConnector` using an Arti `TorClient` object.
+    pub fn new(client: TorClient<R>) -> Self {
+        Self { client }
+    }
+}
+
+/// Wrapper type that makes an Arti `DataStream` implement necessary traits to be used as
+/// a `hyper` connection object (mainly `Connection`).
+#[pin_project]
+pub struct ArtiHttpConnection {
+    #[pin]
+    inner: DataStream,
+}
+
+impl Connection for ArtiHttpConnection {
+    fn connected(&self) -> Connected {
+        Connected::new()
+    }
+}
+
+// These trait implementations just defer to the inner `DataStream`; the wrapper type is just
+// there to implement the `Connection` trait.
+impl AsyncRead for ArtiHttpConnection {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        self.project().inner.poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for ArtiHttpConnection {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, Error>> {
+        self.project().inner.poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.project().inner.poll_flush(cx)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
+        self.project().inner.poll_shutdown(cx)
+    }
+}
+
+fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
+    if uri.scheme() != Some(&Scheme::HTTP) {
+        return Err(ConnectionError::UnsupportedUriScheme { uri });
+    }
+    let host = match uri.host() {
+        Some(h) => h,
+        _ => return Err(ConnectionError::MissingHostname { uri }),
+    };
+    let port = uri.port().map(|x| x.as_u16()).unwrap_or(80);
+
+    Ok((host.to_owned(), port))
+}
+
+impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
+    type Response = ArtiHttpConnection;
+    type Error = ConnectionError;
+    #[allow(clippy::type_complexity)]
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: Uri) -> Self::Future {
+        // `TorClient` objects can be cloned cheaply (the cloned objects refer to the same
+        // underlying handles required to make Tor connections internally).
+        // We use this to avoid the returned future having to borrow `self`.
+        let client = self.client.clone();
+        Box::pin(async move {
+            // Extract the host and port to connect to from the URI.
+            let (host, port) = uri_to_host_port(req)?;
+            // Initiate a new Tor connection, producing a `DataStream` if successful.
+            let addr = (&host as &str, port)
+                .into_tor_addr()
+                .map_err(arti_client::Error::from)?;
+            let ds = client.connect(addr).await?;
+            Ok(ArtiHttpConnection { inner: ds })
+        })
+    }
 }
