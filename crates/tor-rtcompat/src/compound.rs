@@ -118,11 +118,10 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> TlsProvider<TcpR::TcpStream>
-    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, S> TlsProvider<S> for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
 where
     TcpR: TcpProvider,
-    TlsR: TlsProvider<TcpR::TcpStream>,
+    TlsR: TlsProvider<S>,
 {
     type Connector = TlsR::Connector;
     type TlsStream = TlsR::TlsStream;

@@ -7,7 +7,6 @@ use std::io::Result as IoResult;
 use crate::impls::native_tls::NativeTlsProvider;
 #[cfg(feature = "rustls")]
 use crate::impls::rustls::RustlsProvider;
-use async_std_crate::net::TcpStream;
 
 use async_executors::AsyncStd;
 
@@ -36,7 +35,7 @@ pub struct AsyncStdNativeTlsRuntime {
 
 /// Implementation type for AsyncStdRuntime.
 #[cfg(all(feature = "native-tls"))]
-type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider<TcpStream>>;
+type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider>;
 
 #[cfg(all(feature = "native-tls"))]
 crate::opaque::implement_opaque_runtime! {
@@ -53,7 +52,7 @@ pub struct AsyncStdRustlsRuntime {
 
 /// Implementation type for AsyncStdRustlsRuntime.
 #[cfg(feature = "rustls")]
-type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider<TcpStream>>;
+type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider>;
 
 #[cfg(feature = "rustls")]
 crate::opaque::implement_opaque_runtime! {

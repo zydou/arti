@@ -8,7 +8,6 @@ use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use crate::impls::native_tls::NativeTlsProvider;
 #[cfg(feature = "rustls")]
 use crate::impls::rustls::RustlsProvider;
-use crate::impls::tokio::net::TcpStream;
 
 /// An alias for the Tokio runtime that we prefer to use, based on whatever TLS
 /// implementation has been enabled.
@@ -40,7 +39,7 @@ pub struct TokioNativeTlsRuntime {
 
 /// Implementation type for a TokioRuntimeHandle.
 #[cfg(feature = "native-tls")]
-type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider<TcpStream>>;
+type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider>;
 
 /// A [`Runtime`](crate::Runtime) built around a Handle to a tokio runtime, and `rustls`.
 #[derive(Clone)]
@@ -52,7 +51,7 @@ pub struct TokioRustlsRuntime {
 
 /// Implementation for a TokioRuntimeRustlsHandle
 #[cfg(feature = "rustls")]
-type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider<TcpStream>>;
+type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider>;
 
 #[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
