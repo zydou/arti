@@ -185,7 +185,7 @@ where
     if okay.into() {
         Ok(keygen)
     } else {
-        Err(Error::BadHandshake)
+        Err(Error::BadCircHandshake)
     }
 }
 

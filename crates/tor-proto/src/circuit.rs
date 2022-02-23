@@ -1108,7 +1108,7 @@ mod test {
             let extended2 = relaymsg::Extended2::new(vec![99; 256]).into();
             let cc = rmsg_to_ccmsg(0, extended2);
             let error = bad_extend_test_impl(&rt, 2.into(), cc).await;
-            assert!(matches!(error, Error::BadHandshake));
+            assert!(matches!(error, Error::BadCircHandshake));
         });
     }
 

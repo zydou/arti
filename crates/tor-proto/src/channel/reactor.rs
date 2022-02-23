@@ -552,7 +552,7 @@ pub(crate) mod test {
             let (circ, _) =
                 futures::join!(pending.create_firsthop_fast(&circparams), send_response);
             // Make sure statuses are as expected.
-            assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
+            assert!(matches!(circ.err().unwrap(), Error::BadCircHandshake));
 
             reactor.run_once().await.unwrap();
 

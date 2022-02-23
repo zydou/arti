@@ -241,7 +241,7 @@ where
 
     // Validate the MAC!
     if my_mac_tag != mac_tag {
-        return Err(Error::BadHandshake);
+        return Err(Error::BadCircHandshake);
     }
 
     Ok(keygen)
@@ -329,7 +329,7 @@ where
     let my_mac_tag = hs_ntor_mac(&mac_body, &mac_key)?;
 
     if my_mac_tag != mac_tag {
-        return Err(Error::BadHandshake);
+        return Err(Error::BadCircHandshake);
     }
 
     // Decrypt the ENCRYPTED_DATA from the intro cell

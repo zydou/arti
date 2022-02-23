@@ -39,7 +39,7 @@ impl super::ClientHandshake for CreateFastClient {
     fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<Self::KeyGen> {
         let msg = msg.as_ref();
         if msg.len() != FAST_S_HANDSHAKE_LEN {
-            return Err(Error::BadHandshake);
+            return Err(Error::BadCircHandshake);
         }
         let mut inp = Vec::new();
         inp.extend(&state.0[..]);
@@ -48,7 +48,7 @@ impl super::ClientHandshake for CreateFastClient {
         let kh_expect = LegacyKdf::new(0).derive(&inp[..], 20)?;
 
         if !bytes_eq(&kh_expect, &msg[20..40]) {
-            return Err(Error::BadHandshake);
+            return Err(Error::BadCircHandshake);
         }
 
         Ok(super::TapKeyGenerator::new(inp.into()))

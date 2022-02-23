@@ -38,7 +38,7 @@ pub enum Error {
     BadCellAuth,
     /// A circuit-extension handshake failed.
     #[error("handshake failed")]
-    BadHandshake,
+    BadCircHandshake,
     /// Protocol violation at the channel level
     #[error("channel protocol violation: {0}")]
     ChanProto(String),
@@ -108,8 +108,8 @@ impl From<Error> for std::io::Error {
 
             ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_) | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_) | CellErr(_)
-            | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
+            BytesErr(_) | BadCellAuth | BadCircHandshake | ChanProto(_) | CircProto(_)
+            | CellErr(_) | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -133,7 +133,7 @@ impl HasKind for Error {
             E::InvalidOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,
-            E::BadHandshake => EK::TorProtocolViolation,
+            E::BadCircHandshake => EK::TorProtocolViolation,
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::CircProto(_) => EK::TorProtocolViolation,
             E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
