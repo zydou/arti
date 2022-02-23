@@ -126,7 +126,6 @@ dependencies = [
  "directories",
  "futures",
  "humantime-serde",
- "hyper",
  "once_cell",
  "pin-project",
  "postage",
@@ -168,8 +167,13 @@ dependencies = [
 name = "arti-hyper"
 version = "0.0.4"
 dependencies = [
+ "anyhow",
  "arti-client",
  "hyper",
+ "pin-project",
+ "tokio",
+ "tor-rtcompat",
+ "tracing-subscriber",
 ]
 
 [[package]]

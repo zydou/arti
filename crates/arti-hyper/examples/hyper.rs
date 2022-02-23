@@ -12,7 +12,6 @@ use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_crate as tokio;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tor_rtcompat::Runtime;
 
@@ -138,7 +137,7 @@ async fn main() -> Result<()> {
     // on Linux platforms)
     let config = TorClientConfig::default();
     // Arti needs an async runtime handle to spawn async tasks.
-    let rt: TokioNativeTlsRuntime = tokio_crate::runtime::Handle::current().into();
+    let rt: TokioNativeTlsRuntime = tokio::runtime::Handle::current().into();
 
     // We now let the Arti client start and bootstrap a connection to the network.
     // (This takes a while to gather the necessary consensus state, etc.)

@@ -12,8 +12,8 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = [ "native-tls" ]
-native-tls = [ "arti-client/native-tls" ]
-rustls = [ "arti-client/rustls" ]
+native-tls = [ "arti-client/native-tls", "tor-rtcompat/native-tls" ]
+rustls = [ "arti-client/rustls", "tor-rtcompat/rustls" ]
 static = [ "arti-client/static" ]
 
 # Enable experimental APIs that are not yet officially supported.
@@ -25,5 +25,10 @@ experimental-api = []
 [dependencies]
 arti-client = { path="../arti-client", version = "0.0.4"}
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
+pin-project = "1"
+tokio = { package = "tokio", version = "1.4", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio"] }
 
 [dev-dependencies]
+anyhow = "1.0.23"
+tracing-subscriber = "0.3.0"
