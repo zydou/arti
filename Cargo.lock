@@ -171,6 +171,7 @@ dependencies = [
  "arti-client",
  "hyper",
  "pin-project",
+ "thiserror",
  "tokio",
  "tor-rtcompat",
  "tracing-subscriber",

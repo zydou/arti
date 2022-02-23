@@ -1,4 +1,6 @@
-use anyhow::{anyhow, bail, Result};
+use arti_hyper::*;
+
+use anyhow::Result;
 use arti_client::{DataStream, IntoTorAddr, TorClient, TorClientConfig};
 use hyper::client::connect::{Connected, Connection};
 use hyper::http::uri::Scheme;
@@ -74,16 +76,14 @@ impl AsyncWrite for ArtiHttpConnection {
     }
 }
 
-fn uri_to_host_port(uri: Uri) -> Result<(String, u16)> {
+fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
     if uri.scheme() != Some(&Scheme::HTTP) {
-        bail!(
-            "ArtiHttpConnector only supports HTTP connections for now; got {:?}",
-            uri.scheme()
-        );
+        return Err(ConnectionError::UnsupportedUriScheme { uri });
     }
-    let host = uri
-        .host()
-        .ok_or_else(|| anyhow!("No hostname found in URI"))?;
+    let host = match uri.host() {
+        Some(h) => h,
+        _ => return Err(ConnectionError::MissingHostname { uri }),
+    };
     let port = uri.port().map(|x| x.as_u16()).unwrap_or(80);
 
     Ok((host.to_owned(), port))
@@ -91,7 +91,7 @@ fn uri_to_host_port(uri: Uri) -> Result<(String, u16)> {
 
 impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
     type Response = ArtiHttpConnection;
-    type Error = anyhow::Error;
+    type Error = ConnectionError;
     #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -108,9 +108,10 @@ impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
             // Extract the host and port to connect to from the URI.
             let (host, port) = uri_to_host_port(req)?;
             // Initiate a new Tor connection, producing a `DataStream` if successful.
-            let ds = client
-                .connect((&host as &str, port).into_tor_addr()?)
-                .await?;
+            let addr = (&host as &str, port)
+                .into_tor_addr()
+                .map_err(arti_client::Error::from)?;
+            let ds = client.connect(addr).await?;
             Ok(ArtiHttpConnection { inner: ds })
         })
     }

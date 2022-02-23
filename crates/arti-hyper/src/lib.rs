@@ -30,3 +30,31 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+
+use hyper::http::Uri;
+use thiserror::Error;
+
+/// Error making or using http connection
+///
+/// This error ends up being passed to hyper and bundled up into a [`hyper::Error`]
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum ConnectionError {
+    /// Unsupported URI scheme
+    #[error("unsupported URI scheme in {uri:?}")]
+    UnsupportedUriScheme {
+        /// URI
+        uri: Uri,
+    },
+
+    /// Unsupported URI scheme
+    #[error("Missing hostname in {uri:?}")]
+    MissingHostname {
+        /// URI
+        uri: Uri,
+    },
+
+    /// Tor connection failed
+    #[error("Tor connection failed")]
+    Arti(#[from] arti_client::Error),
+}
