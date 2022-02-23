@@ -170,6 +170,7 @@ where
 
         // Check for a zero-byte read, indicating closure.
         if let Poll::Ready(Ok(0)) = res {
+            // Ignore if buf is zero-lenght, reading 0 bytes doesn't mean eof in that case
             if !buf.is_empty() {
                 match self.state {
                     // If we're already closed, do nothing.
