@@ -407,6 +407,27 @@ caret_int! {
     }
 }
 
+impl tor_error::HasKind for EndReason {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use EndReason as E;
+        match *self {
+            E::MISC => EK::RemoteStreamError,
+            E::RESOLVEFAILED => EK::RemoteHostNotFound,
+            E::CONNECTREFUSED => EK::RemoteConnectionRefused,
+            E::EXITPOLICY => EK::ExitPolicyRejected,
+            E::DESTROY => EK::CircuitCollapse,
+            E::DONE => EK::RemoteStreamClosed,
+            E::TIMEOUT => EK::ExitTimeout,
+            E::NOROUTE => EK::RemoteNetworkFailed,
+            E::RESOURCELIMIT | E::HIBERNATING => EK::RelayTooBusy,
+            E::INTERNAL | E::TORPROTOCOL | E::NOTDIRECTORY => EK::TorProtocolViolation,
+            E::CONNRESET => EK::RemoteStreamReset,
+            _ => EK::RemoteStreamError,
+        }
+    }
+}
+
 impl End {
     /// Make a new END_REASON_MISC message.
     ///
