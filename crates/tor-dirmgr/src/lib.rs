@@ -77,7 +77,7 @@ use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use async_trait::async_trait;
-use futures::{channel::oneshot, task::SpawnExt};
+use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{debug, info, trace, warn};
 
@@ -102,11 +102,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// Trait for DirMgr implementations
 #[async_trait]
-// NOTE: I am not yet clear in how to determine wether Send + Sync is satisfied?
-pub trait DirProvider<R: Runtime>: Send + Sync {
-    /// Stream of events produced by a DirProvider.
-    type EventStream: futures::stream::Stream<Item = DirEvent>;
-
+pub trait DirProvider {
     /// Return a handle to our latest directory, if we have one.
     fn latest_netdir(&self) -> Option<Arc<NetDir>>;
 
@@ -116,7 +112,7 @@ pub trait DirProvider<R: Runtime>: Send + Sync {
     /// Multiple events may be batched up into a single item: each time
     /// this stream yields an event, all you can assume is that the event has
     /// occurred at least once.
-    fn events(&self) -> Self::EventStream;
+    fn events(&self) -> BoxStream<'static, DirEvent>;
 
     /// Try to change our configuration to `new_config`.
     ///
@@ -135,19 +131,17 @@ pub trait DirProvider<R: Runtime>: Send + Sync {
     ///
     /// Note that this stream can be lossy: the caller will not necessarily
     /// observe every event on the stream
-    fn bootstrap_events(&self) -> event::DirBootstrapEvents;
+    fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus>;
 }
 
 #[async_trait]
-impl<R: Runtime> DirProvider<R> for DirMgr<R> {
-    type EventStream = event::FlagListener<DirEvent>;
-
+impl<R: Runtime> DirProvider for DirMgr<R> {
     fn latest_netdir(&self) -> Option<Arc<NetDir>> {
         self.opt_netdir()
     }
 
-    fn events(&self) -> Self::EventStream {
-        self.events.subscribe()
+    fn events(&self) -> BoxStream<'static, DirEvent> {
+        Box::pin(self.events.subscribe())
     }
 
     fn reconfigure(
@@ -162,8 +156,8 @@ impl<R: Runtime> DirProvider<R> for DirMgr<R> {
         self.bootstrap().await
     }
 
-    fn bootstrap_events(&self) -> event::DirBootstrapEvents {
-        self.bootstrap_events()
+    fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus> {
+        Box::pin(self.bootstrap_events())
     }
 }
 

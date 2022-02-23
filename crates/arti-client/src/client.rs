@@ -9,7 +9,7 @@ use crate::address::IntoTorAddr;
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
-use tor_dirmgr::{event::FlagListener, DirEvent};
+use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -59,7 +59,7 @@ pub struct TorClient<R: Runtime> {
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
-    dirmgr: Arc<dyn tor_dirmgr::DirProvider<R, EventStream = FlagListener<DirEvent>>>,
+    dirmgr: Arc<dyn tor_dirmgr::DirProvider + Send + Sync>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -783,9 +783,7 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn dirmgr(
-        &self,
-    ) -> Arc<dyn tor_dirmgr::DirProvider<R, EventStream = FlagListener<DirEvent>>> {
+    pub fn dirmgr(&self) -> Arc<dyn tor_dirmgr::DirProvider + Send + Sync> {
         Arc::clone(&self.dirmgr)
     }
 
