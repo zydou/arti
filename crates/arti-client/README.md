@@ -131,6 +131,8 @@ will expect a type that implements [`tor_rtcompat::Runtime`], which can be obtai
 
 `async-std` -- Build with support for the `async_std` backend.
 
+`native-tls` (default), `rustls` -- Select TLS libraries to support. 
+
 `static` -- Link with static versions of your system dependencies,
 including sqlite and/or openssl.
 
