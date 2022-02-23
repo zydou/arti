@@ -173,6 +173,7 @@ dependencies = [
  "pin-project",
  "thiserror",
  "tokio",
+ "tor-error",
  "tor-rtcompat",
  "tracing-subscriber",
 ]

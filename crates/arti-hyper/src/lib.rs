@@ -74,6 +74,20 @@ pub enum ConnectionError {
     Arti(#[from] arti_client::Error),
 }
 
+/// We implement this for form's sake
+impl tor_error::HasKind for ConnectionError {
+    #[rustfmt::skip]
+    fn kind(&self) -> tor_error::ErrorKind {
+        use ConnectionError as CE;
+        use tor_error::ErrorKind as EK;
+        match self {
+            CE::UnsupportedUriScheme{..} => EK::NotImplemented,
+            CE::MissingHostname{..}      => EK::BadApiUsage,
+            CE::Arti(e)                 => e.kind(),
+        }
+    }
+}
+
 /// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
 ///
 /// Only supports plaintext HTTP for now.
