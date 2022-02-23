@@ -165,6 +165,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "arti-hyper"
+version = "0.0.4"
+dependencies = [
+ "arti-client",
+ "hyper",
+]
+
+[[package]]
 name = "async-broadcast"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
