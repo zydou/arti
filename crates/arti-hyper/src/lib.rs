@@ -76,6 +76,7 @@ pub enum ConnectionError {
 /// Only supports plaintext HTTP for now.
 #[derive(Clone)]
 pub struct ArtiHttpConnector<R: Runtime> {
+    /// The client
     client: TorClient<R>,
 }
 
@@ -90,6 +91,7 @@ impl<R: Runtime> ArtiHttpConnector<R> {
 /// a `hyper` connection object (mainly `Connection`).
 #[pin_project]
 pub struct ArtiHttpConnection {
+    /// The stream
     #[pin]
     inner: DataStream,
 }
@@ -130,6 +132,7 @@ impl AsyncWrite for ArtiHttpConnection {
     }
 }
 
+/// Convert uri to host and port
 fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
     if uri.scheme() != Some(&Scheme::HTTP) {
         return Err(ConnectionError::UnsupportedUriScheme { uri });
