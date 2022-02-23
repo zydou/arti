@@ -74,7 +74,7 @@ impl tor_error::HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::ChanTimeout | E::Io { .. } | E::Proto(ProtoErr::IoErr(_)) => EK::TorAccessFailed,
+            E::ChanTimeout | E::Io { .. } | E::Proto(ProtoErr::ChanIoErr(_)) => EK::TorAccessFailed,
             E::Spawn { cause, .. } => cause.kind(),
             E::Proto(e) => e.kind(),
             E::PendingFailed => EK::TorAccessFailed,

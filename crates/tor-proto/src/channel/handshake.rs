@@ -7,12 +7,13 @@ use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 use tor_error::internal;
 
-use crate::channel::codec::ChannelCodec;
+use crate::channel::codec::{ChannelCodec, CodecError};
 use crate::channel::UniqId;
 use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd};
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use tor_bytes::Reader;
 use tor_linkspec::ChanTarget;
@@ -99,6 +100,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
     /// Negotiate a link protocol version with the relay, and read
     /// the relay's handshake information.
     pub async fn connect(mut self) -> Result<UnverifiedChannel<T>> {
+        /// Helper: wrap an IoError as a HandshakeIoErr.
+        fn chan_io_err(err: std::io::Error) -> Error {
+            Error::HandshakeIoErr(Arc::new(err))
+        }
+
         match self.target_addr {
             Some(addr) => debug!("{}: starting Tor handshake with {}", self.unique_id, addr),
             None => debug!("{}: starting Tor handshake", self.unique_id),
@@ -109,8 +115,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
             let my_versions = msg::Versions::new(LINK_PROTOCOLS)?;
             self.tls
                 .write_all(&my_versions.encode_for_handshake())
-                .await?;
-            self.tls.flush().await?;
+                .await
+                .map_err(chan_io_err)?;
+            self.tls.flush().await.map_err(chan_io_err)?;
         }
 
         // Get versions cell.
@@ -122,13 +129,14 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
             match self.tls.read_exact(&mut hdr).await {
                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return not_relay(),
                 otherwise => otherwise,
-            }?;
+            }
+            .map_err(chan_io_err)?;
             if hdr[0..3] != [0, 0, ChanCmd::VERSIONS.into()] {
                 return not_relay();
             }
             let msglen = u16::from_be_bytes(*array_ref![hdr, 3, 2]);
             let mut msg = vec![0; msglen as usize];
-            self.tls.read_exact(&mut msg).await?;
+            self.tls.read_exact(&mut msg).await.map_err(chan_io_err)?;
             let mut reader = Reader::from_slice(&msg);
             reader.extract()?
         };
@@ -155,6 +163,12 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
         trace!("{}: waiting for rest of handshake.", self.unique_id);
         while let Some(m) = tls.next().await {
             use msg::ChanMsg::*;
+            // Don't use the standard conversion; instead wrap to indicate bad handshake.
+            let m = match m {
+                Err(CodecError::Io(e)) => Err(Error::HandshakeIoErr(Arc::new(e))),
+                Err(CodecError::Cell(e)) => Err(Error::CellErr(e)),
+                Ok(v) => Ok(v),
+            };
             let (_, m) = m?.into_circid_and_msg();
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
             match m {
