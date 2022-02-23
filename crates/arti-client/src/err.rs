@@ -9,6 +9,8 @@ use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
 
+use crate::TorAddrError;
+
 /// Main high-level error type for the Arti Tor client
 ///
 /// If you need to handle different types of errors differently, use the
@@ -245,6 +247,12 @@ impl tor_error::HasKind for ErrorDetail {
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
         }
+    }
+}
+
+impl From<TorAddrError> for Error {
+    fn from(e: TorAddrError) -> Error {
+        e.into()
     }
 }
 
