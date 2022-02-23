@@ -347,6 +347,7 @@ pub enum ErrorKind {
     /// This is a lower-level kind of error; in general it should be retried
     /// before the user can see it.   In the future it is likely to be split
     /// into several other kinds.
+    // TODO ^
     #[display(fmt = "directory fetch attempt failed")]
     TorDirectoryError,
 
@@ -365,6 +366,11 @@ pub enum ErrorKind {
     RemoteStreamError,
 
     /// An operation finished because an exit failed to look up a hostname.
+    ///
+    /// Unfortunately, the Tor protocol does not distinguish failure of DNS
+    /// services ("we couldn't find out if this host exists and what its name is")
+    /// from confirmed denials ("this is not a hostname").  So this kind
+    /// conflates both those sorts of error.
     ///
     /// Trying at another exit might succeed, or the address might truly be
     /// unresolvable.
@@ -421,8 +427,8 @@ pub enum ErrorKind {
     /// Either it gave an error message indicating that it refused to perform
     /// the request, or the protocol gives it no room to explain what happened.
     ///
-    /// You shouldn't typically see this kind of error; generally, higher-level
-    /// code should retry it.
+    /// This error is returned by higher-level functions only if it is the most informative
+    /// error after appropriate retries etc.
     #[display(fmt = "remote host refused our request")]
     CircuitRefused,
 
