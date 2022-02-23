@@ -1,4 +1,7 @@
 //! High-level layer for making http(s) requests the Tor network as a client.
+//!
+//! Work-in-progress.
+//! This is **not suitable for use** right now because it does not support HTTPs.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
