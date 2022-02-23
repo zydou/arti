@@ -32,7 +32,7 @@ impl<R> TorClientBuilder<R> {
 
     /// Set the configuration for the `TorClient` under construction.
     ///
-    /// If not called, then a default configuration will be used.
+    /// If not called, then a compiled-in default configuration will be used.
     pub fn config(mut self, config: TorClientConfig) -> Self {
         self.config = config;
         self
