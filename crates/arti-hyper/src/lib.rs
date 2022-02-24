@@ -90,10 +90,16 @@ impl tor_error::HasKind for ConnectionError {
 /// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
 ///
 /// Only supports plaintext HTTP for now.
-#[derive(Clone)]
 pub struct ArtiHttpConnector<R: Runtime> {
     /// The client
     client: TorClient<R>,
+}
+
+impl<R: Runtime> Clone for ArtiHttpConnector<R> {
+    fn clone(&self) -> Self {
+        let client = self.client.clone();
+        Self { client }
+    }
 }
 
 impl<R: Runtime> ArtiHttpConnector<R> {
