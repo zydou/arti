@@ -315,10 +315,10 @@ pub enum ErrorKind {
     /// Something went wrong with a network connection or the local network.
     ///
     /// This kind of error is usually safe to retry, and shouldn't typically be
-    /// seen.  By the time it reaches the caller, more specific error type
+    /// seen.  By the time it reaches the caller, a more specific error type
     /// should typically be available.
     #[display(fmt = "problem with network or connection")]
-    Network,
+    LocalNetworkError,
 
     /// A relay had an identity other than the one we expected.
     ///

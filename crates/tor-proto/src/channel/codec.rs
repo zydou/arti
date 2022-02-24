@@ -24,16 +24,6 @@ pub(crate) enum CodecError {
     Cell(#[from] tor_cell::Error),
 }
 
-impl From<CodecError> for crate::Error {
-    fn from(err: CodecError) -> Self {
-        // TODO(nickm): we'll want to revise this implementation when we revisit errors in tor-proto.
-        match err {
-            CodecError::Io(e) => e.into(),
-            CodecError::Cell(e) => e.into(),
-        }
-    }
-}
-
 /// Asynchronous wrapper around ChannelCodec in tor_cell, with implementation
 /// for use with futures_codec.
 ///

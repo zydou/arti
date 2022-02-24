@@ -40,6 +40,15 @@ pub(super) type BoxedChannelSink =
 /// The type of a oneshot channel used to inform reactor users of the result of an operation.
 pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 
+/// Convert `err` to an Error, under the assumption that it's happening on an
+/// open channel.
+fn codec_err_to_chan(err: CodecError) -> Error {
+    match err {
+        CodecError::Io(e) => crate::Error::ChanIoErr(Arc::new(e)),
+        CodecError::Cell(e) => e.into(),
+    }
+}
+
 /// A message telling the channel reactor to do something.
 #[derive(Debug)]
 pub(super) enum CtrlMsg {
@@ -146,7 +155,7 @@ impl Reactor {
 
             // See if the output sink can have cells written to it yet.
             if let Poll::Ready(ret) = Pin::new(&mut self.output).poll_ready(cx) {
-                let _ = ret.map_err(Error::from)?;
+                let _ = ret.map_err(codec_err_to_chan)?;
                 // If it can, check whether we have any cells to send it from `Channel` senders.
                 if let Poll::Ready(msg) = Pin::new(&mut self.cells).poll_next(cx) {
                     match msg {
@@ -173,7 +182,7 @@ impl Reactor {
             if let Poll::Ready(ret) = Pin::new(&mut self.input).poll_next(cx) {
                 match ret {
                     None => return Poll::Ready(Err(ReactorError::Shutdown)),
-                    Some(r) => input = Some(r.map_err(Error::from)?),
+                    Some(r) => input = Some(r.map_err(codec_err_to_chan)?),
                 }
             }
 
@@ -181,7 +190,7 @@ impl Reactor {
             // we just want to keep flushing it (hence the _).
             let _ = Pin::new(&mut self.output)
                 .poll_flush(cx)
-                .map_err(Error::from)?;
+                .map_err(codec_err_to_chan)?;
 
             // If all three values aren't present, return Pending and wait to get polled again
             // so that one of them is present.
@@ -202,11 +211,11 @@ impl Reactor {
         if let Some(cts) = cell_to_send {
             Pin::new(&mut self.output)
                 .start_send(cts)
-                .map_err(Error::from)?;
+                .map_err(codec_err_to_chan)?;
             // Give the sink a little flush, to make sure it actually starts doing things.
             futures::future::poll_fn(|cx| Pin::new(&mut self.output).poll_flush(cx))
                 .await
-                .map_err(Error::from)?;
+                .map_err(codec_err_to_chan)?;
         }
         Ok(()) // Run again.
     }
@@ -366,7 +375,7 @@ impl Reactor {
 
     /// Helper: send a cell on the outbound sink.
     async fn send_cell(&mut self, cell: ChanCell) -> Result<()> {
-        self.output.send(cell).await?;
+        self.output.send(cell).await.map_err(codec_err_to_chan)?;
         Ok(())
     }
 
@@ -552,7 +561,7 @@ pub(crate) mod test {
             let (circ, _) =
                 futures::join!(pending.create_firsthop_fast(&circparams), send_response);
             // Make sure statuses are as expected.
-            assert!(matches!(circ.err().unwrap(), Error::BadHandshake));
+            assert!(matches!(circ.err().unwrap(), Error::BadCircHandshake));
 
             reactor.run_once().await.unwrap();
 

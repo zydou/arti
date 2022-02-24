@@ -16,9 +16,13 @@ pub enum Error {
     /// object.
     #[error("parsing error: {0}")]
     BytesErr(#[from] tor_bytes::Error),
-    /// An error that occurred from the io system.
-    #[error("io error: {0}")]
-    IoErr(#[source] Arc<std::io::Error>),
+    /// An error that occurred from the io system when using a
+    /// channel.
+    #[error("io error on channel: {0}")]
+    ChanIoErr(#[source] Arc<std::io::Error>),
+    /// An error from the io system that occurred when trying to connect a channel.
+    #[error("io error in handshake: {0}")]
+    HandshakeIoErr(#[source] Arc<std::io::Error>),
     /// An error occurred in the cell-handling layer.
     #[error("cell encoding error: {0}")]
     CellErr(#[source] tor_cell::Error),
@@ -34,8 +38,12 @@ pub enum Error {
     BadCellAuth,
     /// A circuit-extension handshake failed.
     #[error("handshake failed")]
-    BadHandshake,
-    /// Protocol violation at the channel level
+    BadCircHandshake,
+    /// Handshake protocol violation.
+    #[error("handshake protocol violation: {0}")]
+    HandshakeProto(String),
+    /// Protocol violation at the channel level, other than at the handshake
+    /// stage.
     #[error("channel protocol violation: {0}")]
     ChanProto(String),
     /// Protocol violation at the circuit level
@@ -66,6 +74,7 @@ pub enum Error {
     /// Stream protocol violation
     #[error("stream protocol violation: {0}")]
     StreamProto(String),
+
     /// Channel does not match target
     #[error("channel mismatch: {0}")]
     ChanMismatch(String),
@@ -86,18 +95,12 @@ impl From<tor_cell::Error> for Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        Error::IoErr(Arc::new(err))
-    }
-}
-
 impl From<Error> for std::io::Error {
     fn from(err: Error) -> std::io::Error {
         use std::io::ErrorKind;
         use Error::*;
         let kind = match err {
-            IoErr(e) => match Arc::try_unwrap(e) {
+            ChanIoErr(e) | HandshakeIoErr(e) => match Arc::try_unwrap(e) {
                 Ok(e) => return e,
                 Err(arc) => return std::io::Error::new(arc.kind(), arc),
             },
@@ -110,8 +113,10 @@ impl From<Error> for std::io::Error {
 
             ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_) | BadCellAuth | BadHandshake | ChanProto(_) | CircProto(_) | CellErr(_)
-            | ChanMismatch(_) | StreamProto(_) => ErrorKind::InvalidData,
+            BytesErr(_) | BadCellAuth | BadCircHandshake | HandshakeProto(_) | ChanProto(_)
+            | CircProto(_) | CellErr(_) | ChanMismatch(_) | StreamProto(_) => {
+                ErrorKind::InvalidData
+            }
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -129,12 +134,14 @@ impl HasKind for Error {
         match self {
             E::BytesErr(BytesError::Bug(e)) => e.kind(),
             E::BytesErr(_) => EK::TorProtocolViolation,
-            E::IoErr(_) => EK::Network,
+            E::ChanIoErr(_) => EK::LocalNetworkError,
+            E::HandshakeIoErr(_) => EK::TorAccessFailed,
             E::CellErr(e) => e.kind(),
             E::InvalidOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,
-            E::BadHandshake => EK::TorProtocolViolation,
+            E::BadCircHandshake => EK::TorProtocolViolation,
+            E::HandshakeProto(_) => EK::TorAccessFailed,
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::CircProto(_) => EK::TorProtocolViolation,
             E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,

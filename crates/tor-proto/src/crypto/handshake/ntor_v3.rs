@@ -540,7 +540,7 @@ fn client_handshake_ntor_v3_part2(
     if okay.into() {
         Ok((server_reply, keystream))
     } else {
-        Err(Error::BadHandshake)
+        Err(Error::BadCircHandshake)
     }
 }
 
