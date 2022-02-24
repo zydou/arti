@@ -1,0 +1,36 @@
+[package]
+name = "arti-hyper"
+version = "0.0.4"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Adapter for making anonymos http requests using the Tor network and hyper"
+keywords = [ "tor", "arti", "privacy", "anonymity", "hyper" ]
+categories = [ "network-programming", "cryptography" ]
+repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = [ "native-tls" ]
+native-tls = [ "arti-client/native-tls", "tor-rtcompat/native-tls" ]
+rustls = [ "arti-client/rustls", "tor-rtcompat/rustls" ]
+static = [ "arti-client/static" ]
+
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental-api = []
+
+[dependencies]
+arti-client = { path="../arti-client", version = "0.0.4"}
+hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
+pin-project = "1"
+tokio = { package = "tokio", version = "1.4", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+thiserror = "1"
+tor-error = { path="../tor-error", version = "0.0.1" }
+tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio"] }
+
+[dev-dependencies]
+anyhow = "1.0.23"
+tracing-subscriber = "0.3.0"

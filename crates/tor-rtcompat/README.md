@@ -76,6 +76,8 @@ You can get a [`Runtime`] in several ways:
 
 `async-std` -- Build with async_std support.
 
+`native-tls`, `rustls` -- Select TLS libraries to support. 
+
 `static` -- Try to link with a static copy of our native TLS library,
 if possible.
 

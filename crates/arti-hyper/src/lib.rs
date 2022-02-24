@@ -1,26 +1,99 @@
-use anyhow::{anyhow, bail, Result};
-use arti_client::{DataStream, IntoTorAddr, TorClient, TorClientConfig};
-use hyper::client::connect::{Connected, Connection};
-use hyper::http::uri::Scheme;
-use hyper::http::Uri;
-use hyper::service::Service;
-use hyper::Body;
-use pin_project::pin_project;
-use std::convert::TryInto;
+//! High-level layer for making http(s) requests the Tor network as a client.
+//!
+//! Work-in-progress.
+//! This is **not suitable for use** right now because it does not support HTTPs.
+
+#![deny(missing_docs)]
+#![warn(noop_method_call)]
+#![deny(unreachable_pub)]
+#![warn(clippy::all)]
+#![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
+#![deny(clippy::cast_lossless)]
+#![deny(clippy::checked_conversions)]
+#![warn(clippy::clone_on_ref_ptr)]
+#![warn(clippy::cognitive_complexity)]
+#![deny(clippy::debug_assert_with_mut_call)]
+#![deny(clippy::exhaustive_enums)]
+#![deny(clippy::exhaustive_structs)]
+#![deny(clippy::expl_impl_clone_on_copy)]
+#![deny(clippy::fallible_impl_from)]
+#![deny(clippy::implicit_clone)]
+#![deny(clippy::large_stack_arrays)]
+#![warn(clippy::manual_ok_or)]
+#![deny(clippy::missing_docs_in_private_items)]
+#![deny(clippy::missing_panics_doc)]
+#![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
+#![warn(clippy::rc_buffer)]
+#![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unnecessary_wraps)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+
 use std::future::Future;
 use std::io::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+
+use arti_client::{DataStream, IntoTorAddr, TorClient};
+use hyper::client::connect::{Connected, Connection};
+use hyper::http::uri::Scheme;
+use hyper::http::Uri;
+use hyper::service::Service;
+use pin_project::pin_project;
+use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_crate as tokio;
-use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 use tor_rtcompat::Runtime;
+
+/// Error making or using http connection
+///
+/// This error ends up being passed to hyper and bundled up into a [`hyper::Error`]
+#[derive(Error, Clone, Debug)]
+#[non_exhaustive]
+pub enum ConnectionError {
+    /// Unsupported URI scheme
+    #[error("unsupported URI scheme in {uri:?}")]
+    UnsupportedUriScheme {
+        /// URI
+        uri: Uri,
+    },
+
+    /// Unsupported URI scheme
+    #[error("Missing hostname in {uri:?}")]
+    MissingHostname {
+        /// URI
+        uri: Uri,
+    },
+
+    /// Tor connection failed
+    #[error("Tor connection failed")]
+    Arti(#[from] arti_client::Error),
+}
+
+/// We implement this for form's sake
+impl tor_error::HasKind for ConnectionError {
+    #[rustfmt::skip]
+    fn kind(&self) -> tor_error::ErrorKind {
+        use ConnectionError as CE;
+        use tor_error::ErrorKind as EK;
+        match self {
+            CE::UnsupportedUriScheme{..} => EK::NotImplemented,
+            CE::MissingHostname{..}      => EK::BadApiUsage,
+            CE::Arti(e)                 => e.kind(),
+        }
+    }
+}
 
 /// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
 ///
 /// Only supports plaintext HTTP for now.
 #[derive(Clone)]
 pub struct ArtiHttpConnector<R: Runtime> {
+    /// The client
     client: TorClient<R>,
 }
 
@@ -35,6 +108,7 @@ impl<R: Runtime> ArtiHttpConnector<R> {
 /// a `hyper` connection object (mainly `Connection`).
 #[pin_project]
 pub struct ArtiHttpConnection {
+    /// The stream
     #[pin]
     inner: DataStream,
 }
@@ -75,16 +149,15 @@ impl AsyncWrite for ArtiHttpConnection {
     }
 }
 
-fn uri_to_host_port(uri: Uri) -> Result<(String, u16)> {
+/// Convert uri to host and port
+fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
     if uri.scheme() != Some(&Scheme::HTTP) {
-        bail!(
-            "ArtiHttpConnector only supports HTTP connections for now; got {:?}",
-            uri.scheme()
-        );
+        return Err(ConnectionError::UnsupportedUriScheme { uri });
     }
-    let host = uri
-        .host()
-        .ok_or_else(|| anyhow!("No hostname found in URI"))?;
+    let host = match uri.host() {
+        Some(h) => h,
+        _ => return Err(ConnectionError::MissingHostname { uri }),
+    };
     let port = uri.port().map(|x| x.as_u16()).unwrap_or(80);
 
     Ok((host.to_owned(), port))
@@ -92,7 +165,7 @@ fn uri_to_host_port(uri: Uri) -> Result<(String, u16)> {
 
 impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
     type Response = ArtiHttpConnection;
-    type Error = anyhow::Error;
+    type Error = ConnectionError;
     #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -109,52 +182,11 @@ impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
             // Extract the host and port to connect to from the URI.
             let (host, port) = uri_to_host_port(req)?;
             // Initiate a new Tor connection, producing a `DataStream` if successful.
-            let ds = client
-                .connect((&host as &str, port).into_tor_addr()?)
-                .await?;
+            let addr = (&host as &str, port)
+                .into_tor_addr()
+                .map_err(arti_client::Error::from)?;
+            let ds = client.connect(addr).await?;
             Ok(ArtiHttpConnection { inner: ds })
         })
     }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Arti uses the `tracing` crate for logging. Install a handler for this, to print Arti's logs.
-    // (You'll need to set RUST_LOG=info as an environment variable to actually see much; also try
-    // =debug for more detailed logging.)
-    tracing_subscriber::fmt::init();
-
-    // You can run this example with any arbitrary (HTTP-only!) URL, but we'll default to icanhazip
-    // because it's a good way of demonstrating that the connection is via Tor.
-    let url = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "http://icanhazip.com".into());
-
-    eprintln!("starting Arti...");
-
-    // The client config includes things like where to store persistent Tor network state.
-    // The defaults provided are the same as the Arti standalone application, and save data
-    // to a conventional place depending on operating system (for example, ~/.local/share/arti
-    // on Linux platforms)
-    let config = TorClientConfig::default();
-    // Arti needs an async runtime handle to spawn async tasks.
-    let rt: TokioNativeTlsRuntime = tokio_crate::runtime::Handle::current().into();
-
-    // We now let the Arti client start and bootstrap a connection to the network.
-    // (This takes a while to gather the necessary consensus state, etc.)
-    let tor_client = TorClient::create_bootstrapped(rt, config).await?;
-
-    // The `ArtiHttpConnector` lets us make HTTP requests via the Tor network.
-    let tor_connector = ArtiHttpConnector::new(tor_client);
-    let http = hyper::Client::builder().build::<_, Body>(tor_connector);
-
-    // The rest is just standard usage of Hyper.
-    eprintln!("requesting {} via Tor...", url);
-    let mut resp = http.get(url.try_into()?).await?;
-
-    eprintln!("status: {}", resp.status());
-
-    let body = hyper::body::to_bytes(resp.body_mut()).await?;
-    eprintln!("body: {}", std::str::from_utf8(&body)?);
-    Ok(())
 }

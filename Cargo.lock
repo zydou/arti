@@ -126,7 +126,6 @@ dependencies = [
  "directories",
  "futures",
  "humantime-serde",
- "hyper",
  "once_cell",
  "pin-project",
  "postage",
@@ -162,6 +161,21 @@ dependencies = [
  "toml",
  "tor-circmgr",
  "tor-config",
+]
+
+[[package]]
+name = "arti-hyper"
+version = "0.0.4"
+dependencies = [
+ "anyhow",
+ "arti-client",
+ "hyper",
+ "pin-project",
+ "thiserror",
+ "tokio",
+ "tor-error",
+ "tor-rtcompat",
+ "tracing-subscriber",
 ]
 
 [[package]]
