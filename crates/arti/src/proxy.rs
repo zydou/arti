@@ -140,8 +140,10 @@ where
             Ok(Err(e)) => {
                 if let tor_socksproto::Error::BadProtocol(version) = e {
                     // check for HTTP methods: CONNECT, DELETE, GET, HEAD, OPTION, PUT, POST, PATCH and
-                    // TRACE
-                    if b"CDGHOPT".contains(&version) {
+                    // TRACE.
+                    // To do so, check the first byte of the connection, which happen to be placed
+                    // where SOCKs version field is.
+                    if [b'C', b'D', b'G', b'H', b'O', b'P', b'T'].contains(&version) {
                         let payload = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
 Content-Type: text/html; charset=utf-8
 
