@@ -359,11 +359,58 @@ pub enum ErrorKind {
     #[display(fmt = "remote stream closed")]
     RemoteStreamClosed,
 
-    /// An operation finished because a remote stream was closed unsuccessfully,
+    /// An operation finished because the remote stream was closed abruptly.
+    ///
+    /// This kind of error is analogous to an ECONNRESET error; it indicates
+    /// that the exit reported that the stream was terminated without a clean
+    /// TCP shutdown.
+    ///
+    /// For most purposes, it's fine to treat this kind of error the same as
+    /// regular unexpected close.
+    #[display(fmt = "remote stream reset")]
+    RemoteStreamReset,
+
+    /// An operation finished because a remote stream was closed unsuccessfully.
     ///
     /// This indicates that the exit reported some error message for the stream.
+    ///
+    /// We only provide this error kind when no more specific kind is available.
     #[display(fmt = "remote stream error")]
     RemoteStreamError,
+
+    /// A stream failed, and the exit reports that the remote host refused
+    /// the connection.
+    ///
+    /// This is analogous to an ECONNREFUSED error.
+    #[display(fmt = "remote host refused connection")]
+    RemoteConnectionRefused,
+
+    /// A stream was rejected by the exit relay because of that relay's exit
+    /// policy.
+    ///
+    /// (In Tor, exits have a set of policies declaring which addresses and
+    /// ports they're willing to connect to.  Clients download only _summaries_
+    /// of these policies, so it's possible to be surprised by an exit's refusal
+    /// to connect somewhere.)
+    #[display(fmt = "rejected by exit policy")]
+    ExitPolicyRejected,
+
+    /// An operation failed, and the exit reported that it waited too long for
+    /// the operation to finish.
+    ///
+    /// This kind of error is distinct from `RemoteNetworkTimeout`, which means
+    /// that _our own_ timeout threshold was violated.
+    #[display(fmt = "timeout at exit relay")]
+    ExitTimeout,
+
+    /// An operation failed, and the exit reported a network failure of some
+    /// kind.
+    ///
+    /// This kind of error can occur for a number of reasons.  If it happens
+    /// when trying to open a stream, it usually indicates a problem connecting,
+    /// such as an ENOROUTE error.
+    #[display(fmt = "network failure at exit")]
+    RemoteNetworkFailed,
 
     /// An operation finished because an exit failed to look up a hostname.
     ///
@@ -376,6 +423,11 @@ pub enum ErrorKind {
     /// unresolvable.
     #[display(fmt = "remote hostname lookup failure")]
     RemoteHostNotFound,
+
+    /// An operation failed, and the relay in question reported that it's too
+    /// busy to answer our request.
+    #[display(fmt = "relay too busy")]
+    RelayTooBusy,
 
     /// We were asked to make an anonymous connection to a malformed address.
     ///
