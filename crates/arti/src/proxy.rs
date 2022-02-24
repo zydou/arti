@@ -137,7 +137,42 @@ where
         // try to advance the handshake to the next state.
         let action = match handshake.handshake(&inbuf[..n_read]) {
             Err(_) => continue, // Message truncated.
-            Ok(Err(e)) => return Err(e.into()),
+            Ok(Err(e)) => {
+                if let tor_socksproto::Error::BadProtocol(version) = e {
+                    // check for HTTP methods: CONNECT, DELETE, GET, HEAD, OPTION, PUT, POST, PATCH and
+                    // TRACE.
+                    // To do so, check the first byte of the connection, which happen to be placed
+                    // where SOCKs version field is.
+                    if [b'C', b'D', b'G', b'H', b'O', b'P', b'T'].contains(&version) {
+                        let payload = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>This is a SOCKS Proxy, Not An HTTP Proxy</title>
+</head>
+<body>
+<h1>This is a SOCKs proxy, not an HTTP proxy.</h1>
+<p>
+It appears you have configured your web browser to use this Tor port as
+an HTTP proxy.
+</p><p>
+This is not correct: This port is configured as a SOCKS proxy, not
+an HTTP proxy. If you need an HTTP proxy tunnel, wait for Arti to
+add support for it in place of, or in addition to, socks_port.
+Please configure your client accordingly.
+</p>
+<p>
+See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-when-arti-get-a-user-documentation">https://gitlab.torproject.org/tpo/core/arti</a> for more information.
+</p>
+</body>
+</html>"#;
+                        socks_w.write_all(payload).await?;
+                    }
+                }
+                return Err(e.into());
+            }
             Ok(Ok(action)) => action,
         };
 
