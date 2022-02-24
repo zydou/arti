@@ -26,6 +26,17 @@ struct TestingStateMgrInner {
     storage: Arc<Mutex<TestingStateMgrStorage>>,
 }
 
+impl TestingStateMgrInner {
+    /// Release the lock, if we hold it. Otherwise, do nothing.
+    fn unlock(&mut self) {
+        if self.lock_held {
+            self.lock_held = false;
+            let mut storage = self.storage.lock().expect("Lock poisoned");
+            storage.lock_available = true;
+        }
+    }
+}
+
 /// Implementation type for [`TestingStateMgr`]: represents an underlying
 /// storage system that can be shared by multiple TestingStateMgr instances
 /// at a time, only one of which can hold the lock.
@@ -129,15 +140,17 @@ impl StateMgr for TestingStateMgr {
             Ok(LockStatus::NoLock)
         }
     }
+
+    fn unlock(&self) -> Result<()> {
+        let mut inner = self.inner.lock().expect("Lock poisoned.");
+        inner.unlock();
+        Ok(())
+    }
 }
 
 impl Drop for TestingStateMgrInner {
     fn drop(&mut self) {
-        if self.lock_held {
-            self.lock_held = false;
-            let mut storage = self.storage.lock().expect("Lock poisoned");
-            storage.lock_available = true;
-        }
+        self.unlock();
     }
 }
 

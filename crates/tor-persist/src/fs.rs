@@ -117,6 +117,17 @@ impl StateMgr for FsStateMgr {
             Ok(LockStatus::NoLock)
         }
     }
+    fn unlock(&self) -> Result<()> {
+        let mut lockfile = self
+            .inner
+            .lockfile
+            .lock()
+            .expect("Poisoned lock on state lockfile");
+        if lockfile.owns_lock() {
+            lockfile.unlock()?;
+        }
+        Ok(())
+    }
     fn load<D>(&self, key: &str) -> Result<Option<D>>
     where
         D: DeserializeOwned,

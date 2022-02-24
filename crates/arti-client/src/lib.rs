@@ -192,6 +192,7 @@
 mod address;
 mod builder;
 mod client;
+mod util;
 
 pub mod config;
 pub mod status;
