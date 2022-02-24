@@ -36,7 +36,7 @@ use std::time::{Duration, Instant, SystemTime};
 /// or as an additional bound on the Arti APIs that currently use `Runtime`.
 /// For API future compatibility, if you `impl Runtime for MyRuntime`,
 /// you should also ensure that you
-/// ```no_run
+/// ```ignore
 /// impl<S> TlsProvider<S> for MyRuntime
 /// where S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static
 /// ```
