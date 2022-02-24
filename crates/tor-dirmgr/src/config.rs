@@ -9,9 +9,8 @@
 //! here must be reflected in the version of `arti-client`.
 
 use crate::retry::DownloadSchedule;
-use crate::storage::sqlite::SqliteStore;
-use crate::Authority;
-use crate::Result;
+use crate::storage::DynStore;
+use crate::{Authority, Result};
 use tor_config::ConfigBuildError;
 use tor_netdir::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
@@ -246,14 +245,15 @@ impl DirMgrConfig {
         DirMgrConfigBuilder::default()
     }
 
-    /// Create a SqliteStore from this configuration.
+    /// Create a store from this configuration.
     ///
     /// Note that each time this is called, a new store object will be
     /// created: you probably only want to call this once.
-    ///
-    /// The `readonly` argument is as for [`SqliteStore::from_path`]
-    pub(crate) fn open_sqlite_store(&self, readonly: bool) -> Result<SqliteStore> {
-        SqliteStore::from_path(&self.cache_path, readonly)
+    pub(crate) fn open_store(&self, readonly: bool) -> Result<DynStore> {
+        Ok(Box::new(crate::storage::SqliteStore::from_path(
+            &self.cache_path,
+            readonly,
+        )?))
     }
 
     /// Return the configured cache path.

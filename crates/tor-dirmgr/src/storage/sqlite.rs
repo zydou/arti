@@ -3,8 +3,9 @@
 //! We store most objects in sqlite tables, except for very large ones,
 //! which we store as "blob" files in a separate directory.
 
+use super::ExpirationConfig;
 use crate::docmeta::{AuthCertMeta, ConsensusMeta};
-use crate::storage::InputString;
+use crate::storage::{InputString, Store};
 use crate::{Error, Result};
 
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
@@ -113,42 +114,6 @@ impl SqliteStore {
         Ok(result)
     }
 
-    /// Return true if this store is opened in read-only mode.
-    pub(crate) fn is_readonly(&self) -> bool {
-        match &self.lockfile {
-            Some(f) => !f.owns_lock(),
-            None => false,
-        }
-    }
-
-    /// Try to upgrade from a read-only connection to a read-write connection.
-    ///
-    /// Return true on success; false if another process had the lock.
-    pub(crate) fn upgrade_to_readwrite(&mut self) -> Result<bool> {
-        if self.is_readonly() && self.sql_path.is_some() {
-            let lf = self
-                .lockfile
-                .as_mut()
-                .expect("No lockfile open; cannot upgrade to read-write storage");
-            if !lf.try_lock()? {
-                // Somebody else has the lock.
-                return Ok(false);
-            }
-            // Unwrap should be safe due to parent `.is_some()` check
-            #[allow(clippy::unwrap_used)]
-            match rusqlite::Connection::open(self.sql_path.as_ref().unwrap()) {
-                Ok(conn) => {
-                    self.conn = conn;
-                }
-                Err(e) => {
-                    let _ignore = lf.unlock();
-                    return Err(e.into());
-                }
-            }
-        }
-        Ok(true)
-    }
-
     /// Check whether this database has a schema format we can read, and
     /// install or upgrade the schema if necessary.
     fn check_schema(&mut self) -> Result<()> {
@@ -186,36 +151,6 @@ impl SqliteStore {
         }
 
         // rolls back the transaction, but nothing was done.
-        Ok(())
-    }
-
-    /// Delete all completely-expired objects from the database.
-    ///
-    /// This is pretty conservative, and only removes things that are
-    /// definitely past their good-by date.
-    pub(crate) fn expire_all(&mut self) -> Result<()> {
-        let tx = self.conn.transaction()?;
-        let expired_blobs: Vec<String> = {
-            let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
-            let names = stmt
-                .query_map([], |row| row.get::<_, String>(0))?
-                .filter_map(std::result::Result::ok)
-                .collect();
-            names
-        };
-
-        tx.execute(DROP_OLD_EXTDOCS, [])?;
-        tx.execute(DROP_OLD_MICRODESCS, [])?;
-        tx.execute(DROP_OLD_AUTHCERTS, [])?;
-        tx.execute(DROP_OLD_CONSENSUSES, [])?;
-        tx.execute(DROP_OLD_ROUTERDESCS, [])?;
-        tx.commit()?;
-        for name in expired_blobs {
-            let fname = self.blob_fname(name);
-            if let Ok(fname) = fname {
-                let _ignore = std::fs::remove_file(fname);
-            }
-        }
         Ok(())
     }
 
@@ -307,8 +242,140 @@ impl SqliteStore {
         Ok(fname)
     }
 
-    /// Write a consensus to disk.
-    pub(crate) fn store_consensus(
+    /// Return the valid-after time for the latest non non-pending consensus,
+    #[cfg(test)]
+    // We should revise the tests to use latest_consensus_meta instead.
+    fn latest_consensus_time(&self, flavor: ConsensusFlavor) -> Result<Option<OffsetDateTime>> {
+        Ok(self
+            .latest_consensus_meta(flavor)?
+            .map(|m| m.lifetime().valid_after().into()))
+    }
+}
+
+impl Store for SqliteStore {
+    fn is_readonly(&self) -> bool {
+        match &self.lockfile {
+            Some(f) => !f.owns_lock(),
+            None => false,
+        }
+    }
+    fn upgrade_to_readwrite(&mut self) -> Result<bool> {
+        if self.is_readonly() && self.sql_path.is_some() {
+            let lf = self
+                .lockfile
+                .as_mut()
+                .expect("No lockfile open; cannot upgrade to read-write storage");
+            if !lf.try_lock()? {
+                // Somebody else has the lock.
+                return Ok(false);
+            }
+            // Unwrap should be safe due to parent `.is_some()` check
+            #[allow(clippy::unwrap_used)]
+            match rusqlite::Connection::open(self.sql_path.as_ref().unwrap()) {
+                Ok(conn) => {
+                    self.conn = conn;
+                }
+                Err(e) => {
+                    let _ignore = lf.unlock();
+                    return Err(e.into());
+                }
+            }
+        }
+        Ok(true)
+    }
+    fn expire_all(&mut self, expiration: &ExpirationConfig) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let expired_blobs: Vec<String> = {
+            let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
+            let names = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .filter_map(std::result::Result::ok)
+                .collect();
+            names
+        };
+
+        let now = OffsetDateTime::now_utc();
+        tx.execute(DROP_OLD_EXTDOCS, [])?;
+        tx.execute(DROP_OLD_MICRODESCS, [now - expiration.microdescs])?;
+        tx.execute(DROP_OLD_AUTHCERTS, [now - expiration.authcerts])?;
+        tx.execute(DROP_OLD_CONSENSUSES, [now - expiration.consensuses])?;
+        tx.execute(DROP_OLD_ROUTERDESCS, [now - expiration.router_descs])?;
+        tx.commit()?;
+        for name in expired_blobs {
+            let fname = self.blob_fname(name);
+            if let Ok(fname) = fname {
+                let _ignore = std::fs::remove_file(fname);
+            }
+        }
+        Ok(())
+    }
+
+    fn latest_consensus(
+        &self,
+        flavor: ConsensusFlavor,
+        pending: Option<bool>,
+    ) -> Result<Option<InputString>> {
+        trace!(?flavor, ?pending, "Loading latest consensus from cache");
+        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
+            None => self
+                .conn
+                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
+                .optional()?,
+            Some(pending_val) => self
+                .conn
+                .query_row(
+                    FIND_CONSENSUS_P,
+                    params![pending_val, flavor.name()],
+                    |row| row.try_into(),
+                )
+                .optional()?,
+        };
+
+        if let Some((_va, _vu, filename)) = rv {
+            self.read_blob(filename).map(Option::Some)
+        } else {
+            Ok(None)
+        }
+    }
+    fn latest_consensus_meta(&self, flavor: ConsensusFlavor) -> Result<Option<ConsensusMeta>> {
+        let mut stmt = self.conn.prepare(FIND_LATEST_CONSENSUS_META)?;
+        let mut rows = stmt.query(params![flavor.name()])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(cmeta_from_row(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+    fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString> {
+        if let Some((text, _)) =
+            self.consensus_by_sha3_digest_of_signed_part(cmeta.sha3_256_of_signed())?
+        {
+            Ok(text)
+        } else {
+            Err(Error::CacheCorruption(
+                "couldn't find a consensus we thought we had.",
+            ))
+        }
+    }
+    fn consensus_by_sha3_digest_of_signed_part(
+        &self,
+        d: &[u8; 32],
+    ) -> Result<Option<(InputString, ConsensusMeta)>> {
+        let digest = hex::encode(d);
+        let mut stmt = self
+            .conn
+            .prepare(FIND_CONSENSUS_AND_META_BY_DIGEST_OF_SIGNED)?;
+        let mut rows = stmt.query(params![digest])?;
+        if let Some(row) = rows.next()? {
+            let meta = cmeta_from_row(row)?;
+            let fname: String = row.get(5)?;
+            let text = self.read_blob(&fname)?;
+            Ok(Some((text, meta)))
+        } else {
+            Ok(None)
+        }
+    }
+    fn store_consensus(
         &mut self,
         cmeta: &ConsensusMeta,
         flavor: ConsensusFlavor,
@@ -354,102 +421,7 @@ impl SqliteStore {
         h.unlinker.forget();
         Ok(())
     }
-
-    /// Return the information about the latest non-pending consensus,
-    /// including its valid-after time and digest.
-    pub(crate) fn latest_consensus_meta(
-        &self,
-        flavor: ConsensusFlavor,
-    ) -> Result<Option<ConsensusMeta>> {
-        let mut stmt = self.conn.prepare(FIND_LATEST_CONSENSUS_META)?;
-        let mut rows = stmt.query(params![flavor.name()])?;
-        if let Some(row) = rows.next()? {
-            Ok(Some(cmeta_from_row(row)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Return the valid-after time for the latest non non-pending consensus,
-    #[cfg(test)]
-    // We should revise the tests to use latest_consensus_meta instead.
-    fn latest_consensus_time(&self, flavor: ConsensusFlavor) -> Result<Option<OffsetDateTime>> {
-        Ok(self
-            .latest_consensus_meta(flavor)?
-            .map(|m| m.lifetime().valid_after().into()))
-    }
-
-    /// Load the latest consensus from disk.
-    ///
-    /// If `pending` is given, we will only return a consensus with
-    /// the given "pending" status.  (A pending consensus doesn't have
-    /// enough descriptors yet.)  If `pending_ok` is None, we'll
-    /// return a consensus with any pending status.
-    pub(crate) fn latest_consensus(
-        &self,
-        flavor: ConsensusFlavor,
-        pending: Option<bool>,
-    ) -> Result<Option<InputString>> {
-        trace!(?flavor, ?pending, "Loading latest consensus from cache");
-        let rv: Option<(OffsetDateTime, OffsetDateTime, String)> = match pending {
-            None => self
-                .conn
-                .query_row(FIND_CONSENSUS, params![flavor.name()], |row| row.try_into())
-                .optional()?,
-            Some(pending_val) => self
-                .conn
-                .query_row(
-                    FIND_CONSENSUS_P,
-                    params![pending_val, flavor.name()],
-                    |row| row.try_into(),
-                )
-                .optional()?,
-        };
-
-        if let Some((_va, _vu, filename)) = rv {
-            self.read_blob(filename).map(Option::Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Try to read the consensus corresponding to the provided metadata object.
-    #[allow(unused)]
-    pub(crate) fn consensus_by_meta(&self, cmeta: &ConsensusMeta) -> Result<InputString> {
-        if let Some((text, _)) =
-            self.consensus_by_sha3_digest_of_signed_part(cmeta.sha3_256_of_signed())?
-        {
-            Ok(text)
-        } else {
-            Err(Error::CacheCorruption(
-                "couldn't find a consensus we thought we had.",
-            ))
-        }
-    }
-
-    /// Try to read the consensus whose SHA3-256 digests is the provided
-    /// value, and its metadata.
-    pub(crate) fn consensus_by_sha3_digest_of_signed_part(
-        &self,
-        d: &[u8; 32],
-    ) -> Result<Option<(InputString, ConsensusMeta)>> {
-        let digest = hex::encode(d);
-        let mut stmt = self
-            .conn
-            .prepare(FIND_CONSENSUS_AND_META_BY_DIGEST_OF_SIGNED)?;
-        let mut rows = stmt.query(params![digest])?;
-        if let Some(row) = rows.next()? {
-            let meta = cmeta_from_row(row)?;
-            let fname: String = row.get(5)?;
-            let text = self.read_blob(&fname)?;
-            Ok(Some((text, meta)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Mark the consensus generated from `cmeta` as no longer pending.
-    pub(crate) fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
+    fn mark_consensus_usable(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
         let d = hex::encode(cmeta.sha3_256_of_whole());
         let digest = format!("sha3-256-{}", d);
 
@@ -460,10 +432,7 @@ impl SqliteStore {
 
         Ok(())
     }
-
-    /// Remove the consensus generated from `cmeta`.
-    #[allow(unused)]
-    pub(crate) fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
+    fn delete_consensus(&mut self, cmeta: &ConsensusMeta) -> Result<()> {
         let d = hex::encode(cmeta.sha3_256_of_whole());
         let digest = format!("sha3-256-{}", d);
 
@@ -476,28 +445,7 @@ impl SqliteStore {
         Ok(())
     }
 
-    /// Save a list of authority certificates to the cache.
-    pub(crate) fn store_authcerts(&mut self, certs: &[(AuthCertMeta, &str)]) -> Result<()> {
-        let tx = self.conn.transaction()?;
-        let mut stmt = tx.prepare(INSERT_AUTHCERT)?;
-        for (meta, content) in certs {
-            let ids = meta.key_ids();
-            let id_digest = hex::encode(ids.id_fingerprint.as_bytes());
-            let sk_digest = hex::encode(ids.sk_fingerprint.as_bytes());
-            let published: OffsetDateTime = meta.published().into();
-            let expires: OffsetDateTime = meta.expires().into();
-            stmt.execute(params![id_digest, sk_digest, published, expires, content])?;
-        }
-        stmt.finalize()?;
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// Read all of the specified authority certs from the cache.
-    pub(crate) fn authcerts(
-        &self,
-        certs: &[AuthCertKeyIds],
-    ) -> Result<HashMap<AuthCertKeyIds, String>> {
+    fn authcerts(&self, certs: &[AuthCertKeyIds]) -> Result<HashMap<AuthCertKeyIds, String>> {
         let mut result = HashMap::new();
         // TODO(nickm): Do I need to get a transaction here for performance?
         let mut stmt = self.conn.prepare(FIND_AUTHCERT)?;
@@ -515,18 +463,29 @@ impl SqliteStore {
 
         Ok(result)
     }
+    fn store_authcerts(&mut self, certs: &[(AuthCertMeta, &str)]) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let mut stmt = tx.prepare(INSERT_AUTHCERT)?;
+        for (meta, content) in certs {
+            let ids = meta.key_ids();
+            let id_digest = hex::encode(ids.id_fingerprint.as_bytes());
+            let sk_digest = hex::encode(ids.sk_fingerprint.as_bytes());
+            let published: OffsetDateTime = meta.published().into();
+            let expires: OffsetDateTime = meta.expires().into();
+            stmt.execute(params![id_digest, sk_digest, published, expires, content])?;
+        }
+        stmt.finalize()?;
+        tx.commit()?;
+        Ok(())
+    }
 
-    /// Read all the microdescriptors listed in `input` from the cache.
-    pub(crate) fn microdescs<'a, I>(&self, input: I) -> Result<HashMap<MdDigest, String>>
-    where
-        I: IntoIterator<Item = &'a MdDigest>,
-    {
+    fn microdescs(&self, digests: &[MdDigest]) -> Result<HashMap<MdDigest, String>> {
         let mut result = HashMap::new();
         let mut stmt = self.conn.prepare(FIND_MD)?;
 
         // TODO(nickm): Should I speed this up with a transaction, or
         // does it not matter for queries?
-        for md_digest in input.into_iter() {
+        for md_digest in digests {
             let h_digest = hex::encode(md_digest);
             if let Some(contents) = stmt
                 .query_row(params![h_digest], |row| row.get::<_, String>(0))
@@ -538,21 +497,43 @@ impl SqliteStore {
 
         Ok(result)
     }
+    fn store_microdescs(&mut self, digests: &[(&str, &MdDigest)], when: SystemTime) -> Result<()> {
+        let when: OffsetDateTime = when.into();
 
-    /// Read all the microdescriptors listed in `input` from the cache.
-    ///
-    /// Only available when the `routerdesc` feature is present.
+        let tx = self.conn.transaction()?;
+        let mut stmt = tx.prepare(INSERT_MD)?;
+
+        for (content, md_digest) in digests {
+            let h_digest = hex::encode(md_digest);
+            stmt.execute(params![h_digest, when, content])?;
+        }
+        stmt.finalize()?;
+        tx.commit()?;
+        Ok(())
+    }
+    fn update_microdescs_listed(&mut self, digests: &[MdDigest], when: SystemTime) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        let mut stmt = tx.prepare(UPDATE_MD_LISTED)?;
+        let when: OffsetDateTime = when.into();
+
+        for md_digest in digests {
+            let h_digest = hex::encode(md_digest);
+            stmt.execute(params![when, h_digest])?;
+        }
+
+        stmt.finalize()?;
+        tx.commit()?;
+        Ok(())
+    }
+
     #[cfg(feature = "routerdesc")]
-    pub(crate) fn routerdescs<'a, I>(&self, input: I) -> Result<HashMap<RdDigest, String>>
-    where
-        I: IntoIterator<Item = &'a RdDigest>,
-    {
+    fn routerdescs(&self, digests: &[RdDigest]) -> Result<HashMap<RdDigest, String>> {
         let mut result = HashMap::new();
         let mut stmt = self.conn.prepare(FIND_RD)?;
 
         // TODO(nickm): Should I speed this up with a transaction, or
         // does it not matter for queries?
-        for rd_digest in input.into_iter() {
+        for rd_digest in digests {
             let h_digest = hex::encode(rd_digest);
             if let Some(contents) = stmt
                 .query_row(params![h_digest], |row| row.get::<_, String>(0))
@@ -564,63 +545,13 @@ impl SqliteStore {
 
         Ok(result)
     }
-
-    /// Update the `last-listed` time of every microdescriptor in
-    /// `input` to `when` or later.
-    pub(crate) fn update_microdescs_listed<'a, I>(
-        &mut self,
-        input: I,
-        when: SystemTime,
-    ) -> Result<()>
-    where
-        I: IntoIterator<Item = &'a MdDigest>,
-    {
-        let tx = self.conn.transaction()?;
-        let mut stmt = tx.prepare(UPDATE_MD_LISTED)?;
-        let when: OffsetDateTime = when.into();
-
-        for md_digest in input.into_iter() {
-            let h_digest = hex::encode(md_digest);
-            stmt.execute(params![when, h_digest])?;
-        }
-
-        stmt.finalize()?;
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// Store every microdescriptor in `input` into the cache, and say that
-    /// it was last listed at `when`.
-    pub(crate) fn store_microdescs<'a, I>(&mut self, input: I, when: SystemTime) -> Result<()>
-    where
-        I: IntoIterator<Item = (&'a str, &'a MdDigest)>,
-    {
-        let when: OffsetDateTime = when.into();
-
-        let tx = self.conn.transaction()?;
-        let mut stmt = tx.prepare(INSERT_MD)?;
-
-        for (content, md_digest) in input.into_iter() {
-            let h_digest = hex::encode(md_digest);
-            stmt.execute(params![h_digest, when, content])?;
-        }
-        stmt.finalize()?;
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// Store every router descriptors in `input` into the cache.
     #[cfg(feature = "routerdesc")]
-    #[allow(unused)]
-    pub(crate) fn store_routerdescs<'a, I>(&mut self, input: I) -> Result<()>
-    where
-        I: IntoIterator<Item = (&'a str, SystemTime, &'a RdDigest)>,
-    {
+    fn store_routerdescs(&mut self, digests: &[(&str, SystemTime, &RdDigest)]) -> Result<()> {
         let tx = self.conn.transaction()?;
         let mut stmt = tx.prepare(INSERT_RD)?;
 
-        for (content, when, rd_digest) in input.into_iter() {
-            let when: OffsetDateTime = when.into();
+        for (content, when, rd_digest) in digests {
+            let when: OffsetDateTime = (*when).into();
             let h_digest = hex::encode(rd_digest);
             stmt.execute(params![h_digest, when, content])?;
         }
@@ -908,34 +839,28 @@ const UPDATE_MD_LISTED: &str = "
 ";
 
 /// Query: Discard every expired extdoc.
-const DROP_OLD_EXTDOCS: &str = "
-  DELETE FROM ExtDocs WHERE expires < datetime('now');
-";
+///
+/// External documents aren't exposed through [`Store`].
+const DROP_OLD_EXTDOCS: &str = "DELETE FROM ExtDocs WHERE expires < datetime('now');";
+
 /// Query: Discard every router descriptor that hasn't been listed for 3
 /// months.
 // TODO: Choose a more realistic time.
-const DROP_OLD_ROUTERDESCS: &str = "
-  DELETE FROM RouterDescs WHERE published < datetime('now','-3 months');
-  ";
+const DROP_OLD_ROUTERDESCS: &str = "DELETE FROM RouterDescs WHERE published < ?;";
 /// Query: Discard every microdescriptor that hasn't been listed for 3 months.
 // TODO: Choose a more realistic time.
-const DROP_OLD_MICRODESCS: &str = "
-  DELETE FROM Microdescs WHERE last_listed < datetime('now','-3 months');
-";
+const DROP_OLD_MICRODESCS: &str = "DELETE FROM Microdescs WHERE last_listed < ?;";
 /// Query: Discard every expired authority certificate.
-const DROP_OLD_AUTHCERTS: &str = "
-  DELETE FROM Authcerts WHERE expires < datetime('now');
-";
+const DROP_OLD_AUTHCERTS: &str = "DELETE FROM Authcerts WHERE expires < ?;";
 /// Query: Discard every consensus that's been expired for at least
 /// two days.
-const DROP_OLD_CONSENSUSES: &str = "
-  DELETE FROM Consensuses WHERE valid_until < datetime('now','-2 days');
-";
+const DROP_OLD_CONSENSUSES: &str = "DELETE FROM Consensuses WHERE valid_until < ?;";
 
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::storage::EXPIRATION_DEFAULTS;
     use hex_literal::hex;
     use tempfile::{tempdir, TempDir};
     use time::ext::NumericalDuration;
@@ -1042,7 +967,7 @@ mod test {
         assert_eq!(blob.as_str().unwrap(), "Goodbye, dear friends");
 
         // Now expire: the second file should go away.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         assert_eq!(
             &std::fs::read(store.blob_fname(&fname1)?)?[..],
             b"Hello world"
@@ -1196,7 +1121,7 @@ mod test {
 
         let long_ago: OffsetDateTime = now - one_day * 100;
         store.store_microdescs(
-            vec![
+            &[
                 ("Fake micro 1", &d1),
                 ("Fake micro 2", &d2),
                 ("Fake micro 3", &d3),
@@ -1214,7 +1139,7 @@ mod test {
         assert_eq!(mds.get(&d4), None);
 
         // Now we'll expire.  that should drop everything but d2.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         let mds = store.microdescs(&[d2, d3, d4])?;
         assert_eq!(mds.len(), 1);
         assert_eq!(mds.get(&d2).unwrap(), "Fake micro 2");
@@ -1237,7 +1162,7 @@ mod test {
         let d3 = [42; 20];
         let d4 = [99; 20];
 
-        store.store_routerdescs(vec![
+        store.store_routerdescs(&[
             ("Fake routerdesc 1", long_ago.into(), &d1),
             ("Fake routerdesc 2", recently.into(), &d2),
             ("Fake routerdesc 3", long_ago.into(), &d3),
@@ -1251,7 +1176,7 @@ mod test {
         assert_eq!(rds.get(&d4), None);
 
         // Now we'll expire.  that should drop everything but d2.
-        store.expire_all()?;
+        store.expire_all(&EXPIRATION_DEFAULTS)?;
         let rds = store.routerdescs(&[d2, d3, d4])?;
         assert_eq!(rds.len(), 1);
         assert_eq!(rds.get(&d2).unwrap(), "Fake routerdesc 2");
