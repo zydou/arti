@@ -100,7 +100,7 @@ impl WindowParams for CircParams {
 
 /// Parameters used for SENDME windows on streams: limit at 500 cells,
 /// and each SENDME adjusts by 50.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct StreamParams;
 impl WindowParams for StreamParams {
     fn maximum() -> u16 {
@@ -208,7 +208,7 @@ where
 }
 
 /// Structure to track when we need to send SENDME cells for incoming data.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct RecvWindow<P: WindowParams> {
     /// Number of cells that we'd be willing to receive on this window
     /// before sending a SENDME.

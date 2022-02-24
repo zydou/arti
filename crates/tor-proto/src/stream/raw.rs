@@ -10,6 +10,7 @@ use futures::channel::mpsc;
 use futures::stream::StreamExt;
 
 /// The read part of a stream on a particular circuit.
+#[derive(Debug)]
 pub struct StreamReader {
     /// The underlying `StreamTarget` for this stream.
     pub(crate) target: StreamTarget,
