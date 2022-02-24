@@ -15,6 +15,7 @@ use tokio_crate::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite
 #[cfg(feature = "tokio")]
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
+use std::fmt;
 use std::io::Result as IoResult;
 use std::pin::Pin;
 
@@ -86,6 +87,7 @@ use tor_error::internal;
 // Note that this type is re-exported as a part of the public API of
 // the `arti-client` crate.  Any changes to its API here in
 // `tor-proto` need to be reflected above.
+#[derive(Debug)]
 pub struct DataStream {
     /// Underlying writer for this stream
     w: DataWriter,
@@ -109,6 +111,7 @@ pub struct DataStream {
 // Note that this type is re-exported as a part of the public API of
 // the `arti-client` crate.  Any changes to its API here in
 // `tor-proto` need to be reflected above.
+#[derive(Debug)]
 pub struct DataWriter {
     /// Internal state for this writer
     ///
@@ -133,6 +136,7 @@ pub struct DataWriter {
 // Note that this type is re-exported as a part of the public API of
 // the `arti-client` crate.  Any changes to its API here in
 // `tor-proto` need to be reflected above.
+#[derive(Debug)]
 pub struct DataReader {
     /// Internal state for this reader.
     ///
@@ -264,7 +268,18 @@ enum DataWriterState {
     Flushing(Pin<Box<dyn Future<Output = (DataWriterImpl, Result<()>)> + Send>>),
 }
 
+impl fmt::Debug for DataWriterState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DataWriterState::Closed => write!(f, "DataWriterState::Closed"),
+            DataWriterState::Ready(i) => write!(f, "DataWriterState::Ready({:?})", i),
+            DataWriterState::Flushing(_) => write!(f, "DataWriterState::Flushing(..)"),
+        }
+    }
+}
+
 /// Internal: the write part of a DataStream
+#[derive(Debug)]
 struct DataWriterImpl {
     /// The underlying StreamTarget object.
     s: StreamTarget,
@@ -464,6 +479,7 @@ impl std::fmt::Debug for DataReaderState {
 }
 
 /// Wrapper for the read part of a DataStream
+#[derive(Debug)]
 struct DataReaderImpl {
     /// The underlying StreamReader object.
     s: StreamReader,
