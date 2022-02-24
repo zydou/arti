@@ -15,7 +15,7 @@ use tokio_crate::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite
 #[cfg(feature = "tokio")]
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::io::Result as IoResult;
 use std::pin::Pin;
 
@@ -268,7 +268,7 @@ enum DataWriterState {
     Flushing(Pin<Box<dyn Future<Output = (DataWriterImpl, Result<()>)> + Send>>),
 }
 
-impl fmt::Debug for DataWriterState {
+impl Debug for DataWriterState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DataWriterState::Closed => write!(f, "DataWriterState::Closed"),
