@@ -15,7 +15,7 @@ use tokio_crate::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite
 #[cfg(feature = "tokio")]
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::io::Result as IoResult;
 use std::pin::Pin;
 
@@ -268,7 +268,7 @@ enum DataWriterState {
     Flushing(Pin<Box<dyn Future<Output = (DataWriterImpl, Result<()>)> + Send>>),
 }
 
-impl fmt::Debug for DataWriterState {
+impl Debug for DataWriterState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             DataWriterState::Closed => write!(f, "DataWriterState::Closed"),
@@ -279,7 +279,6 @@ impl fmt::Debug for DataWriterState {
 }
 
 /// Internal: the write part of a DataStream
-#[derive(Debug)]
 struct DataWriterImpl {
     /// The underlying StreamTarget object.
     s: StreamTarget,
@@ -293,6 +292,15 @@ struct DataWriterImpl {
 
     /// Number of unflushed bytes in buf.
     n_pending: usize,
+}
+
+impl Debug for DataWriterImpl {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("DataWriterImpl")
+            .field("sr", &self.s)
+            .field("n_pending", &self.n_pending)
+            .finish_non_exhaustive()
+    }
 }
 
 impl DataWriter {
@@ -479,7 +487,6 @@ impl std::fmt::Debug for DataReaderState {
 }
 
 /// Wrapper for the read part of a DataStream
-#[derive(Debug)]
 struct DataReaderImpl {
     /// The underlying StreamReader object.
     s: StreamReader,
