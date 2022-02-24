@@ -87,6 +87,15 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> {
     rsa_id: RsaIdentity,
 }
 
+/// Convert a CodecError to an Error, under the context that it occurs while
+/// doing a channel handshake.
+fn codec_err_to_handshake(err: CodecError) -> Error {
+    match err {
+        CodecError::Io(e) => Error::HandshakeIoErr(Arc::new(e)),
+        CodecError::Cell(e) => Error::HandshakeProto(format!("Invalid cell on handshake: {}", e)),
+    }
+}
+
 impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake<T> {
     /// Construct a new OutboundClientHandshake.
     pub(crate) fn new(tls: T, target_addr: Option<SocketAddr>) -> Self {
@@ -101,7 +110,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
     /// the relay's handshake information.
     pub async fn connect(mut self) -> Result<UnverifiedChannel<T>> {
         /// Helper: wrap an IoError as a HandshakeIoErr.
-        fn chan_io_err(err: std::io::Error) -> Error {
+        fn io_err_to_handshake(err: std::io::Error) -> Error {
             Error::HandshakeIoErr(Arc::new(err))
         }
 
@@ -116,8 +125,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
             self.tls
                 .write_all(&my_versions.encode_for_handshake())
                 .await
-                .map_err(chan_io_err)?;
-            self.tls.flush().await.map_err(chan_io_err)?;
+                .map_err(io_err_to_handshake)?;
+            self.tls.flush().await.map_err(io_err_to_handshake)?;
         }
 
         // Get versions cell.
@@ -134,13 +143,16 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return not_relay(),
                 otherwise => otherwise,
             }
-            .map_err(chan_io_err)?;
+            .map_err(io_err_to_handshake)?;
             if hdr[0..3] != [0, 0, ChanCmd::VERSIONS.into()] {
                 return not_relay();
             }
             let msglen = u16::from_be_bytes(*array_ref![hdr, 3, 2]);
             let mut msg = vec![0; msglen as usize];
-            self.tls.read_exact(&mut msg).await.map_err(chan_io_err)?;
+            self.tls
+                .read_exact(&mut msg)
+                .await
+                .map_err(io_err_to_handshake)?;
             let mut reader = Reader::from_slice(&msg);
             reader.extract()?
         };
@@ -167,16 +179,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
         trace!("{}: waiting for rest of handshake.", self.unique_id);
         while let Some(m) = tls.next().await {
             use msg::ChanMsg::*;
-            // Don't use the standard conversion; instead wrap to indicate bad handshake.
-            let m = match m {
-                Err(CodecError::Io(e)) => Err(Error::HandshakeIoErr(Arc::new(e))),
-                Err(CodecError::Cell(e)) => Err(Error::HandshakeProto(format!(
-                    "Invalid cell on handshake: {}",
-                    e
-                ))),
-                Ok(v) => Ok(v),
-            };
-            let (_, m) = m?.into_circid_and_msg();
+            let (_, m) = m.map_err(codec_err_to_handshake)?.into_circid_and_msg();
             trace!("{}: received a {} cell.", self.unique_id, m.cmd());
             match m {
                 // Are these technically allowed?
@@ -438,7 +441,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
         crate::note_incoming_traffic();
         trace!("{}: Sending netinfo cell.", self.unique_id);
         let netinfo = msg::Netinfo::for_client(self.target_addr.as_ref().map(SocketAddr::ip));
-        self.tls.send(netinfo.into()).await?;
+        self.tls
+            .send(netinfo.into())
+            .await
+            .map_err(codec_err_to_handshake)?;
 
         debug!(
             "{}: Completed handshake with {} [{}]",

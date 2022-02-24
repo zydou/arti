@@ -6,7 +6,6 @@ use tor_cell::chancell::{codec, ChanCell};
 
 use asynchronous_codec as futures_codec;
 use bytes::BytesMut;
-use std::sync::Arc;
 
 /// An error from a ChannelCodec.
 ///
@@ -23,15 +22,6 @@ pub(crate) enum CodecError {
     /// An error from the cell encoding/decoding logic.
     #[error("encoding/decoding error")]
     Cell(#[from] tor_cell::Error),
-}
-
-impl From<CodecError> for crate::Error {
-    fn from(err: CodecError) -> Self {
-        match err {
-            CodecError::Io(e) => crate::Error::ChanIoErr(Arc::new(e)),
-            CodecError::Cell(e) => e.into(),
-        }
-    }
 }
 
 /// Asynchronous wrapper around ChannelCodec in tor_cell, with implementation
