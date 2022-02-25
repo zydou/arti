@@ -34,7 +34,7 @@ impl<R: Runtime> DirProviderBuilder<R> for DirMgrBuilder {
     ) -> Result<Arc<dyn tor_dirmgr::DirProvider + Send + Sync + 'static>> {
         let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(config, runtime, circmgr)
             .map_err(ErrorDetail::from)?;
-        Ok(dirmgr)
+        Ok(Arc::new(dirmgr))
     }
 }
 

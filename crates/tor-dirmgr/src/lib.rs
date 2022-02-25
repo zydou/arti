@@ -135,7 +135,7 @@ pub trait DirProvider {
 }
 
 #[async_trait]
-impl<R: Runtime> DirProvider for DirMgr<R> {
+impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
     fn latest_netdir(&self) -> Option<Arc<NetDir>> {
         self.opt_netdir()
     }
@@ -149,15 +149,15 @@ impl<R: Runtime> DirProvider for DirMgr<R> {
         new_config: &DirMgrConfig,
         how: tor_config::Reconfigure,
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
-        self.reconfigure(new_config, how)
+        DirMgr::reconfigure(self, new_config, how)
     }
 
     async fn bootstrap(&self) -> Result<()> {
-        self.bootstrap().await
+        DirMgr::bootstrap(self).await
     }
 
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus> {
-        Box::pin(self.bootstrap_events())
+        Box::pin(DirMgr::bootstrap_events(self))
     }
 }
 
