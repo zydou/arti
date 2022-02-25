@@ -1,0 +1,12 @@
+image: debian:stable-slim
+
+pages:
+  stage: deploy
+  script:
+    - echo "Nothing to do..."
+  artifacts:
+    paths:
+    - public
+    expire_in: 1 day
+  rules:
+  - if: $CI_COMMIT_REF_NAME == "pages"
