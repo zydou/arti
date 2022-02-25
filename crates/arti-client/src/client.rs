@@ -799,6 +799,17 @@ impl<R: Runtime> TorClient<R> {
         Arc::clone(&self.circmgr)
     }
 
+    /// Return a reference to the runtime being used by this client.
+    //
+    // This API is not a hostage to fortune since we already require that R: Clone,
+    // and necessarily a TorClient must have a clone of it.
+    //
+    // We provide it simply to save callers who have a TorClient from
+    // having to separately keep their own handle,
+    pub fn runtime(&self) -> &R {
+        &self.runtime
+    }
+
     /// Get or launch an exit-suitable circuit with a given set of
     /// exit ports.
     async fn get_or_launch_exit_circ(
