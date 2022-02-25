@@ -106,7 +106,7 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
         }
     }
     fn now(&self) -> SystemTime {
-        SystemTime::now()
+        self.runtime.wallclock()
     }
 }
 

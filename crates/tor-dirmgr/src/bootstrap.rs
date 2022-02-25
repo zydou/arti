@@ -9,6 +9,7 @@ use std::{
 
 use crate::{
     docid::{self, ClientRequest},
+    state::WriteNetDir,
     upgrade_weak_ref, DirMgr, DirState, DocId, DocumentText, Error, Readiness, Result,
 };
 
@@ -239,10 +240,11 @@ pub(crate) async fn download<R: Runtime>(
         // In theory this could be inside the loop below maybe?  If we
         // want to drop the restriction that the missing() members of a
         // state must never grow, then we'll need to move it inside.
-        {
+        let mut now = {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             load_once(&dirmgr, &mut state).await?;
-        }
+            dirmgr.now()
+        };
 
         // Skip the downloads if we can...
         if state.can_advance() {
@@ -260,9 +262,9 @@ pub(crate) async fn download<R: Runtime>(
         // document, or we run out of tries, or we run out of time.
         'next_attempt: for attempt in retry_config.attempts() {
             info!("{}: {}", attempt + 1, state.describe());
-            let reset_time = no_more_than_a_week_from(SystemTime::now(), state.reset_time());
+            let reset_time = no_more_than_a_week_from(now, state.reset_time());
 
-            {
+            now = {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 futures::select_biased! {
                     outcome = download_attempt(&dirmgr, &mut state, parallelism.into()).fuse() => {
@@ -285,7 +287,8 @@ pub(crate) async fn download<R: Runtime>(
                         continue 'next_state;
                     },
                 };
-            }
+                dirmgr.now()
+            };
 
             // Exit if there is nothing more to download.
             if state.is_ready(Readiness::Complete) {
@@ -306,7 +309,7 @@ pub(crate) async fn download<R: Runtime>(
             } else {
                 // We should wait a bit, and then retry.
                 // TODO: we shouldn't wait on the final attempt.
-                let reset_time = no_more_than_a_week_from(SystemTime::now(), state.reset_time());
+                let reset_time = no_more_than_a_week_from(now, state.reset_time());
                 let delay = retry.next_delay(&mut rand::thread_rng());
                 futures::select_biased! {
                     _ = runtime.sleep_until_wallclock(reset_time).fuse() => {

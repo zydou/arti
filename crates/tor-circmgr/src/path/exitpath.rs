@@ -122,6 +122,7 @@ impl<'a> ExitPathBuilder<'a> {
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
         config: &PathConfig,
+        now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
             DirInfo::Fallbacks(_) => {
@@ -136,7 +137,7 @@ impl<'a> ExitPathBuilder<'a> {
         let lifetime = netdir.lifetime();
 
         // Check if the consensus isn't expired by > 72 hours
-        if SystemTime::now() > lifetime.valid_until() + Duration::new(72 * 60 * 60, 0) {
+        if now > lifetime.valid_until() + Duration::new(72 * 60 * 60, 0) {
             return Err(Error::ExpiredConsensus);
         }
 

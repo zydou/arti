@@ -26,6 +26,7 @@ impl<R: Runtime> MockSleepRuntime<R> {
     /// Create a new runtime that wraps `runtime`, but overrides
     /// its view of time with a [`MockSleepProvider`].
     pub fn new(runtime: R) -> Self {
+        #[allow(clippy::disallowed_methods)]
         let sleep = MockSleepProvider::new(SystemTime::now());
         MockSleepRuntime { runtime, sleep }
     }

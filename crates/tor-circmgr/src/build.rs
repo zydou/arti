@@ -244,6 +244,11 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
             Err(e) => Err(e),
         }
     }
+
+    /// Return a reference to this Builder runtime.
+    pub(crate) fn runtime(&self) -> &R {
+        &self.runtime
+    }
 }
 
 /// A factory object to build circuits.
@@ -366,6 +371,11 @@ impl<R: Runtime> CircuitBuilder<R> {
     /// Return a reference to this builder's `GuardMgr`.
     pub(crate) fn guardmgr(&self) -> &tor_guardmgr::GuardMgr<R> {
         &self.guardmgr
+    }
+
+    /// REturn a reference to this builder's runtime
+    pub(crate) fn runtime(&self) -> &R {
+        self.builder.runtime()
     }
 }
 

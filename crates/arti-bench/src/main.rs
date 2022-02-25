@@ -35,6 +35,7 @@
 // This file uses `unwrap()` a fair deal, but this is fine in test/bench code
 // because it's OK if tests and benchmarks simply crash if things go wrong.
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::disallowed_methods)]
 
 use anyhow::{anyhow, Result};
 use arti_client::{TorAddr, TorClient, TorClientConfig};

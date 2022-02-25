@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 use tor_error::bad_api_usage;
 use tracing::debug;
 
@@ -311,6 +312,7 @@ impl TargetCircUsage {
         netdir: crate::DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
         config: &crate::PathConfig,
+        now: SystemTime,
     ) -> Result<(
         TorPath<'a>,
         SupportedCircUsage,
@@ -325,7 +327,7 @@ impl TargetCircUsage {
             TargetCircUsage::Preemptive { port, .. } => {
                 // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -344,7 +346,7 @@ impl TargetCircUsage {
                 isolation,
             } => {
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(p.clone())
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -360,7 +362,7 @@ impl TargetCircUsage {
             }
             TargetCircUsage::TimeoutTesting => {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path.exit_policy();
                 let usage = match policy {
                     Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {
