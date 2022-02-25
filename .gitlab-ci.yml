@@ -57,7 +57,7 @@ rust-latest-async-std-rustls:
     - amd64
 
 rust-nightly:
-  stage: build
+  stage: test
   image: rustlang/rust:nightly
   allow_failure: true
   script:
@@ -71,7 +71,7 @@ rust-nightly:
     # and similar, for when nightly clippy has false positives.  (There is no builtin
     # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
     - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro -D clippy::print_stdout -D clippy::print_stderr
-    - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items
+    - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
   tags:
     - amd64
 
@@ -79,19 +79,20 @@ coverage:
   stage: test
   image: rust:latest
   allow_failure: true
-  variables:
-    RUSTFLAGS: "-Zinstrument-coverage"
-    LLVM_PROFILE_FILE: "arti-%p-%m.profraw"
   script:
     - apt-get update && apt-get install -y python3-pip python3-setuptools
     - pip3 install beautifulsoup4 lxml
     - rustup toolchain add nightly
     - rustup default nightly
     - rustup component add llvm-tools-preview
-    - cargo install grcov
+    - cp grcov $CARGO_HOME/bin/ || cargo install grcov
+    - cp $CARGO_HOME/bin/grcov .
     # Generate report
     - ./maint/with_coverage cargo test --verbose --all-features
     - ./maint/with_coverage -f cobertura -o coverage.xml -c true
+  cache:
+    paths:
+      - grcov
   artifacts:
     paths:
       - 'coverage'
