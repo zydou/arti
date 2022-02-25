@@ -36,6 +36,7 @@
 use std::future::Future;
 use std::io::Error;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use arti_client::{DataStream, IntoTorAddr, TorClient};
@@ -45,6 +46,7 @@ use hyper::http::Uri;
 use hyper::service::Service;
 use pin_project::pin_project;
 use thiserror::Error;
+use tls_api::TlsConnector as TlsConn; // This is different from tor_rtompat::TlsConnector
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tor_rtcompat::Runtime;
 
@@ -90,35 +92,59 @@ impl tor_error::HasKind for ConnectionError {
 /// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
 ///
 /// Only supports plaintext HTTP for now.
-pub struct ArtiHttpConnector<R: Runtime> {
+///
+/// TC is the TLS to used *across* Tor to connect to the origin server.
+/// This is a different Rust type to the TLS used *by* Tor to connect to relays etc.
+/// It might even be a different underlying TLS implementation
+/// (although that is usually not a particularly good idea).
+pub struct ArtiHttpConnector<R: Runtime, TC: TlsConn> {
     /// The client
     client: TorClient<R>,
+
+    /// TLS for using across Tor.
+    #[allow(dead_code)] // TODO
+    tls_conn: Arc<TC>,
 }
 
-impl<R: Runtime> Clone for ArtiHttpConnector<R> {
+// #[derive(Clone)] infers a TC: Clone bound
+impl<R: Runtime, TC: TlsConn> Clone for ArtiHttpConnector<R, TC> {
     fn clone(&self) -> Self {
         let client = self.client.clone();
-        Self { client }
+        let tls_conn = self.tls_conn.clone();
+        Self { client, tls_conn }
     }
 }
 
-impl<R: Runtime> ArtiHttpConnector<R> {
+impl<R: Runtime, TC: TlsConn> ArtiHttpConnector<R, TC> {
     /// Make a new `ArtiHttpConnector` using an Arti `TorClient` object.
-    pub fn new(client: TorClient<R>) -> Self {
-        Self { client }
+    pub fn new(client: TorClient<R>, tls_conn: TC) -> Self {
+        let tls_conn = tls_conn.into();
+        Self { client, tls_conn }
     }
 }
 
 /// Wrapper type that makes an Arti `DataStream` implement necessary traits to be used as
 /// a `hyper` connection object (mainly `Connection`).
 #[pin_project]
-pub struct ArtiHttpConnection {
+pub struct ArtiHttpConnection<TC: TlsConn> {
     /// The stream
     #[pin]
-    inner: DataStream,
+    inner: MaybeHttpsStream<TC>,
 }
 
-impl Connection for ArtiHttpConnection {
+/// The actual actual stream; might be TLS, might not
+#[pin_project(project = MaybeHttpsStreamProj)]
+#[allow(clippy::large_enum_variant)]
+enum MaybeHttpsStream<TC: TlsConn> {
+    /// http
+    Http(#[pin] DataStream),
+
+    /// https
+    #[allow(dead_code)] // TODO
+    Https(#[pin] TC::TlsStream),
+}
+
+impl<TC: TlsConn> Connection for ArtiHttpConnection<TC> {
     fn connected(&self) -> Connected {
         Connected::new()
     }
@@ -126,31 +152,43 @@ impl Connection for ArtiHttpConnection {
 
 // These trait implementations just defer to the inner `DataStream`; the wrapper type is just
 // there to implement the `Connection` trait.
-impl AsyncRead for ArtiHttpConnection {
+impl<TC: TlsConn> AsyncRead for ArtiHttpConnection<TC> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        self.project().inner.poll_read(cx, buf)
+        match self.project().inner.project() {
+            MaybeHttpsStreamProj::Http(ds) => ds.poll_read(cx, buf),
+            MaybeHttpsStreamProj::Https(t) => t.poll_read(cx, buf),
+        }
     }
 }
 
-impl AsyncWrite for ArtiHttpConnection {
+impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
-        self.project().inner.poll_write(cx, buf)
+        match self.project().inner.project() {
+            MaybeHttpsStreamProj::Http(ds) => ds.poll_write(cx, buf),
+            MaybeHttpsStreamProj::Https(t) => t.poll_write(cx, buf),
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        self.project().inner.poll_flush(cx)
+        match self.project().inner.project() {
+            MaybeHttpsStreamProj::Http(ds) => ds.poll_flush(cx),
+            MaybeHttpsStreamProj::Https(t) => t.poll_flush(cx),
+        }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        self.project().inner.poll_shutdown(cx)
+        match self.project().inner.project() {
+            MaybeHttpsStreamProj::Http(ds) => ds.poll_shutdown(cx),
+            MaybeHttpsStreamProj::Https(t) => t.poll_shutdown(cx),
+        }
     }
 }
 
@@ -168,8 +206,8 @@ fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
     Ok((host.to_owned(), port))
 }
 
-impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
-    type Response = ArtiHttpConnection;
+impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
+    type Response = ArtiHttpConnection<TC>;
     type Error = ConnectionError;
     #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
@@ -191,7 +229,9 @@ impl<R: Runtime> Service<Uri> for ArtiHttpConnector<R> {
                 .into_tor_addr()
                 .map_err(arti_client::Error::from)?;
             let ds = client.connect(addr).await?;
-            Ok(ArtiHttpConnection { inner: ds })
+            Ok(ArtiHttpConnection {
+                inner: MaybeHttpsStream::Http(ds),
+            })
         })
     }
 }
