@@ -60,7 +60,7 @@ pub enum ConnectionError {
         uri: Uri,
     },
 
-    /// Unsupported URI scheme
+    /// Missing hostname
     #[error("Missing hostname in {uri:?}")]
     MissingHostname {
         /// URI
