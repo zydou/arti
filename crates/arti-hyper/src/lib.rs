@@ -1,7 +1,4 @@
 //! High-level layer for making http(s) requests the Tor network as a client.
-//!
-//! Work-in-progress.
-//! This is **not suitable for use** right now because it does not support HTTPs.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -73,6 +70,10 @@ pub enum ConnectionError {
     /// Tor connection failed
     #[error("Tor connection failed")]
     Arti(#[from] arti_client::Error),
+
+    /// TLS connection failed
+    #[error("TLS connection failed")]
+    TLS(#[source] Arc<anyhow::Error>),
 }
 
 /// We implement this for form's sake
@@ -84,7 +85,8 @@ impl tor_error::HasKind for ConnectionError {
         match self {
             CE::UnsupportedUriScheme{..} => EK::NotImplemented,
             CE::MissingHostname{..}      => EK::BadApiUsage,
-            CE::Arti(e)                 => e.kind(),
+            CE::Arti(e)                  => e.kind(),
+            CE::TLS(_)                   => EK::OtherRemote,
         }
     }
 }
@@ -102,7 +104,6 @@ pub struct ArtiHttpConnector<R: Runtime, TC: TlsConn> {
     client: TorClient<R>,
 
     /// TLS for using across Tor.
-    #[allow(dead_code)] // TODO
     tls_conn: Arc<TC>,
 }
 
@@ -140,7 +141,6 @@ enum MaybeHttpsStream<TC: TlsConn> {
     Http(#[pin] DataStream),
 
     /// https
-    #[allow(dead_code)] // TODO
     Https(#[pin] TC::TlsStream),
 }
 
@@ -192,18 +192,29 @@ impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
     }
 }
 
-/// Convert uri to host and port
-fn uri_to_host_port(uri: Uri) -> Result<(String, u16), ConnectionError> {
-    if uri.scheme() != Some(&Scheme::HTTP) {
-        return Err(ConnectionError::UnsupportedUriScheme { uri });
-    }
+/// Convert uri to http[s] host and port, and whether to do tls
+fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, bool), ConnectionError> {
+    let use_tls = {
+        // Scheme doesn't derive PartialEq so can't be matched on
+        let scheme = uri.scheme();
+        if scheme == Some(&Scheme::HTTP) {
+            false
+        } else if scheme == Some(&Scheme::HTTPS) {
+            true
+        } else {
+            return Err(ConnectionError::UnsupportedUriScheme { uri });
+        }
+    };
     let host = match uri.host() {
         Some(h) => h,
         _ => return Err(ConnectionError::MissingHostname { uri }),
     };
-    let port = uri.port().map(|x| x.as_u16()).unwrap_or(80);
+    let port = uri
+        .port()
+        .map(|x| x.as_u16())
+        .unwrap_or(if use_tls { 443 } else { 80 });
 
-    Ok((host.to_owned(), port))
+    Ok((host.to_owned(), port, use_tls))
 }
 
 impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
@@ -221,17 +232,27 @@ impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
         // underlying handles required to make Tor connections internally).
         // We use this to avoid the returned future having to borrow `self`.
         let client = self.client.clone();
+        let tls_conn = self.tls_conn.clone();
         Box::pin(async move {
             // Extract the host and port to connect to from the URI.
-            let (host, port) = uri_to_host_port(req)?;
+            let (host, port, use_tls) = uri_to_host_port_tls(req)?;
             // Initiate a new Tor connection, producing a `DataStream` if successful.
             let addr = (&host as &str, port)
                 .into_tor_addr()
                 .map_err(arti_client::Error::from)?;
             let ds = client.connect(addr).await?;
-            Ok(ArtiHttpConnection {
-                inner: MaybeHttpsStream::Http(ds),
-            })
+
+            let inner = if use_tls {
+                let conn = tls_conn
+                    .connect_impl_tls_stream(&host, ds)
+                    .await
+                    .map_err(|e| ConnectionError::TLS(e.into()))?;
+                MaybeHttpsStream::Https(conn)
+            } else {
+                MaybeHttpsStream::Http(ds)
+            };
+
+            Ok(ArtiHttpConnection { inner })
         })
     }
 }
