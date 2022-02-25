@@ -297,7 +297,7 @@ struct DataWriterImpl {
 impl Debug for DataWriterImpl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("DataWriterImpl")
-            .field("sr", &self.s)
+            .field("s", &self.s)
             .field("n_pending", &self.n_pending)
             .finish_non_exhaustive()
     }
