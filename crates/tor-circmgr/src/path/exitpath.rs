@@ -233,6 +233,7 @@ mod test {
     use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
+    use tor_rtcompat::SleepProvider;
 
     fn assert_exit_path_ok(relays: &[Relay<'_>]) {
         assert_eq!(relays.len(), 3);
@@ -264,10 +265,11 @@ mod test {
         let dirinfo = (&netdir).into();
         let config = PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        let now = SystemTime::now();
 
         for _ in 0..1000 {
             let (path, _, _) = ExitPathBuilder::from_target_ports(ports.clone())
-                .pick_path(&mut rng, dirinfo, guards, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config, now)
                 .unwrap();
 
             assert_same_path_when_owned(&path);
@@ -286,7 +288,7 @@ mod test {
         let config = PathConfig::default();
         for _ in 0..1000 {
             let (path, _, _) = ExitPathBuilder::from_chosen_exit(chosen.clone())
-                .pick_path(&mut rng, dirinfo, guards, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config, now)
                 .unwrap();
             assert_same_path_when_owned(&path);
             if let TorPathInner::Path(p) = path.inner {
@@ -308,11 +310,12 @@ mod test {
             .unwrap();
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
+        let now = SystemTime::now();
 
         let config = PathConfig::default();
         for _ in 0..1000 {
             let (path, _, _) = ExitPathBuilder::for_any_exit()
-                .pick_path(&mut rng, dirinfo, guards, &config)
+                .pick_path(&mut rng, dirinfo, guards, &config, now)
                 .unwrap();
             assert_same_path_when_owned(&path);
             if let TorPathInner::Path(p) = path.inner {
@@ -354,21 +357,23 @@ mod test {
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
         let config = PathConfig::default();
+        let now = SystemTime::now();
 
         // With target ports
         let outcome = ExitPathBuilder::from_target_ports(vec![TargetPort::ipv4(80)])
-            .pick_path(&mut rng, dirinfo, guards, &config);
+            .pick_path(&mut rng, dirinfo, guards, &config, now);
         assert!(outcome.is_err());
         assert!(matches!(outcome, Err(Error::NoExit(_))));
 
         // For any exit
-        let outcome = ExitPathBuilder::for_any_exit().pick_path(&mut rng, dirinfo, guards, &config);
+        let outcome =
+            ExitPathBuilder::for_any_exit().pick_path(&mut rng, dirinfo, guards, &config, now);
         assert!(outcome.is_err());
         assert!(matches!(outcome, Err(Error::NoExit(_))));
 
         // For any exit (non-strict, so this will work).
-        let outcome =
-            ExitPathBuilder::for_timeout_testing().pick_path(&mut rng, dirinfo, guards, &config);
+        let outcome = ExitPathBuilder::for_timeout_testing()
+            .pick_path(&mut rng, dirinfo, guards, &config, now);
         assert!(outcome.is_ok());
     }
 
@@ -397,7 +402,7 @@ mod test {
             let mut distinct_exit = HashSet::new();
             for _ in 0..20 {
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(vec![port443])
-                    .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                    .pick_path(&mut rng, dirinfo, Some(&guards), &config, rt.wallclock())
                     .unwrap();
                 assert_eq!(path.len(), 3);
                 assert_same_path_when_owned(&path);
@@ -429,7 +434,7 @@ mod test {
             // Now we'll try a forced exit that is not the same same as our
             // actual guard.
             let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(exit_relay.clone())
-                .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                .pick_path(&mut rng, dirinfo, Some(&guards), &config, rt.wallclock())
                 .unwrap();
             assert_eq!(path.len(), 3);
             if let TorPathInner::Path(p) = path.inner {
@@ -452,7 +457,7 @@ mod test {
             // Finally, try with our exit forced to be our regular guard,
             // and make sure we get a different guard.
             let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(guard_relay.clone())
-                .pick_path(&mut rng, dirinfo, Some(&guards), &config)
+                .pick_path(&mut rng, dirinfo, Some(&guards), &config, rt.wallclock())
                 .unwrap();
             assert_eq!(path.len(), 3);
             if let TorPathInner::Path(p) = path.inner {

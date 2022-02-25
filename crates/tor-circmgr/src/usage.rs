@@ -728,6 +728,7 @@ mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        let now = SystemTime::now();
 
         // Only doing basic tests for now.  We'll test the path
         // building code a lot more closely in the tests for TorPath
@@ -735,7 +736,7 @@ mod test {
 
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
@@ -752,7 +753,7 @@ mod test {
             isolation,
         };
         let (p_exit, u_exit, _, _) = exit_usage
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert!(matches!(
             u_exit,
@@ -766,7 +767,7 @@ mod test {
 
         // Now try testing circuits.
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         let path = match OwnedPath::try_from(&path).unwrap() {
             OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
@@ -804,9 +805,10 @@ mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        let now = SystemTime::now();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert_eq!(path.len(), 3);
         assert_eq!(usage, SupportedCircUsage::NoUsage);
