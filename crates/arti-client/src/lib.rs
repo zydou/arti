@@ -143,12 +143,27 @@
 //!
 //! # Feature flags
 //!
-//! `tokio` -- (Default) Build with support for the Tokio backend.
+//! `tokio` -- (Default) Build with support for the Tokio async
+//! backend. (default)
 //!
-//! `async-std` -- Build with support for the `async_std` backend.
+//! `async-std` -- Build with support for the `async_std` async backend.
 //!
-//! `static` -- Link with static versions of your system dependencies, including
-//! sqlite and/or openssl.
+//! `native-tls` -- Build with support for the `native_tls` TLS
+//! backend. (default)
+//!
+//! `rustls` -- Build with support for the `rustls` TLS backend.
+//!
+//! `static` -- Link with static versions of your system dependencies,
+//! including sqlite and/or openssl.  (⚠ Warning ⚠: this feature will
+//! include a dependency on native-tls, even if you weren't planning
+//! to use native-tls.  If you only want to build with a static sqlite
+//! library, enable the `static-sqlite` feature.  We'll look for
+//! better solutions here in the future.)
+//!
+//! `static-sqlite` -- Link with a static version of sqlite.
+//!
+//! `static-native-tls` -- Link with a static version of `native-tls`.
+//! Enables `native-tls`.
 //!
 //! `experimental-api` -- Build with experimental, unstable API support. Note
 //! that these APIs are NOT covered by semantic versioning guarantees: we might
