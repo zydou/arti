@@ -138,6 +138,7 @@ where
         f | RelayFlags::EXIT | RelayFlags::GUARD,
     ];
 
+    #[allow(clippy::disallowed_methods)]
     let now = SystemTime::now();
     let one_day = Duration::new(86400, 0);
     let mut bld = MdConsensus::builder();

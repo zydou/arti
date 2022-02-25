@@ -353,9 +353,11 @@ mod test {
     use std::convert::TryInto;
     use std::sync::Mutex;
     use tor_netdoc::doc::microdesc::MdDigest;
+    use tor_rtcompat::SleepProvider;
 
     #[test]
     fn week() {
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_day = Duration::new(86400, 0);
 
@@ -500,14 +502,13 @@ mod test {
     fn all_in_cache() {
         // Let's try bootstrapping when everything is in the cache.
         tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let now = rt.wallclock();
             let (_tempdir, mgr) = new_mgr(rt);
 
             {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
                 for h in [H1, H2, H3, H4, H5] {
-                    store
-                        .store_microdescs(&[("ignore", &h)], SystemTime::now())
-                        .unwrap();
+                    store.store_microdescs(&[("ignore", &h)], now).unwrap();
                 }
             }
             let mgr = Arc::new(mgr);
@@ -533,14 +534,13 @@ mod test {
         // Let's try bootstrapping with all of phase1 and part of
         // phase 2 in cache.
         tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let now = rt.wallclock();
             let (_tempdir, mgr) = new_mgr(rt);
 
             {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
                 for h in [H1, H2, H3] {
-                    store
-                        .store_microdescs(&[("ignore", &h)], SystemTime::now())
-                        .unwrap();
+                    store.store_microdescs(&[("ignore", &h)], now).unwrap();
                 }
             }
             {

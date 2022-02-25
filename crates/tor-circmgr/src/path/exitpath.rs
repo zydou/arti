@@ -265,6 +265,7 @@ mod test {
         let dirinfo = (&netdir).into();
         let config = PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         for _ in 0..1000 {
@@ -310,6 +311,7 @@ mod test {
             .unwrap();
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         let config = PathConfig::default();
@@ -357,6 +359,7 @@ mod test {
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
         let config = PathConfig::default();
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         // With target ports

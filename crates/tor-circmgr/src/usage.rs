@@ -728,6 +728,7 @@ mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         // Only doing basic tests for now.  We'll test the path
@@ -805,6 +806,7 @@ mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting

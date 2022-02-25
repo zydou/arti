@@ -478,6 +478,7 @@ mod test {
     ) -> (Result<()>, Vec<u8>) {
         // We don't need to do anything fancy here, since we aren't simulating
         // a timeout.
+        #[allow(clippy::disallowed_methods)]
         let mock_time = MockSleepProvider::new(std::time::SystemTime::now());
 
         let mut output = Vec::new();

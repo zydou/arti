@@ -959,6 +959,7 @@ mod test {
     use std::time::Duration;
     use tempfile::TempDir;
     use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
+    use tor_rtcompat::SleepProvider;
 
     pub(crate) fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
         let dir = TempDir::new().unwrap();
@@ -984,11 +985,11 @@ mod test {
     #[test]
     fn load_and_store_internals() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
-            let (_tempdir, mgr) = new_mgr(rt);
-
-            let now = SystemTime::now();
+            let now = rt.wallclock();
             let tomorrow = now + Duration::from_secs(86400);
             let later = tomorrow + Duration::from_secs(86400);
+
+            let (_tempdir, mgr) = new_mgr(rt);
 
             // Seed the storage with a bunch of junk.
             let d1 = [5_u8; 32];
@@ -1099,11 +1100,11 @@ mod test {
     #[test]
     fn make_consensus_request() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
-            let (_tempdir, mgr) = new_mgr(rt);
-
-            let now = SystemTime::now();
+            let now = rt.wallclock();
             let tomorrow = now + Duration::from_secs(86400);
             let later = tomorrow + Duration::from_secs(86400);
+
+            let (_tempdir, mgr) = new_mgr(rt);
 
             // Try with an empty store.
             let req = mgr
@@ -1194,6 +1195,9 @@ mod test {
     #[test]
     fn expand_response() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
+            let now = rt.wallclock();
+            let day = Duration::from_secs(86400);
+
             let (_tempdir, mgr) = new_mgr(rt);
 
             // Try a simple request: nothing should happen.
@@ -1217,8 +1221,6 @@ mod test {
             // we can ask for a diff.
             {
                 let mut store = mgr.store.lock().unwrap();
-                let now = SystemTime::now();
-                let day = Duration::from_secs(86400);
                 let d_in = [0x99; 32]; // This one, we can fake.
                 let cmeta = ConsensusMeta::new(
                     Lifetime::new(now, now + day, now + 2 * day).unwrap(),

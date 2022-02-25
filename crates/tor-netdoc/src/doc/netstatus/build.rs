@@ -377,6 +377,7 @@ mod test {
 
     #[test]
     fn consensus() {
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_hour = Duration::new(3600, 0);
 
