@@ -46,6 +46,7 @@ use rand::distributions::Standard;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::fmt;
 use std::fmt::Formatter;
 use std::future::Future;

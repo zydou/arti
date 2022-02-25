@@ -1,6 +1,7 @@
 //! Code to watch configuration files for any changes.
 
 use std::collections::HashSet;
+use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel as std_channel;
 use std::time::Duration;

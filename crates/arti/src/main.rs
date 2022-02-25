@@ -101,6 +101,8 @@ use anyhow::{Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::{info, warn};
 
+use std::convert::TryInto;
+
 /// Run the main loop of the proxy.
 async fn run<R: Runtime>(
     runtime: R,
