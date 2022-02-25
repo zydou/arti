@@ -2,44 +2,36 @@
 
 set -e
 
-trap 'kill $(jobs -p)' EXIT
+echo "Using toolchain +${RUST_FUZZ_TOOLCHAIN:=nightly}. (Override with \$RUST_FUZZ_TOOLCHAIN)"
+
+# Validate that "+${RUST_FUZZ_TOOLCHAIN}" is installed.  This will log a message to stderr
+# if it itsn't.
+cargo "+${RUST_FUZZ_TOOLCHAIN}" -h >/dev/null
 
 for d in ./crates/*/fuzz; do
     pushd "$(dirname "$d")"
-    for fuzzer in $(cargo +nightly fuzz list); do
+    for fuzzer in $(cargo fuzz list); do
 	echo "$fuzzer"
-	cargo +nightly fuzz build "$fuzzer"
+	cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz build "$fuzzer"
     done
     popd
 done
 
 
 #JOBS=4
+#SEED=0
+DURATION=20
 
 while true; do
     for d in ./crates/*/fuzz; do
 	pushd "$(dirname "$d")"
-	for fuzzer in $(cargo +nightly fuzz list); do
-	    set +e
-	    timeout 20m cargo +nightly fuzz run "$fuzzer"
-	    status="$?"
-	    set -e
-	    case "$status" in
-		0)
-  		    # Successful exit?
-		    ;;
-		124)
-		    # This is a timeout
-		    ;;
-		*)
-		    exit 1
-		    ;;
-	    esac
+	for fuzzer in $(cargo fuzz list); do
+	    cargo "+${RUST_FUZZ_TOOLCHAIN}" fuzz run "$fuzzer" -- \
+		-jobs="${JOBS:-0}" \
+		-workers="${JOBS:-0}" \
+		-max_total_time=$((DURATION * 60)) \
+		-seed="${SEED:-0}"
 	done
 	popd
     done
 done
-
-
-# wait -n
-

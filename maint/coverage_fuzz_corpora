@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -e
+
+if [ -z "$LLVM_PROFILE_FILE" ]; then
+    echo "This script is meant to be run inside with_coverage" >&2
+    exit 1
+fi
+
+coverage_dir=$(dirname "$LLVM_PROFILE_FILE")
+
+TOPDIR=$(realpath "$(dirname "$0")/..")
+cd "$TOPDIR"
+
+# for some reason, compiling with coverage is very slow, especially for curve25519-dalek,
+# and mixing normal runs and coverage runs trash the cache. Here we set an alternative
+# target directory so it's possible to reuse cached artifacts between coverage runs.
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-target-coverage}
+
+# remove comments starting with #@ to run in parallel. This makes output very messy, uses a lot more
+# ram and make the load average go crazy, but it's also way faster both to compile (due to 
+# curve25519-dalek compilation being so slow, and it using a single core), and to run because it's
+# essentially monothreaded too.
+for d in ./crates/*/fuzz; do
+    #@{
+        pushd "$(dirname "$d")"
+        crate=$(basename "$(dirname "$d")")
+        mkdir -p "$TOPDIR/target/debug/$crate"
+        mkdir -p "$coverage_dir/$crate"
+        for fuzzer in $(cargo fuzz list); do
+            cargo fuzz coverage "$fuzzer"
+
+            # we copy binary and coverage data where with_coverage expect it to be
+            cp "target-coverage/x86_64-unknown-linux-gnu/release/$fuzzer" "$TOPDIR/target/debug/$crate/$fuzzer"
+            mv "fuzz/coverage/$fuzzer/raw" "$coverage_dir/$crate/$fuzzer"
+        done
+        popd
+    #@}&
+done
+
+#@for d in ./crates/*/fuzz; do
+#@    wait
+#@done
