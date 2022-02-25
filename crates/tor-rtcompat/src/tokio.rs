@@ -120,6 +120,11 @@ impl TokioNativeTlsRuntime {
     /// # Panics
     ///
     /// Panics if we can't create this runtime.
+    ///
+    /// # Warning
+    ///
+    /// This API is **NOT** for consumption outside Arti. Semver guarantees are not provided.
+    #[doc(hidden)]
     pub fn run_test<P, F, O>(func: P) -> O
     where
         P: FnOnce(Self) -> F,
@@ -167,6 +172,11 @@ impl TokioRustlsRuntime {
     /// # Panics
     ///
     /// Panics if we can't create this runtime.
+    ///
+    /// # Warning
+    ///
+    /// This API is **NOT** for consumption outside Arti. Semver guarantees are not provided.
+    #[doc(hidden)]
     pub fn run_test<P, F, O>(func: P) -> O
     where
         P: FnOnce(Self) -> F,
