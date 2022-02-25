@@ -14,6 +14,7 @@ use futures::{
     Future,
 };
 use pin_project::pin_project;
+use std::fmt::{self, Debug};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
@@ -119,6 +120,16 @@ pub struct GuardMonitor {
     /// here to indicate that we've already used the sender, and it can't
     /// be used again.
     snd: Option<UnboundedSender<daemon::Msg>>,
+}
+
+impl Debug for GuardMonitor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("GuardMonitor")
+            .field("id", &self.id)
+            .field("pending_status", &self.pending_status)
+            .field("ignore_indeterminate", &self.ignore_indeterminate)
+            .finish_non_exhaustive()
+    }
 }
 
 impl GuardMonitor {
