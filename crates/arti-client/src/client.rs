@@ -821,7 +821,7 @@ impl<R: Runtime> TorClient<R> {
     //
     // We provide it simply to save callers who have a TorClient from
     // having to separately keep their own handle,
-    pub fn get_runtime(&self) -> &R {
+    pub fn runtime(&self) -> &R {
         &self.runtime
     }
 
