@@ -47,9 +47,9 @@ thiserror = "1"
 
 [dev-dependencies]
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio", "native-tls" ] }
-tokio-crate = { package = "tokio", version = "1.4", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+tokio-crate = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
 pin-project = "1"
-tokio-util = { version = "0.6", features = ["compat"] }
+tokio-util = { version = "0.7.0", features = ["compat"] }
 anyhow = "1.0.23"
 tracing-subscriber = "0.3.0"
 tempfile = "3.3"

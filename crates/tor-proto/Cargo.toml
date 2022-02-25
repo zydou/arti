@@ -44,8 +44,8 @@ thiserror = "1"
 typenum = "1.12"
 zeroize = "1"
 
-tokio-crate = { package = "tokio", version = "1.4", optional = true }
-tokio-util = { version = "0.6", features = ["compat"], optional = true }
+tokio-crate = { package = "tokio", version = "1.7", optional = true }
+tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 
 coarsetime = { version = "0.1.20", optional = true }
 

@@ -51,6 +51,11 @@ pub use options::{
 };
 use tor_config::CfgPath;
 
+/// The synchronous configuration builder type we use.
+///
+/// (This is a type alias that config should really provide.)
+type ConfigBuilder = config::builder::ConfigBuilder<config::builder::DefaultState>;
+
 use std::path::{Path, PathBuf};
 
 /// A description of where to find our configuration options.
@@ -116,38 +121,41 @@ impl ConfigurationSources {
 
     /// Load the configuration into a new [`config::Config`].
     pub fn load(&self) -> Result<config::Config, config::ConfigError> {
-        let mut config = config::Config::new();
-        config.merge(config::File::from_str(
+        let mut builder = config::Config::builder();
+        builder = builder.add_source(config::File::from_str(
             options::ARTI_DEFAULTS,
             config::FileFormat::Toml,
-        ))?;
-        load_mut(&mut config, &self.files, &self.options)?;
-        Ok(config)
+        ));
+        builder = add_sources(builder, &self.files, &self.options);
+        builder.build()
     }
 }
 
-/// As [`ConfigurationSources::load()`], but load into a mutable `Config`
-/// object.
-fn load_mut<P: AsRef<Path>>(
-    cfg: &mut config::Config,
+/// Add every file and commandline source to `builder`, returning a new
+/// builder.
+fn add_sources<P>(
+    mut builder: ConfigBuilder,
     files: &[(P, MustRead)],
     opts: &[String],
-) -> Result<(), config::ConfigError> {
+) -> ConfigBuilder
+where
+    P: AsRef<Path>,
+{
     for (path, must_read) in files {
         // Not going to use File::with_name here, since it doesn't
         // quite do what we want.
-        let f: config::File<_> = path.as_ref().into();
+        let f: config::File<_, _> = path.as_ref().into();
         let required = must_read == &MustRead::MustRead;
-        cfg.merge(f.format(config::FileFormat::Toml).required(required))?;
+        builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
     }
 
     let mut cmdline = CmdLine::new();
     for opt in opts {
         cmdline.push_toml_line(opt.clone());
     }
-    cfg.merge(cmdline)?;
+    builder = builder.add_source(cmdline);
 
-    Ok(())
+    builder
 }
 
 /// Return a filename for the default user configuration file.
@@ -167,13 +175,21 @@ world = \"stuff\"
 friends = 4242
 ";
 
+    /// Load from a set of files and option strings, without taking
+    /// the arti defaults into account.
+    fn load_nodefaults<P: AsRef<Path>>(
+        files: &[(P, MustRead)],
+        opts: &[String],
+    ) -> Result<config::Config, config::ConfigError> {
+        add_sources(config::Config::builder(), files, opts).build()
+    }
+
     #[test]
     fn non_required_file() {
         let td = tempdir().unwrap();
         let dflt = td.path().join("a_file");
         let files = vec![(dflt, MustRead::TolerateAbsence)];
-        let mut c = config::Config::new();
-        load_mut(&mut c, &files, Default::default()).unwrap();
+        load_nodefaults(&files, Default::default()).unwrap();
     }
 
     static EX2_TOML: &str = "
@@ -186,13 +202,12 @@ world = \"nonsense\"
         let td = tempdir().unwrap();
         let dflt = td.path().join("a_file");
         let cf = td.path().join("other_file");
-        let mut c = config::Config::new();
         std::fs::write(&cf, EX2_TOML).unwrap();
         let files = vec![(dflt, MustRead::TolerateAbsence), (cf, MustRead::MustRead)];
-        load_mut(&mut c, &files, Default::default()).unwrap();
+        let c = load_nodefaults(&files, Default::default()).unwrap();
 
-        assert!(c.get_str("hello.friends").is_err());
-        assert_eq!(c.get_str("hello.world").unwrap(), "nonsense".to_string());
+        assert!(c.get_string("hello.friends").is_err());
+        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
     }
 
     #[test]
@@ -200,16 +215,15 @@ world = \"nonsense\"
         let td = tempdir().unwrap();
         let cf1 = td.path().join("a_file");
         let cf2 = td.path().join("other_file");
-        let mut c = config::Config::new();
         std::fs::write(&cf1, EX_TOML).unwrap();
         std::fs::write(&cf2, EX2_TOML).unwrap();
         let v = vec![(cf1, MustRead::TolerateAbsence), (cf2, MustRead::MustRead)];
         let v2 = vec!["other.var=present".to_string()];
-        load_mut(&mut c, &v, &v2).unwrap();
+        let c = load_nodefaults(&v, &v2).unwrap();
 
-        assert_eq!(c.get_str("hello.friends").unwrap(), "4242".to_string());
-        assert_eq!(c.get_str("hello.world").unwrap(), "nonsense".to_string());
-        assert_eq!(c.get_str("other.var").unwrap(), "present".to_string());
+        assert_eq!(c.get_string("hello.friends").unwrap(), "4242".to_string());
+        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
+        assert_eq!(c.get_string("other.var").unwrap(), "present".to_string());
     }
 
     #[test]

@@ -11,7 +11,7 @@ use arti_client::TorClientConfig;
 ///
 /// This doesn't actually do anything on windows.
 pub(crate) fn use_max_file_limit(config: &TorClientConfig) {
-    match rlimit::utils::increase_nofile_limit(config.system.max_files) {
+    match rlimit::increase_nofile_limit(config.system.max_files) {
         Ok(n) => tracing::debug!("Increased process file limit to {}", n),
         Err(e) => tracing::warn!("Error while increasing file limit: {}", e),
     }

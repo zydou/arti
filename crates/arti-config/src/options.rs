@@ -10,6 +10,7 @@ use arti_client::config::{
 use derive_builder::Builder;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use tor_config::{CfgPath, ConfigBuildError};
 
 /// Default options to use for our configuration.
@@ -286,6 +287,13 @@ pub struct ArtiConfig {
 
     /// Information on system resources used by Arti.
     system: SystemConfig,
+}
+
+impl TryFrom<config::Config> for ArtiConfig {
+    type Error = config::ConfigError;
+    fn try_from(cfg: config::Config) -> Result<ArtiConfig, Self::Error> {
+        cfg.try_deserialize()
+    }
 }
 
 impl From<ArtiConfig> for TorClientConfigBuilder {
@@ -570,6 +578,7 @@ impl From<ArtiConfig> for ArtiConfigBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
 
+    use std::convert::TryInto;
     use std::time::Duration;
 
     use super::*;
@@ -577,12 +586,13 @@ mod test {
     #[test]
     fn default_config() {
         // TODO: this is duplicate code.
-        let mut cfg = config::Config::new();
-        cfg.merge(config::File::from_str(
-            ARTI_DEFAULTS,
-            config::FileFormat::Toml,
-        ))
-        .unwrap();
+        let cfg = config::Config::builder()
+            .add_source(config::File::from_str(
+                ARTI_DEFAULTS,
+                config::FileFormat::Toml,
+            ))
+            .build()
+            .unwrap();
 
         let parsed: ArtiConfig = cfg.try_into().unwrap();
         let default = ArtiConfig::default();

@@ -8,6 +8,5 @@
 cargo +nightly update -Z minimal-versions
 cargo update \
       -p crc32fast \
-      -p lexical-core \
       -p quote:0.6.3 \
       -p synstructure:0.12.0
