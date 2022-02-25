@@ -71,7 +71,6 @@ pem: (see arti#146 for discussion)
 
 
 tls-api:
-* Async support
-* Support for disabling certificate & hostname verification
+* Support for disabling certificate verification
 * Support for getting certificate (or does it have it?)
 * Support for RFC5705 exporters

@@ -46,9 +46,11 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
-    impl $crate::traits::TlsProvider<<$t as $crate::traits::TcpProvider>::TcpStream> for $t {
-        type Connector = <$mty as $crate::traits::TlsProvider<<$t as $crate::traits::TcpProvider>::TcpStream>>::Connector;
-        type TlsStream = <$mty as $crate::traits::TlsProvider<<$t as $crate::traits::TcpProvider>::TcpStream>>::TlsStream;
+    impl<S> $crate::traits::TlsProvider<S> for $t
+    where S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static,
+    {
+        type Connector = <$mty as $crate::traits::TlsProvider<S>>::Connector;
+        type TlsStream = <$mty as $crate::traits::TlsProvider<S>>::TlsStream;
         #[inline]
         fn tls_connector(&self) -> Self::Connector {
             self.$member.tls_connector()

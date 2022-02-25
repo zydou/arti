@@ -25,6 +25,24 @@ use std::time::{Duration, Instant, SystemTime};
 ///
 /// Additionally, every `Runtime` is [`Send`] and [`Sync`], though these
 /// requirements may be somewhat relaxed in the future.
+///
+/// At some future point,
+/// Arti may require that the runtime `impl<S> TlsProvider<S>` (for suitable`S`),
+/// rather than just for their own `TcpStream`s.
+/// I.e., Arti may start to require that the runtime's TLS provider can wrap any streams,
+/// not only the runtime's own TCP streams.
+/// This might be expressed as an additional supertrait bound on `Runtime`,
+/// eg when Rust supports GATs,
+/// or as an additional bound on the Arti APIs that currently use `Runtime`.
+/// For API future compatibility, if you `impl Runtime for MyRuntime`,
+/// you should also ensure that you
+/// ```ignore
+/// impl<S> TlsProvider<S> for MyRuntime
+/// where S: futures::AsyncRead + futures::AsyncWrite + Unpin + Send + 'static
+/// ```
+//
+/// Perhaps we will need this if we make our own TLS connections *through* Tor,
+/// rather than just channels to guards.
 pub trait Runtime:
     Sync
     + Send

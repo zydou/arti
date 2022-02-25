@@ -16,11 +16,9 @@ use std::{
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
 #[non_exhaustive]
-pub struct RustlsProvider<S> {
+pub struct RustlsProvider {
     /// Inner `ClientConfig` logic used to create connectors.
     config: Arc<async_rustls::rustls::ClientConfig>,
-    /// Phantom data to ensure proper variance.
-    _phantom: std::marker::PhantomData<fn(S) -> S>,
 }
 
 impl<S> CertifiedConn for async_rustls::client::TlsStream<S> {
@@ -53,7 +51,7 @@ where
     }
 }
 
-impl<S> TlsProvider<S> for RustlsProvider<S>
+impl<S> TlsProvider<S> for RustlsProvider
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -70,7 +68,7 @@ where
     }
 }
 
-impl<S> RustlsProvider<S> {
+impl RustlsProvider {
     /// Construct a new [`RustlsProvider`.]
     pub(crate) fn new() -> Self {
         let mut config = async_rustls::rustls::ClientConfig::new();
@@ -89,12 +87,11 @@ impl<S> RustlsProvider<S> {
 
         RustlsProvider {
             config: Arc::new(config),
-            _phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<S> Default for RustlsProvider<S> {
+impl Default for RustlsProvider {
     fn default() -> Self {
         Self::new()
     }

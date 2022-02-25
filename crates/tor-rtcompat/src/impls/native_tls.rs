@@ -14,10 +14,7 @@ use std::{
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
 #[non_exhaustive]
-pub struct NativeTlsProvider<S> {
-    /// Phantom data to ensure proper variance.
-    _phantom: std::marker::PhantomData<fn(S) -> S>,
-}
+pub struct NativeTlsProvider {}
 
 impl<S> CertifiedConn for async_native_tls::TlsStream<S>
 where
@@ -63,7 +60,7 @@ where
     }
 }
 
-impl<S> TlsProvider<S> for NativeTlsProvider<S>
+impl<S> TlsProvider<S> for NativeTlsProvider
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -90,16 +87,14 @@ where
     }
 }
 
-impl<S> NativeTlsProvider<S> {
+impl NativeTlsProvider {
     /// Construct a new [`NativeTlsProvider`.]
     pub(crate) fn new() -> Self {
-        NativeTlsProvider {
-            _phantom: std::marker::PhantomData,
-        }
+        NativeTlsProvider {}
     }
 }
 
-impl<S> Default for NativeTlsProvider<S> {
+impl Default for NativeTlsProvider {
     fn default() -> Self {
         Self::new()
     }
