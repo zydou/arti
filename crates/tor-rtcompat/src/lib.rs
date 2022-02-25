@@ -69,7 +69,7 @@
 //!     [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
 //!     or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
 //!     call its `create()` method.  Or if you have already constructed a
-//!     tokio runtime that you want to use, you can wrap it as a
+//!     Tokio runtime that you want to use, you can wrap it as a
 //!     [`Runtime`] explicitly with `current()`.
 //!
 //! # Advanced usage: implementing runtimes yourself
@@ -244,18 +244,30 @@ crate::opaque::implement_opaque_runtime! {
     any(feature = "async-std", feature = "tokio")
 ))]
 impl PreferredRuntime {
-    /// Create a [`PreferredRuntime`] from the currently running asynchronous runtime.
+    /// Obtain a [`PreferredRuntime`] from the currently running asynchronous runtime.
     /// Generally, this is what you want.
     ///
-    /// # Limitations
+    /// This tries to get a handle to a currently running asynchronous runtime, and
+    /// wraps it; the returned [`PreferredRuntime`] isn't the same thing as the
+    /// asynchronous runtime object itself (e.g. `tokio::runtime::Runtime`).
     ///
-    /// If the `tor-rtcompat` crate was compiled with `tokio` support,
-    /// this function will never return an `async_std` runtime.
+    /// # Panics
+    ///
+    /// When `tor-rtcompat` is compiled with the `tokio` feature enabled
+    /// (regardless of whether the `async-std` feature is also enabled),
+    /// panics if called outside of Tokio runtime context.
+    /// See [`tokio::runtime::Handle::current`].
     ///
     /// # Usage notes
     ///
     /// Once you have a runtime returned by this function, you should
     /// just create more handles to it via [`Clone`].
+    ///
+    /// # Limitations
+    ///
+    /// If the `tor-rtcompat` crate was compiled with `tokio` support,
+    /// this function will never return a runtime based on `async_std`.
+    ///
     //
     // ## Note to Arti developers
     //
@@ -275,7 +287,7 @@ impl PreferredRuntime {
     /// Generally you should call this function at most once, and then use
     /// [`Clone::clone()`] to create additional references to that runtime.
     ///
-    /// Tokio users may want to avoid this function and instead make a runtime using
+    /// Tokio users may want to avoid this function and instead obtain a runtime using
     /// [`PreferredRuntime::current`]: this function always _builds_ a runtime,
     /// and if you already have a runtime, that isn't what you want with Tokio.
     ///

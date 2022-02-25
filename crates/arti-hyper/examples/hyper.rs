@@ -5,7 +5,6 @@ use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use hyper::Body;
 use std::convert::TryInto;
-use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,12 +26,10 @@ async fn main() -> Result<()> {
     // to a conventional place depending on operating system (for example, ~/.local/share/arti
     // on Linux platforms)
     let config = TorClientConfig::default();
-    // Arti needs an async runtime handle to spawn async tasks.
-    let rt: TokioNativeTlsRuntime = tokio::runtime::Handle::current().into();
 
     // We now let the Arti client start and bootstrap a connection to the network.
     // (This takes a while to gather the necessary consensus state, etc.)
-    let tor_client = TorClient::create_bootstrapped(rt, config).await?;
+    let tor_client = TorClient::create_bootstrapped(config).await?;
 
     // The `ArtiHttpConnector` lets us make HTTP requests via the Tor network.
     let tor_connector = ArtiHttpConnector::new(tor_client);

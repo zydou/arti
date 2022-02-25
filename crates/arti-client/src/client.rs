@@ -13,7 +13,7 @@ use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
-use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
 use futures::lock::Mutex as AsyncMutex;
 use futures::stream::StreamExt;
@@ -26,10 +26,6 @@ use std::time::Duration;
 
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
-#[cfg(feature = "async-std")]
-use tor_rtcompat::async_std::PreferredRuntime as PreferredAsyncStdRuntime;
-#[cfg(feature = "tokio")]
-use tor_rtcompat::tokio::PreferredRuntime as PreferredTokioRuntime;
 use tracing::{debug, error, info, warn};
 
 /// An active client session on the Tor network.
@@ -278,64 +274,61 @@ impl StreamPrefs {
     // TODO: Add some way to be IPFlexible, and require exit to support both.
 }
 
-#[cfg(feature = "tokio")]
-impl TorClient<PreferredTokioRuntime> {
-    /// Bootstrap a connection to the Tor network, using the current Tokio runtime.
+impl TorClient<PreferredRuntime> {
+    /// Bootstrap a connection to the Tor network, using the provided `config`.
     ///
     /// Returns a client once there is enough directory material to
     /// connect safely over the Tor network.
     ///
-    /// This is a convenience wrapper around [`TorClient::create_bootstrapped`].
+    /// Consider using [`TorClient::builder`] for more fine-grained control.
     ///
     /// # Panics
     ///
-    /// Panics if called outside of the context of a Tokio runtime.
-    pub async fn bootstrap_with_tokio(
-        config: TorClientConfig,
-    ) -> crate::Result<TorClient<PreferredTokioRuntime>> {
-        let rt = PreferredTokioRuntime::current().expect("called outside of Tokio runtime");
-        Self::create_bootstrapped(rt, config).await
-    }
-}
+    /// If Tokio is being used (the default), panics if created outside the context of a currently
+    /// running Tokio runtime. See the documentation for [`PreferredRuntime::current`] for
+    /// more information.
+    ///
+    /// If using `async-std`, either take care to ensure Arti is not compiled with Tokio support,
+    /// or manually create an `async-std` runtime using [`tor_rtcompat`] and use it with
+    /// [`TorClient::with_runtime`].
+    pub async fn create_bootstrapped(config: TorClientConfig) -> crate::Result<Self> {
+        let runtime = PreferredRuntime::current()
+            .expect("TorClient could not get an asynchronous runtime; are you running in the right context?");
 
-#[cfg(feature = "async-std")]
-impl TorClient<PreferredAsyncStdRuntime> {
-    /// Bootstrap a connection to the Tor network, using the current async-std runtime.
+        Self::with_runtime(runtime)
+            .config(config)
+            .create_bootstrapped()
+            .await
+    }
+
+    /// Return a new builder for creating TorClient objects.
     ///
-    /// Returns a client once there is enough directory material to
-    /// connect safely over the Tor network.
+    /// If you want to make a [`TorClient`] synchronously, this is what you want; call
+    /// `TorClientBuilder::create_unbootstrapped` on the returned builder.
     ///
-    /// This is a convenience wrapper around [`TorClient::create_bootstrapped`].
-    pub async fn bootstrap_with_async_std(
-        config: TorClientConfig,
-    ) -> crate::Result<TorClient<PreferredAsyncStdRuntime>> {
-        // FIXME(eta): not actually possible for this to fail
-        let rt = PreferredAsyncStdRuntime::current().expect("failed to get async-std runtime");
-        Self::create_bootstrapped(rt, config).await
+    /// # Panics
+    ///
+    /// If Tokio is being used (the default), panics if created outside the context of a currently
+    /// running Tokio runtime. See the documentation for `tokio::runtime::Handle::current` for
+    /// more information.
+    ///
+    /// If using `async-std`, either take care to ensure Arti is not compiled with Tokio support,
+    /// or manually create an `async-std` runtime using [`tor_rtcompat`] and use it with
+    /// [`TorClient::with_runtime`].
+    pub fn builder() -> TorClientBuilder<PreferredRuntime> {
+        let runtime = PreferredRuntime::current()
+            .expect("TorClient could not get an asynchronous runtime; are you running in the right context?");
+
+        TorClientBuilder::new(runtime)
     }
 }
 
 impl<R: Runtime> TorClient<R> {
-    /// Return a new builder for creating TorClient objects.
-    pub fn builder(runtime: R) -> TorClientBuilder<R> {
+    /// Return a new builder for creating TorClient objects, with a custom provided [`Runtime`].
+    ///
+    /// See the [`tor_rtcompat`] crate for more information on custom runtimes.
+    pub fn with_runtime(runtime: R) -> TorClientBuilder<R> {
         TorClientBuilder::new(runtime)
-    }
-
-    /// Bootstrap a connection to the Tor network, using the provided `config` and `runtime` (a
-    /// [`tor_rtcompat`] [`Runtime`](tor_rtcompat::Runtime)).
-    ///
-    /// Returns a client once there is enough directory material to
-    /// connect safely over the Tor network.
-    ///
-    /// Consider using a [`TorClientBuilder`] for more fine-grained control.
-    pub async fn create_bootstrapped(
-        runtime: R,
-        config: TorClientConfig,
-    ) -> crate::Result<TorClient<R>> {
-        Self::builder(runtime)
-            .config(config)
-            .create_bootstrapped()
-            .await
     }
 
     /// Implementation of `create_unbootstrapped`, split out in order to avoid manually specifying
@@ -1081,7 +1074,7 @@ mod test {
             let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
                 .build()
                 .unwrap();
-            let _ = TorClient::builder(rt)
+            let _ = TorClient::with_runtime(rt)
                 .config(cfg)
                 .bootstrap_behavior(BootstrapBehavior::Manual)
                 .create_unbootstrapped()
@@ -1097,7 +1090,7 @@ mod test {
             let cfg = TorClientConfigBuilder::from_directories(state_dir, cache_dir)
                 .build()
                 .unwrap();
-            let client = TorClient::builder(rt)
+            let client = TorClient::with_runtime(rt)
                 .config(cfg)
                 .bootstrap_behavior(BootstrapBehavior::Manual)
                 .create_unbootstrapped()

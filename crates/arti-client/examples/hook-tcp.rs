@@ -14,10 +14,9 @@ use std::task::{Context, Poll};
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
-use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
 use futures::{AsyncRead, AsyncWrite, FutureExt, Stream};
-use tor_rtcompat::{CompoundRuntime, TcpListener, TcpProvider};
+use tor_rtcompat::{CompoundRuntime, PreferredRuntime, TcpListener, TcpProvider};
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -26,14 +25,19 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let config = TorClientConfig::default();
-    let rt = TokioNativeTlsRuntime::current()?;
+    // Get the current preferred runtime.
+    let rt = PreferredRuntime::current()?;
     // Instantiate our custom TCP provider (see implementation below).
     let tcp_rt = CustomTcpProvider { inner: rt.clone() };
-    // Create a `CompoundRuntime`, swapping out the TCP part of the runtime for our custom one.
+    // Create a `CompoundRuntime`, swapping out the TCP part of the preferred runtime for our custom one.
     let rt = CompoundRuntime::new(rt.clone(), rt.clone(), tcp_rt, rt);
 
     eprintln!("connecting to Tor...");
-    let tor_client = TorClient::create_bootstrapped(rt, config).await?;
+    // Pass in our custom runtime using `with_runtime`.
+    let tor_client = TorClient::with_runtime(rt)
+        .config(config)
+        .create_bootstrapped()
+        .await?;
 
     eprintln!("connecting to example.com...");
     let mut stream = tor_client.connect(("example.com", 80)).await?;
