@@ -11,6 +11,7 @@ we might break them or remove them between patch versions.
 `error_detail` -- Make the `TorError` type transparent, and expose the `Error` within.
 Note that the resulting APIs are not stable.
 
-`native-tls` (default), `rustls` -- Select TLS libraries to support. 
+`native-tls` (default), `rustls` -- Select TLS libraries to use for Tor's purposes.
+(The end-to-end TLS to the origin server is separate, and handled via `tls-api`.)
 
 License: MIT OR Apache-2.0
