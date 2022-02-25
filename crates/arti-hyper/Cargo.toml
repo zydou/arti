@@ -26,7 +26,7 @@ experimental-api = []
 arti-client = { path="../arti-client", version = "0.0.4"}
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
-tokio = { package = "tokio", version = "1.4", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
 thiserror = "1"
 tor-error = { path="../tor-error", version = "0.0.1" }
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio"] }
