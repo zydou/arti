@@ -576,6 +576,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .pending_circs
             .iter()
             .filter(|p| p.supports(usage))
+            .filter(|p| !matches!(p.receiver.peek(), Some(Err(_))))
             .collect();
 
         if result.is_empty() {
@@ -1701,7 +1702,6 @@ mod test {
     }
 
     #[test]
-    #[ignore] // This test is unreliable; see arti#210
     fn request_retried() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let rt = MockSleepRuntime::new(rt);
