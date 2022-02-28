@@ -37,7 +37,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
@@ -160,7 +160,7 @@ pub(crate) trait MockablePlan {
 pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// The specification type describing what operations circuits can
     /// be used for.
-    type Spec: AbstractSpec + Send + Sync;
+    type Spec: AbstractSpec + Debug + Send + Sync;
     /// The circuit type that this builder knows how to build.
     type Circ: AbstractCirc + Send + Sync;
     /// An opaque type describing how a given circuit will be built.
@@ -170,7 +170,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     // But I don't think that rust can do that.
 
     // HACK(eta): I don't like the fact that `MockablePlan` is necessary here.
-    type Plan: Send + MockablePlan;
+    type Plan: Send + Debug + MockablePlan;
 
     // TODO: I'd like to have a Dir type here to represent
     // create::DirInfo, but that would need to be parameterized too,
@@ -455,6 +455,15 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
     sender: oneshot::Sender<PendResult<B>>,
     /// A strong entry to the PendingEntry for this circuit build attempt.
     pending: Arc<PendingEntry<B>>,
+}
+
+impl<B: AbstractCircBuilder> Debug for CircBuildPlan<B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("CircBuildPlan")
+            .field("plan", &self.plan)
+            .field("sender", &self.sender)
+            .finish_non_exhaustive()
+    }
 }
 
 /// The inner state of an [`AbstractCircMgr`].
