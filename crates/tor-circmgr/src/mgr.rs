@@ -980,7 +980,12 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         }
                     }
                 }
-                Ok(Err(ref e)) => retry_error.push(e.clone()),
+                Ok(Err(ref e)) => {
+                    debug!("{:?} sent error {:?}", src, e);
+                    if src == streams::Source::Left {
+                        retry_error.push(e.clone());
+                    }
+                }
                 Err(oneshot::Canceled) => {
                     debug!(
                         "{:?} went away (Canceled), quitting take_action right away",
