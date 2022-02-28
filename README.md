@@ -56,16 +56,16 @@ We're not _aware_ of any critical security features missing in Arti; but
 however, since Arti is comparatively new software, you should probably be
 cautious about using it in production.
 
-There are no guarantees about API stability yet: if you write code
-that uses Arti, you should expect it to break with future versions.  If you
-write an a configuration file for Arti, it might stop working in the future.
+Now that Arti has reached version 0.1.0, we believe it is suitable for
+_experimental_ embedding within other Rust applications.  We will try to keep
+the API as exposed by the top-level `arti_client` crate more or less stable
+over time.  (We may have to break existing programs from time to time, but we
+will try not to do so without a very good reason. Either way, we will try to
+follow Rust's semantic versioning best practices.)
 
 ## Trying it out today
 
 Arti can act as a SOCKS proxy that uses the Tor network.
-It knows how to download directory
-information and how to load it from cache, but it doesn't try to
-download more than one directory per run.
 
 To try it out, run the demo program in `arti` as follows.  It will open a
 SOCKS proxy on port 9150.
@@ -121,17 +121,18 @@ get our project manager to sign off on them.
    * [x] Performance: preemptive circuit construction
    * [x] Performance: circuit build timeout inference
    * [x] API support for embedding
-   * [ ] API support for status reporting
+   * [x] API support for status reporting
    * [x] Correct timeout behavior
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/7)
 
  * Arti 1.0.0: Initial stable release (Goal: Mid September, 2022??)
    * Target audience: **initial users**
-   * [ ] Security audit
    * [ ] Stable API
    * [ ] Stable CLI
    * [ ] Stable configuration format
    * [ ] Automatic detection and response of more kinds of network problems
+   * [ ] At least as secure as C Tor
+   * [ ] Client performance similar to C Tor
    * [ ] More performance work
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/8)
 
