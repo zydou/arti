@@ -282,8 +282,14 @@ impl From<SystemConfig> for SystemConfigBuilder {
 /// Finally, you can get fine-grained control over the members of a a
 /// TorClientConfig using [`TorClientConfigBuilder`].
 ///
-/// NOTE: These are NOT the final options or their final layout.
-/// Expect NO stability here.
+/// # ⚠ Stability Warning ⚠
+///
+/// The design of this structure, and of the configuration system for
+/// Arti, is likely to change significantly before the release of Arti
+/// 1.0.0. The layout of options within this structure is also likely
+/// to change. For more information see ticket [#285].
+///
+/// [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
