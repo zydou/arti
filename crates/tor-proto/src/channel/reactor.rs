@@ -567,7 +567,6 @@ pub(crate) mod test {
 
             // Make sure that the createfast cell got sent
             let cell_sent = output.next().await.unwrap();
-            dbg!(cell_sent.msg());
             assert!(matches!(cell_sent.msg(), msg::ChanMsg::CreateFast(_)));
 
             // But the next run if the reactor will make the circuit get closed.
