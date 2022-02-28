@@ -1,10 +1,10 @@
-/// TODO this ought to support https!
 use arti_hyper::*;
 
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use hyper::Body;
 use std::convert::TryInto;
+use tls_api::{TlsConnector, TlsConnectorBuilder};
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
 #[tokio::main]
@@ -34,8 +34,10 @@ async fn main() -> Result<()> {
     // (This takes a while to gather the necessary consensus state, etc.)
     let tor_client = TorClient::create_bootstrapped(rt, config).await?;
 
+    let tls_connector = tls_api_native_tls::TlsConnector::builder()?.build()?;
+
     // The `ArtiHttpConnector` lets us make HTTP requests via the Tor network.
-    let tor_connector = ArtiHttpConnector::new(tor_client);
+    let tor_connector = ArtiHttpConnector::new(tor_client, tls_connector);
     let http = hyper::Client::builder().build::<_, Body>(tor_connector);
 
     // The rest is just standard usage of Hyper.
