@@ -928,6 +928,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         while let Some((src, id)) = incoming.next().await {
             let id = match id {
                 Err(oneshot::Canceled) => {
+                    debug!(
+                        "{:?} went away (Canceled), quitting take_action right away",
+                        src
+                    );
                     retry_error.push(Error::PendingCanceled);
                     return Err(retry_error);
                 }
