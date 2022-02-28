@@ -193,7 +193,10 @@ impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 /// Are we doing TLS?
-enum UseTls { Bare, Tls }
+enum UseTls {
+    Bare,
+    Tls,
+}
 
 /// Convert uri to http[s] host and port, and whether to do tls
 fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, UseTls), ConnectionError> {
@@ -212,10 +215,10 @@ fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, UseTls), ConnectionErr
         Some(h) => h,
         _ => return Err(ConnectionError::MissingHostname { uri }),
     };
-    let port = uri
-        .port()
-        .map(|x| x.as_u16())
-        .unwrap_or(match use_tls { UseTls::Tls => 443, UseTls::Bare => 80 });
+    let port = uri.port().map(|x| x.as_u16()).unwrap_or(match use_tls {
+        UseTls::Tls => 443,
+        UseTls::Bare => 80,
+    });
 
     Ok((host.to_owned(), port, use_tls))
 }
@@ -252,10 +255,8 @@ impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
                         .await
                         .map_err(|e| ConnectionError::TLS(e.into()))?;
                     MaybeHttpsStream::Https(conn)
-                },
-                UseTls::Bare => {
-                    MaybeHttpsStream::Http(Box::new(ds).into())
-                },
+                }
+                UseTls::Bare => MaybeHttpsStream::Http(Box::new(ds).into()),
             };
 
             Ok(ArtiHttpConnection { inner })
