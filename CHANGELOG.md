@@ -4,6 +4,140 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we will
 probably switch to using a separate changelog for each crate.
 
+# Arti 0.1.0 — 1 Mar 2022
+
+blurb blurb
+
+(I've caught up, as to be288399ec809c46905b9f02599fa9df66968f51)
+
+This release marks the completion of our 0.1.0 milestone.  With this
+milestone, we now consider Arti ready for experimental embedding within
+other applications.
+
+Additionally with this release, we're now ready to declare the
+`arti_client` API more or less stable and supported.  (We're not
+committing to never break it again in the future, but we'll try not to
+do so without pretty good reasons.)  The 1.0.0 release, scheduled for
+this September, will represent an even stronger API commitment.
+
+
+### Breaking changes
+
+- Our top-level `Error` type is now a mostly-opaque wrapper around an
+  inner hidden `ErrorDetail` type.  (You can access `ErrorDetail` by
+  enabling a feature, but it breaks your semver guarantees.) To
+  distinguish among different kinds of `Error`s, we provide a supported
+  (and hopefully stable) `ErrorKind` API that developers can use.
+  ([!262], [!291], [!325], [#322], [#348])
+- The interface to construct a `TorClient` instance has been completely
+  replaced.  The new API should be stable, and prevent the need for
+  additional breaking changes in the future. ([#350], [!364])
+- Many smaller changes, too numerous to list.  (Starting _after_ this
+  release, we will try be much more careful about breaking changes, and
+  note them specifically here.)
+- We no longer recommend the `static` feature flag; instead use
+  `static-native-tls` or `static-sqlite` as appropriate. ([#302])
+
+### New features
+
+- The Arti client can now watch its configuration files to see if they change,
+  and reconfigure itself when they do. This is controlled by a
+  `watch_configuration` option, and is off-by-default. ([#270], [!280])
+- Unused channels now expire after enough time has passed.  (This is
+  mostly not needed on the client side, since relays also expire
+  unused channels.) ([#41], [!273])
+- You can now create an unbootstrapped TorClient object, so that you can
+  observe its bootstrapping progress and/or bootstrap it
+  at a later time.  ([#293], [!298])
+- You can configure an unbootstrapped TorClient object to automatically
+  bootstrap itself the first time it's used. ([!322)
+- Arti now returns a webpage with an error message if you try to use its
+  SOCKS proxy as an HTTP proxy ([!348])
+
+### Major bugfixes
+
+- Fixed a number of problems in the circuit Reactor implementation that
+  could result in cell reordering, leading to relays closing our circuits
+  because of protocol violations. ([!264], [!282])
+- Fixed bugs that could cause strange behavior on shutdown or failure
+  during circuit construction. ([#210], [#365], [!363], [!366])
+
+### Infrastructure
+
+- Numerous CI improvements.
+- Numerous coverage-testing improvements.
+- We renamed our shell and python scripts to remove their ".sh" and
+  ".py" suffixes, so that we can more freely change their
+  implementations in the future (if needed). ([#309])
+- The `DirMgr` crate now uses an abstract `Store` trait to make it
+  easier for us to implement new storage backends in the
+  future. ([!345], [!317])
+
+### Documentation and Examples
+
+- Provide better sample code for `TorClient::connect`. ([!303])
+- Provide an example for how to make a [lazy-initialized] `TorClient`
+  object. ([#278], [!322])
+- Provide an example for how to [override the default TCP-connect]
+  implementation. ([!341], [!356])
+- We now provide an example of how to use Arti with the [hyper] HTTP
+  library.  This takes the form of a usable [`arti-hyper`] crate.
+- 
+
+### Cleanups, minor features, and minor bugfixes
+
+- Stop using `:` as a path character; it's reserved on Windows. ([!277])
+- Avoid returning junk data from over-long directory downloads ([!271])
+- Implement Debug and Display for many more types.
+- We no longer `deny(clippy::all)`; instead we only use
+  `warn(clippy::all)` to prevent future clippy versions from breaking
+  completely on our code. ([#338])
+- As part of our `Error` refactoring and implementation of `ErrorKind`,
+  we improved the Error objects in many individual crates for better
+  accuracy and specificity.
+- Fix a bug that caused us to flush our persistent state to disk too
+  aggressively. ([#320], [!321])
+- The `arti` proxy now starts listening on its SOCKS port immediately,
+  rather than waiting for bootstrapping to complete. ([!333])
+
+### Acknowledgments
+
+Thanks to everybody who has contributed to this release, including
+Daniel Schischkin, Dimitris Apostolou, Michael Prantl, tharvik, Trinity
+Pointard, and Yuan Lyu.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Arti 0.0.4 — 31 Jan 2022
 
 This release adds support for bootstrap reporting and `rustls`,
