@@ -1,9 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Hello world</title>
+    <title>Arti – A Tor implementation in Rust</title>
+    <style>
+      .logo {
+          width: 60%;
+          margin: auto;
+          display: block;
+      }
+      .body {
+          width: 60%;
+          margin: auto;
+          font-family: 'Source Sans Pro', sans-serif;
+      }
+      .links {
+          margin: 3em auto auto auto;
+          width: 60%;
+      }
+      .link {
+          color: white;
+          background: blueviolet;
+          padding: 1em;
+          margin: 0.8em;
+          text-align: center;
+          font-weight: bold;
+      }
+      .link :link {
+          color: white;
+      }
+      .link :visited {
+          color: #eee;
+      }
+    </style>
     </head>
   <body>
-    <h1>hello world</h1>
+    <img src="./arti_logo.png" class="logo">
+    <div class="body">
+    <p>Arti is a project to implement
+   the <a href="https://www.torproject.org/">Tor</a> anonymity protocols in
+   the
+      <a href="https://www.rust-lang.org/">Rust</a> programming language.
+    <p>Currently, Arti provides a working Tor client, but lacks support for
+      anticensorship or onion services.  Until it is more mature, we
+      recommend it for experimental use only.
+
+    <p>The latest Arti release is <a href="https://blog.torproject.org/arti_004_released/">0.0.4</a>.
+
+      <div class="links">
+    <p class="link"><a href="https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CONTRIBUTING.md">Latest README</a></p>
+    <p class="link"><a href="https://gitlab.torproject.org/tpo/core/arti">Source repository</a></p>
+    <p class="link"><a href="https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html">API documentation</a></p>
+    <p class="link"><a href="https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CONTRIBUTING.md">How to contribute</a></p>
+    <p class="link"><a href="https://gitlab.torproject.org/tpo/core/arti/-/blob/main/doc/FAQ.md">Frequently asked questions</a></p>
+    <p class="link"><a href="https://www.torproject.org/">More about Tor</a></p>
+    </div>
+      </div>
   </body>
 </html>
