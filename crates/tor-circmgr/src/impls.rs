@@ -44,7 +44,7 @@ pub(crate) struct Plan {
 
 impl Debug for Plan {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Planr")
+        f.debug_struct("Plan")
             .field("final_spec", &self.final_spec)
             .field("path", &self.path)
             .field("params", &self.params)

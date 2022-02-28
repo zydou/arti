@@ -459,7 +459,7 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
 
 impl<B: AbstractCircBuilder> Debug for CircBuildPlan<B> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("CircBuildPlna")
+        f.debug_struct("CircBuildPlan")
             .field("plan", &self.plan)
             .field("sender", &self.sender)
             .finish_non_exhaustive()
