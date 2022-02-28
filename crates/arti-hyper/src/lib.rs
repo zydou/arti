@@ -135,10 +135,9 @@ pub struct ArtiHttpConnection<TC: TlsConn> {
 
 /// The actual actual stream; might be TLS, might not
 #[pin_project(project = MaybeHttpsStreamProj)]
-#[allow(clippy::large_enum_variant)]
 enum MaybeHttpsStream<TC: TlsConn> {
     /// http
-    Http(#[pin] DataStream),
+    Http(Pin<Box<DataStream>>), // Tc:TlsStream is generally boxed; box this one too
 
     /// https
     Https(#[pin] TC::TlsStream),
@@ -159,7 +158,7 @@ impl<TC: TlsConn> AsyncRead for ArtiHttpConnection<TC> {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
         match self.project().inner.project() {
-            MaybeHttpsStreamProj::Http(ds) => ds.poll_read(cx, buf),
+            MaybeHttpsStreamProj::Http(ds) => ds.as_mut().poll_read(cx, buf),
             MaybeHttpsStreamProj::Https(t) => t.poll_read(cx, buf),
         }
     }
@@ -172,21 +171,21 @@ impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
         buf: &[u8],
     ) -> Poll<Result<usize, Error>> {
         match self.project().inner.project() {
-            MaybeHttpsStreamProj::Http(ds) => ds.poll_write(cx, buf),
+            MaybeHttpsStreamProj::Http(ds) => ds.as_mut().poll_write(cx, buf),
             MaybeHttpsStreamProj::Https(t) => t.poll_write(cx, buf),
         }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         match self.project().inner.project() {
-            MaybeHttpsStreamProj::Http(ds) => ds.poll_flush(cx),
+            MaybeHttpsStreamProj::Http(ds) => ds.as_mut().poll_flush(cx),
             MaybeHttpsStreamProj::Https(t) => t.poll_flush(cx),
         }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         match self.project().inner.project() {
-            MaybeHttpsStreamProj::Http(ds) => ds.poll_shutdown(cx),
+            MaybeHttpsStreamProj::Http(ds) => ds.as_mut().poll_shutdown(cx),
             MaybeHttpsStreamProj::Https(t) => t.poll_shutdown(cx),
         }
     }
@@ -249,7 +248,7 @@ impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
                     .map_err(|e| ConnectionError::TLS(e.into()))?;
                 MaybeHttpsStream::Https(conn)
             } else {
-                MaybeHttpsStream::Http(ds)
+                MaybeHttpsStream::Http(Box::new(ds).into())
             };
 
             Ok(ArtiHttpConnection { inner })
