@@ -194,7 +194,10 @@ impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 /// Are we doing TLS?
 enum UseTls {
+    /// No
     Bare,
+
+    /// Yes
     Tls,
 }
 
