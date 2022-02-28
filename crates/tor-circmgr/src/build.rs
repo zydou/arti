@@ -373,7 +373,7 @@ impl<R: Runtime> CircuitBuilder<R> {
         &self.guardmgr
     }
 
-    /// REturn a reference to this builder's runtime
+    /// Return a reference to this builder's runtime
     pub(crate) fn runtime(&self) -> &R {
         self.builder.runtime()
     }
