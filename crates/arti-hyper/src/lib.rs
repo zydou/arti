@@ -191,15 +191,19 @@ impl<TC: TlsConn> AsyncWrite for ArtiHttpConnection<TC> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+/// Are we doing TLS?
+enum UseTls { Bare, Tls }
+
 /// Convert uri to http[s] host and port, and whether to do tls
-fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, bool), ConnectionError> {
+fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, UseTls), ConnectionError> {
     let use_tls = {
         // Scheme doesn't derive PartialEq so can't be matched on
         let scheme = uri.scheme();
         if scheme == Some(&Scheme::HTTP) {
-            false
+            UseTls::Bare
         } else if scheme == Some(&Scheme::HTTPS) {
-            true
+            UseTls::Tls
         } else {
             return Err(ConnectionError::UnsupportedUriScheme { uri });
         }
@@ -211,7 +215,7 @@ fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, bool), ConnectionError
     let port = uri
         .port()
         .map(|x| x.as_u16())
-        .unwrap_or(if use_tls { 443 } else { 80 });
+        .unwrap_or(match use_tls { UseTls::Tls => 443, UseTls::Bare => 80 });
 
     Ok((host.to_owned(), port, use_tls))
 }
@@ -241,14 +245,17 @@ impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
                 .map_err(arti_client::Error::from)?;
             let ds = client.connect(addr).await?;
 
-            let inner = if use_tls {
-                let conn = tls_conn
-                    .connect_impl_tls_stream(&host, ds)
-                    .await
-                    .map_err(|e| ConnectionError::TLS(e.into()))?;
-                MaybeHttpsStream::Https(conn)
-            } else {
-                MaybeHttpsStream::Http(Box::new(ds).into())
+            let inner = match use_tls {
+                UseTls::Tls => {
+                    let conn = tls_conn
+                        .connect_impl_tls_stream(&host, ds)
+                        .await
+                        .map_err(|e| ConnectionError::TLS(e.into()))?;
+                    MaybeHttpsStream::Https(conn)
+                },
+                UseTls::Bare => {
+                    MaybeHttpsStream::Http(Box::new(ds).into())
+                },
             };
 
             Ok(ArtiHttpConnection { inner })
