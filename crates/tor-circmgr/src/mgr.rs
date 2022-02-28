@@ -936,7 +936,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let mut retry_error = RetryError::in_attempt_to("wait for circuits");
 
         while let Some((src, id)) = incoming.next().await {
-            if let Ok(Ok(ref id)) = id {
+            let id = match id {
+                Err(oneshot::Canceled) => {
+                    debug!(
+                        "{:?} went away (Canceled), quitting take_action right away",
+                        src
+                    );
+                    retry_error.push(Error::PendingCanceled);
+                    return Err(retry_error);
+                }
+                Ok(id) => id,
+            };
+            if let Ok(ref id) = id {
                 // Great, we have a circuit. See if we can use it!
                 let mut list = self.circs.lock().expect("poisoned lock");
                 if let Some(ent) = list.get_open_mut(id) {
