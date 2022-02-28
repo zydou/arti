@@ -86,7 +86,7 @@ impl tor_error::HasKind for ConnectionError {
             CE::UnsupportedUriScheme{..} => EK::NotImplemented,
             CE::MissingHostname{..}      => EK::BadApiUsage,
             CE::Arti(e)                  => e.kind(),
-            CE::TLS(_)                   => EK::OtherRemote,
+            CE::TLS(_)                   => EK::RemoteProtocolFailed,
         }
     }
 }
