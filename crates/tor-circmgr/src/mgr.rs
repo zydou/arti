@@ -930,7 +930,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 Err(oneshot::Canceled) => {
                     retry_error.push(Error::PendingCanceled);
                     return Err(retry_error);
-                },
+                }
                 Ok(id) => id,
             };
             if let Ok(ref id) = id {
