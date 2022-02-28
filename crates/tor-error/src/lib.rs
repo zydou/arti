@@ -438,7 +438,7 @@ pub enum ErrorKind {
     /// protocol violation by the peer;
     /// peer refusing to provide service;
     /// etc.
-    #[display(fmt = "remote protocol failedr")]
+    #[display(fmt = "remote protocol failed")]
     RemoteProtocolFailed,
 
     /// An operation failed, and the relay in question reported that it's too
