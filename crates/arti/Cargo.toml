@@ -16,7 +16,9 @@ async-std = [ "arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", 
 tokio = [ "tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio" ]
 native-tls = [ "arti-client/native-tls", "tor-rtcompat/native-tls" ]
 rustls = [ "arti-client/rustls", "tor-rtcompat/rustls" ]
-static = [ "arti-client/static" ]
+static = [ "static-sqlite", "static-native-tls" ]
+static-sqlite = [ "arti-client/static-sqlite" ]
+static-native-tls = [ "arti-client/static-native-tls", "native-tls" ]
 journald = [ "tracing-journald" ]
 
 [dependencies]

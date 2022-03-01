@@ -163,8 +163,12 @@
 //! * `async-std` -- build with [async-std](https://async.rs/) support
 //! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
 //! * `static` -- link with static versions of Arti's system dependencies, like SQLite and
-//!   OpenSSL
-//! * `experimental-api` -- Build with experimental, unstable API support. Note
+//!   OpenSSL (⚠ Warning ⚠: this feature will include a dependency on native-tls, even if you weren't
+//!   planning to use native-tls.  If you only want to build with a static sqlite library, enable the
+//!   `static-sqlite` feature.  We'll look for better solutions here in the future.)
+//! * `static-sqlite` -- link with a static version of sqlite.
+//! * `static-native-tls` -- link with a static version of `native-tls`. Enables `native-tls`.
+//! * `experimental-api` -- build with experimental, unstable API support. Note
 //!   that these APIs are NOT covered by semantic versioning guarantees: we might
 //!   break them or remove them between patch versions.
 //! * `error_detail` -- expose the `arti_client::Error` inner error type. Note

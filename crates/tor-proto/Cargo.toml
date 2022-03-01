@@ -15,7 +15,6 @@ default = []
 hs = []
 ntor_v3 = []
 tokio = ["tokio-crate", "tokio-util"]
-traffic-timestamp = ["coarsetime"]
 
 [dependencies]
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.0.3"}
@@ -30,6 +29,7 @@ tor-cell = { path = "../tor-cell", version = "0.0.3"}
 arrayref = "0.3"
 bytes = "1"
 cipher = "0.3.0"
+coarsetime = "0.1.20"
 digest = "0.10.0"
 futures = "0.3.14"
 asynchronous-codec = "0.6.0"
@@ -46,8 +46,6 @@ zeroize = "1"
 
 tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
-
-coarsetime = { version = "0.1.20", optional = true }
 
 [dev-dependencies]
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.0.4", features = [ "tokio", "native-tls" ] }

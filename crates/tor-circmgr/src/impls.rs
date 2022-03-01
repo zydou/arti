@@ -7,6 +7,7 @@ use crate::{DirInfo, Error, Result};
 use async_trait::async_trait;
 use futures::future::OptionFuture;
 use std::convert::TryInto;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 use tor_error::internal;
 use tor_proto::circuit::{CircParameters, ClientCirc};
@@ -39,6 +40,17 @@ pub(crate) struct Plan {
     /// whether we're allowed to use the circuit or whether we have to
     /// wait a while.
     guard_usable: Option<tor_guardmgr::GuardUsable>,
+}
+
+impl Debug for Plan {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Plan")
+            .field("final_spec", &self.final_spec)
+            .field("path", &self.path)
+            .field("params", &self.params)
+            .field("guard_status", &self.guard_status)
+            .finish_non_exhaustive()
+    }
 }
 
 impl MockablePlan for Plan {}

@@ -37,7 +37,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
@@ -160,7 +160,7 @@ pub(crate) trait MockablePlan {
 pub(crate) trait AbstractCircBuilder: Send + Sync {
     /// The specification type describing what operations circuits can
     /// be used for.
-    type Spec: AbstractSpec + Send + Sync;
+    type Spec: AbstractSpec + Debug + Send + Sync;
     /// The circuit type that this builder knows how to build.
     type Circ: AbstractCirc + Send + Sync;
     /// An opaque type describing how a given circuit will be built.
@@ -170,7 +170,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
     // But I don't think that rust can do that.
 
     // HACK(eta): I don't like the fact that `MockablePlan` is necessary here.
-    type Plan: Send + MockablePlan;
+    type Plan: Send + Debug + MockablePlan;
 
     // TODO: I'd like to have a Dir type here to represent
     // create::DirInfo, but that would need to be parameterized too,
@@ -457,6 +457,15 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
     pending: Arc<PendingEntry<B>>,
 }
 
+impl<B: AbstractCircBuilder> Debug for CircBuildPlan<B> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("CircBuildPlan")
+            .field("plan", &self.plan)
+            .field("sender", &self.sender)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The inner state of an [`AbstractCircMgr`].
 struct CircList<B: AbstractCircBuilder> {
     /// A map from circuit ID to [`OpenEntry`] values for all managed
@@ -576,6 +585,7 @@ impl<B: AbstractCircBuilder> CircList<B> {
             .pending_circs
             .iter()
             .filter(|p| p.supports(usage))
+            .filter(|p| !matches!(p.receiver.peek(), Some(Err(_))))
             .collect();
 
         if result.is_empty() {
@@ -926,7 +936,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let mut retry_error = RetryError::in_attempt_to("wait for circuits");
 
         while let Some((src, id)) = incoming.next().await {
-            if let Ok(Ok(ref id)) = id {
+            let id = match id {
+                Err(oneshot::Canceled) => {
+                    debug!(
+                        "{:?} went away (Canceled), quitting take_action right away",
+                        src
+                    );
+                    retry_error.push(Error::PendingCanceled);
+                    return Err(retry_error);
+                }
+                Ok(id) => id,
+            };
+            if let Ok(ref id) = id {
                 // Great, we have a circuit. See if we can use it!
                 let mut list = self.circs.lock().expect("poisoned lock");
                 if let Some(ent) = list.get_open_mut(id) {
@@ -1701,7 +1722,6 @@ mod test {
     }
 
     #[test]
-    #[ignore] // This test is unreliable; see arti#210
     fn request_retried() {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let rt = MockSleepRuntime::new(rt);

@@ -40,8 +40,23 @@
 //! `async-std`: Use the async-std runtime library as our backend.
 //! This feature has no effect unless building with `--no-default-features`
 //! to disable tokio.
+
+//! `native-tls` -- Build with support for the `native_tls` TLS
+//! backend. (default)
 //!
-//! `static`: Try to link a single static binary.
+//! `rustls` -- Build with support for the `rustls` TLS backend.
+//!
+//! `static` -- Link with static versions of your system dependencies,
+//! including sqlite and/or openssl.  (⚠ Warning ⚠: this feature will
+//! include a dependency on native-tls, even if you weren't planning
+//! to use native-tls.  If you only want to build with a static sqlite
+//! library, enable the `static-sqlite` feature.  We'll look for
+//! better solutions here in the future.)
+//!
+//! `static-sqlite` -- Link with a static version of sqlite.
+//!
+//! `static-native-tls` -- Link with a static version of `native-tls`.
+//! Enables `native-tls`.
 //!
 //! # Limitations
 //!
