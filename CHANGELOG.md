@@ -6,13 +6,9 @@ probably switch to using a separate changelog for each crate.
 
 # Arti 0.1.0 — 1 Mar 2022
 
-blurb blurb
-
-(I've caught up, as to be288399ec809c46905b9f02599fa9df66968f51)
-
-This release marks the completion of our 0.1.0 milestone.  With this
-milestone, we now consider Arti ready for experimental embedding within
-other applications.
+Arti 0.1.0 marks another important step towards stability, and the
+completion of our 0.1.0 milestone.  With this milestone, we now consider
+Arti ready for experimental embedding within other applications.
 
 Additionally with this release, we're now ready to declare the
 `arti_client` API more or less stable and supported.  (We're not
@@ -31,7 +27,7 @@ this September, will represent an even stronger API commitment.
   ([!262], [!291], [!325], [#322], [#348])
 - The interface to construct a `TorClient` instance has been completely
   replaced.  The new API should be stable, and prevent the need for
-  additional breaking changes in the future. ([#350], [!364])
+  additional breaking changes in the future. ([#350], [!364], [#326])
 - Many smaller changes, too numerous to list.  (Starting _after_ this
   release, we will try be much more careful about breaking changes, and
   note them specifically here.)
@@ -50,9 +46,12 @@ this September, will represent an even stronger API commitment.
   observe its bootstrapping progress and/or bootstrap it
   at a later time.  ([#293], [!298])
 - You can configure an unbootstrapped TorClient object to automatically
-  bootstrap itself the first time it's used. ([!322)
+  bootstrap itself the first time it's used. ([!322])
 - Arti now returns a webpage with an error message if you try to use its
   SOCKS proxy as an HTTP proxy ([!348])
+- We now an [arti-hyper] crate for using Arti with the [hyper] HTTP
+  library.  This is also good example code for showing how to integrate Arti
+  with other tools. ([!342], [!355]]
 
 ### Major bugfixes
 
@@ -60,7 +59,7 @@ this September, will represent an even stronger API commitment.
   could result in cell reordering, leading to relays closing our circuits
   because of protocol violations. ([!264], [!282])
 - Fixed bugs that could cause strange behavior on shutdown or failure
-  during circuit construction. ([#210], [#365], [!363], [!366])
+  during circuit construction. ([#210], [#365], [!363], [!366], [!368])
 
 ### Infrastructure
 
@@ -80,9 +79,6 @@ this September, will represent an even stronger API commitment.
   object. ([#278], [!322])
 - Provide an example for how to [override the default TCP-connect]
   implementation. ([!341], [!356])
-- We now provide an example of how to use Arti with the [hyper] HTTP
-  library.  This takes the form of a usable [`arti-hyper`] crate.
-- 
 
 ### Cleanups, minor features, and minor bugfixes
 
@@ -100,6 +96,7 @@ this September, will represent an even stronger API commitment.
 - The `arti` proxy now starts listening on its SOCKS port immediately,
   rather than waiting for bootstrapping to complete. ([!333])
 
+
 ### Acknowledgments
 
 Thanks to everybody who has contributed to this release, including
@@ -109,32 +106,49 @@ Pointard, and Yuan Lyu.
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+[!262]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/262
+[!264]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/264
+[!271]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/271
+[!273]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/273
+[!277]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/277
+[!280]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/280
+[!282]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/282
+[!291]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/291
+[!298]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/298
+[!303]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/303
+[!317]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/317
+[!321]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/321
+[!322]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/322
+[!325]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/325
+[!333]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/333
+[!341]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/341
+[!342]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/342
+[!345]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/345
+[!348]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/348
+[!355]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/355
+[!356]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/356
+[!363]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/363
+[!364]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/364
+[!366]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/366
+[!368]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/368
+[#41]: https://gitlab.torproject.org/tpo/core/arti/-/issues/41
+[#210]: https://gitlab.torproject.org/tpo/core/arti/-/issues/210
+[#270]: https://gitlab.torproject.org/tpo/core/arti/-/issues/270
+[#278]: https://gitlab.torproject.org/tpo/core/arti/-/issues/278
+[#293]: https://gitlab.torproject.org/tpo/core/arti/-/issues/293
+[#302]: https://gitlab.torproject.org/tpo/core/arti/-/issues/302
+[#309]: https://gitlab.torproject.org/tpo/core/arti/-/issues/309
+[#320]: https://gitlab.torproject.org/tpo/core/arti/-/issues/320
+[#322]: https://gitlab.torproject.org/tpo/core/arti/-/issues/322
+[#326]: https://gitlab.torproject.org/tpo/core/arti/-/issues/326
+[#338]: https://gitlab.torproject.org/tpo/core/arti/-/issues/338
+[#348]: https://gitlab.torproject.org/tpo/core/arti/-/issues/348
+[#350]: https://gitlab.torproject.org/tpo/core/arti/-/issues/350
+[#365]: https://gitlab.torproject.org/tpo/core/arti/-/issues/365
+[arti-hyper]: https://tpo.pages.torproject.net/core/doc/rust/arti_hyper/index.html
+[hyper]: https://crates.io/crates/hyper
+[lazy-initialized]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-client/examples/lazy-init.rs
+[override the default TCP-connect]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-client/examples/hook-tcp.rs
 
 
 
