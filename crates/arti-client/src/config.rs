@@ -10,7 +10,6 @@
 /// to change. For more information see ticket [#285].
 ///
 /// [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
-
 use derive_builder::Builder;
 use serde::Deserialize;
 use std::collections::HashMap;
