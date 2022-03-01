@@ -1,4 +1,12 @@
 //! High-level layer for making http(s) requests the Tor network as a client.
+//!
+//! This can be used by applications which embed Arti,
+//! and could also be used as an example of how to build on top of [`arti_client`].
+//!
+//! There is an example program [`hyper.rs`] which uses `arti-hyper`
+//! to connect to Tor and make a single HTTP\[S] request.
+//!
+//! [`hyper.rs`]: <https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-hyper/examples/hyper.rs>
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -91,11 +99,15 @@ impl tor_error::HasKind for ConnectionError {
     }
 }
 
-/// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
+/// **Main entrypoint**: `hyper` connector to make HTTP\[S] connections via Tor, using Arti.
 ///
-/// Only supports plaintext HTTP for now.
+/// An `ArtiHttpConnector` combines an Arti Tor client, and a TLS implementation,
+/// in a form that can be provided to hyper
+/// (e.g. to [`hyper::client::Builder`]'s `build` method)
+/// so that hyper can speak HTTP and HTTPS to origin servers via Tor.
 ///
 /// TC is the TLS to used *across* Tor to connect to the origin server.
+/// For example, it could be a [`tls_api_native_tls::TlsConnector`].
 /// This is a different Rust type to the TLS used *by* Tor to connect to relays etc.
 /// It might even be a different underlying TLS implementation
 /// (although that is usually not a particularly good idea).
@@ -126,6 +138,14 @@ impl<R: Runtime, TC: TlsConn> ArtiHttpConnector<R, TC> {
 
 /// Wrapper type that makes an Arti `DataStream` implement necessary traits to be used as
 /// a `hyper` connection object (mainly `Connection`).
+///
+/// This might represent a bare HTTP connection across Tor,
+/// or it might represent an HTTPS connection through Tor to an origin server,
+/// `TC::TlsStream` as the TLS layer.
+///
+/// An `ArtiHttpConnection` is constructed by hyper's use of the [`ArtiHttpConnector`]
+/// implementation of [`hyper::service::Service`],
+/// and then used by hyper as the transport for hyper's HTTP implementation.
 #[pin_project]
 pub struct ArtiHttpConnection<TC: TlsConn> {
     /// The stream

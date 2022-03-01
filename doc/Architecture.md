@@ -107,7 +107,7 @@ before Arti 1.0.0.
 
 `arti-bench`: A testing crate for running performance tests.
 
-`arti-hyper`: An example crate, using `arti_client` as a backend for the
+`arti-hyper`: Adaptation layer for using `arti_client` as a backend for the
 `hyper` HTTP library.
 
 ## Design considerations, privacy considerations.
