@@ -17,7 +17,6 @@ WANT_LINTS = """
 #![deny(clippy::checked_conversions)]
 #![warn(clippy::cognitive_complexity)]
 #![deny(clippy::cargo_common_metadata)]
-#![warn(clippy::clone_on_ref_ptr)]
 #![deny(clippy::debug_assert_with_mut_call)]
 #![deny(clippy::exhaustive_enums)]
 #![deny(clippy::exhaustive_structs)]
