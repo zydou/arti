@@ -23,14 +23,16 @@ static = [ "arti-client/static" ]
 experimental-api = []
 
 [dependencies]
+anyhow = "1.0.23"
 arti-client = { path="../arti-client", version = "0.0.4"}
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
 tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
 thiserror = "1"
+tls-api = { version = "0.7" }
+tls-api-native-tls = { version = "0.7.0" }
 tor-error = { path="../tor-error", version = "0.0.1" }
 tor-rtcompat = { path="../tor-rtcompat", version = "0.0.4", features=["tokio"] }
 
 [dev-dependencies]
-anyhow = "1.0.23"
 tracing-subscriber = "0.3.0"
