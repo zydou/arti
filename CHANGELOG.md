@@ -49,7 +49,7 @@ this September, will represent an even stronger API commitment.
   bootstrap itself the first time it's used. ([!322])
 - Arti now returns a webpage with an error message if you try to use its
   SOCKS proxy as an HTTP proxy ([!348])
-- We now an [arti-hyper] crate for using Arti with the [hyper] HTTP
+- We now provide an [arti-hyper] crate for using Arti with the [hyper] HTTP
   library.  This is also good example code for showing how to integrate Arti
   with other tools. ([!342], [!355]]
 
