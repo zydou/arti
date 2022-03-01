@@ -1,4 +1,4 @@
-//! Compatibility between different async runtimes for Arti
+//! Compatibility between different async runtimes for Arti.
 //!
 //! # Overview
 //!
@@ -55,27 +55,52 @@
 //!   * If you already have an asynchronous backend (for example, one
 //!     that you built with tokio by running with
 //!     `#[tokio::main]`), you can wrap it as a [`Runtime`] with
-//!     [`current_user_runtime()`].
+//!     [`PreferredRuntime::current()`].
 //!
 //!   * If you want to construct a default runtime that you won't be
-//!     using for anything besides Arti, you can use [`create_runtime()`].
+//!     using for anything besides Arti, you can use [`PreferredRuntime::create()`].
+//!
+//! Both of the above methods use the "preferred runtime", which is usually Tokio.
+//! However, changing the set of Cargo features available can affect this; see
+//! [`PreferredRuntime`] for more.
 //!
 //!   * If you want to use a runtime with an explicitly chosen backend,
 //!     name its type directly as [`async_std::AsyncStdNativeTlsRuntime`],
 //!     [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
 //!     or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
 //!     call its `create()` method.  Or if you have already constructed a
-//!     tokio runtime that you want to use, you can wrap it as a
+//!     Tokio runtime that you want to use, you can wrap it as a
 //!     [`Runtime`] explicitly with `current()`.
+//!
+//! # Advanced usage: implementing runtimes yourself
+//!
+//! You might want to implement some of the traits above (especially [`TcpProvider`] and
+//! [`TlsProvider`]) if you're embedding Arti, and want more control over the resources it uses.
+//! For example, you might want to perform actions when TCP connections open and close, replace the
+//! TLS stack with your own, or proxy TCP connections over your own custom transport.
+//!
+//! This can be more easily accomplished using the [`CompoundRuntime`] type, which lets you
+//! create a [`Runtime`] from various implementors of the various traits (which don't all need to
+//! be the same).
+//!
+//! See [`arti-client/examples/hook-tcp.rs`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-client/examples/hook-tcp.rs)
+//! for a full example of this.
 //!
 //! # Cargo features
 //!
-//! `tokio` -- (Default) Build with Tokio support.
+//! Features supported by this crate:
 //!
-//! `async-std` -- Build with async_std support.
+//! * `tokio` -- build with [Tokio](https://tokio.rs/) support
+//! * `async-std` -- build with [async-std](https://async.rs/) support
+//! * `native-tls` --  build with the [native-tls](https://github.com/sfackler/rust-native-tls)
+//!   crate for TLS support
+//! * `static` -- link the native TLS library statically (enables the `vendored` feature of the
+//!   `native-tls` crate).
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
 //!
-//! `static` -- Try to link with a static copy of our native TLS library,
-//! if possible.
+//! By default, *this* crate doesn't enable any features. However, you're almost certainly
+//! using this as part of the `arti-client` crate, which will enable `tokio` and `native-tls` in
+//! its default configuration.
 //!
 //! # Design FAQ
 //!
@@ -154,6 +179,7 @@ mod opaque;
 mod timer;
 mod traits;
 
+use std::io;
 pub use traits::{
     BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
 };
@@ -199,66 +225,114 @@ use tokio as preferred_backend_mod;
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")
 ))]
-pub use preferred_backend_mod::PreferredRuntime;
-
-/// Try to return an instance of the currently running [`Runtime`].
-///
-/// # Limitations
-///
-/// If the `tor-rtcompat` crate was compiled with `tokio` support,
-/// this function will never return an `async_std` runtime.
-///
-/// # Usage note
-///
-/// We should never call this from inside other Arti crates, or from
-/// library crates that want to support multiple runtimes!  This
-/// function is for Arti _users_ who want to wrap some existing Tokio
-/// or Async_std runtime as a [`Runtime`].  It is not for library
-/// crates that want to work with multiple runtimes.
-///
-/// Once you have a runtime returned by this function, you should
-/// just create more handles to it via [`Clone`].
-///
-/// This function returns a type-erased `impl Runtime` rather than a specific
-/// runtime implementation, so that you can be sure that your code doesn't
-/// depend on any runtime-specific features.  If that's not what you want, you
-/// can call [`PreferredRuntime::current`], or the `create` function on some
-/// specific runtime in the `tokio` or `async_std` modules.
-#[cfg(all(
-    any(feature = "native-tls", feature = "rustls"),
-    any(feature = "async-std", feature = "tokio")
-))]
-pub fn current_user_runtime() -> std::io::Result<impl Runtime> {
-    PreferredRuntime::current()
+#[derive(Clone)]
+pub struct PreferredRuntime {
+    /// The underlying runtime object.
+    inner: preferred_backend_mod::PreferredRuntime,
 }
 
-/// Return a new instance of the default [`Runtime`].
-///
-/// Generally you should call this function at most once, and then use
-/// [`Clone::clone()`] to create additional references to that runtime.
-///
-/// Tokio users may want to avoid this function and instead make a runtime using
-/// [`current_user_runtime()`] or [`tokio::PreferredRuntime::current()`]: this
-/// function always _builds_ a runtime, and if you already have a runtime, that
-/// isn't what you want with Tokio.
-///
-/// If you need more fine-grained control over a runtime, you can create it
-/// using an appropriate builder type or function.
-///
-/// This function returns a type-erased `impl Runtime` rather than a specific
-/// runtime implementation, so that you can be sure that your code doesn't
-/// depend on any runtime-specific features.  If that's not what you want, you
-/// can call [`PreferredRuntime::create`], or the `create` function on some
-/// specific runtime in the `tokio` or `async_std` modules.
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
     any(feature = "async-std", feature = "tokio")
 ))]
-pub fn create_runtime() -> std::io::Result<impl Runtime> {
-    PreferredRuntime::create()
+crate::opaque::implement_opaque_runtime! {
+    PreferredRuntime { inner : preferred_backend_mod::PreferredRuntime }
+}
+
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
+impl PreferredRuntime {
+    /// Obtain a [`PreferredRuntime`] from the currently running asynchronous runtime.
+    /// Generally, this is what you want.
+    ///
+    /// This tries to get a handle to a currently running asynchronous runtime, and
+    /// wraps it; the returned [`PreferredRuntime`] isn't the same thing as the
+    /// asynchronous runtime object itself (e.g. `tokio::runtime::Runtime`).
+    ///
+    /// # Panics
+    ///
+    /// When `tor-rtcompat` is compiled with the `tokio` feature enabled
+    /// (regardless of whether the `async-std` feature is also enabled),
+    /// panics if called outside of Tokio runtime context.
+    /// See [`tokio::runtime::Handle::current`].
+    ///
+    /// # Usage notes
+    ///
+    /// Once you have a runtime returned by this function, you should
+    /// just create more handles to it via [`Clone`].
+    ///
+    /// # Limitations
+    ///
+    /// If the `tor-rtcompat` crate was compiled with `tokio` support,
+    /// this function will never return a runtime based on `async_std`.
+    ///
+    //
+    // ## Note to Arti developers
+    //
+    // We should never call this from inside other Arti crates, or from
+    // library crates that want to support multiple runtimes!  This
+    // function is for Arti _users_ who want to wrap some existing Tokio
+    // or Async_std runtime as a [`Runtime`].  It is not for library
+    // crates that want to work with multiple runtimes.
+    pub fn current() -> io::Result<Self> {
+        let rt = preferred_backend_mod::PreferredRuntime::current()?;
+
+        Ok(Self { inner: rt })
+    }
+
+    /// Create and return a new instance of the default [`Runtime`].
+    ///
+    /// Generally you should call this function at most once, and then use
+    /// [`Clone::clone()`] to create additional references to that runtime.
+    ///
+    /// Tokio users may want to avoid this function and instead obtain a runtime using
+    /// [`PreferredRuntime::current`]: this function always _builds_ a runtime,
+    /// and if you already have a runtime, that isn't what you want with Tokio.
+    ///
+    /// If you need more fine-grained control over a runtime, you can create it
+    /// using an appropriate builder type or function.
+    //
+    // ## Note to Arti developers
+    //
+    // We should never call this from inside other Arti crates, or from
+    // library crates that want to support multiple runtimes!  This
+    // function is for Arti _users_ who want to wrap some existing Tokio
+    // or Async_std runtime as a [`Runtime`].  It is not for library
+    // crates that want to work with multiple runtimes.
+    pub fn create() -> io::Result<Self> {
+        let rt = preferred_backend_mod::PreferredRuntime::create()?;
+
+        Ok(Self { inner: rt })
+    }
+
+    /// Helper to run a single test function in a freshly created runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we can't create this runtime.
+    ///
+    /// # Warning
+    ///
+    /// This API is **NOT** for consumption outside Arti. Semver guarantees are not provided.
+    #[doc(hidden)]
+    pub fn run_test<P, F, O>(func: P) -> O
+    where
+        P: FnOnce(Self) -> F,
+        F: futures::Future<Output = O>,
+    {
+        let runtime = Self::create().expect("Failed to create runtime");
+        runtime.clone().block_on(func(runtime))
+    }
 }
 
 /// Helpers for test_with_all_runtimes
+///
+/// # Warning
+///
+/// This API is **NOT** for consumption outside Arti. Semver guarantees are not provided.
+#[doc(hidden)]
 pub mod testing__ {
     /// A trait for an object that might represent a test failure, or which
     /// might just be `()`.
@@ -303,21 +377,26 @@ macro_rules! declare_conditional_macro {
 }
 
 /// Defines macros that will expand when certain runtimes are available.
+#[doc(hidden)]
 pub mod cond {
     declare_conditional_macro! {
         /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        #[doc(hidden)]
         macro if_tokio_native_tls_present = ("tokio", "native-tls")
     }
     declare_conditional_macro! {
         /// Expand a token tree if the TokioRustlsRuntime is available.
+        #[doc(hidden)]
         macro if_tokio_rustls_present = ("tokio", "rustls")
     }
     declare_conditional_macro! {
         /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        #[doc(hidden)]
         macro if_async_std_native_tls_present = ("async-std", "native-tls")
     }
     declare_conditional_macro! {
         /// Expand a token tree if the TokioNativeTlsRuntime is available.
+        #[doc(hidden)]
         macro if_async_std_rustls_present = ("async-std", "rustls")
     }
 }
@@ -617,7 +696,7 @@ mod test {
                 tests_with_runtime! { &crate::async_std::PreferredRuntime::create()? => $($id),* }
             }
             mod default_runtime_tests {
-                tests_with_runtime! { &crate::create_runtime()? => $($id),* }
+                tests_with_runtime! { &crate::PreferredRuntime::create()? => $($id),* }
             }
         }
     }
@@ -642,7 +721,7 @@ mod test {
                 tests_with_runtime! {  &crate::async_std::AsyncStdRustlsRuntime::create()? => $($id),* }
             }
             mod default_runtime_tls_tests {
-                tests_with_runtime! { &crate::create_runtime()? => $($id),* }
+                tests_with_runtime! { &crate::PreferredRuntime::create()? => $($id),* }
             }
         }
     }

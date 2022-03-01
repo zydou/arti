@@ -1,12 +1,12 @@
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;
-use tor_rtcompat::tokio::TokioNativeTlsRuntime;
 
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 use once_cell::sync::OnceCell;
+use tor_rtcompat::PreferredRuntime;
 
-static TOR_CLIENT: OnceCell<TorClient<TokioNativeTlsRuntime>> = OnceCell::new();
+static TOR_CLIENT: OnceCell<TorClient<PreferredRuntime>> = OnceCell::new();
 
 /// Get a `TorClient` by copying the globally shared client stored in `TOR_CLIENT`.
 /// If that client hasn't been initialized yet, initializes it first.
@@ -15,7 +15,7 @@ static TOR_CLIENT: OnceCell<TorClient<TokioNativeTlsRuntime>> = OnceCell::new();
 ///
 /// Errors if called outside a Tokio runtime context, or creating the Tor client
 /// failed.
-pub fn get_tor_client() -> Result<TorClient<TokioNativeTlsRuntime>> {
+pub fn get_tor_client() -> Result<TorClient<PreferredRuntime>> {
     let client = TOR_CLIENT.get_or_try_init(|| -> Result<TorClient<_>> {
         // The client config includes things like where to store persistent Tor network state.
         // The defaults provided are the same as the Arti standalone application, and save data
@@ -23,14 +23,11 @@ pub fn get_tor_client() -> Result<TorClient<TokioNativeTlsRuntime>> {
         // on Linux platforms)
         let config = TorClientConfig::default();
 
-        // Get a `tor_rtcompat::Runtime` from the currently running Tokio runtime.
-        let rt = TokioNativeTlsRuntime::current()?;
-
         eprintln!("creating unbootstrapped Tor client");
 
         // Create an unbootstrapped Tor client. Bootstrapping will happen when the client is used,
         // since `BootstrapBehavior::OnDemand` is the default.
-        Ok(TorClient::builder(rt)
+        Ok(TorClient::builder()
             .config(config)
             .create_unbootstrapped()?)
     })?;

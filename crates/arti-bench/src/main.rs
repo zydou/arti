@@ -643,9 +643,11 @@ impl<R: Runtime> Benchmark<R> {
     /// Benchmark through Arti, using the provided `TorClientConfig`.
     fn with_arti(&mut self, tcc: TorClientConfig) -> Result<()> {
         info!("Starting Arti...");
-        let tor_client = self
-            .runtime
-            .block_on(TorClient::create_bootstrapped(self.runtime.clone(), tcc))?;
+        let tor_client = self.runtime.block_on(
+            TorClient::with_runtime(self.runtime.clone())
+                .config(tcc)
+                .create_bootstrapped(),
+        )?;
 
         let addr = TorAddr::dangerously_from(self.connect_addr)?;
 

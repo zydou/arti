@@ -3,9 +3,7 @@
 //! # Overview
 //!
 //! The `arti-client` crate aims to provide a safe, easy-to-use API for
-//! applications that want to use Tor network to anonymize their traffic.  It
-//! hides most of the underlying detail, letting other crates decide how exactly
-//! to use the Tor crate.
+//! applications that want to use the Tor network to anonymize their traffic.
 //!
 //! This crate is part of [Arti](https://gitlab.torproject.org/tpo/core/arti/),
 //! a project to implement [Tor](https://www.torproject.org/) in Rust. It is the
@@ -28,28 +26,15 @@
 //! The main entry point for this crate is the [`TorClient`], an object that
 //! lets you make connections over the Tor network.
 //!
+//! ## Connecting to Tor
+//!
 //! Calling [`TorClient::create_bootstrapped`] establishes a connection to the Tor
 //! network, pulling in necessary state about network consensus as required.
 //! This state gets persisted to the locations specified in the
 //! [`TorClientConfig`].
 //!
-//! A client can then be used to make connections over Tor with
-//! [`TorClient::connect`], which accepts anything implementing [`IntoTorAddr`].
-//! This returns a [`DataStream`], an anonymized TCP stream type that implements
-//! [`AsyncRead`](futures::io::AsyncRead) and
-//! [`AsyncWrite`](futures::io::AsyncWrite), as well as the Tokio versions of
-//! those traits if the `tokio` crate feature is enabled.
-//!
-//! The [`TorAddr`] type is intended to ensure that DNS lookups are done via the
-//! Tor network instead of locally. Doing local DNS resolution can leak
-//! information about which hostnames you're connecting to to your local DNS
-//! resolver (i.e. your ISP), so it's much better to let Arti do it for you to
-//! maintain privacy.
-//!
-//! If you really want to connect to a raw IP address and know what you're
-//! doing, take a look at [`TorAddr::dangerously_from`] -- but be careful!
-//!
-//! ## Example: making connections over Tor
+//! (This method requires you to initialize the client in an `async fn`. Consider
+//! using the builder method, below, if that doesn't work for you.)
 //!
 //! ```no_run
 //! # use anyhow::Result;
@@ -60,15 +45,60 @@
 //! // The client configuration describes how to connect to the Tor network,
 //! // and what directories to use for storing persistent state.
 //! let config = TorClientConfig::default();
-//! // Arti needs a handle to an async runtime in order to spawn tasks and use the
-//! // network. (See "Multiple runtime support" below.)
-//! let rt = tor_rtcompat::tokio::TokioNativeTlsRuntime::current()?;
 //!
 //! // Start the Arti client, and let it bootstrap a connection to the Tor network.
 //! // (This takes a while to gather the necessary directory information.
 //! // It uses cached information when possible.)
-//! let tor_client = TorClient::create_bootstrapped(rt, config).await?;
+//! let tor_client = TorClient::create_bootstrapped(config).await?;
+//! #    Ok(())
+//! # }
+//! ```
 //!
+//! ## Creating a client and connecting later
+//!
+//! You might wish to create a Tor client immediately, without waiting for it to bootstrap (or
+//! having to use an `await`). This can be done by making a [`TorClientBuilder`] with
+//! [`TorClient::builder`], and calling [`TorClientBuilder::create_unbootstrapped`].
+//!
+//! The returned client can be made to bootstrap when it is first used (the default), or not;
+//! see [`BootstrapBehavior`] for more details.
+//!
+//! ```no_run
+//! # use anyhow::Result;
+//! # use arti_client::{TorClient, TorClientConfig};
+//! # use tokio_crate as tokio;
+//! # use arti_client::BootstrapBehavior;
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
+//! // Specifying `BootstrapBehavior::OnDemand` means the client will automatically
+//! // bootstrap when it is used. `Manual` exists if you'd rather have full control.
+//! let tor_client = TorClient::builder()
+//!     .bootstrap_behavior(BootstrapBehavior::OnDemand)
+//!     .create_unbootstrapped()?;
+//! #    Ok(())
+//! # }
+//! ```
+//!
+//! ## Using the client
+//!
+//! A client can then be used to make connections over Tor with
+//! [`TorClient::connect`], which accepts anything implementing [`IntoTorAddr`].
+//! This returns a [`DataStream`], an anonymized TCP stream type that implements
+//! [`AsyncRead`](futures::io::AsyncRead) and
+//! [`AsyncWrite`](futures::io::AsyncWrite), as well as the Tokio versions of
+//! those traits if the `tokio` crate feature is enabled.
+//!
+//! ## Example: making connections over Tor
+//!
+//! ```no_run
+//! # use anyhow::Result;
+//! # use arti_client::{TorClient, TorClientConfig};
+//! # use tokio_crate as tokio;
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
+//! #     let config = TorClientConfig::default();
+//! #     let tor_client = TorClient::create_bootstrapped(config).await?;
+//! #
 //! // Initiate a connection over Tor to example.com, port 80.
 //! let mut stream = tor_client.connect(("example.com", 80)).await?;
 //!
@@ -118,60 +148,35 @@
 //! runtimes; currently, both [Tokio](https://tokio.rs) and
 //! [async-std](https://async.rs) are supported.
 //!
-//! Functions in this crate, like [`TorClient::create_bootstrapped`], will expect a type
-//! that implements [`tor_rtcompat::Runtime`], which can be obtained:
+//! The backend Arti uses for TCP connections ([`tor_rtcompat::TcpProvider`]) and for
+//! creating TLS sessions ([`tor_rtcompat::TlsProvider`]) is also configurable using
+//! this crate. This can be used to embed Arti in custom environments where you want
+//! lots of control over how it uses the network.
 //!
-//! - for Tokio:
-//!   - by calling [`tor_rtcompat::tokio::PreferredRuntime::current()`], if a
-//!     Tokio reactor is already running
-//!   - by calling [`tor_rtcompat::tokio::PreferredRuntime::create()`], to start
-//!     a new reactor if one is not already running
-//!   - as above, but explicitly specifying
-//!     [`TokioNativeTlsRuntime`](tor_rtcompat::tokio::TokioNativeTlsRuntime) or
-//!     [`TokioRustlsRuntime`](tor_rtcompat::tokio::TokioRustlsRuntime) in place
-//!     of `PreferredRuntime`.
-//! - for async-std:
-//!   - by calling [`tor_rtcompat::async_std::PreferredRuntime::current()`],
-//!     which will create a runtime or retrieve the existing one, if one has
-//!     already been started
-//!   - as above, but explicitly specifying
-//!     [`AsyncStdNativeTlsRuntime`](tor_rtcompat::async_std::AsyncStdNativeTlsRuntime)
-//!     or
-//!     [`AsyncStdRustlsRuntime`](tor_rtcompat::async_std::AsyncStdRustlsRuntime)
-//!     in place of `PreferredRuntime`.
-//!
+//! [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more about these features.
 //!
 //! # Feature flags
 //!
-//! `tokio` -- (Default) Build with support for the Tokio async
-//! backend. (default)
+//! * `tokio` (default) -- build with [Tokio](https://tokio.rs/) support
+//! * `native-tls` (default) -- build with the [native-tls](https://github.com/sfackler/rust-native-tls)
+//!   crate for TLS support
+//! * `async-std` -- build with [async-std](https://async.rs/) support
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
+//! * `static` -- link with static versions of Arti's system dependencies, like SQLite and
+//!   OpenSSL (⚠ Warning ⚠: this feature will include a dependency on native-tls, even if you weren't
+//!   planning to use native-tls.  If you only want to build with a static sqlite library, enable the
+//!   `static-sqlite` feature.  We'll look for better solutions here in the future.)
+//! * `static-sqlite` -- link with a static version of sqlite.
+//! * `static-native-tls` -- link with a static version of `native-tls`. Enables `native-tls`.
+//! * `experimental-api` -- build with experimental, unstable API support. Note
+//!   that these APIs are NOT covered by semantic versioning guarantees: we might
+//!   break them or remove them between patch versions.
+//! * `error_detail` -- expose the `arti_client::Error` inner error type. Note
+//!   that this API is NOT covered by semantic versioning guarantees: we might
+//!   break it between patch versions.
 //!
-//! `async-std` -- Build with support for the `async_std` async backend.
-//!
-//! `native-tls` -- Build with support for the `native_tls` TLS
-//! backend. (default)
-//!
-//! `rustls` -- Build with support for the `rustls` TLS backend.
-//!
-//! `static` -- Link with static versions of your system dependencies,
-//! including sqlite and/or openssl.  (⚠ Warning ⚠: this feature will
-//! include a dependency on native-tls, even if you weren't planning
-//! to use native-tls.  If you only want to build with a static sqlite
-//! library, enable the `static-sqlite` feature.  We'll look for
-//! better solutions here in the future.)
-//!
-//! `static-sqlite` -- Link with a static version of sqlite.
-//!
-//! `static-native-tls` -- Link with a static version of `native-tls`.
-//! Enables `native-tls`.
-//!
-//! `experimental-api` -- Build with experimental, unstable API support. Note
-//! that these APIs are NOT covered by semantic versioning guarantees: we might
-//! break them or remove them between patch versions.
-//!
-//! `error_detail` -- expose the `arti_client::Error` inner error type. Note
-//! that this API is NOT covered by semantic versioning guarantees: we might
-//! break it between patch versions.
+//! Note that flags `tokio`, `native-tls`, `async-std`, `rustls` and `static` will enable
+//! the flags of the same name on the [`tor_rtcompat`] crate.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
