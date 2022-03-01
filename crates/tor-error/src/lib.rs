@@ -424,6 +424,23 @@ pub enum ErrorKind {
     #[display(fmt = "remote hostname lookup failure")]
     RemoteHostNotFound,
 
+    /// Trouble involving a protocol we're using with a peer on the far side of the Tor network
+    ///
+    /// We were using a higher-layer protocol over a Tor connection,
+    /// and something went wrong.
+    /// This might be an error reported by the remote host within that higher protocol,
+    /// or a problem detected locally but relating to that higher protocol.
+    ///
+    /// The nature of the problem can vary:
+    /// examples could include:
+    /// failure to agree suitable parameters (incompatibility);
+    /// authentication problems (eg, TLS certificate trouble);
+    /// protocol violation by the peer;
+    /// peer refusing to provide service;
+    /// etc.
+    #[display(fmt = "remote protocol failed")]
+    RemoteProtocolFailed,
+
     /// An operation failed, and the relay in question reported that it's too
     /// busy to answer our request.
     #[display(fmt = "relay too busy")]

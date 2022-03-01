@@ -936,7 +936,56 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let mut retry_error = RetryError::in_attempt_to("wait for circuits");
 
         while let Some((src, id)) = incoming.next().await {
-            let id = match id {
+            match id {
+                Ok(Ok(ref id)) => {
+                    // Great, we have a circuit. See if we can use it!
+                    let mut list = self.circs.lock().expect("poisoned lock");
+                    if let Some(ent) = list.get_open_mut(id) {
+                        let now = self.runtime.now();
+                        match ent.restrict_mut(usage, now) {
+                            Ok(()) => {
+                                // Great, this will work.  We drop the
+                                // pending request now explicitly to remove
+                                // it from the list.
+                                drop(pending_request);
+                                if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
+                                    // Since this circuit hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
+                                    spawn_expiration_task(
+                                        &self.runtime,
+                                        Arc::downgrade(&self),
+                                        ent.circ.id(),
+                                        now + self.circuit_timing().max_dirtiness,
+                                    );
+                                }
+                                return Ok(ent.circ.clone());
+                            }
+                            Err(e) => {
+                                // TODO: as below, improve this log message.
+                                if src == streams::Source::Left {
+                                    info!(
+                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
+                                        src, id, &e
+                                    );
+                                } else {
+                                    debug!(
+                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
+                                        src, id, &e
+                                    );
+                                }
+                                if src == streams::Source::Left {
+                                    retry_error.push(e);
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+                Ok(Err(ref e)) => {
+                    debug!("{:?} sent error {:?}", src, e);
+                    if src == streams::Source::Left {
+                        retry_error.push(e.clone());
+                    }
+                }
                 Err(oneshot::Canceled) => {
                     debug!(
                         "{:?} went away (Canceled), quitting take_action right away",
@@ -944,50 +993,6 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     );
                     retry_error.push(Error::PendingCanceled);
                     return Err(retry_error);
-                }
-                Ok(id) => id,
-            };
-            if let Ok(ref id) = id {
-                // Great, we have a circuit. See if we can use it!
-                let mut list = self.circs.lock().expect("poisoned lock");
-                if let Some(ent) = list.get_open_mut(id) {
-                    let now = self.runtime.now();
-                    match ent.restrict_mut(usage, now) {
-                        Ok(()) => {
-                            // Great, this will work.  We drop the
-                            // pending request now explicitly to remove
-                            // it from the list.
-                            drop(pending_request);
-                            if matches!(ent.expiration, ExpirationInfo::Unused { .. }) {
-                                // Since this circuit hasn't been used yet, schedule expiration task after `max_dirtiness` from now.
-                                spawn_expiration_task(
-                                    &self.runtime,
-                                    Arc::downgrade(&self),
-                                    ent.circ.id(),
-                                    now + self.circuit_timing().max_dirtiness,
-                                );
-                            }
-                            return Ok(ent.circ.clone());
-                        }
-                        Err(e) => {
-                            // TODO: as below, improve this log message.
-                            if src == streams::Source::Left {
-                                info!(
-                                    "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                    src, id, &e
-                                );
-                            } else {
-                                debug!(
-                                    "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                    src, id, &e
-                                );
-                            }
-                            if src == streams::Source::Left {
-                                retry_error.push(e);
-                            }
-                            continue;
-                        }
-                    }
                 }
             }
 

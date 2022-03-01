@@ -9,4 +9,7 @@ cargo +nightly update -Z minimal-versions
 cargo update \
       -p crc32fast \
       -p quote:0.6.3 \
-      -p synstructure:0.12.0
+      -p zeroize_derive:1.1.1 \
+      -p env_logger:0.5.0 \
+      -p synstructure:0.12.0 \
+      -p nix:0.4.2
