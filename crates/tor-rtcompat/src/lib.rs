@@ -256,7 +256,7 @@ impl PreferredRuntime {
     /// When `tor-rtcompat` is compiled with the `tokio` feature enabled
     /// (regardless of whether the `async-std` feature is also enabled),
     /// panics if called outside of Tokio runtime context.
-    /// See [`tokio::runtime::Handle::current`].
+    /// See `tokio::runtime::Handle::current`.
     ///
     /// # Usage notes
     ///

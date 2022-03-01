@@ -221,7 +221,7 @@ enum UseTls {
     Tls,
 }
 
-/// Convert uri to http[s] host and port, and whether to do tls
+/// Convert uri to http\[s\] host and port, and whether to do tls
 fn uri_to_host_port_tls(uri: Uri) -> Result<(String, u16, UseTls), ConnectionError> {
     let use_tls = {
         // Scheme doesn't derive PartialEq so can't be matched on
