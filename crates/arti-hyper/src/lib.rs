@@ -93,8 +93,6 @@ impl tor_error::HasKind for ConnectionError {
 
 /// A `hyper` connector to proxy HTTP connections via the Tor network, using Arti.
 ///
-/// Only supports plaintext HTTP for now.
-///
 /// TC is the TLS to used *across* Tor to connect to the origin server.
 /// This is a different Rust type to the TLS used *by* Tor to connect to relays etc.
 /// It might even be a different underlying TLS implementation
