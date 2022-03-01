@@ -1,6 +1,6 @@
 # tor-rtcompat
 
-Compatibility between different async runtimes for Arti
+Compatibility between different async runtimes for Arti.
 
 ## Overview
 
@@ -57,29 +57,52 @@ You can get a [`Runtime`] in several ways:
   * If you already have an asynchronous backend (for example, one
     that you built with tokio by running with
     `#[tokio::main]`), you can wrap it as a [`Runtime`] with
-    [`current_user_runtime()`].
+    [`PreferredRuntime::current()`].
 
   * If you want to construct a default runtime that you won't be
-    using for anything besides Arti, you can use [`create_runtime()`].
+    using for anything besides Arti, you can use [`PreferredRuntime::create()`].
+
+Both of the above methods use the "preferred runtime", which is usually Tokio.
+However, changing the set of Cargo features available can affect this; see
+[`PreferredRuntime`] for more.
 
   * If you want to use a runtime with an explicitly chosen backend,
     name its type directly as [`async_std::AsyncStdNativeTlsRuntime`],
     [`async_std::AsyncStdRustlsRuntime`], [`tokio::TokioNativeTlsRuntime`],
     or [`tokio::TokioRustlsRuntime`]. To construct one of these runtimes,
     call its `create()` method.  Or if you have already constructed a
-    tokio runtime that you want to use, you can wrap it as a
+    Tokio runtime that you want to use, you can wrap it as a
     [`Runtime`] explicitly with `current()`.
+
+## Advanced usage: implementing runtimes yourself
+
+You might want to implement some of the traits above (especially [`TcpProvider`] and
+[`TlsProvider`]) if you're embedding Arti, and want more control over the resources it uses.
+For example, you might want to perform actions when TCP connections open and close, replace the
+TLS stack with your own, or proxy TCP connections over your own custom transport.
+
+This can be more easily accomplished using the [`CompoundRuntime`] type, which lets you
+create a [`Runtime`] from various implementors of the various traits (which don't all need to
+be the same).
+
+See [`arti-client/examples/hook-tcp.rs`](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-client/examples/hook-tcp.rs)
+for a full example of this.
 
 ## Cargo features
 
-`tokio` -- (Default) Build with Tokio support.
+Features supported by this crate:
 
-`async-std` -- Build with async_std support.
+* `tokio` -- build with [Tokio](https://tokio.rs/) support
+* `async-std` -- build with [async-std](https://async.rs/) support
+* `native-tls` --  build with the [native-tls](https://github.com/sfackler/rust-native-tls)
+  crate for TLS support
+* `static` -- link the native TLS library statically (enables the `vendored` feature of the
+  `native-tls` crate).
+* `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
 
-`native-tls`, `rustls` -- Select TLS libraries to support. 
-
-`static` -- Try to link with a static copy of our native TLS library,
-if possible.
+By default, *this* crate doesn't enable any features. However, you're almost certainly
+using this as part of the `arti-client` crate, which will enable `tokio` and `native-tls` in
+its default configuration.
 
 ## Design FAQ
 

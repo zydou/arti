@@ -2,13 +2,12 @@
 
 High-level layer for making http(s) requests the Tor network as a client.
 
-## Feature flags
+This can be used by applications which embed Arti,
+and could also be used as an example of how to build on top of [`arti_client`].
 
-`experimental-api` -- Build with experimental, unstable API support.
-Note that these APIs are NOT covered by semantic versioning guarantees:
-we might break them or remove them between patch versions.
+There is an example program [`hyper.rs`] which uses `arti-hyper`
+to connect to Tor and make a single HTTP\[S] request.
 
-`native-tls` (default), `rustls` -- Select TLS libraries to use for Tor's purposes.
-(The end-to-end TLS to the origin server is separate, and handled via `tls-api`.)
+[`hyper.rs`]: <https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti-hyper/examples/hyper.rs>
 
 License: MIT OR Apache-2.0
