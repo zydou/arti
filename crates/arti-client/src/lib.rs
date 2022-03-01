@@ -15,11 +15,18 @@
 //!
 //! Note that Arti is a work in progress; although we've tried to write all the
 //! critical security components, you probably shouldn't use Arti in production
-//! until it's a bit more mature.
+//! until it's a bit more mature.  (That said, now is a _great_ time to try
+//! our Arti on an experimental basis, so you can tell us what we need
+//! to fix between now and the 1.0.0 release.)
 //!
-//! Also note that all of the APIs for this crate, and for Arti in general, are
-//! not the least bit stable.  If you use this code, please expect your software
-//! to break on a regular basis.
+//! Also note that the APIs for this crate are not all yet
+//! completely stable.  We'll try not to break things without good
+//! reason, and we'll follow semantic versioning when we do, but
+//! please expect a certain amount of breakage between now and 1.0.0.
+//!
+//! The APIs exposed by lower-level crates in Arti are _even more
+//! unstable_; they will break more often than those from
+//! `arti-client`, for less reason.
 //!
 //! # Using `arti-client`
 //!

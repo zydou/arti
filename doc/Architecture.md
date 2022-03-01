@@ -33,6 +33,9 @@ various ways.  Other crates should use this crate, and not actually
 use any crypto implementation crates directly.  (It's okay to use crates that
 define cryptographic traits.)
 
+`tor-error`: Declare a general `ErrorKind` implementation used to hide the
+details for the errors in higher-level Arti crates.
+
 `tor-persist`: Types and traits for handling persistent data in Arti.
 
 `tor-rtcompat`: Traits to expose a common interface for asynchronous runtime
@@ -96,7 +99,16 @@ network view as an instance of `tor-netdir::NetDir`.
 `arti-client`: A client library that can be used to connect to the Tor network
 and make connections.
 
+`arti-config`: Support for working with Arti's configuration file format.
+This is likely to move to a lower level and get refactored significantly
+before Arti 1.0.0.
+
 `arti`:  A simple command-line client program that can run as a SOCKS proxy.
+
+`arti-bench`: A testing crate for running performance tests.
+
+`arti-hyper`: An example crate, using `arti_client` as a backend for the
+`hyper` HTTP library.
 
 ## Design considerations, privacy considerations.
 
