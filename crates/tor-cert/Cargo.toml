@@ -1,6 +1,6 @@
 [package]
 name = "tor-cert"
-version = "0.0.3"
+version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -11,10 +11,10 @@ categories = [ "parser-implementations" ]
 repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-caret = { path="../caret", version = "0.0.3"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.0.3"}
-tor-bytes = { path="../tor-bytes", version = "0.0.3"}
-tor-checkable = { path="../tor-checkable", version = "0.0.3"}
+caret = { path="../caret", version = "0.1.0"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
+tor-bytes = { path="../tor-bytes", version = "0.1.0"}
+tor-checkable = { path="../tor-checkable", version = "0.1.0"}
 
 digest = "0.10.0"
 signature = "1"
