@@ -59,7 +59,9 @@ macro_rules! implement_opaque_runtime {
 
     impl std::fmt::Debug for $t {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct(stringify!($t)).finish_non_exhaustive()
+            f.debug_struct(stringify!($t))
+                .field(stringify!($member), &stringify!($ty))
+                .finish_non_exhaustive()
         }
     }
 
