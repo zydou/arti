@@ -2,6 +2,8 @@
 
 use std::sync::{Arc, RwLock};
 
+use educe::Educe;
+
 use crate::{Error, Result};
 
 /// A shareable mutable-ish optional reference to a an [`Arc`].
@@ -12,7 +14,8 @@ use crate::{Error, Result};
 ///
 // We give this construction its own type to simplify its users, and make
 // sure we don't hold the lock against any async suspend points.
-#[derive(Debug)]
+#[derive(Debug, Educe)]
+#[educe(Default)]
 pub(crate) struct SharedMutArc<T> {
     /// Locked reference to the current value.
     ///
@@ -21,18 +24,10 @@ pub(crate) struct SharedMutArc<T> {
     dir: RwLock<Option<Arc<T>>>,
 }
 
-impl<T> Default for SharedMutArc<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T> SharedMutArc<T> {
     /// Construct a new empty SharedMutArc.
     pub(crate) fn new() -> Self {
-        SharedMutArc {
-            dir: RwLock::new(None),
-        }
+        SharedMutArc::default()
     }
 
     /// Replace the current value with `new_val`.
