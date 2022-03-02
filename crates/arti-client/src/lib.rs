@@ -240,3 +240,6 @@ pub use err::ErrorDetail;
 
 /// Alias for the [`Result`] type corresponding to the high-level [`Error`].
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(feature = "experimental-api")]
+pub use builder::DirProviderBuilder;

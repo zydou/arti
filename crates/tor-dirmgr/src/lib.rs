@@ -75,7 +75,8 @@ use tor_circmgr::CircMgr;
 use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
-use futures::{channel::oneshot, task::SpawnExt};
+use async_trait::async_trait;
+use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{debug, info, trace, warn};
 
@@ -97,6 +98,67 @@ pub use tor_netdir::fallback::{FallbackDir, FallbackDirBuilder};
 
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Trait for DirMgr implementations
+#[async_trait]
+pub trait DirProvider {
+    /// Return a handle to our latest directory, if we have one.
+    fn latest_netdir(&self) -> Option<Arc<NetDir>>;
+
+    /// Return a new asynchronous stream that will receive notification
+    /// whenever the consensus has changed.
+    ///
+    /// Multiple events may be batched up into a single item: each time
+    /// this stream yields an event, all you can assume is that the event has
+    /// occurred at least once.
+    fn events(&self) -> BoxStream<'static, DirEvent>;
+
+    /// Try to change our configuration to `new_config`.
+    ///
+    /// Actual behavior will depend on the value of `how`.
+    fn reconfigure(
+        &self,
+        new_config: &DirMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError>;
+
+    /// Bootstrap a `DirProvider` that hasn't been bootstrapped yet.
+    async fn bootstrap(&self) -> Result<()>;
+
+    /// Return a stream of [`DirBootstrapStatus`] events to tell us about changes
+    /// in the latest directory's bootstrap status.
+    ///
+    /// Note that this stream can be lossy: the caller will not necessarily
+    /// observe every event on the stream
+    fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus>;
+}
+
+#[async_trait]
+impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
+    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
+        self.opt_netdir()
+    }
+
+    fn events(&self) -> BoxStream<'static, DirEvent> {
+        Box::pin(self.events.subscribe())
+    }
+
+    fn reconfigure(
+        &self,
+        new_config: &DirMgrConfig,
+        how: tor_config::Reconfigure,
+    ) -> std::result::Result<(), tor_config::ReconfigureError> {
+        DirMgr::reconfigure(self, new_config, how)
+    }
+
+    async fn bootstrap(&self) -> Result<()> {
+        DirMgr::bootstrap(self).await
+    }
+
+    fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus> {
+        Box::pin(DirMgr::bootstrap_events(self))
+    }
+}
 
 /// A directory manager to download, fetch, and cache a Tor directory.
 ///

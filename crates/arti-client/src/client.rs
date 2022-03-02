@@ -55,7 +55,7 @@ pub struct TorClient<R: Runtime> {
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
-    dirmgr: Arc<tor_dirmgr::DirMgr<R>>,
+    dirmgr: Arc<dyn tor_dirmgr::DirProvider + Send + Sync>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -337,6 +337,7 @@ impl<R: Runtime> TorClient<R> {
         runtime: R,
         config: TorClientConfig,
         autobootstrap: BootstrapBehavior,
+        dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
     ) -> StdResult<Self, ErrorDetail> {
         let circ_cfg = config.get_circmgr_config()?;
         let dir_cfg = config.get_dirmgr_config()?;
@@ -352,11 +353,10 @@ impl<R: Runtime> TorClient<R> {
         let circmgr =
             tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
                 .map_err(ErrorDetail::CircMgrSetup)?;
-        let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(
-            dir_cfg,
-            runtime.clone(),
-            Arc::clone(&circmgr),
-        )?;
+
+        let dirmgr = dirmgr_builder
+            .build(runtime.clone(), Arc::clone(&circmgr), dir_cfg)
+            .map_err(crate::Error::into_detail)?;
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
@@ -471,8 +471,12 @@ impl<R: Runtime> TorClient<R> {
 
         self.dirmgr.bootstrap().await?;
 
-        self.circmgr
-            .update_network_parameters(self.dirmgr.netdir()?.params());
+        self.circmgr.update_network_parameters(
+            self.dirmgr
+                .latest_netdir()
+                .ok_or(ErrorDetail::DirMgr(tor_dirmgr::Error::DirectoryNotPresent))?
+                .params(),
+        );
 
         // Since we succeeded, disarm the unlock guard.
         unlock_guard.disarm();
@@ -779,7 +783,7 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn dirmgr(&self) -> Arc<tor_dirmgr::DirMgr<R>> {
+    pub fn dirmgr(&self) -> Arc<dyn tor_dirmgr::DirProvider + Send + Sync> {
         Arc::clone(&self.dirmgr)
     }
 
@@ -813,7 +817,7 @@ impl<R: Runtime> TorClient<R> {
         self.wait_for_bootstrap().await?;
         let dir = self
             .dirmgr
-            .opt_netdir()
+            .latest_netdir()
             .ok_or(ErrorDetail::BootstrapRequired {
                 action: "launch a circuit",
             })?;
@@ -879,7 +883,7 @@ where
 async fn keep_circmgr_params_updated<R: Runtime>(
     mut events: impl futures::Stream<Item = DirEvent> + Unpin,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
+    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
 ) {
     use DirEvent::*;
     while let Some(event) = events.next().await {
@@ -887,7 +891,7 @@ async fn keep_circmgr_params_updated<R: Runtime>(
             NewConsensus => {
                 if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                     let netdir = dm
-                        .netdir()
+                        .latest_netdir()
                         .expect("got new consensus event, without a netdir?");
                     cm.update_network_parameters(netdir.params());
                     cm.update_network(&netdir);
@@ -899,7 +903,7 @@ async fn keep_circmgr_params_updated<R: Runtime>(
             NewDescriptors => {
                 if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                     let netdir = dm
-                        .netdir()
+                        .latest_netdir()
                         .expect("got new descriptors event, without a netdir?");
                     cm.update_network(&netdir);
                 } else {
@@ -988,10 +992,10 @@ async fn update_persistent_state<R: Runtime>(
 async fn continually_launch_timeout_testing_circuits<R: Runtime>(
     rt: R,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
+    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
 ) {
     while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        if let Some(netdir) = dm.opt_netdir() {
+        if let Some(netdir) = dm.latest_netdir() {
             if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
                 warn!("Problem launching a timeout testing circuit: {}", e);
             }
@@ -1025,10 +1029,10 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
 async fn continually_preemptively_build_circuits<R: Runtime>(
     rt: R,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<tor_dirmgr::DirMgr<R>>,
+    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
 ) {
     while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        if let Some(netdir) = dm.opt_netdir() {
+        if let Some(netdir) = dm.latest_netdir() {
             cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
                 .await;
             rt.sleep(Duration::from_secs(10)).await;

@@ -206,6 +206,13 @@ impl Error {
     }
 }
 
+impl Error {
+    /// Consume this error and return the underlying error detail object.
+    pub(crate) fn into_detail(self) -> ErrorDetail {
+        *self.detail
+    }
+}
+
 impl ErrorDetail {
     /// Construct a new `Error` from a `SpawnError`.
     pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> ErrorDetail {
