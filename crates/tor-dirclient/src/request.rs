@@ -153,7 +153,7 @@ impl Requestable for ConsensusRequest {
 }
 
 /// A request for one or more authority certificates.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AuthCertRequest {
     /// The identity/signing keys of the certificates we want.
     ids: Vec<AuthCertKeyIds>,
@@ -162,7 +162,7 @@ pub struct AuthCertRequest {
 impl AuthCertRequest {
     /// Create a new request, asking for no authority certificates.
     pub fn new() -> Self {
-        AuthCertRequest { ids: Vec::new() }
+        AuthCertRequest::default()
     }
 
     /// Add `ids` to the list of certificates we're asking for.
@@ -173,12 +173,6 @@ impl AuthCertRequest {
     /// Return a list of the keys that we're asking for.
     pub fn keys(&self) -> impl Iterator<Item = &AuthCertKeyIds> {
         self.ids.iter()
-    }
-}
-
-impl Default for AuthCertRequest {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -227,7 +221,7 @@ impl FromIterator<AuthCertKeyIds> for AuthCertRequest {
 }
 
 /// A request for one or more microdescriptors
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MicrodescRequest {
     /// The SHA256 digests of the microdescriptors we want.
     digests: Vec<MdDigest>,
@@ -236,9 +230,7 @@ pub struct MicrodescRequest {
 impl MicrodescRequest {
     /// Construct a request for no microdescriptors.
     pub fn new() -> Self {
-        MicrodescRequest {
-            digests: Vec::new(),
-        }
+        MicrodescRequest::default()
     }
     /// Add `d` to the list of microdescriptors we want to request.
     pub fn push(&mut self, d: MdDigest) {
@@ -248,12 +240,6 @@ impl MicrodescRequest {
     /// Return a list of the microdescriptor digests that we're asking for.
     pub fn digests(&self) -> impl Iterator<Item = &MdDigest> {
         self.digests.iter()
-    }
-}
-
-impl Default for MicrodescRequest {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -296,7 +282,7 @@ impl FromIterator<MdDigest> for MicrodescRequest {
 }
 
 /// A request for one, many or all router descriptors.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg(feature = "routerdesc")]
 pub struct RouterDescRequest {
     /// If this is set, we just ask for all the descriptors.
@@ -305,13 +291,6 @@ pub struct RouterDescRequest {
     all_descriptors: bool,
     /// A list of digests to download.
     digests: Vec<RdDigest>,
-}
-
-#[cfg(feature = "routerdesc")]
-impl Default for RouterDescRequest {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[cfg(feature = "routerdesc")]
@@ -325,10 +304,7 @@ impl RouterDescRequest {
     }
     /// Construct a new empty request.
     pub fn new() -> Self {
-        RouterDescRequest {
-            all_descriptors: false,
-            digests: Vec::new(),
-        }
+        RouterDescRequest::default()
     }
     /// Add `d` to the list of digests we want to request.
     pub fn push(&mut self, d: RdDigest) {
