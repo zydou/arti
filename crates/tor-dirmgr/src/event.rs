@@ -16,8 +16,10 @@ use std::{
     time::SystemTime,
 };
 
+use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
 use time::OffsetDateTime;
+use tor_bytes::skip_fmt;
 use tor_netdoc::doc::netstatus;
 
 /// An event that a DirMgr can broadcast to indicate that a change in
@@ -495,12 +497,14 @@ impl DirStatus {
 }
 
 /// A stream of [`DirBootstrapStatus`] events.
-#[derive(Clone)]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
 pub struct DirBootstrapEvents {
     /// The `postage::watch::Receiver` that we're wrapping.
     ///
     /// We wrap this type so that we don't expose its entire API, and so that we
     /// can migrate to some other implementation in the future if we want.
+    #[educe(Debug(method = "skip_fmt"))]
     pub(crate) inner: postage::watch::Receiver<DirBootstrapStatus>,
 }
 
@@ -512,13 +516,6 @@ impl Stream for DirBootstrapEvents {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl std::fmt::Debug for DirBootstrapEvents {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DirBootstrapStatusEvents")
-            .finish_non_exhaustive()
     }
 }
 
