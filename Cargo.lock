@@ -3092,6 +3092,7 @@ dependencies = [
  "bitflags",
  "bytes",
  "caret",
+ "educe",
  "hex",
  "hex-literal",
  "rand 0.8.5",
