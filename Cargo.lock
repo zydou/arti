@@ -2678,10 +2678,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "shellexpand"
-version = "2.1.0"
+name = "shellexpand-fork"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83bdb7831b2d85ddf4a7b148aa19d0587eddbe8671a436b7bd1182eaad0f2829"
+checksum = "5b9b96d72c00ea377d8dfe6177badd0a6f42b4cb3122479ffe44fee2532d85ee"
 dependencies = [
  "dirs-next",
 ]
@@ -3164,7 +3164,7 @@ dependencies = [
  "dirs",
  "once_cell",
  "serde",
- "shellexpand",
+ "shellexpand-fork",
  "thiserror",
  "tor-error",
  "tracing",
