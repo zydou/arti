@@ -159,18 +159,13 @@ impl ChanMsg {
 /// channel, or as a "keep-alive".
 ///
 /// The correct response to a padding cell is to drop it and do nothing.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct Padding {}
 impl Padding {
     /// Create a new fixed-length padding cell
     pub fn new() -> Self {
         Padding {}
-    }
-}
-impl Default for Padding {
-    fn default() -> Self {
-        Padding::new()
     }
 }
 impl Body for Padding {
