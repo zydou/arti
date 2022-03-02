@@ -3447,6 +3447,7 @@ dependencies = [
  "cipher",
  "coarsetime",
  "digest 0.10.3",
+ "educe",
  "futures",
  "generic-array",
  "hex",
