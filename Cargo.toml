@@ -36,6 +36,7 @@ members = [
     "crates/arti-config",
     "crates/arti-bench",
     "crates/arti-hyper",
+    "crates/arti-testing",
     "crates/arti"
 ]
 
