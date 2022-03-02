@@ -32,7 +32,7 @@ use super::{PolicyError, PortRange};
 ///  accept *:9000-65535
 ///  reject *:*
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AddrPolicy {
     /// A list of rules to apply to find out whether an address is
     /// contained by this policy.
@@ -74,24 +74,18 @@ impl AddrPolicy {
 
     /// Create a new AddrPolicy that matches nothing.
     pub fn new() -> Self {
-        AddrPolicy { rules: Vec::new() }
+        AddrPolicy::default()
     }
 
     /// Add a new rule to this policy.
     ///
     /// The newly added rule is applied _after_ all previous rules.
     /// It matches all addresses and ports covered by AddrPortPattern.
-    ///
+    ///nn
     /// If accept is true, the rule is to accept addresses that match;
     /// if accept is false, the rule rejects such addresses.
     pub fn push(&mut self, kind: RuleKind, pattern: AddrPortPattern) {
         self.rules.push(AddrPolicyRule { kind, pattern });
-    }
-}
-
-impl Default for AddrPolicy {
-    fn default() -> Self {
-        AddrPolicy::new()
     }
 }
 
