@@ -7,6 +7,7 @@ use super::RelayCmd;
 use crate::chancell::msg::{DestroyReason, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_LEN};
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
+use educe::Educe;
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{Error, Result};
@@ -163,12 +164,14 @@ impl From<u32> for BeginFlags {
 
 /// A preference for IPv4 vs IPv6 addresses; usable as a nicer frontend for
 /// BeginFlags.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Educe)]
 #[non_exhaustive]
+#[educe(Default)]
 pub enum IpVersionPreference {
     /// Only IPv4 is allowed.
     Ipv4Only,
     /// IPv4 and IPv6 are both allowed, and IPv4 is preferred.
+    #[educe(Default)]
     Ipv4Preferred,
     /// IPv4 and IPv6 are both allowed, and IPv6 is preferred.
     Ipv6Preferred,
@@ -184,11 +187,6 @@ impl From<IpVersionPreference> for BeginFlags {
             Ipv6Preferred => BeginFlags::IPV6_OKAY | BeginFlags::IPV6_PREFERRED,
             Ipv6Only => BeginFlags::IPV4_NOT_OKAY,
         }
-    }
-}
-impl Default for IpVersionPreference {
-    fn default() -> Self {
-        IpVersionPreference::Ipv4Preferred
     }
 }
 
