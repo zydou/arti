@@ -255,15 +255,17 @@ pub struct DirBootstrapStatus {
 }
 
 /// The status for a single directory.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DirStatus(DirStatusInner);
 
 /// The contents of a single DirStatus.
 ///
 /// This is a separate type so that we don't make the variants public.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Educe)]
+#[educe(Default)]
 pub(crate) enum DirStatusInner {
     /// We don't have any information yet.
+    #[educe(Default)]
     NoConsensus {
         /// If present, we are fetching a consensus whose valid-after time
         /// postdates this time.
@@ -291,12 +293,6 @@ pub(crate) enum DirStatusInner {
         // guards are missing microdescriptors, to give a better explanation for
         // the case where we won't switch our consensus because of that.
     },
-}
-
-impl Default for DirStatus {
-    fn default() -> Self {
-        DirStatus(DirStatusInner::NoConsensus { after: None })
-    }
 }
 
 impl From<DirStatusInner> for DirStatus {
