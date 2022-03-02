@@ -189,6 +189,7 @@ impl Sink<ChanCell> for Channel {
 }
 
 /// Structure for building and launching a Tor channel.
+#[derive(Default)]
 pub struct ChannelBuilder {
     /// If present, a description of the address we're trying to connect to,
     /// to be used in log messages.
@@ -201,7 +202,7 @@ pub struct ChannelBuilder {
 impl ChannelBuilder {
     /// Construct a new ChannelBuilder.
     pub fn new() -> Self {
-        ChannelBuilder { target: None }
+        ChannelBuilder::default()
     }
 
     /// Set the declared target address of this channel.
@@ -225,12 +226,6 @@ impl ChannelBuilder {
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
         handshake::OutboundClientHandshake::new(tls, self.target)
-    }
-}
-
-impl Default for ChannelBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
