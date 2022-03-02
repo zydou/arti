@@ -15,6 +15,7 @@ use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
+use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
@@ -84,11 +85,13 @@ pub struct TorClient<R: Runtime> {
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Educe)]
+#[educe(Default)]
 #[non_exhaustive]
 pub enum BootstrapBehavior {
     /// Bootstrap the client automatically when requests are made that require the client to be
     /// bootstrapped.
+    #[educe(Default)]
     OnDemand,
     /// Make no attempts to automatically bootstrap. [`TorClient::bootstrap`] must be manually
     /// invoked in order for the [`TorClient`] to become useful.
@@ -97,12 +100,6 @@ pub enum BootstrapBehavior {
     /// network) before calling [`bootstrap`](TorClient::bootstrap) will fail, and
     /// return an error that has kind [`ErrorKind::BootstrapRequired`](crate::ErrorKind::BootstrapRequired).
     Manual,
-}
-
-impl Default for BootstrapBehavior {
-    fn default() -> Self {
-        BootstrapBehavior::OnDemand
-    }
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -117,20 +114,16 @@ pub struct StreamPrefs {
 }
 
 /// Record of how we are isolating connections
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Educe)]
+#[educe(Default)]
 enum StreamIsolationPreference {
     /// No additional isolation
+    #[educe(Default)]
     None,
     /// Id of the isolation group the connection should be part of
     Explicit(IsolationToken),
     /// Isolate every connection!
     EveryStream,
-}
-
-impl Default for StreamIsolationPreference {
-    fn default() -> Self {
-        StreamIsolationPreference::None
-    }
 }
 
 impl StreamPrefs {
