@@ -3124,6 +3124,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "derive_more",
+ "educe",
  "float_eq",
  "futures",
  "futures-await-test",
@@ -3131,6 +3132,7 @@ dependencies = [
  "postage",
  "rand 0.8.5",
  "thiserror",
+ "tor-bytes",
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
