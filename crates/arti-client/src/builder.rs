@@ -91,11 +91,11 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// Only available when compiled with the `experimental-api` feature: this
     /// code is unstable.
     #[cfg(all(feature = "experimental-api", feature = "error_detail"))]
-    pub fn dirmgr_builder<B>(mut self, builder: B) -> Self
+    pub fn dirmgr_builder<B>(mut self, builder: Arc<dyn DirProviderBuilder<R>>) -> Self
     where
         B: DirProviderBuilder<R> + 'static,
     {
-        self.dirmgr_builder = Arc::new(builder);
+        self.dirmgr_builder = builder;
         self
     }
 
