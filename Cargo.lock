@@ -3303,6 +3303,7 @@ name = "tor-guardmgr"
 version = "0.1.0"
 dependencies = [
  "derive_builder",
+ "educe",
  "futures",
  "humantime-serde",
  "itertools",
@@ -3311,6 +3312,7 @@ dependencies = [
  "retain_mut",
  "serde",
  "thiserror",
+ "tor-bytes",
  "tor-config",
  "tor-error",
  "tor-linkspec",
