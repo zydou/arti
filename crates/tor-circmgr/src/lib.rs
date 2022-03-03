@@ -72,6 +72,10 @@ mod usage;
 
 pub use err::Error;
 pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort, TargetPorts};
+/// TODO
+pub mod isolation {
+    pub use crate::usage::{Isolation, IsolationHelper, IsolationToken};
+}
 
 pub use config::{
     CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,

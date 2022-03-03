@@ -100,6 +100,40 @@ impl Display for TargetPorts {
     }
 }
 
+use std::any::Any;
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: 'static> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+/// TODO
+pub trait Isolation: AsAny + std::fmt::Debug + Send + Sync + 'static {
+    /// TODO
+    fn isolated(&self, other: &dyn Isolation) -> bool;
+}
+
+impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
+    fn isolated(&self, other: &dyn Isolation) -> bool {
+        if let Some(other) = AsAny::as_any(other).downcast_ref() {
+            self.isolated_same_type(other)
+        } else {
+            false
+        }
+    }
+}
+
+/// TODO
+pub trait IsolationHelper {
+    /// TODO
+    fn isolated_same_type(&self, other: &Self) -> bool;
+}
+
 /// A token used to isolate unrelated streams on different circuits.
 ///
 /// When two streams are associated with different isolation tokens, they
@@ -181,15 +215,21 @@ impl IsolationToken {
     }
 }
 
+impl IsolationHelper for IsolationToken {
+    fn isolated_same_type(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
 /// A set of information about how a stream should be isolated.
 ///
 /// If two streams are isolated from one another, they may not share
 /// a circuit.
-#[derive(Copy, Clone, Eq, Debug, PartialEq, PartialOrd, Ord, derive_builder::Builder)]
+#[derive(Clone, Debug, derive_builder::Builder)]
 pub struct StreamIsolation {
     /// Any isolation token set on the stream.
-    #[builder(default = "IsolationToken::no_isolation()")]
-    stream_token: IsolationToken,
+    #[builder(setter(strip_option), default)]
+    stream_token: Option<Arc<dyn Isolation>>,
     /// Any additional isolation token set on an object that "owns" this
     /// stream.  This is typically owned by a `TorClient`.
     #[builder(default = "IsolationToken::no_isolation()")]
@@ -213,7 +253,19 @@ impl StreamIsolation {
     /// Return true if this StreamIsolation can share a circuit with
     /// `other`.
     fn may_share_circuit(&self, other: &StreamIsolation) -> bool {
-        self == other
+        self.owner_token == other.owner_token
+            && match (&self.stream_token, &other.stream_token) {
+                (None, None) => true,
+                (Some(this), Some(other)) => !this.isolated(other.as_ref()),
+                _ => false,
+            }
+    }
+}
+
+impl Eq for StreamIsolation {}
+impl PartialEq for StreamIsolation {
+    fn eq(&self, other: &Self) -> bool {
+        self.may_share_circuit(other)
     }
 }
 
@@ -249,7 +301,7 @@ impl ExitPolicy {
 ///
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum TargetCircUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
@@ -352,7 +404,7 @@ impl TargetCircUsage {
                     path,
                     SupportedCircUsage::Exit {
                         policy,
-                        isolation: Some(*isolation),
+                        isolation: Some(isolation.clone()),
                     },
                     mon,
                     usable,
@@ -393,7 +445,9 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     isolation: i2,
                 },
             ) => {
-                i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true)
+                i1.as_ref()
+                    .map(|i1| i1.may_share_circuit(i2))
+                    .unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
             (Exit { policy, isolation }, TargetCircUsage::Preemptive { port, .. }) => {
@@ -428,10 +482,14 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                     ..
                 },
                 TargetCircUsage::Exit { isolation: i2, .. },
-            ) if i1.map(|i1| i1.may_share_circuit(i2)).unwrap_or(true) => {
+            ) if i1
+                .as_ref()
+                .map(|i1| i1.may_share_circuit(i2))
+                .unwrap_or(true) =>
+            {
                 // Once we have more complex isolation, this assignment
                 // won't be correct.
-                *i1 = Some(*i2);
+                *i1 = Some(i2.clone());
                 Ok(())
             }
             (Exit { .. }, TargetCircUsage::Exit { .. }) => {
