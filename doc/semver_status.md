@@ -17,4 +17,11 @@ Don't document other changes in this file.
 We can delete older sections here after we bump the releases.
 
 
-## Since Arti 0.0.3
+## Since Arti 0.1.0
+
+arti-client:
+
+  api-break (experimental only): changed circmgr() and dirmgr() to return
+  &Arc, not Arc.
+
+

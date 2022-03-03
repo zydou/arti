@@ -783,8 +783,8 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn dirmgr(&self) -> Arc<dyn tor_dirmgr::DirProvider + Send + Sync> {
-        Arc::clone(&self.dirmgr)
+    pub fn dirmgr(&self) -> &Arc<dyn tor_dirmgr::DirProvider + Send + Sync> {
+        &self.dirmgr
     }
 
     /// Return a reference to this this client's circuit manager.
@@ -792,8 +792,8 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn circmgr(&self) -> Arc<tor_circmgr::CircMgr<R>> {
-        Arc::clone(&self.circmgr)
+    pub fn circmgr(&self) -> &Arc<tor_circmgr::CircMgr<R>> {
+        &self.circmgr
     }
 
     /// Return a reference to the runtime being used by this client.
