@@ -2,7 +2,7 @@
 //!
 //! Example use:
 //!
-//! ```ignore
+//! ```sh
 //! $ cat ~/.arti_testing.toml
 //! [storage]
 //!
