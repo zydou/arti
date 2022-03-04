@@ -51,11 +51,6 @@ use std::fmt;
 /// assert_eq!( format!("{:?}", &Wombat::default()),
 ///             "Wombat { visible: 0, invisible: .. }" );
 /// ```
-//
-// This function is here in tor-bytes because crates that want to use it will largely
-// be trying to avoid dumping packet data.
-// But, it may at some point want to move to a lower-layer crate.
-// If we do that, we should `pub use` it here, if we don't want a semver break.
 pub fn skip_fmt<T>(_: &T, f: &mut fmt::Formatter) -> fmt::Result {
     /// Inner function avoids code bloat due to generics
     fn inner(f: &mut fmt::Formatter) -> fmt::Result {
