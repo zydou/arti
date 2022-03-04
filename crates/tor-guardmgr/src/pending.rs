@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Instant;
 
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 
 /// A future used to see if we have "permission" to use a guard.
 ///

@@ -6,7 +6,7 @@ use std::{borrow::Cow, fmt, time::SystemTime};
 use derive_more::Display;
 use educe::Educe;
 use futures::{Stream, StreamExt};
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_dirmgr::{DirBootstrapEvents, DirBootstrapStatus};
 use tracing::debug;

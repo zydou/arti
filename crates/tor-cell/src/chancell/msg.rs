@@ -3,7 +3,8 @@
 use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
-use tor_bytes::{self, skip_fmt, Error, Readable, Reader, Result, Writer};
+use tor_basic_utils::skip_fmt;
+use tor_bytes::{self, Error, Readable, Reader, Result, Writer};
 
 use caret::caret_int;
 use educe::Educe;

@@ -8,7 +8,7 @@ use std::{
     fmt,
     time::{Duration, Instant},
 };
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 
 /// The status of our connection to the internet.
 #[derive(Default, Debug, Clone)]

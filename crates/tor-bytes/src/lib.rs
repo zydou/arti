@@ -82,8 +82,6 @@ mod impls;
 mod reader;
 mod writer;
 
-use std::fmt;
-
 pub use err::Error;
 pub use reader::Reader;
 pub use writer::Writer;
@@ -192,39 +190,6 @@ pub trait Readable: Sized {
     /// a wrapped type that can be unwrapped later on once it gets
     /// checked.
     fn take_from(b: &mut Reader<'_>) -> Result<Self>;
-}
-
-// ----------------------------------------------------------------------
-
-/// Function with the signature of `Debug::fmt` that just prints `".."`
-///
-/// ```
-/// use educe::Educe;
-/// use tor_bytes::skip_fmt;
-///
-/// #[derive(Educe, Default)]
-/// #[educe(Debug)]
-/// struct Wombat {
-///     visible: usize,
-///
-///     #[educe(Debug(method = "skip_fmt"))]
-///     invisible: [u8; 2],
-/// }
-///
-/// assert_eq!( format!("{:?}", &Wombat::default()),
-///             "Wombat { visible: 0, invisible: .. }" );
-/// ```
-//
-// This function is here in tor-bytes because crates that want to use it will largely
-// be trying to avoid dumping packet data.
-// But, it may at some point want to move to a lower-layer crate.
-// If we do that, we should `pub use` it here, if we don't want a semver break.
-pub fn skip_fmt<T>(_: &T, f: &mut fmt::Formatter) -> fmt::Result {
-    /// Inner function avoids code bloat due to generics
-    fn inner(f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "..")
-    }
-    inner(f)
 }
 
 // ----------------------------------------------------------------------

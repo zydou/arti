@@ -23,7 +23,7 @@ use educe::Educe;
 
 use crate::circuit::StreamTarget;
 use crate::stream::StreamReader;
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 use tor_cell::relaycell::msg::{Data, RelayMsg};
 use tor_error::internal;
 

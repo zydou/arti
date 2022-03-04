@@ -18,8 +18,8 @@ static = ["rusqlite/bundled"]
 routerdesc = ["tor-dirclient/routerdesc"]
 
 [dependencies]
+tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 retry-error = { path = "../retry-error", version = "0.1.0"}
-tor-bytes = { path="../tor-bytes", version = "0.1.0"}
 tor-checkable = { path = "../tor-checkable", version = "0.1.0"}
 tor-circmgr = { path = "../tor-circmgr", version = "0.1.0"}
 tor-config = { path = "../tor-config", version = "0.1.0"}

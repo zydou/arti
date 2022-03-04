@@ -19,7 +19,7 @@ use std::{
 use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
 use time::OffsetDateTime;
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 use tor_netdoc::doc::netstatus;
 
 /// An event that a DirMgr can broadcast to indicate that a change in

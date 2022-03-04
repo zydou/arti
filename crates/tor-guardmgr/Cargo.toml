@@ -18,7 +18,7 @@ default = []
 testing = []
 
 [dependencies]
-tor-bytes = { path="../tor-bytes", version = "0.1.0"}
+tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 tor-config = { path="../tor-config", version = "0.1.0"}
 tor-error = { path="../tor-error", version = "0.1.0"}
 tor-netdir = { path="../tor-netdir", version = "0.1.0"}

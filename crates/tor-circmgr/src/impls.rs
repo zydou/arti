@@ -9,7 +9,7 @@ use educe::Educe;
 use futures::future::OptionFuture;
 use std::convert::TryInto;
 use std::sync::Arc;
-use tor_bytes::skip_fmt;
+use tor_basic_utils::skip_fmt;
 use tor_error::internal;
 use tor_proto::circuit::{CircParameters, ClientCirc};
 use tor_rtcompat::Runtime;
