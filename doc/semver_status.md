@@ -19,6 +19,10 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.1.0
 
+tor-llcrypto:
+
+  new-api: Added RsaIdentity::from_hex().
+
 arti-client:
 
   api-break (experimental only): changed circmgr() and dirmgr() to return

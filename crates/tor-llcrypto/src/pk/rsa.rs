@@ -94,9 +94,8 @@ impl<'de> serde::Deserialize<'de> for RsaIdentity {
                 where
                     E: serde::de::Error,
                 {
-                    let bytes = hex::decode(s).map_err(E::custom)?;
-                    RsaIdentity::from_bytes(&bytes)
-                        .ok_or_else(|| E::custom("wrong length for RSA identity"))
+                    RsaIdentity::from_hex(s)
+                        .ok_or_else(|| E::custom("wrong encoding for RSA identity"))
                 }
             }
 
@@ -149,6 +148,16 @@ impl RsaIdentity {
             })
         } else {
             None
+        }
+    }
+    /// Decode an `RsaIdentity` from a hexadecimal string.
+    ///
+    /// The string must have no spaces, or any extra characters.
+    pub fn from_hex(s: &str) -> Option<Self> {
+        let mut array = [0_u8; 20];
+        match hex::decode_to_slice(s, &mut array) {
+            Err(_) => None,
+            Ok(()) => Some(RsaIdentity::from(array)),
         }
     }
 }

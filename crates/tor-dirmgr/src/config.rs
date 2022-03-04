@@ -331,9 +331,7 @@ mod fallbacks {
     pub(crate) fn default_fallbacks() -> Vec<super::FallbackDir> {
         /// Build a fallback directory; panic if input is bad.
         fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDir {
-            let rsa = hex::decode(rsa).expect("Bad hex in built-in fallback list");
-            let rsa =
-                RsaIdentity::from_bytes(&rsa).expect("Wrong length in built-in fallback list");
+            let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
             let ed = base64::decode_config(ed, base64::STANDARD_NO_PAD)
                 .expect("Bad hex in built-in fallback list");
             let ed =
