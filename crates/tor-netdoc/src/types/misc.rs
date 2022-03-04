@@ -353,12 +353,7 @@ mod fingerprint {
 
     /// Helper: parse an identity from a hexadecimal string
     fn parse_hex_ident(s: &str) -> Result<RsaIdentity> {
-        let bytes = hex::decode(s).map_err(|_| {
-            EK::BadArgument
-                .at_pos(Pos::at(s))
-                .with_msg("invalid hexadecimal in fingerprint")
-        })?;
-        RsaIdentity::from_bytes(&bytes).ok_or_else(|| {
+        RsaIdentity::from_hex(s).ok_or_else(|| {
             EK::BadArgument
                 .at_pos(Pos::at(s))
                 .with_msg("wrong length on fingerprint")
