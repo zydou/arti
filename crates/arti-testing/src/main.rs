@@ -29,10 +29,28 @@
 //!
 //! # TODO
 //!
-//! - make TCP connections fail
-//! - do something on the connection
-//! - look at bootstrapping status and events
-//! - look at trace messages
+//! - More ways to break
+//!
+//!   - make TCP connections fail
+//!      o With various errors
+//!      o by timing out
+//!      - sporadically
+//!      - depending on address / port / family
+//!      - Install this after a delay
+//!   - make TLS fail
+//!      - With wrong cert
+//!      - Mysteriously
+//!      - With complete junk
+//!      - TLS succeeds, then sends nonsense
+//!      - Authenticating with wrong ID.
+//!   - Munge directory before using it
+//!      - May require some dirmgr plug-in. :p
+//!      - May require
+//!
+//! - More things to look at
+//!   - do something on the connection
+//!   - look at bootstrapping status and events
+//!   - Make streams repeatedly on different circuits with some delay.
 //! - Make sure we can replicate all/most test situations from arti#329
 //! - Actually implement those tests.
 
@@ -182,11 +200,16 @@ impl Job {
     /// XXXX Eventually this should come up with some kind of result that's meaningful.
     async fn run_job(&self) -> Result<()> {
         let runtime = PreferredRuntime::current()?;
-        let tcp = rt::count::Counting::new_zeroed(runtime.clone());
+        let broken_tcp =
+            rt::badtcp::BrokenTcpProvider::new(runtime.clone(), rt::badtcp::Action::Work);
+        // We put the counting TCP provider outside the one that breaks: we want
+        // to know how many attempts to connect there are, and BrokenTcpProvider
+        // eats the attempts that it fails without passing them down the stack.
+        let counting_tcp = rt::count::Counting::new_zeroed(broken_tcp.clone());
         let runtime = tor_rtcompat::CompoundRuntime::new(
             runtime.clone(),
             runtime.clone(),
-            tcp.clone(),
+            counting_tcp.clone(),
             runtime,
         );
         let client = self.make_client(runtime)?;
@@ -223,7 +246,7 @@ impl Job {
             }
         };
 
-        println!("TCP stats: {:?}", tcp.counts());
+        println!("TCP stats: {:?}", counting_tcp.counts());
 
         result
     }
