@@ -60,7 +60,7 @@ impl fmt::Display for RsaIdentity {
 }
 impl fmt::Debug for RsaIdentity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RsaIdentity {{ ${} }}", hex::encode(&self.id[..]))
+        write!(f, "RsaIdentity {{ {} }}", self)
     }
 }
 

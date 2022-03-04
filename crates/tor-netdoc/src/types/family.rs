@@ -19,13 +19,13 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 /// entries, including entries that are only nicknames.
 ///
 /// TODO: This type probably belongs in a different crate.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RelayFamily(Vec<RsaIdentity>);
 
 impl RelayFamily {
     /// Return a new empty RelayFamily.
     pub fn new() -> Self {
-        RelayFamily(Vec::new())
+        RelayFamily::default()
     }
 
     /// Does this family include the given relay?
@@ -37,12 +37,6 @@ impl RelayFamily {
     /// family.
     pub fn members(&self) -> impl Iterator<Item = &RsaIdentity> {
         self.0.iter()
-    }
-}
-
-impl Default for RelayFamily {
-    fn default() -> Self {
-        RelayFamily::new()
     }
 }
 

@@ -38,6 +38,25 @@ fn test_ed25519_identity() {
 }
 
 #[test]
+fn test_rsa_formatting() {
+    use ll::pk::rsa::RsaIdentity;
+
+    let id = hex::decode("5696ab38cb3852afa476a5c07b2d4788963d5567").unwrap();
+    let id = RsaIdentity::from_bytes(&id).unwrap();
+
+    assert_eq!(
+        format!("<<{}>>", id),
+        "<<$5696ab38cb3852afa476a5c07b2d4788963d5567>>"
+    );
+    assert_eq!(
+        format!("{:?}", id),
+        "RsaIdentity { $5696ab38cb3852afa476a5c07b2d4788963d5567 }"
+    );
+}
+
+// TODO: Proper tests for RSA keys
+
+#[test]
 fn batch_verify() {
     use ll::pk::ed25519::*;
     use ll::util::rand_compat::RngCompatExt;

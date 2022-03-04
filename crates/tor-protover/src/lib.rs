@@ -157,7 +157,7 @@ struct SubprotocolEntry {
 /// use tor_protover::Protocols;
 /// let p: Result<Protocols,_> = "Link=1-3 LinkAuth=2-3 Relay=1-2".parse();
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Protocols {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
@@ -168,10 +168,7 @@ pub struct Protocols {
 impl Protocols {
     /// Return a new empty set of protocol versions.
     pub fn new() -> Self {
-        Protocols {
-            recognized: [0_u64; N_RECOGNIZED],
-            unrecognized: Vec::new(),
-        }
+        Protocols::default()
     }
     /// Helper: return true iff this protocol set contains the
     /// version `ver` of the protocol represented by the integer `proto`.
@@ -264,12 +261,6 @@ impl Protocols {
             }
         }
         Ok(())
-    }
-}
-
-impl Default for Protocols {
-    fn default() -> Self {
-        Protocols::new()
     }
 }
 

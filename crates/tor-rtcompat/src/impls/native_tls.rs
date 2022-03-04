@@ -13,6 +13,7 @@ use std::{
 /// A [`TlsProvider`] that uses `native_tls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
+#[derive(Default)]
 #[non_exhaustive]
 pub struct NativeTlsProvider {}
 
@@ -84,18 +85,5 @@ where
             connector,
             _phantom: std::marker::PhantomData,
         }
-    }
-}
-
-impl NativeTlsProvider {
-    /// Construct a new [`NativeTlsProvider`.]
-    pub(crate) fn new() -> Self {
-        NativeTlsProvider {}
-    }
-}
-
-impl Default for NativeTlsProvider {
-    fn default() -> Self {
-        Self::new()
     }
 }

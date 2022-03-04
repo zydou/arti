@@ -75,7 +75,7 @@ use std::fmt::{Debug, Display, Error as FmtError, Formatter};
 /// fails, use [`RetryError::push()`] to add a new error to the list
 /// of errors.  If the operation fails too many times, you can use
 /// RetryError as an [`Error`] itself.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RetryError<E> {
     /// The operation we were trying to do.
     doing: String,
@@ -188,16 +188,6 @@ impl Attempt {
             Attempt::Single(idx) => Attempt::Range(idx, idx + 1),
             Attempt::Range(first, last) => Attempt::Range(first, last + 1),
         };
-    }
-}
-
-impl<E: Clone> Clone for RetryError<E> {
-    fn clone(&self) -> RetryError<E> {
-        RetryError {
-            doing: self.doing.clone(),
-            errors: self.errors.clone(),
-            n_errors: self.n_errors,
-        }
     }
 }
 

@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 ///
 /// Internally, this is just a `RwLock<Arc<T>>`; this type just defines some
 /// convenience wrappers for it.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MutCfg<T> {
     /// The interior configuration object.
     cfg: RwLock<Arc<T>>,
@@ -52,12 +52,6 @@ impl<T> MutCfg<T> {
         let mut cfg = self.cfg.write().expect("poisoned lock");
         let new_cfg = func(&cfg);
         *cfg = Arc::new(new_cfg);
-    }
-}
-
-impl<T: Default> Default for MutCfg<T> {
-    fn default() -> Self {
-        MutCfg::new(T::default())
     }
 }
 

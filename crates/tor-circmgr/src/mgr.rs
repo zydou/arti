@@ -37,7 +37,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
 use std::sync::{self, Arc, Weak};
@@ -383,6 +383,7 @@ impl<B: AbstractCircBuilder> PendingRequest<B> {
 
 /// An entry for an under-construction in-progress circuit tracked by
 /// an `AbstractCircMgr`.
+#[derive(Debug)]
 struct PendingEntry<B: AbstractCircBuilder> {
     /// Specification that this circuit will support, if every pending
     /// request that is waiting for it is attached to it.
@@ -448,6 +449,7 @@ impl<B: AbstractCircBuilder> PendingEntry<B> {
 
 /// Wrapper type to represent the state between planning to build a
 /// circuit and constructing it.
+#[derive(Debug)]
 struct CircBuildPlan<B: AbstractCircBuilder> {
     /// The Plan object returned by [`AbstractCircBuilder::plan_circuit`].
     plan: B::Plan,
@@ -455,15 +457,6 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
     sender: oneshot::Sender<PendResult<B>>,
     /// A strong entry to the PendingEntry for this circuit build attempt.
     pending: Arc<PendingEntry<B>>,
-}
-
-impl<B: AbstractCircBuilder> Debug for CircBuildPlan<B> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("CircBuildPlan")
-            .field("plan", &self.plan)
-            .field("sender", &self.sender)
-            .finish_non_exhaustive()
-    }
 }
 
 /// The inner state of an [`AbstractCircMgr`].
