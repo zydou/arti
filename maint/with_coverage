@@ -136,6 +136,7 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" \
 	--ignore="*/examples/*" \
 	--ignore="*/fuzz/*" \
 	--ignore="crates/arti-bench/*" \
+	--ignore="crates/arti-testing/*" \
 	--ignore="*/github.com-1ecc6299db9ec823/*"
 
 if [ "$format" == cobertura ]; then
