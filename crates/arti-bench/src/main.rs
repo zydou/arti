@@ -576,16 +576,11 @@ impl<R: Runtime> Benchmark<R> {
     {
         let mut results = vec![];
         for n in 0..self.samples {
-            let mut stream_futures = vec![];
-            for _ in 0..self.concurrent {
-                let stream_fut = stream_generator(n);
-                stream_futures.push(stream_fut);
-            }
-            let futures = stream_futures
-                .into_iter()
-                .map(|stream| {
+            let futures = (0..self.concurrent)
+                .map(|_| {
                     let up = Arc::clone(&self.upload_payload);
                     let dp = Arc::clone(&self.download_payload);
+                    let stream = stream_generator(n);
                     Box::pin(async move { client(stream.await?, up, dp).await })
                 })
                 .collect::<futures::stream::FuturesUnordered<_>>()
