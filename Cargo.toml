@@ -61,3 +61,7 @@ codegen-units = 1
 # Optimize for size.  [Actually this is even smaller than 'z' on rust
 # 1.56.  It saves about 11% download size over the default value of '3'.]
 opt-level = 's'
+
+[patch.crates-io.derive_builder_core]
+git = "https://github.com/ijackson/rust-derive-builder"
+rev = "dccbbb8ad75717c8bc0070b6f0364b2c3a54abb7"

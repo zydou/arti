@@ -39,7 +39,7 @@ tor-proto = { path="../tor-proto", version = "0.1.0"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
 
 humantime-serde = "1"
-derive_builder = "0.10"
+derive_builder = "0.10.2"
 derive_more = "0.99"
 directories = "4"
 educe = "0.4.6"
