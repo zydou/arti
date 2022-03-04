@@ -357,7 +357,7 @@ fn main() -> Result<()> {
         .unwrap()
         .parse::<usize>()?;
     let samples = matches.value_of("num-samples").unwrap().parse::<usize>()?;
-    let streams_per_circ = matches.value_of("num-parallel").unwrap().parse::<usize>()?;
+    let streams_per_circ = matches.value_of("num-streams").unwrap().parse::<usize>()?;
     let circs_per_sample = matches.value_of("num-circuits").unwrap().parse::<usize>()?;
     info!("Generating test payloads, please wait...");
     let upload_payload = random_payload(upload_bytes).into();
