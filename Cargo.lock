@@ -3071,6 +3071,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-basic-utils"
+version = "0.1.0"
+dependencies = [
+ "educe",
+]
+
+[[package]]
 name = "tor-bytes"
 version = "0.1.0"
 dependencies = [
