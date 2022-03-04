@@ -42,6 +42,14 @@ pub enum Error {
         source: Arc<std::io::Error>,
     },
 
+    /// Failed to build a channel, after trying multiple addresses.
+    #[error("Channel build failed: [(address, error)] = {addresses:?}")]
+    ChannelBuild {
+        /// The list of addresses we tried to connect to, coupled with
+        /// the error we encountered connecting to each one.
+        addresses: Vec<(SocketAddr, Arc<std::io::Error>)>,
+    },
+
     /// Unable to spawn task
     #[error("unable to spawn {spawning}")]
     Spawn {
@@ -79,6 +87,7 @@ impl tor_error::HasKind for Error {
             E::Proto(e) => e.kind(),
             E::PendingFailed => EK::TorAccessFailed,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
+            Error::ChannelBuild { .. } => EK::TorAccessFailed,
         }
     }
 }
