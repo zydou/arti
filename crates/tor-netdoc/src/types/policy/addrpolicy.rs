@@ -81,7 +81,7 @@ impl AddrPolicy {
     ///
     /// The newly added rule is applied _after_ all previous rules.
     /// It matches all addresses and ports covered by AddrPortPattern.
-    ///nn
+    ///
     /// If accept is true, the rule is to accept addresses that match;
     /// if accept is false, the rule rejects such addresses.
     pub fn push(&mut self, kind: RuleKind, pattern: AddrPortPattern) {
