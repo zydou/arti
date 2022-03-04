@@ -532,6 +532,16 @@ pub enum ErrorKind {
     /// our [bug tracker](https://gitlab.torproject.org/tpo/core/arti/-/issues).
     #[display(fmt = "internal error (bug)")]
     Internal,
+
+    /// Unclassified error
+    ///
+    /// Some other error occurred, which does not fit into any of the other kinds.
+    ///
+    /// This kind is provided for use by external code
+    /// hooking into or replacing parts of Arti.
+    /// It is never returned by the code in Arti (`arti-*` and `tor-*` crates).
+    #[display(fmt = "unclassified error")]
+    Other,
 }
 
 /// Errors that can be categorized as belonging to an [`ErrorKind`]
