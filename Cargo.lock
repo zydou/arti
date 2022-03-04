@@ -184,6 +184,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "arti-testing"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arti-client",
+ "arti-config",
+ "async-trait",
+ "cfg-if 1.0.0",
+ "clap",
+ "config",
+ "futures",
+ "notify",
+ "pin-project",
+ "rlimit",
+ "serde",
+ "tokio",
+ "tor-rtcompat",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "async-broadcast"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
