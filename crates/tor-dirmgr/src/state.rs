@@ -1005,8 +1005,7 @@ mod test {
         datetime!(2020-08-07 12:42:45 UTC).into()
     }
     fn rsa(s: &str) -> RsaIdentity {
-        let k = hex::decode(s).unwrap();
-        RsaIdentity::from_bytes(&k[..]).unwrap()
+        RsaIdentity::from_hex(s).unwrap()
     }
     fn test_authorities() -> Vec<Authority> {
         fn a(s: &str) -> Authority {

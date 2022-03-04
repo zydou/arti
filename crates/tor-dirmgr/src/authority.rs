@@ -59,9 +59,8 @@ impl Authority {
 pub(crate) fn default_authorities() -> Vec<Authority> {
     /// Build an authority; panic if input is bad.
     fn auth(name: &str, key: &str) -> Authority {
-        let v3ident = hex::decode(key).expect("Built-in authority identity had bad hex!?");
-        let v3ident = RsaIdentity::from_bytes(&v3ident)
-            .expect("Built-in authority identity had wrong length!?");
+        let v3ident =
+            RsaIdentity::from_hex(key).expect("Built-in authority identity had bad hex!?");
         AuthorityBuilder::new()
             .name(name)
             .v3ident(v3ident)
