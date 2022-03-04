@@ -91,6 +91,17 @@ pub enum Error {
         cause: Arc<SpawnError>,
     },
 
+    /// Other error from an external directory provider
+    #[error("external directory provider")]
+    ExternalDirProvider {
+        /// What happened
+        #[source]
+        cause: Arc<dyn std::error::Error + Send + Sync + 'static>,
+
+        /// The kind
+        kind: ErrorKind,
+    },
+
     /// A programming problem, either in our code or the code calling it.
     #[error("programming problem: {0}")]
     Bug(#[from] tor_error::Bug),
@@ -168,6 +179,7 @@ impl HasKind for Error {
             E::IOError(_) => EK::CacheAccessFailed,
             E::OfflineMode => EK::BadApiUsage,
             E::Spawn { cause, .. } => cause.kind(),
+            E::ExternalDirProvider { kind, .. } => *kind,
             E::Bug(e) => e.kind(),
         }
     }
