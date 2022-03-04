@@ -31,14 +31,6 @@ pub struct ApplicationConfig {
     watch_configuration: bool,
 }
 
-impl From<ApplicationConfig> for ApplicationConfigBuilder {
-    fn from(cfg: ApplicationConfig) -> Self {
-        let mut builder = ApplicationConfigBuilder::default();
-        builder.watch_configuration(cfg.watch_configuration);
-        builder
-    }
-}
-
 impl ApplicationConfig {
     /// Return true if we're configured to watch for configuration changes.
     pub fn watch_configuration(&self) -> bool {
@@ -113,19 +105,6 @@ impl LoggingConfig {
     /// Return a list of the configured log files
     pub fn logfiles(&self) -> &[LogfileConfig] {
         &self.file
-    }
-}
-
-impl From<LoggingConfig> for LoggingConfigBuilder {
-    fn from(cfg: LoggingConfig) -> LoggingConfigBuilder {
-        let mut builder = LoggingConfigBuilder::default();
-        if let Some(console) = cfg.console {
-            builder.console(console);
-        }
-        if let Some(journald) = cfg.journald {
-            builder.journald(journald);
-        }
-        builder
     }
 }
 
@@ -218,14 +197,6 @@ impl ProxyConfig {
     /// if one is enabled.
     pub fn socks_port(&self) -> Option<u16> {
         self.socks_port
-    }
-}
-
-impl From<ProxyConfig> for ProxyConfigBuilder {
-    fn from(cfg: ProxyConfig) -> ProxyConfigBuilder {
-        let mut builder = ProxyConfigBuilder::default();
-        builder.socks_port(cfg.socks_port);
-        builder
     }
 }
 

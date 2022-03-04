@@ -19,7 +19,7 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.1.0
 
-arti-client:
+arti-client, arti-config, tor-circmgr, tor-dirmgr:
 
   Drop conversion from FooConfig to FooConfigBuilder for many Foo.
   Further change in this area is expected.

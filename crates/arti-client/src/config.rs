@@ -104,14 +104,6 @@ impl Default for ClientAddrConfig {
     }
 }
 
-impl From<ClientAddrConfig> for ClientAddrConfigBuilder {
-    fn from(cfg: ClientAddrConfig) -> ClientAddrConfigBuilder {
-        let mut builder = ClientAddrConfigBuilder::default();
-        builder.allow_local_addrs(cfg.allow_local_addrs);
-        builder
-    }
-}
-
 impl ClientAddrConfig {
     /// Return a new [`ClientAddrConfigBuilder`].
     pub fn builder() -> ClientAddrConfigBuilder {
@@ -123,18 +115,6 @@ impl ClientAddrConfig {
 impl Default for StreamTimeoutConfig {
     fn default() -> Self {
         StreamTimeoutConfigBuilder::default().build().unwrap()
-    }
-}
-
-impl From<StreamTimeoutConfig> for StreamTimeoutConfigBuilder {
-    fn from(cfg: StreamTimeoutConfig) -> StreamTimeoutConfigBuilder {
-        let mut builder = StreamTimeoutConfigBuilder::default();
-        builder
-            .connect_timeout(cfg.connect_timeout)
-            .resolve_timeout(cfg.resolve_timeout)
-            .resolve_ptr_timeout(cfg.resolve_ptr_timeout);
-
-        builder
     }
 }
 
@@ -232,14 +212,6 @@ impl StorageConfig {
     }
 }
 
-impl From<StorageConfig> for StorageConfigBuilder {
-    fn from(cfg: StorageConfig) -> StorageConfigBuilder {
-        let mut builder = StorageConfigBuilder::default();
-        builder.state_dir(cfg.state_dir).cache_dir(cfg.cache_dir);
-        builder
-    }
-}
-
 /// Configuration for system resources used by Tor.
 ///
 /// You cannot change this section on a running Arti client.
@@ -270,14 +242,6 @@ impl SystemConfig {
     /// Return a new SystemConfigBuilder.
     pub fn builder() -> SystemConfigBuilder {
         SystemConfigBuilder::default()
-    }
-}
-
-impl From<SystemConfig> for SystemConfigBuilder {
-    fn from(cfg: SystemConfig) -> SystemConfigBuilder {
-        let mut builder = SystemConfigBuilder::default();
-        builder.max_files(cfg.max_files);
-        builder
     }
 }
 
@@ -561,36 +525,6 @@ impl TorClientConfigBuilder {
     /// This section is used to configure the system resources used by Arti.
     pub fn system(&mut self) -> &mut SystemConfigBuilder {
         &mut self.system
-    }
-}
-
-impl From<TorClientConfig> for TorClientConfigBuilder {
-    fn from(cfg: TorClientConfig) -> TorClientConfigBuilder {
-        let TorClientConfig {
-            tor_network,
-            storage,
-            download_schedule,
-            override_net_params,
-            path_rules,
-            preemptive_circuits,
-            circuit_timing,
-            address_filter,
-            stream_timeouts,
-            system,
-        } = cfg;
-
-        TorClientConfigBuilder {
-            tor_network: tor_network.into(),
-            storage: storage.into(),
-            download_schedule: download_schedule.into(),
-            override_net_params,
-            path_rules: path_rules.into(),
-            preemptive_circuits: preemptive_circuits.into(),
-            circuit_timing: circuit_timing.into(),
-            address_filter: address_filter.into(),
-            stream_timeouts: stream_timeouts.into(),
-            system: system.into(),
-        }
     }
 }
 

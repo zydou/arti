@@ -83,16 +83,6 @@ impl Default for PathConfig {
     }
 }
 
-impl From<PathConfig> for PathConfigBuilder {
-    fn from(cfg: PathConfig) -> PathConfigBuilder {
-        let mut builder = PathConfigBuilder::default();
-        builder
-            .ipv4_subnet_family_prefix(cfg.ipv4_subnet_family_prefix)
-            .ipv6_subnet_family_prefix(cfg.ipv6_subnet_family_prefix);
-        builder
-    }
-}
-
 /// Configuration for preemptive circuits.
 ///
 /// Preemptive circuits are built ahead of time, to anticipate client need. This
@@ -244,18 +234,6 @@ impl CircuitTiming {
     }
 }
 
-impl From<CircuitTiming> for CircuitTimingBuilder {
-    fn from(cfg: CircuitTiming) -> CircuitTimingBuilder {
-        let mut builder = CircuitTimingBuilder::default();
-        builder
-            .max_dirtiness(cfg.max_dirtiness)
-            .request_timeout(cfg.request_timeout)
-            .request_max_retries(cfg.request_max_retries)
-            .request_loyalty(cfg.request_loyalty);
-        builder
-    }
-}
-
 impl Default for PreemptiveCircuitConfig {
     fn default() -> Self {
         PreemptiveCircuitConfigBuilder::default()
@@ -268,18 +246,6 @@ impl PreemptiveCircuitConfig {
     /// Return a new [`PreemptiveCircuitConfigBuilder`]
     pub fn builder() -> PreemptiveCircuitConfigBuilder {
         PreemptiveCircuitConfigBuilder::default()
-    }
-}
-
-impl From<PreemptiveCircuitConfig> for PreemptiveCircuitConfigBuilder {
-    fn from(cfg: PreemptiveCircuitConfig) -> PreemptiveCircuitConfigBuilder {
-        let mut builder = PreemptiveCircuitConfigBuilder::default();
-        builder
-            .disable_at_threshold(cfg.disable_at_threshold)
-            .initial_predicted_ports(cfg.initial_predicted_ports)
-            .prediction_lifetime(cfg.prediction_lifetime)
-            .min_exit_circs_for_port(cfg.min_exit_circs_for_port);
-        builder
     }
 }
 
