@@ -116,22 +116,49 @@ impl<T: 'static> AsAny for T {
 pub trait Isolation: AsAny + std::fmt::Debug + Send + Sync + 'static {
     /// TODO
     fn isolated(&self, other: &dyn Isolation) -> bool;
+    /// TODO
+    fn join(&self, other: &dyn Isolation) -> JoinResult;
 }
 
 impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
     fn isolated(&self, other: &dyn Isolation) -> bool {
-        if let Some(other) = AsAny::as_any(other).downcast_ref() {
+        if let Some(other) = other.as_any().downcast_ref() {
             self.isolated_same_type(other)
         } else {
             false
         }
     }
+    fn join(&self, other: &dyn Isolation) -> JoinResult {
+        if let Some(other) = other.as_any().downcast_ref() {
+            self.join_same_type(other)
+        } else {
+            JoinResult::NoJoin
+        }
+    }
+}
+
+/// TODO used
+// rational behind this type: it's not possible to take a `self: &Arc<Self>`, so if the merge would
+// result in something identical to `self`, we would need to allocate a new Arc instead of clonning
+// the old one.
+pub enum JoinResult {
+    /// TODO
+    New(Arc<dyn Isolation>),
+    /// TODO
+    UseLeft,
+    /// TODO
+    UseRight,
+    /// TODO
+    NoJoin,
 }
 
 /// TODO
 pub trait IsolationHelper {
     /// TODO
     fn isolated_same_type(&self, other: &Self) -> bool;
+    /// TODO it's a logic error to return JoinResult::NoJoin if isolated_same_type would not
+    /// return false for the same input
+    fn join_same_type(&self, other: &Self) -> JoinResult;
 }
 
 /// A token used to isolate unrelated streams on different circuits.
@@ -219,6 +246,17 @@ impl IsolationHelper for IsolationToken {
     fn isolated_same_type(&self, other: &Self) -> bool {
         self == other
     }
+    fn join_same_type(&self, other: &Self) -> JoinResult {
+        if self.isolated_same_type(other) {
+            // for IsolationToken, any of the three would be correct, but the last one is probably
+            // slower.
+            JoinResult::UseLeft
+            // JoinResult::UseRight
+            // JoinResult::New(Arc::new(*self))
+        } else {
+            JoinResult::NoJoin
+        }
+    }
 }
 
 /// A set of information about how a stream should be isolated.
@@ -259,6 +297,27 @@ impl StreamIsolation {
                 (Some(this), Some(other)) => !this.isolated(other.as_ref()),
                 _ => false,
             }
+    }
+
+    /// Return a StreamIsolation that is the intersection of self and other.
+    /// Return None if such a merge is not possible.
+    pub fn join(&self, other: &StreamIsolation) -> Option<StreamIsolation> {
+        if self.owner_token != other.owner_token {
+            return None;
+        }
+        match (&self.stream_token, &other.stream_token) {
+            (None, None) => Some(self.clone()),
+            (Some(this), Some(other_stream)) => match this.join(other_stream.as_ref()) {
+                JoinResult::New(isolation) => Some(StreamIsolation {
+                    stream_token: Some(isolation),
+                    owner_token: self.owner_token,
+                }),
+                JoinResult::UseLeft => Some(self.clone()),
+                JoinResult::UseRight => Some(other.clone()),
+                JoinResult::NoJoin => None,
+            },
+            _ => None,
+        }
     }
 }
 
@@ -487,9 +546,11 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 .map(|i1| i1.may_share_circuit(i2))
                 .unwrap_or(true) =>
             {
-                // Once we have more complex isolation, this assignment
-                // won't be correct.
-                *i1 = Some(i2.clone());
+                *i1 = if let Some(ref i1) = i1 {
+                    Some(i1.join(i2).expect("logic error in Insolation"))
+                } else {
+                    Some(i2.clone())
+                };
                 Ok(())
             }
             (Exit { .. }, TargetCircUsage::Exit { .. }) => {
