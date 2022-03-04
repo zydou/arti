@@ -111,13 +111,23 @@ configuration parameters:
 This will ensure that arti sets its SOCKS port on 9150. Now we need to launch
 Tor Browser and instruct it to use that SOCKS port.
 
-On Linux:
+### Linux
 
     $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 ./start-tor-browser.desktop
 
-On OSX:
+### OS X
 
     $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 /path/to/Tor\ Browser/Contents/MacOS/firefox
+
+### Windows
+
+Create a shortcut with the `Target` set to:
+
+    C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
+    
+and `Start in` set to:
+
+    "C:\path\to\Tor Browser\Browser"
 
 (You may need to adjust the actual path to wherever you have put your Tor
 Browser.)
