@@ -17,6 +17,7 @@ ntor_v3 = []
 tokio = ["tokio-crate", "tokio-util"]
 
 [dependencies]
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0"}
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0"}
 tor-bytes = { path = "../tor-bytes", version = "0.1.0"}
 tor-cert = { path = "../tor-cert", version = "0.1.0"}
@@ -31,6 +32,7 @@ bytes = "1"
 cipher = "0.3.0"
 coarsetime = "0.1.20"
 digest = "0.10.0"
+educe = "0.4.6"
 futures = "0.3.14"
 asynchronous-codec = "0.6.0"
 generic-array = "0.14.3"

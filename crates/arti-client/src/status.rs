@@ -4,7 +4,9 @@
 use std::{borrow::Cow, fmt, time::SystemTime};
 
 use derive_more::Display;
+use educe::Educe;
 use futures::{Stream, StreamExt};
+use tor_basic_utils::skip_fmt;
 use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_dirmgr::DirBootstrapStatus;
 use tracing::debug;
@@ -189,18 +191,12 @@ pub(crate) async fn report_status(
 // implementation type.  We do that because we might want to change the type in
 // the future, and because some of the functionality exposed by Receiver (like
 // `borrow()` and the postage::Stream trait) are extraneous to the API we want.
-#[derive(Clone)]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
 pub struct BootstrapEvents {
     /// The receiver that implements this stream.
+    #[educe(Debug(method = "skip_fmt"))]
     pub(crate) inner: postage::watch::Receiver<BootstrapStatus>,
-}
-
-// We can't derive(Debug) since postage::watch::Receiver doesn't implement
-// Debug.
-impl std::fmt::Debug for BootstrapEvents {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BootstrapEvents").finish_non_exhaustive()
-    }
 }
 
 impl Stream for BootstrapEvents {

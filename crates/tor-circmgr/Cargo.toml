@@ -18,6 +18,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 experimental-api = []
 
 [dependencies]
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0"}
 tor-chanmgr = { path="../tor-chanmgr", version = "0.1.0"}
 tor-config = { path="../tor-config", version = "0.1.0"}
 tor-error = { path="../tor-error", version = "0.1.0"}
@@ -33,6 +34,7 @@ tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
 async-trait = "0.1.2"
 bounded-vec-deque = "0.1"
 derive_builder = "0.10"
+educe = "0.4.6"
 futures = "0.3.14"
 humantime-serde = "1"
 itertools = "0.10.1"

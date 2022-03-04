@@ -127,6 +127,7 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "directories",
+ "educe",
  "futures",
  "humantime-serde",
  "once_cell",
@@ -137,6 +138,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-basic-utils",
  "tor-chanmgr",
  "tor-circmgr",
  "tor-config",
@@ -172,6 +174,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arti-client",
+ "educe",
  "hyper",
  "pin-project",
  "thiserror",
@@ -1000,10 +1003,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "educe"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f86b50932a01e7ec5c06160492ab660fb19b6bb2a7878030dd6cd68d21df9d4d"
+dependencies = [
+ "enum-ordinalize",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+
+[[package]]
+name = "enum-ordinalize"
+version = "3.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b166c9e378360dd5a6666a9604bb4f54ae0cac39023ffbac425e917a2a04fef"
+dependencies = [
+ "num-bigint",
+ "num-traits",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "env_logger"
@@ -3066,6 +3094,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-basic-utils"
+version = "0.1.0"
+dependencies = [
+ "educe",
+]
+
+[[package]]
 name = "tor-bytes"
 version = "0.1.0"
 dependencies = [
@@ -3089,10 +3124,12 @@ dependencies = [
  "bitflags",
  "bytes",
  "caret",
+ "educe",
  "hex",
  "hex-literal",
  "rand 0.8.5",
  "thiserror",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-cert",
  "tor-error",
@@ -3120,6 +3157,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "derive_more",
+ "educe",
  "float_eq",
  "futures",
  "futures-await-test",
@@ -3127,6 +3165,7 @@ dependencies = [
  "postage",
  "rand 0.8.5",
  "thiserror",
+ "tor-basic-utils",
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
@@ -3152,6 +3191,7 @@ dependencies = [
  "async-trait",
  "bounded-vec-deque",
  "derive_builder",
+ "educe",
  "futures",
  "futures-await-test",
  "humantime-serde",
@@ -3162,6 +3202,7 @@ dependencies = [
  "serde",
  "static_assertions",
  "thiserror",
+ "tor-basic-utils",
  "tor-chanmgr",
  "tor-config",
  "tor-error",
@@ -3237,6 +3278,7 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "digest 0.10.3",
+ "educe",
  "event-listener",
  "float_eq",
  "fslock",
@@ -3257,6 +3299,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
+ "tor-basic-utils",
  "tor-checkable",
  "tor-circmgr",
  "tor-config",
@@ -3298,6 +3341,7 @@ name = "tor-guardmgr"
 version = "0.1.0"
 dependencies = [
  "derive_builder",
+ "educe",
  "futures",
  "humantime-serde",
  "itertools",
@@ -3306,6 +3350,7 @@ dependencies = [
  "retain_mut",
  "serde",
  "thiserror",
+ "tor-basic-utils",
  "tor-config",
  "tor-error",
  "tor-linkspec",
@@ -3435,6 +3480,7 @@ dependencies = [
  "cipher",
  "coarsetime",
  "digest 0.10.3",
+ "educe",
  "futures",
  "generic-array",
  "hex",
@@ -3447,6 +3493,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-cell",
  "tor-cert",
@@ -3479,6 +3526,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "async_executors",
+ "educe",
  "futures",
  "native-tls",
  "pin-project",

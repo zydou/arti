@@ -13,6 +13,7 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 [dependencies]
+tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 tor-error = { path="../tor-error", version = "0.1.0"}
 tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
 tor-proto = { path="../tor-proto", version = "0.1.0"}
@@ -21,6 +22,7 @@ tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
 
 async-trait = "0.1.2"
 derive_more = "0.99"
+educe = "0.4.6"
 futures = "0.3.14"
 postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
 rand = "0.8"

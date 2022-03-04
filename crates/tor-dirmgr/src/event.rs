@@ -16,8 +16,10 @@ use std::{
     time::SystemTime,
 };
 
+use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
 use time::OffsetDateTime;
+use tor_basic_utils::skip_fmt;
 use tor_netdoc::doc::netstatus;
 
 /// An event that a DirMgr can broadcast to indicate that a change in
@@ -253,15 +255,17 @@ pub struct DirBootstrapStatus {
 }
 
 /// The status for a single directory.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DirStatus(DirStatusInner);
 
 /// The contents of a single DirStatus.
 ///
 /// This is a separate type so that we don't make the variants public.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Educe)]
+#[educe(Default)]
 pub(crate) enum DirStatusInner {
     /// We don't have any information yet.
+    #[educe(Default)]
     NoConsensus {
         /// If present, we are fetching a consensus whose valid-after time
         /// postdates this time.
@@ -289,12 +293,6 @@ pub(crate) enum DirStatusInner {
         // guards are missing microdescriptors, to give a better explanation for
         // the case where we won't switch our consensus because of that.
     },
-}
-
-impl Default for DirStatus {
-    fn default() -> Self {
-        DirStatus(DirStatusInner::NoConsensus { after: None })
-    }
 }
 
 impl From<DirStatusInner> for DirStatus {
@@ -495,12 +493,14 @@ impl DirStatus {
 }
 
 /// A stream of [`DirBootstrapStatus`] events.
-#[derive(Clone)]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
 pub struct DirBootstrapEvents {
     /// The `postage::watch::Receiver` that we're wrapping.
     ///
     /// We wrap this type so that we don't expose its entire API, and so that we
     /// can migrate to some other implementation in the future if we want.
+    #[educe(Debug(method = "skip_fmt"))]
     pub(crate) inner: postage::watch::Receiver<DirBootstrapStatus>,
 }
 
@@ -512,13 +512,6 @@ impl Stream for DirBootstrapEvents {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
-    }
-}
-
-impl std::fmt::Debug for DirBootstrapEvents {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DirBootstrapStatusEvents")
-            .finish_non_exhaustive()
     }
 }
 

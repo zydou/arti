@@ -3,9 +3,11 @@
 use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
+use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, Error, Readable, Reader, Result, Writer};
 
 use caret::caret_int;
+use educe::Educe;
 
 /// Trait for the 'bodies' of channel messages.
 pub trait Body: Readable {
@@ -426,7 +428,8 @@ impl Readable for Created2 {
 ///
 /// A different protocol is defined over the relay cells; it is implemented
 /// in the [crate::relaycell] module.
-#[derive(Clone)]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
 pub struct Relay {
     /// The contents of the relay cell as encoded for transfer.
     ///
@@ -435,6 +438,7 @@ pub struct Relay {
     /// places where we _don't_ Box things that we should, and more copies than
     /// necessary happen. We should refactor our data handling until we're mostly
     /// moving around pointers rather than copying data;  see ticket #7.
+    #[educe(Debug(method = "skip_fmt"))]
     body: Box<RawCellBody>,
 }
 impl Relay {
@@ -465,11 +469,6 @@ impl Relay {
     /// Wrap this Relay message into a RelayMsg as a RELAY_EARLY cell.
     pub fn into_early(self) -> ChanMsg {
         ChanMsg::RelayEarly(self)
-    }
-}
-impl std::fmt::Debug for Relay {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Relay").finish()
     }
 }
 impl Body for Relay {

@@ -4,6 +4,7 @@ use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
+use educe::Educe;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -15,7 +16,8 @@ use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Educe)]
+#[educe(Default)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum Reachable {
     /// A guard is believed to be reachable, since we have successfully
@@ -30,13 +32,8 @@ pub(crate) enum Reachable {
     ///   * We haven't tried to use the guard.
     ///   * Attempts to use it have failed, but those attempts are far
     ///     enough in the past that we're willing to retry them.
+    #[educe(Default)]
     Unknown,
-}
-
-impl Default for Reachable {
-    fn default() -> Self {
-        Reachable::Unknown
-    }
 }
 
 /// The name and version of the crate that first picked a potential

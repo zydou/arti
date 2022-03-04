@@ -1,5 +1,7 @@
 //! Implement GuardFilter and related types.
 
+use educe::Educe;
+
 use tor_linkspec::ChanTarget;
 
 /// An object specifying which relays are eligible to be guards.
@@ -15,11 +17,13 @@ use tor_linkspec::ChanTarget;
 /// Right now, only the `Unrestricted` filter is implemented or available.
 /// This enumeration is just a place-holder, however, to make sure we're
 /// checking our filter in the right places.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Educe)]
+#[educe(Default)]
 #[non_exhaustive]
 pub enum GuardFilter {
     /// A filter representing no restrictions on the permissible guards
     /// at all.
+    #[educe(Default)]
     Unfiltered,
 
     /// Testing only: checks whether the first byte of the rsa key is 0 modulo 4.
@@ -28,12 +32,6 @@ pub enum GuardFilter {
     #[cfg(test)]
     #[allow(dead_code)]
     TestingLimitKeys,
-}
-
-impl Default for GuardFilter {
-    fn default() -> Self {
-        GuardFilter::Unfiltered
-    }
 }
 
 impl GuardFilter {

@@ -5,6 +5,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use crate::traits::*;
 use async_trait::async_trait;
+use educe::Educe;
 use futures::{future::FutureObj, task::Spawn};
 use std::io::Result as IoResult;
 
@@ -18,22 +19,14 @@ use std::io::Result as IoResult;
 /// You can use this structure to create new runtimes in two ways: either by
 /// overriding a single part of an existing runtime, or by building an entirely
 /// new runtime from pieces.
+#[derive(Educe)]
+#[educe(Clone)] // #[derive(Clone)] wrongly infers Clone bounds on the generic parameters
 pub struct CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
     /// The actual collection of Runtime objects.
     ///
     /// We wrap this in an Arc rather than requiring that each item implement
     /// Clone, though we could change our minds later on.
     inner: Arc<Inner<SpawnR, SleepR, TcpR, TlsR>>,
-}
-
-// We have to provide this ourselves, since derive(Clone) wrongly infers a
-// `where S: Clone` bound (from the generic argument).
-impl<SpawnR, SleepR, TcpR, TlsR> Clone for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
-    }
 }
 
 /// A collection of objects implementing that traits that make up a [`Runtime`]

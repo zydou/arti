@@ -45,6 +45,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use arti_client::{DataStream, IntoTorAddr, TorClient};
+use educe::Educe;
 use hyper::client::connect::{Connected, Connection};
 use hyper::http::uri::Scheme;
 use hyper::http::Uri;
@@ -111,6 +112,8 @@ impl tor_error::HasKind for ConnectionError {
 /// This is a different Rust type to the TLS used *by* Tor to connect to relays etc.
 /// It might even be a different underlying TLS implementation
 /// (although that is usually not a particularly good idea).
+#[derive(Educe)]
+#[educe(Clone)] // #[derive(Debug)] infers an unwanted bound TC: Clone
 pub struct ArtiHttpConnector<R: Runtime, TC: TlsConn> {
     /// The client
     client: TorClient<R>,
@@ -120,13 +123,6 @@ pub struct ArtiHttpConnector<R: Runtime, TC: TlsConn> {
 }
 
 // #[derive(Clone)] infers a TC: Clone bound
-impl<R: Runtime, TC: TlsConn> Clone for ArtiHttpConnector<R, TC> {
-    fn clone(&self) -> Self {
-        let client = self.client.clone();
-        let tls_conn = self.tls_conn.clone();
-        Self { client, tls_conn }
-    }
-}
 
 impl<R: Runtime, TC: TlsConn> ArtiHttpConnector<R, TC> {
     /// Make a new `ArtiHttpConnector` using an Arti `TorClient` object.

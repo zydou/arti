@@ -18,6 +18,7 @@ default = []
 testing = []
 
 [dependencies]
+tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 tor-config = { path="../tor-config", version = "0.1.0"}
 tor-error = { path="../tor-error", version = "0.1.0"}
 tor-netdir = { path="../tor-netdir", version = "0.1.0"}
@@ -29,6 +30,7 @@ tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
 tor-units = { path="../tor-units", version = "0.1.0"}
 
 derive_builder = "0.10"
+educe = "0.4.6"
 futures = "0.3.14"
 humantime-serde = "1"
 itertools = "0.10.1"

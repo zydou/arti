@@ -130,6 +130,7 @@
 //     confirmed
 //     filtered
 
+use educe::Educe;
 use futures::channel::mpsc;
 use futures::task::{SpawnError, SpawnExt};
 use serde::{Deserialize, Serialize};
@@ -959,12 +960,14 @@ impl tor_linkspec::ChanTarget for Guard {
 /// The purpose for which we plan to use a guard.
 ///
 /// This can affect the guard selection algorithm.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Educe)]
+#[educe(Default)]
 #[non_exhaustive]
 pub enum GuardUsageKind {
     /// We want to use this guard for a data circuit.
     ///
     /// (This encompasses everything except the `OneHopDirectory` case.)
+    #[educe(Default)]
     Data,
     /// We want to use this guard for a one-hop, non-anonymous
     /// directory request.
@@ -972,12 +975,6 @@ pub enum GuardUsageKind {
     /// (Our algorithm allows more parallelism for the guards that we use
     /// for these circuits.)
     OneHopDirectory,
-}
-
-impl Default for GuardUsageKind {
-    fn default() -> GuardUsageKind {
-        GuardUsageKind::Data
-    }
 }
 
 /// A set of parameters describing how a single guard should be selected.

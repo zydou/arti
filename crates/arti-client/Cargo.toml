@@ -28,6 +28,7 @@ error_detail = [ ]
 experimental-api = []
 
 [dependencies]
+tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 tor-circmgr = { path="../tor-circmgr", version = "0.1.0"}
 tor-config = { path="../tor-config", version = "0.1.0"}
 tor-chanmgr = { path="../tor-chanmgr", version = "0.1.0"}
@@ -41,6 +42,7 @@ humantime-serde = "1"
 derive_builder = "0.10"
 derive_more = "0.99"
 directories = "4"
+educe = "0.4.6"
 futures = "0.3.14"
 postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
 tracing = "0.1.18"

@@ -1,12 +1,14 @@
 //! Code for exporting events from the channel manager.
 #![allow(dead_code, unreachable_pub)]
 
+use educe::Educe;
 use futures::{Stream, StreamExt};
 use postage::watch;
 use std::{
     fmt,
     time::{Duration, Instant},
 };
+use tor_basic_utils::skip_fmt;
 
 /// The status of our connection to the internet.
 #[derive(Default, Debug, Clone)]
@@ -122,19 +124,15 @@ impl fmt::Display for ConnStatus {
 /// Note that the bootstrap status is not monotonic: we might become less
 /// bootstrapped than we were before.  (For example, the internet could go
 /// down.)
-#[derive(Clone)]
+#[derive(Clone, Educe)]
+#[educe(Debug)]
 pub struct ConnStatusEvents {
     /// The receiver that implements this stream.
     ///
     /// (We wrap it in a new type here so that we can replace the implementation
     /// later on if we need to.)
+    #[educe(Debug(method = "skip_fmt"))]
     inner: watch::Receiver<ConnStatus>,
-}
-
-impl fmt::Debug for ConnStatusEvents {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ConnStatusEvents").finish_non_exhaustive()
-    }
 }
 
 impl Stream for ConnStatusEvents {
