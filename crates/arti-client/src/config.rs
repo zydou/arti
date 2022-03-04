@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
+pub use tor_basic_utils::humantime_serde_option;
 pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
@@ -46,6 +47,7 @@ pub mod dir {
 /// and requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
@@ -67,6 +69,7 @@ pub struct ClientAddrConfig {
 /// and requests—even those that are currently waiting.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct StreamTimeoutConfig {
@@ -74,17 +77,20 @@ pub struct StreamTimeoutConfig {
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
     #[serde(with = "humantime_serde", default = "default_connect_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
 
@@ -172,6 +178,7 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct StorageConfig {
     /// Location on disk for cached directory information.
     #[builder(setter(into), default = "default_cache_dir()")]
@@ -239,6 +246,7 @@ impl From<StorageConfig> for StorageConfigBuilder {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[non_exhaustive]
 pub struct SystemConfig {
     /// Maximum number of file descriptors we should launch with

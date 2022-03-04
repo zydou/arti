@@ -20,6 +20,7 @@ pub(crate) const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.tom
 #[derive(Deserialize, Debug, Default, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct ApplicationConfig {
     /// If true, we should watch our configuration files for changes, and reload
     /// our configuration when they change.
@@ -53,6 +54,7 @@ impl ApplicationConfig {
 #[serde(deny_unknown_fields)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
@@ -188,6 +190,7 @@ impl LogfileConfig {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.

@@ -14,6 +14,7 @@ use tor_netdoc::doc::authcert::{AuthCert, AuthCertKeyIds};
 // we want our authorities format to be future-proof against adding new info
 // about each authority.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(derive(Deserialize))]
 pub struct Authority {
     /// A memorable nickname for this authority.
     #[builder(setter(into))]
