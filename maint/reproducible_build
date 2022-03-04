@@ -93,6 +93,7 @@ EOF
 		UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
 		# copy it to gitlab build-dir so it may get cached
 		cp -r /arti/osxcross "$here"
+		cd ..
 	fi
 
 	PATH="/arti/osxcross/target/bin:$PATH" \
