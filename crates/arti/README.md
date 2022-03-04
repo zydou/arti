@@ -29,8 +29,13 @@ The only currently implemented subcommand is `arti proxy`; try
 ## Configuration
 
 By default, `arti` looks for its configuration files in a
-platform-dependent location.  That's `~/.config/arti/arti.toml` on
-Unix. (TODO document OSX and Windows.)
+platform-dependent location.
+
+| OS      | Configuration File                                 |
+|---------|----------------------------------------------------|
+| Unix    | `~/.config/arti/arti.toml`                         |
+| macOS   | `~/Library/Application Support/arti/arti.toml`     |
+| Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
 
 The configuration file is TOML.  (We do not guarantee its stability.)
 For an example see [`arti_defaults.toml`](./arti_defaults.toml).
@@ -42,6 +47,7 @@ For an example see [`arti_defaults.toml`](./arti_defaults.toml).
 `async-std`: Use the async-std runtime library as our backend.
 This feature has no effect unless building with `--no-default-features`
 to disable tokio.
+
 `native-tls` -- Build with support for the `native_tls` TLS
 backend. (default)
 
