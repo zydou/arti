@@ -34,6 +34,10 @@ working Git installation to fetch the code.
   Unix-like devices Git may be available via a package manager; `apt`, `brew`,
   `yum`, `pacman`, etc.
 
+- SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
+  
+- To successfully run git hooks: `shellcheck` (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
+
 **Clone the source code**
 
 In order to get a copy of the latest version of the arti source code:
