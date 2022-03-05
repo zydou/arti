@@ -57,6 +57,16 @@ macro_rules! implement_opaque_runtime {
         }
     }
 
+    #[async_trait::async_trait]
+    impl $crate::traits::UdpProvider for $t {
+        type UdpSocket = <$mty as $crate::traits::UdpProvider>::UdpSocket;
+
+        #[inline]
+        async fn bind(&self, addr: &std::net::SocketAddr) -> std::io::Result<Self::UdpSocket> {
+            self.$member.bind(addr).await
+        }
+    }
+
     impl std::fmt::Debug for $t {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct(stringify!($t)).finish_non_exhaustive()

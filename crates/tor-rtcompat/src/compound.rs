@@ -21,16 +21,16 @@ use std::io::Result as IoResult;
 /// new runtime from pieces.
 #[derive(Educe)]
 #[educe(Clone)] // #[derive(Clone)] wrongly infers Clone bounds on the generic parameters
-pub struct CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
+pub struct CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR> {
     /// The actual collection of Runtime objects.
     ///
     /// We wrap this in an Arc rather than requiring that each item implement
     /// Clone, though we could change our minds later on.
-    inner: Arc<Inner<SpawnR, SleepR, TcpR, TlsR>>,
+    inner: Arc<Inner<SpawnR, SleepR, TcpR, TlsR, UdpR>>,
 }
 
 /// A collection of objects implementing that traits that make up a [`Runtime`]
-struct Inner<SpawnR, SleepR, TcpR, TlsR> {
+struct Inner<SpawnR, SleepR, TcpR, TlsR, UdpR> {
     /// A `Spawn` and `BlockOn` implementation.
     spawn: SpawnR,
     /// A `SleepProvider` implementation.
@@ -39,23 +39,26 @@ struct Inner<SpawnR, SleepR, TcpR, TlsR> {
     tcp: TcpR,
     /// A `TcpProvider<TcpR::TcpStream>` implementation.
     tls: TlsR,
+    /// A `UdpProvider` implementation
+    udp: UdpR,
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR> {
     /// Construct a new CompoundRuntime from its components.
-    pub fn new(spawn: SpawnR, sleep: SleepR, tcp: TcpR, tls: TlsR) -> Self {
+    pub fn new(spawn: SpawnR, sleep: SleepR, tcp: TcpR, tls: TlsR, udp: UdpR) -> Self {
         CompoundRuntime {
             inner: Arc::new(Inner {
                 spawn,
                 sleep,
                 tcp,
                 tls,
+                udp,
             }),
         }
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> Spawn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> Spawn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     SpawnR: Spawn,
 {
@@ -65,7 +68,7 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> BlockOn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> BlockOn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     SpawnR: BlockOn,
 {
@@ -75,7 +78,8 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> SleepProvider for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> SleepProvider
+    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     SleepR: SleepProvider,
 {
@@ -88,13 +92,15 @@ where
 }
 
 #[async_trait]
-impl<SpawnR, SleepR, TcpR, TlsR> TcpProvider for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> TcpProvider
+    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     TcpR: TcpProvider,
     SpawnR: Send + Sync + 'static,
     SleepR: Send + Sync + 'static,
     TcpR: Send + Sync + 'static,
     TlsR: Send + Sync + 'static,
+    UdpR: Send + Sync + 'static,
 {
     type TcpStream = TcpR::TcpStream;
 
@@ -111,7 +117,8 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR, S> TlsProvider<S> for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR>
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR, S> TlsProvider<S>
+    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     TcpR: TcpProvider,
     TlsR: TlsProvider<S>,
@@ -125,8 +132,29 @@ where
     }
 }
 
-impl<SpawnR, SleepR, TcpR, TlsR> std::fmt::Debug for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR> {
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> std::fmt::Debug
+    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CompoundRuntime").finish_non_exhaustive()
+    }
+}
+
+#[async_trait]
+impl<SpawnR, SleepR, TcpR, TlsR, UdpR> UdpProvider
+    for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
+where
+    UdpR: UdpProvider,
+    SpawnR: Send + Sync + 'static,
+    SleepR: Send + Sync + 'static,
+    TcpR: Send + Sync + 'static,
+    TlsR: Send + Sync + 'static,
+    UdpR: Send + Sync + 'static,
+{
+    type UdpSocket = UdpR::UdpSocket;
+
+    #[inline]
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
+        self.inner.udp.bind(addr).await
     }
 }

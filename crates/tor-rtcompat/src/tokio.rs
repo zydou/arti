@@ -39,7 +39,7 @@ pub struct TokioNativeTlsRuntime {
 
 /// Implementation type for a TokioRuntimeHandle.
 #[cfg(feature = "native-tls")]
-type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider>;
+type HandleInner = CompoundRuntime<Handle, Handle, Handle, NativeTlsProvider, Handle>;
 
 /// A [`Runtime`](crate::Runtime) built around a Handle to a tokio runtime, and `rustls`.
 #[derive(Clone)]
@@ -51,7 +51,7 @@ pub struct TokioRustlsRuntime {
 
 /// Implementation for a TokioRuntimeRustlsHandle
 #[cfg(feature = "rustls")]
-type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider>;
+type RustlsHandleInner = CompoundRuntime<Handle, Handle, Handle, RustlsProvider, Handle>;
 
 #[cfg(feature = "native-tls")]
 crate::opaque::implement_opaque_runtime! {
@@ -68,7 +68,13 @@ impl From<tokio_crate::runtime::Handle> for TokioNativeTlsRuntime {
     fn from(h: tokio_crate::runtime::Handle) -> Self {
         let h = Handle::new(h);
         TokioNativeTlsRuntime {
-            inner: CompoundRuntime::new(h.clone(), h.clone(), h, NativeTlsProvider::default()),
+            inner: CompoundRuntime::new(
+                h.clone(),
+                h.clone(),
+                h.clone(),
+                NativeTlsProvider::default(),
+                h,
+            ),
         }
     }
 }
@@ -78,7 +84,13 @@ impl From<tokio_crate::runtime::Handle> for TokioRustlsRuntime {
     fn from(h: tokio_crate::runtime::Handle) -> Self {
         let h = Handle::new(h);
         TokioRustlsRuntime {
-            inner: CompoundRuntime::new(h.clone(), h.clone(), h, RustlsProvider::default()),
+            inner: CompoundRuntime::new(
+                h.clone(),
+                h.clone(),
+                h.clone(),
+                RustlsProvider::default(),
+                h,
+            ),
         }
     }
 }
@@ -94,7 +106,13 @@ impl TokioNativeTlsRuntime {
     /// [`TokioNativeTlsRuntime::current()`].
     pub fn create() -> IoResult<Self> {
         crate::impls::tokio::create_runtime().map(|r| TokioNativeTlsRuntime {
-            inner: CompoundRuntime::new(r.clone(), r.clone(), r, NativeTlsProvider::default()),
+            inner: CompoundRuntime::new(
+                r.clone(),
+                r.clone(),
+                r.clone(),
+                NativeTlsProvider::default(),
+                r,
+            ),
         })
     }
 
@@ -146,7 +164,13 @@ impl TokioRustlsRuntime {
     /// [`TokioRustlsRuntime::current()`].
     pub fn create() -> IoResult<Self> {
         crate::impls::tokio::create_runtime().map(|r| TokioRustlsRuntime {
-            inner: CompoundRuntime::new(r.clone(), r.clone(), r, RustlsProvider::default()),
+            inner: CompoundRuntime::new(
+                r.clone(),
+                r.clone(),
+                r.clone(),
+                RustlsProvider::default(),
+                r,
+            ),
         })
     }
 

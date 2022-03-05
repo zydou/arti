@@ -171,6 +171,10 @@ pub struct ProxyConfig {
     #[serde(default = "default_socks_port")]
     #[builder(default = "default_socks_port()")]
     socks_port: Option<u16>,
+    /// Port to lisen on (at localhost) for incoming DNS connections.
+    #[serde(default)]
+    #[builder(default)]
+    dns_port: Option<u16>,
 }
 
 /// Return the default value for `socks_port`
@@ -195,6 +199,12 @@ impl ProxyConfig {
     /// if one is enabled.
     pub fn socks_port(&self) -> Option<u16> {
         self.socks_port
+    }
+
+    /// Return the configured DNS port for this proxy configuration,
+    /// if one is enabled.
+    pub fn dns_port(&self) -> Option<u16> {
+        self.dns_port
     }
 }
 
