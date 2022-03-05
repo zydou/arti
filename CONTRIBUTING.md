@@ -24,7 +24,8 @@ setup and development tasks.
 **Install dependencies**
 
 You'll need to have a working Rust environment to build the code, and a
-working Git installation to fetch the code.
+working Git installation to fetch the code. Additionally, please install
+the SQLite 3 development files and shellcheck to successfully run git hooks.
 
 - [Rust](https://www.rust-lang.org/tools/install) note, for Windows devices
   check the
@@ -36,7 +37,8 @@ working Git installation to fetch the code.
 
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
   
-- To successfully run git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing) (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
+- For git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing)
+  (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
 
 **Clone the source code**
 
