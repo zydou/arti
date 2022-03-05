@@ -36,7 +36,7 @@ working Git installation to fetch the code.
 
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
   
-- To successfully run git hooks: `shellcheck` (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
+- To successfully run git hooks: [shellcheck](https://github.com/koalaman/shellcheck#installing) (used in [`maint/shellcheck_all`](./maint/shellcheck_all))
 
 **Clone the source code**
 
