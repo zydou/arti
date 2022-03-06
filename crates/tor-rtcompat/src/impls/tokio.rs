@@ -118,7 +118,7 @@ pub(crate) mod net {
 
     #[async_trait]
     impl traits::UdpSocket for UdpSocket {
-        async fn recv(&mut self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {
+        async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {
             if let Some(addr) = self.addr {
                 self.socket.recv(buf).await.map(|r| (r, addr))
             } else {
@@ -126,7 +126,7 @@ pub(crate) mod net {
             }
         }
 
-        async fn send(&mut self, buf: &[u8], target: &SocketAddr) -> IoResult<usize> {
+        async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize> {
             if let Some(addr) = self.addr {
                 debug_assert!(addr == *target);
                 self.socket.send(buf).await

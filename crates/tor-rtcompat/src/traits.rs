@@ -198,12 +198,15 @@ pub trait UdpProvider {
 #[async_trait]
 pub trait UdpSocket {
     /// Wait for an incoming datagram; return it along its address.
-    async fn recv(&mut self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)>;
+    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)>;
     /// Send a datagram to the provided address.
-    async fn send(&mut self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
+    async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
     /// Connect to a remote address. After calling this [`UdpSocket::recv`] may only
     /// return that same address, and the target provided to [`UdpSocket::send`] must
     /// be this address.
+    // rational for taking &mut self: this changes the behavior of the whole socket,
+    // so it should probably only be used when you have ownership of the socket and
+    // not when sharing it.
     async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()>;
 }
 

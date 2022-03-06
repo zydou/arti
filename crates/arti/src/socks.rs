@@ -444,8 +444,8 @@ pub async fn run_socks_proxy<R: Runtime>(
     }
     // We weren't able to bind any ports: There's nothing to do.
     if listeners.is_empty() {
-        error!("Couldn't open any listeners.");
-        return Err(anyhow!("Couldn't open listeners"));
+        error!("Couldn't open any SOCKS listeners.");
+        return Err(anyhow!("Couldn't open SOCKS listeners"));
     }
 
     // Create a stream of (incoming socket, listener_id) pairs, selected
