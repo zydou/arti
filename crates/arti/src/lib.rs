@@ -260,6 +260,13 @@ pub fn main_main() -> Result<()> {
                             .value_name("PORT")
                             .help("Port to listen on for SOCKS connections (overrides the port in the config if specified).")
                     )
+                    .arg(
+                        Arg::with_name("dns-port")
+                            .short("d")
+                            .takes_value(true)
+                            .value_name("PORT")
+                            .help("Port to listen on for DNS request (overrides the port in the config if specified).")
+                    )
             )
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();

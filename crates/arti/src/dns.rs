@@ -8,16 +8,28 @@ use futures::task::SpawnExt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use tracing::{error, info, warn};
+use trust_dns_proto::op::{
+    header::MessageType, op_code::OpCode, response_code::ResponseCode, Message,
+};
+use trust_dns_proto::rr::{DNSClass, Name, RData, Record, RecordType};
+use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::TorClient;
 use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
 
+/// Send an error DNS response with code NotImplemented
+async fn not_implemented<U: UdpSocket>(id: u16, addr: &SocketAddr, socket: &U) -> Result<()> {
+    let response = Message::error_msg(id, OpCode::Query, ResponseCode::NotImp);
+    socket.send(&response.to_bytes()?, addr).await?;
+    Ok(())
+}
+
 /// Given a datagram containing a DNS query, resolve the query over
 /// the Tor network and send the response back.
 async fn handle_dns_req<R, U>(
-    _tor_client: TorClient<R>,
+    tor_client: TorClient<R>,
     packet: &[u8],
     addr: SocketAddr,
     socket: Arc<U>,
@@ -26,8 +38,72 @@ where
     R: Runtime,
     U: UdpSocket,
 {
-    // TODO actually process the request
-    socket.send(packet, &addr).await?;
+    let mut query = Message::from_bytes(packet)?;
+    let id = query.id();
+
+    let mut answers = Vec::new();
+
+    for query in query.queries() {
+        let mut a = Vec::new();
+        let mut ptr = Vec::new();
+        // TODO maybe support ANY?
+        match query.query_class() {
+            DNSClass::IN => {
+                match query.query_type() {
+                    typ @ RecordType::A | typ @ RecordType::AAAA => {
+                        let mut name = query.name().clone();
+                        // name would be "torproject.org." without this
+                        name.set_fqdn(false);
+                        let res = tor_client.resolve(&name.to_utf8()).await?;
+                        for ip in res {
+                            a.push((query.name().clone(), ip, typ));
+                        }
+                    }
+                    RecordType::PTR => {
+                        let addr = query.name().parse_arpa_name()?.addr();
+                        let res = tor_client.resolve_ptr(addr).await?;
+                        for domain in res {
+                            let domain = Name::from_utf8(domain)?;
+                            ptr.push((query.name().clone(), domain));
+                        }
+                    }
+                    _ => {
+                        return not_implemented(id, &addr, &*socket).await;
+                    }
+                }
+            }
+            _ => {
+                return not_implemented(id, &addr, &*socket).await;
+            }
+        }
+        for (name, ip, typ) in a {
+            match (ip, typ) {
+                (IpAddr::V4(v4), RecordType::A) => {
+                    answers.push(Record::from_rdata(name, 3600, RData::A(v4)));
+                }
+                (IpAddr::V6(v6), RecordType::AAAA) => {
+                    answers.push(Record::from_rdata(name, 3600, RData::AAAA(v6)));
+                }
+                _ => (),
+            }
+        }
+        for (ptr, name) in ptr {
+            answers.push(Record::from_rdata(ptr, 3600, RData::PTR(name)));
+        }
+    }
+
+    let mut response = Message::new();
+    response
+        .set_id(id)
+        .set_message_type(MessageType::Response)
+        .set_op_code(OpCode::Query)
+        .set_recursion_desired(query.recursion_desired())
+        .set_recursion_available(true)
+        .add_queries(query.take_queries())
+        .add_answers(answers);
+    // TODO maybe add some edns?
+
+    socket.send(&response.to_bytes()?, &addr).await?;
     Ok(())
 }
 
@@ -83,7 +159,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
         let (packet, size, addr, socket) = match packet {
             Ok(packet) => packet,
             Err(err) => {
-                // TODO move socks::accept_err_is_fatal somewhere else and use it here?
+                // TODO move crate::socks::accept_err_is_fatal somewhere else and use it here?
                 warn!("Incoming datagram failed: {}", err);
                 continue;
             }

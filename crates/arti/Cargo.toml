@@ -43,6 +43,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 clap = "2.33.0"
 tracing-journald = { version = "0.2.0", optional = true }
 tracing-appender = "0.2.0"
+trust-dns-proto = "0.21.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2", default-features = false }
