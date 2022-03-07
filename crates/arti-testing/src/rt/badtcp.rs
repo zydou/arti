@@ -105,8 +105,8 @@ impl Default for ConditionalAction {
 }
 
 /// A TcpProvider that can make its connections fail.
-#[derive(Debug, Clone)]
 #[pin_project]
+#[derive(Debug, Clone)]
 pub(crate) struct BrokenTcpProvider<R> {
     /// An underlying TcpProvider to use when we actually want our connections to succeed
     #[pin]
