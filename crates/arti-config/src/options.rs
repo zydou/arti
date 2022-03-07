@@ -325,6 +325,33 @@ impl From<ArtiConfig> for TorClientConfigBuilder {
     }
 }
 
+// This handwritten impl ought not to exist, but it is needed until #374 is done.
+impl From<ArtiConfigBuilder> for TorClientConfigBuilder {
+    fn from(cfg: ArtiConfigBuilder) -> TorClientConfigBuilder {
+        let mut builder = TorClientConfig::builder();
+        let ArtiConfigBuilder {
+            storage,
+            address_filter,
+            path_rules,
+            preemptive_circuits,
+            circuit_timing,
+            override_net_params,
+            download_schedule,
+            tor_network,
+            ..
+        } = cfg;
+        *builder.storage() = storage;
+        *builder.address_filter() = address_filter;
+        *builder.path_rules() = path_rules;
+        *builder.preemptive_circuits() = preemptive_circuits;
+        *builder.circuit_timing() = circuit_timing;
+        *builder.override_net_params() = override_net_params;
+        *builder.download_schedule() = download_schedule;
+        *builder.tor_network() = tor_network;
+        builder
+    }
+}
+
 impl ArtiConfig {
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
