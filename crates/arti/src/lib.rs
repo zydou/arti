@@ -131,6 +131,9 @@ use tracing::{info, warn};
 
 use std::convert::TryInto;
 
+/// Shorthand for a boxed and pinned Future.
+type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
+
 /// Run the main loop of the proxy.
 ///
 /// # Panics
@@ -156,21 +159,23 @@ pub async fn run<R: Runtime>(
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
 
-    let mut proxy: Vec<std::pin::Pin<Box<dyn futures::Future<Output = Result<()>>>>> = Vec::new();
+    let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
     if socks_port != 0 {
-        proxy.push(Box::pin(socks::run_socks_proxy(
-            runtime.clone(),
-            client.isolated_client(),
-            socks_port,
-        )));
+        let runtime = runtime.clone();
+        let client = client.isolated_client();
+        proxy.push(Box::pin(async move {
+            let res = socks::run_socks_proxy(runtime, client, socks_port).await;
+            (res, "SOCKS")
+        }));
     }
 
     if dns_port != 0 {
-        proxy.push(Box::pin(dns::run_dns_resolver(
-            runtime.clone(),
-            client.isolated_client(),
-            dns_port,
-        )));
+        let runtime = runtime.clone();
+        let client = client.isolated_client();
+        proxy.push(Box::pin(async move {
+            let res = dns::run_dns_resolver(runtime, client, dns_port).await;
+            (res, "DNS")
+        }));
     }
 
     if proxy.is_empty() {
@@ -179,12 +184,12 @@ pub async fn run<R: Runtime>(
         return Ok(());
     }
 
-    let proxy = futures::future::select_all(proxy);
+    let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse()
             => r.context("waiting for termination signal"),
         r = proxy.fuse()
-            => r.0.context("SOCKS proxy failure"),
+            => r.0.context(format!("{} proxy failure", r.1)),
         r = async {
             client.bootstrap().await?;
             info!("Sufficiently bootstrapped; system SOCKS now functional.");

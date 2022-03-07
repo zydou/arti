@@ -19,6 +19,9 @@ use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
 
+/// Maximum lenght for receiving a single datagram
+const MAX_DATAGRAM_SIZE: usize = 1536;
+
 /// Send an error DNS response with code NotImplemented
 async fn not_implemented<U: UdpSocket>(id: u16, addr: &SocketAddr, socket: &U) -> Result<()> {
     let response = Message::error_msg(id, OpCode::Query, ResponseCode::NotImp);
@@ -133,7 +136,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
     // We weren't able to bind any ports: There's nothing to do.
     if listeners.is_empty() {
         error!("Couldn't open any DNS listeners.");
-        return Err(anyhow!("Couldn't open SOCKS listeners"));
+        return Err(anyhow!("Couldn't open any DNS listeners"));
     }
 
     let mut incoming = futures::stream::select_all(
@@ -141,7 +144,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
             .into_iter()
             .map(|socket| {
                 futures::stream::unfold(Arc::new(socket), |socket| async {
-                    let mut packet = [0; 1536];
+                    let mut packet = [0; MAX_DATAGRAM_SIZE];
                     let packet = socket
                         .recv(&mut packet)
                         .await

@@ -204,7 +204,7 @@ pub trait UdpSocket {
     /// Connect to a remote address. After calling this [`UdpSocket::recv`] may only
     /// return that same address, and the target provided to [`UdpSocket::send`] must
     /// be this address.
-    // rational for taking &mut self: this changes the behavior of the whole socket,
+    // rationale for taking &mut self: this changes the behavior of the whole socket,
     // so it should probably only be used when you have ownership of the socket and
     // not when sharing it.
     async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()>;
