@@ -35,8 +35,9 @@
 //!      o With various errors
 //!      o by timing out
 //!      - sporadically
+//!      - by succeeding and black-holing data.
 //!      - depending on address / port / family
-//!      - Install this after a delay
+//!      o Install this after a delay
 //!   - make TLS fail
 //!      - With wrong cert
 //!      - Mysteriously
@@ -91,6 +92,8 @@ mod traces;
 
 use arti_client::TorClient;
 use arti_config::ArtiConfig;
+use futures::task::SpawnExt;
+use rt::badtcp::BrokenTcpProvider;
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
 use anyhow::{anyhow, Result};
@@ -142,11 +145,68 @@ impl FromStr for Expectation {
     }
 }
 
+/// At what stage to install a kind of breakage
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BreakageStage {
+    /// Create breakage while bootstrapping
+    Bootstrap,
+    /// Create breakage while connecting
+    Connect,
+}
+
+impl FromStr for BreakageStage {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "bootstrap" => BreakageStage::Bootstrap,
+            "connect" => BreakageStage::Connect,
+            _ => return Err(anyhow!("unrecognized breakage stage {:?}", s)),
+        })
+    }
+}
+
+/// Describes how (if at all) to break TCP connection attempts
+#[derive(Debug, Clone)]
+struct TcpBreakage {
+    /// What kind of breakage to install (if any)
+    action: rt::badtcp::Action,
+    /// What stage to apply the breakage at.
+    stage: BreakageStage,
+    /// Delay (if any) after the start of the stage to apply breakage
+    delay: Option<Duration>,
+}
+
+impl TcpBreakage {
+    /// Apply the configured breakage to breakage_provider.  Use `main_runtime` to sleep if necessary.
+    fn apply<R: Runtime, R2: Send + Sync + 'static>(
+        &self,
+        main_runtime: &R,
+        breakage_provider: BrokenTcpProvider<R2>,
+    ) {
+        if let Some(delay) = self.delay {
+            let rt_clone = main_runtime.clone();
+            let action = self.action.clone();
+            main_runtime
+                .spawn(async move {
+                    rt_clone.sleep(delay).await;
+                    breakage_provider.set_action(action);
+                })
+                .expect("can't spawn.");
+        } else {
+            breakage_provider.set_action(self.action.clone());
+        }
+    }
+}
+
 /// Descriptions of an action to take, and what to expect as an outcome.
 #[derive(Debug, Clone)]
 struct Job {
     /// The action that the client should try to take
     action: Action,
+
+    /// Describes how (if at all) to break the TCP connections.
+    tcp_breakage: TcpBreakage,
 
     /// The tracing configuration for our console log.
     console_log: String,
@@ -172,7 +232,16 @@ impl Job {
     }
 
     /// Run the body of a job.
-    async fn run_job_inner<R: Runtime>(&self, client: TorClient<R>) -> Result<()> {
+    async fn run_job_inner<R: Runtime, R2: Send + Sync + Clone + 'static>(
+        &self,
+        broken_tcp: rt::badtcp::BrokenTcpProvider<R2>,
+        client: TorClient<R>,
+    ) -> Result<()> {
+        if self.tcp_breakage.stage == BreakageStage::Bootstrap {
+            self.tcp_breakage
+                .apply(client.runtime(), broken_tcp.clone());
+        }
+
         client.bootstrap().await?; // all jobs currently start with a bootstrap.
 
         match &self.action {
@@ -181,6 +250,11 @@ impl Job {
                 target,
                 retry_delay,
             } => {
+                if self.tcp_breakage.stage == BreakageStage::Connect {
+                    self.tcp_breakage
+                        .apply(client.runtime(), broken_tcp.clone());
+                }
+
                 loop {
                     let outcome = client.connect(target).await;
                     match (outcome, retry_delay) {
@@ -217,7 +291,7 @@ impl Job {
         let outcome = client
             .clone()
             .runtime()
-            .timeout(self.timeout, self.run_job_inner(client))
+            .timeout(self.timeout, self.run_job_inner(broken_tcp.clone(), client))
             .await;
 
         let result = match (&self.expectation, outcome) {

@@ -2,10 +2,13 @@
 
 use tor_rtcompat::{Runtime, TcpProvider};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use rand::{thread_rng, Rng};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult};
 use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// An action that we can take upon trying to make a TCP connection.
@@ -19,27 +22,47 @@ pub(crate) enum Action {
     Timeout,
 }
 
+impl FromStr for Action {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "none" | "work" => Action::Work,
+            "error" => Action::Fail(Duration::from_millis(10), IoErrorKind::Other),
+            "timeout" => Action::Timeout,
+            _ => return Err(anyhow!("unrecognized tcp breakage action {:?}", s)),
+        })
+    }
+}
+
 /// A TcpProvider that can make its connections fail.
 #[derive(Debug, Clone)]
 pub(crate) struct BrokenTcpProvider<R> {
     /// An underlying TcpProvider to use when we actually want our connections to succeed
     inner: R,
     /// The action to take when we try to make an outbound connection.
-    ///
-    /// TODO: make this conditional, mutable, etc.
-    action: Action,
+    action: Arc<Mutex<Action>>,
 }
 
 impl<R> BrokenTcpProvider<R> {
     /// Construct a new BrokenTcpProvider which responds to all outbound
     /// connections by taking the specified action.
     pub(crate) fn new(inner: R, action: Action) -> Self {
-        Self { inner, action }
+        Self {
+            inner,
+            action: Arc::new(Mutex::new(action)),
+        }
+    }
+
+    /// Cause the provider to respond to all outbound connection attempts
+    /// with the specified action.
+    pub(crate) fn set_action(&self, action: Action) {
+        *self.action.lock().expect("Lock poisoned") = action;
     }
 
     /// Return the action to take for a connection to `addr`.
     fn get_action(&self, _addr: &SocketAddr) -> Action {
-        self.action.clone()
+        self.action.lock().expect("Lock poisoned").clone()
     }
 }
 
