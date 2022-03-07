@@ -1,5 +1,6 @@
 //! Reading configuration and command line issues in arti-testing.
 
+use crate::rt::badtcp::ConditionalAction;
 use crate::{Action, Job, TcpBreakage};
 
 use anyhow::{anyhow, Result};
@@ -67,6 +68,13 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .long("tcp-failure")
                 .takes_value(true)
                 .value_name("none|timeout|error|blackhole")
+                .global(true),
+        )
+        .arg(
+            Arg::with_name("tcp-failure-on")
+                .long("tcp-failure-on")
+                .takes_value(true)
+                .value_name("all|v4|v6|non443")
                 .global(true),
         )
         .arg(
@@ -148,6 +156,11 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
             .value_of("tcp-failure-delay")
             .map(|d| d.parse().map(Duration::from_secs))
             .transpose()?;
+        let when = matches
+            .value_of("tcp-failure-on")
+            .unwrap_or("all")
+            .parse()?;
+        let action = ConditionalAction { action, when };
 
         TcpBreakage {
             action,

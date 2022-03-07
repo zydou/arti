@@ -36,7 +36,7 @@
 //!      o by timing out
 //!      - sporadically
 //!      o by succeeding and black-holing data.
-//!      - depending on address / port / family
+//!      o depending on address / port / family
 //!      o Install this after a delay
 //!   - make TLS fail
 //!      - With wrong cert
@@ -170,7 +170,7 @@ impl FromStr for BreakageStage {
 #[derive(Debug, Clone)]
 struct TcpBreakage {
     /// What kind of breakage to install (if any)
-    action: rt::badtcp::Action,
+    action: rt::badtcp::ConditionalAction,
     /// What stage to apply the breakage at.
     stage: BreakageStage,
     /// Delay (if any) after the start of the stage to apply breakage
@@ -274,8 +274,10 @@ impl Job {
     /// XXXX Eventually this should come up with some kind of result that's meaningful.
     async fn run_job(&self) -> Result<()> {
         let runtime = PreferredRuntime::current()?;
-        let broken_tcp =
-            rt::badtcp::BrokenTcpProvider::new(runtime.clone(), rt::badtcp::Action::Work);
+        let broken_tcp = rt::badtcp::BrokenTcpProvider::new(
+            runtime.clone(),
+            rt::badtcp::ConditionalAction::default(),
+        );
         // We put the counting TCP provider outside the one that breaks: we want
         // to know how many attempts to connect there are, and BrokenTcpProvider
         // eats the attempts that it fails without passing them down the stack.

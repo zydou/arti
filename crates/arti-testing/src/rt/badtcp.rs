@@ -30,6 +30,31 @@ pub(crate) enum Action {
     Blackhole,
 }
 
+/// When should an Action apply?
+#[derive(Debug, Clone)]
+pub(crate) enum ActionPat {
+    /// always apply
+    Always,
+    /// Apply to all ipv4
+    V4,
+    /// apply to all ipv6
+    V6,
+    /// apply to all ports but 443
+    Non443,
+}
+
+/// An Action plus a set of conditions when it applies.
+///
+/// (When the action doesn't apply, connections will just `Action::Work`.
+#[derive(Debug, Clone)]
+pub(crate) struct ConditionalAction {
+    /// The underlying action
+    pub(crate) action: Action,
+
+    /// When should the action apply?
+    pub(crate) when: ActionPat,
+}
+
 impl FromStr for Action {
     type Err = anyhow::Error;
 
@@ -44,6 +69,41 @@ impl FromStr for Action {
     }
 }
 
+impl FromStr for ActionPat {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "all" => ActionPat::Always,
+            "v4" => ActionPat::V4,
+            "v6" => ActionPat::V6,
+            "non443" => ActionPat::Non443,
+            _ => return Err(anyhow!("unrecognized tcp breakage condition {:?}", s)),
+        })
+    }
+}
+
+impl ConditionalAction {
+    fn applies_to(&self, addr: &SocketAddr) -> bool {
+        match (addr, &self.when) {
+            (_, ActionPat::Always) => true,
+            (SocketAddr::V4(_), ActionPat::V4) => true,
+            (SocketAddr::V6(_), ActionPat::V6) => true,
+            (sa, ActionPat::Non443) if sa.port() != 443 => true,
+            (_, _) => false,
+        }
+    }
+}
+
+impl Default for ConditionalAction {
+    fn default() -> Self {
+        Self {
+            action: Action::Work,
+            when: ActionPat::Always,
+        }
+    }
+}
+
 /// A TcpProvider that can make its connections fail.
 #[derive(Debug, Clone)]
 #[pin_project]
@@ -52,13 +112,13 @@ pub(crate) struct BrokenTcpProvider<R> {
     #[pin]
     inner: R,
     /// The action to take when we try to make an outbound connection.
-    action: Arc<Mutex<Action>>,
+    action: Arc<Mutex<ConditionalAction>>,
 }
 
 impl<R> BrokenTcpProvider<R> {
     /// Construct a new BrokenTcpProvider which responds to all outbound
     /// connections by taking the specified action.
-    pub(crate) fn new(inner: R, action: Action) -> Self {
+    pub(crate) fn new(inner: R, action: ConditionalAction) -> Self {
         Self {
             inner,
             action: Arc::new(Mutex::new(action)),
@@ -67,13 +127,18 @@ impl<R> BrokenTcpProvider<R> {
 
     /// Cause the provider to respond to all outbound connection attempts
     /// with the specified action.
-    pub(crate) fn set_action(&self, action: Action) {
+    pub(crate) fn set_action(&self, action: ConditionalAction) {
         *self.action.lock().expect("Lock poisoned") = action;
     }
 
     /// Return the action to take for a connection to `addr`.
-    fn get_action(&self, _addr: &SocketAddr) -> Action {
-        self.action.lock().expect("Lock poisoned").clone()
+    fn get_action(&self, addr: &SocketAddr) -> Action {
+        let action = self.action.lock().expect("Lock poisoned");
+        if action.applies_to(addr) {
+            action.action.clone()
+        } else {
+            Action::Work
+        }
     }
 }
 
