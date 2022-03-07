@@ -173,8 +173,8 @@ impl<R: Runtime> TcpProvider for BrokenTcpProvider<R> {
 }
 
 /// A TCP stream that is either present, or black-holed.
-#[derive(Debug, Clone)]
 #[pin_project(project = BreakableTcpStreamP)]
+#[derive(Debug, Clone)]
 pub(crate) enum BreakableTcpStream<S> {
     /// The stream is black-holed: there is nothing to read, and all writes
     /// succeed but are ignored.
