@@ -30,14 +30,7 @@
 //! # TODO
 //!
 //! - More ways to break
-//!
-//!   - make TCP connections fail
-//!      o With various errors
-//!      o by timing out
-//!      - sporadically
-//!      o by succeeding and black-holing data.
-//!      o depending on address / port / family
-//!      o Install this after a delay
+//!   - make TCP connections fail only sporadically
 //!   - make TLS fail
 //!      - With wrong cert
 //!      - Mysteriously
