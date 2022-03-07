@@ -602,7 +602,7 @@ mod test {
     #[test]
     fn defaults() {
         let dflt = TorClientConfig::default();
-        let b2 = TorClientConfigBuilder::from(dflt.clone());
+        let b2 = TorClientConfigBuilder::default();
         let dflt2 = b2.build().unwrap();
         assert_eq!(&dflt, &dflt2);
     }
@@ -647,11 +647,6 @@ mod test {
         bld.address_filter().allow_local_addrs(true);
 
         let val = bld.build().unwrap();
-
-        // Reconstruct, rebuild, and validate.
-        let bld2 = TorClientConfigBuilder::from(val.clone());
-        let val2 = bld2.build().unwrap();
-        assert_eq!(val, val2);
 
         assert_ne!(val, TorClientConfig::default());
     }

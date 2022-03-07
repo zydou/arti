@@ -1,11 +1,8 @@
 //! Handling for arti's configuration formats.
 
 use arti_client::config::{
-    circ,
-    dir::{self, DownloadScheduleConfig, NetworkConfig},
-    ClientAddrConfig, ClientAddrConfigBuilder, StorageConfig, StorageConfigBuilder,
-    StreamTimeoutConfig, StreamTimeoutConfigBuilder, SystemConfig, SystemConfigBuilder,
-    TorClientConfig, TorClientConfigBuilder,
+    circ, dir, ClientAddrConfigBuilder, StorageConfigBuilder, StreamTimeoutConfigBuilder,
+    SystemConfig, SystemConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -246,8 +243,7 @@ impl From<ProxyConfig> for ProxyConfigBuilder {
 ///
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
-#[derive(Deserialize, Debug, Clone, Eq, PartialEq, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ArtiConfig {
     /// Configuration for application behavior.
     application: ApplicationConfig,
@@ -258,70 +254,20 @@ pub struct ArtiConfig {
     /// Logging configuration
     logging: LoggingConfig,
 
-    /// Information about the Tor network we want to connect to.
-    #[serde(default)]
-    tor_network: NetworkConfig,
-
-    /// Directories for storing information on disk
-    storage: StorageConfig,
-
-    /// Information about when and how often to download directory information
-    download_schedule: DownloadScheduleConfig,
-
-    /// Facility to override network parameters from the values set in the
-    /// consensus.
-    #[serde(default)]
-    override_net_params: HashMap<String, i32>,
-
-    /// Information about how to build paths through the network.
-    path_rules: circ::PathConfig,
-
-    /// Information about preemptive circuits
-    preemptive_circuits: circ::PreemptiveCircuitConfig,
-
-    /// Information about how to retry and expire circuits and request for circuits.
-    circuit_timing: circ::CircuitTiming,
-
-    /// Rules about which addresses the client is willing to connect to.
-    address_filter: ClientAddrConfig,
-
-    /// Information about when to time out client requests.
-    stream_timeouts: StreamTimeoutConfig,
-
     /// Information on system resources used by Arti.
     system: SystemConfig,
+
+    /// Configuration of the actual Tor client
+    tor: TorClientConfig,
 }
 
 impl TryFrom<config::Config> for ArtiConfig {
     type Error = config::ConfigError;
     fn try_from(cfg: config::Config) -> Result<ArtiConfig, Self::Error> {
-        cfg.try_deserialize()
-    }
-}
-
-impl From<ArtiConfig> for TorClientConfigBuilder {
-    fn from(cfg: ArtiConfig) -> TorClientConfigBuilder {
-        let mut builder = TorClientConfig::builder();
-        let ArtiConfig {
-            storage,
-            address_filter,
-            path_rules,
-            preemptive_circuits,
-            circuit_timing,
-            override_net_params,
-            download_schedule,
-            tor_network,
-            ..
-        } = cfg;
-        *builder.storage() = storage.into();
-        *builder.address_filter() = address_filter.into();
-        *builder.path_rules() = path_rules.into();
-        *builder.preemptive_circuits() = preemptive_circuits.into();
-        *builder.circuit_timing() = circuit_timing.into();
-        *builder.override_net_params() = override_net_params;
-        *builder.download_schedule() = download_schedule.into();
-        *builder.tor_network() = tor_network.into();
+        let builder: ArtiConfigBuilder = cfg.try_deserialize()?;
         builder
+            .build()
+            .map_err(|e| config::ConfigError::Foreign(Box::new(e)))
     }
 }
 
@@ -355,8 +301,7 @@ impl From<ArtiConfigBuilder> for TorClientConfigBuilder {
 impl ArtiConfig {
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
-        let builder: TorClientConfigBuilder = self.clone().into();
-        builder.build()
+        Ok(self.tor.clone())
     }
 
     /// Return a new ArtiConfigBuilder.
@@ -440,51 +385,15 @@ impl ArtiConfigBuilder {
             .map_err(|e| e.within("application"))?;
         let proxy = self.proxy.build().map_err(|e| e.within("proxy"))?;
         let logging = self.logging.build().map_err(|e| e.within("logging"))?;
-        let tor_network = self
-            .tor_network
-            .build()
-            .map_err(|e| e.within("tor_network"))?;
-        let storage = self.storage.build().map_err(|e| e.within("storage"))?;
-        let download_schedule = self
-            .download_schedule
-            .build()
-            .map_err(|e| e.within("download_schedule"))?;
-        let override_net_params = self.override_net_params.clone();
-        let path_rules = self
-            .path_rules
-            .build()
-            .map_err(|e| e.within("path_rules"))?;
-        let preemptive_circuits = self
-            .preemptive_circuits
-            .build()
-            .map_err(|e| e.within("preemptive_circuits"))?;
-        let circuit_timing = self
-            .circuit_timing
-            .build()
-            .map_err(|e| e.within("circuit_timing"))?;
-        let address_filter = self
-            .address_filter
-            .build()
-            .map_err(|e| e.within("address_filter"))?;
-        let stream_timeouts = self
-            .stream_timeouts
-            .build()
-            .map_err(|e| e.within("stream_timeouts"))?;
         let system = self.system.build().map_err(|e| e.within("system"))?;
+        let tor = TorClientConfigBuilder::from(self.clone());
+        let tor = tor.build()?;
         Ok(ArtiConfig {
             application,
             proxy,
             logging,
-            tor_network,
-            storage,
-            download_schedule,
-            override_net_params,
-            path_rules,
-            preemptive_circuits,
-            circuit_timing,
-            address_filter,
-            stream_timeouts,
             system,
+            tor,
         })
     }
 
@@ -599,26 +508,6 @@ impl ArtiConfigBuilder {
     }
 }
 
-impl From<ArtiConfig> for ArtiConfigBuilder {
-    fn from(cfg: ArtiConfig) -> ArtiConfigBuilder {
-        ArtiConfigBuilder {
-            application: cfg.application.into(),
-            proxy: cfg.proxy.into(),
-            logging: cfg.logging.into(),
-            storage: cfg.storage.into(),
-            tor_network: cfg.tor_network.into(),
-            download_schedule: cfg.download_schedule.into(),
-            override_net_params: cfg.override_net_params,
-            path_rules: cfg.path_rules.into(),
-            preemptive_circuits: cfg.preemptive_circuits.into(),
-            circuit_timing: cfg.circuit_timing.into(),
-            address_filter: cfg.address_filter.into(),
-            stream_timeouts: cfg.stream_timeouts.into(),
-            system: cfg.system.into(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -642,11 +531,6 @@ mod test {
         let parsed: ArtiConfig = cfg.try_into().unwrap();
         let default = ArtiConfig::default();
         assert_eq!(&parsed, &default);
-
-        // Make sure we can round-trip through the builder.
-        let bld: ArtiConfigBuilder = default.into();
-        let rebuilt = bld.build().unwrap();
-        assert_eq!(&rebuilt, &parsed);
 
         // Make sure that the client configuration this gives us is the default one.
         let client_config = parsed.tor_client_config().unwrap();
@@ -702,11 +586,6 @@ mod test {
         bld.address_filter().allow_local_addrs(true);
 
         let val = bld.build().unwrap();
-
-        // Reconstruct, rebuild, and validate.
-        let bld2 = ArtiConfigBuilder::from(val.clone());
-        let val2 = bld2.build().unwrap();
-        assert_eq!(val, val2);
 
         assert_ne!(val, ArtiConfig::default());
     }
