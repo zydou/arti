@@ -583,12 +583,13 @@ struct BenchmarkSummary {
 }
 
 impl<R: Runtime> Benchmark<R> {
-    /// Run a type of benchmark (`ty`), performing `self.samples` benchmark runs, and using
-    /// `self.streams_per_circ` streams_per_circ connections.
+    /// Run a type of benchmark (`ty`), performing `self.samples` benchmark
+    /// runs, using `self.circs_per_sample` concurrent circuits, and
+    /// `self.streams_per_circ` concurrent streams on each circuit.
     ///
-    /// Uses `stream_generator`, function that returns futures that themselves generate streams,
-    /// in order to obtain the required number of streams to run the test over.  The function takes
-    /// an index of the current run, and a second index of the current stream.
+    /// Uses `stream_generator`, function that returns futures that themselves
+    /// generate streams, in order to obtain the required number of streams to
+    /// run the test over.  The function takes an index of the current run.
     fn run<F, G, S, E>(&mut self, ty: BenchmarkType, mut stream_generator: F) -> Result<()>
     where
         F: FnMut(usize) -> G,
