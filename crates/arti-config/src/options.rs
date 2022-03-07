@@ -359,33 +359,48 @@ impl ArtiConfig {
 ///
 /// Unlike other builder types in Arti, this builder works by exposing an
 /// inner builder for each section in the [`TorClientConfig`].
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
+// This ought to be replaced by a derive-builder generated struct (probably as part of #374),
+// but currently derive-builder can't do this.
 pub struct ArtiConfigBuilder {
     /// Builder for the application section
+    #[serde(default)]
     application: ApplicationConfigBuilder,
     /// Builder for the proxy section.
+    #[serde(default)]
     proxy: ProxyConfigBuilder,
     /// Builder for the logging section.
+    #[serde(default)]
     logging: LoggingConfigBuilder,
     /// Builder for the storage section.
+    #[serde(default)]
     storage: StorageConfigBuilder,
     /// Builder for the tor_network section.
+    #[serde(default)]
     tor_network: dir::NetworkConfigBuilder,
     /// Builder for the download_schedule section.
+    #[serde(default)]
     download_schedule: dir::DownloadScheduleConfigBuilder,
     /// In-progress object for the override_net_params section.
+    #[serde(default)]
     override_net_params: HashMap<String, i32>,
     /// Builder for the path_rules section.
+    #[serde(default)]
     path_rules: circ::PathConfigBuilder,
     /// Builder for the preemptive_circuits section.
+    #[serde(default)]
     preemptive_circuits: circ::PreemptiveCircuitConfigBuilder,
     /// Builder for the circuit_timing section.
+    #[serde(default)]
     circuit_timing: circ::CircuitTimingBuilder,
     /// Builder for the address_filter section.
+    #[serde(default)]
     address_filter: ClientAddrConfigBuilder,
     /// Builder for the stream timeout rules.
+    #[serde(default)]
     stream_timeouts: StreamTimeoutConfigBuilder,
     /// Builder for system resource configuration.
+    #[serde(default)]
     system: SystemConfigBuilder,
 }
 
