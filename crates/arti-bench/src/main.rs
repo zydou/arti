@@ -515,8 +515,10 @@ struct BenchmarkResults {
     ty: BenchmarkType,
     /// The number of times the benchmark was run.
     samples: usize,
-    /// The number of streams_per_circ connections used during the run.
-    connections: usize,
+    /// The number of concurrent streams per circuit used during the run.
+    streams_per_circ: usize,
+    /// The number of circuits used during the run.
+    circuits: usize,
     /// The time to first byte (TTFB) for the download benchmark, in milliseconds.
     download_ttfb_msec: Statistic,
     /// The average download speed, in megabits per second.
@@ -532,7 +534,12 @@ struct BenchmarkResults {
 
 impl BenchmarkResults {
     /// Generate summarized benchmark results from raw run data.
-    fn generate(ty: BenchmarkType, connections: usize, raw: Vec<TimingSummary>) -> Self {
+    fn generate(
+        ty: BenchmarkType,
+        streams_per_circ: usize,
+        circuits: usize,
+        raw: Vec<TimingSummary>,
+    ) -> Self {
         let download_ttfb_msecs = raw
             .iter()
             .map(|s| s.download_ttfb_sec * 1000.0)
@@ -553,7 +560,8 @@ impl BenchmarkResults {
         BenchmarkResults {
             ty,
             samples,
-            connections,
+            streams_per_circ,
+            circuits,
             download_ttfb_msec: Statistic::from_samples(download_ttfb_msecs),
             download_rate_megabit: Statistic::from_samples(download_rate_megabits),
             upload_ttfb_msec: Statistic::from_samples(upload_ttfb_msecs),
@@ -615,7 +623,8 @@ impl<R: Runtime> Benchmark<R> {
                 .collect::<Result<Vec<_>>>()?;
             results.extend(stats);
         }
-        let results = BenchmarkResults::generate(ty, self.streams_per_circ, results);
+        let results =
+            BenchmarkResults::generate(ty, self.streams_per_circ, self.circs_per_sample, results);
         self.results.insert(ty, results);
         Ok(())
     }
