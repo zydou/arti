@@ -194,7 +194,6 @@ mod test {
         assert_eq!(p.path().unwrap().to_str(), Some("/usr/local/foo"));
     }
 
-    // FIXME: Add test for windows
     #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_home() {
@@ -209,12 +208,35 @@ mod test {
         assert_eq!(p.path().unwrap().to_str(), expected.to_str());
     }
 
-    // FIXME: Add test for windows
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn expand_home() {
+        let p = CfgPath::new("~\\.arti\\config".to_string());
+        assert_eq!(p.to_string(), "~\\.arti\\config".to_string());
+
+        let expected = dirs::home_dir().unwrap().join(".arti\\config");
+        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+
+        let p = CfgPath::new("${USER_HOME}\\.arti\\config".to_string());
+        assert_eq!(p.to_string(), "${USER_HOME}\\.arti\\config".to_string());
+        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+    }
+
     #[cfg(not(target_family = "windows"))]
     #[test]
     fn expand_cache() {
         let p = CfgPath::new("${ARTI_CACHE}/example".to_string());
         assert_eq!(p.to_string(), "${ARTI_CACHE}/example".to_string());
+
+        let expected = project_dirs().unwrap().cache_dir().join("example");
+        assert_eq!(p.path().unwrap().to_str(), expected.to_str());
+    }
+
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn expand_cache() {
+        let p = CfgPath::new("${ARTI_CACHE}\\example".to_string());
+        assert_eq!(p.to_string(), "${ARTI_CACHE}\\example".to_string());
 
         let expected = project_dirs().unwrap().cache_dir().join("example");
         assert_eq!(p.path().unwrap().to_str(), expected.to_str());
