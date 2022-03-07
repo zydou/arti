@@ -35,7 +35,7 @@
 //!      o With various errors
 //!      o by timing out
 //!      - sporadically
-//!      - by succeeding and black-holing data.
+//!      o by succeeding and black-holing data.
 //!      - depending on address / port / family
 //!      o Install this after a delay
 //!   - make TLS fail

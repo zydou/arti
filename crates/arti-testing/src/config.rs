@@ -66,7 +66,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
             Arg::with_name("tcp-failure")
                 .long("tcp-failure")
                 .takes_value(true)
-                .value_name("none|timeout|error")
+                .value_name("none|timeout|error|blackhole")
                 .global(true),
         )
         .arg(
