@@ -33,7 +33,10 @@ the SQLite 3 development files and shellcheck to successfully run git hooks.
 
 - [Git](https://git-scm.com/downloads) note, for Linux, macOS, and some
   Unix-like devices Git may be available via a package manager; `apt`, `brew`,
-  `yum`, `pacman`, etc.
+  `yum`, `pacman`, etc. Git needs to be compiled with PCRE support to allow
+  the use of `git grep -P` in the git hooks. PCRE support is the default in
+  some packages, but if you compile from source set `USE_LIBPCRE=YesPlease`
+  when running `make` or `--with-libpcre` when running `./configure`.
 
 - SQLite 3 development files (e.g. available via `apt install libsqlite3-dev`)
   
