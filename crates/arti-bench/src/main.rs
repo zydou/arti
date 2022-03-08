@@ -149,11 +149,17 @@ impl TimingSummary {
     }
 }
 
+/// How much should we be willing to read at a time?
+const RECV_BUF_LEN: usize = 8192;
+
 /// Run the timing routine
 fn run_timing(mut stream: TcpStream, send: &Arc<[u8]>, receive: &Arc<[u8]>) -> Result<()> {
     let peer_addr = stream.peer_addr()?;
-    // Do this potentially costly allocation before we do all the timing stuff.
-    let mut received = vec![0_u8; receive.len()];
+    let mut received = vec![0_u8; RECV_BUF_LEN];
+    let expected_len = receive.len();
+    let mut expected = receive.deref();
+    let mut mismatch = false;
+    let mut total_read = 0;
 
     info!("Accepted connection from {}", peer_addr);
     let accepted_ts = SystemTime::now();
@@ -168,15 +174,26 @@ fn run_timing(mut stream: TcpStream, send: &Arc<[u8]>, receive: &Arc<[u8]>) -> R
         panic!("unexpected EOF");
     }
     let first_byte_ts = SystemTime::now();
-    stream.read_exact(&mut received[read..])?;
+    if received[0..read] != expected[0..read] {
+        mismatch = true;
+    }
+    expected = &expected[read..];
+    total_read += read;
+    while total_read < expected_len {
+        let read = stream.read(&mut received)?;
+        if read == 0 {
+            panic!("unexpected eof");
+        }
+        if received[0..read] != expected[0..read] {
+            mismatch = true;
+        }
+        expected = &expected[read..];
+        total_read += read;
+    }
     let read_done_ts = SystemTime::now();
-    info!(
-        "Received {} bytes payload from {}.",
-        received.len(),
-        peer_addr
-    );
+    info!("Received {} bytes payload from {}.", total_read, peer_addr);
     // Check we actually got what we thought we would get.
-    if received != receive.deref() {
+    if mismatch {
         panic!("Received data doesn't match expected; potential corruption?");
     }
     let st = ServerTiming {
