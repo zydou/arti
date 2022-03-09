@@ -129,7 +129,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         const N_ATTEMPTS: usize = 2;
 
         // TODO(nickm): It would be neat to use tor_retry instead.
-        let mut last_err = Err(Error::Internal(internal!("Error was never set!?")));
+        let mut last_err = None;
 
         for _ in 0..N_ATTEMPTS {
             // First, see what state we're in, and what we should do
@@ -183,11 +183,11 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                 Action::Wait(pend) => match pend.await {
                     Ok(Ok(chan)) => return Ok(chan),
                     Ok(Err(e)) => {
-                        last_err = Err(e);
+                        last_err = Some(e);
                     }
                     Err(_) => {
                         last_err =
-                            Err(Error::Internal(internal!("channel build task disappeared")));
+                            Some(Error::Internal(internal!("channel build task disappeared")));
                     }
                 },
                 // We need to launch a channel.
@@ -215,13 +215,13 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         self.channels.remove(&ident)?;
                         // (As above)
                         let _ignore_err = send.send(Err(e.clone()));
-                        last_err = Err(e);
+                        last_err = Some(e);
                     }
                 },
             }
         }
 
-        last_err
+        Err(last_err.unwrap_or_else(|| Error::Internal(internal!("no error was set!?"))))
     }
 
     /// Expire any channels that have been unused longer than
