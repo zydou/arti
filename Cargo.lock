@@ -200,6 +200,7 @@ dependencies = [
  "futures",
  "notify",
  "pin-project",
+ "rand 0.8.5",
  "rlimit",
  "serde",
  "tokio",

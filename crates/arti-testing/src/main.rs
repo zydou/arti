@@ -29,10 +29,22 @@
 //!
 //! # TODO
 //!
-//! - make TCP connections fail
-//! - do something on the connection
-//! - look at bootstrapping status and events
-//! - look at trace messages
+//! - More ways to break
+//!   - make TCP connections fail only sporadically
+//!   - make TLS fail
+//!      - With wrong cert
+//!      - Mysteriously
+//!      - With complete junk
+//!      - TLS succeeds, then sends nonsense
+//!      - Authenticating with wrong ID.
+//!   - Munge directory before using it
+//!      - May require some dirmgr plug-in. :p
+//!      - May require
+//!
+//! - More things to look at
+//!   - do something on the connection
+//!   - look at bootstrapping status and events
+//!   - Make streams repeatedly on different circuits with some delay.
 //! - Make sure we can replicate all/most test situations from arti#329
 //! - Actually implement those tests.
 
@@ -73,6 +85,8 @@ mod traces;
 
 use arti_client::TorClient;
 use arti_config::ArtiConfig;
+use futures::task::SpawnExt;
+use rt::badtcp::BrokenTcpProvider;
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
 use anyhow::{anyhow, Result};
@@ -124,11 +138,68 @@ impl FromStr for Expectation {
     }
 }
 
+/// At what stage to install a kind of breakage
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BreakageStage {
+    /// Create breakage while bootstrapping
+    Bootstrap,
+    /// Create breakage while connecting
+    Connect,
+}
+
+impl FromStr for BreakageStage {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "bootstrap" => BreakageStage::Bootstrap,
+            "connect" => BreakageStage::Connect,
+            _ => return Err(anyhow!("unrecognized breakage stage {:?}", s)),
+        })
+    }
+}
+
+/// Describes how (if at all) to break TCP connection attempts
+#[derive(Debug, Clone)]
+struct TcpBreakage {
+    /// What kind of breakage to install (if any)
+    action: rt::badtcp::ConditionalAction,
+    /// What stage to apply the breakage at.
+    stage: BreakageStage,
+    /// Delay (if any) after the start of the stage to apply breakage
+    delay: Option<Duration>,
+}
+
+impl TcpBreakage {
+    /// Apply the configured breakage to breakage_provider.  Use `main_runtime` to sleep if necessary.
+    fn apply<R: Runtime, R2: Send + Sync + 'static>(
+        &self,
+        main_runtime: &R,
+        breakage_provider: BrokenTcpProvider<R2>,
+    ) {
+        if let Some(delay) = self.delay {
+            let rt_clone = main_runtime.clone();
+            let action = self.action.clone();
+            main_runtime
+                .spawn(async move {
+                    rt_clone.sleep(delay).await;
+                    breakage_provider.set_action(action);
+                })
+                .expect("can't spawn.");
+        } else {
+            breakage_provider.set_action(self.action.clone());
+        }
+    }
+}
+
 /// Descriptions of an action to take, and what to expect as an outcome.
 #[derive(Debug, Clone)]
 struct Job {
     /// The action that the client should try to take
     action: Action,
+
+    /// Describes how (if at all) to break the TCP connections.
+    tcp_breakage: TcpBreakage,
 
     /// The tracing configuration for our console log.
     console_log: String,
@@ -154,7 +225,16 @@ impl Job {
     }
 
     /// Run the body of a job.
-    async fn run_job_inner<R: Runtime>(&self, client: TorClient<R>) -> Result<()> {
+    async fn run_job_inner<R: Runtime, R2: Send + Sync + Clone + 'static>(
+        &self,
+        broken_tcp: rt::badtcp::BrokenTcpProvider<R2>,
+        client: TorClient<R>,
+    ) -> Result<()> {
+        if self.tcp_breakage.stage == BreakageStage::Bootstrap {
+            self.tcp_breakage
+                .apply(client.runtime(), broken_tcp.clone());
+        }
+
         client.bootstrap().await?; // all jobs currently start with a bootstrap.
 
         match &self.action {
@@ -163,6 +243,11 @@ impl Job {
                 target,
                 retry_delay,
             } => {
+                if self.tcp_breakage.stage == BreakageStage::Connect {
+                    self.tcp_breakage
+                        .apply(client.runtime(), broken_tcp.clone());
+                }
+
                 loop {
                     let outcome = client.connect(target).await;
                     match (outcome, retry_delay) {
@@ -182,11 +267,18 @@ impl Job {
     /// XXXX Eventually this should come up with some kind of result that's meaningful.
     async fn run_job(&self) -> Result<()> {
         let runtime = PreferredRuntime::current()?;
-        let tcp = rt::count::Counting::new_zeroed(runtime.clone());
+        let broken_tcp = rt::badtcp::BrokenTcpProvider::new(
+            runtime.clone(),
+            rt::badtcp::ConditionalAction::default(),
+        );
+        // We put the counting TCP provider outside the one that breaks: we want
+        // to know how many attempts to connect there are, and BrokenTcpProvider
+        // eats the attempts that it fails without passing them down the stack.
+        let counting_tcp = rt::count::Counting::new_zeroed(broken_tcp.clone());
         let runtime = tor_rtcompat::CompoundRuntime::new(
             runtime.clone(),
             runtime.clone(),
-            tcp.clone(),
+            counting_tcp.clone(),
             runtime,
         );
         let client = self.make_client(runtime)?;
@@ -194,7 +286,7 @@ impl Job {
         let outcome = client
             .clone()
             .runtime()
-            .timeout(self.timeout, self.run_job_inner(client))
+            .timeout(self.timeout, self.run_job_inner(broken_tcp.clone(), client))
             .await;
 
         let result = match (&self.expectation, outcome) {
@@ -223,7 +315,7 @@ impl Job {
             }
         };
 
-        println!("TCP stats: {:?}", tcp.counts());
+        println!("TCP stats: {:?}", counting_tcp.counts());
 
         result
     }

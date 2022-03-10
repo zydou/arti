@@ -1,6 +1,7 @@
 //! Reading configuration and command line issues in arti-testing.
 
-use crate::{Action, Job};
+use crate::rt::badtcp::ConditionalAction;
+use crate::{Action, Job, TcpBreakage};
 
 use anyhow::{anyhow, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
@@ -62,6 +63,34 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .value_name("success|failure|timeout")
                 .global(true),
         )
+        .arg(
+            Arg::with_name("tcp-failure")
+                .long("tcp-failure")
+                .takes_value(true)
+                .value_name("none|timeout|error|blackhole")
+                .global(true),
+        )
+        .arg(
+            Arg::with_name("tcp-failure-on")
+                .long("tcp-failure-on")
+                .takes_value(true)
+                .value_name("all|v4|v6|non443")
+                .global(true),
+        )
+        .arg(
+            Arg::with_name("tcp-failure-stage")
+                .long("tcp-failure-stage")
+                .takes_value(true)
+                .value_name("bootstrap|connect")
+                .global(true),
+        )
+        .arg(
+            Arg::with_name("tcp-failure-delay")
+                .long("tcp-failure-delay")
+                .takes_value(true)
+                .value_name("SECS")
+                .global(true),
+        )
         .subcommand(
             SubCommand::with_name("connect")
                 .about("Try to bootstrap and connect to an address")
@@ -117,6 +146,29 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         .map(crate::Expectation::from_str)
         .transpose()?;
 
+    let tcp_breakage = {
+        let action = matches.value_of("tcp-failure").unwrap_or("none").parse()?;
+        let stage = matches
+            .value_of("tcp-failure-stage")
+            .unwrap_or("bootstrap")
+            .parse()?;
+        let delay = matches
+            .value_of("tcp-failure-delay")
+            .map(|d| d.parse().map(Duration::from_secs))
+            .transpose()?;
+        let when = matches
+            .value_of("tcp-failure-on")
+            .unwrap_or("all")
+            .parse()?;
+        let action = ConditionalAction { action, when };
+
+        TcpBreakage {
+            action,
+            stage,
+            delay,
+        }
+    };
+
     let action = if let Some(_m) = matches.subcommand_matches("bootstrap") {
         Action::Bootstrap
     } else if let Some(matches) = matches.subcommand_matches("connect") {
@@ -138,6 +190,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         action,
         config,
         timeout,
+        tcp_breakage,
         console_log,
         expectation,
     })
