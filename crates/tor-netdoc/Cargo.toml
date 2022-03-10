@@ -6,15 +6,15 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Network document formats used with the Tor protocols."
-keywords = [ "tor", "arti" ]
-categories = [ "parser-implementations" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti"]
+categories = ["parser-implementations"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
 
 # Enable code to build the objects that represent different network documents.
-build_docs = [ "rand" ]
+build_docs = ["rand"]
 
 # Enable the "router descriptor" document type, which is needed by relays and
 # bridge clients.
@@ -30,12 +30,12 @@ ns_consensus = []
 experimental-api = []
 
 [dependencies]
-tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
-tor-bytes = { path="../tor-bytes", version = "0.1.0"}
-tor-cert = { path="../tor-cert", version = "0.1.0"}
-tor-protover = { path="../tor-protover", version = "0.1.0"}
-tor-checkable = { path="../tor-checkable", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.1.0" }
+tor-cert = { path = "../tor-cert", version = "0.1.0" }
+tor-protover = { path = "../tor-protover", version = "0.1.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
 
 base64 = "0.13.0"
 bitflags = "1"
