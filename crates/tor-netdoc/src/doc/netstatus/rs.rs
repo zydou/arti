@@ -39,7 +39,7 @@ struct GenericRouterStatus<D> {
     ///
     /// Nicknames can be used for convenience purpose, but no more:
     /// there is no mechanism to enforce their uniqueness.
-    nickname: String,
+    nickname: Nickname,
     /// Fingerprint of the old-style RSA identity for this relay.
     identity: RsaIdentity,
     /// A list of address:port values where this relay can be reached.
@@ -115,8 +115,8 @@ macro_rules! implement_accessors {
                 &self.rs.protos
             }
             /// Return the nickname of this routerstatus.
-            pub fn nickname(&self) -> &String {
-                &self.rs.nickname
+            pub fn nickname(&self) -> &str {
+                self.rs.nickname.as_str()
             }
             /// Return the relay flags of this routerstatus.
             pub fn flags(&self) -> &RelayFlags {
@@ -177,7 +177,7 @@ where
         use NetstatusKwd::*;
         // R line
         let r_item = sec.required(RS_R)?;
-        let nickname = r_item.required_arg(0)?.to_string();
+        let nickname = r_item.required_arg(0)?.parse()?;
         let ident = r_item.required_arg(1)?.parse::<B64>()?;
         let identity = RsaIdentity::from_bytes(ident.as_bytes()).ok_or_else(|| {
             EK::BadArgument

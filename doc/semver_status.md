@@ -31,6 +31,11 @@ MODIFIED: New APIs for CachedDir, Error.
 
 BREAKING: Added new cache_trust element to DirMgrConfig.
 
+### tor-netdoc
+
+BREAKING: Routerstatus::nickname() now returns &str, not &String.
+
 ### tor-persist
 
 +BREAKING: Replaced from_path with from_path_and_mistrust
+

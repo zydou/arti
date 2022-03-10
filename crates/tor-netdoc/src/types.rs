@@ -7,3 +7,6 @@ pub mod family;
 pub(crate) mod misc;
 pub mod policy;
 pub mod version;
+
+#[cfg(feature = "dangerous-expose-struct-fields")]
+pub use misc::Nickname;

@@ -100,7 +100,7 @@ pub struct RouterDesc {
     /// Human-readable nickname for this relay.
     ///
     /// This is not secure, and not guaranteed to be unique.
-    nickname: String,
+    nickname: Nickname,
     /// IPv4 address for this relay.
     ipv4addr: Option<net::Ipv4Addr>,
     /// IPv4 ORPort for this relay.
@@ -481,10 +481,7 @@ impl RouterDesc {
         let (nickname, ipv4addr, orport, dirport) = {
             let rtrline = header.required(ROUTER)?;
             (
-                // Unwrap should be safe because above `required` should return
-                // an `Error::MissingToken` if `ROUTER` is not `Ok`
-                #[allow(clippy::unwrap_used)]
-                rtrline.arg(0).unwrap().to_string(),
+                rtrline.parse_arg::<Nickname>(0)?,
                 Some(rtrline.parse_arg::<net::Ipv4Addr>(1)?),
                 rtrline.parse_arg(2)?,
                 // Skipping socksport.
@@ -815,7 +812,7 @@ mod test {
             .check_signature()?
             .dangerously_assume_timely();
 
-        assert_eq!(rd.nickname, "idun2");
+        assert_eq!(rd.nickname.as_str(), "idun2");
         assert_eq!(rd.orport, 9001);
         assert_eq!(rd.dirport, 0);
 
