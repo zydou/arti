@@ -1,7 +1,54 @@
 #!/bin/bash
+
 set -xe
 
-target="${1:-networks/basic}"
+SCRIPT_NAME=$(basename "$0")
+
+function usage()
+{
+    cat <<EOF
+${SCRIPT_NAME}: Launch a chutney network to test arti
+
+Usage:
+  ${SCRIPT_NAME} [modules] : Launch chutney, and the provided modules.
+
+Options:
+  -h: Print this message.
+  -n <network>: Name of the chutney network to launch (default: basic)
+
+Modules:
+  "proxy": Launch a arti-based SOCKS proxy.
+EOF
+}
+
+PROXY=no
+NETWORK="basic"
+while getopts "hn:" opt ; do
+    case "$opt" in
+	h) usage
+	   exit 0
+	   ;;
+	n) NETWORK="$OPTARG"
+	   ;;
+	*) echo "Unknown option. (Run $0 -h for usage)"
+	   exit 1
+	   ;;
+    esac
+done
+
+# Remove the parsed flags
+shift $((OPTIND-1))
+
+for module in "$@"; do
+    case "$module" in
+	proxy) PROXY=yes
+	       ;;
+	*) echo "Unrecognized module. (Run $0 -h for usage)"
+	   ;;
+    esac
+done
+
+target="networks/$NETWORK"
 cd "$(git rev-parse --show-toplevel)"
 
 if [ -z "${CHUTNEY_PATH}" ]; then
@@ -27,6 +74,10 @@ fi
 "${CHUTNEY_PATH}"/chutney start "${CHUTNEY_PATH}/$target"
 CHUTNEY_START_TIME=180 "${CHUTNEY_PATH}"/chutney wait_for_bootstrap "${CHUTNEY_PATH}/$target"
 "${CHUTNEY_PATH}"/chutney verify "${CHUTNEY_PATH}/$target"
+
+if [ "$PROXY" = "no" ] ; then
+    exit 0
+fi
 
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
