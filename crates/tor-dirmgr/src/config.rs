@@ -28,6 +28,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information, if
     /// we don't actually have a directory yet.
@@ -59,16 +60,6 @@ impl Default for NetworkConfig {
             fallback_caches: fallbacks::default_fallbacks(),
             authorities: crate::authority::default_authorities(),
         }
-    }
-}
-
-impl From<NetworkConfig> for NetworkConfigBuilder {
-    fn from(cfg: NetworkConfig) -> NetworkConfigBuilder {
-        let mut builder = NetworkConfigBuilder::default();
-        builder
-            .fallback_caches(cfg.fallback_caches)
-            .authorities(cfg.authorities);
-        builder
     }
 }
 
@@ -110,6 +101,7 @@ impl NetworkConfigBuilder {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[serde(default = "default_retry_bootstrap")]
@@ -157,18 +149,6 @@ impl DownloadScheduleConfig {
     }
 }
 
-impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
-    fn from(cfg: DownloadScheduleConfig) -> DownloadScheduleConfigBuilder {
-        let mut builder = DownloadScheduleConfigBuilder::default();
-        builder
-            .retry_bootstrap(cfg.retry_bootstrap)
-            .retry_consensus(cfg.retry_consensus)
-            .retry_certs(cfg.retry_certs)
-            .retry_microdescs(cfg.retry_microdescs);
-        builder
-    }
-}
-
 /// Configuration type for network directory operations.
 ///
 /// This type is immutable once constructed.
@@ -181,6 +161,7 @@ impl From<DownloadScheduleConfig> for DownloadScheduleConfigBuilder {
 /// running Arti client. Those that cannot are documented.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
     /// directory information.

@@ -27,6 +27,7 @@ use std::net::SocketAddr;
 // be future-proof against adding new info about each fallback.
 #[derive(Debug, Clone, Deserialize, Builder, Eq, PartialEq)]
 #[builder(build_fn(validate = "FallbackDirBuilder::validate", error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
     rsa_identity: RsaIdentity,

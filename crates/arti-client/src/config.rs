@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
+pub use tor_basic_utils::humantime_serde_option;
 pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
@@ -46,6 +47,7 @@ pub mod dir {
 /// and requests.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
@@ -67,6 +69,7 @@ pub struct ClientAddrConfig {
 /// and requests—even those that are currently waiting.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct StreamTimeoutConfig {
@@ -74,17 +77,20 @@ pub struct StreamTimeoutConfig {
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
     #[serde(with = "humantime_serde", default = "default_connect_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
 
@@ -95,14 +101,6 @@ pub struct StreamTimeoutConfig {
 impl Default for ClientAddrConfig {
     fn default() -> Self {
         ClientAddrConfigBuilder::default().build().unwrap()
-    }
-}
-
-impl From<ClientAddrConfig> for ClientAddrConfigBuilder {
-    fn from(cfg: ClientAddrConfig) -> ClientAddrConfigBuilder {
-        let mut builder = ClientAddrConfigBuilder::default();
-        builder.allow_local_addrs(cfg.allow_local_addrs);
-        builder
     }
 }
 
@@ -117,18 +115,6 @@ impl ClientAddrConfig {
 impl Default for StreamTimeoutConfig {
     fn default() -> Self {
         StreamTimeoutConfigBuilder::default().build().unwrap()
-    }
-}
-
-impl From<StreamTimeoutConfig> for StreamTimeoutConfigBuilder {
-    fn from(cfg: StreamTimeoutConfig) -> StreamTimeoutConfigBuilder {
-        let mut builder = StreamTimeoutConfigBuilder::default();
-        builder
-            .connect_timeout(cfg.connect_timeout)
-            .resolve_timeout(cfg.resolve_timeout)
-            .resolve_ptr_timeout(cfg.resolve_ptr_timeout);
-
-        builder
     }
 }
 
@@ -172,6 +158,7 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct StorageConfig {
     /// Location on disk for cached directory information.
     #[builder(setter(into), default = "default_cache_dir()")]
@@ -225,20 +212,13 @@ impl StorageConfig {
     }
 }
 
-impl From<StorageConfig> for StorageConfigBuilder {
-    fn from(cfg: StorageConfig) -> StorageConfigBuilder {
-        let mut builder = StorageConfigBuilder::default();
-        builder.state_dir(cfg.state_dir).cache_dir(cfg.cache_dir);
-        builder
-    }
-}
-
 /// Configuration for system resources used by Tor.
 ///
 /// You cannot change this section on a running Arti client.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[non_exhaustive]
 pub struct SystemConfig {
     /// Maximum number of file descriptors we should launch with
@@ -262,14 +242,6 @@ impl SystemConfig {
     /// Return a new SystemConfigBuilder.
     pub fn builder() -> SystemConfigBuilder {
         SystemConfigBuilder::default()
-    }
-}
-
-impl From<SystemConfig> for SystemConfigBuilder {
-    fn from(cfg: SystemConfig) -> SystemConfigBuilder {
-        let mut builder = SystemConfigBuilder::default();
-        builder.max_files(cfg.max_files);
-        builder
     }
 }
 
@@ -556,36 +528,6 @@ impl TorClientConfigBuilder {
     }
 }
 
-impl From<TorClientConfig> for TorClientConfigBuilder {
-    fn from(cfg: TorClientConfig) -> TorClientConfigBuilder {
-        let TorClientConfig {
-            tor_network,
-            storage,
-            download_schedule,
-            override_net_params,
-            path_rules,
-            preemptive_circuits,
-            circuit_timing,
-            address_filter,
-            stream_timeouts,
-            system,
-        } = cfg;
-
-        TorClientConfigBuilder {
-            tor_network: tor_network.into(),
-            storage: storage.into(),
-            download_schedule: download_schedule.into(),
-            override_net_params,
-            path_rules: path_rules.into(),
-            preemptive_circuits: preemptive_circuits.into(),
-            circuit_timing: circuit_timing.into(),
-            address_filter: address_filter.into(),
-            stream_timeouts: stream_timeouts.into(),
-            system: system.into(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -594,7 +536,7 @@ mod test {
     #[test]
     fn defaults() {
         let dflt = TorClientConfig::default();
-        let b2 = TorClientConfigBuilder::from(dflt.clone());
+        let b2 = TorClientConfigBuilder::default();
         let dflt2 = b2.build().unwrap();
         assert_eq!(&dflt, &dflt2);
     }
@@ -639,11 +581,6 @@ mod test {
         bld.address_filter().allow_local_addrs(true);
 
         let val = bld.build().unwrap();
-
-        // Reconstruct, rebuild, and validate.
-        let bld2 = TorClientConfigBuilder::from(val.clone());
-        let val2 = bld2.build().unwrap();
-        assert_eq!(val, val2);
 
         assert_ne!(val, TorClientConfig::default());
     }

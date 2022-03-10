@@ -33,7 +33,7 @@ tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0"}
 
 async-trait = "0.1.2"
 base64 = "0.13.0"
-derive_builder = "0.10"
+derive_builder = "0.10.2"
 derive_more = "0.99"
 digest = "0.10.0"
 educe = "0.4.6"

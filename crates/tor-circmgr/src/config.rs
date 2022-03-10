@@ -4,6 +4,7 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use tor_basic_utils::humantime_serde_option;
 use tor_config::ConfigBuildError;
 
 use derive_builder::Builder;
@@ -22,6 +23,7 @@ use std::time::Duration;
 /// restrictive.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
@@ -81,16 +83,6 @@ impl Default for PathConfig {
     }
 }
 
-impl From<PathConfig> for PathConfigBuilder {
-    fn from(cfg: PathConfig) -> PathConfigBuilder {
-        let mut builder = PathConfigBuilder::default();
-        builder
-            .ipv4_subnet_family_prefix(cfg.ipv4_subnet_family_prefix)
-            .ipv6_subnet_family_prefix(cfg.ipv6_subnet_family_prefix);
-        builder
-    }
-}
-
 /// Configuration for preemptive circuits.
 ///
 /// Preemptive circuits are built ahead of time, to anticipate client need. This
@@ -103,6 +95,7 @@ impl From<PathConfig> for PathConfigBuilder {
 /// Except as noted, this configuration can be changed on a running Arti client.
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 pub struct PreemptiveCircuitConfig {
     /// If we have at least this many available circuits, we suspend
@@ -128,6 +121,7 @@ pub struct PreemptiveCircuitConfig {
     /// available for that port?
     #[builder(default = "default_preemptive_duration()")]
     #[serde(with = "humantime_serde", default = "default_preemptive_duration")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) prediction_lifetime: Duration,
 
     /// How many available circuits should we try to have, at minimum, for each
@@ -149,12 +143,14 @@ pub struct PreemptiveCircuitConfig {
 /// [#263](https://gitlab.torproject.org/tpo/core/arti/-/issues/263).
 #[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 #[serde(deny_unknown_fields)]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     #[builder(default = "default_max_dirtiness()")]
     #[serde(with = "humantime_serde", default = "default_max_dirtiness")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) max_dirtiness: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
@@ -162,6 +158,7 @@ pub struct CircuitTiming {
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_timeout()")]
     #[serde(with = "humantime_serde", default = "default_request_timeout")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
@@ -176,6 +173,7 @@ pub struct CircuitTiming {
     /// request.
     #[builder(default = "default_request_loyalty()")]
     #[serde(with = "humantime_serde", default = "default_request_loyalty")]
+    #[builder(attrs(serde(with = "humantime_serde_option")))]
     pub(crate) request_loyalty: Duration,
 }
 
@@ -236,18 +234,6 @@ impl CircuitTiming {
     }
 }
 
-impl From<CircuitTiming> for CircuitTimingBuilder {
-    fn from(cfg: CircuitTiming) -> CircuitTimingBuilder {
-        let mut builder = CircuitTimingBuilder::default();
-        builder
-            .max_dirtiness(cfg.max_dirtiness)
-            .request_timeout(cfg.request_timeout)
-            .request_max_retries(cfg.request_max_retries)
-            .request_loyalty(cfg.request_loyalty);
-        builder
-    }
-}
-
 impl Default for PreemptiveCircuitConfig {
     fn default() -> Self {
         PreemptiveCircuitConfigBuilder::default()
@@ -260,18 +246,6 @@ impl PreemptiveCircuitConfig {
     /// Return a new [`PreemptiveCircuitConfigBuilder`]
     pub fn builder() -> PreemptiveCircuitConfigBuilder {
         PreemptiveCircuitConfigBuilder::default()
-    }
-}
-
-impl From<PreemptiveCircuitConfig> for PreemptiveCircuitConfigBuilder {
-    fn from(cfg: PreemptiveCircuitConfig) -> PreemptiveCircuitConfigBuilder {
-        let mut builder = PreemptiveCircuitConfigBuilder::default();
-        builder
-            .disable_at_threshold(cfg.disable_at_threshold)
-            .initial_predicted_ports(cfg.initial_predicted_ports)
-            .prediction_lifetime(cfg.prediction_lifetime)
-            .min_exit_circs_for_port(cfg.min_exit_circs_for_port);
-        builder
     }
 }
 
