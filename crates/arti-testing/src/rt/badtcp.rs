@@ -18,7 +18,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 /// An action that we can take upon trying to make a TCP connection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum Action {
     /// Let the connection work as intended.
     Work,
@@ -135,7 +135,7 @@ impl<R> BrokenTcpProvider<R> {
     fn get_action(&self, addr: &SocketAddr) -> Action {
         let action = self.action.lock().expect("Lock poisoned");
         if action.applies_to(addr) {
-            action.action.clone()
+            action.action
         } else {
             Action::Work
         }
