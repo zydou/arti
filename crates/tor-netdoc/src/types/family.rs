@@ -3,7 +3,10 @@
 //! Families are opt-in lists of relays with the same operators,
 //! used to avoid building insecure circuits.
 
+use std::sync::Arc;
+
 use crate::types::misc::LongIdent;
+use crate::util::intern::InternCache;
 use crate::{Error, Result};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -19,13 +22,37 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 /// entries, including entries that are only nicknames.
 ///
 /// TODO: This type probably belongs in a different crate.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct RelayFamily(Vec<RsaIdentity>);
+
+/// Cache of RelayFamily objects, for saving memory.
+//
+/// This only holds weak references to the policy objects, so we don't
+/// need to worry about running out of space because of stale entries.
+static FAMILY_CACHE: InternCache<RelayFamily> = InternCache::new();
 
 impl RelayFamily {
     /// Return a new empty RelayFamily.
     pub fn new() -> Self {
         RelayFamily::default()
+    }
+
+    /// Add `rsa_id` to this family.
+    pub fn push(&mut self, rsa_id: RsaIdentity) {
+        self.0.push(rsa_id);
+    }
+
+    /// Convert this family to a standard format (with all IDs sorted and de-duplicated).
+    fn normalize(&mut self) {
+        self.0.sort();
+        self.0.dedup();
+    }
+
+    /// Consume this family, and return a new canonical interned representation
+    /// of the family.
+    pub fn intern(mut self) -> Arc<Self> {
+        self.normalize();
+        FAMILY_CACHE.intern(self)
     }
 
     /// Does this family include the given relay?
@@ -37,6 +64,11 @@ impl RelayFamily {
     /// family.
     pub fn members(&self) -> impl Iterator<Item = &RsaIdentity> {
         self.0.iter()
+    }
+
+    /// Return true if this family has no members.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 

@@ -136,7 +136,7 @@ impl MicrodescBuilder {
         Ok(Microdesc {
             sha256,
             ntor_onion_key,
-            family: self.family.clone(),
+            family: self.family.clone().intern(),
             ipv4_policy: self.ipv4_policy.clone().intern(),
             ipv6_policy: self.ipv6_policy.clone().intern(),
             ed25519_id,

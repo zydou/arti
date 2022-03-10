@@ -63,7 +63,7 @@ pub struct Microdesc {
     /// Public key used for the ntor circuit extension protocol.
     ntor_onion_key: curve25519::PublicKey,
     /// Declared family for this relay.
-    family: RelayFamily,
+    family: Arc<RelayFamily>,
     /// List of IPv4 ports to which this relay will exit
     ipv4_policy: Arc<PortPolicy>,
     /// List of IPv6 ports to which this relay will exit
@@ -111,7 +111,7 @@ impl Microdesc {
     }
     /// Return the relay family for this microdesc
     pub fn family(&self) -> &RelayFamily {
-        &self.family
+        self.family.as_ref()
     }
     /// Return the ed25519 identity for this microdesc, if its
     /// Ed25519 identity is well-formed.
@@ -277,10 +277,14 @@ impl Microdesc {
             .into();
 
         // family
+        //
+        // (We don't need to add the relay's own ID to this family, as we do in
+        // RouterDescs: the authorities already took care of that for us.)
         let family = body
             .maybe(FAMILY)
             .parse_args_as_str::<RelayFamily>()?
-            .unwrap_or_else(RelayFamily::new);
+            .unwrap_or_else(RelayFamily::new)
+            .intern();
 
         // exit policies.
         let ipv4_policy = body

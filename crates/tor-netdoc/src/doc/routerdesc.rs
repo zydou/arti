@@ -131,9 +131,7 @@ pub struct RouterDesc {
     is_extrainfo_cache: bool,
     /// Declared family members for this relay.  If two relays are in the
     /// same family, they shouldn't be used in the same circuit.
-    // TODO: these families can get bulky. Perhaps we should de-duplicate
-    // them in a cache, like Tor does.
-    family: Option<RelayFamily>,
+    family: Arc<RelayFamily>,
     /// Software and version that this relay says it's running.
     platform: Option<RelayPlatform>,
     /// A complete address-level policy for which IPv4 addresses this relay
@@ -568,7 +566,21 @@ impl RouterDesc {
         }
 
         // Family
-        let family = body.maybe(FAMILY).parse_args_as_str::<RelayFamily>()?;
+        let family = {
+            let mut family = body
+                .maybe(FAMILY)
+                .parse_args_as_str::<RelayFamily>()?
+                .unwrap_or_else(RelayFamily::new);
+            if !family.is_empty() {
+                // If this family is nonempty, we add our own RSA id to it, on
+                // the theory that doing so will improve the odds of having a
+                // canonical family shared by all of the members of this family.
+                // If the family is empty, there's no point in adding our own ID
+                // to it, and doing so would only waste memory.
+                family.push(rsa_identity.to_rsa_identity());
+            }
+            family.intern()
+        };
 
         // or-address
         // Extract at most one ipv6 address from the list.  It's not great,
