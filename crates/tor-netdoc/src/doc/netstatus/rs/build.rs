@@ -1,6 +1,7 @@
 //! Provide builder functionality for routerstatuses.
 
 use super::{GenericRouterStatus, MdConsensusRouterStatus};
+use crate::doc;
 use crate::doc::microdesc::MdDigest;
 use crate::doc::netstatus::{ConsensusBuilder, RelayFlags, RelayWeight};
 use crate::{BuildError as Error, BuildResult as Result};
@@ -143,7 +144,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
             addrs: self.addrs.clone(),
             doc_digest,
             version,
-            protos,
+            protos: doc::PROTOVERS_CACHE.intern(protos),
             flags: self.flags,
             weight,
         })

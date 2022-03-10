@@ -10,6 +10,7 @@ mod md;
 mod ns;
 
 use super::{NetstatusKwd, RelayFlags, RelayWeight};
+use crate::doc;
 use crate::parse::parser::Section;
 use crate::types::misc::*;
 use crate::types::version::TorVersion;
@@ -44,7 +45,7 @@ struct GenericRouterStatus<D> {
     /// Version of the software that this relay is running.
     version: Option<Version>,
     /// List of subprotocol versions supported by this relay.
-    protos: Protocols,
+    protos: Arc<Protocols>,
     /// Information about how to weight this relay when choosing a
     /// relay at random.
     weight: RelayWeight,
@@ -212,9 +213,11 @@ where
         // PR line
         let protos = {
             let tok = sec.required(RS_PR)?;
-            tok.args_as_str()
-                .parse::<Protocols>()
-                .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?
+            doc::PROTOVERS_CACHE.intern(
+                tok.args_as_str()
+                    .parse::<Protocols>()
+                    .map_err(|e| EK::BadArgument.at_pos(tok.pos()).with_source(e))?,
+            )
         };
 
         // W line

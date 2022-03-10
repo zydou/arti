@@ -39,7 +39,7 @@ use crate::types::family::RelayFamily;
 use crate::types::misc::*;
 use crate::types::policy::*;
 use crate::types::version::TorVersion;
-use crate::{AllowAnnotations, Error, ParseErrorKind as EK, Result};
+use crate::{doc, AllowAnnotations, Error, ParseErrorKind as EK, Result};
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;
@@ -124,7 +124,7 @@ pub struct RouterDesc {
     /// (deprecated) TAP protocol.
     tap_onion_key: ll::pk::rsa::PublicKey,
     /// List of subprotocol versions supported by this relay.
-    proto: tor_protover::Protocols,
+    proto: Arc<tor_protover::Protocols>,
     /// True if this relay says it's a directory cache.
     is_dircache: bool,
     /// True if this relay says that it caches extrainfo documents.
@@ -543,10 +543,12 @@ impl RouterDesc {
         // List of subprotocol versions
         let proto = {
             let proto_tok = body.required(PROTO)?;
-            proto_tok
-                .args_as_str()
-                .parse::<tor_protover::Protocols>()
-                .map_err(|e| EK::BadArgument.at_pos(proto_tok.pos()).with_source(e))?
+            doc::PROTOVERS_CACHE.intern(
+                proto_tok
+                    .args_as_str()
+                    .parse::<tor_protover::Protocols>()
+                    .map_err(|e| EK::BadArgument.at_pos(proto_tok.pos()).with_source(e))?,
+            )
         };
 
         // tunneled-dir-server
