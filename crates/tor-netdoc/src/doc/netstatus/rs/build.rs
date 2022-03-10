@@ -124,7 +124,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
         if self.addrs.is_empty() {
             return Err(Error::CannotBuild("No addresses"));
         }
-        let or_port = self.addrs[0].port();
         let doc_digest = self
             .doc_digest
             .as_ref()
@@ -141,7 +140,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
             nickname,
             identity,
             addrs: self.addrs.clone(),
-            or_port,
             doc_digest,
             version: self.version.clone(),
             protos,

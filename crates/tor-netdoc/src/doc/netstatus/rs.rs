@@ -34,9 +34,6 @@ struct GenericRouterStatus<D> {
     identity: RsaIdentity,
     /// A list of address:port values where this relay can be reached.
     addrs: Vec<net::SocketAddr>,
-    /// Declared OR port for this relay.
-    #[allow(dead_code)] // This value is never used; we look at addrs instead.
-    or_port: u16,
     /// Digest of the document for this relay.
     doc_digest: D,
     /// Flags applied by the authorities to this relay.
@@ -205,7 +202,6 @@ where
             nickname,
             identity,
             addrs,
-            or_port,
             doc_digest,
             flags,
             version,
