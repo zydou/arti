@@ -3098,8 +3098,6 @@ name = "tor-basic-utils"
 version = "0.1.0"
 dependencies = [
  "educe",
- "humantime-serde",
- "serde",
 ]
 
 [[package]]
