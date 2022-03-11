@@ -193,12 +193,13 @@ where
         let or_port = r_item.required_arg(5 + skip)?.parse::<u16>()?;
         let _ = r_item.required_arg(6 + skip)?.parse::<u16>()?;
 
-        let mut addrs: Vec<net::SocketAddr> = vec![net::SocketAddr::V4(net::SocketAddrV4::new(
+        // main address and A lines.
+        let a_items = sec.slice(RS_A);
+        let mut addrs = Vec::with_capacity(1 + a_items.len());
+        addrs.push(net::SocketAddr::V4(net::SocketAddrV4::new(
             ipv4addr, or_port,
-        ))];
-
-        // A lines
-        for a_item in sec.slice(RS_A) {
+        )));
+        for a_item in a_items {
             addrs.push(a_item.required_arg(0)?.parse::<net::SocketAddr>()?);
         }
 
