@@ -23,7 +23,7 @@ use anyhow::{anyhow, Context, Result};
 
 /// Find out which kind of address family we can/should use for a
 /// given `SocksRequest`.
-fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
+pub fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
     let mut prefs = StreamPrefs::new();
     if addr.parse::<Ipv4Addr>().is_ok() {
         // If they asked for an IPv4 address correctly, nothing else will do.
@@ -421,7 +421,7 @@ fn accept_err_is_fatal(err: &IoError) -> bool {
 /// Requires a `runtime` to use for launching tasks and handling
 /// timeouts, and a `tor_client` to use in connecting over the Tor
 /// network.
-pub(crate) async fn run_socks_proxy<R: Runtime>(
+pub async fn run_socks_proxy<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     socks_port: u16,

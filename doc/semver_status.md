@@ -31,6 +31,10 @@ arti-client:
   Replace ArtiClientBuilder's methods for individual elements of TorClientConfigBuilder
   with an accessor `.tor()` to get `&mut TorClientConfigBuilder`.
 
+arti:
+
+  Provide library crate with unstable API.
+
 tor-llcrypto:
 
   new-api: Added RsaIdentity::from_hex().
