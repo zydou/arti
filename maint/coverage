@@ -89,7 +89,7 @@ if [ "$INTEGRATION" = yes ] ; then
     # go into a basic extensible integration-testing script that gets
     # run both from here and from the .gitlab-ci.yml file.
     trap ./tests/chutney/teardown 0
-    ./maint/with_coverage -c -s ./tests/chutney/setup
+    ./maint/with_coverage -c -s ./tests/chutney/setup proxy
     curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
     trap - 0
     ./tests/chutney/teardown
