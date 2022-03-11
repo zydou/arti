@@ -55,9 +55,17 @@ impl<T: Eq + Hash> InternCache<T> {
     }
 }
 
-impl InternCache<str> {
-    /// Intern a string slice into this cache.
-    pub(crate) fn intern(&self, value: &str) -> Arc<str> {
+impl<T: Hash + Eq + ?Sized> InternCache<T> {
+    /// Intern an object by reference.
+    ///
+    /// Works with unsized types, but requires that the reference implements
+    /// `Into<Arc<T>>`.
+    pub(crate) fn intern_ref<'a, V>(&self, value: &'a V) -> Arc<T>
+    where
+        V: Hash + Eq + ?Sized,
+        &'a V: Into<Arc<T>>,
+        T: std::borrow::Borrow<V>,
+    {
         let mut cache = self.cache();
         if let Some(arc) = cache.get(value) {
             arc

@@ -81,7 +81,7 @@ impl std::str::FromStr for Version {
             }
         }
 
-        Ok(Version::Other(OTHER_VERSION_CACHE.intern(s)))
+        Ok(Version::Other(OTHER_VERSION_CACHE.intern_ref(s)))
     }
 }
 
