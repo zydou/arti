@@ -124,7 +124,6 @@ impl<D: Clone> RouterStatusBuilder<D> {
         if self.addrs.is_empty() {
             return Err(Error::CannotBuild("No addresses"));
         }
-        let or_port = self.addrs[0].port();
         let doc_digest = self
             .doc_digest
             .as_ref()
@@ -136,14 +135,14 @@ impl<D: Clone> RouterStatusBuilder<D> {
             .ok_or(Error::CannotBuild("Missing protocols"))?
             .clone();
         let weight = self.weight.unwrap_or(RelayWeight::Unmeasured(0));
+        let version = self.version.as_deref().map(str::parse).transpose()?;
 
         Ok(GenericRouterStatus {
             nickname,
             identity,
             addrs: self.addrs.clone(),
-            or_port,
             doc_digest,
-            version: self.version.clone(),
+            version,
             protos,
             flags: self.flags,
             weight,

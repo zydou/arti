@@ -50,7 +50,7 @@ use crate::{ParseErrorKind as EK, Pos};
 /// a release candidate (rc), or stable.
 ///
 /// We accept unrecognized tags, and store them as "Other".
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(u8)]
 enum TorVerStatus {
     /// An unknown release status
@@ -80,7 +80,7 @@ impl TorVerStatus {
 }
 
 /// A parsed Tor version number.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct TorVersion {
     /// Major version number.  This has been zero since Tor was created.
     major: u8,
