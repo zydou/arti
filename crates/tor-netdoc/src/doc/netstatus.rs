@@ -1326,6 +1326,7 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
             }
             relays.push(routerstatus);
         }
+        relays.shrink_to_fit();
 
         let footer = Self::take_footer(r)?;
 
