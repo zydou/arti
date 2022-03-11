@@ -53,6 +53,10 @@ tor-netdoc:
   new-api (experimental only): Can modify the set of relays in an unverified
   consensus.
 
-
 tor-netdoc:
   api-break: changed the return type of GenericRouterStatus::version()
+
+tor-basic-utils:
+
+  Remove `humantime_serde_option` module.
+  (Use `humantime_serde::option` instead.)
