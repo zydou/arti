@@ -1,12 +1,10 @@
 //! Handling for arti's configuration formats.
 
 use arti_client::config::{
-    circ, dir, ClientAddrConfigBuilder, StorageConfigBuilder, StreamTimeoutConfigBuilder,
     SystemConfig, SystemConfigBuilder, TorClientConfig, TorClientConfigBuilder,
 };
 use derive_builder::Builder;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use tor_config::{CfgPath, ConfigBuildError};
 
@@ -245,27 +243,7 @@ impl TryFrom<config::Config> for ArtiConfig {
 // This handwritten impl ought not to exist, but it is needed until #374 is done.
 impl From<ArtiConfigBuilder> for TorClientConfigBuilder {
     fn from(cfg: ArtiConfigBuilder) -> TorClientConfigBuilder {
-        let mut builder = TorClientConfig::builder();
-        let ArtiConfigBuilder {
-            storage,
-            address_filter,
-            path_rules,
-            preemptive_circuits,
-            circuit_timing,
-            override_net_params,
-            download_schedule,
-            tor_network,
-            ..
-        } = cfg;
-        *builder.storage() = storage;
-        *builder.address_filter() = address_filter;
-        *builder.path_rules() = path_rules;
-        *builder.preemptive_circuits() = preemptive_circuits;
-        *builder.circuit_timing() = circuit_timing;
-        *builder.override_net_params() = override_net_params;
-        *builder.download_schedule() = download_schedule;
-        *builder.tor_network() = tor_network;
-        builder
+        cfg.tor
     }
 }
 
@@ -306,6 +284,10 @@ impl ArtiConfig {
 // This ought to be replaced by a derive-builder generated struct (probably as part of #374),
 // but currently derive-builder can't do this.
 pub struct ArtiConfigBuilder {
+    /// Builder for the actual Tor client.
+    #[serde(flatten)]
+    tor: TorClientConfigBuilder,
+
     /// Builder for the application section
     #[serde(default)]
     application: ApplicationConfigBuilder,
@@ -315,33 +297,6 @@ pub struct ArtiConfigBuilder {
     /// Builder for the logging section.
     #[serde(default)]
     logging: LoggingConfigBuilder,
-    /// Builder for the storage section.
-    #[serde(default)]
-    storage: StorageConfigBuilder,
-    /// Builder for the tor_network section.
-    #[serde(default)]
-    tor_network: dir::NetworkConfigBuilder,
-    /// Builder for the download_schedule section.
-    #[serde(default)]
-    download_schedule: dir::DownloadScheduleConfigBuilder,
-    /// In-progress object for the override_net_params section.
-    #[serde(default)]
-    override_net_params: HashMap<String, i32>,
-    /// Builder for the path_rules section.
-    #[serde(default)]
-    path_rules: circ::PathConfigBuilder,
-    /// Builder for the preemptive_circuits section.
-    #[serde(default)]
-    preemptive_circuits: circ::PreemptiveCircuitConfigBuilder,
-    /// Builder for the circuit_timing section.
-    #[serde(default)]
-    circuit_timing: circ::CircuitTimingBuilder,
-    /// Builder for the address_filter section.
-    #[serde(default)]
-    address_filter: ClientAddrConfigBuilder,
-    /// Builder for the stream timeout rules.
-    #[serde(default)]
-    stream_timeouts: StreamTimeoutConfigBuilder,
     /// Builder for system resource configuration.
     #[serde(default)]
     system: SystemConfigBuilder,
@@ -387,88 +342,14 @@ impl ArtiConfigBuilder {
         &mut self.logging
     }
 
-    /// Return a mutable reference to a
-    /// [`NetworkConfigBuilder`](dir::NetworkConfigBuilder)
+    /// Return a mutable reference to a `TorClientConfigBuilder`.
     /// to use in configuring the underlying Tor network.
     ///
     /// Most programs shouldn't need to alter this configuration: it's only for
     /// cases when you need to use a nonstandard set of Tor directory authorities
     /// and fallback caches.
-    pub fn tor_network(&mut self) -> &mut dir::NetworkConfigBuilder {
-        &mut self.tor_network
-    }
-
-    /// Return a mutable reference to a [`StorageConfigBuilder`].
-    ///
-    /// This section is used to configure the locations where Arti should
-    /// store files on disk.
-    pub fn storage(&mut self) -> &mut StorageConfigBuilder {
-        &mut self.storage
-    }
-
-    /// Return a mutable reference to a
-    /// [`DownloadScheduleConfigBuilder`](dir::DownloadScheduleConfigBuilder).
-    ///
-    /// This section is used to override Arti's schedule when attempting and
-    /// retrying to download directory objects.
-    pub fn download_schedule(&mut self) -> &mut dir::DownloadScheduleConfigBuilder {
-        &mut self.download_schedule
-    }
-
-    /// Return a mutable reference to a [`HashMap`] of network parameters
-    /// that should be used to override those specified in the consensus
-    /// directory.
-    ///
-    /// This section should not usually be used for anything but testing:
-    /// if you find yourself needing to configure an override here for
-    /// production use, please consider opening a feature request for it
-    /// instead.
-    ///
-    /// For a complete list of Tor's defined network parameters (not all of
-    /// which are yet supported by Arti), see
-    /// [`path-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/param-spec.txt).
-    pub fn override_net_params(&mut self) -> &mut HashMap<String, i32> {
-        &mut self.override_net_params
-    }
-
-    /// Return a mutable reference to a [`PathConfigBuilder`](circ::PathConfigBuilder).
-    ///
-    /// This section is used to override Arti's rules for selecting which
-    /// relays should be used in a given circuit.
-    pub fn path_rules(&mut self) -> &mut circ::PathConfigBuilder {
-        &mut self.path_rules
-    }
-
-    /// Return a mutable reference to a [`PreemptiveCircuitConfigBuilder`](circ::PreemptiveCircuitConfigBuilder).
-    ///
-    /// This section overrides Arti's rules for preemptive circuits.
-    pub fn preemptive_circuits(&mut self) -> &mut circ::PreemptiveCircuitConfigBuilder {
-        &mut self.preemptive_circuits
-    }
-
-    /// Return a mutable reference to a [`CircuitTimingBuilder`](circ::CircuitTimingBuilder).
-    ///
-    /// This section overrides Arti's rules for deciding how long to use
-    /// circuits, and when to give up on attempts to launch them.
-    pub fn circuit_timing(&mut self) -> &mut circ::CircuitTimingBuilder {
-        &mut self.circuit_timing
-    }
-
-    /// Return a mutable reference to a [`ClientAddrConfigBuilder`].
-    ///
-    /// This section controls which addresses Arti is willing to launch connections
-    /// to over the Tor network.  Any addresses rejected by this section cause
-    /// stream attempts to fail before any traffic is sent over the network.
-    pub fn address_filter(&mut self) -> &mut ClientAddrConfigBuilder {
-        &mut self.address_filter
-    }
-
-    /// Return a mutable reference to a [`StreamTimeoutConfigBuilder`].
-    ///
-    /// This section controls how Arti should handle an exit relay's DNS
-    /// resolution.
-    pub fn stream_timeouts(&mut self) -> &mut StreamTimeoutConfigBuilder {
-        &mut self.stream_timeouts
+    pub fn tor(&mut self) -> &mut TorClientConfigBuilder {
+        &mut self.tor
     }
 
     /// Return a mutable reference to a [`SystemConfigBuilder`].
@@ -483,6 +364,7 @@ impl ArtiConfigBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
 
+    use arti_client::config::dir;
     use std::convert::TryInto;
     use std::time::Duration;
 
@@ -530,31 +412,38 @@ mod test {
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
-        bld.tor_network()
+        bld.tor()
+            .tor_network()
             .authorities(vec![auth])
             .fallback_caches(vec![fallback]);
-        bld.storage()
+        bld.tor()
+            .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.download_schedule()
+        bld.tor()
+            .download_schedule()
             .retry_certs(DownloadSchedule::new(10, sec, 3))
             .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
-        bld.override_net_params()
+        bld.tor()
+            .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
-        bld.path_rules()
+        bld.tor()
+            .path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
-        bld.preemptive_circuits()
+        bld.tor()
+            .preemptive_circuits()
             .disable_at_threshold(12)
             .initial_predicted_ports(vec![80, 443])
             .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
-        bld.circuit_timing()
+        bld.tor()
+            .circuit_timing()
             .max_dirtiness(90 * sec)
             .request_timeout(10 * sec)
             .request_max_retries(22)
             .request_loyalty(3600 * sec);
-        bld.address_filter().allow_local_addrs(true);
+        bld.tor().address_filter().allow_local_addrs(true);
 
         let val = bld.build().unwrap();
 

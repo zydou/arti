@@ -346,27 +346,37 @@ impl TorClientConfig {
 ///
 /// Unlike other builder types in Arti, this builder works by exposing an
 /// inner builder for each section in the [`TorClientConfig`].
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Deserialize)]
 pub struct TorClientConfigBuilder {
     /// Inner builder for the `tor_network` section.
+    #[serde(default)]
     tor_network: dir::NetworkConfigBuilder,
     /// Inner builder for the `storage` section.
+    #[serde(default)]
     storage: StorageConfigBuilder,
     /// Inner builder for the `download_schedule` section.
+    #[serde(default)]
     download_schedule: dir::DownloadScheduleConfigBuilder,
     /// Inner builder for the `override_net_params` section.
+    #[serde(default)]
     override_net_params: HashMap<String, i32>,
     /// Inner builder for the `path_rules` section.
+    #[serde(default)]
     path_rules: circ::PathConfigBuilder,
     /// Inner builder for the `circuit_timing` section.
+    #[serde(default)]
     preemptive_circuits: circ::PreemptiveCircuitConfigBuilder,
     /// Inner builder for the `circuit_timing` section.
+    #[serde(default)]
     circuit_timing: circ::CircuitTimingBuilder,
     /// Inner builder for the `address_filter` section.
+    #[serde(default)]
     address_filter: ClientAddrConfigBuilder,
     /// Inner builder for the `stream_timeouts` section.
+    #[serde(default)]
     stream_timeouts: StreamTimeoutConfigBuilder,
     /// Inner builder for the `system` section.
+    #[serde(default)]
     system: SystemConfigBuilder,
 }
 
