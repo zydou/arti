@@ -45,3 +45,5 @@ tor-netdoc:
   consensus.
 
 
+tor-netdoc:
+  api-break: changed the return type of GenericRouterStatus::version()

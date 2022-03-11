@@ -135,13 +135,14 @@ impl<D: Clone> RouterStatusBuilder<D> {
             .ok_or(Error::CannotBuild("Missing protocols"))?
             .clone();
         let weight = self.weight.unwrap_or(RelayWeight::Unmeasured(0));
+        let version = self.version.as_deref().map(str::parse).transpose()?;
 
         Ok(GenericRouterStatus {
             nickname,
             identity,
             addrs: self.addrs.clone(),
             doc_digest,
-            version: self.version.clone(),
+            version,
             protos,
             flags: self.flags,
             weight,
