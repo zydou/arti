@@ -346,8 +346,7 @@ impl TorClientConfig {
 ///
 /// Unlike other builder types in Arti, this builder works by exposing an
 /// inner builder for each section in the [`TorClientConfig`].
-#[derive(Clone, Default)]
-#[derive(Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 pub struct TorClientConfigBuilder {
     /// Inner builder for the `tor_network` section.
     #[serde(default)]

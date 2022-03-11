@@ -364,11 +364,9 @@ impl ArtiConfigBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
 
+    use arti_client::config::dir;
     use std::convert::TryInto;
     use std::time::Duration;
-    use arti_client::config::{
-        dir,
-    };
 
     use super::*;
 
@@ -414,26 +412,33 @@ mod test {
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
-        bld.tor().tor_network()
+        bld.tor()
+            .tor_network()
             .authorities(vec![auth])
             .fallback_caches(vec![fallback]);
-        bld.tor().storage()
+        bld.tor()
+            .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.tor().download_schedule()
+        bld.tor()
+            .download_schedule()
             .retry_certs(DownloadSchedule::new(10, sec, 3))
             .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
-        bld.tor().override_net_params()
+        bld.tor()
+            .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
-        bld.tor().path_rules()
+        bld.tor()
+            .path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
-        bld.tor().preemptive_circuits()
+        bld.tor()
+            .preemptive_circuits()
             .disable_at_threshold(12)
             .initial_predicted_ports(vec![80, 443])
             .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
-        bld.tor().circuit_timing()
+        bld.tor()
+            .circuit_timing()
             .max_dirtiness(90 * sec)
             .request_timeout(10 * sec)
             .request_max_retries(22)
