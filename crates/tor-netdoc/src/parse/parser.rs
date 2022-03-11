@@ -41,10 +41,7 @@ enum TokVal<'a, K: Keyword> {
     /// No value has been found.
     None,
     /// A single value has been found; we're storing it in place.
-    ///
-    /// We use a one-element array here so that we can return a slice
-    /// of the array.
-    Some([Item<'a, K>; 1]),
+    Some(Item<'a, K>),
     /// Multiple values have been found; they go in a vector.
     Multi(Vec<Item<'a, K>>),
 }
@@ -61,7 +58,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     fn first(&self) -> Option<&Item<'a, K>> {
         match self {
             TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
+            TokVal::Some(t) => Some(t),
             TokVal::Multi(v) => Some(&v[0]),
         }
     }
@@ -69,7 +66,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     fn singleton(&self) -> Option<&Item<'a, K>> {
         match self {
             TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
+            TokVal::Some(t) => Some(t),
             TokVal::Multi(_) => None,
         }
     }
@@ -77,7 +74,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     fn as_slice(&self) -> &[Item<'a, K>] {
         match self {
             TokVal::None => &[],
-            TokVal::Some(t) => &t[..],
+            TokVal::Some(t) => std::slice::from_ref(t),
             TokVal::Multi(v) => &v[..],
         }
     }
@@ -85,7 +82,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     fn last(&self) -> Option<&Item<'a, K>> {
         match self {
             TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
+            TokVal::Some(t) => Some(t),
             TokVal::Multi(v) => Some(&v[v.len() - 1]),
         }
     }
@@ -174,8 +171,8 @@ impl<'a, T: Keyword> Section<'a, T> {
         let m = &mut self.v[idx];
 
         match m {
-            TokVal::None => *m = TokVal::Some([item]),
-            TokVal::Some([x]) => {
+            TokVal::None => *m = TokVal::Some(item),
+            TokVal::Some(x) => {
                 *m = TokVal::Multi(vec![x.clone(), item]);
             }
             TokVal::Multi(ref mut v) => {
