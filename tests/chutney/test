@@ -1,0 +1,6 @@
+#!/bin/bash -xe
+
+curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
+
+[ "$(dig @127.0.0.1 -p 5353 +short example.com A)" == "93.184.216.34" ]
+[ "$(dig @127.0.0.1 -p 5353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]

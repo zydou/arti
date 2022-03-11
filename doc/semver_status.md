@@ -37,7 +37,7 @@ arti:
 
 tor-llcrypto:
 
-  new-api: Added RsaIdentity::from_hex().
+  new-api: Added RsaIdentity::from\_hex().
 
 arti-client:
 
@@ -62,3 +62,7 @@ tor-basic-utils:
 
   Remove `humantime_serde_option` module.
   (Use `humantime_serde::option` instead.)
+
+tor-rtcompt:
+
+  api-break: Runtime require an additional supertrait UdpProvider
