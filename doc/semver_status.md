@@ -26,6 +26,11 @@ arti-client, arti-config, tor-circmgr, tor-dirmgr:
 
   Drop impl Deserialize for ArtiConfig.
 
+arti-client:
+
+  Replace ArtiClientBuilder's methods for individual elements of TorClientConfigBuilder
+  with an accessor `.tor()` to get `&mut TorClientConfigBuilder`.
+
 tor-llcrypto:
 
   new-api: Added RsaIdentity::from_hex().
