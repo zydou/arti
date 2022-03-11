@@ -131,6 +131,10 @@ pub async fn run<R: Runtime>(
 }
 
 /// Inner function to allow convenient error handling
+///
+/// # Panics
+///
+/// Currently, might panic if wrong arguments are specified.
 pub fn main_main() -> Result<()> {
     // We describe a default here, rather than using `default()`, because the
     // correct behavior is different depending on whether the filename is given
