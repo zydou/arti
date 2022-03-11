@@ -131,6 +131,10 @@ use tracing::{info, warn};
 use std::convert::TryInto;
 
 /// Run the main loop of the proxy.
+///
+/// # Panics
+///
+/// Currently, might panic if things go badly enough wrong
 pub async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
