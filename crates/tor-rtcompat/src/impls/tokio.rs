@@ -135,6 +135,10 @@ pub(crate) mod net {
             }
         }
 
+        fn local_addr(&self) -> IoResult<SocketAddr> {
+            self.socket.local_addr()
+        }
+
         async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()> {
             self.socket.connect(addr).await?;
             self.addr = Some(*addr);

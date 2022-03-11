@@ -201,6 +201,8 @@ pub trait UdpSocket {
     async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)>;
     /// Send a datagram to the provided address.
     async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
+    /// Return the local address that this socket is bound to.
+    fn local_addr(&self) -> IoResult<SocketAddr>;
     /// Connect to a remote address. After calling this [`UdpSocket::recv`] may only
     /// return that same address, and the target provided to [`UdpSocket::send`] must
     /// be this address.
