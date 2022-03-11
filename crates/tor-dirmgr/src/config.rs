@@ -267,7 +267,7 @@ impl DirMgrConfig {
     /// `self` are replaced with those from  `new_config`.
     ///
     /// Any fields which aren't allowed to change at runtime are copied from self.
-    pub fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
+    pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
             network_config: NetworkConfig {
@@ -277,6 +277,15 @@ impl DirMgrConfig {
             schedule_config: new_config.schedule_config.clone(),
             override_net_params: new_config.override_net_params.clone(),
         }
+    }
+
+    /// Construct a new configuration object where all replaceable fields in
+    /// `self` are replaced with those from  `new_config`.
+    ///
+    /// Any fields which aren't allowed to change at runtime are copied from self.
+    #[cfg(feature = "experimental-api")]
+    pub fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
+        self.update_from_config(new_config)
     }
 }
 

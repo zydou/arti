@@ -35,4 +35,13 @@ arti-client:
   api-break (experimental only): changed circmgr() and dirmgr() to return
   &Arc, not Arc.
 
+tor-dirmgr:
+
+  new-api: DirMgrConfig object now has accessors.
+
+tor-netdoc:
+
+  new-api (experimental only): Can modify the set of relays in an unverified
+  consensus.
+
 
