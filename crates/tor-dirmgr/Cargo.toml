@@ -60,7 +60,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
-humantime-serde = "1"
+humantime-serde = "1.1.1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
