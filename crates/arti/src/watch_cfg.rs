@@ -20,7 +20,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 ///
 /// Whenever one or more files in `files` changes, try to reload our
 /// configuration from them and tell TorClient about it.
-pub(crate) fn watch_for_config_changes<R: Runtime>(
+pub fn watch_for_config_changes<R: Runtime>(
     sources: arti_config::ConfigurationSources,
     original: ArtiConfig,
     client: TorClient<R>,

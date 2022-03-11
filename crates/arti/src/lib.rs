@@ -81,11 +81,11 @@
 //! a command line program similar to `arti`.
 //! The API should not be considered stable.
 
-mod exit;
-mod process;
-mod proxy;
-mod trace;
-mod watch_cfg;
+pub mod exit;
+pub mod process;
+pub mod proxy;
+pub mod trace;
+pub mod watch_cfg;
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::{default_config_file, ArtiConfig};
@@ -98,7 +98,7 @@ use tracing::{info, warn};
 use std::convert::TryInto;
 
 /// Run the main loop of the proxy.
-async fn run<R: Runtime>(
+pub async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     config_sources: arti_config::ConfigurationSources,
@@ -131,7 +131,7 @@ async fn run<R: Runtime>(
 }
 
 /// Inner function to allow convenient error handling
-fn main_main() -> Result<()> {
+pub fn main_main() -> Result<()> {
     // We describe a default here, rather than using `default()`, because the
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.

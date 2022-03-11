@@ -119,7 +119,7 @@ where
 
 /// Opaque structure that gets dropped when the program is shutting down,
 /// after logs are no longer needed.  The `Drop` impl flushes buffered messages.
-pub(crate) struct LogGuards {
+pub struct LogGuards {
     /// The actual list of guards we're returning.
     #[allow(unused)]
     guards: Vec<WorkerGuard>,
@@ -129,7 +129,7 @@ pub(crate) struct LogGuards {
 ///
 /// Note that the returned LogGuard must be dropped precisely when the program
 /// quits; they're used to ensure that all the log messages are flushed.
-pub(crate) fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGuards> {
+pub fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGuards> {
     // Important: We have to make sure that the individual layers we add here
     // are not filters themselves.  That means, for example, that we can't add
     // an `EnvFilter` layer unless we want it to apply globally to _all_ layers.
