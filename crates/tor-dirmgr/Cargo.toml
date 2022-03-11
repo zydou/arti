@@ -17,6 +17,12 @@ static = ["rusqlite/bundled"]
 # (Incomplete) support for downloading and storing router descriptors
 routerdesc = ["tor-dirclient/routerdesc"]
 
+# Enable experimental APIs that are not yet officially supported.
+#
+# These APIs are not covered by semantic versioning.  Using this
+# feature voids your "semver warrantee".
+experimental-api = []
+
 [dependencies]
 tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
 retry-error = { path = "../retry-error", version = "0.1.0"}

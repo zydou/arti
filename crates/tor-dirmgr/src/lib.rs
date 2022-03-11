@@ -56,7 +56,7 @@
 
 pub mod authority;
 mod bootstrap;
-mod config;
+pub mod config;
 mod docid;
 mod docmeta;
 mod err;
@@ -67,7 +67,10 @@ mod state;
 mod storage;
 
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
+#[cfg(not(feature = "experimental-api"))]
 use crate::shared_ref::SharedMutArc;
+#[cfg(feature = "experimental-api")]
+pub use crate::shared_ref::SharedMutArc;
 use crate::storage::DynStore;
 use postage::watch;
 pub use retry::DownloadSchedule;

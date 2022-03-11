@@ -16,7 +16,8 @@ use crate::{Error, Result};
 // sure we don't hold the lock against any async suspend points.
 #[derive(Debug, Educe)]
 #[educe(Default)]
-pub(crate) struct SharedMutArc<T> {
+#[cfg_attr(not(feature = "experimental-api"), allow(unreachable_pub))]
+pub struct SharedMutArc<T> {
     /// Locked reference to the current value.
     ///
     /// (It's okay to use RwLock here, because we never suspend
@@ -24,14 +25,15 @@ pub(crate) struct SharedMutArc<T> {
     dir: RwLock<Option<Arc<T>>>,
 }
 
+#[cfg_attr(not(feature = "experimental-api"), allow(unreachable_pub))]
 impl<T> SharedMutArc<T> {
     /// Construct a new empty SharedMutArc.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         SharedMutArc::default()
     }
 
     /// Replace the current value with `new_val`.
-    pub(crate) fn replace(&self, new_val: T) {
+    pub fn replace(&self, new_val: T) {
         let mut w = self
             .dir
             .write()
@@ -50,7 +52,7 @@ impl<T> SharedMutArc<T> {
     }
 
     /// Return a new reference to the current value, if there is one.
-    pub(crate) fn get(&self) -> Option<Arc<T>> {
+    pub fn get(&self) -> Option<Arc<T>> {
         let r = self
             .dir
             .read()
@@ -72,7 +74,7 @@ impl<T> SharedMutArc<T> {
     /// and future attempts to use it will panic. (TODO: Fix this.)
     // Note: If we decide to make this type public, we'll probably
     // want to fiddle with how we handle the return type.
-    pub(crate) fn mutate<F, U>(&self, func: F) -> Result<U>
+    pub fn mutate<F, U>(&self, func: F) -> Result<U>
     where
         F: FnOnce(&mut T) -> Result<U>,
         T: Clone,

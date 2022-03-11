@@ -1450,6 +1450,31 @@ impl<RS> UnvalidatedConsensus<RS> {
     pub fn authorities_are_correct(&self, authorities: &[&RsaIdentity]) -> bool {
         self.siggroup.could_validate(authorities)
     }
+
+    /// Return the number of relays in this unvalidated consensus.
+    ///
+    /// This function is unstable. It is only enabled if the crate was
+    /// built with the `experimental-api` feature.
+    #[cfg(feature = "experimental-api")]
+    pub fn n_relays(&self) -> usize {
+        self.consensus.relays.len()
+    }
+
+    /// Modify the list of relays in this unvalidated consensus.
+    ///
+    /// A use case for this is long-lasting custom directories. To ensure Arti can still quickly
+    /// build circuits when the directory gets old, a tiny churn file can be regularly obtained,
+    /// listing no longer available Tor nodes, which can then be removed from the consensus.
+    ///
+    /// This function is unstable. It is only enabled if the crate was
+    /// built with the `experimental-api` feature.
+    #[cfg(feature = "experimental-api")]
+    pub fn modify_relays<F>(&mut self, func: F)
+    where
+        F: FnOnce(&mut Vec<RS>),
+    {
+        func(&mut self.consensus.relays);
+    }
 }
 
 impl<RS> ExternallySigned<Consensus<RS>> for UnvalidatedConsensus<RS> {

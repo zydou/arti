@@ -238,28 +238,28 @@ impl DirMgrConfig {
     }
 
     /// Return the configured cache path.
-    pub(crate) fn cache_path(&self) -> &std::path::Path {
+    pub fn cache_path(&self) -> &std::path::Path {
         self.cache_path.as_ref()
     }
 
     /// Return a slice of the configured authorities
-    pub(crate) fn authorities(&self) -> &[Authority] {
+    pub fn authorities(&self) -> &[Authority] {
         self.network_config.authorities()
     }
 
     /// Return the configured set of fallback directories
-    pub(crate) fn fallbacks(&self) -> &[FallbackDir] {
+    pub fn fallbacks(&self) -> &[FallbackDir] {
         self.network_config.fallbacks()
     }
 
     /// Return set of configured networkstatus parameter overrides.
-    pub(crate) fn override_net_params(&self) -> &netstatus::NetParams<i32> {
+    pub fn override_net_params(&self) -> &netstatus::NetParams<i32> {
         &self.override_net_params
     }
 
     /// Return the schedule configuration we should use to decide when to
     /// attempt and retry downloads.
-    pub(crate) fn schedule(&self) -> &DownloadScheduleConfig {
+    pub fn schedule(&self) -> &DownloadScheduleConfig {
         &self.schedule_config
     }
 
@@ -267,7 +267,7 @@ impl DirMgrConfig {
     /// `self` are replaced with those from  `new_config`.
     ///
     /// Any fields which aren't allowed to change at runtime are copied from self.
-    pub(crate) fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
+    pub fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
             network_config: NetworkConfig {
