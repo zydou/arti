@@ -1,5 +1,6 @@
 //! Code related to tracking what activities a circuit can be used for.
 
+use downcast_rs::{impl_downcast, Downcast};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
@@ -100,27 +101,14 @@ impl Display for TargetPorts {
     }
 }
 
-use std::any::Any;
-
 /// TODO
-pub trait AsAny {
-    /// TODO
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: 'static> AsAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-/// TODO
-pub trait Isolation: AsAny + std::fmt::Debug + Send + Sync + 'static {
+pub trait Isolation: Downcast + std::fmt::Debug + Send + Sync + 'static {
     /// TODO
     fn isolated(&self, other: &dyn Isolation) -> bool;
     /// TODO
     fn join(&self, other: &dyn Isolation) -> JoinResult;
 }
+impl_downcast!(Isolation);
 
 impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
     fn isolated(&self, other: &dyn Isolation) -> bool {
