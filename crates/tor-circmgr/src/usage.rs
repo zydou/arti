@@ -506,24 +506,25 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             (Exit { .. }, TargetCircUsage::Preemptive { .. }) => Ok(()),
             (
                 Exit {
-                    isolation: ref mut i1,
+                    isolation: ref mut isol1,
                     ..
                 },
                 TargetCircUsage::Exit { isolation: i2, .. },
-            ) if i1
-                .as_ref()
-                .map(|i1| i1.may_share_circuit(i2))
-                .unwrap_or(true) =>
-            {
-                *i1 = if let Some(ref i1) = i1 {
-                    Some(i1.join(i2).expect("logic error in Insolation"))
+            ) => {
+                if let Some(i1) = isol1 {
+                    if let Some(new_isolation) = i1.join(i2) {
+                        // there was some isolation, and the requested usage is compatible, saving
+                        // the new isolation into self
+                        *isol1 = Some(new_isolation);
+                        Ok(())
+                    } else {
+                        Err(bad_api_usage!("Isolation not compatible").into())
+                    }
                 } else {
-                    Some(i2.clone())
-                };
-                Ok(())
-            }
-            (Exit { .. }, TargetCircUsage::Exit { .. }) => {
-                Err(bad_api_usage!("Isolation not compatible").into())
+                    // there was no isolation yet on self, applying the restriction from usage
+                    *isol1 = Some(i2.clone());
+                    Ok(())
+                }
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
             (_, _) => Err(bad_api_usage!("Mismatched usage types").into()),
