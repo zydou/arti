@@ -16,6 +16,7 @@ use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
 use educe::Educe;
+use futures::future::Either;
 use futures::lock::Mutex as AsyncMutex;
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
@@ -252,12 +253,12 @@ impl<T> StreamPrefs<T> {
 
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
-    fn isolation_group(&self) -> Option<Result<Arc<T>, IsolationToken>> {
+    fn isolation_group(&self) -> Option<Either<Arc<T>, IsolationToken>> {
         use StreamIsolationPreference as SIP;
         match self.isolation {
             SIP::None => None,
-            SIP::Explicit(ref ig) => Some(Ok(ig.clone())),
-            SIP::EveryStream => Some(Err(IsolationToken::new())),
+            SIP::Explicit(ref ig) => Some(Either::Left(ig.clone())),
+            SIP::EveryStream => Some(Either::Right(IsolationToken::new())),
         }
     }
 
@@ -836,8 +837,8 @@ impl<R: Runtime> TorClient<R> {
             // Consider stream isolation too, if it's set.
             if let Some(tok) = prefs.isolation_group() {
                 match tok {
-                    Ok(tok) => b.stream_token(tok),
-                    Err(tok) => b.stream_token(Arc::new(tok)),
+                    Either::Left(tok) => b.stream_token(tok),
+                    Either::Right(tok) => b.stream_token(Arc::new(tok)),
                 };
             }
             // Failure should be impossible with this builder.
