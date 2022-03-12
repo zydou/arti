@@ -228,6 +228,7 @@ pub use builder::TorClientBuilder;
 pub use client::{BootstrapBehavior, StreamPrefs, TorClient};
 pub use config::TorClientConfig;
 
+pub use tor_circmgr::isolation;
 pub use tor_circmgr::IsolationToken;
 pub use tor_error::{ErrorKind, HasKind};
 pub use tor_proto::stream::{DataReader, DataStream, DataWriter};
