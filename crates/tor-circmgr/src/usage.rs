@@ -104,18 +104,18 @@ impl Display for TargetPorts {
 /// TODO
 pub trait Isolation: Downcast + std::fmt::Debug + Send + Sync + 'static {
     /// TODO
-    fn isolated(&self, other: &dyn Isolation) -> bool;
+    fn compatible(&self, other: &dyn Isolation) -> bool;
     /// TODO
     fn join(&self, other: &dyn Isolation) -> JoinResult;
 }
 impl_downcast!(Isolation);
 
 impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
-    fn isolated(&self, other: &dyn Isolation) -> bool {
+    fn compatible(&self, other: &dyn Isolation) -> bool {
         if let Some(other) = other.as_any().downcast_ref() {
-            self.isolated_same_type(other)
+            self.compatible_same_type(other)
         } else {
-            true
+            false
         }
     }
     fn join(&self, other: &dyn Isolation) -> JoinResult {
@@ -145,9 +145,9 @@ pub enum JoinResult {
 /// TODO
 pub trait IsolationHelper {
     /// TODO
-    fn isolated_same_type(&self, other: &Self) -> bool;
-    /// TODO it's a logic error to return JoinResult::NoJoin if isolated_same_type would not
-    /// return false for the same input
+    fn compatible_same_type(&self, other: &Self) -> bool;
+    /// TODO it's a logic error to return JoinResult::NoJoin if compatible_same_type would not
+    /// return true for the same input
     fn join_same_type(&self, other: &Self) -> JoinResult;
 }
 
@@ -233,18 +233,18 @@ impl IsolationToken {
 }
 
 impl IsolationHelper for IsolationToken {
-    fn isolated_same_type(&self, other: &Self) -> bool {
-        self != other
+    fn compatible_same_type(&self, other: &Self) -> bool {
+        self == other
     }
     fn join_same_type(&self, other: &Self) -> JoinResult {
-        if self.isolated_same_type(other) {
-            JoinResult::NoJoin
-        } else {
+        if self.compatible_same_type(other) {
             // for IsolationToken, any of the three would be correct, but the last one is probably
             // slower.
             JoinResult::UseLeft
             // JoinResult::UseRight
             // JoinResult::New(Arc::new(*self))
+        } else {
+            JoinResult::NoJoin
         }
     }
 }
@@ -282,7 +282,7 @@ impl StreamIsolation {
     /// `other`.
     fn may_share_circuit(&self, other: &StreamIsolation) -> bool {
         self.owner_token == other.owner_token
-            && !self.stream_token.isolated(other.stream_token.as_ref())
+            && self.stream_token.compatible(other.stream_token.as_ref())
     }
 
     /// Return a StreamIsolation that is the intersection of self and other.
