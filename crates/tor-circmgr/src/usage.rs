@@ -944,4 +944,62 @@ mod test {
         let ports = [TargetPort::ipv4(80), TargetPort::ipv6(443)];
         assert_eq!(TargetPorts::from(&ports[..]).to_string(), "[80v4,443v6]");
     }
+
+    #[test]
+    fn isolation_token() {
+        let token_1 = IsolationToken::new();
+        let token_2 = IsolationToken::new();
+
+        assert!(token_1.compatible_same_type(&token_1));
+        assert!(token_2.compatible_same_type(&token_2));
+        assert!(!token_1.compatible_same_type(&token_2));
+
+        assert_eq!(token_1.join_same_type(&token_1), Some(token_1));
+        assert_eq!(token_2.join_same_type(&token_2), Some(token_2));
+        assert_eq!(token_1.join_same_type(&token_2), None);
+    }
+
+    #[derive(PartialEq, Clone, Copy, Debug)]
+    struct OtherIsolation(usize);
+
+    impl IsolationHelper for OtherIsolation {
+        fn compatible_same_type(&self, other: &Self) -> bool {
+            self == other
+        }
+        fn join_same_type(&self, other: &Self) -> Option<Self> {
+            if self.compatible_same_type(other) {
+                Some(*self)
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn isolation_trait() {
+        let token_1: Box<dyn Isolation> = Box::new(IsolationToken::new());
+        let token_2: Box<dyn Isolation> = Box::new(IsolationToken::new());
+        let other_1: Box<dyn Isolation> = Box::new(OtherIsolation(0));
+        let other_2: Box<dyn Isolation> = Box::new(OtherIsolation(1));
+
+        assert!(token_1.compatible(token_1.as_ref()));
+        assert!(token_2.compatible(token_2.as_ref()));
+        assert!(!token_1.compatible(token_2.as_ref()));
+
+        assert!(other_1.compatible(other_1.as_ref()));
+        assert!(other_2.compatible(other_2.as_ref()));
+        assert!(!other_1.compatible(other_2.as_ref()));
+
+        assert!(!token_1.compatible(other_1.as_ref()));
+        assert!(!other_1.compatible(token_1.as_ref()));
+
+        assert!(token_1.join(token_1.as_ref()).is_some());
+        assert!(token_1.join(token_2.as_ref()).is_none());
+
+        assert!(other_1.join(other_1.as_ref()).is_some());
+        assert!(other_1.join(other_2.as_ref()).is_none());
+
+        assert!(token_1.join(other_1.as_ref()).is_none());
+        assert!(other_1.join(token_1.as_ref()).is_none());
+    }
 }

@@ -269,7 +269,6 @@ impl StreamPrefs {
     // TODO: Add some way to be IPFlexible, and require exit to support both.
 }
 
-#[cfg(feature = "tokio")]
 impl TorClient<PreferredRuntime> {
     /// Bootstrap a connection to the Tor network, using the provided `config`.
     ///

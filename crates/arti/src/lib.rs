@@ -337,9 +337,9 @@ pub fn main_main() -> Result<()> {
             } else if #[cfg(all(feature="tokio", feature="rustls"))] {
                 use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
             } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
-                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+                use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
             } else if #[cfg(all(feature="async-std", feature="rustls"))] {
-                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+                use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
             }
         }
 
