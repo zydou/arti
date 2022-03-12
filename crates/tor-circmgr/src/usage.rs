@@ -1,6 +1,7 @@
 //! Code related to tracking what activities a circuit can be used for.
 
 use downcast_rs::{impl_downcast, Downcast};
+use dyn_clone::{clone_trait_object, DynClone};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
@@ -106,15 +107,16 @@ impl Display for TargetPorts {
 /// This trait is intended to be used in dyn context. To implement it for your own types,
 /// implement [`IsolationHelper`] instead.
 // TODO this trait should probably be sealed so the same-type requirement can't be bypassed
-pub trait Isolation: Downcast + std::fmt::Debug + Send + Sync + 'static {
+pub trait Isolation: Downcast + DynClone + std::fmt::Debug + Send + Sync + 'static {
     /// Returns if two [`Isolation`] are compatible.
     fn compatible(&self, other: &dyn Isolation) -> bool;
     /// Join two [`Isolation`] into the intersection of what each allows.
-    fn join(&self, other: &dyn Isolation) -> JoinResult;
+    fn join(&self, other: &dyn Isolation) -> Option<Box<dyn Isolation>>;
 }
 impl_downcast!(Isolation);
+clone_trait_object!(Isolation);
 
-impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
+impl<T: IsolationHelper + Clone + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
     fn compatible(&self, other: &dyn Isolation) -> bool {
         if let Some(other) = other.as_any().downcast_ref() {
             self.compatible_same_type(other)
@@ -122,39 +124,26 @@ impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for
             false
         }
     }
-    fn join(&self, other: &dyn Isolation) -> JoinResult {
+
+    fn join(&self, other: &dyn Isolation) -> Option<Box<dyn Isolation>> {
         if let Some(other) = other.as_any().downcast_ref() {
             self.join_same_type(other)
+                .map(|res| Box::new(res) as Box<dyn Isolation>)
         } else {
-            JoinResult::NoJoin
+            None
         }
     }
-}
-
-/// Result of an [`Isolation::join`] operation
-// rational behind this type: it's not possible to take a `self: &Arc<Self>`, so if the merge would
-// result in something identical to `self`, we would need to allocate a new Arc instead of clonning
-// the old one.
-pub enum JoinResult {
-    /// The intersection is a new object
-    New(Arc<dyn Isolation>),
-    /// The intersection is equals to the `self` param
-    UseLeft,
-    /// The intersection is equals to the `other` param
-    UseRight,
-    /// No intersection is empty
-    NoJoin,
 }
 
 /// Trait to help implement [`Isolation`]
 ///
 /// This trait is essentially the same as [`Isolation`] with static types. You should
 /// implement this trait for types that can represent isolation between streams.
-pub trait IsolationHelper {
+pub trait IsolationHelper: Sized {
     /// Returns whether self and other are compatible.
     fn compatible_same_type(&self, other: &Self) -> bool;
     /// Join self and other into the intersection of what they allows.
-    fn join_same_type(&self, other: &Self) -> JoinResult;
+    fn join_same_type(&self, other: &Self) -> Option<Self>;
 }
 
 /// A token used to isolate unrelated streams on different circuits.
@@ -242,15 +231,11 @@ impl IsolationHelper for IsolationToken {
     fn compatible_same_type(&self, other: &Self) -> bool {
         self == other
     }
-    fn join_same_type(&self, other: &Self) -> JoinResult {
+    fn join_same_type(&self, other: &Self) -> Option<Self> {
         if self.compatible_same_type(other) {
-            // for IsolationToken, any of the three would be correct, but the last one is probably
-            // slower.
-            JoinResult::UseLeft
-            // JoinResult::UseRight
-            // JoinResult::New(Arc::new(*self))
+            Some(*self)
         } else {
-            JoinResult::NoJoin
+            None
         }
     }
 }
@@ -262,8 +247,8 @@ impl IsolationHelper for IsolationToken {
 #[derive(Clone, Debug, derive_builder::Builder)]
 pub struct StreamIsolation {
     /// Any isolation token set on the stream.
-    #[builder(default = "Arc::new(IsolationToken::no_isolation())")]
-    stream_token: Arc<dyn Isolation>,
+    #[builder(default = "Box::new(IsolationToken::no_isolation())")]
+    stream_token: Box<dyn Isolation>,
     /// Any additional isolation token set on an object that "owns" this
     /// stream.  This is typically owned by a `TorClient`.
     #[builder(default = "IsolationToken::no_isolation()")]
@@ -297,19 +282,15 @@ impl StreamIsolation {
         if self.owner_token != other.owner_token {
             return None;
         }
-        match self.stream_token.join(other.stream_token.as_ref()) {
-            JoinResult::New(isolation) => Some(StreamIsolation {
-                stream_token: isolation,
+        self.stream_token
+            .join(other.stream_token.as_ref())
+            .map(|stream_token| StreamIsolation {
+                stream_token,
                 owner_token: self.owner_token,
-            }),
-            JoinResult::UseLeft => Some(self.clone()),
-            JoinResult::UseRight => Some(other.clone()),
-            JoinResult::NoJoin => None,
-        }
+            })
     }
 }
 
-impl Eq for StreamIsolation {}
 impl PartialEq for StreamIsolation {
     fn eq(&self, other: &Self) -> bool {
         self.may_share_circuit(other)
@@ -348,7 +329,7 @@ impl ExitPolicy {
 ///
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum TargetCircUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
@@ -922,7 +903,7 @@ mod test {
         let no_isolation = StreamIsolation::no_isolation();
         let no_isolation2 = StreamIsolation::builder()
             .owner_token(IsolationToken::no_isolation())
-            .stream_token(Arc::new(IsolationToken::no_isolation()))
+            .stream_token(Box::new(IsolationToken::no_isolation()))
             .build()
             .unwrap();
         assert_eq!(no_isolation.owner_token, no_isolation2.owner_token);
@@ -943,7 +924,7 @@ mod test {
         let tok = IsolationToken::new();
         let some_isolation = StreamIsolation::builder().owner_token(tok).build().unwrap();
         let some_isolation2 = StreamIsolation::builder()
-            .stream_token(Arc::new(tok))
+            .stream_token(Box::new(tok))
             .build()
             .unwrap();
         assert!(!no_isolation.may_share_circuit(&some_isolation));
