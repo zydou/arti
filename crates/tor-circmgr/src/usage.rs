@@ -101,11 +101,15 @@ impl Display for TargetPorts {
     }
 }
 
-/// TODO
+/// Trait for types that represent isolation between streams.
+///
+/// This trait is intended to be used in dyn context. To implement it for your own types,
+/// implement [`IsolationHelper`] instead.
+// TODO this trait should probably be sealed so the same-type requirement can't be bypassed
 pub trait Isolation: Downcast + std::fmt::Debug + Send + Sync + 'static {
-    /// TODO
+    /// Returns if two [`Isolation`] are compatible.
     fn compatible(&self, other: &dyn Isolation) -> bool;
-    /// TODO
+    /// Join two [`Isolation`] into the intersection of what each allows.
     fn join(&self, other: &dyn Isolation) -> JoinResult;
 }
 impl_downcast!(Isolation);
@@ -127,27 +131,29 @@ impl<T: IsolationHelper + std::fmt::Debug + Send + Sync + 'static> Isolation for
     }
 }
 
-/// TODO used
+/// Result of an [`Isolation::join`] operation
 // rational behind this type: it's not possible to take a `self: &Arc<Self>`, so if the merge would
 // result in something identical to `self`, we would need to allocate a new Arc instead of clonning
 // the old one.
 pub enum JoinResult {
-    /// TODO
+    /// The intersection is a new object
     New(Arc<dyn Isolation>),
-    /// TODO
+    /// The intersection is equals to the `self` param
     UseLeft,
-    /// TODO
+    /// The intersection is equals to the `other` param
     UseRight,
-    /// TODO
+    /// No intersection is empty
     NoJoin,
 }
 
-/// TODO
+/// Trait to help implement [`Isolation`]
+///
+/// This trait is essentially the same as [`Isolation`] with static types. You should
+/// implement this trait for types that can represent isolation between streams.
 pub trait IsolationHelper {
-    /// TODO
+    /// Returns whether self and other are compatible.
     fn compatible_same_type(&self, other: &Self) -> bool;
-    /// TODO it's a logic error to return JoinResult::NoJoin if compatible_same_type would not
-    /// return true for the same input
+    /// Join self and other into the intersection of what they allows.
     fn join_same_type(&self, other: &Self) -> JoinResult;
 }
 
