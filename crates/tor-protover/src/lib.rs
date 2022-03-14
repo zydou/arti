@@ -77,6 +77,7 @@ caret_int! {
     /// cbor document format in the walking onions proposal.
     ///
     /// For the full semantics of each subprotocol, see tor-spec.txt.
+    #[derive(Hash,Ord,PartialOrd)]
     pub struct ProtoKind(u16) {
         /// Initiating and receiving channels, and getting cells on them.
         Link = 0,
@@ -110,7 +111,7 @@ caret_int! {
 const N_RECOGNIZED: usize = 12;
 
 /// Representation for a known or unknown protocol.
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash, Ord, PartialOrd)]
 enum Protocol {
     /// A known protocol; represented by one of ProtoKind.
     Proto(ProtoKind),
@@ -138,7 +139,7 @@ impl Protocol {
 /// Representation of a set of versions supported by a protocol.
 ///
 /// For now, we only use this type for unrecognized protocols.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 struct SubprotocolEntry {
     /// Which protocol's versions does this describe?
     proto: Protocol,
@@ -157,7 +158,7 @@ struct SubprotocolEntry {
 /// use tor_protover::Protocols;
 /// let p: Result<Protocols,_> = "Link=1-3 LinkAuth=2-3 Relay=1-2".parse();
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct Protocols {
     /// A mapping from protocols' integer encodings to bit-vectors.
     recognized: [u64; N_RECOGNIZED],
@@ -398,6 +399,7 @@ impl std::str::FromStr for Protocols {
             let s: SubprotocolEntry = ent.parse()?;
             result.add(&mut foundmask, s)?;
         }
+        result.unrecognized.sort();
         Ok(result)
     }
 }

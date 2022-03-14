@@ -29,6 +29,8 @@
 //! Finally, there are the voting documents themselves that authorities
 //! use in order to calculate the consensus.
 
+use crate::util::intern::InternCache;
+
 pub mod authcert;
 pub mod microdesc;
 pub mod netstatus;
@@ -42,3 +44,9 @@ pub mod routerdesc {
     /// The digest of a RouterDesc document, as reported in a NS consensus.
     pub type RdDigest = [u8; 20];
 }
+
+/// Cache of Protocols objects, for saving memory.
+//
+/// This only holds weak references to the objects, so we don't
+/// need to worry about running out of space because of stale entries.
+static PROTOVERS_CACHE: InternCache<tor_protover::Protocols> = InternCache::new();

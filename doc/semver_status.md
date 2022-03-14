@@ -45,16 +45,18 @@ arti-client:
   &Arc, not Arc.
 
 tor-dirmgr:
-
   new-api: DirMgrConfig object now has accessors.
+
 
 tor-netdoc:
 
   new-api (experimental only): Can modify the set of relays in an unverified
   consensus.
 
-tor-netdoc:
   api-break: changed the return type of GenericRouterStatus::version()
+
+tor-protover:
+  new-api: Protocols now implements Eq, PartialEq, and Hash.
 
 tor-basic-utils:
 
