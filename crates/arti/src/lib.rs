@@ -114,9 +114,10 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+pub mod dns;
 pub mod exit;
 pub mod process;
-pub mod proxy;
+pub mod socks;
 pub mod trace;
 pub mod watch_cfg;
 
@@ -130,6 +131,9 @@ use tracing::{info, warn};
 
 use std::convert::TryInto;
 
+/// Shorthand for a boxed and pinned Future.
+type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
+
 /// Run the main loop of the proxy.
 ///
 /// # Panics
@@ -138,6 +142,7 @@ use std::convert::TryInto;
 pub async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
+    dns_port: u16,
     config_sources: arti_config::ConfigurationSources,
     arti_config: arti_config::ArtiConfig,
     client_config: TorClientConfig,
@@ -153,11 +158,38 @@ pub async fn run<R: Runtime>(
     if arti_config.application().watch_configuration() {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
+
+    let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
+    if socks_port != 0 {
+        let runtime = runtime.clone();
+        let client = client.isolated_client();
+        proxy.push(Box::pin(async move {
+            let res = socks::run_socks_proxy(runtime, client, socks_port).await;
+            (res, "SOCKS")
+        }));
+    }
+
+    if dns_port != 0 {
+        let runtime = runtime.clone();
+        let client = client.isolated_client();
+        proxy.push(Box::pin(async move {
+            let res = dns::run_dns_resolver(runtime, client, dns_port).await;
+            (res, "DNS")
+        }));
+    }
+
+    if proxy.is_empty() {
+        // TODO change this message so it's not only about socks_port
+        warn!("No proxy port set; specify -p PORT or use the `socks_port` configuration option.");
+        return Ok(());
+    }
+
+    let proxy = futures::future::select_all(proxy).map(|(finished, _index, _others)| finished);
     futures::select!(
         r = exit::wait_for_ctrl_c().fuse()
             => r.context("waiting for termination signal"),
-        r = proxy::run_socks_proxy(runtime, client.clone(), socks_port).fuse()
-            => r.context("SOCKS proxy failure"),
+        r = proxy.fuse()
+            => r.0.context(format!("{} proxy failure", r.1)),
         r = async {
             client.bootstrap().await?;
             info!("Sufficiently bootstrapped; system SOCKS now functional.");
@@ -233,6 +265,13 @@ pub fn main_main() -> Result<()> {
                             .value_name("PORT")
                             .help("Port to listen on for SOCKS connections (overrides the port in the config if specified).")
                     )
+                    .arg(
+                        Arg::with_name("dns-port")
+                            .short("d")
+                            .takes_value(true)
+                            .value_name("PORT")
+                            .help("Port to listen on for DNS request (overrides the port in the config if specified).")
+                    )
             )
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
@@ -270,12 +309,16 @@ pub fn main_main() -> Result<()> {
         ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
-            (None, None) => {
-                warn!(
-                "No SOCKS port set; specify -p PORT or use the `socks_port` configuration option."
-            );
-                return Ok(());
-            }
+            (None, None) => 0,
+        };
+
+        let dns_port = match (
+            proxy_matches.value_of("dns-port"),
+            config.proxy().dns_port(),
+        ) {
+            (Some(p), _) => p.parse().expect("Invalid port specified"),
+            (None, Some(s)) => s,
+            (None, None) => 0,
         };
 
         let client_config = config.tor_client_config()?;
@@ -303,7 +346,14 @@ pub fn main_main() -> Result<()> {
         let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
-        rt_copy.block_on(run(runtime, socks_port, cfg_sources, config, client_config))?;
+        rt_copy.block_on(run(
+            runtime,
+            socks_port,
+            dns_port,
+            cfg_sources,
+            config,
+            client_config,
+        ))?;
         Ok(())
     } else {
         panic!("Subcommand added to clap subcommand list, but not yet implemented")

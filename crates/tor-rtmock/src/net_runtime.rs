@@ -4,7 +4,7 @@
 // we should make it so that more code is more shared.
 
 use crate::net::MockNetProvider;
-use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider};
+use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider};
 
 use crate::io::LocalStream;
 use async_trait::async_trait;
@@ -20,7 +20,7 @@ use std::time::{Duration, Instant, SystemTime};
 pub struct MockNetRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
     runtime: R,
-    /// A MockNetProvider.  Time-related calls get delegated here.
+    /// A MockNetProvider.  Network-related calls get delegated here.
     net: MockNetProvider,
 }
 
@@ -72,6 +72,17 @@ impl<R: Runtime> TlsProvider<LocalStream> for MockNetRuntime<R> {
     type TlsStream = <MockNetProvider as TlsProvider<LocalStream>>::TlsStream;
     fn tls_connector(&self) -> Self::Connector {
         self.net.tls_connector()
+    }
+}
+
+#[async_trait]
+impl<R: Runtime> UdpProvider for MockNetRuntime<R> {
+    type UdpSocket = R::UdpSocket;
+
+    #[inline]
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
+        // TODO this should probably get delegated to MockNetProvider instead
+        self.runtime.bind(addr).await
     }
 }
 

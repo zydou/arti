@@ -52,6 +52,7 @@ pub trait Runtime:
     + SleepProvider
     + TcpProvider
     + TlsProvider<Self::TcpStream>
+    + UdpProvider
     + 'static
 {
 }
@@ -65,6 +66,7 @@ impl<T> Runtime for T where
         + SleepProvider
         + TcpProvider
         + TlsProvider<Self::TcpStream>
+        + UdpProvider
         + 'static
 {
 }
@@ -178,6 +180,36 @@ pub trait TcpListener {
 
     /// Return the local address that this listener is bound to.
     fn local_addr(&self) -> IoResult<SocketAddr>;
+}
+
+/// Trait for a runtime that can send and receive UDP datagrams.
+#[async_trait]
+pub trait UdpProvider {
+    /// The type of Udp Socket returned by [`Self::bind()`]
+    type UdpSocket: UdpSocket + Send + Sync + Unpin + 'static;
+
+    /// Bind a local port to send and receive packets from
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket>;
+}
+
+/// Trait for a localy bound Udp socket that can send and receive datagrams.
+///
+/// These objects are returned by instances of [`UdpProvider`].
+#[async_trait]
+pub trait UdpSocket {
+    /// Wait for an incoming datagram; return it along its address.
+    async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)>;
+    /// Send a datagram to the provided address.
+    async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
+    /// Return the local address that this socket is bound to.
+    fn local_addr(&self) -> IoResult<SocketAddr>;
+    /// Connect to a remote address. After calling this [`UdpSocket::recv`] may only
+    /// return that same address, and the target provided to [`UdpSocket::send`] must
+    /// be this address.
+    // rationale for taking &mut self: this changes the behavior of the whole socket,
+    // so it should probably only be used when you have ownership of the socket and
+    // not when sharing it.
+    async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()>;
 }
 
 /// An object with a peer certificate: typically a TLS connection.

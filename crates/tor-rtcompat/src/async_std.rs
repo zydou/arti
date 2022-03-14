@@ -35,7 +35,7 @@ pub struct AsyncStdNativeTlsRuntime {
 
 /// Implementation type for AsyncStdRuntime.
 #[cfg(all(feature = "native-tls"))]
-type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider>;
+type NativeTlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, NativeTlsProvider, AsyncStd>;
 
 #[cfg(all(feature = "native-tls"))]
 crate::opaque::implement_opaque_runtime! {
@@ -52,7 +52,7 @@ pub struct AsyncStdRustlsRuntime {
 
 /// Implementation type for AsyncStdRustlsRuntime.
 #[cfg(feature = "rustls")]
-type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider>;
+type RustlsInner = CompoundRuntime<AsyncStd, AsyncStd, AsyncStd, RustlsProvider, AsyncStd>;
 
 #[cfg(feature = "rustls")]
 crate::opaque::implement_opaque_runtime! {
@@ -69,7 +69,7 @@ impl AsyncStdNativeTlsRuntime {
     pub fn create() -> IoResult<Self> {
         let rt = create_runtime_impl();
         Ok(AsyncStdNativeTlsRuntime {
-            inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default()),
+            inner: CompoundRuntime::new(rt, rt, rt, NativeTlsProvider::default(), rt),
         })
     }
 
@@ -113,7 +113,7 @@ impl AsyncStdRustlsRuntime {
     pub fn create() -> IoResult<Self> {
         let rt = create_runtime_impl();
         Ok(AsyncStdRustlsRuntime {
-            inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default()),
+            inner: CompoundRuntime::new(rt, rt, rt, RustlsProvider::default(), rt),
         })
     }
 

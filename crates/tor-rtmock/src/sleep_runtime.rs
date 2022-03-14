@@ -1,7 +1,7 @@
 //! Declare MockSleepRuntime.
 
 use crate::time::MockSleepProvider;
-use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider};
+use tor_rtcompat::{BlockOn, Runtime, SleepProvider, TcpProvider, TlsProvider, UdpProvider};
 
 use async_trait::async_trait;
 use futures::task::{FutureObj, Spawn, SpawnError};
@@ -110,6 +110,15 @@ impl<R: Runtime> TlsProvider<R::TcpStream> for MockSleepRuntime<R> {
     type TlsStream = R::TlsStream;
     fn tls_connector(&self) -> Self::Connector {
         self.runtime.tls_connector()
+    }
+}
+
+#[async_trait]
+impl<R: Runtime> UdpProvider for MockSleepRuntime<R> {
+    type UdpSocket = R::UdpSocket;
+
+    async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket> {
+        self.runtime.bind(addr).await
     }
 }
 

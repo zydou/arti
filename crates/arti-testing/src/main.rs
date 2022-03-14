@@ -279,6 +279,7 @@ impl Job {
             runtime.clone(),
             runtime.clone(),
             counting_tcp.clone(),
+            runtime.clone(),
             runtime,
         );
         let client = self.make_client(runtime)?;

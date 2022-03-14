@@ -181,6 +181,7 @@ mod traits;
 use std::io;
 pub use traits::{
     BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
+    UdpProvider, UdpSocket,
 };
 
 pub use timer::{SleepProviderExt, Timeout, TimeoutError};
@@ -531,7 +532,7 @@ mod test {
     // Try connecting to ourself and sending a little data.
     //
     // NOTE: requires Ipv4 localhost.
-    fn self_connect<R: Runtime>(runtime: &R) -> IoResult<()> {
+    fn self_connect_tcp<R: Runtime>(runtime: &R) -> IoResult<()> {
         let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
         let rt1 = runtime.clone();
 
@@ -556,6 +557,40 @@ mod test {
             send_r?;
 
             assert_eq!(&data?[..], b"Hello world");
+
+            Ok(())
+        })
+    }
+
+    // Try connecting to ourself and sending a little data.
+    //
+    // NOTE: requires Ipv4 localhost.
+    fn self_connect_udp<R: Runtime>(runtime: &R) -> IoResult<()> {
+        let localhost = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0);
+        let rt1 = runtime.clone();
+
+        let socket1 = runtime.block_on(rt1.bind(&(localhost.into())))?;
+        let addr1 = socket1.local_addr()?;
+
+        let socket2 = runtime.block_on(rt1.bind(&(localhost.into())))?;
+        let addr2 = socket2.local_addr()?;
+
+        runtime.block_on(async {
+            let task1 = async {
+                let mut buf = vec![0_u8; 16];
+                let (len, addr) = socket1.recv(&mut buf[..]).await?;
+                IoResult::Ok((buf[..len].to_vec(), addr))
+            };
+            let task2 = async {
+                socket2.send(b"Hello world", &addr1).await?;
+                IoResult::Ok(())
+            };
+
+            let (recv_r, send_r) = futures::join!(task1, task2);
+            send_r?;
+            let (buff, addr) = recv_r?;
+            assert_eq!(addr2, addr);
+            assert_eq!(&buff, b"Hello world");
 
             Ok(())
         })
@@ -730,7 +765,8 @@ mod test {
         small_timeout_ok,
         small_timeout_expire,
         tiny_wallclock,
-        self_connect,
+        self_connect_tcp,
+        self_connect_udp,
         listener_stream,
     }
 

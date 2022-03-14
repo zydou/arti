@@ -724,7 +724,7 @@ impl<R: Runtime> TorClient<R> {
         hostname: &str,
         prefs: &StreamPrefs,
     ) -> crate::Result<Vec<IpAddr>> {
-        let addr = (hostname, 0).into_tor_addr().map_err(wrap_err)?;
+        let addr = (hostname, 1).into_tor_addr().map_err(wrap_err)?;
         addr.enforce_config(&self.addrcfg.get()).map_err(wrap_err)?;
 
         let circ = self.get_or_launch_exit_circ(&[], prefs).await?;
