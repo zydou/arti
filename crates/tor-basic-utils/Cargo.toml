@@ -11,12 +11,6 @@ categories = ["rust-patterns"] # We must put *something* here and this will do
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-serde = { version = "1.0.103", features = ["derive"], optional = true }
-humantime-serde-crate = { package = "humantime-serde", version = "1", optional = true }
-
-[features]
-default = ["humantime-serde"]
-humantime-serde = ["humantime-serde-crate", "serde"]
 
 [dev-dependencies]
 educe = "0.4.6"
