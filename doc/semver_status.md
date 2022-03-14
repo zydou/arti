@@ -61,6 +61,11 @@ tor-protover:
 tor-proto:
   api-break: OutboundClientHandshake::connect() now takes now_fn.
 
+  new-api: New Error::HandshakeCertsExpired.
+
+tor-error:
+  new-api: New ErrorKind::ClockSkew.
+
 tor-cell:
   new-api: Netinfo message now has a timestamp() accessor.
 

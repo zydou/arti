@@ -1,5 +1,5 @@
 //! Define an error type for the tor-proto crate.
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tor_cell::relaycell::msg::EndReason;
 use tor_error::{ErrorKind, HasKind};
@@ -42,6 +42,17 @@ pub enum Error {
     /// Handshake protocol violation.
     #[error("handshake protocol violation: {0}")]
     HandshakeProto(String),
+    /// Handshake broken, maybe due to clock skew.
+    ///
+    /// (If the problem can't be due to clock skew, we return HandshakeProto
+    /// instead.)
+    #[error("handshake failed due to expired certificates (possible clock skew)")]
+    HandshakeCertsExpired {
+        /// For how long has the circuit been expired?
+        expired_by: Duration,
+        /// How fast does the relay claim that our clock is?
+        skew: Duration,
+    },
     /// Protocol violation at the channel level, other than at the handshake
     /// stage.
     #[error("channel protocol violation: {0}")]
@@ -113,10 +124,16 @@ impl From<Error> for std::io::Error {
 
             ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_) | BadCellAuth | BadCircHandshake | HandshakeProto(_) | ChanProto(_)
-            | CircProto(_) | CellErr(_) | ChanMismatch(_) | StreamProto(_) => {
-                ErrorKind::InvalidData
-            }
+            BytesErr(_)
+            | BadCellAuth
+            | BadCircHandshake
+            | HandshakeProto(_)
+            | ChanProto(_)
+            | HandshakeCertsExpired { .. }
+            | CircProto(_)
+            | CellErr(_)
+            | ChanMismatch(_)
+            | StreamProto(_) => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -142,6 +159,7 @@ impl HasKind for Error {
             E::BadCellAuth => EK::TorProtocolViolation,
             E::BadCircHandshake => EK::TorProtocolViolation,
             E::HandshakeProto(_) => EK::TorAccessFailed,
+            E::HandshakeCertsExpired { .. } => EK::ClockSkew,
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::CircProto(_) => EK::TorProtocolViolation,
             E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
