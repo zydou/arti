@@ -42,6 +42,7 @@ bitflags = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
 derive_more = "0.99"
 digest = "0.10.0"
+educe = "0.4.6"
 hex = "0.4"
 once_cell = "1"
 phf = { version = "0.10.0", features = ["macros"] }

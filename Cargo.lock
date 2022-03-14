@@ -3439,6 +3439,7 @@ dependencies = [
  "bitflags",
  "derive_more",
  "digest 0.10.3",
+ "educe",
  "hex",
  "hex-literal",
  "once_cell",

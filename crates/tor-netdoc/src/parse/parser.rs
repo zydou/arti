@@ -18,6 +18,8 @@ use crate::parse::rules::*;
 use crate::parse::tokenize::*;
 use crate::{ParseErrorKind as EK, Result};
 
+use educe::Educe;
+
 /// Describe the rules for one section of a document.
 ///
 /// The rules are represented as a mapping from token index to
@@ -36,58 +38,37 @@ pub(crate) struct SectionRules<T: Keyword> {
 }
 
 /// The entry or entries for a particular keyword within a document.
-#[derive(Clone)]
-enum TokVal<'a, K: Keyword> {
-    /// No value has been found.
-    None,
-    /// A single value has been found; we're storing it in place.
-    ///
-    /// We use a one-element array here so that we can return a slice
-    /// of the array.
-    Some([Item<'a, K>; 1]),
-    /// Multiple values have been found; they go in a vector.
-    Multi(Vec<Item<'a, K>>),
-}
+#[derive(Clone, Educe)]
+#[educe(Default)]
+struct TokVal<'a, K: Keyword>(Vec<Item<'a, K>>);
+
 impl<'a, K: Keyword> TokVal<'a, K> {
     /// Return the number of Items for this value.
+    fn none() -> Self {
+        Default::default()
+    }
+    /// Return the number of Items for this value.
     fn count(&self) -> usize {
-        match self {
-            TokVal::None => 0,
-            TokVal::Some(_) => 1,
-            TokVal::Multi(v) => v.len(),
-        }
+        self.0.len()
     }
     /// Return the first Item for this value, or None if there wasn't one.
     fn first(&self) -> Option<&Item<'a, K>> {
-        match self {
-            TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
-            TokVal::Multi(v) => Some(&v[0]),
-        }
+        self.0.get(0)
     }
     /// Return the Item for this value, if there is exactly one.
     fn singleton(&self) -> Option<&Item<'a, K>> {
-        match self {
-            TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
-            TokVal::Multi(_) => None,
+        match &*self.0 {
+            &[ref x] => Some(x),
+            _ => None,
         }
     }
     /// Return all the Items for this value, as a slice.
     fn as_slice(&self) -> &[Item<'a, K>] {
-        match self {
-            TokVal::None => &[],
-            TokVal::Some(t) => &t[..],
-            TokVal::Multi(v) => &v[..],
-        }
+        &self.0
     }
     /// Return the last Item for this value, if any.
     fn last(&self) -> Option<&Item<'a, K>> {
-        match self {
-            TokVal::None => None,
-            TokVal::Some([t]) => Some(t),
-            TokVal::Multi(v) => Some(&v[v.len() - 1]),
-        }
+        self.0.last()
     }
 }
 
@@ -111,7 +92,7 @@ impl<'a, T: Keyword> Section<'a, T> {
     fn new() -> Self {
         let n = T::n_vals();
         let mut v = Vec::with_capacity(n);
-        v.resize(n, TokVal::None);
+        v.resize(n, TokVal::none());
         Section {
             v,
             first: None,
@@ -169,19 +150,9 @@ impl<'a, T: Keyword> Section<'a, T> {
     fn add_tok(&mut self, t: T, item: Item<'a, T>) {
         let idx = Keyword::idx(t);
         if idx >= self.v.len() {
-            self.v.resize(idx + 1, TokVal::None);
+            self.v.resize(idx + 1, TokVal::none());
         }
-        let m = &mut self.v[idx];
-
-        match m {
-            TokVal::None => *m = TokVal::Some([item]),
-            TokVal::Some([x]) => {
-                *m = TokVal::Multi(vec![x.clone(), item]);
-            }
-            TokVal::Multi(ref mut v) => {
-                v.push(item);
-            }
-        };
+        self.v[idx].0.push(item);
         if self.first.is_none() {
             self.first = Some(t);
         }
