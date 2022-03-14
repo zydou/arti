@@ -181,7 +181,10 @@ impl<R: Runtime> ChanBuilder<R> {
         // 2. Set up the channel.
         let mut builder = ChannelBuilder::new();
         builder.set_declared_addr(addr);
-        let chan = builder.launch(tls).connect().await?;
+        let chan = builder
+            .launch(tls)
+            .connect(|| self.runtime.wallclock())
+            .await?;
         let now = self.runtime.wallclock();
         let chan = chan.check(target, &peer_cert, Some(now))?;
         let (chan, reactor) = chan.finish().await?;

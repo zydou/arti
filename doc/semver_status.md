@@ -58,6 +58,12 @@ tor-netdoc:
 tor-protover:
   new-api: Protocols now implements Eq, PartialEq, and Hash.
 
+tor-proto:
+  api-break: OutboundClientHandshake::connect() now takes now_fn.
+
+tor-cell:
+  new-api: Netinfo message now has a timestamp() accessor.
+
 tor-basic-utils:
 
   Remove `humantime_serde_option` module.
