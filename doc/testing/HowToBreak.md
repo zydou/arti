@@ -109,7 +109,7 @@ directory lifetimes are very short.
 
 TODO: Describe better ways to do this.
 
-## Failures related the network
+## Failures related to the network
 
 The `arti-testing` tool can simulate multiple kinds of errors:
  * connections fail immediately (or after a little while)
