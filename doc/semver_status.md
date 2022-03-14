@@ -58,4 +58,7 @@ tor-netdoc:
 tor-protover:
   new-api: Protocols now implements Eq, PartialEq, and Hash.
 
+tor-basic-utils:
 
+  Remove `humantime_serde_option` module.
+  (Use `humantime_serde::option` instead.)

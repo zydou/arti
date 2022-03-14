@@ -41,9 +41,6 @@
 
 use std::fmt;
 
-#[cfg(feature = "humantime-serde")]
-pub mod humantime_serde_option;
-
 // ----------------------------------------------------------------------
 
 /// Function with the signature of `Debug::fmt` that just prints `".."`

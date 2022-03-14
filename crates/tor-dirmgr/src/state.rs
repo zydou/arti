@@ -764,6 +764,13 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         if self.register_microdescs(microdescs) {
             // Just stopped being pending.
             self.mark_consensus_usable(storage)?;
+            // We can save a lot of ram this way, though we don't want to do it
+            // so often.  As a compromise we call `shrink_to_fit at most twice
+            // per consensus: once when we're ready to use, and once when we are
+            // complete.
+            self.missing.shrink_to_fit();
+        } else if self.missing.is_empty() {
+            self.missing.shrink_to_fit();
         }
 
         Ok(changed)
