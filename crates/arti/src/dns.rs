@@ -110,9 +110,8 @@ where
     Ok(())
 }
 
-/// Launch a DNS resolver to lisetn on a given local port, and run
-/// indefinitely.
-pub(crate) async fn run_dns_resolver<R: Runtime>(
+/// Launch a DNS resolver to listen on a given local port, and run indefinitely.
+pub async fn run_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     dns_port: u16,
