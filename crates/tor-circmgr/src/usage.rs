@@ -291,12 +291,6 @@ impl StreamIsolation {
     }
 }
 
-impl PartialEq for StreamIsolation {
-    fn eq(&self, other: &Self) -> bool {
-        self.may_share_circuit(other)
-    }
-}
-
 impl StreamIsolationBuilder {
     /// Construct a builder with no items set.
     pub fn new() -> Self {
@@ -329,7 +323,7 @@ impl ExitPolicy {
 ///
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum TargetCircUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
@@ -366,7 +360,7 @@ pub(crate) enum TargetCircUsage {
 ///
 /// This type should stay internal to the circmgr crate for now: we'll probably
 /// want to refactor it a lot.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) enum SupportedCircUsage {
     /// Usable for BEGINDIR-based non-anonymous directory connections
     Dir,
@@ -558,7 +552,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::path::OwnedPath;
@@ -566,6 +560,118 @@ mod test {
     use std::convert::TryFrom;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
+
+    /// Trait for testing use only. Much like PartialEq, but for type containing an dyn Isolation
+    /// which is known to be an IsolationToken.
+    pub(crate) trait IsolationTokenEq {
+        /// Compare two values, returning true if they are equals and all dyn Isolation they contain
+        /// are IsolationToken (which are equal too).
+        fn isol_eq(&self, other: &Self) -> bool;
+    }
+
+    impl IsolationTokenEq for IsolationToken {
+        fn isol_eq(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
+
+    impl<T: IsolationTokenEq> IsolationTokenEq for Option<T> {
+        fn isol_eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Some(this), Some(other)) => this.isol_eq(other),
+                (None, None) => true,
+                _ => false,
+            }
+        }
+    }
+
+    impl<T: IsolationTokenEq + std::fmt::Debug> IsolationTokenEq for Vec<T> {
+        fn isol_eq(&self, other: &Self) -> bool {
+            if self.len() != other.len() {
+                return false;
+            }
+            self.iter()
+                .zip(other.iter())
+                .all(|(this, other)| this.isol_eq(other))
+        }
+    }
+
+    impl IsolationTokenEq for dyn Isolation {
+        fn isol_eq(&self, other: &Self) -> bool {
+            let this = self.as_any().downcast_ref::<IsolationToken>();
+            let other = other.as_any().downcast_ref::<IsolationToken>();
+            match (this, other) {
+                (Some(this), Some(other)) => this == other,
+                _ => false,
+            }
+        }
+    }
+
+    impl IsolationTokenEq for StreamIsolation {
+        fn isol_eq(&self, other: &Self) -> bool {
+            self.stream_token.isol_eq(other.stream_token.as_ref())
+                && self.owner_token == other.owner_token
+        }
+    }
+
+    impl IsolationTokenEq for TargetCircUsage {
+        fn isol_eq(&self, other: &Self) -> bool {
+            use TargetCircUsage::*;
+            match (self, other) {
+                (Dir, Dir) => true,
+                (
+                    Exit {
+                        ports: p1,
+                        isolation: is1,
+                    },
+                    Exit {
+                        ports: p2,
+                        isolation: is2,
+                    },
+                ) => p1 == p2 && is1.isol_eq(is2),
+                (TimeoutTesting, TimeoutTesting) => true,
+                (
+                    Preemptive {
+                        port: p1,
+                        circs: c1,
+                    },
+                    Preemptive {
+                        port: p2,
+                        circs: c2,
+                    },
+                ) => p1 == p2 && c1 == c2,
+                _ => false,
+            }
+        }
+    }
+
+    impl IsolationTokenEq for SupportedCircUsage {
+        fn isol_eq(&self, other: &Self) -> bool {
+            use SupportedCircUsage::*;
+            match (self, other) {
+                (Dir, Dir) => true,
+                (
+                    Exit {
+                        policy: p1,
+                        isolation: is1,
+                    },
+                    Exit {
+                        policy: p2,
+                        isolation: is2,
+                    },
+                ) => p1 == p2 && is1.isol_eq(is2),
+                (NoUsage, NoUsage) => true,
+                _ => false,
+            }
+        }
+    }
+
+    macro_rules! assert_isoleq {
+        { $arg1:expr, $arg2:expr } => {
+            assert!($arg1.isol_eq(&$arg2))
+        }
+    }
+    pub(crate) use assert_isoleq;
 
     #[test]
     fn exit_policy() {
@@ -755,42 +861,42 @@ mod test {
         let mut supp_dir_c = supp_dir.clone();
         assert!(supp_dir_c.restrict_mut(&targ_exit).is_err());
         assert!(supp_dir_c.restrict_mut(&targ_testing).is_err());
-        assert_eq!(supp_dir, supp_dir_c);
+        assert_isoleq!(supp_dir, supp_dir_c);
 
         let mut supp_exit_c = supp_exit.clone();
         assert!(supp_exit_c.restrict_mut(&targ_dir).is_err());
-        assert_eq!(supp_exit, supp_exit_c);
+        assert_isoleq!(supp_exit, supp_exit_c);
 
         let mut supp_exit_c = supp_exit.clone();
         assert!(supp_exit_c.restrict_mut(&targ_exit_iso2).is_err());
-        assert_eq!(supp_exit, supp_exit_c);
+        assert_isoleq!(supp_exit, supp_exit_c);
 
         let mut supp_exit_iso2_c = supp_exit_iso2.clone();
         assert!(supp_exit_iso2_c.restrict_mut(&targ_exit).is_err());
-        assert_eq!(supp_exit_iso2, supp_exit_iso2_c);
+        assert_isoleq!(supp_exit_iso2, supp_exit_iso2_c);
 
         let mut supp_none_c = supp_none.clone();
         assert!(supp_none_c.restrict_mut(&targ_exit).is_err());
         assert!(supp_none_c.restrict_mut(&targ_dir).is_err());
-        assert_eq!(supp_none_c, supp_none);
+        assert_isoleq!(supp_none_c, supp_none);
 
         // allowed but nothing to do
         let mut supp_dir_c = supp_dir.clone();
         supp_dir_c.restrict_mut(&targ_dir).unwrap();
-        assert_eq!(supp_dir, supp_dir_c);
+        assert_isoleq!(supp_dir, supp_dir_c);
 
         let mut supp_exit_c = supp_exit.clone();
         supp_exit_c.restrict_mut(&targ_exit).unwrap();
-        assert_eq!(supp_exit, supp_exit_c);
+        assert_isoleq!(supp_exit, supp_exit_c);
 
         let mut supp_exit_iso2_c = supp_exit_iso2.clone();
         supp_exit_iso2_c.restrict_mut(&targ_exit_iso2).unwrap();
         supp_none_c.restrict_mut(&targ_testing).unwrap();
-        assert_eq!(supp_exit_iso2, supp_exit_iso2_c);
+        assert_isoleq!(supp_exit_iso2, supp_exit_iso2_c);
 
         let mut supp_none_c = supp_none.clone();
         supp_none_c.restrict_mut(&targ_testing).unwrap();
-        assert_eq!(supp_none_c, supp_none);
+        assert_isoleq!(supp_none_c, supp_none);
 
         // allowed, do something
         let mut supp_exit_no_iso_c = supp_exit_no_iso.clone();
@@ -846,7 +952,7 @@ mod test {
             SupportedCircUsage::Exit {
                 isolation: ref iso,
                 ..
-            } if iso == &Some(isolation)
+            } if iso.isol_eq(&Some(isolation))
         ));
         assert!(u_exit.supports(&exit_usage));
         assert_eq!(p_exit.len(), 3);
@@ -868,7 +974,7 @@ mod test {
         // paths with an exit if there are any exits.
         assert!(policy.allows_some_port());
         assert!(last_relay.policies_allow_some_port());
-        assert_eq!(
+        assert_isoleq!(
             usage,
             SupportedCircUsage::Exit {
                 policy,
@@ -896,7 +1002,7 @@ mod test {
             .build_path(&mut rng, di, guards, &config)
             .unwrap();
         assert_eq!(path.len(), 3);
-        assert_eq!(usage, SupportedCircUsage::NoUsage);
+        assert_isoleq!(usage, SupportedCircUsage::NoUsage);
     }
 
     #[test]

@@ -1301,6 +1301,7 @@ fn spawn_expiration_task<B, R>(
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::usage::test::{assert_isoleq, IsolationTokenEq};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
     use std::collections::BTreeSet;
@@ -1512,6 +1513,22 @@ mod test {
                 None => FakeOp::Succeed,
                 Some(ref mut lst) => lst.pop().unwrap_or(FakeOp::Succeed),
             }
+        }
+    }
+
+    impl<T: IsolationTokenEq, U: PartialEq> IsolationTokenEq for OpenEntry<T, U> {
+        fn isol_eq(&self, other: &Self) -> bool {
+            self.spec.isol_eq(&other.spec)
+                && self.circ == other.circ
+                && self.expiration == other.expiration
+        }
+    }
+
+    impl<T: IsolationTokenEq, U: PartialEq> IsolationTokenEq for &mut OpenEntry<T, U> {
+        fn isol_eq(&self, other: &Self) -> bool {
+            self.spec.isol_eq(&other.spec)
+                && self.circ == other.circ
+                && self.expiration == other.expiration
         }
     }
 
@@ -2016,9 +2033,9 @@ mod test {
             ports: vec![TargetPort::ipv4(80)],
             isolation: StreamIsolation::no_isolation(),
         };
-        let empty: Vec<&OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
+        let empty: Vec<&mut OpenEntry<SupportedCircUsage, FakeCirc>> = vec![];
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(vec![&mut entry_none].into_iter(), &usage_web),
             empty
         );
@@ -2027,7 +2044,7 @@ mod test {
         //            `abstract_spec_find_supported` has a silly signature that involves `&mut`
         //            refs, which we can't have more than one of.
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_web,
@@ -2035,7 +2052,7 @@ mod test {
             vec![&mut entry_web_c]
         );
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
                 &usage_web,
@@ -2056,7 +2073,7 @@ mod test {
 
         // shouldn't return anything unless there are >=2 circuits
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none].into_iter(),
                 &usage_preemptive_web
@@ -2064,7 +2081,7 @@ mod test {
             empty
         );
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none].into_iter(),
                 &usage_preemptive_dns
@@ -2072,7 +2089,7 @@ mod test {
             empty
         );
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_preemptive_web
@@ -2080,7 +2097,7 @@ mod test {
             empty
         );
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web].into_iter(),
                 &usage_preemptive_dns
@@ -2088,7 +2105,7 @@ mod test {
             vec![&mut entry_none_c, &mut entry_web_c]
         );
 
-        assert_eq!(
+        assert_isoleq!(
             SupportedCircUsage::find_supported(
                 vec![&mut entry_none, &mut entry_web, &mut entry_full].into_iter(),
                 &usage_preemptive_web
