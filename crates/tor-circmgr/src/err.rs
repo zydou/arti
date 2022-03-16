@@ -146,7 +146,7 @@ impl HasKind for Error {
             E::Protocol(e) => e.kind(),
             E::State(e) => e.kind(),
             E::GuardMgr(e) => e.kind(),
-            E::Guard(_) => EK::NoPath,
+            E::Guard(e) => e.kind(),
             E::ExpiredConsensus => EK::DirectoryExpired,
             E::Spawn { cause, .. } => cause.kind(),
         }
