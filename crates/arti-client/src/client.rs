@@ -121,8 +121,7 @@ enum StreamIsolationPreference {
     /// No additional isolation
     #[educe(Default)]
     None,
-    /// Id of the isolation group the connection should be part of
-    /// TODO
+    /// Isolation parameter to use for connections
     Explicit(Box<dyn Isolation>),
     /// Isolate every connection!
     EveryStream,
