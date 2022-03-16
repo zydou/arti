@@ -73,7 +73,7 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tracing::warn;
@@ -150,42 +150,6 @@ impl SubnetConfig {
     }
 }
 
-/// Internal type to hold an Arc<Microdesc>.
-///
-/// This is a separate type so we can use a HashSet instead of
-/// HashMap.
-#[derive(Clone, Debug)]
-struct MdEntry {
-    /// The microdescriptor itself.
-    md: Arc<Microdesc>,
-}
-
-impl std::borrow::Borrow<MdDigest> for MdEntry {
-    fn borrow(&self) -> &MdDigest {
-        self.digest()
-    }
-}
-
-impl MdEntry {
-    /// Return the digest for this entry.
-    fn digest(&self) -> &MdDigest {
-        self.md.digest()
-    }
-}
-
-impl PartialEq for MdEntry {
-    fn eq(&self, rhs: &MdEntry) -> bool {
-        self.digest() == rhs.digest()
-    }
-}
-impl Eq for MdEntry {}
-
-impl std::hash::Hash for MdEntry {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.digest().hash(state);
-    }
-}
-
 /// An opaque type representing the weight with which a relay or set of
 /// relays will be selected for a given role.
 ///
@@ -257,9 +221,9 @@ pub struct NetDir {
     /// A map from keys to integer values, distributed in the consensus,
     /// and clamped to certain defaults.
     params: NetParameters,
-    /// Map from SHA256 digest of microdescriptors to the
-    /// microdescriptors themselves.
-    mds: HashSet<MdEntry>,
+    /// Map from  routerstatus index (the position of a routerstatus within the
+    /// consensus), to that routerstatus's microdescriptor (if we have one.)
+    mds: Vec<Option<Arc<Microdesc>>>,
     /// Map from SHA256 of _missing_ microdescriptors to the position of their
     /// corresponding routerstatus indices within `consensus`.
     rs_idx_by_missing: HashMap<MdDigest, usize>,
@@ -380,7 +344,7 @@ impl PartialNetDir {
         let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
-            mds: HashSet::with_capacity(n_relays),
+            mds: vec![None; n_relays],
             rs_idx_by_missing,
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
@@ -399,9 +363,9 @@ impl PartialNetDir {
     /// netdir, using the microdescriptors from the previous netdir.
     pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
         let mut loaded = Vec::new();
-        for ent in &prev.mds {
-            if self.netdir.add_arc_microdesc(ent.md.clone()) {
-                loaded.push(ent.md.digest());
+        for md in prev.mds.iter().flatten() {
+            if self.netdir.add_arc_microdesc(md.clone()) {
+                loaded.push(md.digest());
             }
         }
         loaded
@@ -463,7 +427,7 @@ impl NetDir {
             self.rs_idx_by_ed.insert(*md.ed25519_id(), rs_idx);
 
             // Happy path: we did indeed want this one.
-            self.mds.insert(MdEntry { md });
+            self.mds[rs_idx] = Some(md);
 
             // Save some space in the missing-descriptor list.
             if self.rs_idx_by_missing.len() < self.rs_idx_by_missing.capacity() / 4 {
@@ -478,12 +442,21 @@ impl NetDir {
     }
 
     /// Construct a (possibly invalid) Relay object from a routerstatus and its
-    /// microdescriptor (if any).
-    fn relay_from_rs<'a>(
+    /// position within the consensus.
+    fn relay_from_rs_and_idx<'a>(
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
+        rs_idx: usize,
     ) -> UncheckedRelay<'a> {
-        let md = self.mds.get(rs.md_digest()).map(|ent| ent.md.as_ref());
+        debug_assert_eq!(
+            self.consensus.relays()[rs_idx].rsa_identity(),
+            rs.rsa_identity()
+        );
+        let md = self.mds[rs_idx].as_deref();
+        if let Some(md) = md {
+            debug_assert_eq!(rs.md_digest(), md.digest());
+        }
+
         UncheckedRelay { rs, md }
     }
 
@@ -511,7 +484,8 @@ impl NetDir {
         self.consensus
             .relays()
             .iter()
-            .map(move |rs| self.relay_from_rs(rs))
+            .enumerate()
+            .map(move |(idx, rs)| self.relay_from_rs_and_idx(rs, idx))
     }
     /// Return an iterator over all usable Relays.
     pub fn relays(&self) -> impl Iterator<Item = Relay<'_>> {
@@ -526,10 +500,10 @@ impl NetDir {
     /// with this ID, the ID may become usable.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     pub fn by_id(&self, id: &Ed25519Identity) -> Option<Relay<'_>> {
-        let rs_idx = self.rs_idx_by_ed.get(id)?;
-        let rs = self.consensus.relays().get(*rs_idx).expect("Corrupt index");
+        let rs_idx = *self.rs_idx_by_ed.get(id)?;
+        let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
 
-        let relay = self.relay_from_rs(rs).into_relay()?;
+        let relay = self.relay_from_rs_and_idx(rs, rs_idx).into_relay()?;
         assert_eq!(id, relay.id());
         Some(relay)
     }
@@ -595,10 +569,10 @@ impl NetDir {
     /// Return a (possibly unusable) relay with a given RSA identity.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     pub fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
-        let rs_idx = self.rs_idx_by_rsa.get(rsa_id)?;
-        let rs = self.consensus.relays().get(*rs_idx).expect("Corrupt index");
+        let rs_idx = *self.rs_idx_by_rsa.get(rsa_id)?;
+        let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
         assert_eq!(rs.rsa_identity(), rsa_id);
-        Some(self.relay_from_rs(rs))
+        Some(self.relay_from_rs_and_idx(rs, rs_idx))
     }
     /// Return the relay with a given RSA identity, if we have one
     /// and it is usable.
