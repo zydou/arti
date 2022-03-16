@@ -6,18 +6,25 @@ use std::time::Duration;
 
 use rand::Rng;
 
-/// An implementation for retrying downloads based on a decorrelated jitter
-/// schedule.
+/// An implementation for retrying a remote operation based on a [decorrelated
+/// jitter] schedule.
 ///
 /// The algorithm used here has several desirable properties:
-///    * It is randomized, so that multiple timeouts don't have a
-///      danger of getting synchronized with each other and hammering the
-///      same directory servers all at once.
-///    * It tends on average to wait longer and longer over time, so
-///      that if the directory server is down, it won't get pummeled by
-///      a zillion failing clients when it comes back up.
-///    * It has a chance of retrying promptly, which results in better
-///      client performance on average.
+///    * It is randomized, so that multiple timeouts don't have a danger of
+///      getting synchronized with each other and hammering the same servers all
+///      at once.
+///    * It tends on average to wait longer and longer over time, so that if the
+///      server is down, it won't get pummeled by a zillion failing clients
+///      when it comes back up.
+///    * It has a chance of retrying promptly, which results in better client
+///      performance on average.
+///
+/// For a more full specification, see [`dir-spec.txt`].
+///
+/// [decorrelated jitter]:
+///     https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+/// [`dir-spec.txt`]: https://spec.torproject.org/dir-spec
+#[derive(Clone, Debug)]
 pub struct RetryDelay {
     /// The last delay that this retry delay returned (in msec), or 0
     /// if this never returned a delay.
@@ -67,6 +74,8 @@ impl RetryDelay {
 
     /// Helper: Return a lower and upper bound for the next delay to
     /// be yielded.
+    ///
+    /// Values are in milliseconds.
     fn delay_bounds(&self) -> (u32, u32) {
         let low = self.low_bound_ms;
         let high = std::cmp::max(

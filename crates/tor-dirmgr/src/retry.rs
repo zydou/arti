@@ -1,10 +1,7 @@
-//! Implement a timer for retrying a single failed fetch or object,
-//! using the [decorrelated jitter] algorithm.
+//! Configure timers for a timer for retrying a single failed fetch or object.
 //!
-//! For a more full specification, see [`dir-spec.txt`].
-//!
-//! [decorrelated jitter]: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-//! [`dir-spec.txt`]: https://spec.torproject.org/dir-spec
+//! For a more information on the algorithm, see
+//! [`RetryDelay`](tor_basic_utils::retry::RetryDelay).
 
 use std::convert::TryInto;
 use std::num::{NonZeroU32, NonZeroU8};
