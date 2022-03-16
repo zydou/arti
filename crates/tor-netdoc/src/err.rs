@@ -431,10 +431,7 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self.source {
-            Some(e) => Some(e),
-            None => None,
-        }
+        self.source.as_ref().map(|s| s as _)
     }
 }
 
