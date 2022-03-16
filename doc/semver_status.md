@@ -31,6 +31,9 @@ arti-client:
   Replace ArtiClientBuilder's methods for individual elements of TorClientConfigBuilder
   with an accessor `.tor()` to get `&mut TorClientConfigBuilder`.
 
+  Abolished `TorClientConfig::get_circmgr_config`.
+  Abolished `TorClientConfig::get_dirmgr_config`.
+
 arti:
 
   Provide library crate with unstable API.
@@ -46,7 +49,10 @@ arti-client:
 
 tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
+  DirMgrCfg: totally changed, builder abolished.
 
+tor-circmgr:
+  CircMgrCfg: totally changed, builder abolished.
 
 tor-netdoc:
 
