@@ -524,6 +524,11 @@ impl GuardSet {
         }
     }
 
+    /// Return the earliest time at which any guard will be retriable.
+    pub(crate) fn next_retry(&self) -> Option<Instant> {
+        self.guards.values().filter_map(Guard::next_retry).min()
+    }
+
     /// Mark every `Unreachable` primary guard as `Unknown`.
     pub(crate) fn mark_primary_guards_retriable(&mut self) {
         for id in &self.primary {
@@ -690,13 +695,16 @@ impl GuardSet {
             GuardUsageKind::Data => params.data_parallelism,
         };
 
+        // count the number of running options, distinct from the total options.
+        let mut n_running: usize = 0;
+
         let mut options: Vec<_> = self
             .preference_order()
+            .filter(|(_, g)| g.usable() && g.reachable() != Reachable::Unreachable)
+            .inspect(|_| n_running += 1)
             .filter(|(_, g)| {
-                g.usable()
+                !g.exploratory_circ_pending()
                     && self.active_filter.permits(*g)
-                    && g.reachable() != Reachable::Unreachable
-                    && !g.exploratory_circ_pending()
                     && g.conforms_to_usage(usage)
             })
             .take(n_options)
@@ -712,7 +720,14 @@ impl GuardSet {
 
         match options.choose(&mut rand::thread_rng()) {
             Some((src, g)) => Ok((*src, g.guard_id().clone())),
-            None => Err(PickGuardError::EveryoneIsDown),
+            None => {
+                if n_running == 0 {
+                    let retry_at = self.next_retry();
+                    Err(PickGuardError::AllGuardsDown { retry_at })
+                } else {
+                    Err(PickGuardError::NoGuardsUsable)
+                }
+            }
         }
     }
 }
@@ -757,14 +772,29 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PickGuardError {
-    /// All members of the current sample were down, or waiting for
-    /// other circuits to finish.
-    #[error("Everybody is either down or pending")]
-    EveryoneIsDown,
+    /// All members of the current sample were down.
+    #[error("All guards are down")]
+    AllGuardsDown {
+        /// The next time at which any guard will be retriable.
+        retry_at: Option<Instant>,
+    },
 
-    /// We had no members in the current sample.
-    #[error("The current sample is empty")]
-    SampleIsEmpty,
+    /// Some guards were running, but all of them were either blocked on pending
+    /// circuits at other guards, unusable for the provided purpose, or filtered
+    /// out.
+    #[error("No running guards were usable for the selected purpose")]
+    NoGuardsUsable,
+}
+
+impl tor_error::HasKind for PickGuardError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use PickGuardError as E;
+        match self {
+            E::AllGuardsDown { .. } => EK::TorAccessFailed,
+            E::NoGuardsUsable => EK::NoPath,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1121,7 +1151,7 @@ mod test {
         }
 
         let e = guards.pick_guard(&usage, &params);
-        assert!(matches!(e, Err(PickGuardError::EveryoneIsDown)));
+        assert!(matches!(e, Err(PickGuardError::AllGuardsDown { .. })));
 
         // Now in theory we should re-grow when we extend.
         guards.extend_sample_as_needed(st, &params, &netdir);

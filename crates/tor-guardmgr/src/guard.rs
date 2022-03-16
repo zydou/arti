@@ -230,6 +230,13 @@ impl Guard {
         self.reachable
     }
 
+    /// Return the next time at which this guard will be retriable.
+    ///
+    /// (Return None if we think this guard might be reachable right now.)
+    pub(crate) fn next_retry(&self) -> Option<Instant> {
+        self.retry_at
+    }
+
     /// Return true if this guard is listed in the latest NetDir, and hasn't
     /// been turned off for some other reason.
     pub(crate) fn usable(&self) -> bool {

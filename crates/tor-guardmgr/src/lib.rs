@@ -341,6 +341,13 @@ impl<R: Runtime> GuardMgr<R> {
             == 0
     }
 
+    /// Mark every guard as potentially retriable, regardless of how recently we
+    /// failed to connect to it.
+    pub fn mark_all_guards_retriable(&self) {
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        inner.guards.active_guards_mut().mark_all_guards_retriable();
+    }
+
     /// Update the state of this [`GuardMgr`] based on a new or modified
     /// [`NetDir`] object.
     ///
@@ -773,7 +780,8 @@ impl GuardMgrInner {
         now: SystemTime,
     ) -> Result<(sample::ListKind, GuardId), PickGuardError> {
         // Try to find a guard.
-        if let Ok(s) = self.guards.active_guards().pick_guard(usage, &self.params) {
+        let res1 = self.guards.active_guards().pick_guard(usage, &self.params);
+        if let Ok(s) = res1 {
             return Ok(s);
         }
 
@@ -789,16 +797,12 @@ impl GuardMgrInner {
                 self.guards
                     .active_guards_mut()
                     .select_primary_guards(&self.params);
-                if let Ok(s) = self.guards.active_guards().pick_guard(usage, &self.params) {
-                    return Ok(s);
-                }
+                return self.guards.active_guards().pick_guard(usage, &self.params);
             }
         }
 
-        // That didn't work either. Mark everybody as potentially retriable.
-        info!("All guards seem down. Marking them retriable and trying again.");
-        self.guards.active_guards_mut().mark_all_guards_retriable();
-        self.guards.active_guards().pick_guard(usage, &self.params)
+        // Couldn't extend the sample; return the original error.
+        res1
     }
 }
 
