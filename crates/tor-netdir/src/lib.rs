@@ -150,28 +150,14 @@ impl SubnetConfig {
     }
 }
 
-/// Internal type: either a microdescriptor, or the digest for a
-/// microdescriptor that we want.
+/// Internal type to hold an Arc<Microdesc>.
 ///
 /// This is a separate type so we can use a HashSet instead of
 /// HashMap.
 #[derive(Clone, Debug)]
-enum MdEntry {
-    /// A microdescriptor that is wanted but not present.
-    Absent {
-        /// Index of the routerstatus entry that wants this microdesc.
-        rs_idx: usize,
-        /// Content digest of the microdescriptor.
-        // TODO: I wanted to make this a reference at first, but that's
-        // nontrival.  At this point I'm not 100% sure it would be a good
-        // idea.
-        d: MdDigest,
-    },
-    /// A microdescriptor that we have.
-    Present {
-        /// The microdescriptor itself.
-        md: Arc<Microdesc>,
-    },
+struct MdEntry {
+    /// The microdescriptor itself.
+    md: Arc<Microdesc>,
 }
 
 impl std::borrow::Borrow<MdDigest> for MdEntry {
@@ -183,10 +169,7 @@ impl std::borrow::Borrow<MdDigest> for MdEntry {
 impl MdEntry {
     /// Return the digest for this entry.
     fn digest(&self) -> &MdDigest {
-        match self {
-            MdEntry::Absent { d, .. } => d,
-            MdEntry::Present { md, .. } => md.digest(),
-        }
+        self.md.digest()
     }
 }
 
@@ -277,6 +260,9 @@ pub struct NetDir {
     /// Map from SHA256 digest of microdescriptors to the
     /// microdescriptors themselves.
     mds: HashSet<MdEntry>,
+    /// Map from SHA256 of _missing_ microdescriptors to the position of their
+    /// corresponding routerstatus indices within `consensus`.
+    rs_idx_by_missing: HashMap<MdDigest, usize>,
     /// Map from ed25519 identity to index of the routerstatus within
     /// `self.consensus.relays()`.
     ///
@@ -373,14 +359,13 @@ impl PartialNetDir {
         // Compute the weights we'll want to use for these relays.
         let weights = weight::WeightSet::from_consensus(&consensus, &params);
 
-        let mds = consensus
+        let n_relays = consensus.relays().len();
+
+        let rs_idx_by_missing = consensus
             .relays()
             .iter()
             .enumerate()
-            .map(|(rs_idx, rs)| MdEntry::Absent {
-                rs_idx,
-                d: *rs.md_digest(),
-            })
+            .map(|(rs_idx, rs)| (*rs.md_digest(), rs_idx))
             .collect();
 
         let rs_idx_by_rsa = consensus
@@ -393,9 +378,10 @@ impl PartialNetDir {
         let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
-            mds,
+            mds: HashSet::with_capacity(n_relays),
+            rs_idx_by_missing,
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
-            rs_idx_by_ed: HashMap::new(),
+            rs_idx_by_ed: HashMap::with_capacity(n_relays),
             weights,
         };
 
@@ -412,11 +398,8 @@ impl PartialNetDir {
     pub fn fill_from_previous_netdir<'a>(&mut self, prev: &'a NetDir) -> Vec<&'a MdDigest> {
         let mut loaded = Vec::new();
         for ent in &prev.mds {
-            if let MdEntry::Present { md, .. } = ent {
-                if self.netdir.mds.contains(md.digest()) {
-                    loaded.push(md.digest());
-                    self.netdir.add_arc_microdesc(Arc::clone(md));
-                }
+            if self.netdir.add_arc_microdesc(ent.md.clone()) {
+                loaded.push(ent.md.digest());
             }
         }
         loaded
@@ -466,23 +449,23 @@ impl NetDir {
     /// Return true if we wanted it, and false otherwise.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
     fn add_arc_microdesc(&mut self, md: Arc<Microdesc>) -> bool {
-        if let Some(prev_ent) = self.mds.take(md.digest()) {
-            if let MdEntry::Absent { rs_idx, .. } = prev_ent {
-                assert_eq!(self.consensus.relays()[rs_idx].md_digest(), md.digest());
+        if let Some(rs_idx) = self.rs_idx_by_missing.remove(md.digest()) {
+            assert_eq!(self.consensus.relays()[rs_idx].md_digest(), md.digest());
 
-                // There should never be two approved MDs in the same
-                // consensus listing the same ID... but if there is,
-                // we'll let the most recent one win.
-                self.rs_idx_by_ed.insert(*md.ed25519_id(), rs_idx);
+            // There should never be two approved MDs in the same
+            // consensus listing the same ID... but if there is,
+            // we'll let the most recent one win.
+            self.rs_idx_by_ed.insert(*md.ed25519_id(), rs_idx);
 
-                // Happy path: we did indeed want this one.
-                self.mds.insert(MdEntry::Present { md });
+            // Happy path: we did indeed want this one.
+            self.mds.insert(MdEntry { md });
 
-                return true;
-            } else {
-                // We already had this.
-                self.mds.insert(prev_ent);
+            // Save some space in the missing-descriptor list.
+            if self.rs_idx_by_missing.len() < self.rs_idx_by_missing.capacity() / 4 {
+                self.rs_idx_by_missing.shrink_to_fit();
             }
+
+            return true;
         }
 
         // Either we already had it, or we never wanted it at all.
@@ -495,10 +478,7 @@ impl NetDir {
         &'a self,
         rs: &'a netstatus::MdConsensusRouterStatus,
     ) -> UncheckedRelay<'a> {
-        let md = match self.mds.get(rs.md_digest()) {
-            Some(MdEntry::Present { md }) => Some(Arc::as_ref(md)),
-            _ => None,
-        };
+        let md = self.mds.get(rs.md_digest()).map(|ent| ent.md.as_ref());
         UncheckedRelay { rs, md }
     }
 
@@ -864,13 +844,7 @@ impl NetDir {
 
 impl MdReceiver for NetDir {
     fn missing_microdescs(&self) -> Box<dyn Iterator<Item = &MdDigest> + '_> {
-        Box::new(self.consensus.relays().iter().filter_map(move |rs| {
-            let d = rs.md_digest();
-            match self.mds.get(d) {
-                Some(MdEntry::Absent { d, .. }) => Some(d),
-                _ => None,
-            }
-        }))
+        Box::new(self.rs_idx_by_missing.keys())
     }
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
         self.add_arc_microdesc(Arc::new(md))
