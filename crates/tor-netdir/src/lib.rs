@@ -328,6 +328,8 @@ pub trait MdReceiver {
     ///
     /// Return true if it was indeed wanted.
     fn add_microdesc(&mut self, md: Microdesc) -> bool;
+    /// Return the number of missing microdescriptors.
+    fn n_missing(&self) -> usize;
 }
 
 impl PartialNetDir {
@@ -435,6 +437,9 @@ impl MdReceiver for PartialNetDir {
     }
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
         self.netdir.add_microdesc(md)
+    }
+    fn n_missing(&self) -> usize {
+        self.netdir.n_missing()
     }
 }
 
@@ -848,6 +853,9 @@ impl MdReceiver for NetDir {
     }
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
         self.add_arc_microdesc(Arc::new(md))
+    }
+    fn n_missing(&self) -> usize {
+        self.rs_idx_by_missing.len()
     }
 }
 
