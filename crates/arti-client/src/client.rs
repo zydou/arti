@@ -332,7 +332,7 @@ impl<R: Runtime> TorClient<R> {
         autobootstrap: BootstrapBehavior,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
     ) -> StdResult<Self, ErrorDetail> {
-        let dir_cfg = config.get_dirmgr_config()?;
+        let dir_cfg = (&config).try_into()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
         let addr_cfg = config.address_filter.clone();
 
@@ -540,7 +540,7 @@ impl<R: Runtime> TorClient<R> {
             _ => {}
         }
 
-        let dir_cfg = new_config.get_dirmgr_config().map_err(wrap_err)?;
+        let dir_cfg = new_config.try_into().map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;

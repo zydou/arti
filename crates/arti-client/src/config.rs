@@ -15,6 +15,7 @@ use derive_builder::Builder;
 use derive_more::AsRef;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -31,9 +32,9 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadSchedule,
-        DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder,
-        NetworkConfig, NetworkConfigBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DownloadSchedule, DownloadScheduleConfig,
+        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder, NetworkConfig,
+        NetworkConfigBuilder,
     };
 }
 
@@ -323,17 +324,19 @@ impl TorClientConfig {
     pub fn builder() -> TorClientConfigBuilder {
         TorClientConfigBuilder::default()
     }
+}
 
-    /// Build a DirMgrConfig from this configuration.
-    pub(crate) fn get_dirmgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
-        let mut dircfg = dir::DirMgrConfigBuilder::default();
-        dircfg.network_config(self.tor_network.clone());
-        dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in self.override_net_params.iter() {
-            dircfg.override_net_param(k.clone(), *v);
-        }
-        dircfg.build()
+impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
+    type Error = ConfigBuildError;
+
+    #[rustfmt::skip]
+    fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+        Ok(dir::DirMgrConfig {
+            network_config:      self.tor_network        .clone(),
+            schedule_config:     self.download_schedule  .clone(),
+            cache_path:          self.storage.expand_cache_dir()?,
+            override_net_params: self.override_net_params.clone(),
+        })
     }
 }
 
