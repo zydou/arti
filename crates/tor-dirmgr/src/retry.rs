@@ -101,6 +101,20 @@ impl RetryDelay {
     pub fn next_delay<R: Rng>(&mut self, rng: &mut R) -> Duration {
         Duration::from_millis(u64::from(self.next_delay_msec(rng)))
     }
+
+    /// Return the most recent delay returned, if there was one.
+    pub fn last_delay(&self) -> Option<Duration> {
+        if self.last_delay_ms == 0 {
+            None
+        } else {
+            Some(Duration::from_millis(self.last_delay_ms.into()))
+        }
+    }
+
+    /// Return the lowest delay that can be returned by this object.
+    pub fn min_delay(&self) -> Duration {
+        Duration::from_millis(self.low_bound_ms.into())
+    }
 }
 
 impl Default for RetryDelay {
@@ -229,7 +243,9 @@ mod test {
             let (b_lo, b_hi) = rd.delay_bounds();
             assert!(b_lo == real_low_bound);
             assert!(b_hi > b_lo);
-            let delay = rd.next_delay(&mut rng).as_millis() as u32;
+            let delay = rd.next_delay(&mut rng);
+            assert_eq!(Some(delay), rd.last_delay());
+            let delay = delay.as_millis() as u32;
             assert_eq!(delay, rd.last_delay_ms);
             assert!(delay >= b_lo);
             assert!(delay < b_hi);
@@ -240,14 +256,15 @@ mod test {
     fn config() {
         // default configuration is 3 tries, 1000 msec initial delay
         let cfg = DownloadSchedule::default();
+        let one_sec = Duration::from_secs(1);
 
         assert_eq!(cfg.n_attempts(), 3);
         let v: Vec<_> = cfg.attempts().collect();
         assert_eq!(&v[..], &[0, 1, 2]);
 
         let sched = cfg.schedule();
-        assert_eq!(sched.last_delay_ms, 0);
-        assert_eq!(sched.low_bound_ms, 1000);
+        assert_eq!(sched.last_delay(), None);
+        assert_eq!(sched.min_delay(), one_sec);
 
         // Try a zero-attempt schedule, and have it get remapped to 1,1
         let cfg = DownloadSchedule::new(0, Duration::new(0, 0), 0);
@@ -257,7 +274,7 @@ mod test {
         assert_eq!(&v[..], &[0]);
 
         let sched = cfg.schedule();
-        assert_eq!(sched.last_delay_ms, 0);
-        assert_eq!(sched.low_bound_ms, 1000);
+        assert_eq!(sched.last_delay(), None);
+        assert_eq!(sched.min_delay(), one_sec);
     }
 }
