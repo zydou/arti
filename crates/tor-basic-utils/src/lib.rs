@@ -41,6 +41,8 @@
 
 use std::fmt;
 
+pub mod retry;
+
 // ----------------------------------------------------------------------
 
 /// Function with the signature of `Debug::fmt` that just prints `".."`

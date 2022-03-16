@@ -7,10 +7,12 @@ license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "General helpers used by Tor"
 keywords = ["tor", "arti"]
-categories = ["rust-patterns"] # We must put *something* here and this will do
+# We must put *something* here and this will do
+categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+rand = "0.8"
 
 [dev-dependencies]
 educe = "0.4.6"
