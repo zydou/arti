@@ -103,20 +103,6 @@ impl RetryDelay {
     pub fn next_delay<R: Rng>(&mut self, rng: &mut R) -> Duration {
         Duration::from_millis(u64::from(self.next_delay_msec(rng)))
     }
-
-    /// Return the most recent delay returned, if there was one.
-    pub fn last_delay(&self) -> Option<Duration> {
-        if self.last_delay_ms == 0 {
-            None
-        } else {
-            Some(Duration::from_millis(self.last_delay_ms.into()))
-        }
-    }
-
-    /// Return the lowest delay that can be returned by this object.
-    pub fn min_delay(&self) -> Duration {
-        Duration::from_millis(self.low_bound_ms.into())
-    }
 }
 
 impl Default for RetryDelay {
@@ -164,9 +150,7 @@ mod test {
             let (b_lo, b_hi) = rd.delay_bounds();
             assert!(b_lo == real_low_bound);
             assert!(b_hi > b_lo);
-            let delay = rd.next_delay(&mut rng);
-            assert_eq!(Some(delay), rd.last_delay());
-            let delay = delay.as_millis() as u32;
+            let delay = rd.next_delay(&mut rng).as_millis() as u32;
             assert_eq!(delay, rd.last_delay_ms);
             assert!(delay >= b_lo);
             assert!(delay < b_hi);

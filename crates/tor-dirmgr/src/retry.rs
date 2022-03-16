@@ -100,24 +100,26 @@ mod test {
         // default configuration is 3 tries, 1000 msec initial delay
         let cfg = DownloadSchedule::default();
         let one_sec = Duration::from_secs(1);
+        let zero_sec = Duration::from_secs(0);
+        let mut rng = rand::thread_rng();
 
         assert_eq!(cfg.n_attempts(), 3);
         let v: Vec<_> = cfg.attempts().collect();
         assert_eq!(&v[..], &[0, 1, 2]);
 
-        let sched = cfg.schedule();
-        assert_eq!(sched.last_delay(), None);
-        assert_eq!(sched.min_delay(), one_sec);
+        assert_eq!(cfg.initial_delay, one_sec);
+        let mut sched = cfg.schedule();
+        assert_eq!(sched.next_delay(&mut rng), one_sec);
 
         // Try a zero-attempt schedule, and have it get remapped to 1,1
-        let cfg = DownloadSchedule::new(0, Duration::new(0, 0), 0);
+        let cfg = DownloadSchedule::new(0, zero_sec, 0);
         assert_eq!(cfg.n_attempts(), 1);
         assert_eq!(cfg.parallelism(), 1);
         let v: Vec<_> = cfg.attempts().collect();
         assert_eq!(&v[..], &[0]);
 
-        let sched = cfg.schedule();
-        assert_eq!(sched.last_delay(), None);
-        assert_eq!(sched.min_delay(), one_sec);
+        assert_eq!(cfg.initial_delay, zero_sec);
+        let mut sched = cfg.schedule();
+        assert_eq!(sched.next_delay(&mut rng), one_sec);
     }
 }
