@@ -85,6 +85,7 @@ use tracing::{debug, info, trace, warn};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
@@ -852,7 +853,7 @@ impl<R: Runtime> DirMgr<R> {
         for q in q.split_for_download() {
             match q {
                 DocQuery::LatestConsensus { flavor, .. } => {
-                    res.push(self.make_consensus_request(flavor)?);
+                    res.push(self.make_consensus_request(self.runtime.wallclock(), flavor)?);
                 }
                 DocQuery::AuthCert(ids) => {
                     res.push(ClientRequest::AuthCert(ids.into_iter().collect()));
@@ -871,19 +872,30 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Construct an appropriate ClientRequest to download a consensus
     /// of the given flavor.
-    fn make_consensus_request(&self, flavor: ConsensusFlavor) -> Result<ClientRequest> {
-        #![allow(clippy::unnecessary_wraps)]
+    fn make_consensus_request(
+        &self,
+        now: SystemTime,
+        flavor: ConsensusFlavor,
+    ) -> Result<ClientRequest> {
         let mut request = tor_dirclient::request::ConsensusRequest::new(flavor);
+
+        let default_cutoff = default_consensus_cutoff(now)?;
 
         let r = self.store.lock().expect("Directory storage lock poisoned");
         match r.latest_consensus_meta(flavor) {
             Ok(Some(meta)) => {
-                request.set_last_consensus_date(meta.lifetime().valid_after());
+                let valid_after = meta.lifetime().valid_after();
+                request.set_last_consensus_date(std::cmp::max(valid_after, default_cutoff));
                 request.push_old_consensus_digest(*meta.sha3_256_of_signed());
             }
-            Ok(None) => {}
-            Err(e) => {
-                warn!("Error loading directory metadata: {}", e);
+            latest => {
+                if let Err(e) = latest {
+                    warn!("Error loading directory metadata: {}", e);
+                }
+                // If we don't have a consensus, then request one that's
+                // "reasonably new".  That way, our clock is set far in the
+                // future, we won't download stuff we can't use.
+                request.set_last_consensus_date(default_cutoff);
             }
         }
 
@@ -1013,6 +1025,31 @@ trait DirState: Send {
 /// failure.
 fn upgrade_weak_ref<T>(weak: &Weak<T>) -> Result<Arc<T>> {
     Weak::upgrade(weak).ok_or(Error::ManagerDropped)
+}
+
+/// At most how much age can we tolerate in a consensus?
+///
+/// TODO: Make this public and/or use it elsewhere; see arti#412.
+const CONSENSUS_ALLOW_SKEW: Duration = Duration::from_secs(3600 * 48);
+
+/// Given a time `now`, return the age of the oldest consensus that we should
+/// request at that time.
+fn default_consensus_cutoff(now: SystemTime) -> Result<SystemTime> {
+    let cutoff = time::OffsetDateTime::from(now - CONSENSUS_ALLOW_SKEW);
+    // We now round cutoff to the next hour, so that we aren't leaking our exact
+    // time to the directory cache.
+    //
+    // With the time crate, it's easier to calculate the "next hour" by rounding
+    // _down_ then adding an hour; rounding up would sometimes require changing
+    // the date too.
+    let (h, _m, _s) = cutoff.to_hms();
+    let cutoff = cutoff.replace_time(
+        time::Time::from_hms(h, 0, 0)
+            .map_err(tor_error::into_internal!("Failed clock calculation"))?,
+    );
+    let cutoff = cutoff + Duration::from_secs(3600);
+
+    Ok(cutoff.into())
 }
 
 #[cfg(test)]
@@ -1171,12 +1208,14 @@ mod test {
 
             // Try with an empty store.
             let req = mgr
-                .make_consensus_request(ConsensusFlavor::Microdesc)
+                .make_consensus_request(now, ConsensusFlavor::Microdesc)
                 .unwrap();
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);
-                    assert_eq!(r.last_consensus_date(), None);
+                    let date = r.last_consensus_date().unwrap();
+                    assert!(date >= now - CONSENSUS_ALLOW_SKEW);
+                    assert!(date <= now - CONSENSUS_ALLOW_SKEW + Duration::from_secs(3600));
                 }
                 _ => panic!("Wrong request type"),
             }
@@ -1198,7 +1237,7 @@ mod test {
 
             // Now try again.
             let req = mgr
-                .make_consensus_request(ConsensusFlavor::Microdesc)
+                .make_consensus_request(now, ConsensusFlavor::Microdesc)
                 .unwrap();
             match req {
                 ClientRequest::Consensus(r) => {
