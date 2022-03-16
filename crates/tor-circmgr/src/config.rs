@@ -255,7 +255,28 @@ define_accessor_trait! {
     /// If the circuit manager gains new configurabilities, this trait will gain additional
     /// supertraits, as an API break.
     ///
-    /// Prefer to use [`TorClientConfig`], which will always implement this trait.
+    /// Prefer to use `TorClientConfig`, which will always implement this trait.
+    //
+    // We do not use a builder here.  Instead, additions or changes here are API breaks.
+    //
+    // Rationale:
+    //
+    // The purpose of using a builder is to allow the code to continue to
+    // compile when new fields are added to the built struct.
+    //
+    // However, here, the DirMgrConfig is just a subset of the fields of a
+    // TorClientConfig, and it is important that all its fields are
+    // initialised by arti-client.
+    //
+    // If it grows a field, arti-client ought not to compile any more.
+    //
+    // Indeed, we have already had a bug where a manually-written
+    // conversion function omitted to copy a config field from
+    // TorClientConfig into then-existing CircMgrConfigBuilder.
+    //
+    // We use this AsRef-based trait, so that we can pass a reference
+    // to the configuration when we build a new CircMgr, rather than
+    // cloning all the fields an extra time.
     pub trait CircMgrConfig {
         path_rules: PathConfig,
         circuit_timing: CircuitTiming,
