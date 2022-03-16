@@ -152,7 +152,7 @@ pub struct NetParams<T> {
 impl<T> NetParams<T> {
     /// Create a new empty list of NetParams.
     #[allow(unused)]
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         NetParams {
             params: HashMap::new(),
         }

@@ -145,6 +145,7 @@ dependencies = [
  "tor-config",
  "tor-dirmgr",
  "tor-error",
+ "tor-netdoc",
  "tor-persist",
  "tor-proto",
  "tor-rtcompat",

@@ -283,7 +283,7 @@ pub struct TorClientConfig {
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
-    override_net_params: HashMap<String, i32>,
+    override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
 
     /// Information about how to build paths through the network.
     path_rules: circ::PathConfig,
@@ -324,7 +324,7 @@ impl TorClientConfig {
         dircfg.network_config(self.tor_network.clone());
         dircfg.schedule_config(self.download_schedule.clone());
         dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in &self.override_net_params {
+        for (k, v) in self.override_net_params.iter() {
             dircfg.override_net_param(k.clone(), *v);
         }
         dircfg.build()
@@ -392,7 +392,11 @@ impl TorClientConfigBuilder {
             .download_schedule
             .build()
             .map_err(|e| e.within("download_schedule"))?;
-        let override_net_params = self.override_net_params.clone();
+
+        let mut override_net_params = tor_netdoc::doc::netstatus::NetParams::new();
+        for (k, v) in &self.override_net_params {
+            override_net_params.set(k.clone(), *v);
+        }
         let path_rules = self
             .path_rules
             .build()
