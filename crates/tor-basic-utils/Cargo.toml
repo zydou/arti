@@ -12,6 +12,7 @@ categories = ["rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+rand = "0.8"
 
 [dev-dependencies]
 educe = "0.4.6"

@@ -3129,6 +3129,7 @@ name = "tor-basic-utils"
 version = "0.1.0"
 dependencies = [
  "educe",
+ "rand 0.8.5",
 ]
 
 [[package]]
