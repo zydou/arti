@@ -248,37 +248,26 @@ impl PreemptiveCircuitConfig {
     }
 }
 
-/// Configuration for a circuit manager.
+/// Configuration for a circuit manager
 ///
-/// This configuration includes information about how to build paths
-/// on the Tor network, and rules for timeouts and retries on Tor
-/// circuits.
+/// If the circuit manager gains new configurabilities, this trait will gain additional
+/// supertraits, as an API break.
 ///
-/// This type is immutable once constructed.  To create an object of
-/// this type, use [`CircMgrConfigBuilder`], or deserialize it from a
-/// string.  (Arti generally uses Toml for configuration, but you can
-/// use other formats if you prefer.)
-#[derive(Debug, Clone, Builder, Default, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-pub struct CircMgrConfig {
-    /// Override the default required distance for two relays to share
-    /// the same circuit.
-    #[builder(default)]
-    pub(crate) path_rules: PathConfig,
-
-    /// Timing and retry information related to circuits themselves.
-    #[builder(default)]
-    pub(crate) circuit_timing: CircuitTiming,
-
-    /// Information related to preemptive circuits.
-    #[builder(default)]
-    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
-}
-
-impl CircMgrConfig {
-    /// Return a new [`CircMgrConfigBuilder`].
-    pub fn builder() -> CircMgrConfigBuilder {
-        CircMgrConfigBuilder::default()
+/// Prefer to use `TorClientConfig`, which will always implement this trait.
+pub trait CircMgrConfig:
+    AsRef<PathConfig> + AsRef<CircuitTiming> + AsRef<PreemptiveCircuitConfig>
+{
+    /// Get the PathConfig
+    fn path_rules(&self) -> &PathConfig {
+        self.as_ref()
+    }
+    /// Get the CircuitTiming
+    fn circuit_timing(&self) -> &CircuitTiming {
+        self.as_ref()
+    }
+    /// Get the PreemptiveCircuitConfig
+    fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
+        self.as_ref()
     }
 }
 

@@ -12,6 +12,7 @@
 //! [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
 
 use derive_builder::Builder;
+use derive_more::AsRef;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -22,8 +23,8 @@ pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
     pub use tor_circmgr::{
-        CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-        PathConfigBuilder, PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
+        CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
+        PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
     };
 }
 
@@ -270,7 +271,7 @@ impl SystemConfig {
 /// to change. For more information see ticket [#285].
 ///
 /// [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, AsRef)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
     tor_network: dir::NetworkConfig,
@@ -286,12 +287,15 @@ pub struct TorClientConfig {
     override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
 
     /// Information about how to build paths through the network.
+    #[as_ref]
     path_rules: circ::PathConfig,
 
     /// Information about preemptive circuits.
+    #[as_ref]
     preemptive_circuits: circ::PreemptiveCircuitConfig,
 
     /// Information about how to retry and expire circuits and request for circuits.
+    #[as_ref]
     circuit_timing: circ::CircuitTiming,
 
     /// Rules about which addresses the client is willing to connect to.
@@ -303,6 +307,8 @@ pub struct TorClientConfig {
     /// Information about system resources
     pub system: SystemConfig,
 }
+
+impl tor_circmgr::CircMgrConfig for TorClientConfig {}
 
 impl Default for TorClientConfig {
     fn default() -> Self {
@@ -328,17 +334,6 @@ impl TorClientConfig {
             dircfg.override_net_param(k.clone(), *v);
         }
         dircfg.build()
-    }
-
-    /// Return a [`CircMgrConfig`](circ::CircMgrConfig) object based on the user's selected
-    /// configuration.
-    pub(crate) fn get_circmgr_config(&self) -> Result<circ::CircMgrConfig, ConfigBuildError> {
-        let mut builder = circ::CircMgrConfigBuilder::default();
-        builder
-            .path_rules(self.path_rules.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .preemptive_circuits(self.preemptive_circuits.clone())
-            .build()
     }
 }
 
