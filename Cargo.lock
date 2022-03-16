@@ -868,17 +868,14 @@ dependencies = [
 
 [[package]]
 name = "derive_builder"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d13202debe11181040ae9063d739fa32cfcaaebe2275fe387703460ae2365b30"
+version = "0.11.0"
 dependencies = [
  "derive_builder_macro",
 ]
 
 [[package]]
 name = "derive_builder_core"
-version = "0.10.2"
-source = "git+https://github.com/ijackson/rust-derive-builder?rev=dccbbb8ad75717c8bc0070b6f0364b2c3a54abb7#dccbbb8ad75717c8bc0070b6f0364b2c3a54abb7"
+version = "0.11.0"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -888,9 +885,7 @@ dependencies = [
 
 [[package]]
 name = "derive_builder_macro"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a94ace95092c5acb1e97a7e846b310cfbd499652f72297da7493f618a98d73"
+version = "0.11.0"
 dependencies = [
  "derive_builder_core",
  "syn",
