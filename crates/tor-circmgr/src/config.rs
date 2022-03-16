@@ -4,6 +4,7 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use tor_basic_utils::define_accessor_trait;
 use tor_config::ConfigBuildError;
 
 use derive_builder::Builder;
@@ -248,26 +249,17 @@ impl PreemptiveCircuitConfig {
     }
 }
 
-/// Configuration for a circuit manager
-///
-/// If the circuit manager gains new configurabilities, this trait will gain additional
-/// supertraits, as an API break.
-///
-/// Prefer to use `TorClientConfig`, which will always implement this trait.
-pub trait CircMgrConfig:
-    AsRef<PathConfig> + AsRef<CircuitTiming> + AsRef<PreemptiveCircuitConfig>
-{
-    /// Get the PathConfig
-    fn path_rules(&self) -> &PathConfig {
-        self.as_ref()
-    }
-    /// Get the CircuitTiming
-    fn circuit_timing(&self) -> &CircuitTiming {
-        self.as_ref()
-    }
-    /// Get the PreemptiveCircuitConfig
-    fn preemptive_circuits(&self) -> &PreemptiveCircuitConfig {
-        self.as_ref()
+define_accessor_trait! {
+    /// Configuration for a circuit manager
+    ///
+    /// If the circuit manager gains new configurabilities, this trait will gain additional
+    /// supertraits, as an API break.
+    ///
+    /// Prefer to use [`TorClientConfig`], which will always implement this trait.
+    pub trait CircMgrConfig {
+        path_rules: PathConfig,
+        circuit_timing: CircuitTiming,
+        preemptive_circuits: PreemptiveCircuitConfig,
     }
 }
 
