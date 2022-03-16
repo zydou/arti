@@ -8,7 +8,7 @@ use std::num::{NonZeroU32, NonZeroU8};
 use std::time::Duration;
 
 use serde::Deserialize;
-pub(crate) use tor_basic_utils::retry::RetryDelay;
+use tor_basic_utils::retry::RetryDelay;
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
