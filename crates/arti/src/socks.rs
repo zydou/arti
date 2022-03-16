@@ -44,9 +44,9 @@ pub fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
 /// the connection, the source IpAddr of the client, and the
 /// authentication string provided by the client).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct IsolationKey(usize, IpAddr, SocksAuth);
+struct SocksIsolationKey(usize, IpAddr, SocksAuth);
 
-impl arti_client::isolation::IsolationHelper for IsolationKey {
+impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
     fn compatible_same_type(&self, other: &Self) -> bool {
         self == other
     }
@@ -176,7 +176,7 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
 
     // Determine whether we want to ask for IPv4/IPv6 addresses.
     let mut prefs = stream_preference(&request, &addr);
-    prefs.set_isolation_group(Box::new(IsolationKey(source_address, ip, auth)));
+    prefs.set_isolation_group(Box::new(SocksIsolationKey(source_address, ip, auth)));
 
     match request.command() {
         SocksCmd::CONNECT => {
