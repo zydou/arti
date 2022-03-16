@@ -2,8 +2,8 @@
 
 curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
 
-[ "$(dig @127.0.0.1 -p 5353 +short example.com A)" == "93.184.216.34" ]
+[ "$(dig @127.0.0.1 -p 35353 +short example.com A)" == "93.184.216.34" ]
 
 ## This test only work on a chutney network with IPv6 support such as ipv6-exit-min,
 ## sadly such a network can't run in CI because there is no IPv6 in docker.
-#[ "$(dig @127.0.0.1 -p 5353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
+#[ "$(dig @127.0.0.1 -p 35353 +short example.com AAAA)" == "2606:2800:220:1:248:1893:25c8:1946" ]
