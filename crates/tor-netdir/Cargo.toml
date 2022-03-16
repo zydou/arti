@@ -33,7 +33,7 @@ tor-protover = { path="../tor-protover", version = "0.1.0"}
 tor-units = { path="../tor-units", version = "0.1.0"}
 
 bitflags = "1"
-derive_builder = "0.10.2"
+derive_builder = "0.11"
 derive_more = "0.99"
 hex = { version = "0.4", optional = true }
 hex-literal = { version = "0.3", optional = true }

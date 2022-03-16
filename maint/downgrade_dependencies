@@ -7,6 +7,7 @@
 
 cargo +nightly update -Z minimal-versions
 cargo update \
+      -p darling:0.12.0 \
       -p crc32fast \
       -p quote:0.6.3 \
       -p zeroize_derive:1.1.1 \

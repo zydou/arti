@@ -76,20 +76,20 @@ pub struct StreamTimeoutConfig {
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
     #[serde(with = "humantime_serde", default = "default_connect_timeout")]
-    #[builder(attrs(serde(with = "humantime_serde::option")))]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
-    #[builder(attrs(serde(with = "humantime_serde::option")))]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
     #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
-    #[builder(attrs(serde(with = "humantime_serde::option")))]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
 
