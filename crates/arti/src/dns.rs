@@ -19,7 +19,7 @@ use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
 
-/// Maximum lenght for receiving a single datagram
+/// Maximum length for receiving a single datagram
 const MAX_DATAGRAM_SIZE: usize = 1536;
 
 /// Send an error DNS response with code NotImplemented
