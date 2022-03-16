@@ -337,6 +337,7 @@ impl TorClientConfig {
         builder
             .path_rules(self.path_rules.clone())
             .circuit_timing(self.circuit_timing.clone())
+            .preemptive_circuits(self.preemptive_circuits.clone())
             .build()
     }
 }
