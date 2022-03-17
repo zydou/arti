@@ -105,13 +105,13 @@ const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 #[non_exhaustive]
 pub enum DirInfo<'a> {
     /// A list of fallbacks, for use when we don't know a network directory.
-    Fallbacks(&'a [FallbackDir]),
+    Fallbacks(&'a [&'a FallbackDir]),
     /// A complete network directory
     Directory(&'a NetDir),
 }
 
-impl<'a> From<&'a [FallbackDir]> for DirInfo<'a> {
-    fn from(v: &'a [FallbackDir]) -> DirInfo<'a> {
+impl<'a> From<&'a [&'a FallbackDir]> for DirInfo<'a> {
+    fn from(v: &'a [&'a FallbackDir]) -> DirInfo<'a> {
         DirInfo::Fallbacks(v)
     }
 }
