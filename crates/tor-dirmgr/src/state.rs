@@ -718,9 +718,10 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     /// Either finds an inner `MdReceiver` and calls `f` on it, or returns `default()`.
     ///
     /// Used for missing microdescs.
-    fn with_mdreceiver_for_missing<F,T>(&self, f: F) -> T
-    where F: FnOnce(&dyn MdReceiver) -> T,
-          T: Default,
+    fn with_mdreceiver_for_missing<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&dyn MdReceiver) -> T,
+        T: Default,
     {
         if let Some(partial) = &self.partial {
             return f(partial);
@@ -749,8 +750,8 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     }
     fn missing_docs(&self) -> Vec<DocId> {
         self.with_mdreceiver_for_missing(|d| {
-            d.missing_microdescs().
-                map(|d| DocId::Microdesc(*d))
+            d.missing_microdescs()
+                .map(|d| DocId::Microdesc(*d))
                 .collect()
         })
     }
