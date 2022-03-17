@@ -520,8 +520,6 @@ struct GetMicrodescsState<DM: WriteNetDir> {
     cache_usage: CacheUsage,
     /// Total number of microdescriptors listed in the consensus.
     n_microdescs: usize,
-    /// Number of microdescriptors that we haven't yet loaded or downloaded.
-    n_missing: usize,
     /// The dirmgr to inform about a usable directory.
     writedir: Weak<DM>,
     /// The current status of our netdir, if it is not yet ready to become the
@@ -634,7 +632,6 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         let mut result = GetMicrodescsState {
             cache_usage,
             n_microdescs,
-            n_missing: partial_dir.n_missing(),
             writedir,
             partial: Some(PendingNetDir::Partial(partial_dir)),
             meta,
@@ -657,17 +654,13 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         if let Some(p) = &mut self.partial {
             for md in mds {
                 self.newly_listed.push(*md.digest());
-                if p.add_microdesc(md) {
-                    self.n_missing -= 1;
-                }
+                p.add_microdesc(md);
             }
             return self.consider_upgrade();
         } else if let Some(wd) = Weak::upgrade(&self.writedir) {
             let _ = wd.netdir().mutate(|netdir| {
                 for md in mds {
-                    if netdir.add_microdesc(md) {
-                        self.n_missing -= 1;
-                    }
+                    netdir.add_microdesc(md);
                 }
                 wd.netdir_descriptors_changed();
                 Ok(())
@@ -738,13 +731,20 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         }
         Default::default()
     }
+
+    /// Number of missing microdescriptors, or 0
+    ///
+    /// Can return 0 if we don't have that information.
+    fn n_missing(&self) -> usize {
+        self.with_mdreceiver_for_missing(|d| d.n_missing())
+    }
 }
 
 impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn describe(&self) -> String {
         format!(
             "Downloading microdescriptors (we are missing {}).",
-            self.n_missing
+            self.n_missing()
         )
     }
     fn missing_docs(&self) -> Vec<DocId> {
@@ -756,7 +756,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     }
     fn is_ready(&self, ready: Readiness) -> bool {
         match ready {
-            Readiness::Complete => self.n_missing == 0,
+            Readiness::Complete => self.n_missing() == 0,
             Readiness::Usable => self.partial.is_none(),
         }
     }
@@ -764,7 +764,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         false
     }
     fn bootstrap_status(&self) -> DirStatus {
-        let n_present = self.n_microdescs - self.n_missing;
+        let n_present = self.n_microdescs - self.n_missing();
         DirStatusInner::Validated {
             lifetime: self.meta.lifetime().clone(),
             n_mds: (n_present as u32, self.n_microdescs as u32),
