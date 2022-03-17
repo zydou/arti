@@ -417,6 +417,7 @@ pub(crate) mod test {
     use futures::sink::SinkExt;
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
+    use tor_linkspec::OwnedChanTarget;
 
     type CodecResult = std::result::Result<ChanCell, CodecError>;
 
@@ -430,8 +431,7 @@ pub(crate) mod test {
         let (send1, recv1) = mpsc::channel(32);
         let (send2, recv2) = mpsc::channel(32);
         let unique_id = UniqId::new();
-        let ed_id = [6; 32].into();
-        let rsa_id = [10; 20].into();
+        let dummy_target = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {}", e);
             CodecError::Cell(tor_cell::Error::ChanProto("dummy message".into()))
@@ -441,8 +441,7 @@ pub(crate) mod test {
             Box::new(send1),
             Box::new(recv2),
             unique_id,
-            ed_id,
-            rsa_id,
+            dummy_target,
         );
         (chan, reactor, recv1, send2)
     }

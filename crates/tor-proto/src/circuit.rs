@@ -61,13 +61,14 @@ use tor_cell::{
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{CircTarget, LinkSpec};
+use tor_error::{bad_api_usage, internal, into_internal};
+use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget};
 
 use futures::channel::{mpsc, oneshot};
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
+use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tor_cell::relaycell::StreamId;
@@ -211,8 +212,10 @@ impl ClientCirc {
 
         let (tx, rx) = oneshot::channel();
 
+        let peer_id = OwnedChanTarget::from_chan_target(target);
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
+                peer_id,
                 public_key: key,
                 linkspecs,
                 require_sendme_auth,
@@ -243,7 +246,9 @@ impl ClientCirc {
                 "Can't begin a stream at the 0th hop"
             )));
         }
-        let hop_num: HopNum = (num_hops - 1).into();
+        let hop_num: HopNum = u8::try_from(num_hops - 1)
+            .map_err(into_internal!("Couldn't convert path length to u8"))?
+            .into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
@@ -405,7 +410,7 @@ impl ClientCirc {
     }
 
     #[cfg(test)]
-    pub fn n_hops(&self) -> u8 {
+    pub fn n_hops(&self) -> usize {
         self.path.n_hops()
     }
 }

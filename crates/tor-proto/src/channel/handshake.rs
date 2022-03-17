@@ -16,7 +16,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use tor_bytes::Reader;
-use tor_linkspec::ChanTarget;
+use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -453,13 +453,18 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
 
         let (tls_sink, tls_stream) = self.tls.split();
 
+        let peer_id = OwnedChanTarget::new(
+            self.target_addr.into_iter().collect(),
+            self.ed25519_id,
+            self.rsa_id,
+        );
+
         Ok(super::Channel::new(
             self.link_protocol,
             Box::new(tls_sink),
             Box::new(tls_stream),
             self.unique_id,
-            self.ed25519_id,
-            self.rsa_id,
+            peer_id,
         ))
     }
 }

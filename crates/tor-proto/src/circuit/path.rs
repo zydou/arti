@@ -1,24 +1,26 @@
 //! Tracking for the path of a client circuit.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Mutex;
+use tor_linkspec::OwnedChanTarget;
 
 /// Helper struct that shares information
 #[derive(Debug, Default)]
 pub(super) struct Path {
-    /// Number of hops on this circuit.
+    /// Information about the relays on this circuit.
     ///
-    /// This value is incremented after the circuit successfully completes extending to a new hop.
-    n_hops: AtomicU8,
+    /// We only store ChanTarget information here, because it doesn't matter
+    /// which ntor key we actually used with each hop.
+    hops: Mutex<Vec<OwnedChanTarget>>,
 }
 
 impl Path {
     /// Return the number of hops in this path
-    pub(super) fn n_hops(&self) -> u8 {
-        self.n_hops.load(Ordering::SeqCst)
+    pub(super) fn n_hops(&self) -> usize {
+        self.hops.lock().expect("poisoned lock").len()
     }
 
-    /// Add 1 to the number of hops in this path.
-    pub(super) fn inc_hops(&self) {
-        self.n_hops.fetch_add(1, Ordering::SeqCst);
+    /// Add a hop to this  this path.
+    pub(super) fn push_hop(&self, target: OwnedChanTarget) {
+        self.hops.lock().expect("poisoned lock").push(target);
     }
 }
