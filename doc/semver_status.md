@@ -47,12 +47,16 @@ arti-client:
   api-break (experimental only): changed circmgr() and dirmgr() to return
   &Arc, not Arc.
 
+  api-break: isolation completely revised
+
 tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
   DirMgrCfg: totally changed, builder abolished.
 
 tor-circmgr:
   CircMgrCfg: totally changed, builder abolished.
+
+  api-break: isolation completely revised
 
 tor-netdoc:
 
