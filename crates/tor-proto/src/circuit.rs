@@ -41,6 +41,7 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
 mod streammap;
@@ -68,7 +69,6 @@ use futures::channel::{mpsc, oneshot};
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
@@ -88,7 +88,7 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 /// they all actually communicate with the Reactor which contains the primary
 /// mutable state, and does the actual work.
 //
-// Effectively, this struct contains two Arcs: one for `hops` and one for
+// Effectively, this struct contains two Arcs: one for `path` and one for
 // `control` (which surely has something Arc-like in it).  We cannot unify
 // these by putting a single Arc around the whole struct, and passing
 // an Arc strong reference to the `Reactor`, because then `control` would
@@ -100,10 +100,8 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
 pub struct ClientCirc {
-    /// Number of hops on this circuit.
-    ///
-    /// This value is incremented after the circuit successfully completes extending to a new hop.
-    hops: Arc<AtomicU8>,
+    /// Information about this circuit's path.
+    path: Arc<path::Path>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -239,7 +237,7 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
-        let num_hops = self.hops.load(Ordering::SeqCst);
+        let num_hops = self.path.n_hops();
         if num_hops == 0 {
             return Err(Error::from(internal!(
                 "Can't begin a stream at the 0th hop"
@@ -408,7 +406,7 @@ impl ClientCirc {
 
     #[cfg(test)]
     pub fn n_hops(&self) -> u8 {
-        self.hops.load(Ordering::SeqCst)
+        self.path.n_hops()
     }
 }
 
@@ -427,7 +425,7 @@ impl PendingClientCirc {
     ) -> (PendingClientCirc, reactor::Reactor) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
-        let num_hops = Arc::new(AtomicU8::new(0));
+        let path = Arc::new(path::Path::default());
 
         let reactor = Reactor {
             control: control_rx,
@@ -440,11 +438,11 @@ impl PendingClientCirc {
             channel_id: id,
             crypto_out,
             meta_handler: None,
-            num_hops: Arc::clone(&num_hops),
+            path: Arc::clone(&path),
         };
 
         let circuit = ClientCirc {
-            hops: num_hops,
+            path,
             unique_id,
             control: control_tx,
             #[cfg(test)]

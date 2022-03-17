@@ -24,11 +24,11 @@ use futures::Sink;
 use futures::Stream;
 use tor_error::internal;
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::channel::Channel;
+use crate::circuit::path;
 #[cfg(test)]
 use crate::circuit::sendme::CircTag;
 use crate::circuit::sendme::StreamSendWindow;
@@ -446,7 +446,7 @@ pub struct Reactor {
     /// List of hops state objects used by the reactor
     pub(super) hops: Vec<CircHop>,
     /// Shared atomic for the number of hops this circuit has.
-    pub(super) num_hops: Arc<AtomicU8>,
+    pub(super) path: Arc<path::Path>,
     /// An identifier for logging about this reactor's circuit.
     pub(super) unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
@@ -811,7 +811,7 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        self.num_hops.fetch_add(1, Ordering::SeqCst);
+        self.path.inc_hops();
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
