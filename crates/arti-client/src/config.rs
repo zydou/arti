@@ -12,8 +12,10 @@
 //! [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
 
 use derive_builder::Builder;
+use derive_more::AsRef;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -22,17 +24,17 @@ pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
     pub use tor_circmgr::{
-        CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-        PathConfigBuilder, PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
+        CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
+        PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
     };
 }
 
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirMgrConfigBuilder, DownloadSchedule,
-        DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder,
-        NetworkConfig, NetworkConfigBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DownloadSchedule, DownloadScheduleConfig,
+        DownloadScheduleConfigBuilder, FallbackDir, FallbackDirBuilder, NetworkConfig,
+        NetworkConfigBuilder,
     };
 }
 
@@ -270,7 +272,7 @@ impl SystemConfig {
 /// to change. For more information see ticket [#285].
 ///
 /// [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, AsRef)]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
     tor_network: dir::NetworkConfig,
@@ -283,15 +285,18 @@ pub struct TorClientConfig {
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
-    override_net_params: HashMap<String, i32>,
+    override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
 
     /// Information about how to build paths through the network.
+    #[as_ref]
     path_rules: circ::PathConfig,
 
     /// Information about preemptive circuits.
+    #[as_ref]
     preemptive_circuits: circ::PreemptiveCircuitConfig,
 
     /// Information about how to retry and expire circuits and request for circuits.
+    #[as_ref]
     circuit_timing: circ::CircuitTiming,
 
     /// Rules about which addresses the client is willing to connect to.
@@ -303,6 +308,8 @@ pub struct TorClientConfig {
     /// Information about system resources
     pub system: SystemConfig,
 }
+
+impl tor_circmgr::CircMgrConfig for TorClientConfig {}
 
 impl Default for TorClientConfig {
     fn default() -> Self {
@@ -317,27 +324,19 @@ impl TorClientConfig {
     pub fn builder() -> TorClientConfigBuilder {
         TorClientConfigBuilder::default()
     }
+}
 
-    /// Build a DirMgrConfig from this configuration.
-    pub(crate) fn get_dirmgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
-        let mut dircfg = dir::DirMgrConfigBuilder::default();
-        dircfg.network_config(self.tor_network.clone());
-        dircfg.schedule_config(self.download_schedule.clone());
-        dircfg.cache_path(self.storage.expand_cache_dir()?);
-        for (k, v) in &self.override_net_params {
-            dircfg.override_net_param(k.clone(), *v);
-        }
-        dircfg.build()
-    }
+impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
+    type Error = ConfigBuildError;
 
-    /// Return a [`CircMgrConfig`](circ::CircMgrConfig) object based on the user's selected
-    /// configuration.
-    pub(crate) fn get_circmgr_config(&self) -> Result<circ::CircMgrConfig, ConfigBuildError> {
-        let mut builder = circ::CircMgrConfigBuilder::default();
-        builder
-            .path_rules(self.path_rules.clone())
-            .circuit_timing(self.circuit_timing.clone())
-            .build()
+    #[rustfmt::skip]
+    fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+        Ok(dir::DirMgrConfig {
+            network_config:      self.tor_network        .clone(),
+            schedule_config:     self.download_schedule  .clone(),
+            cache_path:          self.storage.expand_cache_dir()?,
+            override_net_params: self.override_net_params.clone(),
+        })
     }
 }
 
@@ -391,7 +390,11 @@ impl TorClientConfigBuilder {
             .download_schedule
             .build()
             .map_err(|e| e.within("download_schedule"))?;
-        let override_net_params = self.override_net_params.clone();
+
+        let mut override_net_params = tor_netdoc::doc::netstatus::NetParams::new();
+        for (k, v) in &self.override_net_params {
+            override_net_params.set(k.clone(), *v);
+        }
         let path_rules = self
             .path_rules
             .build()

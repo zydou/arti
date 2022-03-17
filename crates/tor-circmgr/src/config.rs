@@ -4,6 +4,7 @@
 //!
 //! Most types in this module are re-exported by `arti-client`.
 
+use tor_basic_utils::define_accessor_trait;
 use tor_config::ConfigBuildError;
 
 use derive_builder::Builder;
@@ -248,37 +249,38 @@ impl PreemptiveCircuitConfig {
     }
 }
 
-/// Configuration for a circuit manager.
-///
-/// This configuration includes information about how to build paths
-/// on the Tor network, and rules for timeouts and retries on Tor
-/// circuits.
-///
-/// This type is immutable once constructed.  To create an object of
-/// this type, use [`CircMgrConfigBuilder`], or deserialize it from a
-/// string.  (Arti generally uses Toml for configuration, but you can
-/// use other formats if you prefer.)
-#[derive(Debug, Clone, Builder, Default, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-pub struct CircMgrConfig {
-    /// Override the default required distance for two relays to share
-    /// the same circuit.
-    #[builder(default)]
-    pub(crate) path_rules: PathConfig,
-
-    /// Timing and retry information related to circuits themselves.
-    #[builder(default)]
-    pub(crate) circuit_timing: CircuitTiming,
-
-    /// Information related to preemptive circuits.
-    #[builder(default)]
-    pub(crate) preemptive_circuits: PreemptiveCircuitConfig,
-}
-
-impl CircMgrConfig {
-    /// Return a new [`CircMgrConfigBuilder`].
-    pub fn builder() -> CircMgrConfigBuilder {
-        CircMgrConfigBuilder::default()
+define_accessor_trait! {
+    /// Configuration for a circuit manager
+    ///
+    /// If the circuit manager gains new configurabilities, this trait will gain additional
+    /// supertraits, as an API break.
+    ///
+    /// Prefer to use `TorClientConfig`, which will always implement this trait.
+    //
+    // We do not use a builder here.  Instead, additions or changes here are API breaks.
+    //
+    // Rationale:
+    //
+    // The purpose of using a builder is to allow the code to continue to
+    // compile when new fields are added to the built struct.
+    //
+    // However, here, the DirMgrConfig is just a subset of the fields of a
+    // TorClientConfig, and it is important that all its fields are
+    // initialised by arti-client.
+    //
+    // If it grows a field, arti-client ought not to compile any more.
+    //
+    // Indeed, we have already had a bug where a manually-written
+    // conversion function omitted to copy a config field from
+    // TorClientConfig into then-existing CircMgrConfigBuilder.
+    //
+    // We use this AsRef-based trait, so that we can pass a reference
+    // to the configuration when we build a new CircMgr, rather than
+    // cloning all the fields an extra time.
+    pub trait CircMgrConfig {
+        path_rules: PathConfig,
+        circuit_timing: CircuitTiming,
+        preemptive_circuits: PreemptiveCircuitConfig,
     }
 }
 

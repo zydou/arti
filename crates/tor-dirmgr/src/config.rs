@@ -151,28 +151,36 @@ impl DownloadScheduleConfig {
 
 /// Configuration type for network directory operations.
 ///
-/// This type is immutable once constructed.
+/// If the directory manager gains new configurabilities, this structure will gain additional
+/// supertraits, as an API break.
 ///
-/// To create an object of this type, use [`DirMgrConfigBuilder`], or
-/// deserialize it from a string. (Arti generally uses Toml for configuration,
-/// but you can use other formats if you prefer.)
-///
-/// Many members of this type can be replaced with a new configuration on a
-/// running Arti client. Those that cannot are documented.
-#[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+/// Prefer to use `TorClientConfig`, which will always be convertible to this struct
+/// via `TryInto`.
+//
+// We do not use a builder here.  Instead, additions or changes here are API breaks.
+//
+// Rationale:
+//
+// The purpose of using a builder is to allow the code to continue to
+// compile when new fields are added to the built struct.
+//
+// However, here, the DirMgrConfig is just a subset of the fields of a
+// TorClientConfig, and it is important that all its fields are
+// initialised by arti-client.
+//
+// If it grows a field, arti-client ought not to compile any more.
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Default))]
+#[allow(clippy::exhaustive_structs)]
 pub struct DirMgrConfig {
     /// Location to use for storing and reading current-format
     /// directory information.
     ///
     /// Cannot be changed on a running Arti client.
-    #[builder(setter(into))]
-    cache_path: PathBuf,
+    pub cache_path: PathBuf,
 
     /// Configuration information about the network.
-    #[builder(default)]
-    network_config: NetworkConfig,
+    pub network_config: NetworkConfig,
 
     /// Configuration information about when we download things.
     ///
@@ -184,8 +192,7 @@ pub struct DirMgrConfig {
     /// on in-progress attempts as well, at least at the top level.  Users
     /// should _not_ assume that the effect of changing this option will always
     /// be delayed.)
-    #[builder(default)]
-    schedule_config: DownloadScheduleConfig,
+    pub schedule_config: DownloadScheduleConfig,
 
     /// A map of network parameters that we're overriding from their settings in
     /// the consensus.
@@ -196,36 +203,10 @@ pub struct DirMgrConfig {
     /// (The above is a limitation: we would like it to someday take effect
     /// immediately. Users should _not_ assume that the effect of changing this
     /// option will always be delayed.)
-    #[builder(default)]
-    override_net_params: netstatus::NetParams<i32>,
-}
-
-impl DirMgrConfigBuilder {
-    /// Overrides the network consensus parameter named `param` with a
-    /// new value.
-    ///
-    /// If the new value is out of range, it will be clamped to the
-    /// acceptable range.
-    ///
-    /// If the parameter is not recognized by Arti, it will be
-    /// ignored, and a warning will be produced when we try to apply
-    /// it to the consensus.
-    ///
-    /// By default no parameters will be overridden.
-    pub fn override_net_param(&mut self, param: String, value: i32) -> &mut Self {
-        self.override_net_params
-            .get_or_insert_with(netstatus::NetParams::default)
-            .set(param, value);
-        self
-    }
+    pub override_net_params: netstatus::NetParams<i32>,
 }
 
 impl DirMgrConfig {
-    /// Return a new builder to construct a DirMgrConfig.
-    pub fn builder() -> DirMgrConfigBuilder {
-        DirMgrConfigBuilder::default()
-    }
-
     /// Create a store from this configuration.
     ///
     /// Note that each time this is called, a new store object will be
@@ -354,10 +335,10 @@ mod test {
     fn simplest_config() -> Result<()> {
         let tmp = tempdir().unwrap();
 
-        let dir = DirMgrConfigBuilder::default()
-            .cache_path(tmp.path().to_path_buf())
-            .build()
-            .unwrap();
+        let dir = DirMgrConfig {
+            cache_path: tmp.path().into(),
+            ..Default::default()
+        };
 
         assert!(dir.authorities().len() >= 3);
         assert!(dir.fallbacks().len() >= 3);
@@ -434,18 +415,13 @@ mod test {
 
     #[test]
     fn build_dirmgrcfg() -> Result<()> {
-        let mut bld = DirMgrConfig::builder();
+        let mut bld = DirMgrConfig::default();
         let tmp = tempdir().unwrap();
 
-        let cfg = bld
-            .override_net_param("circwindow".into(), 999)
-            .cache_path(tmp.path())
-            .network_config(NetworkConfig::default())
-            .schedule_config(DownloadScheduleConfig::default())
-            .build()
-            .unwrap();
+        bld.override_net_params.set("circwindow".into(), 999);
+        bld.cache_path = tmp.path().into();
 
-        assert_eq!(cfg.override_net_params().get("circwindow").unwrap(), &999);
+        assert_eq!(bld.override_net_params().get("circwindow").unwrap(), &999);
 
         Ok(())
     }

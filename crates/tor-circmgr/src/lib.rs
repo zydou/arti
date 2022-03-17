@@ -74,8 +74,8 @@ pub use err::Error;
 pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort, TargetPorts};
 
 pub use config::{
-    CircMgrConfig, CircMgrConfigBuilder, CircuitTiming, CircuitTimingBuilder, PathConfig,
-    PathConfigBuilder, PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
+    CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
+    PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
 };
 
 use crate::preemptive::PreemptiveCircuitPredictor;
@@ -157,8 +157,8 @@ pub struct CircMgr<R: Runtime> {
 
 impl<R: Runtime> CircMgr<R> {
     /// Construct a new circuit manager.
-    pub fn new<SM>(
-        config: CircMgrConfig,
+    pub fn new<SM, CFG: CircMgrConfig>(
+        config: &CFG,
         storage: SM,
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
@@ -166,14 +166,8 @@ impl<R: Runtime> CircMgr<R> {
     where
         SM: tor_persist::StateMgr + Send + Sync + 'static,
     {
-        let CircMgrConfig {
-            path_rules,
-            circuit_timing,
-            preemptive_circuits,
-        } = config;
-
         let preemptive = Arc::new(Mutex::new(PreemptiveCircuitPredictor::new(
-            preemptive_circuits,
+            config.preemptive_circuits().clone(),
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
@@ -183,11 +177,12 @@ impl<R: Runtime> CircMgr<R> {
         let builder = build::CircuitBuilder::new(
             runtime.clone(),
             chanmgr,
-            path_rules,
+            config.path_rules().clone(),
             storage_handle,
             guardmgr,
         );
-        let mgr = mgr::AbstractCircMgr::new(builder, runtime.clone(), circuit_timing);
+        let mgr =
+            mgr::AbstractCircMgr::new(builder, runtime.clone(), config.circuit_timing().clone());
         let circmgr = Arc::new(CircMgr {
             mgr: Arc::new(mgr),
             predictor: preemptive,
@@ -199,16 +194,16 @@ impl<R: Runtime> CircMgr<R> {
     /// Try to change our configuration settings to `new_config`.
     ///
     /// The actual behavior here will depend on the value of `how`.
-    pub fn reconfigure(
+    pub fn reconfigure<CFG: CircMgrConfig>(
         &self,
-        new_config: &CircMgrConfig,
+        new_config: &CFG,
         how: tor_config::Reconfigure,
     ) -> std::result::Result<(), tor_config::ReconfigureError> {
         let old_path_rules = self.mgr.peek_builder().path_config();
         let predictor = self.predictor.lock().expect("poisoned lock");
         let preemptive_circuits = predictor.config();
         if preemptive_circuits.initial_predicted_ports
-            != new_config.preemptive_circuits.initial_predicted_ports
+            != new_config.preemptive_circuits().initial_predicted_ports
         {
             // This change has no effect, since the list of ports was _initial_.
             how.cannot_change("preemptive_circuits.initial_predicted_ports")?;
@@ -219,15 +214,15 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         let discard_circuits = !new_config
-            .path_rules
+            .path_rules()
             .at_least_as_permissive_as(&old_path_rules);
 
         self.mgr
             .peek_builder()
-            .set_path_config(new_config.path_rules.clone());
+            .set_path_config(new_config.path_rules().clone());
         self.mgr
-            .set_circuit_timing(new_config.circuit_timing.clone());
-        predictor.set_config(new_config.preemptive_circuits.clone());
+            .set_circuit_timing(new_config.circuit_timing().clone());
+        predictor.set_config(new_config.preemptive_circuits().clone());
 
         if discard_circuits {
             // TODO(nickm): Someday, we might want to take a more lenient approach, and only

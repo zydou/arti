@@ -145,6 +145,7 @@ dependencies = [
  "tor-config",
  "tor-dirmgr",
  "tor-error",
+ "tor-netdoc",
  "tor-persist",
  "tor-proto",
  "tor-rtcompat",
@@ -3123,6 +3124,7 @@ dependencies = [
 name = "tor-basic-utils"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
  "educe",
  "rand 0.8.5",
 ]

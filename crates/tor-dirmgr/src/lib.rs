@@ -91,8 +91,8 @@ use std::{fmt::Debug, time::SystemTime};
 
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
-    DirMgrConfig, DirMgrConfigBuilder, DownloadScheduleConfig, DownloadScheduleConfigBuilder,
-    NetworkConfig, NetworkConfigBuilder,
+    DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
+    NetworkConfigBuilder,
 };
 pub use docid::DocId;
 pub use err::Error;
@@ -1063,10 +1063,10 @@ mod test {
 
     pub(crate) fn new_mgr<R: Runtime>(runtime: R) -> (TempDir, DirMgr<R>) {
         let dir = TempDir::new().unwrap();
-        let config = DirMgrConfig::builder()
-            .cache_path(dir.path())
-            .build()
-            .unwrap();
+        let config = DirMgrConfig {
+            cache_path: dir.path().into(),
+            ..Default::default()
+        };
         let dirmgr = DirMgr::from_config(config, runtime, None, false).unwrap();
 
         (dir, dirmgr)

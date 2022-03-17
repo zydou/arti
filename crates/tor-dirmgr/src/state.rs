@@ -966,11 +966,11 @@ mod test {
             if let Some(a) = authorities {
                 netcfg.authorities(a);
             }
-            let cfg = DirMgrConfig::builder()
-                .cache_path("/we_will_never_use_this/")
-                .network_config(netcfg.build().unwrap())
-                .build()
-                .unwrap();
+            let cfg = DirMgrConfig {
+                cache_path: "/we_will_never_use_this/".into(),
+                network_config: netcfg.build().unwrap(),
+                ..Default::default()
+            };
             let cfg = Arc::new(cfg);
             DirRcv {
                 now,

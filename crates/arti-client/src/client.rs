@@ -332,11 +332,9 @@ impl<R: Runtime> TorClient<R> {
         autobootstrap: BootstrapBehavior,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
     ) -> StdResult<Self, ErrorDetail> {
-        let circ_cfg = config.get_circmgr_config()?;
-        let dir_cfg = config.get_dirmgr_config()?;
+        let dir_cfg = (&config).try_into()?;
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
         let addr_cfg = config.address_filter.clone();
-        let timeout_cfg = config.stream_timeouts;
 
         let (status_sender, status_receiver) = postage::watch::channel();
         let status_receiver = status::BootstrapEvents {
@@ -344,9 +342,10 @@ impl<R: Runtime> TorClient<R> {
         };
         let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
         let circmgr =
-            tor_circmgr::CircMgr::new(circ_cfg, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
+            tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
                 .map_err(ErrorDetail::CircMgrSetup)?;
 
+        let timeout_cfg = config.stream_timeouts;
         let dirmgr = dirmgr_builder
             .build(runtime.clone(), Arc::clone(&circmgr), dir_cfg)
             .map_err(crate::Error::into_detail)?;
@@ -541,8 +540,7 @@ impl<R: Runtime> TorClient<R> {
             _ => {}
         }
 
-        let circ_cfg = new_config.get_circmgr_config().map_err(wrap_err)?;
-        let dir_cfg = new_config.get_dirmgr_config().map_err(wrap_err)?;
+        let dir_cfg = new_config.try_into().map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;
@@ -551,7 +549,9 @@ impl<R: Runtime> TorClient<R> {
             how.cannot_change("storage.state_dir").map_err(wrap_err)?;
         }
 
-        self.circmgr.reconfigure(&circ_cfg, how).map_err(wrap_err)?;
+        self.circmgr
+            .reconfigure(new_config, how)
+            .map_err(wrap_err)?;
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
