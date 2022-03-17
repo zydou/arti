@@ -684,7 +684,7 @@ impl<R: Runtime> Benchmark<R> {
 
         self.run(BenchmarkType::Arti, |run| {
             let mut prefs = arti_client::StreamPrefs::new();
-            prefs.set_isolation_group(Box::new(iso.next_in(run)));
+            prefs.set_isolation_group(iso.next_in(run));
 
             tor_client.connect(addr.clone())
         })

@@ -176,7 +176,7 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
 
     // Determine whether we want to ask for IPv4/IPv6 addresses.
     let mut prefs = stream_preference(&request, &addr);
-    prefs.set_isolation_group(Box::new(SocksIsolationKey(source_address, ip, auth)));
+    prefs.set_isolation_group(SocksIsolationKey(source_address, ip, auth));
 
     match request.command() {
         SocksCmd::CONNECT => {

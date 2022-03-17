@@ -231,8 +231,11 @@ impl StreamPrefs {
     /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
     /// clones) will not share circuits with the original client, even if the same
     /// `isolation_group` is specified via the `ConnectionPrefs` in force.
-    pub fn set_isolation_group(&mut self, isolation_group: Box<dyn Isolation>) -> &mut Self {
-        self.isolation = StreamIsolationPreference::Explicit(isolation_group);
+    pub fn set_isolation_group<T>(&mut self, isolation_group: T) -> &mut Self
+    where
+        T: Into<Box<dyn Isolation>>,
+    {
+        self.isolation = StreamIsolationPreference::Explicit(isolation_group.into());
         self
     }
 
