@@ -719,6 +719,27 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     }
 }
 
+impl<DM: WriteNetDir> GetMicrodescsState<DM> {
+    /// Try to obtain info from an inner `MdReceiver`
+    ///
+    /// Either finds an inner `MdReceiver` and calls `f` on it, or returns `default()`.
+    ///
+    /// Used for missing microdescs.
+    fn with_mdreceiver_for_missing<F,T>(&self, f: F) -> T
+    where F: FnOnce(&dyn MdReceiver) -> T,
+          T: Default,
+    {
+        if let Some(partial) = &self.partial {
+            return f(partial);
+        } else if let Some(wd) = Weak::upgrade(&self.writedir) {
+            if let Some(nd) = wd.netdir().get() {
+                return f(nd.as_ref());
+            }
+        }
+        Default::default()
+    }
+}
+
 impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     fn describe(&self) -> String {
         format!(
@@ -727,22 +748,11 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         )
     }
     fn missing_docs(&self) -> Vec<DocId> {
-        /// Internal helper
-        fn collect(d: &dyn MdReceiver) -> Vec<DocId> {
+        self.with_mdreceiver_for_missing(|d| {
             d.missing_microdescs().
                 map(|d| DocId::Microdesc(*d))
                 .collect()
-        }
-
-        if let Some(partial) = &self.partial {
-            return collect(partial);
-        } else if let Some(wd) = Weak::upgrade(&self.writedir) {
-            if let Some(nd) = wd.netdir().get() {
-                return collect(nd.as_ref());
-            }
-        }
-
-        Vec::new() // Nothing to return.
+        })
     }
     fn is_ready(&self, ready: Readiness) -> bool {
         match ready {
