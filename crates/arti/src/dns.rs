@@ -14,7 +14,7 @@ use trust_dns_proto::op::{
 use trust_dns_proto::rr::{DNSClass, Name, RData, Record, RecordType};
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
-use arti_client::TorClient;
+use arti_client::{StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
@@ -29,10 +29,32 @@ async fn not_implemented<U: UdpSocket>(id: u16, addr: &SocketAddr, socket: &U) -
     Ok(())
 }
 
+/// A Key used to isolate dns requests.
+///
+/// Composed of an usize (representing which listener socket accepted
+/// the connection and the source IpAddr of the client)
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DnsIsolationKey(usize, IpAddr);
+
+impl arti_client::isolation::IsolationHelper for DnsIsolationKey {
+    fn compatible_same_type(&self, other: &Self) -> bool {
+        self == other
+    }
+
+    fn join_same_type(&self, other: &Self) -> Option<Self> {
+        if self == other {
+            Some(self.clone())
+        } else {
+            None
+        }
+    }
+}
+
 /// Given a datagram containing a DNS query, resolve the query over
 /// the Tor network and send the response back.
 async fn handle_dns_req<R, U>(
     tor_client: TorClient<R>,
+    socket_id: usize,
     packet: &[u8],
     addr: SocketAddr,
     socket: Arc<U>,
@@ -46,6 +68,9 @@ where
 
     let mut answers = Vec::new();
 
+    let mut prefs = StreamPrefs::new();
+    prefs.set_isolation_group(Box::new(DnsIsolationKey(socket_id, addr.ip())));
+
     for query in query.queries() {
         let mut a = Vec::new();
         let mut ptr = Vec::new();
@@ -57,14 +82,16 @@ where
                         let mut name = query.name().clone();
                         // name would be "torproject.org." without this
                         name.set_fqdn(false);
-                        let res = tor_client.resolve(&name.to_utf8()).await?;
+                        let res = tor_client
+                            .resolve_with_prefs(&name.to_utf8(), &prefs)
+                            .await?;
                         for ip in res {
                             a.push((query.name().clone(), ip, typ));
                         }
                     }
                     RecordType::PTR => {
                         let addr = query.name().parse_arpa_name()?.addr();
-                        let res = tor_client.resolve_ptr(addr).await?;
+                        let res = tor_client.resolve_ptr_with_prefs(addr, &prefs).await?;
                         for domain in res {
                             let domain = Name::from_utf8(domain)?;
                             ptr.push((query.name().clone(), domain));
@@ -157,7 +184,7 @@ pub async fn run_dns_resolver<R: Runtime>(
             }),
     );
 
-    while let Some((packet, _id)) = incoming.next().await {
+    while let Some((packet, id)) = incoming.next().await {
         let (packet, size, addr, socket) = match packet {
             Ok(packet) => packet,
             Err(err) => {
@@ -168,9 +195,8 @@ pub async fn run_dns_resolver<R: Runtime>(
         };
 
         let client_ref = tor_client.clone();
-        // TODO implement isolation
         runtime.spawn(async move {
-            let res = handle_dns_req(client_ref, &packet[..size], addr, socket).await;
+            let res = handle_dns_req(client_ref, id, &packet[..size], addr, socket).await;
             if let Err(e) = res {
                 warn!("connection exited with error: {}", e);
             }

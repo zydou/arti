@@ -90,6 +90,8 @@ mod test {
     use crate::{PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
     use std::time::{Duration, Instant};
 
+    use crate::usage::test::{assert_isoleq, IsolationTokenEq};
+
     #[test]
     fn predicts_starting_ports() {
         let cfg = PreemptiveCircuitConfig::builder()
@@ -99,9 +101,7 @@ mod test {
             .unwrap();
         let predictor = PreemptiveCircuitPredictor::new(cfg);
 
-        let mut results = predictor.predict();
-        results.sort();
-        assert_eq!(
+        assert_isoleq!(
             predictor.predict(),
             vec![TargetCircUsage::Preemptive {
                 port: None,
@@ -117,21 +117,20 @@ mod test {
 
         let predictor = PreemptiveCircuitPredictor::new(cfg);
 
-        let mut results = predictor.predict();
-        results.sort();
-        assert_eq!(
-            results,
-            vec![
-                TargetCircUsage::Preemptive {
-                    port: None,
-                    circs: 2
-                },
-                TargetCircUsage::Preemptive {
-                    port: Some(TargetPort::ipv4(80)),
-                    circs: 2
-                },
-            ]
-        );
+        let results = predictor.predict();
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+                port: None,
+                circs: 2
+            })));
+        assert!(results
+            .iter()
+            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+                port: Some(TargetPort::ipv4(80)),
+                circs: 2
+            })));
     }
 
     #[test]
@@ -143,7 +142,7 @@ mod test {
             .unwrap();
         let mut predictor = PreemptiveCircuitPredictor::new(cfg);
 
-        assert_eq!(
+        assert_isoleq!(
             predictor.predict(),
             vec![TargetCircUsage::Preemptive {
                 port: None,
@@ -153,21 +152,20 @@ mod test {
 
         predictor.note_usage(Some(TargetPort::ipv4(1234)), Instant::now());
 
-        let mut results = predictor.predict();
-        results.sort();
-        assert_eq!(
-            results,
-            vec![
-                TargetCircUsage::Preemptive {
-                    port: None,
-                    circs: 2
-                },
-                TargetCircUsage::Preemptive {
-                    port: Some(TargetPort::ipv4(1234)),
-                    circs: 2
-                }
-            ]
-        );
+        let results = predictor.predict();
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+                port: None,
+                circs: 2
+            })));
+        assert!(results
+            .iter()
+            .any(|r| r.isol_eq(&TargetCircUsage::Preemptive {
+                port: Some(TargetPort::ipv4(1234)),
+                circs: 2
+            })));
     }
 
     #[test]
@@ -182,7 +180,7 @@ mod test {
 
         predictor.note_usage(Some(TargetPort::ipv4(2345)), more_than_an_hour_ago);
 
-        assert_eq!(
+        assert_isoleq!(
             predictor.predict(),
             vec![TargetCircUsage::Preemptive {
                 port: None,

@@ -870,6 +870,8 @@ dependencies = [
 [[package]]
 name = "derive_builder"
 version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddd8db2d51ce241afb74f9e5cf9482de69c4b77657c2ddaf78993eda8ce2ce8c"
 dependencies = [
  "derive_builder_macro",
 ]
@@ -877,6 +879,8 @@ dependencies = [
 [[package]]
 name = "derive_builder_core"
 version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcf03b84d76c5bb011d983c17e2675ab49f5498f121bf1ceae5b5855b4a4dddd"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -887,6 +891,8 @@ dependencies = [
 [[package]]
 name = "derive_builder_macro"
 version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cae44c47bca4fd1eaeda52b3d0eecb664ddcbc0d4e7b238bae7ec2c931646c0"
 dependencies = [
  "derive_builder_core",
  "syn",
@@ -974,6 +980,18 @@ dependencies = [
  "redox_users",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "downcast-rs"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee2626afccd7561a06cf1367e2950c4718ea04565e20fb5029b6c7d8ad09abcf"
 
 [[package]]
 name = "easy-parallel"
@@ -3220,6 +3238,8 @@ dependencies = [
  "async-trait",
  "bounded-vec-deque",
  "derive_builder",
+ "downcast-rs",
+ "dyn-clone",
  "educe",
  "futures",
  "futures-await-test",

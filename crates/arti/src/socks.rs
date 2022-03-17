@@ -7,15 +7,12 @@ use futures::future::FutureExt;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Error as IoError};
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::sync::{self, Arc};
-use std::time::{Duration, Instant};
 use tracing::{error, info, warn};
 
-use arti_client::{ErrorKind, HasKind, IsolationToken, StreamPrefs, TorClient};
+use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
 use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
@@ -46,55 +43,20 @@ pub fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
 /// Composed of an usize (representing which listener socket accepted
 /// the connection, the source IpAddr of the client, and the
 /// authentication string provided by the client).
-type IsolationKey = (usize, IpAddr, SocksAuth);
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SocksIsolationKey(usize, IpAddr, SocksAuth);
 
-/// Shared and garbage-collected Map used to isolate connections.
-struct IsolationMap {
-    /// Inner map guarded by a Mutex
-    inner: sync::Mutex<IsolationMapInner>,
-}
-
-/// Inner map, generally guarded by a Mutex
-struct IsolationMapInner {
-    /// Map storing isolation token and last time they where used
-    map: HashMap<IsolationKey, (IsolationToken, Instant)>,
-    /// Instant after which the garbage collector will be run again
-    next_gc: Instant,
-}
-
-/// How frequently should we discard entries from the isolation map, and
-/// how old should we let them get?
-const ISOMAP_GC_INTERVAL: Duration = Duration::from_secs(60 * 30);
-
-impl IsolationMap {
-    /// Create a new, empty, IsolationMap
-    fn new() -> Self {
-        IsolationMap {
-            inner: sync::Mutex::new(IsolationMapInner {
-                map: HashMap::new(),
-                next_gc: Instant::now() + ISOMAP_GC_INTERVAL,
-            }),
-        }
+impl arti_client::isolation::IsolationHelper for SocksIsolationKey {
+    fn compatible_same_type(&self, other: &Self) -> bool {
+        self == other
     }
 
-    /// Get the IsolationToken corresponding to the given key-tuple, creating a new IsolationToken
-    /// if none exists for this key.
-    ///
-    /// Every 30 minutes, on next call to this functions, entry older than 30 minutes are removed
-    fn get_or_create(&self, key: IsolationKey, now: Instant) -> IsolationToken {
-        let mut inner = self.inner.lock().expect("Poisoned lock on isolation map.");
-        if inner.next_gc < now {
-            inner.next_gc = now + ISOMAP_GC_INTERVAL;
-
-            let old_limit = now - ISOMAP_GC_INTERVAL;
-            inner.map.retain(|_, val| val.1 > old_limit);
+    fn join_same_type(&self, other: &Self) -> Option<Self> {
+        if self == other {
+            Some(self.clone())
+        } else {
+            None
         }
-        let entry = inner
-            .map
-            .entry(key)
-            .or_insert_with(|| (IsolationToken::new(), now));
-        entry.1 = now;
-        entry.0
     }
 }
 
@@ -108,7 +70,6 @@ async fn handle_socks_conn<R, S>(
     runtime: R,
     tor_client: TorClient<R>,
     socks_stream: S,
-    isolation_map: Arc<IsolationMap>,
     isolation_info: (usize, IpAddr),
 ) -> Result<()>
 where
@@ -212,11 +173,10 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
     // the same values for all of these properties.)
     let auth = request.auth().clone();
     let (source_address, ip) = isolation_info;
-    let isolation_token = isolation_map.get_or_create((source_address, ip, auth), Instant::now());
 
     // Determine whether we want to ask for IPv4/IPv6 addresses.
     let mut prefs = stream_preference(&request, &addr);
-    prefs.set_isolation_group(isolation_token);
+    prefs.set_isolation_group(Box::new(SocksIsolationKey(source_address, ip, auth)));
 
     match request.command() {
         SocksCmd::CONNECT => {
@@ -460,10 +420,6 @@ pub async fn run_socks_proxy<R: Runtime>(
             }),
     );
 
-    // Make a new IsolationMap; We'll use this to register which incoming
-    // connections can and cannot share a circuit.
-    let isolation_map = Arc::new(IsolationMap::new());
-
     // Loop over all incoming connections.  For each one, call
     // handle_socks_conn() in a new task.
     while let Some((stream, sock_id)) = incoming.next().await {
@@ -480,16 +436,9 @@ pub async fn run_socks_proxy<R: Runtime>(
         };
         let client_ref = tor_client.clone();
         let runtime_copy = runtime.clone();
-        let isolation_map_ref = Arc::clone(&isolation_map);
         runtime.spawn(async move {
-            let res = handle_socks_conn(
-                runtime_copy,
-                client_ref,
-                stream,
-                isolation_map_ref,
-                (sock_id, addr.ip()),
-            )
-            .await;
+            let res =
+                handle_socks_conn(runtime_copy, client_ref, stream, (sock_id, addr.ip())).await;
             if let Err(e) = res {
                 warn!("connection exited with error: {}", e);
             }
@@ -497,41 +446,4 @@ pub async fn run_socks_proxy<R: Runtime>(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod test {
-    #![allow(clippy::unwrap_used)]
-    use super::*;
-
-    #[test]
-    fn test_isomap() {
-        let m = IsolationMap::new();
-
-        let k1 = (6, "10.0.0.1".parse().unwrap(), SocksAuth::NoAuth);
-        let k2 = (
-            6,
-            "10.0.0.1".parse().unwrap(),
-            SocksAuth::Socks4(vec![1, 2, 3]),
-        );
-
-        let t1 = Instant::now() + ISOMAP_GC_INTERVAL / 2;
-
-        let tok1 = m.get_or_create(k1.clone(), t1);
-        let tok2 = m.get_or_create(k2, t1);
-        assert_ne!(tok1, tok2);
-        assert_eq!(tok1, m.get_or_create(k1.clone(), t1));
-
-        // Now make sure the GC happens, but the items aren't deleted since
-        // they aren't quite old enough
-        let t2 = t1 + (ISOMAP_GC_INTERVAL * 3) / 4;
-        assert_eq!(tok1, m.get_or_create(k1.clone(), t2));
-
-        // Now make sure that the GC happens, and the items _are_ deleted
-        // as to old.
-        let t3 = t2 + ISOMAP_GC_INTERVAL * 2;
-        let tok3 = m.get_or_create(k1, t3);
-        assert_ne!(tok3, tok2);
-        assert_ne!(tok3, tok1);
-    }
 }

@@ -7,6 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
+use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
 use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
@@ -103,7 +104,7 @@ pub enum BootstrapBehavior {
 }
 
 /// Preferences for how to route a stream over the Tor network.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
@@ -120,8 +121,8 @@ enum StreamIsolationPreference {
     /// No additional isolation
     #[educe(Default)]
     None,
-    /// Id of the isolation group the connection should be part of
-    Explicit(IsolationToken),
+    /// Isolation parameter to use for connections
+    Explicit(Box<dyn Isolation>),
     /// Isolate every connection!
     EveryStream,
 }
@@ -206,21 +207,6 @@ impl StreamPrefs {
         params
     }
 
-    /// Indicate which other connections might use the same circuit
-    /// as this one.
-    ///
-    /// By default all connections made on all clones of a `TorClient` may share connections.
-    /// Connections made with a particular `isolation_group` may share circuits with each other.
-    ///
-    /// This connection preference is orthogonal to isolation established by
-    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
-    /// clones) will not share circuits with the original client, even if the same
-    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
-    pub fn set_isolation_group(&mut self, isolation_group: IsolationToken) -> &mut Self {
-        self.isolation = StreamIsolationPreference::Explicit(isolation_group);
-        self
-    }
-
     /// Indicate that connections with these preferences should have their own isolation group
     ///
     /// This is a convenience method which creates a fresh [`IsolationToken`]
@@ -231,7 +217,22 @@ impl StreamPrefs {
     /// clones) will not share circuits with the original client, even if the same
     /// `isolation_group` is specified via the `ConnectionPrefs` in force.
     pub fn new_isolation_group(&mut self) -> &mut Self {
-        self.isolation = StreamIsolationPreference::Explicit(IsolationToken::new());
+        self.isolation = StreamIsolationPreference::Explicit(Box::new(IsolationToken::new()));
+        self
+    }
+
+    /// Indicate which other connections might use the same circuit
+    /// as this one.
+    ///
+    /// By default all connections made on all clones of a `TorClient` may share connections.
+    /// Connections made with a particular `isolation_group` may share circuits with each other.
+    ///
+    /// This connection preference is orthogonal to isolation established by
+    /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
+    /// clones) will not share circuits with the original client, even if the same
+    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
+    pub fn set_isolation_group(&mut self, isolation_group: Box<dyn Isolation>) -> &mut Self {
+        self.isolation = StreamIsolationPreference::Explicit(isolation_group);
         self
     }
 
@@ -255,12 +256,12 @@ impl StreamPrefs {
 
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
-    fn isolation_group(&self) -> Option<IsolationToken> {
+    fn isolation_group(&self) -> Option<Box<dyn Isolation>> {
         use StreamIsolationPreference as SIP;
         match self.isolation {
             SIP::None => None,
-            SIP::Explicit(ig) => Some(ig),
-            SIP::EveryStream => Some(IsolationToken::new()),
+            SIP::Explicit(ref ig) => Some(ig.clone()),
+            SIP::EveryStream => Some(Box::new(IsolationToken::new())),
         }
     }
 
