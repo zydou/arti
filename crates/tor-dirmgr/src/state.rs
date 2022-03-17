@@ -727,17 +727,18 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
         )
     }
     fn missing_docs(&self) -> Vec<DocId> {
+        /// Internal helper
+        fn collect(d: &dyn MdReceiver) -> Vec<DocId> {
+            d.missing_microdescs().
+                map(|d| DocId::Microdesc(*d))
+                .collect()
+        }
+
         if let Some(partial) = &self.partial {
-            return partial
-                .missing_microdescs()
-                .map(|d| DocId::Microdesc(*d))
-                .collect();
+            return collect(partial);
         } else if let Some(wd) = Weak::upgrade(&self.writedir) {
             if let Some(nd) = wd.netdir().get() {
-                return nd
-                    .missing_microdescs()
-                    .map(|d| DocId::Microdesc(*d))
-                    .collect();
+                return collect(nd.as_ref());
             }
         }
 
