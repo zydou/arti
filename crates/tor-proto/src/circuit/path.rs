@@ -23,4 +23,18 @@ impl Path {
     pub(super) fn push_hop(&self, target: OwnedChanTarget) {
         self.hops.lock().expect("poisoned lock").push(target);
     }
+
+    /// Return an OwnedChanTarget representing the first hop of this path.
+    pub(super) fn first_hop(&self) -> Option<OwnedChanTarget> {
+        self.hops
+            .lock()
+            .expect("poisoned lock")
+            .get(0)
+            .map(Clone::clone)
+    }
+
+    /// Return a copy of all the hops in this path.
+    pub(super) fn all_hops(&self) -> Vec<OwnedChanTarget> {
+        self.hops.lock().expect("poisoned lock").clone()
+    }
 }

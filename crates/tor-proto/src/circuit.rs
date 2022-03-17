@@ -193,6 +193,24 @@ pub(crate) struct StreamTarget {
 }
 
 impl ClientCirc {
+    /// Return a description of the first hop of this circuit.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no first hop.  (This should be impossible outside of
+    /// the tor-proto crate, but within the crate it's possible to have a
+    /// circuit with no hops.)
+    pub fn first_hop(&self) -> OwnedChanTarget {
+        self.path
+            .first_hop()
+            .expect("called first_hop on an un-constructed circuit")
+    }
+
+    /// Return a description of all the hops in this circuit.
+    pub fn path(&self) -> Vec<OwnedChanTarget> {
+        self.path.all_hops()
+    }
+
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
     pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
@@ -1029,6 +1047,13 @@ mod test {
 
             // Did we really add another hop?
             assert_eq!(circ.n_hops(), 4);
+
+            // Do the path accessors report a reasonable outcome?
+            let path = circ.path();
+            assert_eq!(path.len(), 4);
+            use tor_linkspec::ChanTarget;
+            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         });
     }
 
