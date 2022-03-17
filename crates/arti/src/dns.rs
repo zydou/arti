@@ -69,7 +69,7 @@ where
     let mut answers = Vec::new();
 
     let mut prefs = StreamPrefs::new();
-    prefs.set_isolation_group(Box::new(DnsIsolationKey(socket_id, addr.ip())));
+    prefs.set_isolation_group(DnsIsolationKey(socket_id, addr.ip()));
 
     for query in query.queries() {
         let mut a = Vec::new();

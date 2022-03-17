@@ -115,6 +115,11 @@ pub trait Isolation: Downcast + DynClone + std::fmt::Debug + Send + Sync + 'stat
 }
 impl_downcast!(Isolation);
 clone_trait_object!(Isolation);
+impl<T: Isolation> From<T> for Box<dyn Isolation> {
+    fn from(isolation: T) -> Self {
+        Box::new(isolation)
+    }
+}
 
 impl<T: IsolationHelper + Clone + std::fmt::Debug + Send + Sync + 'static> Isolation for T {
     fn compatible(&self, other: &dyn Isolation) -> bool {
