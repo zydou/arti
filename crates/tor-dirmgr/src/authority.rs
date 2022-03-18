@@ -21,7 +21,7 @@ pub struct Authority {
     /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
     /// this authority.
     // TODO: It would be lovely to use a better hash for these identities.
-    v3ident: RsaIdentity,
+    pub(crate) v3ident: RsaIdentity,
 }
 
 impl Authority {
@@ -31,14 +31,6 @@ impl Authority {
     /// with its own set of directory authorities.
     pub fn builder() -> AuthorityBuilder {
         AuthorityBuilder::default()
-    }
-    /// Return the v3 identity key of this certificate.
-    ///
-    /// This is the identity of the >=2048-bit RSA key that the
-    /// authority uses to sign documents; it is distinct from its
-    /// identity keys that it uses when operating as a relay.
-    pub fn v3ident(&self) -> &RsaIdentity {
-        &self.v3ident
     }
 }
 
@@ -99,7 +91,7 @@ mod test {
             .build()
             .unwrap();
 
-        assert_eq!(auth.v3ident(), &key1);
+        assert_eq!(&auth.v3ident, &key1);
 
         let keyids1 = AuthCertKeyIds {
             id_fingerprint: key1,

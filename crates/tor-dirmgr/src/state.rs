@@ -149,7 +149,7 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
                 .config()
                 .authorities()
                 .iter()
-                .map(|auth| *auth.v3ident())
+                .map(|auth| auth.v3ident)
                 .collect();
             let after = writedir
                 .netdir()
