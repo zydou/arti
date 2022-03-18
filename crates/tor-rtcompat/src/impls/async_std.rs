@@ -117,7 +117,7 @@ mod net {
         async fn bind(&self, addr: &std::net::SocketAddr) -> IoResult<Self::UdpSocket> {
             StdUdpSocket::bind(*addr)
                 .await
-                .map(|socket| UdpSocket { socket, addr: None })
+                .map(|socket| UdpSocket { socket })
         }
     }
 
@@ -125,37 +125,20 @@ mod net {
     pub struct UdpSocket {
         /// The underlying UdpSocket
         socket: StdUdpSocket,
-        /// The remote address if the socket is connected
-        addr: Option<SocketAddr>,
     }
 
     #[async_trait]
     impl traits::UdpSocket for UdpSocket {
         async fn recv(&self, buf: &mut [u8]) -> IoResult<(usize, SocketAddr)> {
-            if let Some(addr) = self.addr {
-                self.socket.recv(buf).await.map(|r| (r, addr))
-            } else {
-                self.socket.recv_from(buf).await
-            }
+            self.socket.recv_from(buf).await
         }
 
         async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize> {
-            if let Some(addr) = self.addr {
-                debug_assert!(addr == *target);
-                self.socket.send(buf).await
-            } else {
-                self.socket.send_to(buf, target).await
-            }
+            self.socket.send_to(buf, target).await
         }
 
         fn local_addr(&self) -> IoResult<SocketAddr> {
             self.socket.local_addr()
-        }
-
-        async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()> {
-            self.socket.connect(addr).await?;
-            self.addr = Some(*addr);
-            Ok(())
         }
     }
 }

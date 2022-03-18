@@ -195,6 +195,10 @@ pub trait UdpProvider {
 /// Trait for a localy bound Udp socket that can send and receive datagrams.
 ///
 /// These objects are returned by instances of [`UdpProvider`].
+//
+// NOTE that UdpSocket objects are _necessarily_ un-connected.  If you need to
+// implement a connected Udp socket in the future, please make a new trait (and
+// a new type.)
 #[async_trait]
 pub trait UdpSocket {
     /// Wait for an incoming datagram; return it along its address.
@@ -203,13 +207,6 @@ pub trait UdpSocket {
     async fn send(&self, buf: &[u8], target: &SocketAddr) -> IoResult<usize>;
     /// Return the local address that this socket is bound to.
     fn local_addr(&self) -> IoResult<SocketAddr>;
-    /// Connect to a remote address. After calling this [`UdpSocket::recv`] may only
-    /// return that same address, and the target provided to [`UdpSocket::send`] must
-    /// be this address.
-    // rationale for taking &mut self: this changes the behavior of the whole socket,
-    // so it should probably only be used when you have ownership of the socket and
-    // not when sharing it.
-    async fn connect(&mut self, addr: &SocketAddr) -> IoResult<()>;
 }
 
 /// An object with a peer certificate: typically a TLS connection.
