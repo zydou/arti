@@ -52,6 +52,7 @@ arti-client:
 tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
   DirMgrCfg: totally changed, builder abolished.
+  Authority, NetworkConfig: removed several accessors for these config elements.
 
 tor-circmgr:
   CircMgrCfg: totally changed, builder abolished.
