@@ -6,7 +6,6 @@
 use derive_builder::Builder;
 use serde::Deserialize;
 use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_netdoc::doc::authcert::AuthCertKeyIds;
 
 /// A single authority that signs a consensus directory.
 //
@@ -40,11 +39,6 @@ impl Authority {
     /// identity keys that it uses when operating as a relay.
     pub fn v3ident(&self) -> &RsaIdentity {
         &self.v3ident
-    }
-
-    /// Return true if this authority matches a given key ID.
-    pub fn matches_keyid(&self, id: &AuthCertKeyIds) -> bool {
-        self.v3ident == id.id_fingerprint
     }
 }
 
@@ -86,6 +80,15 @@ impl AuthorityBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_netdoc::doc::authcert::AuthCertKeyIds;
+
+    impl Authority {
+        /// Return true if this authority matches a given key ID.
+        fn matches_keyid(&self, id: &AuthCertKeyIds) -> bool {
+            self.v3ident == id.id_fingerprint
+        }
+    }
+
     #[test]
     fn authority() {
         let key1: RsaIdentity = [9_u8; 20].into();
