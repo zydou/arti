@@ -59,22 +59,6 @@ impl LoggingConfig {
     pub fn builder() -> LoggingConfigBuilder {
         LoggingConfigBuilder::default()
     }
-
-    /// Return the configured journald filter, if one is present
-    pub fn journald_filter(&self) -> Option<&str> {
-        match self.journald {
-            Some(ref s) if !s.is_empty() => Some(s.as_str()),
-            _ => None,
-        }
-    }
-
-    /// Return the configured stdout filter, if one is present
-    pub fn console_filter(&self) -> Option<&str> {
-        match self.console {
-            Some(ref s) if !s.is_empty() => Some(s.as_str()),
-            _ => None,
-        }
-    }
 }
 
 /// Configuration information for an (optionally rotating) logfile.
@@ -126,7 +110,11 @@ fn filt_from_str_verbose(s: &str, source: &str) -> Result<Targets> {
 
 /// As filt_from_str_verbose, but treat an absent filter (or an empty string) as
 /// None.
-fn filt_from_opt_str(s: Option<&str>, source: &str) -> Result<Option<Targets>> {
+fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>> {
+    let s = match s {
+        Some(ref s) if !s.is_empty() => Some(s.as_str()),
+        _ => None,
+    };
     s.map(|s| filt_from_str_verbose(s, source)).transpose()
 }
 
@@ -137,7 +125,7 @@ where
 {
     let filter = cli
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
-        .or_else(|| filt_from_opt_str(config.console_filter(), "logging.console").transpose())
+        .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
     Ok(fmt::Layer::default().with_filter(filter))
 }
@@ -149,7 +137,7 @@ fn journald_layer<S>(config: &LoggingConfig) -> Result<impl Layer<S>>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
 {
-    if let Some(filter) = filt_from_opt_str(config.journald_filter(), "logging.journald")? {
+    if let Some(filter) = filt_from_opt_str(&config.journald, "logging.journald")? {
         Ok(Some(tracing_journald::layer()?.with_filter(filter)))
     } else {
         // Fortunately, Option<Layer> implements Layer, so we can just return None here.
