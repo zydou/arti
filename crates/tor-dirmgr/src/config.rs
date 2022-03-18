@@ -43,7 +43,7 @@ pub struct NetworkConfig {
     #[serde(rename = "fallback_caches")]
     #[builder_field_attr(serde(rename = "fallback_caches"))]
     #[builder(setter(name = "fallback_caches"))]
-    fallbacks: Vec<FallbackDir>,
+    pub(crate) fallbacks: Vec<FallbackDir>,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -54,7 +54,7 @@ pub struct NetworkConfig {
     /// This section cannot be changed in a running Arti client.
     #[serde(default = "crate::authority::default_authorities")]
     #[builder(default = "crate::authority::default_authorities()")]
-    authorities: Vec<Authority>,
+    pub(crate) authorities: Vec<Authority>,
 }
 
 impl Default for NetworkConfig {
@@ -70,14 +70,6 @@ impl NetworkConfig {
     /// Return a new builder to construct a NetworkConfig.
     pub fn builder() -> NetworkConfigBuilder {
         NetworkConfigBuilder::default()
-    }
-    /// Return the configured directory authorities
-    pub(crate) fn authorities(&self) -> &[Authority] {
-        &self.authorities[..]
-    }
-    /// Return the configured fallback directories
-    pub(crate) fn fallbacks(&self) -> &[FallbackDir] {
-        &self.fallbacks[..]
     }
 }
 
@@ -228,12 +220,12 @@ impl DirMgrConfig {
 
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        self.network_config.authorities()
+        &self.network_config.authorities
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &[FallbackDir] {
-        self.network_config.fallbacks()
+        &self.network_config.fallbacks
     }
 
     /// Return set of configured networkstatus parameter overrides.
@@ -358,8 +350,8 @@ mod test {
         // with nothing set, we get the default.
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities().len(), dflt.authorities.len());
-        assert_eq!(cfg.fallbacks().len(), dflt.fallbacks.len());
+        assert_eq!(cfg.authorities.len(), dflt.authorities.len());
+        assert_eq!(cfg.fallbacks.len(), dflt.fallbacks.len());
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
@@ -385,8 +377,8 @@ mod test {
             .build()
             .unwrap()]);
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.authorities().len(), 2);
-        assert_eq!(cfg.fallbacks().len(), 1);
+        assert_eq!(cfg.authorities.len(), 2);
+        assert_eq!(cfg.fallbacks.len(), 1);
 
         Ok(())
     }
