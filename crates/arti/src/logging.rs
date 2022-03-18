@@ -111,11 +111,10 @@ fn filt_from_str_verbose(s: &str, source: &str) -> Result<Targets> {
 /// As filt_from_str_verbose, but treat an absent filter (or an empty string) as
 /// None.
 fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>> {
-    let s = match s {
-        Some(ref s) if !s.is_empty() => Some(s.as_str()),
+    Ok(match s {
+        Some(s) if !s.is_empty() => Some(filt_from_str_verbose(s, source)?),
         _ => None,
-    };
-    s.map(|s| filt_from_str_verbose(s, source)).transpose()
+    })
 }
 
 /// Try to construct a tracing [`Layer`] for logging to stdout.
