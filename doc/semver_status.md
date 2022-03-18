@@ -56,6 +56,9 @@ tor-circmgr:
 
   api-break: Some error types have changed to include peer info.
 
+tor-dirclient:
+  api-break: refactored Error type.
+
 tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
   DirMgrCfg: totally changed, builder abolished.

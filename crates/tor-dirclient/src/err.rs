@@ -4,12 +4,35 @@ use std::sync::Arc;
 
 use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
+use tor_linkspec::OwnedChanTarget;
 use tor_rtcompat::TimeoutError;
+
+use crate::SourceInfo;
 
 /// An error originating from the tor-dirclient crate.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
+    /// Error while getting a circuit
+    #[error("Error while getting a circuit {0}")]
+    CircMgr(#[from] tor_circmgr::Error),
+
+    /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
+    #[error("Error fetching directory information from {source:?}")]
+    RequestFailed {
+        /// The source that gave us this error.
+        source: Option<SourceInfo>,
+
+        /// The underlying error that occurred.
+        #[source]
+        error: RequestError,
+    },
+}
+
+/// An error originating from the tor-dirclient crate.
+#[derive(Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum RequestError {
     /// The directory cache took too long to reply to us.
     #[error("directory timed out")]
     DirTimeout,
@@ -34,10 +57,6 @@ pub enum Error {
     #[error("Protocol error while launching a stream: {0}")]
     Proto(#[from] tor_proto::Error),
 
-    /// Error while getting a circuit
-    #[error("Error while getting a circuit {0}")]
-    CircMgr(#[from] tor_circmgr::Error),
-
     /// Error when parsing http
     #[error("Couldn't parse HTTP headers")]
     HttparseError(#[from] httparse::Error),
@@ -55,19 +74,19 @@ pub enum Error {
     ContentEncoding(String),
 }
 
-impl From<TimeoutError> for Error {
+impl From<TimeoutError> for RequestError {
     fn from(_: TimeoutError) -> Self {
-        Error::DirTimeout
+        RequestError::DirTimeout
     }
 }
 
-impl From<std::io::Error> for Error {
+impl From<std::io::Error> for RequestError {
     fn from(err: std::io::Error) -> Self {
         Self::IoError(Arc::new(err))
     }
 }
 
-impl From<http::Error> for Error {
+impl From<http::Error> for RequestError {
     fn from(err: http::Error) -> Self {
         Self::HttpError(Arc::new(err))
     }
@@ -79,14 +98,42 @@ impl Error {
     pub fn should_retire_circ(&self) -> bool {
         // TODO: probably this is too aggressive, and we should
         // actually _not_ dump the circuit under all circumstances.
+        match self {
+            Error::CircMgr(_) => true, // should be unreachable.
+            Error::RequestFailed { error, .. } => error.should_retire_circ(),
+        }
+    }
+
+    /// Return the peer or peers that are to be blamed for the error.
+    ///
+    /// (This can return multiple peers if the request failed because multiple
+    /// circuit attempts all failed.)
+    pub fn cache_ids(&self) -> Vec<&OwnedChanTarget> {
+        match &self {
+            Error::CircMgr(e) => e.peers(),
+            Error::RequestFailed {
+                source: Some(source),
+                ..
+            } => vec![source.cache_id()],
+            _ => Vec::new(),
+        }
+    }
+}
+
+impl RequestError {
+    /// Return true if this error means that the circuit shouldn't be used
+    /// for any more directory requests.
+    pub fn should_retire_circ(&self) -> bool {
+        // TODO: probably this is too aggressive, and we should
+        // actually _not_ dump the circuit under all circumstances.
         true
     }
 }
 
-impl HasKind for Error {
+impl HasKind for RequestError {
     fn kind(&self) -> ErrorKind {
-        use Error as E;
         use ErrorKind as EK;
+        use RequestError as E;
         match self {
             E::DirTimeout => EK::TorNetworkTimeout,
             E::TruncatedHeaders => EK::TorProtocolViolation,
@@ -97,10 +144,19 @@ impl HasKind for Error {
             // downcasting.
             E::IoError(_) => EK::TorDirectoryError,
             E::Proto(e) => e.kind(),
-            E::CircMgr(e) => e.kind(),
             E::HttparseError(_) => EK::TorProtocolViolation,
             E::HttpError(_) => EK::Internal,
             E::ContentEncoding(_) => EK::TorProtocolViolation,
+        }
+    }
+}
+
+impl HasKind for Error {
+    fn kind(&self) -> ErrorKind {
+        use Error as E;
+        match self {
+            E::CircMgr(e) => e.kind(),
+            E::RequestFailed { error, .. } => error.kind(),
         }
     }
 }

@@ -3,7 +3,7 @@
 use tor_linkspec::OwnedChanTarget;
 use tor_proto::circuit::{ClientCirc, UniqId};
 
-use crate::Error;
+use crate::RequestError;
 
 /// A successful (or at any rate, well-formed) response to a directory
 /// request.
@@ -14,7 +14,7 @@ pub struct DirResponse {
     /// The decompressed output that we got from the directory cache.
     output: Vec<u8>,
     /// The error, if any, that caused us to stop getting this response early.
-    error: Option<Error>,
+    error: Option<RequestError>,
     /// Information about the directory cache we used.
     source: Option<SourceInfo>,
 }
@@ -35,7 +35,7 @@ impl DirResponse {
     /// Construct a new DirResponse from its parts
     pub(crate) fn new(
         status: u16,
-        error: Option<Error>,
+        error: Option<RequestError>,
         output: Vec<u8>,
         source: Option<SourceInfo>,
     ) -> Self {
@@ -63,7 +63,7 @@ impl DirResponse {
     }
 
     /// Return the error from this response, if any.
-    pub fn error(&self) -> Option<&Error> {
+    pub fn error(&self) -> Option<&RequestError> {
         self.error.as_ref()
     }
 
