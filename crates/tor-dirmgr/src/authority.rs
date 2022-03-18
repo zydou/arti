@@ -6,7 +6,6 @@
 use derive_builder::Builder;
 use serde::Deserialize;
 use tor_llcrypto::pk::rsa::RsaIdentity;
-use tor_netdoc::doc::authcert::{AuthCert, AuthCertKeyIds};
 
 /// A single authority that signs a consensus directory.
 //
@@ -22,7 +21,7 @@ pub struct Authority {
     /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
     /// this authority.
     // TODO: It would be lovely to use a better hash for these identities.
-    v3ident: RsaIdentity,
+    pub(crate) v3ident: RsaIdentity,
 }
 
 impl Authority {
@@ -32,27 +31,6 @@ impl Authority {
     /// with its own set of directory authorities.
     pub fn builder() -> AuthorityBuilder {
         AuthorityBuilder::default()
-    }
-    /// Return the (human-readable) name for this authority.
-    pub fn name(&self) -> &str {
-        self.name.as_ref()
-    }
-    /// Return the v3 identity key of this certificate.
-    ///
-    /// This is the identity of the >=2048-bit RSA key that the
-    /// authority uses to sign documents; it is distinct from its
-    /// identity keys that it uses when operating as a relay.
-    pub fn v3ident(&self) -> &RsaIdentity {
-        &self.v3ident
-    }
-    /// Return true if this authority matches a given certificate.
-    pub fn matches_cert(&self, cert: &AuthCert) -> bool {
-        &self.v3ident == cert.id_fingerprint()
-    }
-
-    /// Return true if this authority matches a given key ID.
-    pub fn matches_keyid(&self, id: &AuthCertKeyIds) -> bool {
-        self.v3ident == id.id_fingerprint
     }
 }
 
@@ -94,6 +72,15 @@ impl AuthorityBuilder {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_netdoc::doc::authcert::AuthCertKeyIds;
+
+    impl Authority {
+        /// Return true if this authority matches a given key ID.
+        fn matches_keyid(&self, id: &AuthCertKeyIds) -> bool {
+            self.v3ident == id.id_fingerprint
+        }
+    }
+
     #[test]
     fn authority() {
         let key1: RsaIdentity = [9_u8; 20].into();
@@ -104,7 +91,7 @@ mod test {
             .build()
             .unwrap();
 
-        assert_eq!(auth.v3ident(), &key1);
+        assert_eq!(&auth.v3ident, &key1);
 
         let keyids1 = AuthCertKeyIds {
             id_fingerprint: key1,
