@@ -40,7 +40,10 @@ pub struct NetworkConfig {
     /// affect future download attempts only.
     #[serde(default = "fallbacks::default_fallbacks")]
     #[builder(default = "fallbacks::default_fallbacks()")]
-    fallback_caches: Vec<FallbackDir>,
+    #[serde(rename = "fallback_caches")]
+    #[builder_field_attr(serde(rename = "fallback_caches"))]
+    #[builder(setter(name = "fallback_caches"))]
+    fallbacks: Vec<FallbackDir>,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -57,7 +60,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         NetworkConfig {
-            fallback_caches: fallbacks::default_fallbacks(),
+            fallbacks: fallbacks::default_fallbacks(),
             authorities: crate::authority::default_authorities(),
         }
     }
@@ -74,14 +77,14 @@ impl NetworkConfig {
     }
     /// Return the configured fallback directories
     pub(crate) fn fallbacks(&self) -> &[FallbackDir] {
-        &self.fallback_caches[..]
+        &self.fallbacks[..]
     }
 }
 
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if self.authorities.is_some() && self.fallback_caches.is_none() {
+        if self.authorities.is_some() && self.fallbacks.is_none() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -252,7 +255,7 @@ impl DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
             network_config: NetworkConfig {
-                fallback_caches: new_config.network_config.fallback_caches.clone(),
+                fallbacks: new_config.network_config.fallbacks.clone(),
                 authorities: self.network_config.authorities.clone(),
             },
             schedule_config: new_config.schedule_config.clone(),
@@ -356,7 +359,7 @@ mod test {
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities().len(), dflt.authorities.len());
-        assert_eq!(cfg.fallbacks().len(), dflt.fallback_caches.len());
+        assert_eq!(cfg.fallbacks().len(), dflt.fallbacks.len());
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
