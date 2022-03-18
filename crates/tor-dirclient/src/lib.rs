@@ -111,7 +111,7 @@ where
 
     // TODO(nickm) This should be an option, and is too long.
     let begin_timeout = Duration::from_secs(5);
-    let source = SourceInfo::new(circuit.unique_id());
+    let source = SourceInfo::from_circuit(&circuit);
 
     // Launch the stream.
     let mut stream = runtime
