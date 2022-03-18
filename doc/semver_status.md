@@ -54,6 +54,8 @@ tor-circmgr:
   api-break: The fallbacks case of DirInfo now wants a slice of references to
   fallbacks.
 
+  api-break: Some error types have changed to include peer info.
+
 tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
   DirMgrCfg: totally changed, builder abolished.
