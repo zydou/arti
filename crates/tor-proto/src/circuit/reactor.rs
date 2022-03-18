@@ -24,11 +24,11 @@ use futures::Sink;
 use futures::Stream;
 use tor_error::internal;
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::channel::Channel;
+use crate::circuit::path;
 #[cfg(test)]
 use crate::circuit::sendme::CircTag;
 use crate::circuit::sendme::StreamSendWindow;
@@ -36,7 +36,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::chancell;
 use tor_cell::chancell::{ChanCell, CircId};
-use tor_linkspec::LinkSpec;
+use tor_linkspec::{LinkSpec, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
 
@@ -88,6 +88,10 @@ pub(super) enum CtrlMsg {
     },
     /// Extend a circuit by one hop, using the ntor handshake.
     ExtendNtor {
+        /// The peer that we're extending to.
+        ///
+        /// Used to extend our record of the circuit's path.
+        peer_id: OwnedChanTarget,
         /// The handshake type to use for this hop.
         public_key: NtorPublicKey,
         /// Information about how to connect to the relay we're extending to.
@@ -267,6 +271,10 @@ struct CircuitExtender<H, L, FWD, REV>
 where
     H: ClientHandshake,
 {
+    /// The peer that we're extending to.
+    ///
+    /// Used to extend our record of the circuit's path.
+    peer_id: OwnedChanTarget,
     /// Handshake state.
     state: Option<H::StateType>,
     /// Whether the hop supports authenticated SENDME cells.
@@ -302,8 +310,10 @@ where
     /// goes along with the handshake, and the `linkspecs` are the
     /// link specifiers to include in the EXTEND cell to tell the
     /// current last hop which relay to connect to.
+    #[allow(clippy::too_many_arguments)]
     fn begin(
         cx: &mut Context<'_>,
+        peer_id: OwnedChanTarget,
         handshake_id: u16,
         key: &H::KeyType,
         linkspecs: Vec<LinkSpec>,
@@ -340,6 +350,7 @@ where
         // ... and now we wait for a response.
 
         Ok(Self {
+            peer_id,
             state: Some(state),
             require_sendme_auth,
             params,
@@ -405,6 +416,7 @@ where
         // If we get here, it succeeded.  Add a new hop to the circuit.
         let (layer_fwd, layer_back) = layer.split();
         reactor.add_hop(
+            self.peer_id.clone(),
             self.require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -446,7 +458,7 @@ pub struct Reactor {
     /// List of hops state objects used by the reactor
     pub(super) hops: Vec<CircHop>,
     /// Shared atomic for the number of hops this circuit has.
-    pub(super) num_hops: Arc<AtomicU8>,
+    pub(super) path: Arc<path::Path>,
     /// An identifier for logging about this reactor's circuit.
     pub(super) unique_id: UniqId,
     /// This circuit's identifier on the upstream channel.
@@ -722,7 +734,10 @@ impl Reactor {
         debug!("{}: Handshake complete; circuit created.", self.unique_id);
 
         let (layer_fwd, layer_back) = layer.split();
+        let peer_id = self.channel.target().clone();
+
         self.add_hop(
+            peer_id,
             require_sendme_auth,
             Box::new(layer_fwd),
             Box::new(layer_back),
@@ -799,6 +814,7 @@ impl Reactor {
     /// Add a hop to the end of this circuit.
     fn add_hop(
         &mut self,
+        peer_id: OwnedChanTarget,
         require_sendme_auth: RequireSendmeAuth,
         fwd: Box<dyn OutboundClientLayer + 'static + Send>,
         rev: Box<dyn InboundClientLayer + 'static + Send>,
@@ -811,7 +827,7 @@ impl Reactor {
         self.hops.push(hop);
         self.crypto_in.add_layer(rev);
         self.crypto_out.add_layer(fwd);
-        self.num_hops.fetch_add(1, Ordering::SeqCst);
+        self.path.push_hop(peer_id);
     }
 
     /// Handle a RELAY cell on this circuit with stream ID 0.
@@ -1055,6 +1071,7 @@ impl Reactor {
             // This is handled earlier, since it requires generating a ReactorError.
             CtrlMsg::Shutdown => panic!("got a CtrlMsg::Shutdown in handle_control"),
             CtrlMsg::ExtendNtor {
+                peer_id,
                 public_key,
                 linkspecs,
                 require_sendme_auth,
@@ -1063,6 +1080,7 @@ impl Reactor {
             } => {
                 match CircuitExtender::<NtorClient, Tor1RelayCrypto, _, _>::begin(
                     cx,
+                    peer_id,
                     0x02,
                     &public_key,
                     linkspecs,
@@ -1110,9 +1128,10 @@ impl Reactor {
                     RequireSendmeAuth::No
                 };
 
+                let dummy_peer_id = OwnedChanTarget::new(vec![], [4; 32].into(), [5; 20].into());
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
-                self.add_hop(require_sendme_auth, fwd, rev, &params);
+                self.add_hop(dummy_peer_id, require_sendme_auth, fwd, rev, &params);
                 let _ = done.send(Ok(()));
             }
             #[cfg(test)]

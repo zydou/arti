@@ -41,6 +41,7 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
 mod streammap;
@@ -60,15 +61,15 @@ use tor_cell::{
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
 };
 
-use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{CircTarget, LinkSpec};
+use tor_error::{bad_api_usage, internal, into_internal};
+use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget};
 
 use futures::channel::{mpsc, oneshot};
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
+use std::convert::TryFrom;
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use tor_cell::relaycell::StreamId;
 // use std::time::Duration;
@@ -88,7 +89,7 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 /// they all actually communicate with the Reactor which contains the primary
 /// mutable state, and does the actual work.
 //
-// Effectively, this struct contains two Arcs: one for `hops` and one for
+// Effectively, this struct contains two Arcs: one for `path` and one for
 // `control` (which surely has something Arc-like in it).  We cannot unify
 // these by putting a single Arc around the whole struct, and passing
 // an Arc strong reference to the `Reactor`, because then `control` would
@@ -100,10 +101,8 @@ pub const CIRCUIT_BUFFER_SIZE: usize = 128;
 // two atomic refcount changes/checks.  Wrapping it in another Arc would
 // be overkill.
 pub struct ClientCirc {
-    /// Number of hops on this circuit.
-    ///
-    /// This value is incremented after the circuit successfully completes extending to a new hop.
-    hops: Arc<AtomicU8>,
+    /// Information about this circuit's path.
+    path: Arc<path::Path>,
     /// A unique identifier for this circuit.
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
@@ -194,6 +193,24 @@ pub(crate) struct StreamTarget {
 }
 
 impl ClientCirc {
+    /// Return a description of the first hop of this circuit.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there is no first hop.  (This should be impossible outside of
+    /// the tor-proto crate, but within the crate it's possible to have a
+    /// circuit with no hops.)
+    pub fn first_hop(&self) -> OwnedChanTarget {
+        self.path
+            .first_hop()
+            .expect("called first_hop on an un-constructed circuit")
+    }
+
+    /// Return a description of all the hops in this circuit.
+    pub fn path(&self) -> Vec<OwnedChanTarget> {
+        self.path.all_hops()
+    }
+
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
     pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
@@ -213,8 +230,10 @@ impl ClientCirc {
 
         let (tx, rx) = oneshot::channel();
 
+        let peer_id = OwnedChanTarget::from_chan_target(target);
         self.control
             .unbounded_send(CtrlMsg::ExtendNtor {
+                peer_id,
                 public_key: key,
                 linkspecs,
                 require_sendme_auth,
@@ -239,13 +258,15 @@ impl ClientCirc {
         // TODO: Possibly this should take a hop, rather than just
         // assuming it's the last hop.
 
-        let num_hops = self.hops.load(Ordering::SeqCst);
+        let num_hops = self.path.n_hops();
         if num_hops == 0 {
             return Err(Error::from(internal!(
                 "Can't begin a stream at the 0th hop"
             )));
         }
-        let hop_num: HopNum = (num_hops - 1).into();
+        let hop_num: HopNum = u8::try_from(num_hops - 1)
+            .map_err(into_internal!("Couldn't convert path length to u8"))?
+            .into();
         let (sender, receiver) = mpsc::channel(STREAM_READER_BUFFER);
         let (tx, rx) = oneshot::channel();
         let (msg_tx, msg_rx) = mpsc::channel(CIRCUIT_BUFFER_SIZE);
@@ -407,8 +428,8 @@ impl ClientCirc {
     }
 
     #[cfg(test)]
-    pub fn n_hops(&self) -> u8 {
-        self.hops.load(Ordering::SeqCst)
+    pub fn n_hops(&self) -> usize {
+        self.path.n_hops()
     }
 }
 
@@ -427,7 +448,7 @@ impl PendingClientCirc {
     ) -> (PendingClientCirc, reactor::Reactor) {
         let crypto_out = OutboundClientCrypt::new();
         let (control_tx, control_rx) = mpsc::unbounded();
-        let num_hops = Arc::new(AtomicU8::new(0));
+        let path = Arc::new(path::Path::default());
 
         let reactor = Reactor {
             control: control_rx,
@@ -440,11 +461,11 @@ impl PendingClientCirc {
             channel_id: id,
             crypto_out,
             meta_handler: None,
-            num_hops: Arc::clone(&num_hops),
+            path: Arc::clone(&path),
         };
 
         let circuit = ClientCirc {
-            hops: num_hops,
+            path,
             unique_id,
             control: control_tx,
             #[cfg(test)]
@@ -1026,6 +1047,13 @@ mod test {
 
             // Did we really add another hop?
             assert_eq!(circ.n_hops(), 4);
+
+            // Do the path accessors report a reasonable outcome?
+            let path = circ.path();
+            assert_eq!(path.len(), 4);
+            use tor_linkspec::ChanTarget;
+            assert_eq!(path[3].ed_identity(), example_target().ed_identity());
+            assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         });
     }
 

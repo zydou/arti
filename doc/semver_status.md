@@ -65,6 +65,9 @@ tor-netdoc:
 
   api-break: changed the return type of GenericRouterStatus::version()
 
+tor-proto:
+  new-api: ClientCirc path accessors.
+
 tor-protover:
   new-api: Protocols now implements Eq, PartialEq, and Hash.
 

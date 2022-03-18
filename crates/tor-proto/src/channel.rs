@@ -71,7 +71,7 @@ use crate::{Error, Result};
 use std::pin::Pin;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
-use tor_linkspec::ChanTarget;
+use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -126,10 +126,8 @@ pub struct Channel {
 pub(crate) struct ChannelDetails {
     /// A unique identifier for this channel.
     unique_id: UniqId,
-    /// Validated Ed25519 identity for this peer.
-    ed25519_id: Ed25519Identity,
-    /// Validated RSA identity for this peer.
-    rsa_id: RsaIdentity,
+    /// Validated identity and address information for this peer.
+    peer_id: OwnedChanTarget,
     /// If true, this channel is closing.
     closed: AtomicBool,
     /// Since when the channel became unused.
@@ -240,8 +238,7 @@ impl Channel {
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
         unique_id: UniqId,
-        ed25519_id: Ed25519Identity,
-        rsa_id: RsaIdentity,
+        peer_id: OwnedChanTarget,
     ) -> (Self, reactor::Reactor) {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
@@ -254,8 +251,7 @@ impl Channel {
 
         let details = ChannelDetails {
             unique_id,
-            ed25519_id,
-            rsa_id,
+            peer_id,
             closed,
             unused_since,
         };
@@ -288,12 +284,18 @@ impl Channel {
 
     /// Return the Ed25519 identity for the peer of this channel.
     pub fn peer_ed25519_id(&self) -> &Ed25519Identity {
-        &self.details.ed25519_id
+        self.details.peer_id.ed_identity()
     }
 
     /// Return the (legacy) RSA identity for the peer of this channel.
     pub fn peer_rsa_id(&self) -> &RsaIdentity {
-        &self.details.rsa_id
+        self.details.peer_id.rsa_identity()
+    }
+
+    /// Return an OwnedChanTarget representing the actual handshake used to
+    /// create this channel.
+    pub fn target(&self) -> &OwnedChanTarget {
+        &self.details.peer_id
     }
 
     /// Return an error if this channel is somehow mismatched with the
@@ -452,11 +454,11 @@ pub(crate) mod test {
     fn fake_channel_details() -> Arc<ChannelDetails> {
         let unique_id = UniqId::new();
         let unused_since = OptTimestamp::new();
+        let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
 
         Arc::new(ChannelDetails {
             unique_id,
-            ed25519_id: [6_u8; 32].into(),
-            rsa_id: [10_u8; 20].into(),
+            peer_id,
             closed: AtomicBool::new(false),
             unused_since,
         })
