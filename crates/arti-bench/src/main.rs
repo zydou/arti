@@ -238,7 +238,7 @@ async fn client<S: AsyncRead + AsyncWrite + Unpin>(
 
     let read = socket.read(&mut received).await?;
     if read == 0 {
-        anyhow!("unexpected EOF");
+        return Err(anyhow!("unexpected EOF"));
     }
     let first_byte_ts = SystemTime::now();
     socket.read_exact(&mut received[read..]).await?;
