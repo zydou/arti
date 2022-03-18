@@ -75,11 +75,6 @@ impl LoggingConfig {
             _ => None,
         }
     }
-
-    /// Return a list of the configured log files
-    pub fn logfiles(&self) -> &[LogfileConfig] {
-        &self.file
-    }
 }
 
 /// Configuration information for an (optionally rotating) logfile.
@@ -118,21 +113,6 @@ impl LogfileConfig {
     /// Return a new [`LogfileConfigBuilder`]
     pub fn builder() -> LogfileConfigBuilder {
         LogfileConfigBuilder::default()
-    }
-
-    /// Return the configured rotation interval.
-    pub fn rotate(&self) -> LogRotation {
-        self.rotate
-    }
-
-    /// Return the configured path to the log file.
-    pub fn path(&self) -> &CfgPath {
-        &self.path
-    }
-
-    /// Return the configured filter.
-    pub fn filter(&self) -> &str {
-        &self.filter
     }
 }
 
@@ -193,13 +173,13 @@ where
         rolling::{RollingFileAppender, Rotation},
     };
 
-    let filter = filt_from_str_verbose(config.filter(), "logging.files.filter")?;
-    let rotation = match config.rotate() {
+    let filter = filt_from_str_verbose(&config.filter, "logging.files.filter")?;
+    let rotation = match config.rotate {
         LogRotation::Daily => Rotation::DAILY,
         LogRotation::Hourly => Rotation::HOURLY,
         _ => Rotation::NEVER,
     };
-    let path = config.path().path()?;
+    let path = config.path.path()?;
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let fname = path
         .file_name()
@@ -221,20 +201,20 @@ where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
     let mut guards = Vec::new();
-    if config.logfiles().is_empty() {
+    if config.file.is_empty() {
         // As above, we have Option<Layer> implements Layer, so we can return
         // None in this case.
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.logfiles()[0])?;
+    let (layer, guard) = logfile_layer(&config.file[0])?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
     // arbitrary depth.
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
-    for logfile in &config.logfiles()[1..] {
+    for logfile in &config.file[1..] {
         let (new_layer, guard) = logfile_layer(logfile)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);
