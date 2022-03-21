@@ -80,7 +80,7 @@ impl RetryDelay {
         let low = self.low_bound_ms;
         let high = std::cmp::max(
             // We don't need a saturating_add here, since low is always
-            // less than high, so low cannot be equal to u32::MAX.
+            // <= MAX_LOW_BOUND, so low cannot be equal to u32::MAX.
             low + 1,
             self.last_delay_ms.saturating_mul(MAX_DELAY_MULT),
         );
