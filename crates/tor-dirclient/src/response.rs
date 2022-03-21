@@ -1,8 +1,9 @@
 //! Define a response type for directory requests.
 
-use tor_proto::circuit::UniqId;
+use tor_linkspec::OwnedChanTarget;
+use tor_proto::circuit::{ClientCirc, UniqId};
 
-use crate::Error;
+use crate::RequestError;
 
 /// A successful (or at any rate, well-formed) response to a directory
 /// request.
@@ -13,7 +14,7 @@ pub struct DirResponse {
     /// The decompressed output that we got from the directory cache.
     output: Vec<u8>,
     /// The error, if any, that caused us to stop getting this response early.
-    error: Option<Error>,
+    error: Option<RequestError>,
     /// Information about the directory cache we used.
     source: Option<SourceInfo>,
 }
@@ -22,20 +23,19 @@ pub struct DirResponse {
 ///
 /// We use this to remember when a request has failed, so we can
 /// abandon the circuit.
-///
-/// (In the future, we will probably want to use this structure to
-/// remember that the cache isn't working.)
 #[derive(Debug, Clone)]
 pub struct SourceInfo {
     /// Unique identifier for the circuit we're using
     circuit: UniqId,
+    /// Identity of the directory cache that provided us this information.
+    cache_id: OwnedChanTarget,
 }
 
 impl DirResponse {
     /// Construct a new DirResponse from its parts
     pub(crate) fn new(
         status: u16,
-        error: Option<Error>,
+        error: Option<RequestError>,
         output: Vec<u8>,
         source: Option<SourceInfo>,
     ) -> Self {
@@ -63,7 +63,7 @@ impl DirResponse {
     }
 
     /// Return the error from this response, if any.
-    pub fn error(&self) -> Option<&Error> {
+    pub fn error(&self) -> Option<&RequestError> {
         self.error.as_ref()
     }
 
@@ -85,12 +85,21 @@ impl DirResponse {
 
 impl SourceInfo {
     /// Construct a new SourceInfo
-    pub(crate) fn new(circuit: UniqId) -> Self {
-        SourceInfo { circuit }
+    pub(crate) fn from_circuit(circuit: &ClientCirc) -> Self {
+        SourceInfo {
+            circuit: circuit.unique_id(),
+            cache_id: circuit.first_hop(),
+        }
     }
+
     /// Return the unique circuit identifier for the circuit on which
     /// we received this info.
     pub fn unique_circ_id(&self) -> &UniqId {
         &self.circuit
+    }
+
+    /// Return information about the peer from which we received this info.
+    pub fn cache_id(&self) -> &OwnedChanTarget {
+        &self.cache_id
     }
 }

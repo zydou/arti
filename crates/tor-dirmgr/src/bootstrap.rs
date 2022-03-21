@@ -59,14 +59,21 @@ async fn fetch_single<R: Runtime>(
     let circmgr = dirmgr.circmgr()?;
     let cur_netdir = dirmgr.opt_netdir();
     let config = dirmgr.config.get();
+    let fbs;
     let dirinfo = match cur_netdir {
         Some(ref netdir) => netdir.as_ref().into(),
-        None => config.fallbacks().into(),
+        None => {
+            fbs = config.fallbacks().iter().collect::<Vec<_>>();
+            fbs[..].into()
+        }
     };
-    let resource =
+    let outcome =
         tor_dirclient::get_resource(request.as_requestable(), dirinfo, &dirmgr.runtime, circmgr)
-            .await?;
+            .await;
 
+    dirmgr.note_request_outcome(&outcome);
+
+    let resource = outcome?;
     Ok((request, resource))
 }
 
@@ -186,20 +193,36 @@ async fn download_attempt<R: Runtime>(
     let missing = state.missing_docs();
     let fetched = fetch_multiple(Arc::clone(dirmgr), missing, parallelism).await?;
     for (client_req, dir_response) in fetched {
-        let text =
-            String::from_utf8(dir_response.into_output()).map_err(Error::BadUtf8FromDirectory)?;
+        let source = dir_response.source().map(Clone::clone);
+        let text = match String::from_utf8(dir_response.into_output())
+            .map_err(Error::BadUtf8FromDirectory)
+        {
+            Ok(t) => t,
+            Err(e) => {
+                if let Some(source) = source {
+                    dirmgr.note_cache_error(&source, &e);
+                }
+                continue;
+            }
+        };
         match dirmgr.expand_response_text(&client_req, text) {
             Ok(text) => {
                 let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
                 match outcome {
                     Ok(b) => changed |= b,
-                    // TODO: in this case we might want to stop using this source.
-                    Err(e) => warn!("error while adding directory info: {}", e),
+                    Err(e) => {
+                        warn!("error while adding directory info: {}", e);
+                        if let Some(source) = source {
+                            dirmgr.note_cache_error(&source, &e);
+                        }
+                    }
                 }
             }
             Err(e) => {
-                // TODO: in this case we might want to stop using this source.
                 warn!("Error when expanding directory text: {}", e);
+                if let Some(source) = source {
+                    dirmgr.note_cache_error(&source, &e);
+                }
             }
         }
     }

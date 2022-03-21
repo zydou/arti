@@ -8,7 +8,8 @@ use tor_netdoc::doc::netstatus::ConsensusFlavor;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
 
-use crate::Result;
+/// Alias for a result with a `RequestError`.
+type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
 use std::iter::FromIterator;
 use std::time::SystemTime;

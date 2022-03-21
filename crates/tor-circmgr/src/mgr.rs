@@ -780,11 +780,27 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     }
                 }
                 Err(e) => {
-                    // We couldn't pick the action! This is unusual; wait
-                    // a little while before we try again.
+                    // We couldn't pick the action!
                     info!("Couldn't pick action for circuit attempt {}: {}", n, &e);
+                    let small_delay = Duration::from_millis(50);
+                    let wait_for_action = match &e {
+                        Error::Guard(tor_guardmgr::PickGuardError::AllGuardsDown {
+                            retry_at: Some(instant),
+                        }) => {
+                            // If we failed because all guards are down, that's fine: we just wait until
+                            // the next guard is retriable.
+                            instant.saturating_duration_since(self.runtime.now()) + small_delay
+                        }
+                        _ => {
+                            // Any other errors are pretty unusual; wait a little while, then try again.
+                            small_delay
+                        }
+                    };
                     retry_err.push(e);
-                    let wait_for_action = Duration::from_millis(50);
+                    if remaining < wait_for_action {
+                        // We can't wait long enough.  Call this failed now.
+                        break;
+                    }
                     self.runtime
                         .sleep(std::cmp::min(remaining, wait_for_action))
                         .await;
@@ -869,12 +885,27 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // Okay, we need to launch circuits here.
         let parallelism = std::cmp::max(1, self.builder.launch_parallelism(usage));
         let mut plans = Vec::new();
+        let mut last_err = None;
         for _ in 0..parallelism {
-            let (pending, plan) = self.plan_by_usage(dir, usage)?;
-            list.add_pending_circ(pending);
-            plans.push(plan);
+            match self.plan_by_usage(dir, usage) {
+                Ok((pending, plan)) => {
+                    list.add_pending_circ(pending);
+                    plans.push(plan);
+                }
+                Err(e) => {
+                    debug!("Unable to make a plan for {:?}: {}", usage, e);
+                    last_err = Some(e);
+                }
+            }
         }
-        Ok(Action::Build(plans))
+        if !plans.is_empty() {
+            Ok(Action::Build(plans))
+        } else if let Some(last_err) = last_err {
+            Err(last_err)
+        } else {
+            // we didn't even try to plan anything!
+            Err(internal!("no plans were built, but no errors were found").into())
+        }
     }
 
     /// Execute an action returned by pick-action, and return the
@@ -1432,7 +1463,7 @@ mod test {
 
     const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
 
-    static DI_EMPTY: [tor_netdir::fallback::FallbackDir; 0] = [];
+    static DI_EMPTY: [&tor_netdir::fallback::FallbackDir; 0] = [];
 
     fn di() -> DirInfo<'static> {
         DI_EMPTY[..].into()

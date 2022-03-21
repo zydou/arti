@@ -1,5 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
+use tor_basic_utils::retry::RetryDelay;
 use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
@@ -128,17 +129,18 @@ pub(crate) struct Guard {
     /// retry it?
     ///
     /// (Retrying a guard involves clearing this field, and setting
-    /// `reachable`
+    /// `reachable`)
     #[serde(skip)]
-    retry_at: Option<Instant>, // derived from tried_to_connect_at.
+    retry_at: Option<Instant>, // derived from retry_schedule.
+
+    /// Schedule use to determine when we can next attempt to connect to this
+    /// guard.
+    #[serde(skip)]
+    retry_schedule: Option<RetryDelay>,
 
     /// Current reachability status for this guard.
     #[serde(skip)]
     reachable: Reachable,
-
-    /// If this guard is currently failing, when did it start to fail?
-    #[serde(skip)]
-    failing_since: Option<Instant>,
 
     /// If true, then the last time we saw a relay entry for this
     /// guard, it seemed like a valid directory cache.
@@ -192,7 +194,11 @@ impl Guard {
             params.lifetime_unconfirmed / 10,
         );
 
-        Self::new(GuardId::from_relay(relay), relay.addrs().into(), added_at)
+        Self::new(
+            GuardId::from_chan_target(relay),
+            relay.addrs().into(),
+            added_at,
+        )
     }
 
     /// Return a new, manually constructed [`Guard`].
@@ -203,14 +209,13 @@ impl Guard {
             added_at,
             added_by: CrateId::this_crate(),
             disabled: None,
-
             confirmed_at: None,
             unlisted_since: None,
             microdescriptor_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
-            failing_since: None,
             retry_at: None,
+            retry_schedule: None,
             is_dir_cache: true,
             exploratory_circ_pending: false,
             circ_history: CircHistory::default(),
@@ -229,6 +234,13 @@ impl Guard {
         self.reachable
     }
 
+    /// Return the next time at which this guard will be retriable.
+    ///
+    /// (Return None if we think this guard might be reachable right now.)
+    pub(crate) fn next_retry(&self) -> Option<Instant> {
+        self.retry_at
+    }
+
     /// Return true if this guard is listed in the latest NetDir, and hasn't
     /// been turned off for some other reason.
     pub(crate) fn usable(&self) -> bool {
@@ -243,8 +255,8 @@ impl Guard {
 
         self.last_tried_to_connect_at = other.last_tried_to_connect_at;
         self.retry_at = other.retry_at;
+        self.retry_schedule = other.retry_schedule.clone();
         self.reachable = other.reachable;
-        self.failing_since = other.failing_since;
         self.is_dir_cache = other.is_dir_cache;
         self.exploratory_circ_pending = other.exploratory_circ_pending;
     }
@@ -297,6 +309,7 @@ impl Guard {
         if self.reachable != Reachable::Reachable {
             self.set_reachable(Reachable::Unknown);
             self.retry_at = None;
+            self.retry_schedule = None;
         }
     }
 
@@ -450,18 +463,17 @@ impl Guard {
     ///
     /// If `is_primary` is true, this is a primary guard (q.v.).
     pub(crate) fn record_failure(&mut self, now: Instant, is_primary: bool) {
-        let failing_since = self.failing_since.get_or_insert(now);
-        let failing_time = now.saturating_duration_since(*failing_since);
         self.set_reachable(Reachable::Unreachable);
         self.exploratory_circ_pending = false;
 
-        let connect_attempt = self.last_tried_to_connect_at.unwrap_or(now);
+        let mut rng = rand::thread_rng();
+        let retry_interval = self
+            .retry_schedule
+            .get_or_insert_with(|| retry_schedule(is_primary))
+            .next_delay(&mut rng);
 
-        // This matches tor, but not the spec.
-        let retry_interval = retry_interval(is_primary, failing_time);
-
-        // TODO-SPEC: Oughtn't we randomize this?
-        self.retry_at = Some(connect_attempt + retry_interval);
+        // TODO-SPEC: Document this behavior in guard-spec.
+        self.retry_at = Some(now + retry_interval);
 
         self.circ_history.n_failures += 1;
     }
@@ -499,8 +511,8 @@ impl Guard {
         now: SystemTime,
         params: &GuardParams,
     ) -> NewlyConfirmed {
-        self.failing_since = None;
         self.retry_at = None;
+        self.retry_schedule = None;
         self.set_reachable(Reachable::Reachable);
         self.exploratory_circ_pending = false;
         self.circ_history.n_successes += 1;
@@ -597,42 +609,17 @@ enum GuardDisabled {
     },
 }
 
-/// Return the interval after which we should retry a guard that has
-/// been failing for the last `failing`.
+/// Return a new RetryDelay tracker for a guard.
 ///
-/// If the guard `is_primary`, we use a more aggressive retry schedule.
-fn retry_interval(is_primary: bool, failing: Duration) -> Duration {
-    /// One minute.
-    const MIN: Duration = Duration::from_secs(60);
-    /// One hour.
-    const HOUR: Duration = Duration::from_secs(60 * 60);
-    /// One (normal) day.
-    const DAY: Duration = Duration::from_secs(24 * 60 * 60);
-
-    // TODO-SPEC: This matches tor, not guardspec.
-    // TODO: Hardcoding this feels ugly.
-    #[allow(clippy::collapsible_else_if)]
-    if is_primary {
-        if failing < 6 * HOUR {
-            10 * MIN
-        } else if failing < 4 * DAY {
-            90 * MIN
-        } else if failing < 7 * DAY {
-            4 * HOUR
-        } else {
-            9 * HOUR
-        }
+/// `is_primary should be true if the guard is primary.
+fn retry_schedule(is_primary: bool) -> RetryDelay {
+    let minimum = if is_primary {
+        Duration::from_secs(30)
     } else {
-        if failing < 6 * HOUR {
-            HOUR
-        } else if failing < 4 * DAY {
-            4 * HOUR
-        } else if failing < 7 * DAY {
-            18 * HOUR
-        } else {
-            36 * HOUR
-        }
-    }
+        Duration::from_secs(150)
+    };
+
+    RetryDelay::from_duration(minimum)
 }
 
 /// The recent history of circuit activity on this guard.
@@ -788,27 +775,6 @@ mod test {
     }
 
     #[test]
-    fn retry_interval_check() {
-        const MIN: Duration = Duration::from_secs(60);
-        const HOUR: Duration = Duration::from_secs(60 * 60);
-        const DAY: Duration = Duration::from_secs(24 * 60 * 60);
-
-        assert_eq!(retry_interval(true, MIN), 10 * MIN);
-        assert_eq!(retry_interval(true, 5 * MIN), 10 * MIN);
-        assert_eq!(retry_interval(true, 7 * HOUR), 90 * MIN);
-        assert_eq!(retry_interval(true, 24 * HOUR), 90 * MIN);
-        assert_eq!(retry_interval(true, 5 * DAY), 4 * HOUR);
-        assert_eq!(retry_interval(true, 100 * DAY), 9 * HOUR);
-
-        assert_eq!(retry_interval(false, MIN), HOUR);
-        assert_eq!(retry_interval(false, 5 * MIN), HOUR);
-        assert_eq!(retry_interval(false, 7 * HOUR), 4 * HOUR);
-        assert_eq!(retry_interval(false, 24 * HOUR), 4 * HOUR);
-        assert_eq!(retry_interval(false, 5 * DAY), 18 * HOUR);
-        assert_eq!(retry_interval(false, 100 * DAY), 36 * HOUR);
-    }
-
-    #[test]
     fn record_attempt() {
         let t1 = Instant::now() - Duration::from_secs(10);
         let t2 = Instant::now() - Duration::from_secs(5);
@@ -831,14 +797,16 @@ mod test {
         let t2 = Instant::now();
 
         let mut g = basic_guard();
-        assert!(g.failing_since.is_none());
         g.record_failure(t1, true);
-        assert_eq!(g.failing_since, Some(t1));
+        assert!(g.retry_schedule.is_some());
         assert_eq!(g.reachable(), Reachable::Unreachable);
-        assert_eq!(g.retry_at, Some(t1 + Duration::from_secs(600)));
+        let retry1 = g.retry_at.unwrap();
+        assert_eq!(retry1, t1 + Duration::from_secs(30));
 
         g.record_failure(t2, true);
-        assert_eq!(g.failing_since, Some(t1));
+        let retry2 = g.retry_at.unwrap();
+        assert!(retry2 >= t2 + Duration::from_secs(30));
+        assert!(retry2 <= t2 + Duration::from_secs(200));
     }
 
     #[test]
@@ -857,7 +825,6 @@ mod test {
         assert_eq!(g.reachable(), Reachable::Reachable);
         assert_eq!(conf, NewlyConfirmed::Yes);
         assert!(g.retry_at.is_none());
-        assert!(g.failing_since.is_none());
         assert!(g.confirmed_at.unwrap() <= t2);
         assert!(g.confirmed_at.unwrap() >= t2 - Duration::from_secs(12 * 86400));
         let confirmed_at_orig = g.confirmed_at;
@@ -869,7 +836,6 @@ mod test {
         assert_eq!(conf, NewlyConfirmed::No);
         assert_eq!(g.reachable(), Reachable::Reachable);
         assert!(g.retry_at.is_none());
-        assert!(g.failing_since.is_none());
         assert_eq!(g.confirmed_at, confirmed_at_orig);
     }
 
@@ -896,7 +862,6 @@ mod test {
         g.consider_retry(g.retry_at.unwrap() + Duration::from_secs(1));
         assert!(g.retry_at.is_none());
         assert_eq!(g.reachable(), Reachable::Unknown);
-        assert_eq!(g.failing_since, Some(t1));
     }
 
     #[test]

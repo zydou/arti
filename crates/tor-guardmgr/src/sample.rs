@@ -3,7 +3,7 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
-use crate::{GuardId, GuardParams, GuardUsage, GuardUsageKind};
+use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -235,7 +235,7 @@ impl GuardSet {
     fn contains_relay(&self, relay: &Relay<'_>) -> bool {
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
-        let id = GuardId::from_relay(relay);
+        let id = GuardId::from_chan_target(relay);
         self.guards.contains_key(&id)
     }
 
@@ -368,7 +368,7 @@ impl GuardSet {
     ///
     /// Does nothing if it is already a guard.
     fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
-        let id = GuardId::from_relay(relay);
+        let id = GuardId::from_chan_target(relay);
         if self.guards.contains_key(&id) {
             return;
         }
@@ -524,6 +524,11 @@ impl GuardSet {
         }
     }
 
+    /// Return the earliest time at which any guard will be retriable.
+    pub(crate) fn next_retry(&self) -> Option<Instant> {
+        self.guards.values().filter_map(Guard::next_retry).min()
+    }
+
     /// Mark every `Unreachable` primary guard as `Unknown`.
     pub(crate) fn mark_primary_guards_retriable(&mut self) {
         for id in &self.primary {
@@ -582,9 +587,22 @@ impl GuardSet {
         self.assert_consistency();
     }
 
-    /// Record that an attempt to use the guard with `guard_id` has
-    /// just failed.
-    pub(crate) fn record_failure(&mut self, guard_id: &GuardId, now: Instant) {
+    /// Record that an attempt to use the guard with `guard_id` has just failed.
+    ///
+    /// If `how` is provided, it's a reason that the guard failed from outside
+    /// of the crate.
+    pub(crate) fn record_failure(
+        &mut self,
+        guard_id: &GuardId,
+        how: Option<ExternalFailure>,
+        now: Instant,
+    ) {
+        // TODO: For now, we treat failures of guards for circuit building the
+        // same as we treat failures for other reasons.  Eventually that should
+        // change, however.  We take this `ExternalFailure` information now in
+        // the expectation that it will be annoying to add it to the API later.
+        let _ = how;
+
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
         if let Some(guard) = self.guards.get_mut(guard_id) {
@@ -690,13 +708,16 @@ impl GuardSet {
             GuardUsageKind::Data => params.data_parallelism,
         };
 
+        // count the number of running options, distinct from the total options.
+        let mut n_running: usize = 0;
+
         let mut options: Vec<_> = self
             .preference_order()
+            .filter(|(_, g)| g.usable() && g.reachable() != Reachable::Unreachable)
+            .inspect(|_| n_running += 1)
             .filter(|(_, g)| {
-                g.usable()
+                !g.exploratory_circ_pending()
                     && self.active_filter.permits(*g)
-                    && g.reachable() != Reachable::Unreachable
-                    && !g.exploratory_circ_pending()
                     && g.conforms_to_usage(usage)
             })
             .take(n_options)
@@ -712,7 +733,14 @@ impl GuardSet {
 
         match options.choose(&mut rand::thread_rng()) {
             Some((src, g)) => Ok((*src, g.guard_id().clone())),
-            None => Err(PickGuardError::EveryoneIsDown),
+            None => {
+                if n_running == 0 {
+                    let retry_at = self.next_retry();
+                    Err(PickGuardError::AllGuardsDown { retry_at })
+                } else {
+                    Err(PickGuardError::NoGuardsUsable)
+                }
+            }
         }
     }
 }
@@ -757,14 +785,29 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PickGuardError {
-    /// All members of the current sample were down, or waiting for
-    /// other circuits to finish.
-    #[error("Everybody is either down or pending")]
-    EveryoneIsDown,
+    /// All members of the current sample were down.
+    #[error("All guards are down")]
+    AllGuardsDown {
+        /// The next time at which any guard will be retriable.
+        retry_at: Option<Instant>,
+    },
 
-    /// We had no members in the current sample.
-    #[error("The current sample is empty")]
-    SampleIsEmpty,
+    /// Some guards were running, but all of them were either blocked on pending
+    /// circuits at other guards, unusable for the provided purpose, or filtered
+    /// out.
+    #[error("No running guards were usable for the selected purpose")]
+    NoGuardsUsable,
+}
+
+impl tor_error::HasKind for PickGuardError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use PickGuardError as E;
+        match self {
+            E::AllGuardsDown { .. } => EK::TorAccessFailed,
+            E::NoGuardsUsable => EK::NoPath,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -994,7 +1037,7 @@ mod test {
         assert_eq!(&id, &id1);
 
         guards.record_attempt(&id, i1);
-        guards.record_failure(&id, i1 + sec);
+        guards.record_failure(&id, None, i1 + sec);
 
         // Second guard: try it, and try it again, and have it fail.
         let (src, id) = guards.pick_guard(&usage, &params).unwrap();
@@ -1008,8 +1051,8 @@ mod test {
         assert_eq!(id_x, id);
         assert_eq!(src, ListKind::Primary);
         guards.record_attempt(&id_x, i1 + sec * 2);
-        guards.record_failure(&id_x, i1 + sec * 3);
-        guards.record_failure(&id, i1 + sec * 4);
+        guards.record_failure(&id_x, None, i1 + sec * 3);
+        guards.record_failure(&id, None, i1 + sec * 4);
 
         // Third guard: this one won't be primary.
         let (src, id3) = guards.pick_guard(&usage, &params).unwrap();
@@ -1114,14 +1157,14 @@ mod test {
         for _ in 0..5 {
             let (_, id) = guards.pick_guard(&usage, &params).unwrap();
             guards.record_attempt(&id, inst);
-            guards.record_failure(&id, inst + sec);
+            guards.record_failure(&id, None, inst + sec);
 
             inst += sec * 2;
             st += sec * 2;
         }
 
         let e = guards.pick_guard(&usage, &params);
-        assert!(matches!(e, Err(PickGuardError::EveryoneIsDown)));
+        assert!(matches!(e, Err(PickGuardError::AllGuardsDown { .. })));
 
         // Now in theory we should re-grow when we extend.
         guards.extend_sample_as_needed(st, &params, &netdir);
@@ -1151,13 +1194,13 @@ mod test {
         // Let one primary guard fail.
         let (kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
         assert_eq!(kind, ListKind::Primary);
-        guards.record_failure(&p_id1, Instant::now());
+        guards.record_failure(&p_id1, None, Instant::now());
         assert!(!guards.all_primary_guards_are_unreachable());
 
         // Now let the other one fail.
         let (kind, p_id2) = guards.pick_guard(&usage, &params).unwrap();
         assert_eq!(kind, ListKind::Primary);
-        guards.record_failure(&p_id2, Instant::now());
+        guards.record_failure(&p_id2, None, Instant::now());
         assert!(guards.all_primary_guards_are_unreachable());
 
         // Now mark the guards retriable.

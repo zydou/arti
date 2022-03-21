@@ -134,6 +134,53 @@ impl Error {
     pub(crate) fn from_netdoc(source: DocSource, cause: tor_netdoc::Error) -> Error {
         Error::NetDocError { source, cause }
     }
+
+    /// Return true if this error is serious enough that we should mark this
+    /// cache as having failed.
+    pub(crate) fn indicates_cache_failure(&self) -> bool {
+        match self {
+            // These indicate a problem from the cache.
+            Error::Unwanted(_)
+            | Error::UnrecognizedAuthorities
+            | Error::BadUtf8FromDirectory(_)
+            | Error::ConsensusDiffError(_)
+            | Error::SignatureError(_)
+            | Error::IOError(_) => true,
+
+            // These errors cannot come from a directory cache.
+            Error::NoDownloadSupport
+            | Error::CacheCorruption(_)
+            | Error::SqliteError(_)
+            | Error::UnrecognizedSchema
+            | Error::BadNetworkConfig(_)
+            | Error::DirectoryNotPresent
+            | Error::ManagerDropped
+            | Error::CantAdvanceState
+            | Error::StorageError(_)
+            | Error::BadUtf8InCache(_)
+            | Error::BadHexInCache(_)
+            | Error::OfflineMode
+            | Error::Spawn { .. }
+            | Error::Bug(_) => false,
+
+            // For this one, we delegate.
+            Error::DirClientError(e) => e.should_retire_circ(),
+
+            // TODO: This one is special.  It could mean that the directory
+            // cache is serving us bad unparsable stuff, or it could mean that
+            // for some reason we're unable to parse a real legit document.
+            //
+            // If the cache is serving us something unparseable, it might be
+            // because the cache doesn't know all the same parsing rules for the
+            // object that we know.  That case might need special handling to
+            // avoid erroneously avoiding a good cache... especially if the document
+            // is one that the cache could be tricked into serving us.
+            Error::NetDocError { .. } => true,
+
+            // We can never see this kind of error from within the crate.
+            Error::ExternalDirProvider { .. } => false,
+        }
+    }
 }
 
 impl From<rusqlite::Error> for Error {

@@ -6,24 +6,25 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Downloads specific Tor network directory objects over the Tor network"
-keywords = [ "tor", "arti", "download", "async" ]
-categories = [ "network-programming", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "download", "async"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = [ "xz", "zstd" ]
+default = ["xz", "zstd"]
 xz = ["async-compression/xz"]
 zstd = ["async-compression/zstd"]
 # Enable support for router descriptor downloads.
 routerdesc = []
 
 [dependencies]
-tor-circmgr = { path="../tor-circmgr", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
-tor-proto = { path="../tor-proto", version = "0.1.0"}
-tor-netdoc = { path="../tor-netdoc", version = "0.1.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
+tor-circmgr = { path = "../tor-circmgr", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.1.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
+tor-proto = { path = "../tor-proto", version = "0.1.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
 
 async-compression = { version = "0.3.5", features = ["futures-io", "zlib"] }
 base64 = "0.13.0"
@@ -38,6 +39,8 @@ thiserror = "1"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtmock = { path="../tor-rtmock", version = "0.1.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0", features=["tokio", "native-tls" ] }
-
+tor-rtmock = { path = "../tor-rtmock", version = "0.1.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [
+    "tokio",
+    "native-tls",
+] }

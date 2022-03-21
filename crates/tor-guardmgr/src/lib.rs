@@ -341,6 +341,13 @@ impl<R: Runtime> GuardMgr<R> {
             == 0
     }
 
+    /// Mark every guard as potentially retriable, regardless of how recently we
+    /// failed to connect to it.
+    pub fn mark_all_guards_retriable(&self) {
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        inner.guards.active_guards_mut().mark_all_guards_retriable();
+    }
+
     /// Update the state of this [`GuardMgr`] based on a new or modified
     /// [`NetDir`] object.
     ///
@@ -492,6 +499,17 @@ impl<R: Runtime> GuardMgr<R> {
         Ok((guard, monitor, usable))
     }
 
+    /// Record that after we tried to connect to the guard described in `Guard`
+    pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalFailure) {
+        let now = self.runtime.now();
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+
+        inner
+            .guards
+            .active_guards_mut()
+            .record_failure(guard, Some(external_failure), now);
+    }
+
     /// Ensure that the message queue is flushed before proceeding to
     /// the next step.  Used for testing.
     #[cfg(test)]
@@ -507,6 +525,15 @@ impl<R: Runtime> GuardMgr<R> {
         }
         let _ = rcv.await;
     }
+}
+
+/// A reason for marking a guard as failed that can't be observed from inside
+/// the `GuardMgr` code.
+#[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
+pub enum ExternalFailure {
+    /// This guard has somehow failed to operate as a good directory cache.
+    DirCache,
 }
 
 impl GuardSets {
@@ -659,7 +686,7 @@ impl GuardMgrInner {
                 GuardStatus::Failure => {
                     self.guards
                         .active_guards_mut()
-                        .record_failure(guard_id, runtime.now());
+                        .record_failure(guard_id, None, runtime.now());
                     pending.reply(false);
                 }
                 GuardStatus::AttemptAbandoned => {
@@ -773,7 +800,8 @@ impl GuardMgrInner {
         now: SystemTime,
     ) -> Result<(sample::ListKind, GuardId), PickGuardError> {
         // Try to find a guard.
-        if let Ok(s) = self.guards.active_guards().pick_guard(usage, &self.params) {
+        let res1 = self.guards.active_guards().pick_guard(usage, &self.params);
+        if let Ok(s) = res1 {
             return Ok(s);
         }
 
@@ -789,16 +817,12 @@ impl GuardMgrInner {
                 self.guards
                     .active_guards_mut()
                     .select_primary_guards(&self.params);
-                if let Ok(s) = self.guards.active_guards().pick_guard(usage, &self.params) {
-                    return Ok(s);
-                }
+                return self.guards.active_guards().pick_guard(usage, &self.params);
             }
         }
 
-        // That didn't work either. Mark everybody as potentially retriable.
-        info!("All guards seem down. Marking them retriable and trying again.");
-        self.guards.active_guards_mut().mark_all_guards_retriable();
-        self.guards.active_guards().pick_guard(usage, &self.params)
+        // Couldn't extend the sample; return the original error.
+        res1
     }
 }
 
@@ -912,9 +936,9 @@ impl GuardId {
         Self { ed25519, rsa }
     }
 
-    /// Extract a GuardId from a Relay object.
-    pub(crate) fn from_relay(relay: &tor_netdir::Relay<'_>) -> Self {
-        Self::new(*relay.id(), *relay.rsa_id())
+    /// Extract a GuardId from a ChanTarget object.
+    pub fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
+        GuardId::new(*target.ed_identity(), *target.rsa_identity())
     }
 
     /// Return the relay in `netdir` that corresponds to this ID, if there

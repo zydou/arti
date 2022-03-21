@@ -102,7 +102,7 @@ mod test {
 
     #[test]
     fn dirpath_fallback() {
-        let fb = vec![
+        let fb_owned = vec![
             FallbackDir::builder()
                 .rsa_identity([0x01; 20].into())
                 .ed_identity([0x01; 32].into())
@@ -116,6 +116,7 @@ mod test {
                 .build()
                 .unwrap(),
         ];
+        let fb: Vec<_> = fb_owned.iter().collect();
         let dirinfo = (&fb[..]).into();
         let mut rng = rand::thread_rng();
         let guards: OptDummyGuardMgr<'_> = None;
@@ -128,7 +129,7 @@ mod test {
             assert_same_path_when_owned(&p);
 
             if let crate::path::TorPathInner::FallbackOneHop(f) = p.inner {
-                assert!(std::ptr::eq(f, &fb[0]) || std::ptr::eq(f, &fb[1]));
+                assert!(std::ptr::eq(f, fb[0]) || std::ptr::eq(f, fb[1]));
             } else {
                 panic!("Generated the wrong kind of path.");
             }

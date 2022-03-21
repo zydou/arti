@@ -76,8 +76,16 @@ pub enum Error {
     },
 
     /// Protocol issue while building a circuit.
-    #[error("Problem building a circuit: {0}")]
-    Protocol(#[from] tor_proto::Error),
+    #[error("Problem building a circuit with {peer:?}")]
+    Protocol {
+        /// The peer that created the protocol error.
+        ///
+        /// This is set to None if we can't blame a single party.
+        peer: Option<OwnedChanTarget>,
+        /// The underlying error.
+        #[source]
+        error: tor_proto::Error,
+    },
 
     /// We have an expired consensus
     #[error("Consensus is expired")]
@@ -143,10 +151,10 @@ impl HasKind for Error {
                 .map(|e| e.kind())
                 .unwrap_or(EK::Internal),
             E::CircCanceled => EK::TransientFailure,
-            E::Protocol(e) => e.kind(),
+            E::Protocol { error, .. } => error.kind(),
             E::State(e) => e.kind(),
             E::GuardMgr(e) => e.kind(),
-            E::Guard(_) => EK::NoPath,
+            E::Guard(e) => e.kind(),
             E::ExpiredConsensus => EK::DirectoryExpired,
             E::Spawn { cause, .. } => cause.kind(),
         }
@@ -179,11 +187,23 @@ impl Error {
             E::Guard(_) => 40,
             E::RequestFailed(_) => 40,
             E::Channel { .. } => 40,
-            E::Protocol(_) => 45,
+            E::Protocol { .. } => 45,
             E::ExpiredConsensus => 50,
             E::Spawn { .. } => 90,
             E::State(_) => 90,
             E::Bug(_) => 100,
+        }
+    }
+
+    /// Return a list of the peers to "blame" for this error, if there are any.
+    pub fn peers(&self) -> Vec<&OwnedChanTarget> {
+        match self {
+            Error::RequestFailed(errors) => errors.sources().flat_map(|e| e.peers()).collect(),
+            Error::Channel { peer, .. } => vec![peer],
+            Error::Protocol {
+                peer: Some(peer), ..
+            } => vec![peer],
+            _ => vec![],
         }
     }
 }

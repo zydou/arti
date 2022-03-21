@@ -85,6 +85,8 @@ pub use config::{
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
+pub use tor_guardmgr::{ExternalFailure, GuardId};
+
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -105,13 +107,13 @@ const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 #[non_exhaustive]
 pub enum DirInfo<'a> {
     /// A list of fallbacks, for use when we don't know a network directory.
-    Fallbacks(&'a [FallbackDir]),
+    Fallbacks(&'a [&'a FallbackDir]),
     /// A complete network directory
     Directory(&'a NetDir),
 }
 
-impl<'a> From<&'a [FallbackDir]> for DirInfo<'a> {
-    fn from(v: &'a [FallbackDir]) -> DirInfo<'a> {
+impl<'a> From<&'a [&'a FallbackDir]> for DirInfo<'a> {
+    fn from(v: &'a [&'a FallbackDir]) -> DirInfo<'a> {
         DirInfo::Fallbacks(v)
     }
 }
@@ -429,6 +431,15 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         Ok(())
+    }
+
+    /// Record that a failure occurred on a circuit with a given guard, in a way
+    /// that makes us unwilling to use that guard for future circuits.
+    pub fn note_external_failure(&self, id: &GuardId, external_failure: ExternalFailure) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_failure(id, external_failure);
     }
 }
 

@@ -935,6 +935,61 @@ impl<R: Runtime> DirMgr<R> {
         }
         Ok(text)
     }
+
+    /// If there were errors from a peer in `outcome`, record those errors by
+    /// marking the circuit (if any) as needing retirement, and noting the peer
+    /// (if any) as having failed.
+    fn note_request_outcome(&self, outcome: &tor_dirclient::Result<tor_dirclient::DirResponse>) {
+        use tor_dirclient::Error::RequestFailed;
+        // Extract an error and a source from this outcome, if there is one.
+        //
+        // This is complicated because DirResponse can encapsulate the notion of
+        // a response that failed part way through a download: in the case, it
+        // has some data, and also an error.
+        let (err, source) = match outcome {
+            Ok(req) => {
+                if let (Some(e), Some(source)) = (req.error(), req.source()) {
+                    (
+                        RequestFailed {
+                            error: e.clone(),
+                            source: Some(source.clone()),
+                        },
+                        source,
+                    )
+                } else {
+                    return;
+                }
+            }
+            Err(RequestFailed {
+                source: Some(source),
+                ..
+            }) => (
+                // TODO: Use an @ binding in the pattern once we are on MSRV >=
+                // 1.56.
+                outcome.as_ref().unwrap_err().clone(),
+                source,
+            ),
+            _ => return,
+        };
+
+        self.note_cache_error(source, &err.into());
+    }
+
+    /// Record that a problem has occurred because of a failure in an answer from `source`.
+    fn note_cache_error(&self, source: &tor_dirclient::SourceInfo, problem: &Error) {
+        use tor_circmgr::{ExternalFailure, GuardId};
+
+        if !problem.indicates_cache_failure() {
+            return;
+        }
+
+        if let Some(circmgr) = &self.circmgr {
+            info!("Marking {:?} as failed: {}", source, problem);
+            let guard_id = GuardId::from_chan_target(source.cache_id());
+            circmgr.note_external_failure(&guard_id, ExternalFailure::DirCache);
+            circmgr.retire_circ(source.unique_circ_id());
+        }
+    }
 }
 
 /// A degree of readiness for a given directory state object.
