@@ -82,6 +82,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "clap",
  "config",
+ "derive_builder",
  "futures",
  "libc",
  "notify",
@@ -89,6 +90,7 @@ dependencies = [
  "rlimit",
  "serde",
  "tokio",
+ "tor-config",
  "tor-error",
  "tor-rtcompat",
  "tor-socksproto",
@@ -105,6 +107,7 @@ name = "arti-bench"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arti",
  "arti-client",
  "arti-config",
  "clap",
@@ -193,6 +196,7 @@ name = "arti-testing"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arti",
  "arti-client",
  "arti-config",
  "async-trait",
@@ -869,18 +873,14 @@ dependencies = [
 
 [[package]]
 name = "derive_builder"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd8db2d51ce241afb74f9e5cf9482de69c4b77657c2ddaf78993eda8ce2ce8c"
+version = "0.11.1"
 dependencies = [
  "derive_builder_macro",
 ]
 
 [[package]]
 name = "derive_builder_core"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcf03b84d76c5bb011d983c17e2675ab49f5498f121bf1ceae5b5855b4a4dddd"
+version = "0.11.1"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -890,9 +890,7 @@ dependencies = [
 
 [[package]]
 name = "derive_builder_macro"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cae44c47bca4fd1eaeda52b3d0eecb664ddcbc0d4e7b238bae7ec2c931646c0"
+version = "0.11.1"
 dependencies = [
  "derive_builder_core",
  "syn",

@@ -14,6 +14,7 @@ publish = false
 [features]
 
 [dependencies]
+arti = { package = "arti", path = "../arti", version = "0.1.0" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.1.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
 arti-config = { path = "../arti-config", version = "0.1.0" }

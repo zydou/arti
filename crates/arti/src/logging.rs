@@ -1,14 +1,104 @@
 //! Configure tracing subscribers for Arti
 
 use anyhow::{anyhow, Context, Result};
-use arti_config::{LogRotation, LogfileConfig, LoggingConfig};
+use derive_builder::Builder;
+use serde::Deserialize;
 use std::path::Path;
 use std::str::FromStr;
+use tor_config::{CfgPath, ConfigBuildError};
 use tracing::Subscriber;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::Targets, fmt, registry, Layer};
+
+/// Structure to hold our logging configuration options
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
+pub struct LoggingConfig {
+    /// Filtering directives that determine tracing levels as described at
+    /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
+    ///
+    /// You can override this setting with the -l, --log-level command line parameter.
+    ///
+    /// Example: "info,tor_proto::channel=trace"
+    #[serde(default = "default_console_filter")]
+    #[builder(default = "default_console_filter()", setter(into, strip_option))]
+    console: Option<String>,
+
+    /// Filtering directives for the journald logger.
+    ///
+    /// Only takes effect if Arti is built with the `journald` filter.
+    #[serde(default)]
+    #[builder(default, setter(into, strip_option))]
+    journald: Option<String>,
+
+    /// Configuration for one or more logfiles.
+    #[serde(default)]
+    #[builder(default)]
+    file: Vec<LogfileConfig>,
+}
+
+/// Return a default tracing filter value for `logging.console`.
+#[allow(clippy::unnecessary_wraps)]
+fn default_console_filter() -> Option<String> {
+    Some("debug".to_owned())
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
+impl LoggingConfig {
+    /// Return a new LoggingConfigBuilder
+    pub fn builder() -> LoggingConfigBuilder {
+        LoggingConfigBuilder::default()
+    }
+}
+
+/// Configuration information for an (optionally rotating) logfile.
+#[derive(Deserialize, Debug, Builder, Clone, Eq, PartialEq)]
+pub struct LogfileConfig {
+    /// How often to rotate the file?
+    #[serde(default)]
+    #[builder(default)]
+    rotate: LogRotation,
+    /// Where to write the files?
+    path: CfgPath,
+    /// Filter to apply before writing
+    filter: String,
+}
+
+/// How often to rotate a log file
+#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+#[serde(rename_all = "lowercase")]
+pub enum LogRotation {
+    /// Rotate logs daily
+    Daily,
+    /// Rotate logs hourly
+    Hourly,
+    /// Never rotate the log
+    Never,
+}
+
+impl Default for LogRotation {
+    fn default() -> Self {
+        Self::Never
+    }
+}
+
+impl LogfileConfig {
+    /// Return a new [`LogfileConfigBuilder`]
+    pub fn builder() -> LogfileConfigBuilder {
+        LogfileConfigBuilder::default()
+    }
+}
 
 /// As [`Targets::from_str`], but wrapped in an [`anyhow::Result`].
 //
@@ -20,8 +110,11 @@ fn filt_from_str_verbose(s: &str, source: &str) -> Result<Targets> {
 
 /// As filt_from_str_verbose, but treat an absent filter (or an empty string) as
 /// None.
-fn filt_from_opt_str(s: Option<&str>, source: &str) -> Result<Option<Targets>> {
-    s.map(|s| filt_from_str_verbose(s, source)).transpose()
+fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>> {
+    Ok(match s {
+        Some(s) if !s.is_empty() => Some(filt_from_str_verbose(s, source)?),
+        _ => None,
+    })
 }
 
 /// Try to construct a tracing [`Layer`] for logging to stdout.
@@ -31,7 +124,7 @@ where
 {
     let filter = cli
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
-        .or_else(|| filt_from_opt_str(config.console_filter(), "logging.console").transpose())
+        .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
     Ok(fmt::Layer::default().with_filter(filter))
 }
@@ -43,7 +136,7 @@ fn journald_layer<S>(config: &LoggingConfig) -> Result<impl Layer<S>>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
 {
-    if let Some(filter) = filt_from_opt_str(config.journald_filter(), "logging.journald")? {
+    if let Some(filter) = filt_from_opt_str(&config.journald, "logging.journald")? {
         Ok(Some(tracing_journald::layer()?.with_filter(filter)))
     } else {
         // Fortunately, Option<Layer> implements Layer, so we can just return None here.
@@ -67,13 +160,13 @@ where
         rolling::{RollingFileAppender, Rotation},
     };
 
-    let filter = filt_from_str_verbose(config.filter(), "logging.files.filter")?;
-    let rotation = match config.rotate() {
+    let filter = filt_from_str_verbose(&config.filter, "logging.files.filter")?;
+    let rotation = match config.rotate {
         LogRotation::Daily => Rotation::DAILY,
         LogRotation::Hourly => Rotation::HOURLY,
         _ => Rotation::NEVER,
     };
-    let path = config.path().path()?;
+    let path = config.path.path()?;
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
     let fname = path
         .file_name()
@@ -95,20 +188,20 @@ where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
     let mut guards = Vec::new();
-    if config.logfiles().is_empty() {
+    if config.file.is_empty() {
         // As above, we have Option<Layer> implements Layer, so we can return
         // None in this case.
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.logfiles()[0])?;
+    let (layer, guard) = logfile_layer(&config.file[0])?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
     // arbitrary depth.
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
-    for logfile in &config.logfiles()[1..] {
+    for logfile in &config.file[1..] {
         let (new_layer, guard) = logfile_layer(logfile)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);

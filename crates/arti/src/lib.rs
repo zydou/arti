@@ -114,15 +114,19 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+pub mod cfg;
 pub mod dns;
 pub mod exit;
+pub mod logging;
 pub mod process;
 pub mod socks;
-pub mod trace;
 pub mod watch_cfg;
 
+pub use cfg::{ArtiConfig, ArtiConfigBuilder};
+pub use logging::{LoggingConfig, LoggingConfigBuilder};
+
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::{default_config_file, ArtiConfig};
+use arti_config::default_config_file;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Result};
@@ -144,7 +148,7 @@ pub async fn run<R: Runtime>(
     socks_port: u16,
     dns_port: u16,
     config_sources: arti_config::ConfigurationSources,
-    arti_config: arti_config::ArtiConfig,
+    arti_config: ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
@@ -300,7 +304,7 @@ pub fn main_main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into().context("read configuration")?;
 
-    let _log_guards = trace::setup_logging(config.logging(), matches.value_of("loglevel"))?;
+    let _log_guards = logging::setup_logging(config.logging(), matches.value_of("loglevel"))?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (

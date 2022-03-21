@@ -36,8 +36,8 @@
 #![allow(clippy::unwrap_used)]
 
 use anyhow::{anyhow, Result};
+use arti::cfg::ArtiConfig;
 use arti_client::{IsolationToken, TorAddr, TorClient, TorClientConfig};
-use arti_config::ArtiConfig;
 use clap::{App, Arg};
 use futures::StreamExt;
 use rand::distributions::Standard;
