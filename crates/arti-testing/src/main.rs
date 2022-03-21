@@ -83,8 +83,8 @@ mod config;
 mod rt;
 mod traces;
 
+use arti::ArtiConfig;
 use arti_client::TorClient;
-use arti_config::ArtiConfig;
 use futures::task::SpawnExt;
 use rt::badtcp::BrokenTcpProvider;
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};

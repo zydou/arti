@@ -114,6 +114,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+pub mod cfg;
 pub mod dns;
 pub mod exit;
 pub mod process;
@@ -121,8 +122,10 @@ pub mod socks;
 pub mod trace;
 pub mod watch_cfg;
 
+pub use cfg::{ArtiConfig, ArtiConfigBuilder};
+
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::{default_config_file, ArtiConfig};
+use arti_config::default_config_file;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Result};
@@ -144,7 +147,7 @@ pub async fn run<R: Runtime>(
     socks_port: u16,
     dns_port: u16,
     config_sources: arti_config::ConfigurationSources,
-    arti_config: arti_config::ArtiConfig,
+    arti_config: ArtiConfig,
     client_config: TorClientConfig,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait

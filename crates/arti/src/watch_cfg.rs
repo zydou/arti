@@ -8,10 +8,11 @@ use std::time::Duration;
 
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
-use arti_config::ArtiConfig;
 use notify::Watcher;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, warn};
+
+use crate::ArtiConfig;
 
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
