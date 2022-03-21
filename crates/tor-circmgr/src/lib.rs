@@ -85,6 +85,8 @@ pub use config::{
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
+pub use tor_guardmgr::{ExternalFailure, GuardId};
+
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -429,6 +431,15 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         Ok(())
+    }
+
+    /// Record that a failure occurred on a circuit with a given guard, in a way
+    /// that makes us unwilling to use that guard for future circuits.
+    pub fn note_external_failure(&self, id: &GuardId, external_failure: ExternalFailure) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_failure(id, external_failure);
     }
 }
 
