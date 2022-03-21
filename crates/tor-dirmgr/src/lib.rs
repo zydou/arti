@@ -956,12 +956,15 @@ impl<R: Runtime> DirMgr<R> {
                     return;
                 }
             }
-            Err(
-                error @ RequestFailed {
-                    source: Some(source),
-                    ..
-                },
-            ) => (error.clone(), source),
+            Err(RequestFailed {
+                source: Some(source),
+                ..
+            }) => (
+                // TODO: Use an @ binding in the pattern once we are on MSRV >=
+                // 1.56.
+                outcome.as_ref().unwrap_err().clone(),
+                source,
+            ),
             _ => return,
         };
 
