@@ -235,7 +235,7 @@ impl GuardSet {
     fn contains_relay(&self, relay: &Relay<'_>) -> bool {
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
-        let id = GuardId::from_relay(relay);
+        let id = GuardId::from_chan_target(relay);
         self.guards.contains_key(&id)
     }
 
@@ -368,7 +368,7 @@ impl GuardSet {
     ///
     /// Does nothing if it is already a guard.
     fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
-        let id = GuardId::from_relay(relay);
+        let id = GuardId::from_chan_target(relay);
         if self.guards.contains_key(&id) {
             return;
         }

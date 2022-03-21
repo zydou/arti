@@ -936,9 +936,9 @@ impl GuardId {
         Self { ed25519, rsa }
     }
 
-    /// Extract a GuardId from a Relay object.
-    pub(crate) fn from_relay(relay: &tor_netdir::Relay<'_>) -> Self {
-        Self::new(*relay.id(), *relay.rsa_id())
+    /// Extract a GuardId from a ChanTarget object.
+    pub fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
+        GuardId::new(*target.ed_identity(), *target.rsa_identity())
     }
 
     /// Return the relay in `netdir` that corresponds to this ID, if there

@@ -194,7 +194,11 @@ impl Guard {
             params.lifetime_unconfirmed / 10,
         );
 
-        Self::new(GuardId::from_relay(relay), relay.addrs().into(), added_at)
+        Self::new(
+            GuardId::from_chan_target(relay),
+            relay.addrs().into(),
+            added_at,
+        )
     }
 
     /// Return a new, manually constructed [`Guard`].
