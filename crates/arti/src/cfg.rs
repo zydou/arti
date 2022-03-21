@@ -4,14 +4,63 @@
 
 use std::convert::TryFrom;
 
+use derive_builder::Builder;
 use serde::Deserialize;
 
 use arti_client::config::{SystemConfig, SystemConfigBuilder, TorClientConfigBuilder};
 use arti_client::TorClientConfig;
-use arti_config::{ApplicationConfig, ApplicationConfigBuilder, ProxyConfig, ProxyConfigBuilder};
+use arti_config::{ApplicationConfig, ApplicationConfigBuilder};
 use tor_config::ConfigBuildError;
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
+
+/// Configuration for one or more proxy listeners.
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
+pub struct ProxyConfig {
+    /// Port to listen on (at localhost) for incoming SOCKS
+    /// connections.
+    #[serde(default = "default_socks_port")]
+    #[builder(default = "default_socks_port()")]
+    socks_port: Option<u16>,
+    /// Port to lisen on (at localhost) for incoming DNS connections.
+    #[serde(default)]
+    #[builder(default)]
+    dns_port: Option<u16>,
+}
+
+/// Return the default value for `socks_port`
+#[allow(clippy::unnecessary_wraps)]
+fn default_socks_port() -> Option<u16> {
+    Some(9150)
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
+impl ProxyConfig {
+    /// Return a new [`ProxyConfigBuilder`].
+    pub fn builder() -> ProxyConfigBuilder {
+        ProxyConfigBuilder::default()
+    }
+
+    /// Return the configured SOCKS port for this proxy configuration,
+    /// if one is enabled.
+    pub fn socks_port(&self) -> Option<u16> {
+        self.socks_port
+    }
+
+    /// Return the configured DNS port for this proxy configuration,
+    /// if one is enabled.
+    pub fn dns_port(&self) -> Option<u16> {
+        self.dns_port
+    }
+}
 
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.

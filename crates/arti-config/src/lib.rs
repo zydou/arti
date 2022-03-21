@@ -51,9 +51,7 @@ mod cmdline;
 mod options;
 
 pub use cmdline::CmdLine;
-pub use options::{
-    ApplicationConfig, ApplicationConfigBuilder, ProxyConfig, ProxyConfigBuilder, ARTI_DEFAULTS,
-};
+pub use options::{ApplicationConfig, ApplicationConfigBuilder, ARTI_DEFAULTS};
 use tor_config::CfgPath;
 
 /// The synchronous configuration builder type we use.

@@ -122,7 +122,7 @@ pub mod process;
 pub mod socks;
 pub mod watch_cfg;
 
-pub use cfg::{ArtiConfig, ArtiConfigBuilder};
+pub use cfg::{ArtiConfig, ArtiConfigBuilder, ProxyConfig, ProxyConfigBuilder};
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::{TorClient, TorClientConfig};
