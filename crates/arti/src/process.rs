@@ -1,6 +1,6 @@
 //! Code to adjust process-related parameters.
 
-use arti_client::TorClientConfig;
+use crate::ArtiConfig;
 
 /// Set our current maximum-file limit to a large value, if we can.
 ///
@@ -10,7 +10,7 @@ use arti_client::TorClientConfig;
 /// # Limitations
 ///
 /// This doesn't actually do anything on windows.
-pub fn use_max_file_limit(config: &TorClientConfig) {
+pub fn use_max_file_limit(config: &ArtiConfig) {
     match rlimit::increase_nofile_limit(config.system.max_files) {
         Ok(n) => tracing::debug!("Increased process file limit to {}", n),
         Err(e) => tracing::warn!("Error while increasing file limit: {}", e),

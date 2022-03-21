@@ -124,7 +124,7 @@ pub mod watch_cfg;
 
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
-    ProxyConfigBuilder,
+    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder,
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
@@ -333,7 +333,7 @@ pub fn main_main() -> Result<()> {
             socks_port
         );
 
-        process::use_max_file_limit(&client_config);
+        process::use_max_file_limit(&config);
 
         cfg_if::cfg_if! {
             if #[cfg(all(feature="tokio", feature="native-tls"))] {

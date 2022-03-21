@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use derive_builder::Builder;
 use serde::Deserialize;
 
-use arti_client::config::{SystemConfig, SystemConfigBuilder, TorClientConfigBuilder};
+use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
 use tor_config::ConfigBuildError;
 
@@ -67,6 +67,39 @@ impl ProxyConfig {
     }
 }
 
+/// Configuration for system resources used by Tor.
+///
+/// You cannot change this section on a running Arti client.
+#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
+#[non_exhaustive]
+pub struct SystemConfig {
+    /// Maximum number of file descriptors we should launch with
+    #[builder(setter(into), default = "default_max_files()")]
+    #[serde(default = "default_max_files")]
+    pub(crate) max_files: u64,
+}
+
+/// Return the default maximum number of file descriptors to launch with.
+fn default_max_files() -> u64 {
+    16384
+}
+
+impl Default for SystemConfig {
+    fn default() -> Self {
+        Self::builder().build().expect("Default builder failed")
+    }
+}
+
+impl SystemConfig {
+    /// Return a new SystemConfigBuilder.
+    pub fn builder() -> SystemConfigBuilder {
+        SystemConfigBuilder::default()
+    }
+}
+
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.
 //
@@ -93,7 +126,7 @@ pub struct ArtiConfig {
     logging: LoggingConfig,
 
     /// Information on system resources used by Arti.
-    system: SystemConfig,
+    pub(crate) system: SystemConfig,
 
     /// Configuration of the actual Tor client
     tor: TorClientConfig,
