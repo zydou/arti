@@ -16,6 +16,7 @@ mmap = ["memmap2"]
 static = ["rusqlite/bundled"]
 # (Incomplete) support for downloading and storing router descriptors
 routerdesc = ["tor-dirclient/routerdesc"]
+dirfilter = []
 
 # Enable experimental APIs that are not yet officially supported.
 #
