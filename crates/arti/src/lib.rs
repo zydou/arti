@@ -159,7 +159,7 @@ pub async fn run<R: Runtime>(
         .config(client_config)
         .bootstrap_behavior(OnDemand)
         .create_unbootstrapped()?;
-    if arti_config.application().watch_configuration() {
+    if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
 

@@ -28,14 +28,7 @@ pub struct ApplicationConfig {
     /// recreated, or for some other reason).
     #[serde(default)]
     #[builder(default)]
-    watch_configuration: bool,
-}
-
-impl ApplicationConfig {
-    /// Return true if we're configured to watch for configuration changes.
-    pub fn watch_configuration(&self) -> bool {
-        self.watch_configuration
-    }
+    pub(crate) watch_configuration: bool,
 }
 
 /// Configuration for one or more proxy listeners.

@@ -95,7 +95,7 @@ fn reconfigure<R: Runtime>(
     let client_config = config.tor_client_config()?;
     client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
-    if !config.application().watch_configuration() {
+    if !config.application().watch_configuration {
         // Stop watching for configuration changes.
         return Ok(true);
     }
