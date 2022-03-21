@@ -51,7 +51,7 @@ mod cmdline;
 mod options;
 
 pub use cmdline::CmdLine;
-pub use options::{ARTI_DEFAULTS};
+pub use options::ARTI_DEFAULTS;
 use tor_config::CfgPath;
 
 /// The synchronous configuration builder type we use.
