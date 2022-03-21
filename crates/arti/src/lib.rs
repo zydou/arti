@@ -117,9 +117,9 @@
 pub mod cfg;
 pub mod dns;
 pub mod exit;
+pub mod logging;
 pub mod process;
 pub mod socks;
-pub mod trace;
 pub mod watch_cfg;
 
 pub use cfg::{ArtiConfig, ArtiConfigBuilder};
@@ -303,7 +303,7 @@ pub fn main_main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into().context("read configuration")?;
 
-    let _log_guards = trace::setup_logging(config.logging(), matches.value_of("loglevel"))?;
+    let _log_guards = logging::setup_logging(config.logging(), matches.value_of("loglevel"))?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
