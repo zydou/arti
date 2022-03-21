@@ -8,11 +8,10 @@ use serde::Deserialize;
 
 use arti_client::config::{SystemConfig, SystemConfigBuilder, TorClientConfigBuilder};
 use arti_client::TorClientConfig;
-use arti_config::{
-    ApplicationConfig, ApplicationConfigBuilder, LoggingConfig, LoggingConfigBuilder, ProxyConfig,
-    ProxyConfigBuilder,
-};
+use arti_config::{ApplicationConfig, ApplicationConfigBuilder, ProxyConfig, ProxyConfigBuilder};
 use tor_config::ConfigBuildError;
+
+use crate::{LoggingConfig, LoggingConfigBuilder};
 
 /// Structure to hold Arti's configuration options, whether from a
 /// configuration file or the command line.

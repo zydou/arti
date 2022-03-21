@@ -82,6 +82,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "clap",
  "config",
+ "derive_builder",
  "futures",
  "libc",
  "notify",

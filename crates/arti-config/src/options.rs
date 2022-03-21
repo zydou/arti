@@ -2,7 +2,7 @@
 
 use derive_builder::Builder;
 use serde::Deserialize;
-use tor_config::{CfgPath, ConfigBuildError};
+use tor_config::ConfigBuildError;
 
 /// Default options to use for our configuration.
 //
@@ -31,130 +31,6 @@ impl ApplicationConfig {
     /// Return true if we're configured to watch for configuration changes.
     pub fn watch_configuration(&self) -> bool {
         self.watch_configuration
-    }
-}
-
-/// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
-#[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
-#[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-pub struct LoggingConfig {
-    /// Filtering directives that determine tracing levels as described at
-    /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
-    ///
-    /// You can override this setting with the -l, --log-level command line parameter.
-    ///
-    /// Example: "info,tor_proto::channel=trace"
-    #[serde(default = "default_console_filter")]
-    #[builder(default = "default_console_filter()", setter(into, strip_option))]
-    console: Option<String>,
-
-    /// Filtering directives for the journald logger.
-    ///
-    /// Only takes effect if Arti is built with the `journald` filter.
-    #[serde(default)]
-    #[builder(default, setter(into, strip_option))]
-    journald: Option<String>,
-
-    /// Configuration for one or more logfiles.
-    #[serde(default)]
-    #[builder(default)]
-    file: Vec<LogfileConfig>,
-}
-
-/// Return a default tracing filter value for `logging.console`.
-#[allow(clippy::unnecessary_wraps)]
-fn default_console_filter() -> Option<String> {
-    Some("debug".to_owned())
-}
-
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
-}
-
-impl LoggingConfig {
-    /// Return a new LoggingConfigBuilder
-    pub fn builder() -> LoggingConfigBuilder {
-        LoggingConfigBuilder::default()
-    }
-
-    /// Return the configured journald filter, if one is present
-    pub fn journald_filter(&self) -> Option<&str> {
-        match self.journald {
-            Some(ref s) if !s.is_empty() => Some(s.as_str()),
-            _ => None,
-        }
-    }
-
-    /// Return the configured stdout filter, if one is present
-    pub fn console_filter(&self) -> Option<&str> {
-        match self.console {
-            Some(ref s) if !s.is_empty() => Some(s.as_str()),
-            _ => None,
-        }
-    }
-
-    /// Return a list of the configured log files
-    pub fn logfiles(&self) -> &[LogfileConfig] {
-        &self.file
-    }
-}
-
-/// Configuration information for an (optionally rotating) logfile.
-#[derive(Deserialize, Debug, Builder, Clone, Eq, PartialEq)]
-pub struct LogfileConfig {
-    /// How often to rotate the file?
-    #[serde(default)]
-    #[builder(default)]
-    rotate: LogRotation,
-    /// Where to write the files?
-    path: CfgPath,
-    /// Filter to apply before writing
-    filter: String,
-}
-
-/// How often to rotate a log file
-#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
-#[non_exhaustive]
-#[serde(rename_all = "lowercase")]
-pub enum LogRotation {
-    /// Rotate logs daily
-    Daily,
-    /// Rotate logs hourly
-    Hourly,
-    /// Never rotate the log
-    Never,
-}
-
-impl Default for LogRotation {
-    fn default() -> Self {
-        Self::Never
-    }
-}
-
-impl LogfileConfig {
-    /// Return a new [`LogfileConfigBuilder`]
-    pub fn builder() -> LogfileConfigBuilder {
-        LogfileConfigBuilder::default()
-    }
-
-    /// Return the configured rotation interval.
-    pub fn rotate(&self) -> LogRotation {
-        self.rotate
-    }
-
-    /// Return the configured path to the log file.
-    pub fn path(&self) -> &CfgPath {
-        &self.path
-    }
-
-    /// Return the configured filter.
-    pub fn filter(&self) -> &str {
-        &self.filter
     }
 }
 

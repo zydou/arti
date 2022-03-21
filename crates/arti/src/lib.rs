@@ -123,6 +123,7 @@ pub mod socks;
 pub mod watch_cfg;
 
 pub use cfg::{ArtiConfig, ArtiConfigBuilder};
+pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::default_config_file;
