@@ -885,19 +885,22 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         // Okay, we need to launch circuits here.
         let parallelism = std::cmp::max(1, self.builder.launch_parallelism(usage));
         let mut plans = Vec::new();
-        let mut errs = Vec::new();
+        let mut last_err = None;
         for _ in 0..parallelism {
             match self.plan_by_usage(dir, usage) {
                 Ok((pending, plan)) => {
                     list.add_pending_circ(pending);
                     plans.push(plan);
                 }
-                Err(e) => errs.push(e),
+                Err(e) => {
+                    debug!("Unable to make a plan for {:?}: {}", usage, e);
+                    last_err = Some(e);
+                }
             }
         }
         if !plans.is_empty() {
             Ok(Action::Build(plans))
-        } else if let Some(last_err) = errs.pop() {
+        } else if let Some(last_err) = last_err {
             Err(last_err)
         } else {
             // we didn't even try to plan anything!
