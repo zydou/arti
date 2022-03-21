@@ -499,6 +499,17 @@ impl<R: Runtime> GuardMgr<R> {
         Ok((guard, monitor, usable))
     }
 
+    /// Record that after we tried to connect to the guard described in `Guard`
+    pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalFailure) {
+        let now = self.runtime.now();
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+
+        inner
+            .guards
+            .active_guards_mut()
+            .record_failure(guard, Some(external_failure), now);
+    }
+
     /// Ensure that the message queue is flushed before proceeding to
     /// the next step.  Used for testing.
     #[cfg(test)]
@@ -514,6 +525,15 @@ impl<R: Runtime> GuardMgr<R> {
         }
         let _ = rcv.await;
     }
+}
+
+/// A reason for marking a guard as failed that can't be observed from inside
+/// the `GuardMgr` code.
+#[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
+pub enum ExternalFailure {
+    /// This guard has somehow failed to operate as a good directory cache.
+    DirCache,
 }
 
 impl GuardSets {
@@ -666,7 +686,7 @@ impl GuardMgrInner {
                 GuardStatus::Failure => {
                     self.guards
                         .active_guards_mut()
-                        .record_failure(guard_id, runtime.now());
+                        .record_failure(guard_id, None, runtime.now());
                     pending.reply(false);
                 }
                 GuardStatus::AttemptAbandoned => {

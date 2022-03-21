@@ -3,7 +3,7 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
-use crate::{GuardId, GuardParams, GuardUsage, GuardUsageKind};
+use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -587,9 +587,22 @@ impl GuardSet {
         self.assert_consistency();
     }
 
-    /// Record that an attempt to use the guard with `guard_id` has
-    /// just failed.
-    pub(crate) fn record_failure(&mut self, guard_id: &GuardId, now: Instant) {
+    /// Record that an attempt to use the guard with `guard_id` has just failed.
+    ///
+    /// If `how` is provided, it's a reason that the guard failed from outside
+    /// of the crate.
+    pub(crate) fn record_failure(
+        &mut self,
+        guard_id: &GuardId,
+        how: Option<ExternalFailure>,
+        now: Instant,
+    ) {
+        // TODO: For now, we treat failures of guards for circuit building the
+        // same as we treat failures for other reasons.  Eventually that should
+        // change, however.  We take this `ExternalFailure` information now in
+        // the expectation that it will be annoying to add it to the API later.
+        let _ = how;
+
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
         if let Some(guard) = self.guards.get_mut(guard_id) {
@@ -1024,7 +1037,7 @@ mod test {
         assert_eq!(&id, &id1);
 
         guards.record_attempt(&id, i1);
-        guards.record_failure(&id, i1 + sec);
+        guards.record_failure(&id, None, i1 + sec);
 
         // Second guard: try it, and try it again, and have it fail.
         let (src, id) = guards.pick_guard(&usage, &params).unwrap();
@@ -1038,8 +1051,8 @@ mod test {
         assert_eq!(id_x, id);
         assert_eq!(src, ListKind::Primary);
         guards.record_attempt(&id_x, i1 + sec * 2);
-        guards.record_failure(&id_x, i1 + sec * 3);
-        guards.record_failure(&id, i1 + sec * 4);
+        guards.record_failure(&id_x, None, i1 + sec * 3);
+        guards.record_failure(&id, None, i1 + sec * 4);
 
         // Third guard: this one won't be primary.
         let (src, id3) = guards.pick_guard(&usage, &params).unwrap();
@@ -1144,7 +1157,7 @@ mod test {
         for _ in 0..5 {
             let (_, id) = guards.pick_guard(&usage, &params).unwrap();
             guards.record_attempt(&id, inst);
-            guards.record_failure(&id, inst + sec);
+            guards.record_failure(&id, None, inst + sec);
 
             inst += sec * 2;
             st += sec * 2;
@@ -1181,13 +1194,13 @@ mod test {
         // Let one primary guard fail.
         let (kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
         assert_eq!(kind, ListKind::Primary);
-        guards.record_failure(&p_id1, Instant::now());
+        guards.record_failure(&p_id1, None, Instant::now());
         assert!(!guards.all_primary_guards_are_unreachable());
 
         // Now let the other one fail.
         let (kind, p_id2) = guards.pick_guard(&usage, &params).unwrap();
         assert_eq!(kind, ListKind::Primary);
-        guards.record_failure(&p_id2, Instant::now());
+        guards.record_failure(&p_id2, None, Instant::now());
         assert!(guards.all_primary_guards_are_unreachable());
 
         // Now mark the guards retriable.
