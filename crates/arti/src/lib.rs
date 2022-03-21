@@ -122,7 +122,10 @@ pub mod process;
 pub mod socks;
 pub mod watch_cfg;
 
-pub use cfg::{ArtiConfig, ArtiConfigBuilder};
+pub use cfg::{
+    ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
+    ProxyConfigBuilder,
+};
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::{TorClient, TorClientConfig};
@@ -159,7 +162,7 @@ pub async fn run<R: Runtime>(
         .config(client_config)
         .bootstrap_behavior(OnDemand)
         .create_unbootstrapped()?;
-    if arti_config.application().watch_configuration() {
+    if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
 
@@ -309,17 +312,14 @@ pub fn main_main() -> Result<()> {
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
             proxy_matches.value_of("socks-port"),
-            config.proxy().socks_port(),
+            config.proxy().socks_port,
         ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => 0,
         };
 
-        let dns_port = match (
-            proxy_matches.value_of("dns-port"),
-            config.proxy().dns_port(),
-        ) {
+        let dns_port = match (proxy_matches.value_of("dns-port"), config.proxy().dns_port) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => 0,
