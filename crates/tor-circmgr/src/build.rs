@@ -133,7 +133,10 @@ impl Buildable for ClientCirc {
             .await
             .map_err(|error| Error::Protocol {
                 error,
-                peer: None, // we don't know who caused the error.
+                // We can't know who caused the error, since it may have been
+                // the hop we were extending from, or the hop we were extending
+                // to.
+                peer: None,
             })
     }
 }

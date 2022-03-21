@@ -942,6 +942,10 @@ impl<R: Runtime> DirMgr<R> {
     fn note_request_outcome(&self, outcome: &tor_dirclient::Result<tor_dirclient::DirResponse>) {
         use tor_dirclient::Error::RequestFailed;
         // Extract an error and a source from this outcome, if there is one.
+        //
+        // This is complicated because DirResponse can encapsulate the notion of
+        // a response that failed part way through a download: in the case, it
+        // has some data, and also an error.
         let (err, source) = match outcome {
             Ok(req) => {
                 if let (Some(e), Some(source)) = (req.error(), req.source()) {

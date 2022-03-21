@@ -169,6 +169,12 @@ impl Error {
             // TODO: This one is special.  It could mean that the directory
             // cache is serving us bad unparsable stuff, or it could mean that
             // for some reason we're unable to parse a real legit document.
+            //
+            // If the cache is serving us something unparseable, it might be
+            // because the cache doesn't know all the same parsing rules for the
+            // object that we know.  That case might need special handling to
+            // avoid erroneously avoiding a good cache... especially if the document
+            // is one that the cache could be tricked into serving us.
             Error::NetDocError { .. } => true,
 
             // We can never see this kind of error from within the crate.
