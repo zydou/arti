@@ -9,11 +9,13 @@ use tor_error::internal;
 
 use crate::channel::codec::{ChannelCodec, CodecError};
 use crate::channel::UniqId;
+use crate::util::skew::ClockSkew;
 use crate::{Error, Result};
 use tor_cell::chancell::{msg, ChanCmd};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use tor_bytes::Reader;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
@@ -61,6 +63,8 @@ pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>
     /// The netinfo cell that we got from the relay.
     #[allow(dead_code)] // Relays will need this.
     netinfo_cell: msg::Netinfo,
+    /// How much clock skew did we detect in this handshake?
+    clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
 }
@@ -108,7 +112,13 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
 
     /// Negotiate a link protocol version with the relay, and read
     /// the relay's handshake information.
-    pub async fn connect(mut self) -> Result<UnverifiedChannel<T>> {
+    ///
+    /// Takes a function that reports the current time.  In theory, this can just be
+    /// `SystemTime::now()`.
+    pub async fn connect<F>(mut self, now_fn: F) -> Result<UnverifiedChannel<T>>
+    where
+        F: FnOnce() -> SystemTime,
+    {
         /// Helper: wrap an IoError as a HandshakeIoErr.
         fn io_err_to_handshake(err: std::io::Error) -> Error {
             Error::HandshakeIoErr(Arc::new(err))
@@ -128,6 +138,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                 .map_err(io_err_to_handshake)?;
             self.tls.flush().await.map_err(io_err_to_handshake)?;
         }
+        let versions_flushed_at = coarsetime::Instant::now();
+        let versions_flushed_wallclock = now_fn();
 
         // Get versions cell.
         trace!("{}: waiting for versions", self.unique_id);
@@ -172,7 +184,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
 
         // Read until we have the netinfo cells.
         let mut certs: Option<msg::Certs> = None;
-        let mut netinfo: Option<msg::Netinfo> = None;
+        let mut netinfo: Option<(msg::Netinfo, coarsetime::Instant)> = None;
         let mut seen_authchallenge = false;
 
         // Loop: reject duplicate and unexpected cells
@@ -207,7 +219,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                             "Somehow tried to record a duplicate NETINFO cell"
                         )));
                     }
-                    netinfo = Some(n);
+                    netinfo = Some((n, coarsetime::Instant::now()));
                     break;
                 }
                 // No other cell types are allowed.
@@ -226,13 +238,24 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
                 "Missing netinfo or closed stream".into(),
             )),
             (None, _) => Err(Error::HandshakeProto("Missing certs cell".into())),
-            (Some(certs_cell), Some(netinfo_cell)) => {
+            (Some(certs_cell), Some((netinfo_cell, netinfo_rcvd_at))) => {
                 trace!("{}: received handshake, ready to verify.", self.unique_id);
+                let clock_skew = if let Some(netinfo_timestamp) = netinfo_cell.timestamp() {
+                    let delay = netinfo_rcvd_at - versions_flushed_at;
+                    ClockSkew::from_handshake_timestamps(
+                        versions_flushed_wallclock,
+                        netinfo_timestamp,
+                        delay.into(),
+                    )
+                } else {
+                    ClockSkew::None
+                };
                 Ok(UnverifiedChannel {
                     link_protocol,
                     tls,
                     certs_cell,
                     netinfo_cell,
+                    clock_skew,
                     target_addr: self.target_addr,
                     unique_id: self.unique_id,
                 })
@@ -242,6 +265,14 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
 }
 
 impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
+    /// Return the reported clock skew from this handshake.
+    ///
+    /// Note that the skew reported by this function might not be "true": the
+    /// relay might have its clock set wrong, or it might be lying to us.
+    pub fn clock_skew(&self) -> ClockSkew {
+        self.clock_skew
+    }
+
     /// Validate the certificates and keys in the relay's handshake.
     ///
     /// 'peer' is the peer that we want to make sure we're connecting to.
@@ -271,10 +302,39 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         self,
         peer: &U,
         peer_cert_sha256: &[u8],
-        now: Option<std::time::SystemTime>,
+        now: Option<SystemTime>,
     ) -> Result<VerifiedChannel<T>> {
         use tor_cert::CertType;
         use tor_checkable::*;
+
+        /// Helper: given a time-bound input, give a result reflecting its
+        /// validity at `now`, and the inner object.
+        ///
+        /// We use this here because we want to validate the whole handshake
+        /// regardless of whether the certs are expired, so we can determine
+        /// whether we got a plausible handshake with a skewed partner, or
+        /// whether the handshake is definitely bad.
+        fn check_timeliness<C, T>(checkable: C, now: SystemTime, skew: ClockSkew) -> (Result<()>, T)
+        where
+            C: Timebound<T, Error = TimeValidityError>,
+        {
+            let status = checkable.is_valid_at(&now).map_err(|e| match (e, skew) {
+                (TimeValidityError::Expired(expired_by), ClockSkew::Fast(skew))
+                    if expired_by < skew =>
+                {
+                    Error::HandshakeCertsExpired { expired_by, skew }
+                }
+                // As it so happens, we don't need to check for this case, since the certs in use
+                // here only have an expiration time in them.
+                // (TimeValidityError::NotYetValid(_), ClockSkew::Slow(_)) => todo!(),
+                (_, _) => Error::HandshakeProto("Certificate expired or not yet valid".into()),
+            });
+            let cert = checkable.dangerously_assume_timely();
+            (status, cert)
+        }
+        // Replace 'now' with the real time to use.
+        let now = now.unwrap_or_else(SystemTime::now);
+
         // We need to check the following lines of authentication:
         //
         // First, to bind the ed identity to the channel.
@@ -311,9 +371,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         // Check the identity->signing cert
         let (id_sk, id_sk_sig) = id_sk.check_key(&None)?.dangerously_split()?;
         sigs.push(&id_sk_sig);
-        let id_sk = id_sk
-            .check_valid_at_opt(now)
-            .map_err(|_| Error::HandshakeProto("Certificate expired or not yet valid".into()))?;
+        let (id_sk_timeliness, id_sk) = check_timeliness(id_sk, now, self.clock_skew);
 
         // Take the identity key from the identity->signing cert
         let identity_key = id_sk.signing_key().ok_or_else(|| {
@@ -331,9 +389,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
             .check_key(&Some(*signing_key))? // TODO(nickm): this is a bad interface
             .dangerously_split()?;
         sigs.push(&sk_tls_sig);
-        let sk_tls = sk_tls
-            .check_valid_at_opt(now)
-            .map_err(|_| Error::HandshakeProto("Certificate expired or not yet valid".into()))?;
+        let (sk_tls_timeliness, sk_tls) = check_timeliness(sk_tls, now, self.clock_skew);
 
         if peer_cert_sha256 != sk_tls.subject_key().as_bytes() {
             return Err(Error::HandshakeProto(
@@ -376,9 +432,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
             .ok_or_else(|| Error::HandshakeProto("No RSA->Ed crosscert".into()))?;
         let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)?
             .check_signature(&pkrsa)
-            .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?
-            .check_valid_at_opt(now)
-            .map_err(|_| Error::HandshakeProto("RSA->Ed crosscert expired or invalid".into()))?;
+            .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
+        let (rsa_cert_timeliness, rsa_cert) = check_timeliness(rsa_cert, now, self.clock_skew);
 
         if !rsa_cert.subject_key_matches(identity_key) {
             return Err(Error::HandshakeProto(
@@ -412,6 +467,12 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         if *peer.rsa_identity() != rsa_id {
             return Err(Error::HandshakeProto("Peer RSA id not as expected".into()));
         }
+
+        // We note expired certs last, since any other reason we might reject a
+        // handshake is probably more serious.
+        id_sk_timeliness?;
+        sk_tls_timeliness?;
+        rsa_cert_timeliness?;
 
         Ok(VerifiedChannel {
             link_protocol: self.link_protocol,
@@ -484,7 +545,13 @@ pub(super) mod test {
     // no certificates in this cell, but connect() doesn't care.
     const NOCERTS: &[u8] = &hex!("00000000 81 0001 00");
     const NETINFO_PREFIX: &[u8] = &hex!(
-        "00000000 08 085F9067F7
+        "00000000 08 00000000
+         04 04 7f 00 00 02
+         01
+         04 04 7f 00 00 03"
+    );
+    const NETINFO_PREFIX_WITH_TIME: &[u8] = &hex!(
+        "00000000 08 48949290
          04 04 7f 00 00 02
          01
          04 04 7f 00 00 03"
@@ -510,18 +577,21 @@ pub(super) mod test {
     #[test]
     fn connect_ok() -> Result<()> {
         tor_rtcompat::test_with_one_runtime!(|_rt| async move {
+            let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1217696400);
             let mut buf = Vec::new();
             // versions cell
             buf.extend_from_slice(VERSIONS);
             // certs cell -- no certs in it, but this function doesn't care.
             buf.extend_from_slice(NOCERTS);
             // netinfo cell -- quite minimal.
-            add_netinfo(&mut buf);
+            add_padded(&mut buf, NETINFO_PREFIX);
             let mb = MsgBuf::new(&buf[..]);
             let handshake = OutboundClientHandshake::new(mb, None);
-            let unverified = handshake.connect().await?;
+            let unverified = handshake.connect(|| now).await?;
 
             assert_eq!(unverified.link_protocol, 4);
+            // No timestamp in the NETINFO, so no skew.
+            assert_eq!(unverified.clock_skew(), ClockSkew::None);
 
             // Try again with an authchallenge cell and some padding.
             let mut buf = Vec::new();
@@ -530,10 +600,22 @@ pub(super) mod test {
             buf.extend_from_slice(VPADDING);
             buf.extend_from_slice(AUTHCHALLENGE);
             buf.extend_from_slice(VPADDING);
-            add_netinfo(&mut buf);
+            add_padded(&mut buf, NETINFO_PREFIX_WITH_TIME);
             let mb = MsgBuf::new(&buf[..]);
             let handshake = OutboundClientHandshake::new(mb, None);
-            let _unverified = handshake.connect().await?;
+            let unverified = handshake.connect(|| now).await?;
+            // Correct timestamp in the NETINFO, so no skew.
+            assert_eq!(unverified.clock_skew(), ClockSkew::None);
+
+            // Now pretend our clock is fast.
+            let now2 = now + Duration::from_secs(3600);
+            let mb = MsgBuf::new(&buf[..]);
+            let handshake = OutboundClientHandshake::new(mb, None);
+            let unverified = handshake.connect(|| now2).await?;
+            assert_eq!(
+                unverified.clock_skew(),
+                ClockSkew::Fast(Duration::from_secs(3600))
+            );
 
             Ok(())
         })
@@ -542,7 +624,7 @@ pub(super) mod test {
     async fn connect_err<T: Into<Vec<u8>>>(input: T) -> Error {
         let mb = MsgBuf::new(input);
         let handshake = OutboundClientHandshake::new(mb, None);
-        handshake.connect().await.err().unwrap()
+        handshake.connect(SystemTime::now).await.err().unwrap()
     }
 
     #[test]
@@ -640,11 +722,13 @@ pub(super) mod test {
     fn make_unverified(certs: msg::Certs) -> UnverifiedChannel<MsgBuf> {
         let localhost = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
         let netinfo_cell = msg::Netinfo::for_client(Some(localhost));
+        let clock_skew = ClockSkew::None;
         UnverifiedChannel {
             link_protocol: 4,
             tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
             certs_cell: certs,
             netinfo_cell,
+            clock_skew,
             target_addr: None,
             unique_id: UniqId::new(),
         }

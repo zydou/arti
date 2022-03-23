@@ -82,6 +82,17 @@ tor-proto:
 tor-protover:
   new-api: Protocols now implements Eq, PartialEq, and Hash.
 
+tor-proto:
+  api-break: OutboundClientHandshake::connect() now takes now_fn.
+
+  new-api: New Error::HandshakeCertsExpired.
+
+tor-error:
+  new-api: New ErrorKind::ClockSkew.
+
+tor-cell:
+  new-api: Netinfo message now has a timestamp() accessor.
+
 tor-basic-utils:
 
   Remove `humantime_serde_option` module.

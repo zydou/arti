@@ -525,6 +525,14 @@ pub enum ErrorKind {
     #[display(fmt = "no exit available for path")]
     NoExit,
 
+    /// An operation failed because of _possible_ clock skew.
+    ///
+    /// The broken clock may be ours, or it may belong to another party on the
+    /// network. It's also possible that somebody else is lying about the time,
+    /// caching documents for far too long, or something like that.
+    #[display(fmt = "possible clock skew detected")]
+    ClockSkew,
+
     /// Internal error (bug) in Arti.
     ///
     /// A supposedly impossible problem has arisen.  This indicates a bug in

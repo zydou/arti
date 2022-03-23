@@ -119,6 +119,7 @@ pub mod stream;
 mod util;
 
 pub use util::err::Error;
+pub use util::skew::ClockSkew;
 
 /// A vector of bytes that gets cleared when it's dropped.
 type SecretBytes = zeroize::Zeroizing<Vec<u8>>;

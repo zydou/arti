@@ -587,8 +587,11 @@ impl DestroyReason {
 /// channel and sending data.
 #[derive(Clone, Debug)]
 pub struct Netinfo {
-    /// Time when this cell was sent, or 0 if this cell is sent by
-    /// a client.
+    /// Time when this cell was sent, or 0 if this cell is sent by a client.
+    ///
+    /// TODO-SPEC(nickm): Y2038 issue here.  Better add a new handshake version
+    /// to solve it.  See
+    /// [torspec#80](https://gitlab.torproject.org/tpo/core/torspec/-/issues/80).
     timestamp: u32,
     /// Observed address for party that did not send the netinfo cell.
     their_addr: Option<IpAddr>,
@@ -650,6 +653,15 @@ impl Netinfo {
             timestamp,
             their_addr,
             my_addr,
+        }
+    }
+    /// Return the time reported in this NETINFO cell.
+    pub fn timestamp(&self) -> Option<std::time::SystemTime> {
+        use std::time::{Duration, SystemTime};
+        if self.timestamp == 0 {
+            None
+        } else {
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(self.timestamp.into()))
         }
     }
 }
