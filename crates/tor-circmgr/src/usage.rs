@@ -102,15 +102,56 @@ impl Display for TargetPorts {
     }
 }
 
-/// Trait for types that represent isolation between streams.
+/// A type that can make isolation decisions about streams it is attached to.
 ///
-/// This trait is intended to be used in dyn context. To implement it for your own types,
-/// implement [`IsolationHelper`] instead.
+/// Types that implement `Isolation` contain properties about a stream that are
+/// used to make decisions about whether that stream can share the same circuit
+/// as other streams. You may pass in any type implementing `Isolation` when
+/// creating a stream via `TorClient::connect_with_prefs`, or constructing a
+/// circuit with [`CircMgr::get_or_launch_exit()`](crate::CircMgr::get_or_launch_exit).
+///
+/// You typically do not want to implement this trait directly.  Instead, most
+/// users should implement [`IsolationHelper`].
+///
 // TODO this trait should probably be sealed so the same-type requirement can't be bypassed
 pub trait Isolation: Downcast + DynClone + std::fmt::Debug + Send + Sync + 'static {
-    /// Returns if two [`Isolation`] are compatible.
+    /// Return true if this Isolation is compatible with another.
+    ///
+    /// Two streams may share a circuit if and only if they have compatible
+    /// `Isolation`s.
+    ///
+    /// # Requirements
+    ///
+    /// For correctness, this relation must be symmetrical and reflexive:
+    /// `self.compatible(other)` must equal `other.compatible(self)`, and
+    /// `self.compatible(self)` must be true.
+    ///
+    /// For correctness, this function must always give the same result as
+    /// `self.join(other).is_some()`.
+    ///
+    /// This relationship does **not** have to be transitive: it's possible that
+    /// stream A can share a circuit with either stream B or stream C, but not
+    /// with both.
     fn compatible(&self, other: &dyn Isolation) -> bool;
+
     /// Join two [`Isolation`] into the intersection of what each allows.
+    ///
+    /// A circuit's isolation is the `join` of the isolation values of all of
+    /// the streams that have _ever_ used that circuit.  A circuit's isolation
+    /// can never be `None`: streams that would cause it to be `None` can't be
+    /// attached to the circuit.
+    ///
+    /// When a stream is added to a circuit, `join` is used to calculate the
+    /// circuit's new isolation.
+    ///
+    /// # Requirements
+    ///
+    /// For correctness, this function must be commutative: `self.join(other)`
+    /// must equal `other.join(self)`.  Also, it must be idempotent:
+    /// `self.join(self)` must equal self.
+    //
+    // TODO: (This function probably should be associative too, but we haven't done
+    // all the math.)
     fn join(&self, other: &dyn Isolation) -> Option<Box<dyn Isolation>>;
 }
 impl_downcast!(Isolation);
@@ -140,14 +181,29 @@ impl<T: IsolationHelper + Clone + std::fmt::Debug + Send + Sync + 'static> Isola
     }
 }
 
-/// Trait to help implement [`Isolation`]
+/// Trait to help implement [`Isolation`].
 ///
-/// This trait is essentially the same as [`Isolation`] with static types. You should
-/// implement this trait for types that can represent isolation between streams.
+/// You should generally implement this trait whenever you need to implement a
+/// new set of stream isolation rules: it takes care of down-casting and type
+/// checking for you.
+///
+/// When you implement this trait for some type T, isolation objects of that
+/// type will be incompatible (unable to share circuits) with objects of _any
+/// other type_.  (That's usually what you want; if you're defining a new type
+/// of Isolation rules, then you probably don't want streams using different
+/// rules to share circuits with yours.)
 pub trait IsolationHelper: Sized {
     /// Returns whether self and other are compatible.
+    ///
+    /// Two streams may share a circuit if and only if they have compatible
+    /// `Isolation`s.
+    ///
+    /// (See [`Isolation::compatible`] for more information and requirements.)
     fn compatible_same_type(&self, other: &Self) -> bool;
+
     /// Join self and other into the intersection of what they allows.
+    ///
+    /// (See [`Isolation::join`] for more information and requirements.)
     fn join_same_type(&self, other: &Self) -> Option<Self>;
 }
 
