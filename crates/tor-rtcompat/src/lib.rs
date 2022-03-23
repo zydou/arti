@@ -175,6 +175,7 @@ pub mod task;
 
 mod compound;
 mod opaque;
+pub mod scheduler;
 mod timer;
 mod traits;
 
