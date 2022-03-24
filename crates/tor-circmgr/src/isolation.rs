@@ -212,6 +212,134 @@ impl IsolationHelper for IsolationToken {
     }
 }
 
+/// Helper macro to implement IsolationHelper for tuple of IsolationHelper
+macro_rules! tuple_impls {
+    ($(
+        $Tuple:ident {
+            $(($idx:tt) -> $T:ident)+
+        }
+    )+) => {
+        $(
+            impl<$($T:IsolationHelper),+> IsolationHelper for ($($T,)+) {
+                fn compatible_same_type(&self, other: &Self) -> bool {
+                    $(self.$idx.compatible_same_type(&other.$idx))&&+
+                }
+
+                fn join_same_type(&self, other: &Self) -> Option<Self> {
+                    Some((
+                    $(self.$idx.join_same_type(&other.$idx)?,)+
+                    ))
+                }
+            }
+        )+
+    }
+}
+
+tuple_impls! {
+    Tuple1 {
+        (0) -> A
+    }
+    Tuple2 {
+        (0) -> A
+        (1) -> B
+    }
+    Tuple3 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+    }
+    Tuple4 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+    }
+    Tuple5 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+    }
+    Tuple6 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+    }
+    Tuple7 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+    }
+    Tuple8 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+        (7) -> H
+    }
+    Tuple9 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+        (7) -> H
+        (8) -> I
+    }
+    Tuple10 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+        (7) -> H
+        (8) -> I
+        (9) -> J
+    }
+    Tuple11 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+        (7) -> H
+        (8) -> I
+        (9) -> J
+        (10) -> K
+    }
+    Tuple12 {
+        (0) -> A
+        (1) -> B
+        (2) -> C
+        (3) -> D
+        (4) -> E
+        (5) -> F
+        (6) -> G
+        (7) -> H
+        (8) -> I
+        (9) -> J
+        (10) -> K
+        (11) -> L
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -325,5 +453,36 @@ pub(crate) mod test {
 
         assert!(token_1.join(other_1.as_ref()).is_none());
         assert!(other_1.join(token_1.as_ref()).is_none());
+    }
+
+    #[test]
+    fn isolation_tuple() {
+        let token_1 = IsolationToken::new();
+        let token_2 = IsolationToken::new();
+        let other_1 = OtherIsolation(0);
+        let other_2 = OtherIsolation(1);
+
+        let token_12: Box<dyn Isolation> = Box::new((token_1, token_2));
+        let token_21: Box<dyn Isolation> = Box::new((token_2, token_1));
+        let mix_11: Box<dyn Isolation> = Box::new((token_1, other_1));
+        let mix_12: Box<dyn Isolation> = Box::new((token_1, other_2));
+        let revmix_11: Box<dyn Isolation> = Box::new((other_1, token_1));
+
+        let join_token = token_12
+            .join(token_12.as_ref())
+            .expect("join should have returned Some");
+        assert!(join_token.compatible(token_12.as_ref()));
+        let join_mix = mix_12
+            .join(mix_12.as_ref())
+            .expect("join should have returned Some");
+        assert!(join_mix.compatible(mix_12.as_ref()));
+
+        let isol_list = [token_12, token_21, mix_11, mix_12, revmix_11];
+
+        for (i, isol1) in isol_list.iter().enumerate() {
+            for (j, isol2) in isol_list.iter().enumerate() {
+                assert_eq!(isol1.compatible(isol2.as_ref()), i == j);
+            }
+        }
     }
 }
