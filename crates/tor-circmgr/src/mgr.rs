@@ -1332,7 +1332,7 @@ fn spawn_expiration_task<B, R>(
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::usage::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
     use std::collections::BTreeSet;
