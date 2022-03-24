@@ -114,7 +114,9 @@ impl Display for TargetPorts {
 /// users should implement [`IsolationHelper`].
 ///
 // TODO this trait should probably be sealed so the same-type requirement can't be bypassed
-pub trait Isolation: Downcast + DynClone + std::fmt::Debug + Send + Sync + 'static {
+pub trait Isolation:
+    seal::Sealed + Downcast + DynClone + std::fmt::Debug + Send + Sync + 'static
+{
     /// Return true if this Isolation is compatible with another.
     ///
     /// Two streams may share a circuit if and only if they have compatible
@@ -154,6 +156,14 @@ pub trait Isolation: Downcast + DynClone + std::fmt::Debug + Send + Sync + 'stat
     // all the math.)
     fn join(&self, other: &dyn Isolation) -> Option<Box<dyn Isolation>>;
 }
+
+/// Seal preventing implementation of Isolation not relying on IsolationHelper
+mod seal {
+    /// Seal preventing implementation of Isolation not relying on IsolationHelper
+    pub trait Sealed {}
+    impl<T: super::IsolationHelper> Sealed for T {}
+}
+
 impl_downcast!(Isolation);
 clone_trait_object!(Isolation);
 impl<T: Isolation> From<T> for Box<dyn Isolation> {
