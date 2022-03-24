@@ -368,17 +368,15 @@ impl StreamIsolation {
     pub fn builder() -> StreamIsolationBuilder {
         StreamIsolationBuilder::new()
     }
+}
 
-    /// Return true if this StreamIsolation can share a circuit with
-    /// `other`.
-    pub fn may_share_circuit(&self, other: &StreamIsolation) -> bool {
+impl IsolationHelper for StreamIsolation {
+    fn compatible_same_type(&self, other: &StreamIsolation) -> bool {
         self.owner_token == other.owner_token
             && self.stream_token.compatible(other.stream_token.as_ref())
     }
 
-    /// Return a StreamIsolation that is the intersection of self and other.
-    /// Return None if such a merge is not possible.
-    pub fn join(&self, other: &StreamIsolation) -> Option<StreamIsolation> {
+    fn join_same_type(&self, other: &StreamIsolation) -> Option<StreamIsolation> {
         if self.owner_token != other.owner_token {
             return None;
         }
@@ -569,7 +567,7 @@ pub(crate) mod test {
                 .as_any()
                 .downcast_ref::<IsolationToken>()
         );
-        assert!(no_isolation.may_share_circuit(&no_isolation2));
+        assert!(no_isolation.compatible(&no_isolation2));
 
         let tok = IsolationToken::new();
         let some_isolation = StreamIsolation::builder().owner_token(tok).build().unwrap();
@@ -577,9 +575,9 @@ pub(crate) mod test {
             .stream_token(Box::new(tok))
             .build()
             .unwrap();
-        assert!(!no_isolation.may_share_circuit(&some_isolation));
-        assert!(!no_isolation.may_share_circuit(&some_isolation2));
-        assert!(!some_isolation.may_share_circuit(&some_isolation2));
-        assert!(some_isolation.may_share_circuit(&some_isolation));
+        assert!(!no_isolation.compatible(&some_isolation));
+        assert!(!no_isolation.compatible(&some_isolation2));
+        assert!(!some_isolation.compatible(&some_isolation2));
+        assert!(some_isolation.compatible(&some_isolation));
     }
 }

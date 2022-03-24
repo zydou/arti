@@ -13,7 +13,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
-use crate::isolation::StreamIsolation;
+use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry};
 use crate::Result;
 
@@ -270,7 +270,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 },
             ) => {
                 i1.as_ref()
-                    .map(|i1| i1.may_share_circuit(i2))
+                    .map(|i1| i1.compatible_same_type(i2))
                     .unwrap_or(true)
                     && p2.iter().all(|port| p1.allows_port(*port))
             }
@@ -308,7 +308,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 TargetCircUsage::Exit { isolation: i2, .. },
             ) => {
                 if let Some(i1) = isol1 {
-                    if let Some(new_isolation) = i1.join(i2) {
+                    if let Some(new_isolation) = i1.join_same_type(i2) {
                         // there was some isolation, and the requested usage is compatible, saving
                         // the new isolation into self
                         *isol1 = Some(new_isolation);
