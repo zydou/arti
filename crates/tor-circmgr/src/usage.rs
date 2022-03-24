@@ -242,10 +242,10 @@ pub trait IsolationHelper: Sized {
 /// let token_2 = IsolationToken::new();
 ///
 /// let mut prefs_1 = StreamPrefs::new();
-/// prefs_1.set_isolation_group(token_1);
+/// prefs_1.set_isolation(token_1);
 ///
 /// let mut prefs_2 = StreamPrefs::new();
-/// prefs_2.set_isolation_group(token_2);
+/// prefs_2.set_isolation(token_2);
 ///
 /// // These two connections will come from different source IP addresses.
 /// tor_client.connect(("example.com", 80), Some(prefs_1)).await?;

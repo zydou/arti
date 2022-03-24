@@ -215,7 +215,7 @@ impl StreamPrefs {
     /// This connection preference is orthogonal to isolation established by
     /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
     /// clones) will not share circuits with the original client, even if the same
-    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
+    /// `isolation` is specified via the `ConnectionPrefs` in force.
     pub fn new_isolation_group(&mut self) -> &mut Self {
         self.isolation = StreamIsolationPreference::Explicit(Box::new(IsolationToken::new()));
         self
@@ -225,17 +225,17 @@ impl StreamPrefs {
     /// as this one.
     ///
     /// By default all connections made on all clones of a `TorClient` may share connections.
-    /// Connections made with a particular `isolation_group` may share circuits with each other.
+    /// Connections made with a particular `isolation` may share circuits with each other.
     ///
     /// This connection preference is orthogonal to isolation established by
     /// [`TorClient::isolated_client`].  Connections made with an `isolated_client` (and its
     /// clones) will not share circuits with the original client, even if the same
-    /// `isolation_group` is specified via the `ConnectionPrefs` in force.
-    pub fn set_isolation_group<T>(&mut self, isolation_group: T) -> &mut Self
+    /// `isolation` is specified via the `ConnectionPrefs` in force.
+    pub fn set_isolation<T>(&mut self, isolation: T) -> &mut Self
     where
         T: Into<Box<dyn Isolation>>,
     {
-        self.isolation = StreamIsolationPreference::Explicit(isolation_group.into());
+        self.isolation = StreamIsolationPreference::Explicit(isolation.into());
         self
     }
 
@@ -250,7 +250,7 @@ impl StreamPrefs {
     /// circuits.  The only benefit is that these circuits will not be shared
     /// by multiple streams.)
     ///
-    /// This can be undone by calling `set_isolation_group` or `new_isolation_group` on these
+    /// This can be undone by calling `set_isolation` or `new_isolation_group` on these
     /// preferences.
     pub fn isolate_every_stream(&mut self) -> &mut Self {
         self.isolation = StreamIsolationPreference::EveryStream;
@@ -259,7 +259,7 @@ impl StreamPrefs {
 
     /// Return a token to describe which connections might use
     /// the same circuit as this one.
-    fn isolation_group(&self) -> Option<Box<dyn Isolation>> {
+    fn isolation(&self) -> Option<Box<dyn Isolation>> {
         use StreamIsolationPreference as SIP;
         match self.isolation {
             SIP::None => None,
@@ -824,7 +824,7 @@ impl<R: Runtime> TorClient<R> {
             // Always consider our client_isolation.
             b.owner_token(self.client_isolation);
             // Consider stream isolation too, if it's set.
-            if let Some(tok) = prefs.isolation_group() {
+            if let Some(tok) = prefs.isolation() {
                 b.stream_token(tok);
             }
             // Failure should be impossible with this builder.
