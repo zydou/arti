@@ -130,7 +130,7 @@ grcov "$COVERAGE_BASEDIR/coverage_meta" \
 	-t "$format" \
 	--branch \
 	--ignore-not-existing \
-	--excl-start '^mod test' \
+	--excl-start '^(pub(\((crate|super)\))? )?mod test' \
 	--excl-stop '^}' \
 	--ignore="*/tests/*" \
 	--ignore="*/examples/*" \
