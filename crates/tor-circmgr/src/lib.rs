@@ -73,13 +73,14 @@ mod usage;
 
 pub use err::Error;
 pub use isolation::IsolationToken;
-pub use usage::{StreamIsolation, StreamIsolationBuilder, TargetPort, TargetPorts};
+pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
     CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
     PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
 };
 
+use crate::isolation::StreamIsolation;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 

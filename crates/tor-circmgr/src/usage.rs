@@ -13,7 +13,7 @@ use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
-use crate::isolation::{Isolation, IsolationToken};
+use crate::isolation::StreamIsolation;
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry};
 use crate::Result;
 
@@ -97,64 +97,6 @@ impl Display for TargetPorts {
             write!(f, "]")?;
         }
         Ok(())
-    }
-}
-
-/// A set of information about how a stream should be isolated.
-///
-/// If two streams are isolated from one another, they may not share
-/// a circuit.
-#[derive(Clone, Debug, derive_builder::Builder)]
-pub struct StreamIsolation {
-    /// Any isolation token set on the stream.
-    #[builder(default = "Box::new(IsolationToken::no_isolation())")]
-    stream_token: Box<dyn Isolation>,
-    /// Any additional isolation token set on an object that "owns" this
-    /// stream.  This is typically owned by a `TorClient`.
-    #[builder(default = "IsolationToken::no_isolation()")]
-    owner_token: IsolationToken,
-}
-
-impl StreamIsolation {
-    /// Construct a new StreamIsolation with no isolation enabled.
-    pub fn no_isolation() -> Self {
-        StreamIsolationBuilder::new()
-            .build()
-            .expect("Bug constructing StreamIsolation")
-    }
-
-    /// Return a new StreamIsolationBuilder for constructing
-    /// StreamIsolation objects.
-    pub fn builder() -> StreamIsolationBuilder {
-        StreamIsolationBuilder::new()
-    }
-
-    /// Return true if this StreamIsolation can share a circuit with
-    /// `other`.
-    fn may_share_circuit(&self, other: &StreamIsolation) -> bool {
-        self.owner_token == other.owner_token
-            && self.stream_token.compatible(other.stream_token.as_ref())
-    }
-
-    /// Return a StreamIsolation that is the intersection of self and other.
-    /// Return None if such a merge is not possible.
-    pub fn join(&self, other: &StreamIsolation) -> Option<StreamIsolation> {
-        if self.owner_token != other.owner_token {
-            return None;
-        }
-        self.stream_token
-            .join(other.stream_token.as_ref())
-            .map(|stream_token| StreamIsolation {
-                stream_token,
-                owner_token: self.owner_token,
-            })
-    }
-}
-
-impl StreamIsolationBuilder {
-    /// Construct a builder with no items set.
-    pub fn new() -> Self {
-        StreamIsolationBuilder::default()
     }
 }
 
@@ -416,18 +358,12 @@ pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::{IsolationToken, StreamIsolationBuilder};
     use crate::path::OwnedPath;
     use crate::test::OptDummyGuardMgr;
     use std::convert::TryFrom;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
-
-    impl IsolationTokenEq for StreamIsolation {
-        fn isol_eq(&self, other: &Self) -> bool {
-            self.stream_token.isol_eq(other.stream_token.as_ref())
-                && self.owner_token == other.owner_token
-        }
-    }
 
     impl IsolationTokenEq for TargetCircUsage {
         fn isol_eq(&self, other: &Self) -> bool {
@@ -811,41 +747,6 @@ pub(crate) mod test {
             .unwrap();
         assert_eq!(path.len(), 3);
         assert_isoleq!(usage, SupportedCircUsage::NoUsage);
-    }
-
-    #[test]
-    fn build_isolation() {
-        let no_isolation = StreamIsolation::no_isolation();
-        let no_isolation2 = StreamIsolation::builder()
-            .owner_token(IsolationToken::no_isolation())
-            .stream_token(Box::new(IsolationToken::no_isolation()))
-            .build()
-            .unwrap();
-        assert_eq!(no_isolation.owner_token, no_isolation2.owner_token);
-        assert_eq!(
-            no_isolation
-                .stream_token
-                .as_ref()
-                .as_any()
-                .downcast_ref::<IsolationToken>(),
-            no_isolation2
-                .stream_token
-                .as_ref()
-                .as_any()
-                .downcast_ref::<IsolationToken>()
-        );
-        assert!(no_isolation.may_share_circuit(&no_isolation2));
-
-        let tok = IsolationToken::new();
-        let some_isolation = StreamIsolation::builder().owner_token(tok).build().unwrap();
-        let some_isolation2 = StreamIsolation::builder()
-            .stream_token(Box::new(tok))
-            .build()
-            .unwrap();
-        assert!(!no_isolation.may_share_circuit(&some_isolation));
-        assert!(!no_isolation.may_share_circuit(&some_isolation2));
-        assert!(!some_isolation.may_share_circuit(&some_isolation2));
-        assert!(some_isolation.may_share_circuit(&some_isolation));
     }
 
     #[test]

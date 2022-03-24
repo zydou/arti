@@ -8,7 +8,7 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use tor_circmgr::isolation::Isolation;
-use tor_circmgr::{DirInfo, IsolationToken, StreamIsolationBuilder, TargetPort};
+use tor_circmgr::{isolation::StreamIsolationBuilder, DirInfo, IsolationToken, TargetPort};
 use tor_config::MutCfg;
 use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
