@@ -19,6 +19,8 @@ rustls = ["tor-rtcompat/rustls"]
 static = ["static-sqlite", "static-native-tls"]
 static-sqlite = ["tor-dirmgr/static"]
 static-native-tls = ["tor-rtcompat/static", "native-tls"]
+
+dirfilter = ["tor-dirmgr/dirfilter"]
 error_detail = []
 
 # Enable experimental APIs that are not yet officially supported.
