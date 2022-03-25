@@ -114,6 +114,9 @@ pub enum DirInfo<'a> {
     Fallbacks(&'a FallbackList),
     /// A complete network directory
     Directory(&'a NetDir),
+    /// No information: we can only build one-hop paths: and that, only if the
+    /// guard manager knows some guards or fallbacks.
+    Nothing,
 }
 
 impl<'a> From<&'a FallbackList> for DirInfo<'a> {
@@ -144,8 +147,8 @@ impl<'a> DirInfo<'a> {
         }
 
         match self {
-            DirInfo::Fallbacks(_) => from_netparams(&NetParameters::default()),
             DirInfo::Directory(d) => from_netparams(d.params()),
+            _ => from_netparams(&NetParameters::default()),
         }
     }
 }

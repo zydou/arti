@@ -125,13 +125,13 @@ impl<'a> ExitPathBuilder<'a> {
         now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
-            DirInfo::Fallbacks(_) => {
+            DirInfo::Directory(d) => d,
+            _ => {
                 return Err(bad_api_usage!(
-                    "Tried to build a multihop path using only a list of fallback caches"
+                    "Tried to build a multihop path without a network directory"
                 )
                 .into())
             }
-            DirInfo::Directory(d) => d,
         };
         let subnet_config = config.subnet_config();
         let lifetime = netdir.lifetime();

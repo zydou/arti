@@ -1,6 +1,7 @@
 //! Code to construct paths to a directory for non-anonymous downloads
 use super::TorPath;
 use crate::{DirInfo, Error, Result};
+use tor_error::bad_api_usage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{Relay, WeightRole};
 use tor_rtcompat::Runtime;
@@ -42,18 +43,31 @@ impl DirPathBuilder {
                     return Ok((TorPath::new_one_hop(r), None, None));
                 }
             }
-            (DirInfo::Directory(netdir), Some(guardmgr)) => {
-                // TODO: We might want to use the guardmgr even if
-                // we don't have a netdir.  See arti#220.
-                guardmgr.update_network(netdir); // possibly unnecessary.
+            (DirInfo::Nothing, None) => {
+                return Err(bad_api_usage!(
+                    "Tried to build a one hop path with no directory, fallbacks, or guard manager"
+                )
+                .into());
+            }
+            (dirinfo, Some(guardmgr)) => {
+                // We use a guardmgr whenever we have one, regardless of whether
+                // there's a netdir.
+                //
+                // That way, we prefer our guards (if they're up) before we default to the fallback directories.
+                let netdir = match dirinfo {
+                    DirInfo::Directory(netdir) => {
+                        guardmgr.update_network(netdir); // possibly unnecessary.
+                        Some(netdir)
+                    }
+                    _ => None,
+                };
+
                 let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
                     .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
                     .build()
                     .expect("Unable to build directory guard usage");
-                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
-                if let Some(r) = guard.get_relay(netdir) {
-                    return Ok((TorPath::new_one_hop(r), Some(mon), Some(usable)));
-                }
+                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, netdir)?;
+                return Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)));
             }
         }
         Err(Error::NoPath(
@@ -142,7 +156,13 @@ mod test {
         let guards: OptDummyGuardMgr<'_> = None;
 
         let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
-        assert!(matches!(err, Err(Error::NoPath(_))));
+        dbg!(err.as_ref().err());
+        assert!(matches!(
+            err,
+            Err(Error::Guard(
+                tor_guardmgr::PickGuardError::AllFallbacksDown { .. }
+            ))
+        ));
     }
 
     #[test]
@@ -166,7 +186,7 @@ mod test {
                 let (path, mon, usable) = DirPathBuilder::new()
                     .pick_path(&mut rng, dirinfo, Some(&guards))
                     .unwrap();
-                if let crate::path::TorPathInner::OneHop(relay) = path.inner {
+                if let crate::path::TorPathInner::OwnedOneHop(relay) = path.inner {
                     distinct_guards.insert(relay.ed_identity().clone());
                     mon.unwrap().succeeded();
                     assert!(usable.unwrap().await.unwrap());
