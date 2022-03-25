@@ -21,6 +21,17 @@ pub enum PickGuardError {
     /// out.
     #[error("No running guards were usable for the selected purpose")]
     NoGuardsUsable,
+
+    /// We have no usable fallback directories.
+    #[error("All fallback directories are down")]
+    AllFallbacksDown {
+        /// The next time at which any fallback directory will back available.
+        retry_at: Option<Instant>,
+    },
+
+    /// Tried to select guards or fallbacks from an empty list.
+    #[error("Tried to pick from an empty list")]
+    NoCandidatesAvailable,
 }
 
 impl tor_error::HasKind for PickGuardError {
@@ -28,8 +39,8 @@ impl tor_error::HasKind for PickGuardError {
         use tor_error::ErrorKind as EK;
         use PickGuardError as E;
         match self {
-            E::AllGuardsDown { .. } => EK::TorAccessFailed,
-            E::NoGuardsUsable => EK::NoPath,
+            E::AllFallbacksDown { .. } | E::AllGuardsDown { .. } => EK::TorAccessFailed,
+            E::NoGuardsUsable | E::NoCandidatesAvailable => EK::NoPath,
         }
     }
 }

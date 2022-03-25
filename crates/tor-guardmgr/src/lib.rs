@@ -229,6 +229,11 @@ struct GuardMgrInner {
     /// same guard.
     waiting: Vec<PendingRequest>,
 
+    /// A list of fallback directories used to access the directory system
+    /// when no other directory information is yet known.
+    // TODO: reconfigure when the configuration changes.
+    fallbacks: fallback::FallbackList,
+
     /// Location in which to store persistent state.
     storage: DynStorageHandle<GuardSets>,
 }
@@ -261,7 +266,11 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// It won't be able to hand out any guards until
     /// [`GuardMgr::update_network`] has been called.
-    pub fn new<S>(runtime: R, state_mgr: S) -> Result<Self, GuardMgrError>
+    pub fn new<S>(
+        runtime: R,
+        state_mgr: S,
+        fallbacks: fallback::FallbackList,
+    ) -> Result<Self, GuardMgrError>
     where
         S: StateMgr + Send + Sync + 'static,
     {
@@ -279,6 +288,7 @@ impl<R: Runtime> GuardMgr<R> {
             ctrl,
             pending: HashMap::new(),
             waiting: Vec::new(),
+            fallbacks,
             storage,
         }));
         {
@@ -1066,7 +1076,7 @@ mod test {
         let statemgr = TestingStateMgr::new();
         let have_lock = statemgr.try_lock().unwrap();
         assert!(have_lock.held());
-        let guardmgr = GuardMgr::new(rt, statemgr.clone()).unwrap();
+        let guardmgr = GuardMgr::new(rt, statemgr.clone(), [].into()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
         let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"
             .parse()
@@ -1103,7 +1113,7 @@ mod test {
             drop(guardmgr);
 
             // Try reloading from the state...
-            let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone()).unwrap();
+            let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone(), [].into()).unwrap();
             guardmgr2.update_network(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!

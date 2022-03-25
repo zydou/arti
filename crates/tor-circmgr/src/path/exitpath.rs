@@ -389,7 +389,7 @@ mod test {
             let mut rng = rand::thread_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
-            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr).unwrap();
+            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();
             let config = PathConfig::default();
             guards.update_network(&netdir);
             let port443 = TargetPort::ipv4(443);

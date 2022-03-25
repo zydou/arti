@@ -10,6 +10,8 @@
 //! The types in this module are re-exported from `arti-client` and
 //! `tor-dirmgr`: any changes here must be reflected there.
 
+mod set;
+
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -17,6 +19,8 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use serde::Deserialize;
 use std::net::SocketAddr;
+
+pub use set::FallbackList;
 
 /// A directory whose location ships with Tor (or arti), and which we
 /// can use for bootstrapping when we don't know anything else about

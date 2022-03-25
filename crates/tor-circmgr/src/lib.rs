@@ -51,7 +51,6 @@
 #![deny(clippy::unwrap_used)]
 
 use tor_chanmgr::ChanMgr;
-use tor_guardmgr::fallback::FallbackDir;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
@@ -75,8 +74,9 @@ mod timeouts;
 mod usage;
 
 pub use err::Error;
-pub use isolation::IsolationToken;
+pub use isolation::{IsolationToken};
 pub use usage::{TargetPort, TargetPorts};
+use tor_guardmgr::fallback::FallbackList;
 
 pub use config::{
     CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
@@ -111,13 +111,13 @@ const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 #[non_exhaustive]
 pub enum DirInfo<'a> {
     /// A list of fallbacks, for use when we don't know a network directory.
-    Fallbacks(&'a [&'a FallbackDir]),
+    Fallbacks(&'a FallbackList),
     /// A complete network directory
     Directory(&'a NetDir),
 }
 
-impl<'a> From<&'a [&'a FallbackDir]> for DirInfo<'a> {
-    fn from(v: &'a [&'a FallbackDir]) -> DirInfo<'a> {
+impl<'a> From<&'a FallbackList> for DirInfo<'a> {
+    fn from(v: &'a FallbackList) -> DirInfo<'a> {
         DirInfo::Fallbacks(v)
     }
 }
@@ -184,7 +184,11 @@ impl<R: Runtime> CircMgr<R> {
             config.preemptive_circuits().clone(),
         )));
 
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
+        let guardmgr = tor_guardmgr::GuardMgr::new(
+            runtime.clone(),
+            storage.clone(),
+            config.fallbacks().clone(),
+        )?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -715,7 +719,8 @@ mod test {
         use tor_netdir::{MdReceiver, PartialNetDir};
         use tor_netdoc::doc::netstatus::NetParams;
         // If it's just fallbackdir, we get the default parameters.
-        let di: DirInfo<'_> = (&[][..]).into();
+        let fb = FallbackList::from([]);
+        let di: DirInfo<'_> = (&fb).into();
 
         let p1 = di.circ_params();
         assert!(!p1.extend_by_ed25519_id());
