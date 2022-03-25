@@ -278,7 +278,7 @@ impl DirMgrConfig {
 pub struct DirMgrExtensions {
     /// A filter to be used when installing new directory objects.
     #[cfg(feature = "dirfilter")]
-    pub filter: Option<crate::filter::DynFilter>,
+    pub filter: crate::filter::FilterConfig,
 }
 
 impl DownloadScheduleConfig {
