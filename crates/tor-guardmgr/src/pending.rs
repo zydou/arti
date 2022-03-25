@@ -7,7 +7,7 @@
 //! then the circuit manager can't know whether to use a circuit built
 //! through that guard until the guard manager tells it.  This is
 //! handled via [`GuardUsable`].
-use crate::{daemon, GuardId};
+use crate::{daemon, sample::ListKind, GuardId};
 
 use educe::Educe;
 use futures::{
@@ -65,11 +65,11 @@ impl Future for GuardUsable {
 }
 
 impl GuardUsable {
-    /// Create a new GuardUsable for a primary guard.
+    /// Create a new GuardUsable for a primary guard or a fallback directory.
     ///
-    /// (Circuits built through primary guards are usable immediately,
+    /// (Circuits built through these are usable immediately,
     /// so we don't need a way to report that this guard is usable.)
-    pub(crate) fn new_primary() -> Self {
+    pub(crate) fn new_usable_immediately() -> Self {
         GuardUsable { u: None }
     }
 
@@ -262,6 +262,8 @@ pub(crate) struct PendingRequest {
     /// than this one might be usable, we should only give it precedence
     /// if that guard is also allowable _for this usage_.
     usage: crate::GuardUsage,
+    /// Which list did we take this guard from?
+    source: ListKind,
     /// A oneshot channel used to tell the circuit manager that a circuit
     /// built through this guard can be used.
     ///
@@ -283,6 +285,7 @@ impl PendingRequest {
     /// Create a new PendingRequest.
     pub(crate) fn new(
         guard_id: GuardId,
+        source: ListKind,
         usage: crate::GuardUsage,
         usable: Option<oneshot::Sender<bool>>,
         net_has_been_down: bool,
@@ -290,6 +293,7 @@ impl PendingRequest {
         PendingRequest {
             guard_id,
             usage,
+            source,
             usable,
             waiting_since: None,
             net_has_been_down,
@@ -304,6 +308,12 @@ impl PendingRequest {
     /// Return the usage for which we gave out the guard.
     pub(crate) fn usage(&self) -> &crate::GuardUsage {
         &self.usage
+    }
+
+    /// Return the source from which we took this guard from.
+    #[allow(dead_code)] // TODO: this will get used later in this branch.
+    pub(crate) fn source(&self) -> ListKind {
+        self.source
     }
 
     /// Return the time (if any) when we were told that the guard

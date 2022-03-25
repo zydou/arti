@@ -89,12 +89,30 @@ pub(crate) enum ListKind {
     Confirmed,
     /// A non-primary, non-confirmed guard.
     Sample,
+    /// Not a guard at all, but a fallback directory.
+    Fallback,
 }
 
 impl ListKind {
     /// Return true if this is a primary guard.
     pub(crate) fn is_primary(&self) -> bool {
         self == &ListKind::Primary
+    }
+
+    /// Return true if this guard's origin indicates that you can use successful
+    /// circuits built through it immediately without waiting for any other
+    /// circuits to succeed or fail.
+    pub(crate) fn usable_immediately(&self) -> bool {
+        match self {
+            ListKind::Primary | ListKind::Fallback => true,
+            ListKind::Confirmed | ListKind::Sample => false,
+        }
+    }
+
+    /// Return true if this source indicates a guard that came from a sample
+    /// taken from a network directory at some point.
+    pub(crate) fn is_guard_sample(&self) -> bool {
+        self != &ListKind::Fallback
     }
 }
 

@@ -46,6 +46,14 @@ impl FallbackDir {
     pub fn builder() -> FallbackDirBuilder {
         FallbackDirBuilder::default()
     }
+
+    /// Return a copy of this FallbackDir as a [`crate::Guard`]
+    pub fn as_guard(&self) -> crate::Guard {
+        crate::Guard {
+            id: crate::GuardId::from_chan_target(self),
+            orports: self.orports.clone(),
+        }
+    }
 }
 
 impl FallbackDirBuilder {
