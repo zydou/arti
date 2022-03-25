@@ -199,6 +199,12 @@ pub struct DirMgrConfig {
     /// immediately. Users should _not_ assume that the effect of changing this
     /// option will always be delayed.)
     pub override_net_params: netstatus::NetParams<i32>,
+
+    /// Extra fields for extension purposes.
+    ///
+    /// These are kept in a separate type so that the type can be marked as
+    /// `non_exhaustive` and used for optional features.
+    pub extensions: DirMgrExtensions,
 }
 
 impl DirMgrConfig {
@@ -252,6 +258,7 @@ impl DirMgrConfig {
             },
             schedule_config: new_config.schedule_config.clone(),
             override_net_params: new_config.override_net_params.clone(),
+            extensions: new_config.extensions.clone(),
         }
     }
 
@@ -263,6 +270,15 @@ impl DirMgrConfig {
     pub fn update_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         self.update_from_config(new_config)
     }
+}
+
+/// Optional extensions for configuring
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct DirMgrExtensions {
+    /// A filter to be used when installing new directory objects.
+    #[cfg(feature = "dirfilter")]
+    pub filter: crate::filter::FilterConfig,
 }
 
 impl DownloadScheduleConfig {

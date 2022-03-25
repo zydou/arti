@@ -354,8 +354,13 @@ impl<R: Runtime> TorClient<R> {
         config: TorClientConfig,
         autobootstrap: BootstrapBehavior,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
+        dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
-        let dir_cfg = (&config).try_into()?;
+        let dir_cfg = {
+            let mut c: tor_dirmgr::DirMgrConfig = (&config).try_into()?;
+            c.extensions = dirmgr_extensions;
+            c
+        };
         let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
         let addr_cfg = config.address_filter.clone();
 

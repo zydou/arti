@@ -84,6 +84,10 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
     /// testing it is helpful to be able to mock our our current view
     /// of the time.
     fn now(&self) -> SystemTime;
+
+    /// Return the currently configured DynFilter for this state.
+    #[cfg(feature = "dirfilter")]
+    fn filter(&self) -> &dyn crate::filter::DirFilter;
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
@@ -107,6 +111,11 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
     }
     fn now(&self) -> SystemTime {
         SystemTime::now()
+    }
+
+    #[cfg(feature = "dirfilter")]
+    fn filter(&self) -> &dyn crate::filter::DirFilter {
+        self.filter.as_deref().unwrap_or(&crate::filter::NilFilter)
     }
 }
 
@@ -278,6 +287,12 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) =
                 MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
+            #[cfg(feature = "dirfilter")]
+            let parsed = if let Some(wd) = Weak::upgrade(&self.writedir) {
+                wd.filter().filter_consensus(parsed)?
+            } else {
+                parsed
+            };
             let now = current_time(&self.writedir)?;
             if let Ok(timely) = parsed.check_valid_at(&now) {
                 let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
@@ -651,6 +666,14 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
     where
         I: IntoIterator<Item = Microdesc>,
     {
+        #[cfg(feature = "dirfilter")]
+        let mds: Vec<Microdesc> = if let Some(wd) = Weak::upgrade(&self.writedir) {
+            mds.into_iter()
+                .filter_map(|m| wd.filter().filter_md(m).ok())
+                .collect()
+        } else {
+            mds.into_iter().collect()
+        };
         if let Some(p) = &mut self.partial {
             for md in mds {
                 self.newly_listed.push(*md.digest());
@@ -1032,6 +1055,10 @@ mod test {
         }
         fn now(&self) -> SystemTime {
             self.now
+        }
+        #[cfg(feature = "dirfilter")]
+        fn filter(&self) -> &dyn crate::filter::DirFilter {
+            &crate::filter::NilFilter
         }
     }
 

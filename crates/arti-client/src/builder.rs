@@ -56,6 +56,11 @@ pub struct TorClientBuilder<R: Runtime> {
     /// Wrapped in an Arc so that we don't need to force DirProviderBuilder to
     /// implement Clone.
     dirmgr_builder: Arc<dyn DirProviderBuilder<R>>,
+    /// Optional directory filter to install for testing purposes.
+    ///
+    /// Only available when `arti-client` is built with the `dirfilter` and `experimental-api` features.
+    #[cfg(feature = "dirfilter")]
+    dirfilter: tor_dirmgr::filter::FilterConfig,
 }
 
 impl<R: Runtime> TorClientBuilder<R> {
@@ -66,6 +71,8 @@ impl<R: Runtime> TorClientBuilder<R> {
             config: TorClientConfig::default(),
             bootstrap_behavior: BootstrapBehavior::default(),
             dirmgr_builder: Arc::new(DirMgrBuilder {}),
+            #[cfg(feature = "dirfilter")]
+            dirfilter: None,
         }
     }
 
@@ -99,6 +106,19 @@ impl<R: Runtime> TorClientBuilder<R> {
         self
     }
 
+    /// Install a [`DirFilter`](tor_dirmgr::filter::DirFilter) to
+    ///
+    /// Only available whe compiled with the the `dirfilter` feature: this code
+    /// is unstable and not recommended for production use.
+    #[cfg(feature = "dirfilter")]
+    pub fn dirfilter<F>(mut self, filter: F) -> Self
+    where
+        F: Into<Arc<dyn tor_dirmgr::filter::DirFilter + 'static>>,
+    {
+        self.dirfilter = Some(filter.into());
+        self
+    }
+
     /// Create a `TorClient` from this builder, without automatically launching
     /// the bootstrap process.
     ///
@@ -115,11 +135,19 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// process (for example, you might wish to avoid initiating network
     /// connections until explicit user confirmation is given).
     pub fn create_unbootstrapped(self) -> Result<TorClient<R>> {
+        #[allow(unused_mut)]
+        let mut dirmgr_extensions = tor_dirmgr::config::DirMgrExtensions::default();
+        #[cfg(feature = "dirfilter")]
+        {
+            dirmgr_extensions.filter = self.dirfilter;
+        }
+
         TorClient::create_inner(
             self.runtime,
             self.config,
             self.bootstrap_behavior,
             self.dirmgr_builder.as_ref(),
+            dirmgr_extensions,
         )
         .map_err(ErrorDetail::into)
     }

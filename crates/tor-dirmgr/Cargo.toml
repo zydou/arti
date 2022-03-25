@@ -16,6 +16,7 @@ mmap = ["memmap2"]
 static = ["rusqlite/bundled"]
 # (Incomplete) support for downloading and storing router descriptors
 routerdesc = ["tor-dirclient/routerdesc"]
+dirfilter = []
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -24,18 +25,18 @@ routerdesc = ["tor-dirclient/routerdesc"]
 experimental-api = []
 
 [dependencies]
-tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
-retry-error = { path = "../retry-error", version = "0.1.0"}
-tor-checkable = { path = "../tor-checkable", version = "0.1.0"}
-tor-circmgr = { path = "../tor-circmgr", version = "0.1.0"}
-tor-config = { path = "../tor-config", version = "0.1.0"}
-tor-consdiff = { path = "../tor-consdiff", version = "0.1.0"}
-tor-dirclient = { path = "../tor-dirclient", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-netdir = { path = "../tor-netdir", version = "0.1.0"}
-tor-netdoc = { path = "../tor-netdoc", version = "0.1.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0"}
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0" }
+retry-error = { path = "../retry-error", version = "0.1.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.1.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.1.0" }
+tor-config = { path = "../tor-config", version = "0.1.0" }
+tor-consdiff = { path = "../tor-consdiff", version = "0.1.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.1.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
 
 async-trait = "0.1.2"
 base64 = "0.13.0"
@@ -66,5 +67,8 @@ humantime-serde = "1.1.1"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
 tempfile = "3"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [ "tokio", "native-tls" ] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [
+    "tokio",
+    "native-tls",
+] }
 float_eq = "0.7"

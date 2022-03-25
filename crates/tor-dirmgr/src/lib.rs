@@ -66,6 +66,9 @@ mod shared_ref;
 mod state;
 mod storage;
 
+#[cfg(feature = "dirfilter")]
+pub mod filter;
+
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
 #[cfg(not(feature = "experimental-api"))]
 use crate::shared_ref::SharedMutArc;
@@ -222,6 +225,10 @@ pub struct DirMgr<R: Runtime> {
     ///
     /// (In offline mode, this does nothing.)
     bootstrap_started: AtomicBool,
+
+    /// A filter that gets applied to directory objects before we use them.
+    #[cfg(feature = "dirfilter")]
+    filter: crate::filter::FilterConfig,
 }
 
 /// RAII guard to reset an AtomicBool on drop.
@@ -702,6 +709,8 @@ impl<R: Runtime> DirMgr<R> {
         let receive_status = DirBootstrapEvents {
             inner: receive_status,
         };
+        #[cfg(feature = "dirfilter")]
+        let filter = config.extensions.filter.clone();
 
         Ok(DirMgr {
             config: config.into(),
@@ -714,6 +723,8 @@ impl<R: Runtime> DirMgr<R> {
             runtime,
             offline,
             bootstrap_started: AtomicBool::new(false),
+            #[cfg(feature = "dirfilter")]
+            filter,
         })
     }
 

@@ -6,20 +6,22 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Library for connecting to the Tor network as an anonymous client"
-keywords = [ "tor", "arti", "privacy", "anonymity", "networking" ]
-categories = [ "network-programming", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "privacy", "anonymity", "networking"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = [ "tokio", "native-tls" ]
-async-std = [ "tor-rtcompat/async-std" ]
-tokio = [ "tor-rtcompat/tokio", "tor-proto/tokio" ]
-native-tls = [ "tor-rtcompat/native-tls" ]
-rustls = [ "tor-rtcompat/rustls" ]
-static = [ "static-sqlite", "static-native-tls" ]
-static-sqlite = [ "tor-dirmgr/static" ]
-static-native-tls = [ "tor-rtcompat/static", "native-tls" ]
-error_detail = [ ]
+default = ["tokio", "native-tls"]
+async-std = ["tor-rtcompat/async-std"]
+tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
+native-tls = ["tor-rtcompat/native-tls"]
+rustls = ["tor-rtcompat/rustls"]
+static = ["static-sqlite", "static-native-tls"]
+static-sqlite = ["tor-dirmgr/static"]
+static-native-tls = ["tor-rtcompat/static", "native-tls"]
+
+dirfilter = ["tor-dirmgr/dirfilter"]
+error_detail = []
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -28,16 +30,16 @@ error_detail = [ ]
 experimental-api = []
 
 [dependencies]
-tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
-tor-circmgr = { path="../tor-circmgr", version = "0.1.0"}
-tor-config = { path="../tor-config", version = "0.1.0"}
-tor-chanmgr = { path="../tor-chanmgr", version = "0.1.0"}
-tor-dirmgr = { path="../tor-dirmgr", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-netdoc = { path="../tor-netdoc", version = "0.1.0"}
-tor-persist = { path="../tor-persist", version = "0.1.0"}
-tor-proto = { path="../tor-proto", version = "0.1.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.1.0" }
+tor-config = { path = "../tor-config", version = "0.1.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.1.0" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
+tor-persist = { path = "../tor-persist", version = "0.1.0" }
+tor-proto = { path = "../tor-proto", version = "0.1.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
 
 humantime-serde = "1.1.1"
 derive_builder = "0.11"
@@ -45,15 +47,27 @@ derive_more = "0.99"
 directories = "4"
 educe = "0.4.6"
 futures = "0.3.14"
-postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
+postage = { version = "0.4", default-features = false, features = [
+    "futures-traits",
+] }
 tracing = "0.1.18"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 pin-project = "1"
 
 [dev-dependencies]
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0", features=["tokio", "native-tls" ] }
-tokio-crate = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread", "io-util", "net", "time", "macros" ] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [
+    "tokio",
+    "native-tls",
+] }
+tokio-crate = { package = "tokio", version = "1.7", features = [
+    "rt",
+    "rt-multi-thread",
+    "io-util",
+    "net",
+    "time",
+    "macros",
+] }
 pin-project = "1"
 tokio-util = { version = "0.7.0", features = ["compat"] }
 anyhow = "1.0.23"
