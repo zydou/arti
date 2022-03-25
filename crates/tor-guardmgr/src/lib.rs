@@ -232,7 +232,7 @@ struct GuardMgrInner {
     /// A list of fallback directories used to access the directory system
     /// when no other directory information is yet known.
     // TODO: reconfigure when the configuration changes.
-    fallbacks: fallback::FallbackList,
+    fallbacks: fallback::FallbackSet,
 
     /// Location in which to store persistent state.
     storage: DynStorageHandle<GuardSets>,
@@ -288,7 +288,7 @@ impl<R: Runtime> GuardMgr<R> {
             ctrl,
             pending: HashMap::new(),
             waiting: Vec::new(),
-            fallbacks,
+            fallbacks: fallbacks.into(),
             storage,
         }));
         {
@@ -461,7 +461,7 @@ impl<R: Runtime> GuardMgr<R> {
         // it should _probably_ not hurt.)
         inner.guards.active_guards_mut().consider_all_retries(now);
 
-        let (origin, guard) = inner.select_guard_with_expand(&usage, netdir, wallclock)?;
+        let (origin, guard) = inner.select_guard_with_expand(&usage, netdir, now, wallclock)?;
         trace!(?guard, ?usage, "Guard selected");
 
         let (usable, usable_sender) = if origin.usable_immediately() {
@@ -510,7 +510,8 @@ impl<R: Runtime> GuardMgr<R> {
         Ok((guard, monitor, usable))
     }
 
-    /// Record that after we tried to connect to the guard described in `Guard`
+    /// Record that _after_ we built a circuit with `guard`,something described
+    /// in `external_failure` went wrong with it.
     pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalFailure) {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
@@ -519,6 +520,21 @@ impl<R: Runtime> GuardMgr<R> {
             .guards
             .active_guards_mut()
             .record_failure(guard, Some(external_failure), now);
+
+        if external_failure == ExternalFailure::DirCache {
+            inner.fallbacks.note_failure(guard, now);
+        }
+    }
+
+    /// Record that _after_ we built a circuit with  `guard`, some activity described in `external_activity` was successful with it.
+    ///
+    pub fn note_external_success(&self, guard: &GuardId, external_activity: ExternalFailure) {
+        // XXXX: rename the ExternalFailure type, since we're using it in this way too.
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+
+        if external_activity == ExternalFailure::DirCache {
+            inner.fallbacks.note_success(guard);
+        }
     }
 
     /// Ensure that the message queue is flushed before proceeding to
@@ -540,7 +556,7 @@ impl<R: Runtime> GuardMgr<R> {
 
 /// A reason for marking a guard as failed that can't be observed from inside
 /// the `GuardMgr` code.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ExternalFailure {
     /// This guard has somehow failed to operate as a good directory cache.
@@ -666,10 +682,16 @@ impl GuardMgrInner {
             let guard_id = pending.guard_id();
             trace!(?guard_id, ?status, "Received report of guard status");
 
-            // TODO: all the branches below are no-ops (or close to it) if the
-            // "guard" is actually a fallback. We'll add handling for that later.
-            match status {
-                GuardStatus::Success => {
+            match (status, pending.source()) {
+                (GuardStatus::Failure, sample::ListKind::Fallback) => {
+                    // We used a fallback, and we weren't able to build a circuit through it.
+                    self.fallbacks.note_failure(guard_id, runtime.now());
+                }
+                (_, sample::ListKind::Fallback) => {
+                    // We don't record any other kind of circuit activity if we
+                    // took the entry from the fallback list.
+                }
+                (GuardStatus::Success, _) => {
                     // If we had gone too long without any net activity when we
                     // gave out this guard, and now we're seeing a circuit
                     // succeed, tell the primary guards that they might be
@@ -697,19 +719,19 @@ impl GuardMgrInner {
                         self.waiting.push(pending);
                     }
                 }
-                GuardStatus::Failure => {
+                (GuardStatus::Failure, _) => {
                     self.guards
                         .active_guards_mut()
                         .record_failure(guard_id, None, runtime.now());
                     pending.reply(false);
                 }
-                GuardStatus::AttemptAbandoned => {
+                (GuardStatus::AttemptAbandoned, _) => {
                     self.guards
                         .active_guards_mut()
                         .record_attempt_abandoned(guard_id);
                     pending.reply(false);
                 }
-                GuardStatus::Indeterminate => {
+                (GuardStatus::Indeterminate, _) => {
                     self.guards
                         .active_guards_mut()
                         .record_indeterminate_result(guard_id);
@@ -810,7 +832,8 @@ impl GuardMgrInner {
         &mut self,
         usage: &GuardUsage,
         netdir: Option<&NetDir>,
-        now: SystemTime,
+        now: Instant,
+        wallclock: SystemTime,
     ) -> Result<(sample::ListKind, Guard), PickGuardError> {
         // Try to find a guard.
         let res1 = self.select_guard_once(usage);
@@ -822,11 +845,11 @@ impl GuardMgrInner {
         // That didn't work. If we have a netdir, expand the sample and try again.
         if let Some(dir) = netdir {
             trace!("No guards available, trying to extend the sample.");
-            self.update(now, Some(dir));
+            self.update(wallclock, Some(dir));
             if self
                 .guards
                 .active_guards_mut()
-                .extend_sample_as_needed(now, &self.params, dir)
+                .extend_sample_as_needed(wallclock, &self.params, dir)
             {
                 self.guards
                     .active_guards_mut()
@@ -842,7 +865,7 @@ impl GuardMgrInner {
         // Okay, that didn't work either.  If we were asked for a directory
         // guard, then we may be able to use a fallback.
         if usage.kind == GuardUsageKind::OneHopDirectory {
-            return self.select_fallback();
+            return self.select_fallback(now);
         }
 
         // Couldn't extend the sample or use a fallback; return the original error.
@@ -872,9 +895,9 @@ impl GuardMgrInner {
     ///
     /// Called when we have no guard information to use. Return values are as
     /// for [`select_guard()`]
-    fn select_fallback(&self) -> Result<(sample::ListKind, Guard), PickGuardError> {
-        let fallback = self.fallbacks.choose(&mut rand::thread_rng())?;
-        Ok((sample::ListKind::Fallback, fallback.as_guard()))
+    fn select_fallback(&self, now: Instant) -> Result<(sample::ListKind, Guard), PickGuardError> {
+        let fallback = self.fallbacks.choose(&mut rand::thread_rng(), now)?;
+        Ok((sample::ListKind::Fallback, fallback.clone()))
     }
 }
 
@@ -974,7 +997,7 @@ impl TryFrom<&NetParameters> for GuardParams {
 ///
 /// (This is implemented internally using both of the guard's Ed25519
 /// and RSA identities.)
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct GuardId {
     /// Ed25519 identity key for a guard
     ed25519: pk::ed25519::Ed25519Identity,

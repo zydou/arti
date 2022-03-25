@@ -994,6 +994,17 @@ impl<R: Runtime> DirMgr<R> {
             circmgr.retire_circ(source.unique_circ_id());
         }
     }
+
+    /// Record that `source` has successfully given us some directory info.
+    fn note_cache_success(&self, source: &tor_dirclient::SourceInfo) {
+        use tor_circmgr::{ExternalFailure, GuardId};
+
+        if let Some(circmgr) = &self.circmgr {
+            trace!("Marking {:?} as successful", source);
+            let guard_id = GuardId::from_chan_target(source.cache_id());
+            circmgr.note_external_success(&guard_id, ExternalFailure::DirCache);
+        }
+    }
 }
 
 /// A degree of readiness for a given directory state object.

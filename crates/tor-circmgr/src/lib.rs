@@ -696,6 +696,15 @@ impl<R: Runtime> CircMgr<R> {
             .guardmgr()
             .note_external_failure(id, external_failure);
     }
+
+    /// Record that a success occurred on a circuit with a given guard, in a way
+    /// that makes us possibly willing to use that guard for future circuits.
+    pub fn note_external_success(&self, id: &GuardId, external_activity: ExternalFailure) {
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_success(id, external_activity);
+    }
 }
 
 impl<R: Runtime> Drop for CircMgr<R> {

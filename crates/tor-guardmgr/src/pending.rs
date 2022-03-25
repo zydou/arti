@@ -311,7 +311,6 @@ impl PendingRequest {
     }
 
     /// Return the source from which we took this guard from.
-    #[allow(dead_code)] // TODO: this will get used later in this branch.
     pub(crate) fn source(&self) -> ListKind {
         self.source
     }

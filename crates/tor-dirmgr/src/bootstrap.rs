@@ -205,7 +205,12 @@ async fn download_attempt<R: Runtime>(
             Ok(text) => {
                 let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
                 match outcome {
-                    Ok(b) => changed |= b,
+                    Ok(b) => {
+                        changed |= b;
+                        if let Some(source) = source {
+                            dirmgr.note_cache_success(&source);
+                        }
+                    }
                     Err(e) => {
                         warn!("error while adding directory info: {}", e);
                         if let Some(source) = source {
