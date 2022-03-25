@@ -85,7 +85,6 @@ those traits if the `tokio` crate feature is enabled.
 ### Example: making connections over Tor
 
 ```rust
-#
 // Initiate a connection over Tor to example.com, port 80.
 let mut stream = tor_client.connect(("example.com", 80)).await?;
 
@@ -105,7 +104,6 @@ let mut buf = Vec::new();
 stream.read_to_end(&mut buf).await?;
 
 println!("{}", String::from_utf8_lossy(&buf));
-#
 ```
 
 ### More advanced usage
