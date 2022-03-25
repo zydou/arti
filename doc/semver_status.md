@@ -70,6 +70,8 @@ tor-circmgr:
 
   api-break: isolation completely revised
 
+  api-break: config must now implement AsRef<FallbackList>
+
 tor-netdoc:
 
   new-api (experimental only): Can modify the set of relays in an unverified
@@ -84,6 +86,8 @@ tor-netdir:
 tor-guardmgr:
 
    new-api: moved FallbackDir from netdir.
+
+   api-break: FallbackDir required in constructor.
 
 tor-proto:
   new-api: ClientCirc path accessors.
