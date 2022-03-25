@@ -935,9 +935,9 @@ impl TryFrom<&NetParameters> for GuardParams {
 /// and RSA identities.)
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct GuardId {
-    /// Ed25519 identity key for a a guard
+    /// Ed25519 identity key for a guard
     ed25519: pk::ed25519::Ed25519Identity,
-    /// RSA identity fingerprint for a a guard
+    /// RSA identity fingerprint for a guard
     rsa: pk::rsa::RsaIdentity,
 }
 
