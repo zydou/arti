@@ -23,8 +23,6 @@ use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
 
-#[cfg(feature = "dirfilter")]
-use crate::filter::DirFilter;
 use crate::storage::{DynStore, EXPIRATION_DEFAULTS};
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
@@ -89,7 +87,7 @@ pub(crate) trait WriteNetDir: 'static + Sync + Send {
 
     /// Return the currently configured DynFilter for this state.
     #[cfg(feature = "dirfilter")]
-    fn filter(&self) -> crate::filter::DynFilter;
+    fn filter(&self) -> &dyn crate::filter::DirFilter;
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
@@ -116,8 +114,8 @@ impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
     }
 
     #[cfg(feature = "dirfilter")]
-    fn filter(&self) -> crate::filter::DynFilter {
-        self.filter.clone()
+    fn filter(&self) -> &dyn crate::filter::DirFilter {
+        self.filter.as_deref().unwrap_or(&crate::filter::NilFilter)
     }
 }
 
@@ -1059,8 +1057,8 @@ mod test {
             self.now
         }
         #[cfg(feature = "dirfilter")]
-        fn filter(&self) -> crate::filter::DynFilter {
-            Default::default()
+        fn filter(&self) -> &dyn crate::filter::DirFilter {
+            &crate::filter::NilFilter
         }
     }
 

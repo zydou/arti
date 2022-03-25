@@ -60,7 +60,7 @@ pub struct TorClientBuilder<R: Runtime> {
     ///
     /// Only available when `arti-client` is built with the `dirfilter` and `experimental-api` features.
     #[cfg(feature = "dirfilter")]
-    dirfilter: Option<tor_dirmgr::filter::DynFilter>,
+    dirfilter: tor_dirmgr::filter::FilterConfig,
 }
 
 impl<R: Runtime> TorClientBuilder<R> {
@@ -113,9 +113,9 @@ impl<R: Runtime> TorClientBuilder<R> {
     #[cfg(feature = "dirfilter")]
     pub fn dirfilter<F>(mut self, filter: F) -> Self
     where
-        F: tor_dirmgr::filter::DirFilter + 'static,
+        F: Into<Arc<dyn tor_dirmgr::filter::DirFilter + 'static>>,
     {
-        self.dirfilter = Some(tor_dirmgr::filter::DynFilter::new(filter));
+        self.dirfilter = Some(filter.into());
         self
     }
 

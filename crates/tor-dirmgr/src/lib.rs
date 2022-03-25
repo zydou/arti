@@ -228,7 +228,7 @@ pub struct DirMgr<R: Runtime> {
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
-    filter: filter::DynFilter,
+    filter: crate::filter::FilterConfig,
 }
 
 /// RAII guard to reset an AtomicBool on drop.
@@ -710,7 +710,7 @@ impl<R: Runtime> DirMgr<R> {
             inner: receive_status,
         };
         #[cfg(feature = "dirfilter")]
-        let filter = (&config.extensions.filter).into();
+        let filter = config.extensions.filter.clone();
 
         Ok(DirMgr {
             config: config.into(),
