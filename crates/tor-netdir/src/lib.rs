@@ -56,7 +56,6 @@
 #![deny(clippy::unwrap_used)]
 
 mod err;
-pub mod fallback;
 pub mod params;
 #[cfg(test)]
 mod testing;

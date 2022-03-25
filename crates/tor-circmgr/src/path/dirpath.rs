@@ -72,8 +72,8 @@ mod test {
     use crate::path::assert_same_path_when_owned;
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
+    use tor_guardmgr::fallback::FallbackDir;
     use tor_linkspec::ChanTarget;
-    use tor_netdir::fallback::FallbackDir;
     use tor_netdir::testnet;
 
     #[test]

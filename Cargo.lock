@@ -3361,6 +3361,7 @@ dependencies = [
  "tor-consdiff",
  "tor-dirclient",
  "tor-error",
+ "tor-guardmgr",
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",

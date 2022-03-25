@@ -7,8 +7,9 @@ pub mod dirpath;
 pub mod exitpath;
 
 use tor_error::bad_api_usage;
+use tor_guardmgr::fallback::FallbackDir;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
-use tor_netdir::{fallback::FallbackDir, Relay};
+use tor_netdir::Relay;
 
 use std::convert::TryFrom;
 

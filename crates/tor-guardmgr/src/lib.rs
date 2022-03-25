@@ -148,6 +148,7 @@ use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
 mod daemon;
+pub mod fallback;
 mod filter;
 mod guard;
 mod pending;

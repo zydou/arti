@@ -12,7 +12,7 @@ use crate::retry::DownloadSchedule;
 use crate::storage::DynStore;
 use crate::{Authority, Result};
 use tor_config::ConfigBuildError;
-use tor_netdir::fallback::FallbackDir;
+use tor_guardmgr::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
 
 use derive_builder::Builder;
@@ -306,8 +306,8 @@ impl DownloadScheduleConfig {
 
 /// Helpers for initializing the fallback list.
 mod fallbacks {
+    use tor_guardmgr::fallback::FallbackDir;
     use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
-    use tor_netdir::fallback::FallbackDir;
     /// Return a list of the default fallback directories shipped with
     /// arti.
     pub(crate) fn default_fallbacks() -> Vec<super::FallbackDir> {

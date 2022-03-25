@@ -77,6 +77,14 @@ tor-netdoc:
 
   api-break: changed the return type of GenericRouterStatus::version()
 
+tor-netdir:
+
+   api-break: moved FallbackDir to guardmgr.
+
+tor-guardmgr:
+
+   new-api: moved FallbackDir from netdir.
+
 tor-proto:
   new-api: ClientCirc path accessors.
 

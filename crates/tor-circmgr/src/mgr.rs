@@ -1463,7 +1463,7 @@ mod test {
 
     const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
 
-    static DI_EMPTY: [&tor_netdir::fallback::FallbackDir; 0] = [];
+    static DI_EMPTY: [&tor_guardmgr::fallback::FallbackDir; 0] = [];
 
     fn di() -> DirInfo<'static> {
         DI_EMPTY[..].into()

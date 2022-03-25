@@ -51,7 +51,8 @@
 #![deny(clippy::unwrap_used)]
 
 use tor_chanmgr::ChanMgr;
-use tor_netdir::{fallback::FallbackDir, DirEvent, NetDir, NetDirProvider};
+use tor_guardmgr::fallback::FallbackDir;
+use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
