@@ -461,18 +461,11 @@ impl<R: Runtime> GuardMgr<R> {
         // it should _probably_ not hurt.)
         inner.guards.active_guards_mut().consider_all_retries(now);
 
-        let (origin, guard_id) = inner.select_guard_with_retries(&usage, netdir, wallclock)?;
-        let guard = inner
-            .guards
-            .active_guards()
-            .get(&guard_id)
-            .expect("Selected guard that wasn't in our sample!?")
-            .get_external_rep();
+        let (origin, guard) = inner.select_guard_with_expand(&usage, netdir, wallclock)?;
+        trace!(?guard, ?usage, "Guard selected");
 
-        trace!(?guard_id, ?usage, "Guard selected");
-
-        let (usable, usable_sender) = if origin.is_primary() {
-            (GuardUsable::new_primary(), None)
+        let (usable, usable_sender) = if origin.usable_immediately() {
+            (GuardUsable::new_usable_immediately(), None)
         } else {
             let (u, snd) = GuardUsable::new_uncertain();
             (u, Some(snd))
@@ -498,14 +491,21 @@ impl<R: Runtime> GuardMgr<R> {
                 false
             };
 
-        let pending_request =
-            pending::PendingRequest::new(guard_id.clone(), usage, usable_sender, net_has_been_down);
+        let pending_request = pending::PendingRequest::new(
+            guard.id.clone(),
+            origin,
+            usage,
+            usable_sender,
+            net_has_been_down,
+        );
         inner.pending.insert(request_id, pending_request);
 
-        inner
-            .guards
-            .active_guards_mut()
-            .record_attempt(&guard_id, now);
+        if origin.is_guard_sample() {
+            inner
+                .guards
+                .active_guards_mut()
+                .record_attempt(&guard.id, now);
+        }
 
         Ok((guard, monitor, usable))
     }
@@ -665,6 +665,9 @@ impl GuardMgrInner {
             // If there was a pending request matching this RequestId, great!
             let guard_id = pending.guard_id();
             trace!(?guard_id, ?status, "Received report of guard status");
+
+            // TODO: all the branches below are no-ops (or close to it) if the
+            // "guard" is actually a fallback. We'll add handling for that later.
             match status {
                 GuardStatus::Success => {
                     // If we had gone too long without any net activity when we
@@ -802,19 +805,19 @@ impl GuardMgrInner {
         Duration::from_secs(1) // TODO: Too aggressive.
     }
 
-    /// Try to select a guard, expanding the sample or marking guards retriable
-    /// if the first attempts fail.
-    fn select_guard_with_retries(
+    /// Try to select a guard, expanding the sample if the first attempt fails.
+    fn select_guard_with_expand(
         &mut self,
         usage: &GuardUsage,
         netdir: Option<&NetDir>,
         now: SystemTime,
-    ) -> Result<(sample::ListKind, GuardId), PickGuardError> {
+    ) -> Result<(sample::ListKind, Guard), PickGuardError> {
         // Try to find a guard.
-        let res1 = self.guards.active_guards().pick_guard(usage, &self.params);
-        if let Ok(s) = res1 {
-            return Ok(s);
+        let res1 = self.select_guard_once(usage);
+        if res1.is_ok() {
+            return res1;
         }
+        // TODO: log on error.
 
         // That didn't work. If we have a netdir, expand the sample and try again.
         if let Some(dir) = netdir {
@@ -828,12 +831,50 @@ impl GuardMgrInner {
                 self.guards
                     .active_guards_mut()
                     .select_primary_guards(&self.params);
-                return self.guards.active_guards().pick_guard(usage, &self.params);
+                let res2 = self.select_guard_once(usage);
+                if res2.is_ok() {
+                    return res2;
+                }
+                // TODO: log on error.
             }
         }
 
-        // Couldn't extend the sample; return the original error.
+        // Okay, that didn't work either.  If we were asked for a directory
+        // guard, then we may be able to use a fallback.
+        if usage.kind == GuardUsageKind::OneHopDirectory {
+            return self.select_fallback();
+        }
+
+        // Couldn't extend the sample or use a fallback; return the original error.
         res1
+    }
+
+    /// Helper: try to pick a single guard, without retrying on failure.
+    fn select_guard_once(
+        &self,
+        usage: &GuardUsage,
+    ) -> Result<(sample::ListKind, Guard), PickGuardError> {
+        let (source, id) = self
+            .guards
+            .active_guards()
+            .pick_guard(usage, &self.params)?;
+        let guard = self
+            .guards
+            .active_guards()
+            .get(&id)
+            .expect("Selected guard that wasn't in our sample!?")
+            .get_external_rep();
+
+        Ok((source, guard))
+    }
+
+    /// Helper: Select a fallback directory.
+    ///
+    /// Called when we have no guard information to use. Return values are as
+    /// for [`select_guard()`]
+    fn select_fallback(&self) -> Result<(sample::ListKind, Guard), PickGuardError> {
+        let fallback = self.fallbacks.choose(&mut rand::thread_rng())?;
+        Ok((sample::ListKind::Fallback, fallback.as_guard()))
     }
 }
 
