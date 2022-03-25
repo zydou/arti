@@ -23,11 +23,13 @@ use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tracing::{debug, error, info, warn};
 
 /// An active client session on the Tor network.
@@ -83,6 +85,12 @@ pub struct TorClient<R: Runtime> {
     /// bootstrapping. If this is `false`, we will just call `wait_for_bootstrap`
     /// instead.
     should_bootstrap: BootstrapBehavior,
+
+    /// Handles to periodic background tasks, useful for suspending them later.
+    periodic_task_handles: Vec<TaskHandle>,
+
+    /// Shared boolean for whether we're currently in "dormant mode" or not.
+    dormant: Arc<AtomicBool>,
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -101,6 +109,17 @@ pub enum BootstrapBehavior {
     /// network) before calling [`bootstrap`](TorClient::bootstrap) will fail, and
     /// return an error that has kind [`ErrorKind::BootstrapRequired`](crate::ErrorKind::BootstrapRequired).
     Manual,
+}
+
+/// What level of sleep to put a Tor client into.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DormantMode {
+    /// The client functions as normal, and background tasks run periodically.
+    Normal,
+    /// Background tasks are suspended, conserving CPU usage. Attempts to use the client will
+    /// wake it back up again.
+    Soft,
 }
 
 /// Preferences for how to route a stream over the Tor network.
@@ -354,6 +373,8 @@ impl<R: Runtime> TorClient<R> {
             .build(runtime.clone(), Arc::clone(&circmgr), dir_cfg)
             .map_err(crate::Error::into_detail)?;
 
+        let mut periodic_task_handles = vec![];
+
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
         runtime
@@ -364,9 +385,12 @@ impl<R: Runtime> TorClient<R> {
             ))
             .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 
+        let (expiry_sched, expiry_handle) = TaskSchedule::new(runtime.clone());
+        periodic_task_handles.push(expiry_handle);
+
         runtime
             .spawn(continually_expire_channels(
-                runtime.clone(),
+                expiry_sched,
                 Arc::downgrade(&chanmgr),
             ))
             .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
@@ -381,25 +405,34 @@ impl<R: Runtime> TorClient<R> {
             ))
             .map_err(|e| ErrorDetail::from_spawn("circmgr parameter updater", e))?;
 
+        let (persist_sched, persist_handle) = TaskSchedule::new(runtime.clone());
+        periodic_task_handles.push(persist_handle);
+
         runtime
             .spawn(update_persistent_state(
-                runtime.clone(),
+                persist_sched,
                 Arc::downgrade(&circmgr),
                 statemgr.clone(),
             ))
             .map_err(|e| ErrorDetail::from_spawn("persistent state updater", e))?;
 
+        let (timeout_sched, timeout_handle) = TaskSchedule::new(runtime.clone());
+        periodic_task_handles.push(timeout_handle);
+
         runtime
             .spawn(continually_launch_timeout_testing_circuits(
-                runtime.clone(),
+                timeout_sched,
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
             .map_err(|e| ErrorDetail::from_spawn("timeout-probe circuit launcher", e))?;
 
+        let (preempt_sched, preempt_handle) = TaskSchedule::new(runtime.clone());
+        periodic_task_handles.push(preempt_handle);
+
         runtime
             .spawn(continually_preemptively_build_circuits(
-                runtime.clone(),
+                preempt_sched,
                 Arc::downgrade(&circmgr),
                 Arc::downgrade(&dirmgr),
             ))
@@ -420,6 +453,8 @@ impl<R: Runtime> TorClient<R> {
             status_receiver,
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
+            periodic_task_handles,
+            dormant: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -498,6 +533,10 @@ impl<R: Runtime> TorClient<R> {
                 // Grab the lock, and immediately release it.  That will ensure that nobody else is trying to bootstrap.
                 self.bootstrap_in_progress.lock().await;
             }
+        }
+        // NOTE(eta): will need to be changed when hard dormant mode is introduced
+        if self.dormant.load(Ordering::SeqCst) {
+            self.set_dormant(DormantMode::Normal);
         }
         Ok(())
     }
@@ -860,6 +899,32 @@ impl<R: Runtime> TorClient<R> {
     pub fn bootstrap_events(&self) -> status::BootstrapEvents {
         self.status_receiver.clone()
     }
+
+    /// Change the client's current dormant mode, putting background tasks to sleep
+    /// or waking them up as appropriate.
+    ///
+    /// This can be used to conserve CPU usage if you aren't planning on using the
+    /// client for a while, especially on mobile platforms.
+    ///
+    /// See the [`DormantMode`] documentation for more details.
+    pub fn set_dormant(&self, mode: DormantMode) {
+        let is_dormant = matches!(mode, DormantMode::Soft);
+
+        // Do an atomic compare-exchange. If it succeeds, we just flipped `self.dormant`.
+        if self
+            .dormant
+            .compare_exchange(!is_dormant, is_dormant, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            for task in self.periodic_task_handles.iter() {
+                if is_dormant {
+                    task.cancel();
+                } else {
+                    task.fire();
+                }
+            }
+        }
+    }
 }
 
 /// Alias for TorError::from(Error)
@@ -922,14 +987,14 @@ async fn keep_circmgr_params_updated<R: Runtime>(
 ///
 /// This is a daemon task: it runs indefinitely in the background.
 async fn update_persistent_state<R: Runtime>(
-    runtime: R,
+    mut sched: TaskSchedule<R>,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
     statemgr: FsStateMgr,
 ) {
     // TODO: Consider moving this function into tor-circmgr after we have more
     // experience with the state system.
 
-    loop {
+    while sched.next().await.is_some() {
         if let Some(circmgr) = Weak::upgrade(&circmgr) {
             use tor_persist::LockStatus::*;
 
@@ -968,7 +1033,7 @@ async fn update_persistent_state<R: Runtime>(
         // we should be updating more frequently when the data is volatile
         // or has important info to save, and not at all when there are no
         // changes.
-        runtime.sleep(Duration::from_secs(60)).await;
+        sched.fire_in(Duration::from_secs(60));
     }
 
     error!("State update task is exiting prematurely.");
@@ -987,27 +1052,31 @@ async fn update_persistent_state<R: Runtime>(
 /// see [`tor_circmgr::CircMgr::launch_timeout_testing_circuit_if_appropriate`]
 /// for more information.
 async fn continually_launch_timeout_testing_circuits<R: Runtime>(
-    rt: R,
+    mut sched: TaskSchedule<R>,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
     dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
 ) {
-    while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        if let Some(netdir) = dm.latest_netdir() {
-            if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                warn!("Problem launching a timeout testing circuit: {}", e);
-            }
-            let delay = netdir
-                .params()
-                .cbt_testing_delay
-                .try_into()
-                .expect("Out-of-bounds value from BoundedInt32");
+    while sched.next().await.is_some() {
+        if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+            if let Some(netdir) = dm.latest_netdir() {
+                if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
+                    warn!("Problem launching a timeout testing circuit: {}", e);
+                }
+                let delay = netdir
+                    .params()
+                    .cbt_testing_delay
+                    .try_into()
+                    .expect("Out-of-bounds value from BoundedInt32");
 
-            drop((cm, dm));
-            rt.sleep(delay).await;
+                drop((cm, dm));
+                sched.fire_in(delay);
+            } else {
+                // TODO(eta): ideally, this should wait until we successfully bootstrap using
+                //            the bootstrap status API
+                sched.fire_in(Duration::from_secs(10));
+            }
         } else {
-            // TODO(eta): ideally, this should wait until we successfully bootstrap using
-            //            the bootstrap status API
-            rt.sleep(Duration::from_secs(10)).await;
+            return;
         }
     }
 }
@@ -1024,19 +1093,23 @@ async fn continually_launch_timeout_testing_circuits<R: Runtime>(
 /// This would be better handled entirely within `tor-circmgr`, like
 /// other daemon tasks.
 async fn continually_preemptively_build_circuits<R: Runtime>(
-    rt: R,
+    mut sched: TaskSchedule<R>,
     circmgr: Weak<tor_circmgr::CircMgr<R>>,
     dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
 ) {
-    while let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-        if let Some(netdir) = dm.latest_netdir() {
-            cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
-                .await;
-            rt.sleep(Duration::from_secs(10)).await;
+    while sched.next().await.is_some() {
+        if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+            if let Some(netdir) = dm.latest_netdir() {
+                cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
+                    .await;
+                sched.fire_in(Duration::from_secs(10));
+            } else {
+                // TODO(eta): ideally, this should wait until we successfully bootstrap using
+                //            the bootstrap status API
+                sched.fire_in(Duration::from_secs(10));
+            }
         } else {
-            // TODO(eta): ideally, this should wait until we successfully bootstrap using
-            //            the bootstrap status API
-            rt.sleep(Duration::from_secs(10)).await;
+            return;
         }
     }
 }
@@ -1046,8 +1119,11 @@ async fn continually_preemptively_build_circuits<R: Runtime>(
 /// Exist when we find that `chanmgr` is dropped
 ///
 /// This is a daemon task that runs indefinitely in the background
-async fn continually_expire_channels<R: Runtime>(rt: R, chanmgr: Weak<tor_chanmgr::ChanMgr<R>>) {
-    loop {
+async fn continually_expire_channels<R: Runtime>(
+    mut sched: TaskSchedule<R>,
+    chanmgr: Weak<tor_chanmgr::ChanMgr<R>>,
+) {
+    while sched.next().await.is_some() {
         let delay = if let Some(cm) = Weak::upgrade(&chanmgr) {
             cm.expire_channels()
         } else {
@@ -1055,7 +1131,7 @@ async fn continually_expire_channels<R: Runtime>(rt: R, chanmgr: Weak<tor_chanmg
             return;
         };
         // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
-        rt.sleep(Duration::from_secs(delay.as_secs())).await;
+        sched.fire_in(Duration::from_secs(delay.as_secs()));
     }
 }
 

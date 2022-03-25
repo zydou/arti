@@ -175,6 +175,7 @@ pub mod task;
 
 mod compound;
 mod opaque;
+pub mod scheduler;
 mod timer;
 mod traits;
 
@@ -405,6 +406,9 @@ pub mod cond {
 ///
 /// (This is a macro so that it can repeat the closure as multiple separate
 /// expressions, so it can take on two different types, if needed.)
+//
+// NOTE(eta): changing this #[cfg] can affect tests inside this crate that use
+//            this macro, like in scheduler.rs
 #[macro_export]
 #[cfg(all(
     any(feature = "native-tls", feature = "rustls"),
