@@ -172,7 +172,7 @@ pub trait TcpListener {
     type TcpStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
 
     /// The type of [`stream::Stream`] returned by [`Self::incoming()`].
-    type Incoming: stream::Stream<Item = IoResult<(Self::TcpStream, SocketAddr)>> + Unpin;
+    type Incoming: stream::Stream<Item = IoResult<(Self::TcpStream, SocketAddr)>> + Send + Unpin;
 
     /// Wait for an incoming stream; return it along with its address.
     async fn accept(&self) -> IoResult<(Self::TcpStream, SocketAddr)>;
