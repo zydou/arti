@@ -132,7 +132,7 @@
 
 use educe::Educe;
 use futures::channel::mpsc;
-use futures::task::{SpawnError, SpawnExt};
+use futures::task::SpawnExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
@@ -141,13 +141,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, info, trace, warn};
 
-use tor_error::{ErrorKind, HasKind};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
 mod daemon;
+mod err;
 pub mod fallback;
 mod filter;
 mod guard;
@@ -155,9 +155,9 @@ mod pending;
 mod sample;
 mod util;
 
+pub use err::{GuardMgrError, PickGuardError};
 pub use filter::GuardFilter;
 pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
-pub use sample::PickGuardError;
 
 use pending::{PendingRequest, RequestId};
 use sample::GuardSet;
@@ -1045,46 +1045,6 @@ pub enum GuardRestriction {
     AvoidId(pk::ed25519::Ed25519Identity),
     /// Don't pick a guard with any of the provided Ed25519 identities.
     AvoidAllIds(HashSet<pk::ed25519::Ed25519Identity>),
-}
-
-/// An error caused while creating or updating a guard manager.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum GuardMgrError {
-    /// An error manipulating persistent state
-    #[error("Problem accessing persistent state")]
-    State(#[from] tor_persist::Error),
-
-    /// An error that occurred while trying to spawn a daemon task.
-    #[error("Unable to spawn {spawning}")]
-    Spawn {
-        /// What we were trying to spawn.
-        spawning: &'static str,
-        /// What happened when we tried to spawn it.
-        #[source]
-        cause: Arc<SpawnError>,
-    },
-}
-
-impl HasKind for GuardMgrError {
-    #[rustfmt::skip] // to preserve table in match
-    fn kind(&self) -> ErrorKind {
-        use GuardMgrError as G;
-        match self {
-            G::State(e)               => e.kind(),
-            G::Spawn{ cause, .. }     => cause.kind(),
-        }
-    }
-}
-
-impl GuardMgrError {
-    /// Construct a new `GuardMgrError` from a `SpawnError`.
-    fn from_spawn(spawning: &'static str, err: SpawnError) -> GuardMgrError {
-        GuardMgrError::Spawn {
-            spawning,
-            cause: Arc::new(err),
-        }
-    }
 }
 
 #[cfg(test)]

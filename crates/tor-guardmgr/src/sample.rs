@@ -3,7 +3,7 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
-use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind};
+use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind, PickGuardError};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -778,35 +778,6 @@ impl<'a> From<&'a GuardSet> for GuardSample<'a> {
 impl<'a> From<GuardSample<'a>> for GuardSet {
     fn from(sample: GuardSample) -> Self {
         GuardSet::from_state(sample)
-    }
-}
-
-/// A error caused by a failure to pick a guard.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum PickGuardError {
-    /// All members of the current sample were down.
-    #[error("All guards are down")]
-    AllGuardsDown {
-        /// The next time at which any guard will be retriable.
-        retry_at: Option<Instant>,
-    },
-
-    /// Some guards were running, but all of them were either blocked on pending
-    /// circuits at other guards, unusable for the provided purpose, or filtered
-    /// out.
-    #[error("No running guards were usable for the selected purpose")]
-    NoGuardsUsable,
-}
-
-impl tor_error::HasKind for PickGuardError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-        use PickGuardError as E;
-        match self {
-            E::AllGuardsDown { .. } => EK::TorAccessFailed,
-            E::NoGuardsUsable => EK::NoPath,
-        }
     }
 }
 
