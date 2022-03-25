@@ -113,7 +113,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     #[cfg(feature = "dirfilter")]
     pub fn dirfilter<F>(mut self, filter: F) -> Self
     where
-        F: tor_dirmgr::filter::DirFilter + Send + Sync + 'static,
+        F: tor_dirmgr::filter::DirFilter + 'static,
     {
         self.dirfilter = Some(tor_dirmgr::filter::DynFilter::new(filter));
         self

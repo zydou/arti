@@ -7,6 +7,7 @@
 //! future versions, or its API might change completely. There are no semver
 //! guarantees.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use crate::Result;
@@ -16,7 +17,7 @@ use tor_netdoc::doc::{microdesc::Microdesc, netstatus::UncheckedMdConsensus};
 ///
 /// Instances of DirFilter can be used for testing, to modify directory data
 /// on-the-fly.
-pub trait DirFilter {
+pub trait DirFilter: Debug + Send + Sync {
     /// Modify `consensus` in an unspecified way.
     fn filter_consensus(&self, consensus: UncheckedMdConsensus) -> Result<UncheckedMdConsensus>;
     /// Modify `md` in an unspecified way.
@@ -24,7 +25,7 @@ pub trait DirFilter {
 }
 
 /// A dynamic [`DirFilter`] instance.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DynFilter {
     /// A reference to the DirFilter object
     filter: Arc<dyn DirFilter + Send + Sync>,
@@ -64,13 +65,8 @@ impl DirFilter for DynFilter {
     }
 }
 
-impl std::fmt::Debug for DynFilter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DynFilter").finish_non_exhaustive()
-    }
-}
-
 /// A [`DirFilter`] that does nothing.
+#[derive(Debug)]
 struct NilFilter;
 
 impl DirFilter for NilFilter {
