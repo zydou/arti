@@ -41,6 +41,7 @@ arti:
 tor-llcrypto:
 
   new-api: Added RsaIdentity::from\_hex().
+  new-api: Ed25519Identity implements PartialOrd.
 
 arti-client:
 
