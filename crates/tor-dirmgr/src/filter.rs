@@ -22,9 +22,13 @@ pub type FilterConfig = Option<Arc<dyn DirFilter>>;
 /// on-the-fly.
 pub trait DirFilter: Debug + Send + Sync {
     /// Modify `consensus` in an unspecified way.
-    fn filter_consensus(&self, consensus: UncheckedMdConsensus) -> Result<UncheckedMdConsensus>;
+    fn filter_consensus(&self, consensus: UncheckedMdConsensus) -> Result<UncheckedMdConsensus> {
+        Ok(consensus)
+    }
     /// Modify `md` in an unspecified way.
-    fn filter_md(&self, md: Microdesc) -> Result<Microdesc>;
+    fn filter_md(&self, md: Microdesc) -> Result<Microdesc> {
+        Ok(md)
+    }
 }
 
 /// A [`DirFilter`] that does nothing.
@@ -32,11 +36,4 @@ pub trait DirFilter: Debug + Send + Sync {
 #[allow(clippy::exhaustive_structs)]
 pub struct NilFilter;
 
-impl DirFilter for NilFilter {
-    fn filter_consensus(&self, consensus: UncheckedMdConsensus) -> Result<UncheckedMdConsensus> {
-        Ok(consensus)
-    }
-    fn filter_md(&self, md: Microdesc) -> Result<Microdesc> {
-        Ok(md)
-    }
-}
+impl DirFilter for NilFilter {}
