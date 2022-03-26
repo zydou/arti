@@ -520,7 +520,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with `guard`,something described
     /// in `external_failure` went wrong with it.
-    pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalFailure) {
+    pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalActivity) {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
@@ -529,18 +529,17 @@ impl<R: Runtime> GuardMgr<R> {
             .active_guards_mut()
             .record_failure(guard, Some(external_failure), now);
 
-        if external_failure == ExternalFailure::DirCache {
+        if external_failure == ExternalActivity::DirCache {
             inner.fallbacks.note_failure(guard, now);
         }
     }
 
     /// Record that _after_ we built a circuit with  `guard`, some activity described in `external_activity` was successful with it.
     ///
-    pub fn note_external_success(&self, guard: &GuardId, external_activity: ExternalFailure) {
-        // XXXX: rename the ExternalFailure type, since we're using it in this way too.
+    pub fn note_external_success(&self, guard: &GuardId, external_activity: ExternalActivity) {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
-        if external_activity == ExternalFailure::DirCache {
+        if external_activity == ExternalActivity::DirCache {
             inner.fallbacks.note_success(guard);
         }
     }
@@ -562,12 +561,12 @@ impl<R: Runtime> GuardMgr<R> {
     }
 }
 
-/// A reason for marking a guard as failed that can't be observed from inside
-/// the `GuardMgr` code.
+/// An activity that can succeed or fail, and whose success or failure can be
+/// attributed to a guard.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum ExternalFailure {
-    /// This guard has somehow failed to operate as a good directory cache.
+pub enum ExternalActivity {
+    /// The activity of using the guard as a directory cache.
     DirCache,
 }
 

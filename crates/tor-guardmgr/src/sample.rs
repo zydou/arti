@@ -3,7 +3,7 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
-use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind, PickGuardError};
+use crate::{ExternalActivity, GuardId, GuardParams, GuardUsage, GuardUsageKind, PickGuardError};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -612,7 +612,7 @@ impl GuardSet {
     pub(crate) fn record_failure(
         &mut self,
         guard_id: &GuardId,
-        how: Option<ExternalFailure>,
+        how: Option<ExternalActivity>,
         now: Instant,
     ) {
         // TODO: For now, we treat failures of guards for circuit building the

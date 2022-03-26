@@ -981,7 +981,7 @@ impl<R: Runtime> DirMgr<R> {
 
     /// Record that a problem has occurred because of a failure in an answer from `source`.
     fn note_cache_error(&self, source: &tor_dirclient::SourceInfo, problem: &Error) {
-        use tor_circmgr::{ExternalFailure, GuardId};
+        use tor_circmgr::{ExternalActivity, GuardId};
 
         if !problem.indicates_cache_failure() {
             return;
@@ -990,19 +990,19 @@ impl<R: Runtime> DirMgr<R> {
         if let Some(circmgr) = &self.circmgr {
             info!("Marking {:?} as failed: {}", source, problem);
             let guard_id = GuardId::from_chan_target(source.cache_id());
-            circmgr.note_external_failure(&guard_id, ExternalFailure::DirCache);
+            circmgr.note_external_failure(&guard_id, ExternalActivity::DirCache);
             circmgr.retire_circ(source.unique_circ_id());
         }
     }
 
     /// Record that `source` has successfully given us some directory info.
     fn note_cache_success(&self, source: &tor_dirclient::SourceInfo) {
-        use tor_circmgr::{ExternalFailure, GuardId};
+        use tor_circmgr::{ExternalActivity, GuardId};
 
         if let Some(circmgr) = &self.circmgr {
             trace!("Marking {:?} as successful", source);
             let guard_id = GuardId::from_chan_target(source.cache_id());
-            circmgr.note_external_success(&guard_id, ExternalFailure::DirCache);
+            circmgr.note_external_success(&guard_id, ExternalActivity::DirCache);
         }
     }
 }
