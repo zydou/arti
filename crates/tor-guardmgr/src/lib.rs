@@ -375,6 +375,14 @@ impl<R: Runtime> GuardMgr<R> {
         inner.update(now, Some(netdir));
     }
 
+    /// Replace the fallback list held by this GuardMgr with `new_list`.
+    pub fn replace_fallback_list(&self, list: fallback::FallbackList) {
+        let mut fallbacks: fallback::FallbackSet = list.into();
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
+        inner.fallbacks.take_status_from(fallbacks);
+    }
+
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
     ///
     /// (Since there is only one kind of filter right now, there's no

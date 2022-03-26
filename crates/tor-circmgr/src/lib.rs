@@ -294,6 +294,11 @@ impl<R: Runtime> CircMgr<R> {
             return Ok(());
         }
 
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .replace_fallback_list(new_config.fallbacks().clone());
+
         let discard_circuits = !new_config
             .path_rules()
             .at_least_as_permissive_as(&old_path_rules);
