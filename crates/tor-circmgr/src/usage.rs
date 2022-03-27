@@ -276,7 +276,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
             }
             (Exit { policy, isolation }, TargetCircUsage::Preemptive { port, .. }) => {
                 if isolation.is_some() {
-                    // If the circuit has a stream isolation token, we might not be able to use it
+                    // If the circuit has a stream isolation, we might not be able to use it
                     // for new streams that don't share it.
                     return false;
                 }

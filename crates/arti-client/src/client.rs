@@ -48,7 +48,7 @@ pub struct TorClient<R: Runtime> {
     /// Default isolation token for streams through this client.
     ///
     /// This is eventually used for `owner_token` in `tor-circmgr/src/usage.rs`, and is orthogonal
-    /// to the `stream_token` which comes from `connect_prefs` (or a passed-in `StreamPrefs`).
+    /// to the `stream_isolation` which comes from `connect_prefs` (or a passed-in `StreamPrefs`).
     /// (ie, both must be the same to share a circuit).
     client_isolation: IsolationToken,
     /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
@@ -257,7 +257,7 @@ impl StreamPrefs {
         self
     }
 
-    /// Return a token to describe which connections might use
+    /// Return an [`Isolation`] to describe which connections might use
     /// the same circuit as this one.
     fn isolation(&self) -> Option<Box<dyn Isolation>> {
         use StreamIsolationPreference as SIP;
@@ -825,7 +825,7 @@ impl<R: Runtime> TorClient<R> {
             b.owner_token(self.client_isolation);
             // Consider stream isolation too, if it's set.
             if let Some(tok) = prefs.isolation() {
-                b.stream_token(tok);
+                b.stream_isolation(tok);
             }
             // Failure should be impossible with this builder.
             b.build().expect("Failed to construct StreamIsolation")

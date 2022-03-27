@@ -346,9 +346,9 @@ tuple_impls! {
 /// a circuit.
 #[derive(Clone, Debug, derive_builder::Builder)]
 pub struct StreamIsolation {
-    /// Any isolation token set on the stream.
+    /// Any isolation set on the stream.
     #[builder(default = "Box::new(IsolationToken::no_isolation())")]
-    stream_token: Box<dyn Isolation>,
+    stream_isolation: Box<dyn Isolation>,
     /// Any additional isolation token set on an object that "owns" this
     /// stream.  This is typically owned by a `TorClient`.
     #[builder(default = "IsolationToken::no_isolation()")]
@@ -373,17 +373,19 @@ impl StreamIsolation {
 impl IsolationHelper for StreamIsolation {
     fn compatible_same_type(&self, other: &StreamIsolation) -> bool {
         self.owner_token == other.owner_token
-            && self.stream_token.compatible(other.stream_token.as_ref())
+            && self
+                .stream_isolation
+                .compatible(other.stream_isolation.as_ref())
     }
 
     fn join_same_type(&self, other: &StreamIsolation) -> Option<StreamIsolation> {
         if self.owner_token != other.owner_token {
             return None;
         }
-        self.stream_token
-            .join(other.stream_token.as_ref())
-            .map(|stream_token| StreamIsolation {
-                stream_token,
+        self.stream_isolation
+            .join(other.stream_isolation.as_ref())
+            .map(|stream_isolation| StreamIsolation {
+                stream_isolation,
                 owner_token: self.owner_token,
             })
     }
@@ -456,7 +458,8 @@ pub(crate) mod test {
 
     impl IsolationTokenEq for StreamIsolation {
         fn isol_eq(&self, other: &Self) -> bool {
-            self.stream_token.isol_eq(other.stream_token.as_ref())
+            self.stream_isolation
+                .isol_eq(other.stream_isolation.as_ref())
                 && self.owner_token == other.owner_token
         }
     }
@@ -551,18 +554,18 @@ pub(crate) mod test {
         let no_isolation = StreamIsolation::no_isolation();
         let no_isolation2 = StreamIsolation::builder()
             .owner_token(IsolationToken::no_isolation())
-            .stream_token(Box::new(IsolationToken::no_isolation()))
+            .stream_isolation(Box::new(IsolationToken::no_isolation()))
             .build()
             .unwrap();
         assert_eq!(no_isolation.owner_token, no_isolation2.owner_token);
         assert_eq!(
             no_isolation
-                .stream_token
+                .stream_isolation
                 .as_ref()
                 .as_any()
                 .downcast_ref::<IsolationToken>(),
             no_isolation2
-                .stream_token
+                .stream_isolation
                 .as_ref()
                 .as_any()
                 .downcast_ref::<IsolationToken>()
@@ -572,7 +575,7 @@ pub(crate) mod test {
         let tok = IsolationToken::new();
         let some_isolation = StreamIsolation::builder().owner_token(tok).build().unwrap();
         let some_isolation2 = StreamIsolation::builder()
-            .stream_token(Box::new(tok))
+            .stream_isolation(Box::new(tok))
             .build()
             .unwrap();
         assert!(!no_isolation.compatible(&some_isolation));
