@@ -13,8 +13,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 ///
 /// You typically do not want to implement this trait directly.  Instead, most
 /// users should implement [`IsolationHelper`].
-///
-// TODO this trait should probably be sealed so the same-type requirement can't be bypassed
 pub trait Isolation:
     seal::Sealed + Downcast + DynClone + std::fmt::Debug + Send + Sync + 'static
 {
