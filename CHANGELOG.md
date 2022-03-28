@@ -1,8 +1,142 @@
 ### Notes
 
 This file describes changes in Arti through the current release.  Once Arti
-is more mature, and we start to version crates independently, we will
-probably switch to using a separate changelog for each crate.
+is more mature, and we start to version crates independently, we may
+switch to using a separate changelog for each crate.
+
+
+# Arti 0.2.0 — XXXX Apr 2022
+
+BLURB
+
+(entries below are taken through 482b2e3256cc0c738dc1deb3029173b8619920dd)
+
+### Breaking changes
+
+Here are the main breaking changes visible from the arti-client crate.
+Numerous other lower-level crates have breaking changes not noted here.
+
+- Significant refactoring to our configuration handling logic and APIs.
+  The goals here are:
+      - To have the current `ConfigBuilder` types
+        become the only user-visible configuration objects, and to have the
+        current `Config` objects become implementation details.
+      - To remove `arti-config` entirely, and fold its contents into
+        `arti` or `arti-client` as appropriate.
+      - To remove unnecessary ad-hoc accessor functions until they prove to be
+        needed.
+
+  This change
+  is not done in this release; we expect to have more breakage
+  in this area in our next release as well.  ([#314], [#371], [#372],
+  [#374], [#396], [#418],
+  [!391], [!401], [!417], [!421], [!423], [!425], [!427])
+- The [`Runtime`] trait now includes (and requires) UDP support. (Part
+  of [!390]'s support for DNS.)
+- Stream isolation support is completely revised; see notes on isolation
+  below.
+
+
+### New features
+
+- Experimental feature to allow the [`DirMgr`] to be replaced by
+  a user-provided [`DirProvider`]. ([#267], [!318], [!347])
+- Arti now tolerates IPv6-only environments, by using a basic form of
+  the [RFC 8305] "happy eyeballs" algorithm to try connections to
+  relays' IPv4 and IPv6 addresses in parallel. ([!382])
+- New experimental APIs for modifying consensus objects ([!318], [!402])
+- The `arti` crate now exists as a library, to better expose features
+  like its top-level configuration logic. ([!403])
+- Arti now supports a `dns_port` to relay A, AAAA, and PTR requests over
+  the Tor network, like the C tor implementation's DnsPort. ([!390],
+  [!408], [!409])
+- Arti has a new full-featured [stream isolation API] that supports more
+  complicated isolation rules, including user-supplied rules.  ([#150],
+  [#414], [!377], [!418], [!420], [!429], [!434])
+- Channel and Circuit objects now remember the peers that they used
+  when they were constructed, and allow queries of this information as
+  part of their API. ([#415])
+- The logic for retrying failed guards has been revised to use
+  the same decorrelated-jitter algorithm as directory requests, per
+  [proposal 336]. ([cb103e04cf4d9853], part of [#407], [!426])
+- When all our guards have failed, we no longer retry them all
+  agressively, but rather assume that our net connection is down and
+  wait a while. ([eed1f06662366511], part of [#407], [!426])
+- When running as a directory client, we now remember more information
+  about the source of each request, so we can avoid caches that have
+  failed. ([87a3f6b58a5e75f7])
+- Experimental feature to install a "filter" for modifying incoming
+  directory objects.  Used for testing, to observe client behavior when
+  the directory is in an inconsistent or non-working state. ([#397], [!431])
+- Arti now has initial support for a "Dormant Mode" where periodic events are
+  suspended. Later, even more background tasks will be shut
+  down. ([#90], [!429])
+
+### Major bugfixes
+
+### Infrastructure
+
+- We have a new [`arti-testing`] crate (not published on crates.io) to
+  perform various kinds of stress-testing on our implementation. It can
+  simulate several kinds of failure and overload conditions; we've been
+  using it to improve Arti's behavior when the network is broken or
+  misbehaving. ([!378], [!392]; see also [#329])
+- The [`arti-bench`] tool now constructs streams in parallel and
+  supports isolated circuits, so we can
+  stress-test the performance of a simulated busy client. ([#380], [!384])
+- Reproducible build scripts now use Rust 1.59 and Alpine 3.15. ([#376],
+  [!380])
+- Improved messages from reproducible build script. ([#378], [!383])
+- Scripts to launch chutney are now refactored and de-duplicated ([!396])
+
+### Documentation and Examples
+
+- Better documentation for default configuration paths. ([!386])
+- Instructions for using Tor Browser with Arti on Windows. ([!388])
+- Better instructions for building Arti on Windows. ([!389], [!393])
+- Improved documentation for stress-testing Arti. ([!407])
+
+### Cleanups, minor features, and minor bugfixes
+
+- Use [`derive_more`] and [`educe`] (and simple built-in `derive`) in
+  many places to simplify our code. ([!374], [!375])
+- Use a [forked version of `shellexpand`] to provide correct behavior on
+  Windows. ([!274], [!373])
+- Avoid unnecessary `Arc::clone()`s in `arti-client` experimental
+  APIs. ([#369], [!379])
+- New [`tor-basic-utils`] crates for small pieces of low-level
+  functionality.
+- Small performance improvements to parsing and allocating directory objects,
+  to improve start-up and download times. ([#377], [!381])
+- Use significantly less memory (on the order of a few megabytes less per
+  running client) to store directory objects. ([#384], [#385], [#386], [#387],
+  [#388], [!389], [!398], [!415])
+- Avoid allocating a backtrace object for each channel-creation
+  attempt. ([#383], [!394])
+- Always send an "If-Modified-Since" header on consensus requests, since
+  we wouldn't want a consensus that was far too old. ([#403], [!412])
+- Actually acknowledge preemptive circuits configuration. Previously,
+  we missed a place where we needed to copy it.  (Part of [!417])
+- Backend support for collecting clock skew information; not yet
+  used. ([#405], [!410])
+- Major refactoring for periodic events, to support an intial version of
+  "dormant mode." ([!429])
+
+### Acknowledgments
+
+XXXXXXXXXXXXXXXXXXXXXXX
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Arti 0.1.0 — 1 Mar 2022
 
