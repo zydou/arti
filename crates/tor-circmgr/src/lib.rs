@@ -64,6 +64,7 @@ pub mod build;
 mod config;
 mod err;
 mod impls;
+pub mod isolation;
 mod mgr;
 pub mod path;
 mod preemptive;
@@ -71,17 +72,15 @@ mod timeouts;
 mod usage;
 
 pub use err::Error;
-pub use usage::{IsolationToken, StreamIsolation, StreamIsolationBuilder, TargetPort, TargetPorts};
-/// Types related to stream isolation
-pub mod isolation {
-    pub use crate::usage::{Isolation, IsolationHelper, IsolationToken};
-}
+pub use isolation::IsolationToken;
+pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
     CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
     PreemptiveCircuitConfig, PreemptiveCircuitConfigBuilder,
 };
 
+use crate::isolation::StreamIsolation;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 

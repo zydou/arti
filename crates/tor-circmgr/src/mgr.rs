@@ -1332,7 +1332,7 @@ fn spawn_expiration_task<B, R>(
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::usage::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
     use std::collections::BTreeSet;
@@ -1380,14 +1380,14 @@ mod test {
     #[derive(Clone, Debug, Eq, PartialEq, Hash)]
     struct FakeSpec {
         ports: BTreeSet<u16>,
-        isolation_group: Option<u8>,
+        isolation: Option<u8>,
     }
 
     impl AbstractSpec for FakeSpec {
         type Usage = FakeSpec;
         fn supports(&self, other: &FakeSpec) -> bool {
             let ports_ok = self.ports.is_superset(&other.ports);
-            let iso_ok = match (self.isolation_group, other.isolation_group) {
+            let iso_ok = match (self.isolation, other.isolation) {
                 (None, _) => true,
                 (_, None) => true,
                 (Some(a), Some(b)) => a == b,
@@ -1398,14 +1398,14 @@ mod test {
             if !self.ports.is_superset(&other.ports) {
                 return Err(bad_api_usage!("not supported").into());
             }
-            let new_iso = match (self.isolation_group, other.isolation_group) {
+            let new_iso = match (self.isolation, other.isolation) {
                 (None, x) => x,
                 (x, None) => x,
                 (Some(a), Some(b)) if a == b => Some(a),
                 (_, _) => return Err(bad_api_usage!("not supported").into()),
             };
 
-            self.isolation_group = new_iso;
+            self.isolation = new_iso;
             Ok(())
         }
     }
@@ -1419,13 +1419,13 @@ mod test {
             let ports = ports.into_iter().map(Into::into).collect();
             FakeSpec {
                 ports,
-                isolation_group: None,
+                isolation: None,
             }
         }
         fn isolated(self, group: u8) -> Self {
             FakeSpec {
                 ports: self.ports,
-                isolation_group: Some(group),
+                isolation: Some(group),
             }
         }
     }

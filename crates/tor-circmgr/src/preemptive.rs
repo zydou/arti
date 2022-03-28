@@ -90,7 +90,7 @@ mod test {
     use crate::{PreemptiveCircuitConfig, PreemptiveCircuitPredictor, TargetCircUsage, TargetPort};
     use std::time::{Duration, Instant};
 
-    use crate::usage::test::{assert_isoleq, IsolationTokenEq};
+    use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
 
     #[test]
     fn predicts_starting_ports() {
