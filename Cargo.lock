@@ -3469,6 +3469,7 @@ dependencies = [
  "bitflags",
  "derive_builder",
  "derive_more",
+ "futures",
  "hex",
  "hex-literal",
  "rand 0.8.5",

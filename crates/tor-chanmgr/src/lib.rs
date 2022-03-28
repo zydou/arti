@@ -52,6 +52,9 @@ mod mgr;
 #[cfg(test)]
 mod testing;
 
+use futures::task::SpawnExt;
+use futures::StreamExt;
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_proto::channel::Channel;
@@ -64,6 +67,7 @@ use tor_rtcompat::Runtime;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
 /// A Type that remembers a set of live channels, and launches new
 /// ones on request.
@@ -80,6 +84,10 @@ pub struct ChanMgr<R: Runtime> {
 
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
+    ///
+    /// # Usage note
+    ///
+    /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
     pub fn new(runtime: R) -> Self {
         let (sender, receiver) = event::channel();
         let builder = builder::ChanBuilder::new(runtime, sender);
@@ -88,6 +96,20 @@ impl<R: Runtime> ChanMgr<R> {
             mgr,
             bootstrap_status: receiver,
         }
+    }
+
+    /// Launch the periodic daemon task required by the manager to function properly.
+    ///
+    /// Returns a [`TaskHandle`] that can be used to manage the daemon task.
+    pub fn launch_background_tasks(self: &Arc<Self>, runtime: &R) -> Result<Vec<TaskHandle>> {
+        let (sched, handle) = TaskSchedule::new(runtime.clone());
+        runtime
+            .spawn(Self::continually_expire_channels(
+                sched,
+                Arc::downgrade(self),
+            ))
+            .map_err(|e| Error::from_spawn("channel expiration task", e))?;
+        Ok(vec![handle])
     }
 
     /// Try to get a suitable channel to the provided `target`,
@@ -121,5 +143,24 @@ impl<R: Runtime> ChanMgr<R> {
     /// Return the duration from now until next channel expires.
     pub fn expire_channels(&self) -> Duration {
         self.mgr.expire_channels()
+    }
+
+    /// Periodically expire any channels that have been unused beyond
+    /// the maximum duration allowed.
+    ///
+    /// Exist when we find that `chanmgr` is dropped
+    ///
+    /// This is a daemon task that runs indefinitely in the background
+    async fn continually_expire_channels(mut sched: TaskSchedule<R>, chanmgr: Weak<Self>) {
+        while sched.next().await.is_some() {
+            let delay = if let Some(cm) = Weak::upgrade(&chanmgr) {
+                cm.expire_channels()
+            } else {
+                // channel manager is closed.
+                return;
+            };
+            // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
+            sched.fire_in(Duration::from_secs(delay.as_secs()));
+        }
     }
 }

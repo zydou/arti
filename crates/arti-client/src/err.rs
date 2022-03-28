@@ -108,6 +108,10 @@ pub_if_error_detail! {
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 enum ErrorDetail {
+    /// Error setting up the channel manager
+    #[error("Error setting up the channel manager {0}")]
+    ChanMgrSetup(#[source] tor_chanmgr::Error), // TODO should this be its own type?
+
     /// Error setting up the circuit manager
     #[error("Error setting up the circuit manager {0}")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
@@ -253,6 +257,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::OnionAddressNotSupported => EK::NotImplemented,
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
+            E::ChanMgrSetup(e) => e.kind(),
         }
     }
 }

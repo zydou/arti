@@ -78,7 +78,7 @@ use crate::storage::DynStore;
 use postage::watch;
 pub use retry::DownloadSchedule;
 use tor_circmgr::CircMgr;
-use tor_netdir::NetDir;
+use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use async_trait::async_trait;
@@ -99,7 +99,7 @@ pub use config::{
 };
 pub use docid::DocId;
 pub use err::Error;
-pub use event::{DirBootstrapEvents, DirBootstrapStatus, DirEvent, DirStatus};
+pub use event::{DirBootstrapEvents, DirBootstrapStatus, DirStatus};
 pub use storage::DocumentText;
 pub use tor_netdir::fallback::{FallbackDir, FallbackDirBuilder};
 
@@ -108,18 +108,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// Trait for DirMgr implementations
 #[async_trait]
-pub trait DirProvider {
-    /// Return a handle to our latest directory, if we have one.
-    fn latest_netdir(&self) -> Option<Arc<NetDir>>;
-
-    /// Return a new asynchronous stream that will receive notification
-    /// whenever the consensus has changed.
-    ///
-    /// Multiple events may be batched up into a single item: each time
-    /// this stream yields an event, all you can assume is that the event has
-    /// occurred at least once.
-    fn events(&self) -> BoxStream<'static, DirEvent>;
-
+pub trait DirProvider: NetDirProvider {
     /// Try to change our configuration to `new_config`.
     ///
     /// Actual behavior will depend on the value of `how`.
@@ -140,8 +129,9 @@ pub trait DirProvider {
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus>;
 }
 
-#[async_trait]
-impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
+// NOTE(eta): We can't implement this for Arc<DirMgr<R>> due to trait coherence rules, so instead
+//            there's a blanket impl for Arc<T> in tor-netdir.
+impl<R: Runtime> NetDirProvider for DirMgr<R> {
     fn latest_netdir(&self) -> Option<Arc<NetDir>> {
         self.opt_netdir()
     }
@@ -149,7 +139,10 @@ impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
     fn events(&self) -> BoxStream<'static, DirEvent> {
         Box::pin(self.events.subscribe())
     }
+}
 
+#[async_trait]
+impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
     fn reconfigure(
         &self,
         new_config: &DirMgrConfig,

@@ -69,6 +69,12 @@ impl<R: SleepProvider> TaskSchedule<R> {
         self.instant_fire = false;
         self.sleep = Some(Box::pin(self.rt.sleep(dur)));
     }
+
+    /// Trigger the schedule instantly.
+    pub fn fire(&mut self) {
+        self.instant_fire = true;
+        self.sleep = None;
+    }
 }
 
 impl TaskHandle {

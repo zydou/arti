@@ -20,27 +20,8 @@ use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
 use time::OffsetDateTime;
 use tor_basic_utils::skip_fmt;
+use tor_netdir::DirEvent;
 use tor_netdoc::doc::netstatus;
-
-/// An event that a DirMgr can broadcast to indicate that a change in
-/// the status of its directory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum DirEvent {
-    /// A new consensus has been received, and has enough information to be
-    /// used.
-    ///
-    /// This event is also broadcast when a new set of consensus parameters is
-    /// available, even if that set of parameters comes from a configuration
-    /// change rather than from the latest consensus.
-    NewConsensus,
-
-    /// New descriptors have been received for the current consensus.
-    ///
-    /// (This event is _not_ broadcast when receiving new descriptors for a
-    /// consensus which is not yet ready to replace the current consensus.)
-    NewDescriptors,
-}
 
 /// A trait to indicate something that can be published with [`FlagPublisher`].
 ///
@@ -69,6 +50,8 @@ impl FlagEvent for DirEvent {
         match self {
             DirEvent::NewConsensus => 0,
             DirEvent::NewDescriptors => 1,
+            // HACK(eta): This is an unfortunate consequence of marking DirEvent #[non_exhaustive].
+            _ => panic!("DirEvent updated without updating its FlagEvent impl"),
         }
     }
     fn from_index(flag: u16) -> Option<Self> {
