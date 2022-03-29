@@ -1,5 +1,6 @@
 //! Identifier objects used to specify guards and/or fallbacks.
 
+use derive_more::AsRef;
 use serde::{Deserialize, Serialize};
 use tor_llcrypto::pk;
 
@@ -16,7 +17,7 @@ pub(crate) struct IdPair {
 ///
 /// This is a separate type from GuardId and FirstHopId to avoid confusion
 /// about what kind of object we're identifying.
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, AsRef)]
 pub(crate) struct FallbackId(pub(crate) IdPair);
 
 impl FallbackId {
@@ -29,17 +30,12 @@ impl FallbackId {
         Self::new(*target.ed_identity(), *target.rsa_identity())
     }
 }
-impl AsRef<IdPair> for FallbackId {
-    fn as_ref(&self) -> &IdPair {
-        &self.0
-    }
-}
 
 /// An identifier for a sampled guard.
 ///
 /// This is a separate type from GuardId and FirstHopId to avoid confusion
 /// about what kind of object we're identifying.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Ord, PartialOrd, AsRef)]
 #[serde(transparent)]
 pub(crate) struct GuardId(pub(crate) IdPair);
 
@@ -51,11 +47,6 @@ impl GuardId {
     /// Extract a `GuardId` from a ChanTarget object.
     pub(crate) fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
         Self::new(*target.ed_identity(), *target.rsa_identity())
-    }
-}
-impl AsRef<IdPair> for GuardId {
-    fn as_ref(&self) -> &IdPair {
-        &self.0
     }
 }
 
