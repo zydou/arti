@@ -4,7 +4,7 @@ use rand::seq::IteratorRandom;
 use std::time::Instant;
 
 use super::{FallbackDir, Status};
-use crate::{FirstHopId, PickGuardError};
+use crate::{ids::FallbackId, PickGuardError};
 use serde::Deserialize;
 
 /// A list of fallback directories.
@@ -62,6 +62,9 @@ pub(crate) struct FallbackState {
 #[derive(Debug, Clone)]
 pub(super) struct Entry {
     /// The inner fallback directory.
+    ///
+    /// (TODO: We represent this as a `FirstHop`, which could technically hold a
+    /// guard as well.  Ought to fix that.)
     pub(super) fallback: crate::FirstHop,
     /// The status for the fallback directory.
     pub(super) status: Status,
@@ -77,8 +80,12 @@ impl From<FallbackDir> for Entry {
 
 impl Entry {
     /// Return the identity for this fallback entry.
-    fn id(&self) -> &FirstHopId {
-        self.fallback.id()
+    fn id(&self) -> &FallbackId {
+        use crate::ids::FirstHopIdInner::*;
+        match &self.fallback.id().0 {
+            Fallback(id) => id,
+            _ => panic!("Somehow we constructed a fallback object with a non-fallback id!"),
+        }
     }
 }
 
@@ -122,12 +129,25 @@ impl FallbackState {
             .min()
     }
 
+    /// Return a reference to the entry whose identity is `id`, if there is one.
+    fn get(&self, id: &FallbackId) -> Option<&Entry> {
+        match self.fallbacks.binary_search_by(|e| e.id().cmp(id)) {
+            Ok(idx) => Some(&self.fallbacks[idx]),
+            Err(_) => None,
+        }
+    }
+
     /// Return a mutable reference to the entry whose identity is `id`, if there is one.
-    fn get_mut(&mut self, id: &FirstHopId) -> Option<&mut Entry> {
+    fn get_mut(&mut self, id: &FallbackId) -> Option<&mut Entry> {
         match self.fallbacks.binary_search_by(|e| e.id().cmp(id)) {
             Ok(idx) => Some(&mut self.fallbacks[idx]),
             Err(_) => None,
         }
+    }
+
+    /// Return true if this set contains some entry with the given `id`.
+    pub(crate) fn contains(&self, id: &FallbackId) -> bool {
+        self.get(id).is_some()
     }
 
     /// Record that a success has occurred for the fallback with the given
@@ -135,7 +155,7 @@ impl FallbackState {
     ///
     /// Be aware that for fallbacks, we only count a successful directory
     /// operation as a success: a circuit success is not enough.
-    pub(crate) fn note_success(&mut self, id: &FirstHopId) {
+    pub(crate) fn note_success(&mut self, id: &FallbackId) {
         if let Some(entry) = self.get_mut(id) {
             entry.status.note_success();
         }
@@ -143,7 +163,7 @@ impl FallbackState {
 
     /// Record that a failure has occurred for the fallback with the given
     /// identity.
-    pub(crate) fn note_failure(&mut self, id: &FirstHopId, now: Instant) {
+    pub(crate) fn note_failure(&mut self, id: &FallbackId, now: Instant) {
         if let Some(entry) = self.get_mut(id) {
             entry.status.note_failure(now);
         }
@@ -171,6 +191,7 @@ impl FallbackState {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::FirstHopId;
 
     /// Construct a `FallbackDir` with random identity keys and addresses.
     ///
@@ -197,7 +218,7 @@ mod test {
         // fabricate some fallbacks.
         let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
         let fb_other = rand_fb();
-        let id_other = FirstHopId::from_chan_target(&fb_other);
+        let id_other = FallbackId::from_chan_target(&fb_other);
 
         // basic case: construct a set
         let list: FallbackList = fbs.clone().into();
@@ -213,7 +234,7 @@ mod test {
 
         // use the constructed set a little.
         for fb in fbs.iter() {
-            let id = FirstHopId::from_chan_target(fb);
+            let id = FallbackId::from_chan_target(fb);
             assert_eq!(set.get_mut(&id).unwrap().id(), &id);
         }
         assert!(set.get_mut(&id_other).is_none());
@@ -247,7 +268,11 @@ mod test {
         let now = Instant::now();
 
         fn lookup_idx(set: &FallbackState, id: &FirstHopId) -> Option<usize> {
-            set.fallbacks.binary_search_by(|ent| ent.id().cmp(id)).ok()
+            if let FirstHopId(crate::ids::FirstHopIdInner::Fallback(id)) = id {
+                set.fallbacks.binary_search_by(|ent| ent.id().cmp(id)).ok()
+            } else {
+                None
+            }
         }
         // Basic case: everybody is up.
         for _ in 0..100 {
@@ -333,7 +358,7 @@ mod test {
         let mut fbs2: Vec<_> = fbs
             .into_iter()
             // (Remove the fallback with id==ids[2])
-            .filter(|fb| FirstHopId::from_chan_target(fb) != ids[2])
+            .filter(|fb| FallbackId::from_chan_target(fb) != ids[2])
             .collect();
         // add 2 new ones.
         let fbs_new = [rand_fb(), rand_fb(), rand_fb()];
@@ -352,7 +377,7 @@ mod test {
         // Make sure that the new fbs are there.
         for new_fb in fbs_new {
             assert!(set2
-                .get_mut(&FirstHopId::from_chan_target(&new_fb))
+                .get_mut(&FallbackId::from_chan_target(&new_fb))
                 .unwrap()
                 .status
                 .usable_at(now));

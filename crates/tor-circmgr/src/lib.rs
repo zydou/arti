@@ -51,6 +51,7 @@
 #![deny(clippy::unwrap_used)]
 
 use tor_chanmgr::ChanMgr;
+use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
@@ -695,20 +696,31 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
-    pub fn note_external_failure(&self, id: &FirstHopId, external_failure: ExternalActivity) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_failure(id, external_failure);
+    ///
+    pub fn note_external_failure(
+        &self,
+        target: &impl ChanTarget,
+        external_failure: ExternalActivity,
+    ) {
+        self.mgr.peek_builder().guardmgr().note_external_failure(
+            target.ed_identity(),
+            target.rsa_identity(),
+            external_failure,
+        );
     }
 
     /// Record that a success occurred on a circuit with a given guard, in a way
     /// that makes us possibly willing to use that guard for future circuits.
-    pub fn note_external_success(&self, id: &FirstHopId, external_activity: ExternalActivity) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_success(id, external_activity);
+    pub fn note_external_success(
+        &self,
+        target: &impl ChanTarget,
+        external_activity: ExternalActivity,
+    ) {
+        self.mgr.peek_builder().guardmgr().note_external_success(
+            target.ed_identity(),
+            target.rsa_identity(),
+            external_activity,
+        );
     }
 }
 

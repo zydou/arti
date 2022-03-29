@@ -13,6 +13,7 @@
 mod set;
 mod status;
 
+use crate::ids::FallbackId;
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -53,7 +54,7 @@ impl FallbackDir {
     /// Return a copy of this FallbackDir as a [`Guard`](crate::Guard)
     pub fn as_guard(&self) -> crate::FirstHop {
         crate::FirstHop {
-            id: crate::FirstHopId::from_chan_target(self),
+            id: FallbackId::from_chan_target(self).into(),
             orports: self.orports.clone(),
         }
     }

@@ -4,7 +4,7 @@
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::{
-    ExternalActivity, FirstHopId, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
+    ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
 };
 use tor_netdir::{NetDir, Relay};
 
@@ -46,22 +46,22 @@ use tracing::{debug, info};
 #[serde(from = "GuardSample")]
 pub(crate) struct GuardSet {
     /// Map from identities to guards, for every guard in this sample.
-    guards: HashMap<FirstHopId, Guard>,
+    guards: HashMap<GuardId, Guard>,
     /// Identities of all the guards in the sample, in sample order.
     ///
     /// This contains the same elements as `self.guards.keys()`, and
     /// only exists to define an ordering on the guards.
-    sample: Vec<FirstHopId>,
+    sample: Vec<GuardId>,
     /// Identities of all the confirmed guards in the sample, in
     /// confirmed order.
     ///
     /// This contains a subset of the values in `self.guards.keys()`.
-    confirmed: Vec<FirstHopId>,
+    confirmed: Vec<GuardId>,
     /// Identities of all the primary guards, in preference order
     /// (from best to worst).
     ///
     /// This contains a subset of the values in `self.guards.keys()`.
-    primary: Vec<FirstHopId>,
+    primary: Vec<GuardId>,
     /// Currently active filter that restricts which guards we can use.
     ///
     /// Note that all of the lists above (with the exception of `primary`)
@@ -110,15 +110,6 @@ impl ListKind {
             ListKind::Confirmed | ListKind::Sample => false,
         }
     }
-
-    /// Return true if this source indicates a guard that came from a sample
-    /// taken from a network directory at some point.
-    pub(crate) fn is_guard_sample(&self) -> bool {
-        match self {
-            ListKind::Primary | ListKind::Confirmed | ListKind::Sample => true,
-            ListKind::Fallback => false,
-        }
-    }
 }
 
 impl GuardSet {
@@ -162,7 +153,7 @@ impl GuardSet {
     }
 
     /// Return the guard whose id is `id`, if any.
-    pub(crate) fn get(&self, id: &FirstHopId) -> Option<&Guard> {
+    pub(crate) fn get(&self, id: &GuardId) -> Option<&Guard> {
         self.guards.get(id)
     }
 
@@ -258,8 +249,13 @@ impl GuardSet {
     fn contains_relay(&self, relay: &Relay<'_>) -> bool {
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
-        let id = FirstHopId::from_chan_target(relay);
-        self.guards.contains_key(&id)
+        let id = GuardId::from_chan_target(relay);
+        self.contains(&id)
+    }
+
+    /// Return true if `id` is a member of this set.
+    pub(crate) fn contains(&self, id: &GuardId) -> bool {
+        self.guards.contains_key(id)
     }
 
     /// If there are not enough filter-permitted usable guards in this
@@ -391,7 +387,7 @@ impl GuardSet {
     ///
     /// Does nothing if it is already a guard.
     fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
-        let id = FirstHopId::from_chan_target(relay);
+        let id = GuardId::from_chan_target(relay);
         if self.guards.contains_key(&id) {
             return;
         }
@@ -502,7 +498,7 @@ impl GuardSet {
 
     /// Return an iterator over the Id for every Guard in the sample that
     /// is not known to be Unreachable.
-    fn reachable_sample_ids(&self) -> impl Iterator<Item = &FirstHopId> {
+    fn reachable_sample_ids(&self) -> impl Iterator<Item = &GuardId> {
         self.sample.iter().filter(move |id| {
             let g = self.guards.get(id).expect("Inconsistent guard state");
             g.reachable() != Reachable::Unreachable
@@ -518,7 +514,7 @@ impl GuardSet {
     /// Note that this function will return guards that are not
     /// accepted by the current active filter: the caller must apply
     /// that filter if appropriate.
-    fn preference_order_ids(&self) -> impl Iterator<Item = (ListKind, &FirstHopId)> {
+    fn preference_order_ids(&self) -> impl Iterator<Item = (ListKind, &GuardId)> {
         self.primary
             .iter()
             .map(|id| (ListKind::Primary, id))
@@ -534,7 +530,7 @@ impl GuardSet {
     }
 
     /// Return true if `guard_id` is the identity for a primary guard.
-    fn guard_is_primary(&self, guard_id: &FirstHopId) -> bool {
+    fn guard_is_primary(&self, guard_id: &GuardId) -> bool {
         // This is O(n), but the list is short.
         self.primary.contains(guard_id)
     }
@@ -579,7 +575,7 @@ impl GuardSet {
 
     /// Record that an attempt has begun to use the guard with
     /// `guard_id`.
-    pub(crate) fn record_attempt(&mut self, guard_id: &FirstHopId, now: Instant) {
+    pub(crate) fn record_attempt(&mut self, guard_id: &GuardId, now: Instant) {
         let is_primary = self.guard_is_primary(guard_id);
         if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.record_attempt(now);
@@ -594,7 +590,7 @@ impl GuardSet {
     /// just succeeded.
     pub(crate) fn record_success(
         &mut self,
-        guard_id: &FirstHopId,
+        guard_id: &GuardId,
         params: &GuardParams,
         now: SystemTime,
     ) {
@@ -616,7 +612,7 @@ impl GuardSet {
     /// of the crate.
     pub(crate) fn record_failure(
         &mut self,
-        guard_id: &FirstHopId,
+        guard_id: &GuardId,
         how: Option<ExternalActivity>,
         now: Instant,
     ) {
@@ -635,7 +631,7 @@ impl GuardSet {
 
     /// Record that an attempt to use the guard with `guard_id` has
     /// just been abandoned, without learning whether it succeeded or failed.
-    pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &FirstHopId) {
+    pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &GuardId) {
         if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.note_exploratory_circ(false);
         }
@@ -644,7 +640,7 @@ impl GuardSet {
     /// Record that an attempt to use the guard with `guard_id` has
     /// just failed in a way that we could not definitively attribute to
     /// the guard.
-    pub(crate) fn record_indeterminate_result(&mut self, guard_id: &FirstHopId) {
+    pub(crate) fn record_indeterminate_result(&mut self, guard_id: &GuardId) {
         if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.note_exploratory_circ(false);
             guard.record_indeterminate_result();
@@ -658,7 +654,7 @@ impl GuardSet {
     /// cannot yet be sure.
     pub(crate) fn circ_usability_status(
         &self,
-        guard_id: &FirstHopId,
+        guard_id: &GuardId,
         usage: &GuardUsage,
         params: &GuardParams,
         now: Instant,
@@ -724,7 +720,7 @@ impl GuardSet {
         &self,
         usage: &GuardUsage,
         params: &GuardParams,
-    ) -> Result<(ListKind, FirstHopId), PickGuardError> {
+    ) -> Result<(ListKind, GuardId), PickGuardError> {
         debug_assert!(!self.primary_guards_invalidated);
         let n_options = match usage.kind {
             GuardUsageKind::OneHopDirectory => params.dir_parallelism,
@@ -777,7 +773,7 @@ pub(crate) struct GuardSample<'a> {
     /// Equivalent to `GuardSet.guards.values()`, except in sample order.
     guards: Vec<Cow<'a, Guard>>,
     /// The identities for the confirmed members of `guards`, in confirmed order.
-    confirmed: Cow<'a, Vec<FirstHopId>>,
+    confirmed: Cow<'a, Vec<GuardId>>,
     /// Other data from the state file that this version of Arti doesn't recognize.
     #[serde(flatten)]
     remaining: HashMap<String, JsonValue>,
@@ -810,6 +806,7 @@ mod test {
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
+    use crate::FirstHopId;
     use std::time::Duration;
 
     fn netdir() -> NetDir {
@@ -860,7 +857,7 @@ mod test {
             ..GuardParams::default()
         };
 
-        let mut samples: Vec<HashSet<FirstHopId>> = Vec::new();
+        let mut samples: Vec<HashSet<GuardId>> = Vec::new();
         for _ in 0..3 {
             let mut guards = GuardSet::default();
             guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
@@ -871,7 +868,8 @@ mod test {
 
             // make sure all the guards are okay.
             for (g, guard) in &guards.guards {
-                let relay = g.get_relay(&netdir).unwrap();
+                let id: FirstHopId = g.clone().into();
+                let relay = id.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
                 assert!(guards.contains_relay(&relay));
@@ -1229,7 +1227,7 @@ mod test {
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|idx, bld| {
-            if idx == p_id1.ed25519.as_bytes()[0] as usize {
+            if idx == p_id1.0.ed25519.as_bytes()[0] as usize {
                 bld.omit_md = true;
             }
         })
