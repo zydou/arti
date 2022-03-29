@@ -123,7 +123,7 @@ impl FallbackState {
     }
 
     /// Return a mutable reference to the entry whose identity is `id`, if there is one.
-    fn lookup_mut(&mut self, id: &GuardId) -> Option<&mut Entry> {
+    fn get_mut(&mut self, id: &GuardId) -> Option<&mut Entry> {
         match self.fallbacks.binary_search_by(|e| e.id().cmp(id)) {
             Ok(idx) => Some(&mut self.fallbacks[idx]),
             Err(_) => None,
@@ -136,7 +136,7 @@ impl FallbackState {
     /// Be aware that for fallbacks, we only count a successful directory
     /// operation as a success: a circuit success is not enough.
     pub(crate) fn note_success(&mut self, id: &GuardId) {
-        if let Some(entry) = self.lookup_mut(id) {
+        if let Some(entry) = self.get_mut(id) {
             entry.status.note_success();
         }
     }
@@ -144,7 +144,7 @@ impl FallbackState {
     /// Record that a failure has occurred for the fallback with the given
     /// identity.
     pub(crate) fn note_failure(&mut self, id: &GuardId, now: Instant) {
-        if let Some(entry) = self.lookup_mut(id) {
+        if let Some(entry) = self.get_mut(id) {
             entry.status.note_failure(now);
         }
     }
@@ -306,9 +306,9 @@ mod test {
         // use the constructed set a little.
         for fb in fbs.iter() {
             let id = GuardId::from_chan_target(fb);
-            assert_eq!(set.lookup_mut(&id).unwrap().id(), &id);
+            assert_eq!(set.get_mut(&id).unwrap().id(), &id);
         }
-        assert!(set.lookup_mut(&id_other).is_none());
+        assert!(set.get_mut(&id_other).is_none());
 
         // Now try an input set with duplicates.
         let mut redundant_fbs = fbs.clone();
@@ -415,10 +415,10 @@ mod test {
         assert!(set.fallbacks[0].status.next_retriable().is_none());
         assert!(set.fallbacks[0].status.usable_at(now));
 
-        assert!(set.lookup_mut(&ids[0]).unwrap().status.usable_at(now));
+        assert!(set.get_mut(&ids[0]).unwrap().status.usable_at(now));
 
         for id in ids.iter() {
-            dbg!(id, set.lookup_mut(id).map(|e| e.id()));
+            dbg!(id, set.get_mut(id).map(|e| e.id()));
         }
 
         // Make a new set with slightly different members; make sure that we can copy stuff successfully.
@@ -436,15 +436,15 @@ mod test {
         assert_eq!(set2.fallbacks.len(), 6); // Started with 4, added 3, removed 1.
 
         // Make sure that the status entries  are correctly copied.
-        assert!(set2.lookup_mut(&ids[0]).unwrap().status.usable_at(now));
-        assert!(set2.lookup_mut(&ids[1]).unwrap().status.usable_at(now));
-        assert!(set2.lookup_mut(&ids[2]).is_none());
-        assert!(!set2.lookup_mut(&ids[3]).unwrap().status.usable_at(now));
+        assert!(set2.get_mut(&ids[0]).unwrap().status.usable_at(now));
+        assert!(set2.get_mut(&ids[1]).unwrap().status.usable_at(now));
+        assert!(set2.get_mut(&ids[2]).is_none());
+        assert!(!set2.get_mut(&ids[3]).unwrap().status.usable_at(now));
 
         // Make sure that the new fbs are there.
         for new_fb in fbs_new {
             assert!(set2
-                .lookup_mut(&GuardId::from_chan_target(&new_fb))
+                .get_mut(&GuardId::from_chan_target(&new_fb))
                 .unwrap()
                 .status
                 .usable_at(now));
