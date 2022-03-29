@@ -151,86 +151,19 @@ impl FallbackState {
 
     /// Consume `other` and copy all of its fallback status entries into the corresponding entries for `self`.
     pub(crate) fn take_status_from(&mut self, other: FallbackState) {
-        matching_items(
+        use itertools::EitherOrBoth::Both;
+
+        itertools::merge_join_by(
             self.fallbacks.iter_mut(),
             other.fallbacks.into_iter(),
             |a, b| a.fallback.id().cmp(b.fallback.id()),
         )
-        .for_each(|(entry, other)| {
-            debug_assert_eq!(entry.fallback.id(), other.fallback.id());
-            entry.status = other.status;
-        });
-    }
-}
-
-/// Return an iterator that iterates over two sorted lists and yields all items
-/// from those lists that match according to a comparison function.
-///
-/// Results may be incorrect if the input lists are not sorted, but the iterator
-/// should not panic.
-///
-/// TODO: If this proves generally useful, move it to another tor-basic-utils or
-/// a new crate.  If there is already functionality for this externally, use it.
-fn matching_items<I1, I2, F>(iter1: I1, iter2: I2, cmp: F) -> MatchingItems<I1, I2, F>
-where
-    I1: Iterator,
-    I2: Iterator,
-    F: FnMut(&I1::Item, &I2::Item) -> std::cmp::Ordering,
-{
-    MatchingItems {
-        iter1: iter1.peekable(),
-        iter2: iter2.peekable(),
-        cmp,
-    }
-}
-
-/// Type to implement `matching_items()`
-struct MatchingItems<I1, I2, F>
-where
-    I1: Iterator,
-    I2: Iterator,
-    F: FnMut(&I1::Item, &I2::Item) -> std::cmp::Ordering,
-{
-    /// The first iterator to examine
-    iter1: std::iter::Peekable<I1>,
-    /// The second iterator to examine
-    iter2: std::iter::Peekable<I2>,
-    /// A function to compare the items in the two iterators.
-    cmp: F,
-}
-
-impl<I1, I2, F> Iterator for MatchingItems<I1, I2, F>
-where
-    I1: Iterator,
-    I2: Iterator,
-    F: FnMut(&I1::Item, &I2::Item) -> std::cmp::Ordering,
-{
-    type Item = (I1::Item, I2::Item);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        use std::cmp::Ordering::*;
-
-        loop {
-            let (n1, n2) = match (self.iter1.peek(), self.iter2.peek()) {
-                (Some(a), Some(b)) => (a, b),
-                (_, _) => return None, // at least one iterator is exhausted.
-            };
-
-            match (self.cmp)(n1, n2) {
-                Less => {
-                    let _ignore = self.iter1.next();
-                }
-                Equal => {
-                    return Some((
-                        self.iter1.next().expect("Peek/Next inconsistency"),
-                        self.iter2.next().expect("Peek/Next inconsistency"),
-                    ))
-                }
-                Greater => {
-                    let _ignore = self.iter2.next();
-                }
+        .for_each(|entry| {
+            if let Both(entry, other) = entry {
+                debug_assert_eq!(entry.fallback.id(), other.fallback.id());
+                entry.status = other.status;
             }
-        }
+        });
     }
 }
 
@@ -238,31 +171,6 @@ where
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-
-    #[test]
-    fn test_matching_items() {
-        let odds = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19];
-        let primes = ["2", "3", "5", "7", "11", "13", "17", "19"];
-
-        let matches: Vec<_> = super::matching_items(odds.iter(), primes.iter(), |i, s| {
-            (*i).cmp(&s.parse().unwrap())
-        })
-        .map(|(i, s)| (*i, *s))
-        .collect();
-
-        assert_eq!(
-            matches,
-            vec![
-                (3, "3"),
-                (5, "5"),
-                (7, "7"),
-                (11, "11"),
-                (13, "13"),
-                (17, "17"),
-                (19, "19")
-            ]
-        );
-    }
 
     /// Construct a `FallbackDir` with random identity keys and addresses.
     ///
