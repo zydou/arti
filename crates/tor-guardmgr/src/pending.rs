@@ -49,6 +49,8 @@ pub struct GuardUsable {
     ///
     /// If absent, then the guard is ready immediately and no waiting
     /// is needed.
+    //
+    // TODO: use a type that makes the case here more distinguishable.
     #[pin]
     u: Option<oneshot::Receiver<bool>>,
 }
