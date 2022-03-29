@@ -50,7 +50,7 @@ impl FallbackDir {
         FallbackDirBuilder::default()
     }
 
-    /// Return a copy of this FallbackDir as a [`crate::Guard`]
+    /// Return a copy of this FallbackDir as a [`Guard`](crate::Guard)
     pub fn as_guard(&self) -> crate::Guard {
         crate::Guard {
             id: crate::GuardId::from_chan_target(self),
