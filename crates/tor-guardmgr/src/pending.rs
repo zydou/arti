@@ -69,14 +69,20 @@ impl Future for GuardUsable {
 impl GuardUsable {
     /// Create a new GuardUsable for a primary guard or a fallback directory.
     ///
-    /// (Circuits built through these are usable immediately,
-    /// so we don't need a way to report that this guard is usable.)
+    /// (Circuits built through these are usable immediately, independently of
+    /// whether other guards succeed or fail, so we don't need a way to report
+    /// whether such guards/fallbacks are usable.)
     pub(crate) fn new_usable_immediately() -> Self {
         GuardUsable { u: None }
     }
 
-    /// Create a new GuardUsable for a guard with undecided usability
-    /// status.
+    /// Create a new GuardUsable for a guard with undecided usability status.
+    ///
+    /// (We use this constructor when a circuit is built through a non-primary
+    /// guard, and there are other guards _we would prefer to use, if they turn
+    /// out to work_.  If such a circuit succeeds, the caller must still use
+    /// this `GuardUsable` to wait until the `GuardMgr` sees whether the
+    /// more-preferred guards have succeeded or failed.)
     pub(crate) fn new_uncertain() -> (Self, oneshot::Sender<bool>) {
         let (snd, rcv) = oneshot::channel();
         (GuardUsable { u: Some(rcv) }, snd)
