@@ -843,11 +843,13 @@ impl GuardMgrInner {
         wallclock: SystemTime,
     ) -> Result<(sample::ListKind, Guard), PickGuardError> {
         // Try to find a guard.
-        let res1 = self.select_guard_once(usage);
-        if res1.is_ok() {
-            return res1;
-        }
-        // TODO: log on error.
+        let first_error = match self.select_guard_once(usage) {
+            Ok(res1) => return Ok(res1),
+            Err(e) => {
+                trace!("Couldn't select guard on first attempt: {}", e);
+                e
+            }
+        };
 
         // That didn't work. If we have a netdir, expand the sample and try again.
         if let Some(dir) = netdir {
@@ -861,11 +863,12 @@ impl GuardMgrInner {
                 self.guards
                     .active_guards_mut()
                     .select_primary_guards(&self.params);
-                let res2 = self.select_guard_once(usage);
-                if res2.is_ok() {
-                    return res2;
+                match self.select_guard_once(usage) {
+                    Ok(res) => return Ok(res),
+                    Err(e) => {
+                        trace!("Couldn't select guard after expanding sample: {}", e);
+                    }
                 }
-                // TODO: log on error.
             }
         }
 
@@ -876,7 +879,7 @@ impl GuardMgrInner {
         }
 
         // Couldn't extend the sample or use a fallback; return the original error.
-        res1
+        Err(first_error)
     }
 
     /// Helper: try to pick a single guard, without retrying on failure.
