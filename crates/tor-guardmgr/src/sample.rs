@@ -112,7 +112,10 @@ impl ListKind {
     /// Return true if this source indicates a guard that came from a sample
     /// taken from a network directory at some point.
     pub(crate) fn is_guard_sample(&self) -> bool {
-        self != &ListKind::Fallback
+        match self {
+            ListKind::Primary | ListKind::Confirmed | ListKind::Sample => true,
+            ListKind::Fallback => false,
+        }
     }
 }
 
