@@ -87,7 +87,7 @@ use crate::isolation::StreamIsolation;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
-pub use tor_guardmgr::{ExternalActivity, GuardId};
+pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
@@ -695,7 +695,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
-    pub fn note_external_failure(&self, id: &GuardId, external_failure: ExternalActivity) {
+    pub fn note_external_failure(&self, id: &FirstHopId, external_failure: ExternalActivity) {
         self.mgr
             .peek_builder()
             .guardmgr()
@@ -704,7 +704,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Record that a success occurred on a circuit with a given guard, in a way
     /// that makes us possibly willing to use that guard for future circuits.
-    pub fn note_external_success(&self, id: &GuardId, external_activity: ExternalActivity) {
+    pub fn note_external_success(&self, id: &FirstHopId, external_activity: ExternalActivity) {
         self.mgr
             .peek_builder()
             .guardmgr()

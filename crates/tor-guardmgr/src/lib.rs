@@ -459,7 +459,7 @@ impl<R: Runtime> GuardMgr<R> {
         &self,
         usage: GuardUsage,
         netdir: Option<&NetDir>,
-    ) -> Result<(Guard, GuardMonitor, GuardUsable), PickGuardError> {
+    ) -> Result<(FirstHop, GuardMonitor, GuardUsable), PickGuardError> {
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
 
@@ -520,7 +520,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with `guard`,something described
     /// in `external_failure` went wrong with it.
-    pub fn note_external_failure(&self, guard: &GuardId, external_failure: ExternalActivity) {
+    pub fn note_external_failure(&self, guard: &FirstHopId, external_failure: ExternalActivity) {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
@@ -536,7 +536,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with  `guard`, some activity described in `external_activity` was successful with it.
     ///
-    pub fn note_external_success(&self, guard: &GuardId, external_activity: ExternalActivity) {
+    pub fn note_external_success(&self, guard: &FirstHopId, external_activity: ExternalActivity) {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
         if external_activity == ExternalActivity::DirCache {
@@ -841,7 +841,7 @@ impl GuardMgrInner {
         netdir: Option<&NetDir>,
         now: Instant,
         wallclock: SystemTime,
-    ) -> Result<(sample::ListKind, Guard), PickGuardError> {
+    ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         // Try to find a guard.
         let first_error = match self.select_guard_once(usage) {
             Ok(res1) => return Ok(res1),
@@ -886,7 +886,7 @@ impl GuardMgrInner {
     fn select_guard_once(
         &self,
         usage: &GuardUsage,
-    ) -> Result<(sample::ListKind, Guard), PickGuardError> {
+    ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let (source, id) = self
             .guards
             .active_guards()
@@ -905,7 +905,10 @@ impl GuardMgrInner {
     ///
     /// Called when we have no guard information to use. Return values are as
     /// for [`select_guard()`]
-    fn select_fallback(&self, now: Instant) -> Result<(sample::ListKind, Guard), PickGuardError> {
+    fn select_fallback(
+        &self,
+        now: Instant,
+    ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let fallback = self.fallbacks.choose(&mut rand::thread_rng(), now)?;
         Ok((sample::ListKind::Fallback, fallback.clone()))
     }
@@ -1003,19 +1006,20 @@ impl TryFrom<&NetParameters> for GuardParams {
     }
 }
 
-/// A unique cryptographic identifier for a selected guard.
+/// A unique cryptographic identifier for a selected guard or fallback
+/// directory.
 ///
-/// (This is implemented internally using both of the guard's Ed25519
-/// and RSA identities.)
+/// (This is implemented internally using both of the guard's Ed25519 and RSA
+/// identities.)
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct GuardId {
+pub struct FirstHopId {
     /// Ed25519 identity key for a guard
     ed25519: pk::ed25519::Ed25519Identity,
     /// RSA identity fingerprint for a guard
     rsa: pk::rsa::RsaIdentity,
 }
 
-impl GuardId {
+impl FirstHopId {
     /// Return a new, manually constructed GuardId
     fn new(ed25519: pk::ed25519::Ed25519Identity, rsa: pk::rsa::RsaIdentity) -> Self {
         Self { ed25519, rsa }
@@ -1023,7 +1027,7 @@ impl GuardId {
 
     /// Extract a GuardId from a ChanTarget object.
     pub fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
-        GuardId::new(*target.ed_identity(), *target.rsa_identity())
+        FirstHopId::new(*target.ed_identity(), *target.rsa_identity())
     }
 
     /// Return the relay in `netdir` that corresponds to this ID, if there
@@ -1033,18 +1037,18 @@ impl GuardId {
     }
 }
 
-/// Representation of a guard, as returned by [`GuardMgr::select_guard()`].
+/// Representation of a guard or fallback, as returned by [`GuardMgr::select_guard()`].
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Guard {
+pub struct FirstHop {
     /// The guard's identities
-    id: GuardId,
+    id: FirstHopId,
     /// The addresses at which the guard can be contacted.
     orports: Vec<SocketAddr>,
 }
 
-impl Guard {
+impl FirstHop {
     /// Return the identities of this guard.
-    pub fn id(&self) -> &GuardId {
+    pub fn id(&self) -> &FirstHopId {
         &self.id
     }
     /// Look up this guard in `netdir`.
@@ -1054,7 +1058,7 @@ impl Guard {
 }
 
 // This is somewhat redundant with the implementation in crate::guard::Guard.
-impl tor_linkspec::ChanTarget for Guard {
+impl tor_linkspec::ChanTarget for FirstHop {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }

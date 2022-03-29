@@ -7,7 +7,7 @@
 //! then the circuit manager can't know whether to use a circuit built
 //! through that guard until the guard manager tells it.  This is
 //! handled via [`GuardUsable`].
-use crate::{daemon, sample::ListKind, GuardId};
+use crate::{daemon, sample::ListKind, FirstHopId};
 
 use educe::Educe;
 use futures::{
@@ -263,7 +263,7 @@ impl RequestId {
 #[derive(Debug)]
 pub(crate) struct PendingRequest {
     /// Identity of the guard that we gave out.
-    guard_id: GuardId,
+    guard_id: FirstHopId,
     /// The usage for which this guard was requested.
     ///
     /// We need this information because, if we find that a better guard
@@ -292,7 +292,7 @@ pub(crate) struct PendingRequest {
 impl PendingRequest {
     /// Create a new PendingRequest.
     pub(crate) fn new(
-        guard_id: GuardId,
+        guard_id: FirstHopId,
         source: ListKind,
         usage: crate::GuardUsage,
         usable: Option<oneshot::Sender<bool>>,
@@ -309,7 +309,7 @@ impl PendingRequest {
     }
 
     /// Return the Id of the guard we gave out.
-    pub(crate) fn guard_id(&self) -> &GuardId {
+    pub(crate) fn guard_id(&self) -> &FirstHopId {
         &self.guard_id
     }
 

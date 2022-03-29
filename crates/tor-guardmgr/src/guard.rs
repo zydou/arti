@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::util::randomize_time;
-use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
+use crate::{FirstHopId, GuardParams, GuardRestriction, GuardUsage};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -83,7 +83,7 @@ impl CrateId {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Guard {
     /// The identity keys for this guard.
-    id: GuardId, // TODO: Maybe refactor this out as redundant someday.
+    id: FirstHopId, // TODO: Maybe refactor this out as redundant someday.
 
     /// The most recently seen addresses for making OR connections to this
     /// guard.
@@ -195,14 +195,14 @@ impl Guard {
         );
 
         Self::new(
-            GuardId::from_chan_target(relay),
+            FirstHopId::from_chan_target(relay),
             relay.addrs().into(),
             added_at,
         )
     }
 
     /// Return a new, manually constructed [`Guard`].
-    fn new(id: GuardId, orports: Vec<SocketAddr>, added_at: SystemTime) -> Self {
+    fn new(id: FirstHopId, orports: Vec<SocketAddr>, added_at: SystemTime) -> Self {
         Guard {
             id,
             orports,
@@ -225,7 +225,7 @@ impl Guard {
     }
 
     /// Return the identity of this Guard.
-    pub(crate) fn guard_id(&self) -> &GuardId {
+    pub(crate) fn guard_id(&self) -> &FirstHopId {
         &self.id
     }
 
@@ -574,8 +574,8 @@ impl Guard {
     }
 
     /// Return a [`crate::Guard`] object to represent this guard.
-    pub(crate) fn get_external_rep(&self) -> crate::Guard {
-        crate::Guard {
+    pub(crate) fn get_external_rep(&self) -> crate::FirstHop {
+        crate::FirstHop {
             id: self.id.clone(),
             orports: self.orports.clone(),
         }
@@ -687,8 +687,8 @@ mod test {
         assert_eq!(Some(id.version.as_ref()), option_env!("CARGO_PKG_VERSION"));
     }
 
-    fn basic_id() -> GuardId {
-        GuardId::new([13; 32].into(), [37; 20].into())
+    fn basic_id() -> FirstHopId {
+        FirstHopId::new([13; 32].into(), [37; 20].into())
     }
     fn basic_guard() -> Guard {
         let id = basic_id();
@@ -919,7 +919,7 @@ mod test {
 
         // Now try a guard that isn't in the netdir.
         let guard255 = Guard::new(
-            GuardId::new([255; 32].into(), [255; 20].into()),
+            FirstHopId::new([255; 32].into(), [255; 20].into()),
             vec![],
             now,
         );
@@ -960,7 +960,7 @@ mod test {
 
         // Try a guard that isn't in the netdir at all.
         let mut guard255 = Guard::new(
-            GuardId::new([255; 32].into(), [255; 20].into()),
+            FirstHopId::new([255; 32].into(), [255; 20].into()),
             vec!["8.8.8.8:53".parse().unwrap()],
             now,
         );
@@ -974,7 +974,11 @@ mod test {
         assert!(!guard255.orports.is_empty());
 
         // Try a guard that is in netdir, but not netdir2.
-        let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
+        let mut guard22 = Guard::new(
+            FirstHopId::new([22; 32].into(), [22; 20].into()),
+            vec![],
+            now,
+        );
         let relay22 = guard22.id.get_relay(&netdir).unwrap();
         assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_netdir(&netdir);
@@ -990,7 +994,11 @@ mod test {
         assert!(!guard22.microdescriptor_missing);
 
         // Now see what happens for a guard that's in the consensus, but missing an MD.
-        let mut guard23 = Guard::new(GuardId::new([23; 32].into(), [23; 20].into()), vec![], now);
+        let mut guard23 = Guard::new(
+            FirstHopId::new([23; 32].into(), [23; 20].into()),
+            vec![],
+            now,
+        );
         assert_eq!(guard23.listed_in(&netdir2), Some(true));
         assert_eq!(guard23.listed_in(&netdir3), None);
         guard23.update_from_netdir(&netdir3);

@@ -51,9 +51,9 @@ impl FallbackDir {
     }
 
     /// Return a copy of this FallbackDir as a [`Guard`](crate::Guard)
-    pub fn as_guard(&self) -> crate::Guard {
-        crate::Guard {
-            id: crate::GuardId::from_chan_target(self),
+    pub fn as_guard(&self) -> crate::FirstHop {
+        crate::FirstHop {
+            id: crate::FirstHopId::from_chan_target(self),
             orports: self.orports.clone(),
         }
     }

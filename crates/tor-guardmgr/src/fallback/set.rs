@@ -4,7 +4,7 @@ use rand::seq::IteratorRandom;
 use std::time::Instant;
 
 use super::{FallbackDir, Status};
-use crate::{GuardId, PickGuardError};
+use crate::{FirstHopId, PickGuardError};
 use serde::Deserialize;
 
 /// A list of fallback directories.
@@ -62,7 +62,7 @@ pub(crate) struct FallbackState {
 #[derive(Debug, Clone)]
 pub(super) struct Entry {
     /// The inner fallback directory.
-    pub(super) fallback: crate::Guard,
+    pub(super) fallback: crate::FirstHop,
     /// The status for the fallback directory.
     pub(super) status: Status,
 }
@@ -77,7 +77,7 @@ impl From<FallbackDir> for Entry {
 
 impl Entry {
     /// Return the identity for this fallback entry.
-    fn id(&self) -> &GuardId {
+    fn id(&self) -> &FirstHopId {
         self.fallback.id()
     }
 }
@@ -97,7 +97,7 @@ impl FallbackState {
         &self,
         rng: &mut R,
         now: Instant,
-    ) -> Result<&crate::Guard, PickGuardError> {
+    ) -> Result<&crate::FirstHop, PickGuardError> {
         if self.fallbacks.is_empty() {
             return Err(PickGuardError::NoCandidatesAvailable);
         }
@@ -123,7 +123,7 @@ impl FallbackState {
     }
 
     /// Return a mutable reference to the entry whose identity is `id`, if there is one.
-    fn get_mut(&mut self, id: &GuardId) -> Option<&mut Entry> {
+    fn get_mut(&mut self, id: &FirstHopId) -> Option<&mut Entry> {
         match self.fallbacks.binary_search_by(|e| e.id().cmp(id)) {
             Ok(idx) => Some(&mut self.fallbacks[idx]),
             Err(_) => None,
@@ -135,7 +135,7 @@ impl FallbackState {
     ///
     /// Be aware that for fallbacks, we only count a successful directory
     /// operation as a success: a circuit success is not enough.
-    pub(crate) fn note_success(&mut self, id: &GuardId) {
+    pub(crate) fn note_success(&mut self, id: &FirstHopId) {
         if let Some(entry) = self.get_mut(id) {
             entry.status.note_success();
         }
@@ -143,7 +143,7 @@ impl FallbackState {
 
     /// Record that a failure has occurred for the fallback with the given
     /// identity.
-    pub(crate) fn note_failure(&mut self, id: &GuardId, now: Instant) {
+    pub(crate) fn note_failure(&mut self, id: &FirstHopId, now: Instant) {
         if let Some(entry) = self.get_mut(id) {
             entry.status.note_failure(now);
         }
@@ -197,7 +197,7 @@ mod test {
         // fabricate some fallbacks.
         let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
         let fb_other = rand_fb();
-        let id_other = GuardId::from_chan_target(&fb_other);
+        let id_other = FirstHopId::from_chan_target(&fb_other);
 
         // basic case: construct a set
         let list: FallbackList = fbs.clone().into();
@@ -213,7 +213,7 @@ mod test {
 
         // use the constructed set a little.
         for fb in fbs.iter() {
-            let id = GuardId::from_chan_target(fb);
+            let id = FirstHopId::from_chan_target(fb);
             assert_eq!(set.get_mut(&id).unwrap().id(), &id);
         }
         assert!(set.get_mut(&id_other).is_none());
@@ -246,7 +246,7 @@ mod test {
         let mut rng = rand::thread_rng();
         let now = Instant::now();
 
-        fn lookup_idx(set: &FallbackState, id: &GuardId) -> Option<usize> {
+        fn lookup_idx(set: &FallbackState, id: &FirstHopId) -> Option<usize> {
             set.fallbacks.binary_search_by(|ent| ent.id().cmp(id)).ok()
         }
         // Basic case: everybody is up.
@@ -333,7 +333,7 @@ mod test {
         let mut fbs2: Vec<_> = fbs
             .into_iter()
             // (Remove the fallback with id==ids[2])
-            .filter(|fb| GuardId::from_chan_target(fb) != ids[2])
+            .filter(|fb| FirstHopId::from_chan_target(fb) != ids[2])
             .collect();
         // add 2 new ones.
         let fbs_new = [rand_fb(), rand_fb(), rand_fb()];
@@ -352,7 +352,7 @@ mod test {
         // Make sure that the new fbs are there.
         for new_fb in fbs_new {
             assert!(set2
-                .get_mut(&GuardId::from_chan_target(&new_fb))
+                .get_mut(&FirstHopId::from_chan_target(&new_fb))
                 .unwrap()
                 .status
                 .usable_at(now));
