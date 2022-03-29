@@ -572,7 +572,7 @@ impl Guard {
         dir.weight_by_rsa_id(&self.id.0.rsa, tor_netdir::WeightRole::Guard)
     }
 
-    /// Return a [`crate::Guard`] object to represent this guard.
+    /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
     pub(crate) fn get_external_rep(&self) -> crate::FirstHop {
         crate::FirstHop {
             id: self.id.clone().into(),

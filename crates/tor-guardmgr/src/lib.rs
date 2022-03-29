@@ -436,7 +436,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Select a guard for a given [`GuardUsage`].
     ///
-    /// On success, we return a [`GuardId`] object to identify which
+    /// On success, we return a [`FirstHopId`] object to identify which
     /// guard we have picked, a [`GuardMonitor`] object that the
     /// caller can use to report whether its attempt to use the guard
     /// succeeded or failed, and a [`GuardUsable`] future that the
@@ -966,7 +966,7 @@ impl GuardMgrInner {
     /// Helper: Select a fallback directory.
     ///
     /// Called when we have no guard information to use. Return values are as
-    /// for [`select_guard()`]
+    /// for [`GuardMgr::select_guard()`]
     fn select_fallback(
         &self,
         now: Instant,

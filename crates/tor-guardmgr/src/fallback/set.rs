@@ -1,4 +1,4 @@
-//! Declare the [`FallbackSet`] type, which is used to store a set of FallbackDir.
+//! Declare the [`FallbackState`] type, which is used to store a set of FallbackDir.
 
 use rand::seq::IteratorRandom;
 use std::time::Instant;

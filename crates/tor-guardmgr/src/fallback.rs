@@ -51,7 +51,7 @@ impl FallbackDir {
         FallbackDirBuilder::default()
     }
 
-    /// Return a copy of this FallbackDir as a [`Guard`](crate::Guard)
+    /// Return a copy of this FallbackDir as a [`FirstHop`](crate::FirstHop)
     pub fn as_guard(&self) -> crate::FirstHop {
         crate::FirstHop {
             id: FallbackId::from_chan_target(self).into(),
