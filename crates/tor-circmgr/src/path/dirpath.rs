@@ -33,22 +33,6 @@ impl DirPathBuilder {
         guards: Option<&GuardMgr<RT>>,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         match (netdir, guards) {
-            (DirInfo::Fallbacks(f), None) => {
-                let relay = f.choose(rng)?;
-                return Ok((TorPath::new_fallback_one_hop(relay), None, None));
-            }
-            (DirInfo::Directory(netdir), None) => {
-                let relay = netdir.pick_relay(rng, WeightRole::BeginDir, Relay::is_dir_cache);
-                if let Some(r) = relay {
-                    return Ok((TorPath::new_one_hop(r), None, None));
-                }
-            }
-            (DirInfo::Nothing, None) => {
-                return Err(bad_api_usage!(
-                    "Tried to build a one hop path with no directory, fallbacks, or guard manager"
-                )
-                .into());
-            }
             (dirinfo, Some(guardmgr)) => {
                 // We use a guardmgr whenever we have one, regardless of whether
                 // there's a netdir.
@@ -68,6 +52,24 @@ impl DirPathBuilder {
                     .expect("Unable to build directory guard usage");
                 let (guard, mon, usable) = guardmgr.select_guard(guard_usage, netdir)?;
                 return Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)));
+            }
+
+            // In the following cases, we don't have a guardmgr, so we'll use the provided information if we can.
+            (DirInfo::Fallbacks(f), None) => {
+                let relay = f.choose(rng)?;
+                return Ok((TorPath::new_fallback_one_hop(relay), None, None));
+            }
+            (DirInfo::Directory(netdir), None) => {
+                let relay = netdir.pick_relay(rng, WeightRole::BeginDir, Relay::is_dir_cache);
+                if let Some(r) = relay {
+                    return Ok((TorPath::new_one_hop(r), None, None));
+                }
+            }
+            (DirInfo::Nothing, None) => {
+                return Err(bad_api_usage!(
+                    "Tried to build a one hop path with no directory, fallbacks, or guard manager"
+                )
+                .into());
             }
         }
         Err(Error::NoPath(
