@@ -52,17 +52,8 @@ weak-table = "0.3.0"
 [dev-dependencies]
 futures-await-test = "0.3.0"
 tor-rtmock = { path = "../tor-rtmock", version = "0.1.0" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.1.0", features = [
-    "testing",
-] }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.1.0", features = ["testing"] }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.1.0", features = [
-    "testing",
-] }
-tor-persist = { path = "../tor-persist", version = "0.1.0", features = [
-    "testing",
-] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [
-    "tokio",
-    "native-tls",
-] }
+tor-netdir = { path = "../tor-netdir", version = "0.1.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.1.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = ["tokio", "native-tls"] }
