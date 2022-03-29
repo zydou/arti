@@ -1,3 +1,5 @@
+# tor-basic-utils
+
 `tor-basic-utils`: Utilities (low-level) for Tor
 
 Miscellaneous utilities for `tor-*` and `arti-*`.
@@ -8,3 +10,5 @@ So it contains only utilities which have no `tor-*` (or `arti-*`) dependencies.
 There is no particular theme.
 More substantial sets of functionality with particular themes
 are to be found in other `tor-*` crates.
+
+License: MIT OR Apache-2.0

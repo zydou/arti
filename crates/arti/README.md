@@ -1,6 +1,8 @@
 # arti
 
-A minimal client for connecting to the tor network
+A minimal command line program for connecting to the tor network
+
+(If you want a more general Tor client library interface, use [`arti_client`].)
 
 This crate is the primary command-line interface for
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
@@ -74,5 +76,11 @@ can't be a relay.  There isn't any kind of proxy besides SOCKS.
 See the [README
 file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md)
 for a more complete list of missing features.
+
+## Library for building command-line client
+
+This library crate contains code useful for making
+a command line program similar to `arti`.
+The API should not be considered stable.
 
 License: MIT OR Apache-2.0
