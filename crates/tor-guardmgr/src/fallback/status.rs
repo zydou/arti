@@ -50,18 +50,13 @@ impl Status {
         self.retry_at
     }
 
-    /// Restore this `Status` to its original state.
-    pub(crate) fn reset(&mut self) {
-        self.retry_at = None;
-        self.delay = RetryDelay::from_duration(FALLBACK_RETRY_FLOOR);
-    }
-
     /// Record that the associated fallback directory has been used successfully.
     ///
     /// This should only be done after successfully handling a whole reply from the
     /// directory.
     pub(crate) fn note_success(&mut self) {
-        self.reset();
+        self.retry_at = None;
+        self.delay = RetryDelay::from_duration(FALLBACK_RETRY_FLOOR);
     }
 
     /// Record that the associated fallback directory has failed.
