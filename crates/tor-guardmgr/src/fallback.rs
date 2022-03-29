@@ -22,7 +22,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 
 pub use set::FallbackList;
-pub(crate) use set::FallbackSet;
+pub(crate) use set::FallbackState;
 use status::Status;
 
 /// A directory whose location ships with Tor (or arti), and which we

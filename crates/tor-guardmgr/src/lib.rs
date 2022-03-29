@@ -232,7 +232,7 @@ struct GuardMgrInner {
     /// A list of fallback directories used to access the directory system
     /// when no other directory information is yet known.
     // TODO: reconfigure when the configuration changes.
-    fallbacks: fallback::FallbackSet,
+    fallbacks: fallback::FallbackState,
 
     /// Location in which to store persistent state.
     storage: DynStorageHandle<GuardSets>,
@@ -377,7 +377,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Replace the fallback list held by this GuardMgr with `new_list`.
     pub fn replace_fallback_list(&self, list: fallback::FallbackList) {
-        let mut fallbacks: fallback::FallbackSet = list.into();
+        let mut fallbacks: fallback::FallbackState = list.into();
         let mut inner = self.inner.lock().expect("Poisoned lock");
         std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
         inner.fallbacks.take_status_from(fallbacks);

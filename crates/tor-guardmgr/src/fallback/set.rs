@@ -48,7 +48,7 @@ impl FallbackList {
 
 /// A set of fallback directories, in usable form.
 #[derive(Debug, Clone)]
-pub(crate) struct FallbackSet {
+pub(crate) struct FallbackState {
     /// The list of fallbacks in the set.
     ///
     /// We require that these are sorted and unique by (ED,RSA) keys.
@@ -82,16 +82,16 @@ impl Entry {
     }
 }
 
-impl From<FallbackList> for FallbackSet {
+impl From<FallbackList> for FallbackState {
     fn from(list: FallbackList) -> Self {
         let mut fallbacks: Vec<Entry> = list.fallbacks.into_iter().map(|fb| fb.into()).collect();
         fallbacks.sort_by(|x, y| x.id().cmp(y.id()));
         fallbacks.dedup_by(|x, y| x.id() == y.id());
-        FallbackSet { fallbacks }
+        FallbackState { fallbacks }
     }
 }
 
-impl FallbackSet {
+impl FallbackState {
     /// Return a random member of this FallbackSet that's usable at `now`.
     pub(crate) fn choose<R: rand::Rng>(
         &self,
@@ -150,7 +150,7 @@ impl FallbackSet {
     }
 
     /// Consume `other` and copy all of its fallback status entries into the corresponding entries for `self`.
-    pub(crate) fn take_status_from(&mut self, other: FallbackSet) {
+    pub(crate) fn take_status_from(&mut self, other: FallbackState) {
         matching_items(
             self.fallbacks.iter_mut(),
             other.fallbacks.into_iter(),
@@ -295,7 +295,7 @@ mod test {
         let list: FallbackList = fbs.clone().into();
         assert!(!list.is_empty());
         assert_eq!(list.len(), 4);
-        let mut set: FallbackSet = list.clone().into();
+        let mut set: FallbackState = list.clone().into();
 
         // inspect the generated set
         assert_eq!(set.fallbacks.len(), 4);
@@ -317,7 +317,7 @@ mod test {
         redundant_fbs[..].shuffle(&mut rand::thread_rng());
         let list2 = redundant_fbs.into();
         assert_ne!(&list, &list2);
-        let set2: FallbackSet = list2.into();
+        let set2: FallbackState = list2.into();
 
         // It should have the same elements, in the same order.
         assert_eq!(set.fallbacks.len(), set2.fallbacks.len());
@@ -332,13 +332,13 @@ mod test {
     fn set_choose() {
         let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
         let list: FallbackList = fbs.into();
-        let mut set: FallbackSet = list.into();
+        let mut set: FallbackState = list.into();
 
         let mut counts = [0_usize; 4];
         let mut rng = rand::thread_rng();
         let now = Instant::now();
 
-        fn lookup_idx(set: &FallbackSet, id: &GuardId) -> Option<usize> {
+        fn lookup_idx(set: &FallbackState, id: &GuardId) -> Option<usize> {
             set.fallbacks.binary_search_by(|ent| ent.id().cmp(id)).ok()
         }
         // Basic case: everybody is up.
@@ -371,7 +371,7 @@ mod test {
         ));
 
         // Construct an empty set; make sure we get the right error.
-        let empty_set = FallbackSet::from(FallbackList::from(vec![]));
+        let empty_set = FallbackState::from(FallbackList::from(vec![]));
         assert!(matches!(
             empty_set.choose(&mut rng, now),
             Err(PickGuardError::NoCandidatesAvailable)
@@ -384,7 +384,7 @@ mod test {
     fn test_status() {
         let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
         let list: FallbackList = fbs.clone().into();
-        let mut set: FallbackSet = list.into();
+        let mut set: FallbackState = list.into();
         let ids: Vec<_> = set.fallbacks.iter().map(|fb| fb.id().clone()).collect();
 
         let now = Instant::now();
@@ -431,7 +431,7 @@ mod test {
         let fbs_new = [rand_fb(), rand_fb(), rand_fb()];
         fbs2.extend(fbs_new.clone());
 
-        let mut set2 = FallbackSet::from(FallbackList::from(fbs2.clone()));
+        let mut set2 = FallbackState::from(FallbackList::from(fbs2.clone()));
         set2.take_status_from(set); // consumes set.
         assert_eq!(set2.fallbacks.len(), 6); // Started with 4, added 3, removed 1.
 
