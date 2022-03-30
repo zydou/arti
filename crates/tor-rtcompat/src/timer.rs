@@ -203,7 +203,6 @@ mod test {
         }
         let minute = Duration::from_secs(60);
         let second = Duration::from_secs(1);
-        #[allow(clippy::disallowed_methods)]
         let start = SystemTime::now();
 
         let target = start + 30 * minute;

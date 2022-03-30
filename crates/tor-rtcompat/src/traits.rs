@@ -95,7 +95,6 @@ pub trait SleepProvider {
     ///
     /// (This is the same as `SystemTime::now`, if not running in test mode.)
     fn wallclock(&self) -> SystemTime {
-        #[allow(clippy::disallowed_methods)]
         SystemTime::now()
     }
 

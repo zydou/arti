@@ -17,7 +17,6 @@ fn timeouts() {
         oneshot::Sender<()>,
         Timeout<oneshot::Receiver<()>, tor_rtmock::time::Sleeping>,
     ) {
-        #[allow(clippy::disallowed_methods)]
         let start = SystemTime::now();
         let (send, recv) = oneshot::channel::<()>();
         let mock_sp = MockSleepProvider::new(start);
