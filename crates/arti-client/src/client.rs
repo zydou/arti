@@ -8,9 +8,8 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use tor_circmgr::isolation::Isolation;
-use tor_circmgr::{isolation::StreamIsolationBuilder, DirInfo, IsolationToken, TargetPort};
+use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
-use tor_dirmgr::DirEvent;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -18,19 +17,17 @@ use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
-use futures::stream::StreamExt;
 use futures::task::SpawnExt;
 use std::convert::TryInto;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, Weak};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
-use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
-use tracing::{debug, error, info, warn};
+use tor_rtcompat::scheduler::TaskHandle;
+use tracing::{debug, info};
 
 /// An active client session on the Tor network.
 ///
@@ -378,7 +375,16 @@ impl<R: Runtime> TorClient<R> {
             .build(runtime.clone(), Arc::clone(&circmgr), dir_cfg)
             .map_err(crate::Error::into_detail)?;
 
-        let mut periodic_task_handles = vec![];
+        let mut periodic_task_handles = circmgr
+            .launch_background_tasks(&runtime, &dirmgr, statemgr.clone())
+            .map_err(ErrorDetail::CircMgrSetup)?;
+
+        periodic_task_handles.extend(
+            chanmgr
+                .launch_background_tasks(&runtime)
+                .map_err(ErrorDetail::ChanMgrSetup)?
+                .into_iter(),
+        );
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
@@ -389,59 +395,6 @@ impl<R: Runtime> TorClient<R> {
                 dir_status,
             ))
             .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
-
-        let (expiry_sched, expiry_handle) = TaskSchedule::new(runtime.clone());
-        periodic_task_handles.push(expiry_handle);
-
-        runtime
-            .spawn(continually_expire_channels(
-                expiry_sched,
-                Arc::downgrade(&chanmgr),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("channel expiration task", e))?;
-
-        // Launch a daemon task to inform the circmgr about new
-        // network parameters.
-        runtime
-            .spawn(keep_circmgr_params_updated(
-                dirmgr.events(),
-                Arc::downgrade(&circmgr),
-                Arc::downgrade(&dirmgr),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("circmgr parameter updater", e))?;
-
-        let (persist_sched, persist_handle) = TaskSchedule::new(runtime.clone());
-        periodic_task_handles.push(persist_handle);
-
-        runtime
-            .spawn(update_persistent_state(
-                persist_sched,
-                Arc::downgrade(&circmgr),
-                statemgr.clone(),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("persistent state updater", e))?;
-
-        let (timeout_sched, timeout_handle) = TaskSchedule::new(runtime.clone());
-        periodic_task_handles.push(timeout_handle);
-
-        runtime
-            .spawn(continually_launch_timeout_testing_circuits(
-                timeout_sched,
-                Arc::downgrade(&circmgr),
-                Arc::downgrade(&dirmgr),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("timeout-probe circuit launcher", e))?;
-
-        let (preempt_sched, preempt_handle) = TaskSchedule::new(runtime.clone());
-        periodic_task_handles.push(preempt_handle);
-
-        runtime
-            .spawn(continually_preemptively_build_circuits(
-                preempt_sched,
-                Arc::downgrade(&circmgr),
-                Arc::downgrade(&dirmgr),
-            ))
-            .map_err(|e| ErrorDetail::from_spawn("preemptive circuit launcher", e))?;
 
         let client_isolation = IsolationToken::new();
 
@@ -938,206 +891,6 @@ where
     ErrorDetail: From<T>,
 {
     ErrorDetail::from(err).into()
-}
-
-/// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
-/// `circmgr` with the consensus parameters from `dirmgr`.
-///
-/// Exit when `events` is closed, or one of `circmgr` or `dirmgr` becomes
-/// dangling.
-///
-/// This is a daemon task: it runs indefinitely in the background.
-async fn keep_circmgr_params_updated<R: Runtime>(
-    mut events: impl futures::Stream<Item = DirEvent> + Unpin,
-    circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
-) {
-    use DirEvent::*;
-    while let Some(event) = events.next().await {
-        match event {
-            NewConsensus => {
-                if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                    let netdir = dm
-                        .latest_netdir()
-                        .expect("got new consensus event, without a netdir?");
-                    cm.update_network_parameters(netdir.params());
-                    cm.update_network(&netdir);
-                } else {
-                    debug!("Circmgr or dirmgr has disappeared; task exiting.");
-                    break;
-                }
-            }
-            NewDescriptors => {
-                if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                    let netdir = dm
-                        .latest_netdir()
-                        .expect("got new descriptors event, without a netdir?");
-                    cm.update_network(&netdir);
-                } else {
-                    debug!("Circmgr or dirmgr has disappeared; task exiting.");
-                    break;
-                }
-            }
-            _ => {
-                // Nothing we recognize.
-            }
-        }
-    }
-}
-
-/// Run forever, periodically telling `circmgr` to update its persistent
-/// state.
-///
-/// Exit when we notice that `circmgr` has been dropped.
-///
-/// This is a daemon task: it runs indefinitely in the background.
-async fn update_persistent_state<R: Runtime>(
-    mut sched: TaskSchedule<R>,
-    circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    statemgr: FsStateMgr,
-) {
-    // TODO: Consider moving this function into tor-circmgr after we have more
-    // experience with the state system.
-
-    while sched.next().await.is_some() {
-        if let Some(circmgr) = Weak::upgrade(&circmgr) {
-            use tor_persist::LockStatus::*;
-
-            match statemgr.try_lock() {
-                Err(e) => {
-                    error!("Problem with state lock file: {}", e);
-                    break;
-                }
-                Ok(NewlyAcquired) => {
-                    info!("We now own the lock on our state files.");
-                    if let Err(e) = circmgr.upgrade_to_owned_persistent_state() {
-                        error!("Unable to upgrade to owned state files: {}", e);
-                        break;
-                    }
-                }
-                Ok(AlreadyHeld) => {
-                    if let Err(e) = circmgr.store_persistent_state() {
-                        error!("Unable to flush circmgr state: {}", e);
-                        break;
-                    }
-                }
-                Ok(NoLock) => {
-                    if let Err(e) = circmgr.reload_persistent_state() {
-                        error!("Unable to reload circmgr state: {}", e);
-                        break;
-                    }
-                }
-            }
-        } else {
-            debug!("Circmgr has disappeared; task exiting.");
-            return;
-        }
-        // TODO(nickm): This delay is probably too small.
-        //
-        // Also, we probably don't even want a fixed delay here.  Instead,
-        // we should be updating more frequently when the data is volatile
-        // or has important info to save, and not at all when there are no
-        // changes.
-        sched.fire_in(Duration::from_secs(60));
-    }
-
-    error!("State update task is exiting prematurely.");
-}
-
-/// Run indefinitely, launching circuits as needed to get a good
-/// estimate for our circuit build timeouts.
-///
-/// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
-///
-/// This is a daemon task: it runs indefinitely in the background.
-///
-/// # Note
-///
-/// I'd prefer this to be handled entirely within the tor-circmgr crate;
-/// see [`tor_circmgr::CircMgr::launch_timeout_testing_circuit_if_appropriate`]
-/// for more information.
-async fn continually_launch_timeout_testing_circuits<R: Runtime>(
-    mut sched: TaskSchedule<R>,
-    circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
-) {
-    while sched.next().await.is_some() {
-        if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-            if let Some(netdir) = dm.latest_netdir() {
-                if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                    warn!("Problem launching a timeout testing circuit: {}", e);
-                }
-                let delay = netdir
-                    .params()
-                    .cbt_testing_delay
-                    .try_into()
-                    .expect("Out-of-bounds value from BoundedInt32");
-
-                drop((cm, dm));
-                sched.fire_in(delay);
-            } else {
-                // TODO(eta): ideally, this should wait until we successfully bootstrap using
-                //            the bootstrap status API
-                sched.fire_in(Duration::from_secs(10));
-            }
-        } else {
-            return;
-        }
-    }
-}
-
-/// Run indefinitely, launching circuits where the preemptive circuit
-/// predictor thinks it'd be a good idea to have them.
-///
-/// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
-///
-/// This is a daemon task: it runs indefinitely in the background.
-///
-/// # Note
-///
-/// This would be better handled entirely within `tor-circmgr`, like
-/// other daemon tasks.
-async fn continually_preemptively_build_circuits<R: Runtime>(
-    mut sched: TaskSchedule<R>,
-    circmgr: Weak<tor_circmgr::CircMgr<R>>,
-    dirmgr: Weak<dyn tor_dirmgr::DirProvider + Send + Sync>,
-) {
-    while sched.next().await.is_some() {
-        if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-            if let Some(netdir) = dm.latest_netdir() {
-                cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
-                    .await;
-                sched.fire_in(Duration::from_secs(10));
-            } else {
-                // TODO(eta): ideally, this should wait until we successfully bootstrap using
-                //            the bootstrap status API
-                sched.fire_in(Duration::from_secs(10));
-            }
-        } else {
-            return;
-        }
-    }
-}
-/// Periodically expire any channels that have been unused beyond
-/// the maximum duration allowed.
-///
-/// Exist when we find that `chanmgr` is dropped
-///
-/// This is a daemon task that runs indefinitely in the background
-async fn continually_expire_channels<R: Runtime>(
-    mut sched: TaskSchedule<R>,
-    chanmgr: Weak<tor_chanmgr::ChanMgr<R>>,
-) {
-    while sched.next().await.is_some() {
-        let delay = if let Some(cm) = Weak::upgrade(&chanmgr) {
-            cm.expire_channels()
-        } else {
-            // channel manager is closed.
-            return;
-        };
-        // This will sometimes be an underestimate, but it's no big deal; we just sleep some more.
-        sched.fire_in(Duration::from_secs(delay.as_secs()));
-    }
 }
 
 #[cfg(test)]

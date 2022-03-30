@@ -72,9 +72,11 @@ use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
 use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
+use futures::stream::BoxStream;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::ops::Deref;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -251,6 +253,54 @@ pub struct NetDir {
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
     weights: weight::WeightSet,
+}
+
+/// An event that a [`NetDirProvider`] can broadcast to indicate that a change in
+/// the status of its directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DirEvent {
+    /// A new consensus has been received, and has enough information to be
+    /// used.
+    ///
+    /// This event is also broadcast when a new set of consensus parameters is
+    /// available, even if that set of parameters comes from a configuration
+    /// change rather than from the latest consensus.
+    NewConsensus,
+
+    /// New descriptors have been received for the current consensus.
+    ///
+    /// (This event is _not_ broadcast when receiving new descriptors for a
+    /// consensus which is not yet ready to replace the current consensus.)
+    NewDescriptors,
+}
+
+/// An object that can provide [`NetDir`]s, as well as inform consumers when
+/// they might have changed.
+pub trait NetDirProvider {
+    /// Return a handle to our latest directory, if we have one.
+    fn latest_netdir(&self) -> Option<Arc<NetDir>>;
+
+    /// Return a new asynchronous stream that will receive notification
+    /// whenever the consensus has changed.
+    ///
+    /// Multiple events may be batched up into a single item: each time
+    /// this stream yields an event, all you can assume is that the event has
+    /// occurred at least once.
+    fn events(&self) -> BoxStream<'static, DirEvent>;
+}
+
+impl<T> NetDirProvider for Arc<T>
+where
+    T: NetDirProvider,
+{
+    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
+        self.deref().latest_netdir()
+    }
+
+    fn events(&self) -> BoxStream<'static, DirEvent> {
+        self.deref().events()
+    }
 }
 
 /// A partially build NetDir -- it can't be unwrapped until it has

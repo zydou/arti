@@ -51,13 +51,15 @@
 #![deny(clippy::unwrap_used)]
 
 use tor_chanmgr::ChanMgr;
-use tor_netdir::{fallback::FallbackDir, NetDir};
+use tor_netdir::{fallback::FallbackDir, DirEvent, NetDir, NetDirProvider};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
+use futures::task::SpawnExt;
+use futures::StreamExt;
 use std::convert::TryInto;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 pub mod build;
@@ -85,6 +87,8 @@ use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
 pub use tor_guardmgr::{ExternalFailure, GuardId};
+use tor_persist::{FsStateMgr, StateMgr};
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
 /// A Result type as returned from this crate.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -162,6 +166,10 @@ pub struct CircMgr<R: Runtime> {
 
 impl<R: Runtime> CircMgr<R> {
     /// Construct a new circuit manager.
+    ///
+    /// # Usage note
+    ///
+    /// For the manager to work properly, you will need to call `CircMgr::launch_background_tasks`.
     pub fn new<SM, CFG: CircMgrConfig>(
         config: &CFG,
         storage: SM,
@@ -194,6 +202,66 @@ impl<R: Runtime> CircMgr<R> {
         });
 
         Ok(circmgr)
+    }
+
+    /// Launch the periodic daemon tasks required by the manager to function properly.
+    ///
+    /// Returns a set of [`TaskHandle`]s that can be used to manage the daemon tasks.
+    //
+    // NOTE(eta): The ?Sized on D is so we can pass a trait object in.
+    pub fn launch_background_tasks<D>(
+        self: &Arc<Self>,
+        runtime: &R,
+        dir_provider: &Arc<D>,
+        state_mgr: FsStateMgr,
+    ) -> Result<Vec<TaskHandle>>
+    where
+        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+    {
+        let mut ret = vec![];
+
+        runtime
+            .spawn(Self::keep_circmgr_params_updated(
+                dir_provider.events(),
+                Arc::downgrade(self),
+                Arc::downgrade(dir_provider),
+            ))
+            .map_err(|e| Error::from_spawn("circmgr parameter updater", e))?;
+
+        let (sched, handle) = TaskSchedule::new(runtime.clone());
+        ret.push(handle);
+
+        runtime
+            .spawn(Self::update_persistent_state(
+                sched,
+                Arc::downgrade(self),
+                state_mgr,
+            ))
+            .map_err(|e| Error::from_spawn("persistent state updater", e))?;
+
+        let (sched, handle) = TaskSchedule::new(runtime.clone());
+        ret.push(handle);
+
+        runtime
+            .spawn(Self::continually_launch_timeout_testing_circuits(
+                sched,
+                Arc::downgrade(self),
+                Arc::downgrade(dir_provider),
+            ))
+            .map_err(|e| Error::from_spawn("timeout-probe circuit launcher", e))?;
+
+        let (sched, handle) = TaskSchedule::new(runtime.clone());
+        ret.push(handle);
+
+        runtime
+            .spawn(Self::continually_preemptively_build_circuits(
+                sched,
+                Arc::downgrade(self),
+                Arc::downgrade(dir_provider),
+            ))
+            .map_err(|e| Error::from_spawn("preemptive circuit launcher", e))?;
+
+        Ok(ret)
     }
 
     /// Try to change our configuration settings to `new_config`.
@@ -430,6 +498,186 @@ impl<R: Runtime> CircMgr<R> {
         }
 
         Ok(())
+    }
+
+    /// Whenever a [`DirEvent::NewConsensus`] arrives on `events`, update
+    /// `circmgr` with the consensus parameters from `dirmgr`.
+    ///
+    /// Exit when `events` is closed, or one of `circmgr` or `dirmgr` becomes
+    /// dangling.
+    ///
+    /// This is a daemon task: it runs indefinitely in the background.
+    async fn keep_circmgr_params_updated<D>(
+        mut events: impl futures::Stream<Item = DirEvent> + Unpin,
+        circmgr: Weak<Self>,
+        dirmgr: Weak<D>,
+    ) where
+        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+    {
+        use DirEvent::*;
+        while let Some(event) = events.next().await {
+            match event {
+                NewConsensus => {
+                    if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr))
+                    {
+                        let netdir = dm
+                            .latest_netdir()
+                            .expect("got new consensus event, without a netdir?");
+                        cm.update_network_parameters(netdir.params());
+                        cm.update_network(&netdir);
+                    } else {
+                        debug!("Circmgr or dirmgr has disappeared; task exiting.");
+                        break;
+                    }
+                }
+                NewDescriptors => {
+                    if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr))
+                    {
+                        let netdir = dm
+                            .latest_netdir()
+                            .expect("got new descriptors event, without a netdir?");
+                        cm.update_network(&netdir);
+                    } else {
+                        debug!("Circmgr or dirmgr has disappeared; task exiting.");
+                        break;
+                    }
+                }
+                _ => {
+                    // Nothing we recognize.
+                }
+            }
+        }
+    }
+
+    /// Run indefinitely, launching circuits as needed to get a good
+    /// estimate for our circuit build timeouts.
+    ///
+    /// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
+    ///
+    /// This is a daemon task: it runs indefinitely in the background.
+    async fn continually_launch_timeout_testing_circuits<D>(
+        mut sched: TaskSchedule<R>,
+        circmgr: Weak<Self>,
+        dirmgr: Weak<D>,
+    ) where
+        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+    {
+        while sched.next().await.is_some() {
+            if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+                if let Some(netdir) = dm.latest_netdir() {
+                    if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
+                        warn!("Problem launching a timeout testing circuit: {}", e);
+                    }
+                    let delay = netdir
+                        .params()
+                        .cbt_testing_delay
+                        .try_into()
+                        .expect("Out-of-bounds value from BoundedInt32");
+
+                    drop((cm, dm));
+                    sched.fire_in(delay);
+                } else {
+                    // wait for the provider to announce some event, which will probably be
+                    // NewConsensus; this is therefore a decent yardstick for rechecking
+                    let _ = dm.events().next().await;
+                    sched.fire();
+                }
+            } else {
+                return;
+            }
+        }
+    }
+
+    /// Run forever, periodically telling `circmgr` to update its persistent
+    /// state.
+    ///
+    /// Exit when we notice that `circmgr` has been dropped.
+    ///
+    /// This is a daemon task: it runs indefinitely in the background.
+    async fn update_persistent_state(
+        mut sched: TaskSchedule<R>,
+        circmgr: Weak<Self>,
+        statemgr: FsStateMgr,
+    ) {
+        while sched.next().await.is_some() {
+            if let Some(circmgr) = Weak::upgrade(&circmgr) {
+                use tor_persist::LockStatus::*;
+
+                match statemgr.try_lock() {
+                    Err(e) => {
+                        error!("Problem with state lock file: {}", e);
+                        break;
+                    }
+                    Ok(NewlyAcquired) => {
+                        info!("We now own the lock on our state files.");
+                        if let Err(e) = circmgr.upgrade_to_owned_persistent_state() {
+                            error!("Unable to upgrade to owned state files: {}", e);
+                            break;
+                        }
+                    }
+                    Ok(AlreadyHeld) => {
+                        if let Err(e) = circmgr.store_persistent_state() {
+                            error!("Unable to flush circmgr state: {}", e);
+                            break;
+                        }
+                    }
+                    Ok(NoLock) => {
+                        if let Err(e) = circmgr.reload_persistent_state() {
+                            error!("Unable to reload circmgr state: {}", e);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                debug!("Circmgr has disappeared; task exiting.");
+                return;
+            }
+            // TODO(nickm): This delay is probably too small.
+            //
+            // Also, we probably don't even want a fixed delay here.  Instead,
+            // we should be updating more frequently when the data is volatile
+            // or has important info to save, and not at all when there are no
+            // changes.
+            sched.fire_in(Duration::from_secs(60));
+        }
+
+        debug!("State update task exiting (potentially due to handle drop).");
+    }
+
+    /// Run indefinitely, launching circuits where the preemptive circuit
+    /// predictor thinks it'd be a good idea to have them.
+    ///
+    /// Exit when we notice that `circmgr` or `dirmgr` has been dropped.
+    ///
+    /// This is a daemon task: it runs indefinitely in the background.
+    ///
+    /// # Note
+    ///
+    /// This would be better handled entirely within `tor-circmgr`, like
+    /// other daemon tasks.
+    async fn continually_preemptively_build_circuits<D>(
+        mut sched: TaskSchedule<R>,
+        circmgr: Weak<Self>,
+        dirmgr: Weak<D>,
+    ) where
+        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+    {
+        while sched.next().await.is_some() {
+            if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
+                if let Some(netdir) = dm.latest_netdir() {
+                    cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
+                        .await;
+                    sched.fire_in(Duration::from_secs(10));
+                } else {
+                    // wait for the provider to announce some event, which will probably be
+                    // NewConsensus; this is therefore a decent yardstick for rechecking
+                    let _ = dm.events().next().await;
+                    sched.fire();
+                }
+            } else {
+                return;
+            }
+        }
     }
 
     /// Record that a failure occurred on a circuit with a given guard, in a way

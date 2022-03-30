@@ -63,6 +63,7 @@ tor-dirmgr:
   new-api: DirMgrConfig object now has accessors.
   DirMgrCfg: totally changed, builder abolished.
   Authority, NetworkConfig: removed several accessors for these config elements.
+  api-break: DirEvent is now in tor-netdir instead
 
 tor-circmgr:
   CircMgrCfg: totally changed, builder abolished.
