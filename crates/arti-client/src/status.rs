@@ -38,9 +38,7 @@ impl BootstrapStatus {
     /// 0 is defined as "just started"; 1 is defined as "ready to use."
     pub fn as_frac(&self) -> f32 {
         // Coefficients chosen arbitrarily.
-        let res =
-            self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85;
-        res
+        self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85
     }
 
     /// Return true if the status indicates that the client is ready for
