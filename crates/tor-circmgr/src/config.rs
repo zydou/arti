@@ -6,6 +6,7 @@
 
 use tor_basic_utils::define_accessor_trait;
 use tor_config::ConfigBuildError;
+use tor_guardmgr::fallback::FallbackList;
 
 use derive_builder::Builder;
 use serde::Deserialize;
@@ -281,6 +282,7 @@ define_accessor_trait! {
         path_rules: PathConfig,
         circuit_timing: CircuitTiming,
         preemptive_circuits: PreemptiveCircuitConfig,
+        fallbacks: FallbackList,
     }
 }
 

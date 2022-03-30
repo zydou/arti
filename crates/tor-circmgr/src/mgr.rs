@@ -1335,9 +1335,11 @@ mod test {
     use crate::isolation::test::{assert_isoleq, IsolationTokenEq};
     use crate::usage::{ExitPolicy, SupportedCircUsage};
     use crate::{Error, StreamIsolation, TargetCircUsage, TargetPort};
+    use once_cell::sync::Lazy;
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
     use tor_error::bad_api_usage;
+    use tor_guardmgr::fallback::FallbackList;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockSleepRuntime;
@@ -1463,10 +1465,10 @@ mod test {
 
     const FAKE_CIRC_DELAY: Duration = Duration::from_millis(30);
 
-    static DI_EMPTY: [&tor_netdir::fallback::FallbackDir; 0] = [];
+    static FALLBACKS_EMPTY: Lazy<FallbackList> = Lazy::new(|| [].into());
 
     fn di() -> DirInfo<'static> {
-        DI_EMPTY[..].into()
+        (&*FALLBACKS_EMPTY).into()
     }
 
     #[async_trait]

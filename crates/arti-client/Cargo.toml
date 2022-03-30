@@ -36,6 +36,7 @@ tor-config = { path = "../tor-config", version = "0.1.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.1.0" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.1.0" }
 tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.1.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
 tor-persist = { path = "../tor-persist", version = "0.1.0" }
 tor-proto = { path = "../tor-proto", version = "0.1.0" }
@@ -47,19 +48,14 @@ derive_more = "0.99"
 directories = "4"
 educe = "0.4.6"
 futures = "0.3.14"
-postage = { version = "0.4", default-features = false, features = [
-    "futures-traits",
-] }
+postage = { version = "0.4", default-features = false, features = ["futures-traits"] }
 tracing = "0.1.18"
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 pin-project = "1"
 
 [dev-dependencies]
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = [
-    "tokio",
-    "native-tls",
-] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = ["tokio", "native-tls"] }
 tokio-crate = { package = "tokio", version = "1.7", features = [
     "rt",
     "rt-multi-thread",

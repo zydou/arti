@@ -3,7 +3,9 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
-use crate::{ExternalFailure, GuardId, GuardParams, GuardUsage, GuardUsageKind};
+use crate::{
+    ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
+};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -89,12 +91,24 @@ pub(crate) enum ListKind {
     Confirmed,
     /// A non-primary, non-confirmed guard.
     Sample,
+    /// Not a guard at all, but a fallback directory.
+    Fallback,
 }
 
 impl ListKind {
     /// Return true if this is a primary guard.
     pub(crate) fn is_primary(&self) -> bool {
         self == &ListKind::Primary
+    }
+
+    /// Return true if this guard's origin indicates that you can use successful
+    /// circuits built through it immediately without waiting for any other
+    /// circuits to succeed or fail.
+    pub(crate) fn usable_immediately(&self) -> bool {
+        match self {
+            ListKind::Primary | ListKind::Fallback => true,
+            ListKind::Confirmed | ListKind::Sample => false,
+        }
     }
 }
 
@@ -236,7 +250,12 @@ impl GuardSet {
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
         let id = GuardId::from_chan_target(relay);
-        self.guards.contains_key(&id)
+        self.contains(&id)
+    }
+
+    /// Return true if `id` is a member of this set.
+    pub(crate) fn contains(&self, id: &GuardId) -> bool {
+        self.guards.contains_key(id)
     }
 
     /// If there are not enough filter-permitted usable guards in this
@@ -594,7 +613,7 @@ impl GuardSet {
     pub(crate) fn record_failure(
         &mut self,
         guard_id: &GuardId,
-        how: Option<ExternalFailure>,
+        how: Option<ExternalActivity>,
         now: Instant,
     ) {
         // TODO: For now, we treat failures of guards for circuit building the
@@ -781,41 +800,13 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
     }
 }
 
-/// A error caused by a failure to pick a guard.
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum PickGuardError {
-    /// All members of the current sample were down.
-    #[error("All guards are down")]
-    AllGuardsDown {
-        /// The next time at which any guard will be retriable.
-        retry_at: Option<Instant>,
-    },
-
-    /// Some guards were running, but all of them were either blocked on pending
-    /// circuits at other guards, unusable for the provided purpose, or filtered
-    /// out.
-    #[error("No running guards were usable for the selected purpose")]
-    NoGuardsUsable,
-}
-
-impl tor_error::HasKind for PickGuardError {
-    fn kind(&self) -> tor_error::ErrorKind {
-        use tor_error::ErrorKind as EK;
-        use PickGuardError as E;
-        match self {
-            E::AllGuardsDown { .. } => EK::TorAccessFailed,
-            E::NoGuardsUsable => EK::NoPath,
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
+    use crate::FirstHopId;
     use std::time::Duration;
 
     fn netdir() -> NetDir {
@@ -877,7 +868,8 @@ mod test {
 
             // make sure all the guards are okay.
             for (g, guard) in &guards.guards {
-                let relay = g.get_relay(&netdir).unwrap();
+                let id: FirstHopId = g.clone().into();
+                let relay = id.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
                 assert!(guards.contains_relay(&relay));
@@ -1235,7 +1227,7 @@ mod test {
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|idx, bld| {
-            if idx == p_id1.ed25519.as_bytes()[0] as usize {
+            if idx == p_id1.0.ed25519.as_bytes()[0] as usize {
                 bld.omit_md = true;
             }
         })

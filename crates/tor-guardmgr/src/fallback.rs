@@ -10,6 +10,10 @@
 //! The types in this module are re-exported from `arti-client` and
 //! `tor-dirmgr`: any changes here must be reflected there.
 
+mod set;
+mod status;
+
+use crate::ids::FallbackId;
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -17,6 +21,10 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use serde::Deserialize;
 use std::net::SocketAddr;
+
+pub use set::FallbackList;
+pub(crate) use set::FallbackState;
+use status::Status;
 
 /// A directory whose location ships with Tor (or arti), and which we
 /// can use for bootstrapping when we don't know anything else about
@@ -41,6 +49,14 @@ impl FallbackDir {
     /// Return a builder that can be used to make a `FallbackDir`.
     pub fn builder() -> FallbackDirBuilder {
         FallbackDirBuilder::default()
+    }
+
+    /// Return a copy of this FallbackDir as a [`FirstHop`](crate::FirstHop)
+    pub fn as_guard(&self) -> crate::FirstHop {
+        crate::FirstHop {
+            id: FallbackId::from_chan_target(self).into(),
+            orports: self.orports.clone(),
+        }
     }
 }
 

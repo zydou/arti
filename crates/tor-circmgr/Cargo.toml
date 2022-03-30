@@ -6,9 +6,9 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Manage a set of anonymous circuits over the Tor network"
-keywords = [ "tor", "arti", "async" ]
-categories = [ "network-programming", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "async"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 # Enable experimental APIs that are not yet officially supported.
@@ -18,18 +18,18 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 experimental-api = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0"}
-tor-chanmgr = { path="../tor-chanmgr", version = "0.1.0"}
-tor-config = { path="../tor-config", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-guardmgr = { path="../tor-guardmgr", version = "0.1.0"}
-tor-netdir = { path="../tor-netdir", version = "0.1.0"}
-tor-netdoc = { path="../tor-netdoc", version = "0.1.0"}
-tor-proto = { path="../tor-proto", version = "0.1.0"}
-retry-error = { path="../retry-error", version = "0.1.0"}
-tor-linkspec = { path="../tor-linkspec", version = "0.1.0"}
-tor-persist = {  path="../tor-persist", version = "0.1.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.1.0" }
+tor-config = { path = "../tor-config", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.1.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.1.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
+tor-proto = { path = "../tor-proto", version = "0.1.0" }
+retry-error = { path = "../retry-error", version = "0.1.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.1.0" }
+tor-persist = { path = "../tor-persist", version = "0.1.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
 
 async-trait = "0.1.2"
 bounded-vec-deque = "0.1"
@@ -40,6 +40,7 @@ educe = "0.4.6"
 futures = "0.3.14"
 humantime-serde = "1.1.1"
 itertools = "0.10.1"
+once_cell = "1"
 tracing = "0.1.18"
 pin-project = "1"
 rand = "0.8"
@@ -50,9 +51,9 @@ weak-table = "0.3.0"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtmock = { path="../tor-rtmock", version = "0.1.0"}
-tor-guardmgr = { path="../tor-guardmgr", version = "0.1.0", features=["testing"]}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
-tor-netdir = { path="../tor-netdir", version = "0.1.0", features=["testing"] }
-tor-persist = { path="../tor-persist", version = "0.1.0", features=["testing"] }
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0", features=["tokio", "native-tls" ] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.1.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.1.0", features = ["testing"] }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.1.0", features = ["testing"] }
+tor-persist = { path = "../tor-persist", version = "0.1.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = ["tokio", "native-tls"] }

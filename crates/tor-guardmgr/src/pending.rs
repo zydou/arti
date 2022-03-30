@@ -7,7 +7,7 @@
 //! then the circuit manager can't know whether to use a circuit built
 //! through that guard until the guard manager tells it.  This is
 //! handled via [`GuardUsable`].
-use crate::{daemon, GuardId};
+use crate::{daemon, FirstHopId};
 
 use educe::Educe;
 use futures::{
@@ -49,6 +49,8 @@ pub struct GuardUsable {
     ///
     /// If absent, then the guard is ready immediately and no waiting
     /// is needed.
+    //
+    // TODO: use a type that makes the case here more distinguishable.
     #[pin]
     u: Option<oneshot::Receiver<bool>>,
 }
@@ -65,16 +67,22 @@ impl Future for GuardUsable {
 }
 
 impl GuardUsable {
-    /// Create a new GuardUsable for a primary guard.
+    /// Create a new GuardUsable for a primary guard or a fallback directory.
     ///
-    /// (Circuits built through primary guards are usable immediately,
-    /// so we don't need a way to report that this guard is usable.)
-    pub(crate) fn new_primary() -> Self {
+    /// (Circuits built through these are usable immediately, independently of
+    /// whether other guards succeed or fail, so we don't need a way to report
+    /// whether such guards/fallbacks are usable.)
+    pub(crate) fn new_usable_immediately() -> Self {
         GuardUsable { u: None }
     }
 
-    /// Create a new GuardUsable for a guard with undecided usability
-    /// status.
+    /// Create a new GuardUsable for a guard with undecided usability status.
+    ///
+    /// (We use this constructor when a circuit is built through a non-primary
+    /// guard, and there are other guards _we would prefer to use, if they turn
+    /// out to work_.  If such a circuit succeeds, the caller must still use
+    /// this `GuardUsable` to wait until the `GuardMgr` sees whether the
+    /// more-preferred guards have succeeded or failed.)
     pub(crate) fn new_uncertain() -> (Self, oneshot::Sender<bool>) {
         let (snd, rcv) = oneshot::channel();
         (GuardUsable { u: Some(rcv) }, snd)
@@ -255,7 +263,7 @@ impl RequestId {
 #[derive(Debug)]
 pub(crate) struct PendingRequest {
     /// Identity of the guard that we gave out.
-    guard_id: GuardId,
+    guard_id: FirstHopId,
     /// The usage for which this guard was requested.
     ///
     /// We need this information because, if we find that a better guard
@@ -282,7 +290,7 @@ pub(crate) struct PendingRequest {
 impl PendingRequest {
     /// Create a new PendingRequest.
     pub(crate) fn new(
-        guard_id: GuardId,
+        guard_id: FirstHopId,
         usage: crate::GuardUsage,
         usable: Option<oneshot::Sender<bool>>,
         net_has_been_down: bool,
@@ -297,7 +305,7 @@ impl PendingRequest {
     }
 
     /// Return the Id of the guard we gave out.
-    pub(crate) fn guard_id(&self) -> &GuardId {
+    pub(crate) fn guard_id(&self) -> &FirstHopId {
         &self.guard_id
     }
 
