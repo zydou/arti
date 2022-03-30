@@ -75,9 +75,9 @@ mod timeouts;
 mod usage;
 
 pub use err::Error;
-pub use isolation::{IsolationToken};
-pub use usage::{TargetPort, TargetPorts};
+pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
+pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
     CircMgrConfig, CircuitTiming, CircuitTimingBuilder, PathConfig, PathConfigBuilder,
