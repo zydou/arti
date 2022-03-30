@@ -742,14 +742,34 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
     ) -> Result<B::Circ> {
+        /// Return CEIL(a/b).
+        ///
+        /// Requires that a+b is less than usize::MAX.
+        ///
+        /// This can be removed once usize::div_ceil is stable.
+        ///
+        /// # Panics
+        ///
+        /// Panics if b is 0.
+        fn div_ceil(a: usize, b: usize) -> usize {
+            (a + b - 1) / b
+        }
+
         let circuit_timing = self.circuit_timing();
         let wait_for_circ = circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
         let max_tries = circuit_timing.request_max_retries;
+        // We compute the maximum number of times through this loop by dividing
+        // the maximum number of circuits to attempt by the number that will be
+        // launched in parallel for each iteration.
+        let max_iterations = div_ceil(
+            max_tries as usize,
+            std::cmp::max(1, self.builder.launch_parallelism(usage)),
+        );
 
         let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a circuit");
 
-        for n in 1..(max_tries + 1) {
+        for n in 1..(max_iterations + 1) {
             // How much time is remaining?
             let remaining = match timeout_at.checked_duration_since(self.runtime.now()) {
                 None => {
