@@ -380,7 +380,6 @@ mod test {
 
     #[test]
     fn week() {
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_day = Duration::new(86400, 0);
 

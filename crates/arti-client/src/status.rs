@@ -38,10 +38,7 @@ impl BootstrapStatus {
     /// 0 is defined as "just started"; 1 is defined as "ready to use."
     pub fn as_frac(&self) -> f32 {
         // Coefficients chosen arbitrarily.
-        #[allow(clippy::disallowed_methods)]
-        let res =
-            self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85;
-        res
+        self.conn_status.frac() * 0.15 + self.dir_status.frac_at(SystemTime::now()) * 0.85
     }
 
     /// Return true if the status indicates that the client is ready for
@@ -50,7 +47,6 @@ impl BootstrapStatus {
     /// For the purposes of this function, the client is "ready for traffic" if,
     /// as far as we know, we can start acting on a new client request immediately.
     pub fn ready_for_traffic(&self) -> bool {
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         self.conn_status.usable() && self.dir_status.usable_at(now)
     }

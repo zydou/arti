@@ -693,7 +693,6 @@ mod test {
     fn basic_guard() -> Guard {
         let id = basic_id();
         let ports = vec!["127.0.0.7:7777".parse().unwrap()];
-        #[allow(clippy::disallowed_methods)]
         let added = SystemTime::now();
         Guard::new(id, ports, added)
     }
@@ -814,7 +813,6 @@ mod test {
     fn record_success() {
         let t1 = Instant::now() - Duration::from_secs(10);
         // has to be in the future, since the guard's "added_at" time is based on now.
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let t2 = now + Duration::from_secs(300 * 86400);
         let t3 = Instant::now() + Duration::from_secs(310 * 86400);
@@ -871,7 +869,6 @@ mod test {
     fn expiration() {
         const DAY: Duration = Duration::from_secs(24 * 60 * 60);
         let params = GuardParams::default();
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         let g = basic_guard();
@@ -903,7 +900,6 @@ mod test {
             .unwrap_if_sufficient()
             .unwrap();
         let params = GuardParams::default();
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         // Construct a guard from a relay from the netdir.
@@ -960,7 +956,6 @@ mod test {
         .unwrap();
 
         //let params = GuardParams::default();
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         // Try a guard that isn't in the netdir at all.
@@ -1043,7 +1038,6 @@ mod test {
         let mut g = basic_guard();
         let params = GuardParams::default();
 
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
 
         let _ignore = g.record_success(now, &params);

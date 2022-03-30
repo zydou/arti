@@ -633,7 +633,6 @@ mod test {
 
     #[test]
     fn dir_status_basics() {
-        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let hour = Duration::new(3600, 0);
 

@@ -439,7 +439,6 @@ mod test {
 
     #[test]
     fn basics_of_time_travel() {
-        #[allow(clippy::disallowed_methods)]
         let w1 = SystemTime::now();
         let sp = MockSleepProvider::new(w1);
         let i1 = sp.now();
@@ -462,7 +461,6 @@ mod test {
             use std::sync::atomic::AtomicBool;
             use std::sync::atomic::Ordering;
 
-            #[allow(clippy::disallowed_methods)]
             let sp = MockSleepProvider::new(SystemTime::now());
             let one_hour = Duration::new(3600, 0);
 

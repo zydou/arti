@@ -119,7 +119,6 @@ pub trait Timebound<T>: Sized {
 
     /// Unwrap this Timebound object if it is valid now.
     fn check_valid_now(self) -> Result<T, Self::Error> {
-        #[allow(clippy::disallowed_methods)]
         self.check_valid_at(&time::SystemTime::now())
     }
 
