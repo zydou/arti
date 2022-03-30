@@ -10,6 +10,9 @@ keywords = ["tor", "arti", "typestate"]
 categories = ["cryptography", "rust-patterns"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+experimental-api = []
+
 [dependencies]
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
 
