@@ -145,7 +145,7 @@ request_timeout = "60 sec"
 
 # When a circuit is requested, we make up to this many attempts to build
 # circuits for it before the request gives up.
-request_max_retries = 32
+request_max_retries = 16
 
 # If a circuit is finished that would satisfy a pending request, but the
 # request is still waiting for its own circuits to complete, the request

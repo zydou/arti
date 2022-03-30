@@ -210,7 +210,7 @@ fn default_request_timeout() -> Duration {
 
 /// Return the default value for `request_max_retries`.
 fn default_request_max_retries() -> u32 {
-    32
+    16
 }
 
 /// Return the default request loyalty timeout.
