@@ -125,13 +125,13 @@ impl<'a> ExitPathBuilder<'a> {
         now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
-            DirInfo::Fallbacks(_) => {
+            DirInfo::Directory(d) => d,
+            _ => {
                 return Err(bad_api_usage!(
-                    "Tried to build a multihop path using only a list of fallback caches"
+                    "Tried to build a multihop path without a network directory"
                 )
                 .into())
             }
-            DirInfo::Directory(d) => d,
         };
         let subnet_config = config.subnet_config();
         let lifetime = netdir.lifetime();
@@ -389,7 +389,7 @@ mod test {
             let mut rng = rand::thread_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
-            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr).unwrap();
+            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();
             let config = PathConfig::default();
             guards.update_network(&netdir);
             let port443 = TargetPort::ipv4(443);

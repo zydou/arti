@@ -12,19 +12,20 @@ use crate::retry::DownloadSchedule;
 use crate::storage::DynStore;
 use crate::{Authority, Result};
 use tor_config::ConfigBuildError;
-use tor_netdir::fallback::FallbackDir;
 use tor_netdoc::doc::netstatus;
 
 use derive_builder::Builder;
-use std::path::PathBuf;
-
 use serde::Deserialize;
+use std::path::PathBuf;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`NetworkConfigBuilder`], or deserialize it from a string.
+//
+// TODO: We should move this type around, since the fallbacks part will no longer be used in
+// dirmgr, but only in guardmgr.  Probably this type belongs in `arti-client`.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
@@ -42,8 +43,8 @@ pub struct NetworkConfig {
     #[builder(default = "fallbacks::default_fallbacks()")]
     #[serde(rename = "fallback_caches")]
     #[builder_field_attr(serde(rename = "fallback_caches"))]
-    #[builder(setter(name = "fallback_caches"))]
-    pub(crate) fallbacks: Vec<FallbackDir>,
+    #[builder(setter(into, name = "fallback_caches"))]
+    pub(crate) fallbacks: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -70,6 +71,11 @@ impl NetworkConfig {
     /// Return a new builder to construct a NetworkConfig.
     pub fn builder() -> NetworkConfigBuilder {
         NetworkConfigBuilder::default()
+    }
+
+    /// Return the list of fallback directory caches from this configuration.
+    pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
+        &self.fallbacks
     }
 }
 
@@ -230,7 +236,7 @@ impl DirMgrConfig {
     }
 
     /// Return the configured set of fallback directories
-    pub fn fallbacks(&self) -> &[FallbackDir] {
+    pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
         &self.network_config.fallbacks
     }
 
@@ -306,11 +312,11 @@ impl DownloadScheduleConfig {
 
 /// Helpers for initializing the fallback list.
 mod fallbacks {
+    use tor_guardmgr::fallback::{FallbackDir, FallbackList};
     use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
-    use tor_netdir::fallback::FallbackDir;
     /// Return a list of the default fallback directories shipped with
     /// arti.
-    pub(crate) fn default_fallbacks() -> Vec<super::FallbackDir> {
+    pub(crate) fn default_fallbacks() -> FallbackList {
         /// Build a fallback directory; panic if input is bad.
         fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDir {
             let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
@@ -331,7 +337,7 @@ mod fallbacks {
             bld.build()
                 .expect("Unable to build default fallback directory!?")
         }
-        include!("fallback_dirs.inc")
+        include!("fallback_dirs.inc").into()
     }
 }
 
@@ -361,6 +367,8 @@ mod test {
 
     #[test]
     fn build_network() -> Result<()> {
+        use tor_guardmgr::fallback::FallbackDir;
+
         let dflt = NetworkConfig::default();
 
         // with nothing set, we get the default.

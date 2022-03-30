@@ -7,8 +7,9 @@ pub mod dirpath;
 pub mod exitpath;
 
 use tor_error::bad_api_usage;
+use tor_guardmgr::fallback::FallbackDir;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
-use tor_netdir::{fallback::FallbackDir, Relay};
+use tor_netdir::Relay;
 
 use std::convert::TryFrom;
 
@@ -31,6 +32,8 @@ enum TorPathInner<'a> {
     /// A single-hop path for use with a directory cache, when we don't have
     /// a consensus.
     FallbackOneHop(&'a FallbackDir),
+    /// A single-hop path taken from an OwnedChanTarget.
+    OwnedOneHop(OwnedChanTarget),
     /// A multi-hop path, containing one or more relays.
     Path(Vec<Relay<'a>>),
 }
@@ -49,6 +52,14 @@ impl<'a> TorPath<'a> {
     pub fn new_fallback_one_hop(fallback_dir: &'a FallbackDir) -> Self {
         Self {
             inner: TorPathInner::FallbackOneHop(fallback_dir),
+        }
+    }
+
+    /// Construct a new one-hop path for directory use from an arbitrarily
+    /// chosen channel target.
+    pub fn new_one_hop_owned<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
+        Self {
+            inner: TorPathInner::OwnedOneHop(OwnedChanTarget::from_chan_target(target)),
         }
     }
 
@@ -81,6 +92,7 @@ impl<'a> TorPath<'a> {
         match &self.inner {
             OneHop(_) => 1,
             FallbackOneHop(_) => 1,
+            OwnedOneHop(_) => 1,
             Path(p) => p.len(),
         }
     }
@@ -103,6 +115,7 @@ impl<'a> TryFrom<&TorPath<'a>> for OwnedPath {
         Ok(match &p.inner {
             FallbackOneHop(h) => OwnedPath::ChannelOnly(OwnedChanTarget::from_chan_target(*h)),
             OneHop(h) => OwnedPath::Normal(vec![OwnedCircTarget::from_circ_target(h)]),
+            OwnedOneHop(owned) => OwnedPath::ChannelOnly(owned.clone()),
             Path(p) if !p.is_empty() => {
                 OwnedPath::Normal(p.iter().map(OwnedCircTarget::from_circ_target).collect())
             }

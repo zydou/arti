@@ -148,6 +148,7 @@ dependencies = [
  "tor-config",
  "tor-dirmgr",
  "tor-error",
+ "tor-guardmgr",
  "tor-netdoc",
  "tor-persist",
  "tor-proto",
@@ -3250,6 +3251,7 @@ dependencies = [
  "futures-await-test",
  "humantime-serde",
  "itertools",
+ "once_cell",
  "pin-project",
  "rand 0.8.5",
  "retry-error",
@@ -3361,6 +3363,7 @@ dependencies = [
  "tor-consdiff",
  "tor-dirclient",
  "tor-error",
+ "tor-guardmgr",
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",
@@ -3396,6 +3399,7 @@ name = "tor-guardmgr"
 version = "0.1.0"
 dependencies = [
  "derive_builder",
+ "derive_more",
  "educe",
  "futures",
  "humantime-serde",

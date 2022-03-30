@@ -1,11 +1,12 @@
 //! Code to construct paths to a directory for non-anonymous downloads
 use super::TorPath;
 use crate::{DirInfo, Error, Result};
+use tor_error::bad_api_usage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::{Relay, WeightRole};
 use tor_rtcompat::Runtime;
 
-use rand::{seq::SliceRandom, Rng};
+use rand::Rng;
 
 /// A PathBuilder that can connect to a directory.
 #[non_exhaustive]
@@ -32,11 +33,31 @@ impl DirPathBuilder {
         guards: Option<&GuardMgr<RT>>,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         match (netdir, guards) {
-            (DirInfo::Fallbacks(f), _) => {
-                let relay = f.choose(rng);
-                if let Some(r) = relay {
-                    return Ok((TorPath::new_fallback_one_hop(r), None, None));
-                }
+            (dirinfo, Some(guardmgr)) => {
+                // We use a guardmgr whenever we have one, regardless of whether
+                // there's a netdir.
+                //
+                // That way, we prefer our guards (if they're up) before we default to the fallback directories.
+                let netdir = match dirinfo {
+                    DirInfo::Directory(netdir) => {
+                        guardmgr.update_network(netdir); // possibly unnecessary.
+                        Some(netdir)
+                    }
+                    _ => None,
+                };
+
+                let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
+                    .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
+                    .build()
+                    .expect("Unable to build directory guard usage");
+                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, netdir)?;
+                return Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)));
+            }
+
+            // In the following cases, we don't have a guardmgr, so we'll use the provided information if we can.
+            (DirInfo::Fallbacks(f), None) => {
+                let relay = f.choose(rng)?;
+                return Ok((TorPath::new_fallback_one_hop(relay), None, None));
             }
             (DirInfo::Directory(netdir), None) => {
                 let relay = netdir.pick_relay(rng, WeightRole::BeginDir, Relay::is_dir_cache);
@@ -44,18 +65,11 @@ impl DirPathBuilder {
                     return Ok((TorPath::new_one_hop(r), None, None));
                 }
             }
-            (DirInfo::Directory(netdir), Some(guardmgr)) => {
-                // TODO: We might want to use the guardmgr even if
-                // we don't have a netdir.  See arti#220.
-                guardmgr.update_network(netdir); // possibly unnecessary.
-                let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
-                    .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
-                    .build()
-                    .expect("Unable to build directory guard usage");
-                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
-                if let Some(r) = guard.get_relay(netdir) {
-                    return Ok((TorPath::new_one_hop(r), Some(mon), Some(usable)));
-                }
+            (DirInfo::Nothing, None) => {
+                return Err(bad_api_usage!(
+                    "Tried to build a one hop path with no directory, fallbacks, or guard manager"
+                )
+                .into());
             }
         }
         Err(Error::NoPath(
@@ -72,8 +86,8 @@ mod test {
     use crate::path::assert_same_path_when_owned;
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
+    use tor_guardmgr::fallback::{FallbackDir, FallbackList};
     use tor_linkspec::ChanTarget;
-    use tor_netdir::fallback::FallbackDir;
     use tor_netdir::testnet;
 
     #[test]
@@ -116,8 +130,8 @@ mod test {
                 .build()
                 .unwrap(),
         ];
-        let fb: Vec<_> = fb_owned.iter().collect();
-        let dirinfo = (&fb[..]).into();
+        let fb: FallbackList = fb_owned.clone().into();
+        let dirinfo = (&fb).into();
         let mut rng = rand::thread_rng();
         let guards: OptDummyGuardMgr<'_> = None;
 
@@ -129,7 +143,7 @@ mod test {
             assert_same_path_when_owned(&p);
 
             if let crate::path::TorPathInner::FallbackOneHop(f) = p.inner {
-                assert!(std::ptr::eq(f, fb[0]) || std::ptr::eq(f, fb[1]));
+                assert!(f == &fb_owned[0] || f == &fb_owned[1]);
             } else {
                 panic!("Generated the wrong kind of path.");
             }
@@ -138,13 +152,19 @@ mod test {
 
     #[test]
     fn dirpath_no_fallbacks() {
-        let fb = vec![];
-        let dirinfo = DirInfo::Fallbacks(&fb[..]);
+        let fb = FallbackList::from([]);
+        let dirinfo = DirInfo::Fallbacks(&fb);
         let mut rng = rand::thread_rng();
         let guards: OptDummyGuardMgr<'_> = None;
 
         let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
-        assert!(matches!(err, Err(Error::NoPath(_))));
+        dbg!(err.as_ref().err());
+        assert!(matches!(
+            err,
+            Err(Error::Guard(
+                tor_guardmgr::PickGuardError::AllFallbacksDown { .. }
+            ))
+        ));
     }
 
     #[test]
@@ -157,7 +177,7 @@ mod test {
             let mut rng = rand::thread_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
-            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr).unwrap();
+            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();
             guards.update_network(&netdir);
 
             let mut distinct_guards = HashSet::new();
@@ -168,7 +188,7 @@ mod test {
                 let (path, mon, usable) = DirPathBuilder::new()
                     .pick_path(&mut rng, dirinfo, Some(&guards))
                     .unwrap();
-                if let crate::path::TorPathInner::OneHop(relay) = path.inner {
+                if let crate::path::TorPathInner::OwnedOneHop(relay) = path.inner {
                     distinct_guards.insert(relay.ed_identity().clone());
                     mon.unwrap().succeeded();
                     assert!(usable.unwrap().await.unwrap());

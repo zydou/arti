@@ -59,14 +59,9 @@ async fn fetch_single<R: Runtime>(
     }
     let circmgr = dirmgr.circmgr()?;
     let cur_netdir = dirmgr.opt_netdir();
-    let config = dirmgr.config.get();
-    let fbs;
     let dirinfo = match cur_netdir {
         Some(ref netdir) => netdir.as_ref().into(),
-        None => {
-            fbs = config.fallbacks().iter().collect::<Vec<_>>();
-            fbs[..].into()
-        }
+        None => tor_circmgr::DirInfo::Nothing,
     };
     let outcome =
         tor_dirclient::get_resource(request.as_requestable(), dirinfo, &dirmgr.runtime, circmgr)
@@ -210,7 +205,12 @@ async fn download_attempt<R: Runtime>(
             Ok(text) => {
                 let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
                 match outcome {
-                    Ok(b) => changed |= b,
+                    Ok(b) => {
+                        changed |= b;
+                        if let Some(source) = source {
+                            dirmgr.note_cache_success(&source);
+                        }
+                    }
                     Err(e) => {
                         warn!("error while adding directory info: {}", e);
                         if let Some(source) = source {

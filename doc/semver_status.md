@@ -41,6 +41,7 @@ arti:
 tor-llcrypto:
 
   new-api: Added RsaIdentity::from\_hex().
+  new-api: Ed25519Identity implements PartialOrd.
 
 arti-client:
 
@@ -70,12 +71,24 @@ tor-circmgr:
 
   api-break: isolation completely revised
 
+  api-break: config must now implement AsRef<FallbackList>
+
 tor-netdoc:
 
   new-api (experimental only): Can modify the set of relays in an unverified
   consensus.
 
   api-break: changed the return type of GenericRouterStatus::version()
+
+tor-netdir:
+
+   api-break: moved FallbackDir to guardmgr.
+
+tor-guardmgr:
+
+   new-api: moved FallbackDir from netdir.
+
+   api-break: FallbackDir required in constructor.
 
 tor-proto:
   new-api: ClientCirc path accessors.

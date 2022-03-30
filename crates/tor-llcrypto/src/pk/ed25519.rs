@@ -24,7 +24,7 @@ pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signat
 ///    validation.
 ///  * This type hasn't checked whether the bytes here actually _are_ a
 ///    valid Ed25519 public key.
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, PartialOrd, Ord)]
 #[allow(clippy::derive_hash_xor_eq)]
 pub struct Ed25519Identity {
     /// A raw unchecked Ed25519 public key.

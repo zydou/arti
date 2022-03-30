@@ -13,7 +13,8 @@ use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::util::randomize_time;
-use crate::{GuardId, GuardParams, GuardRestriction, GuardUsage};
+use crate::FirstHopId;
+use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -321,8 +322,8 @@ impl Guard {
     /// Return true if this guard obeys a single restriction.
     fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
         match r {
-            GuardRestriction::AvoidId(ed) => &self.id.ed25519 != ed,
-            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.ed25519),
+            GuardRestriction::AvoidId(ed) => &self.id.0.ed25519 != ed,
+            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.0.ed25519),
         }
     }
 
@@ -353,7 +354,7 @@ impl Guard {
     /// download another microdescriptor before we can be certain whether this
     /// guard is listed or not.
     pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
-        netdir.id_pair_listed(&self.id.ed25519, &self.id.rsa)
+        netdir.id_pair_listed(&self.id.0.ed25519, &self.id.0.rsa)
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -370,11 +371,9 @@ impl Guard {
         // not.
         let listed_as_guard = match self.listed_in(netdir) {
             Some(true) => {
+                let id: FirstHopId = self.id.clone().into();
                 // Definitely listed.
-                let relay = self
-                    .id
-                    .get_relay(netdir)
-                    .expect("Couldn't get a listed relay?!");
+                let relay = id.get_relay(netdir).expect("Couldn't get a listed relay?!");
                 // Update address information.
                 self.orports = relay.addrs().into();
                 // Check whether we can currently use it as a directory cache.
@@ -570,13 +569,13 @@ impl Guard {
     /// We use this information to decide whether we are about to sample
     /// too much of the network as guards.
     pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(&self.id.rsa, tor_netdir::WeightRole::Guard)
+        dir.weight_by_rsa_id(&self.id.0.rsa, tor_netdir::WeightRole::Guard)
     }
 
-    /// Return a [`crate::Guard`] object to represent this guard.
-    pub(crate) fn get_external_rep(&self) -> crate::Guard {
-        crate::Guard {
-            id: self.id.clone(),
+    /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
+    pub(crate) fn get_external_rep(&self) -> crate::FirstHop {
+        crate::FirstHop {
+            id: self.id.clone().into(),
             orports: self.orports.clone(),
         }
     }
@@ -587,10 +586,10 @@ impl tor_linkspec::ChanTarget for Guard {
         &self.orports[..]
     }
     fn ed_identity(&self) -> &Ed25519Identity {
-        &self.id.ed25519
+        &self.id.0.ed25519
     }
     fn rsa_identity(&self) -> &RsaIdentity {
-        &self.id.rsa
+        &self.id.0.rsa
     }
 }
 
@@ -703,8 +702,8 @@ mod test {
         let g = basic_guard();
 
         assert_eq!(g.guard_id(), &id);
-        assert_eq!(g.ed_identity(), &id.ed25519);
-        assert_eq!(g.rsa_identity(), &id.rsa);
+        assert_eq!(g.ed_identity(), &id.0.ed25519);
+        assert_eq!(g.rsa_identity(), &id.0.rsa);
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
         assert_eq!(g.reachable(), Reachable::Unknown);
         assert_eq!(g.reachable(), Reachable::default());
@@ -910,7 +909,8 @@ mod test {
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
-        let r = guard22.id.get_relay(&netdir).unwrap();
+        let id: FirstHopId = guard22.id.clone().into();
+        let r = id.get_relay(&netdir).unwrap();
         assert_eq!(r.ed_identity(), relay22.ed_identity());
 
         // Can we check on the guard's weight?
@@ -923,7 +923,8 @@ mod test {
             vec![],
             now,
         );
-        assert!(guard255.id.get_relay(&netdir).is_none());
+        let id: FirstHopId = guard255.id.clone().into();
+        assert!(id.get_relay(&netdir).is_none());
         assert!(guard255.get_weight(&netdir).is_none());
     }
 
@@ -975,7 +976,8 @@ mod test {
 
         // Try a guard that is in netdir, but not netdir2.
         let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
-        let relay22 = guard22.id.get_relay(&netdir).unwrap();
+        let id22: FirstHopId = guard22.id.clone().into();
+        let relay22 = id22.get_relay(&netdir).unwrap();
         assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_netdir(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.

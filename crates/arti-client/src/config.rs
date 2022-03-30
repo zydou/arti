@@ -275,6 +275,12 @@ pub struct TorClientConfig {
 
 impl tor_circmgr::CircMgrConfig for TorClientConfig {}
 
+impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
+    fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {
+        self.tor_network.fallback_caches()
+    }
+}
+
 impl Default for TorClientConfig {
     fn default() -> Self {
         Self::builder()

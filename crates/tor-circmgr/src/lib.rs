@@ -51,7 +51,8 @@
 #![deny(clippy::unwrap_used)]
 
 use tor_chanmgr::ChanMgr;
-use tor_netdir::{fallback::FallbackDir, DirEvent, NetDir, NetDirProvider};
+use tor_linkspec::ChanTarget;
+use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
@@ -75,6 +76,7 @@ mod usage;
 
 pub use err::Error;
 pub use isolation::IsolationToken;
+use tor_guardmgr::fallback::FallbackList;
 pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
@@ -86,7 +88,7 @@ use crate::isolation::StreamIsolation;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
-pub use tor_guardmgr::{ExternalFailure, GuardId};
+pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
@@ -110,13 +112,16 @@ const PARETO_TIMEOUT_DATA_KEY: &str = "circuit_timeouts";
 #[non_exhaustive]
 pub enum DirInfo<'a> {
     /// A list of fallbacks, for use when we don't know a network directory.
-    Fallbacks(&'a [&'a FallbackDir]),
+    Fallbacks(&'a FallbackList),
     /// A complete network directory
     Directory(&'a NetDir),
+    /// No information: we can only build one-hop paths: and that, only if the
+    /// guard manager knows some guards or fallbacks.
+    Nothing,
 }
 
-impl<'a> From<&'a [&'a FallbackDir]> for DirInfo<'a> {
-    fn from(v: &'a [&'a FallbackDir]) -> DirInfo<'a> {
+impl<'a> From<&'a FallbackList> for DirInfo<'a> {
+    fn from(v: &'a FallbackList) -> DirInfo<'a> {
         DirInfo::Fallbacks(v)
     }
 }
@@ -143,8 +148,8 @@ impl<'a> DirInfo<'a> {
         }
 
         match self {
-            DirInfo::Fallbacks(_) => from_netparams(&NetParameters::default()),
             DirInfo::Directory(d) => from_netparams(d.params()),
+            _ => from_netparams(&NetParameters::default()),
         }
     }
 }
@@ -183,7 +188,11 @@ impl<R: Runtime> CircMgr<R> {
             config.preemptive_circuits().clone(),
         )));
 
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone())?;
+        let guardmgr = tor_guardmgr::GuardMgr::new(
+            runtime.clone(),
+            storage.clone(),
+            config.fallbacks().clone(),
+        )?;
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -285,6 +294,11 @@ impl<R: Runtime> CircMgr<R> {
         if how == tor_config::Reconfigure::CheckAllOrNothing {
             return Ok(());
         }
+
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .replace_fallback_list(new_config.fallbacks().clone());
 
         let discard_circuits = !new_config
             .path_rules()
@@ -682,11 +696,31 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Record that a failure occurred on a circuit with a given guard, in a way
     /// that makes us unwilling to use that guard for future circuits.
-    pub fn note_external_failure(&self, id: &GuardId, external_failure: ExternalFailure) {
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .note_external_failure(id, external_failure);
+    ///
+    pub fn note_external_failure(
+        &self,
+        target: &impl ChanTarget,
+        external_failure: ExternalActivity,
+    ) {
+        self.mgr.peek_builder().guardmgr().note_external_failure(
+            target.ed_identity(),
+            target.rsa_identity(),
+            external_failure,
+        );
+    }
+
+    /// Record that a success occurred on a circuit with a given guard, in a way
+    /// that makes us possibly willing to use that guard for future circuits.
+    pub fn note_external_success(
+        &self,
+        target: &impl ChanTarget,
+        external_activity: ExternalActivity,
+    ) {
+        self.mgr.peek_builder().guardmgr().note_external_success(
+            target.ed_identity(),
+            target.rsa_identity(),
+            external_activity,
+        );
     }
 }
 
@@ -714,7 +748,8 @@ mod test {
         use tor_netdir::{MdReceiver, PartialNetDir};
         use tor_netdoc::doc::netstatus::NetParams;
         // If it's just fallbackdir, we get the default parameters.
-        let di: DirInfo<'_> = (&[][..]).into();
+        let fb = FallbackList::from([]);
+        let di: DirInfo<'_> = (&fb).into();
 
         let p1 = di.circ_params();
         assert!(!p1.extend_by_ed25519_id());
