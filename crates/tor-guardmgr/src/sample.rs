@@ -869,6 +869,7 @@ mod test {
         let mut samples: Vec<HashSet<GuardId>> = Vec::new();
         for _ in 0..3 {
             let mut guards = GuardSet::default();
+            #[allow(clippy::disallowed_methods)]
             guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
             assert_eq!(guards.guards.len(), params.min_filtered_sample_size);
             assert_eq!(guards.confirmed.len(), 0);
@@ -881,10 +882,14 @@ mod test {
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
                 assert!(guards.contains_relay(&relay));
-                assert!(!guard.is_expired(&params, SystemTime::now()));
+                #[allow(clippy::disallowed_methods)]
+                {
+                    assert!(!guard.is_expired(&params, SystemTime::now()));
+                }
             }
 
             // Make sure that the sample doesn't expand any further.
+            #[allow(clippy::disallowed_methods)]
             guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
             assert_eq!(guards.guards.len(), params.min_filtered_sample_size);
             guards.assert_consistency();
@@ -904,8 +909,10 @@ mod test {
             min_filtered_sample_size: 5,
             ..GuardParams::default()
         };
+
+        #[allow(clippy::disallowed_methods)]
         let t1 = SystemTime::now();
-        let t2 = SystemTime::now() + Duration::from_secs(20);
+        let t2 = t1 + Duration::from_secs(20);
 
         let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(t1, &params, &netdir);
@@ -940,9 +947,10 @@ mod test {
             n_primary: 4,
             ..GuardParams::default()
         };
+        #[allow(clippy::disallowed_methods)]
         let t1 = SystemTime::now();
-        let t2 = SystemTime::now() + Duration::from_secs(20);
-        let t3 = SystemTime::now() + Duration::from_secs(30);
+        let t2 = t1 + Duration::from_secs(20);
+        let t3 = t2 + Duration::from_secs(30);
 
         let mut guards = GuardSet::default();
         guards.extend_sample_as_needed(t1, &params, &netdir);
@@ -986,6 +994,7 @@ mod test {
     fn expiration() {
         let netdir = netdir();
         let params = GuardParams::default();
+        #[allow(clippy::disallowed_methods)]
         let t1 = SystemTime::now();
 
         let mut guards = GuardSet::default();
@@ -1020,6 +1029,7 @@ mod test {
             n_primary: 2,
             ..GuardParams::default()
         };
+        #[allow(clippy::disallowed_methods)]
         let st1 = SystemTime::now();
         let i1 = Instant::now();
         let sec = Duration::from_secs(1);
@@ -1143,6 +1153,7 @@ mod test {
             max_sample_bw_fraction: 1.0,
             ..GuardParams::default()
         };
+        #[allow(clippy::disallowed_methods)]
         let mut st = SystemTime::now();
         let mut inst = Instant::now();
         let sec = Duration::from_secs(1);
@@ -1185,6 +1196,7 @@ mod test {
 
         let mut guards = GuardSet::default();
 
+        #[allow(clippy::disallowed_methods)]
         guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
         guards.select_primary_guards(&params);
 
@@ -1222,11 +1234,13 @@ mod test {
         };
         let usage = crate::GuardUsageBuilder::default().build().unwrap();
         let mut guards = GuardSet::default();
+        #[allow(clippy::disallowed_methods)]
         guards.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
         guards.select_primary_guards(&params);
         assert_eq!(guards.primary.len(), 2);
 
         let (_kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
+        #[allow(clippy::disallowed_methods)]
         guards.record_success(&p_id1, &params, SystemTime::now());
         assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
 

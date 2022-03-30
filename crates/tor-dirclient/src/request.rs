@@ -469,6 +469,7 @@ mod test {
         .unwrap();
 
         let d2 = b"blah blah blah 12 blah blah blah";
+        #[allow(clippy::disallowed_methods)]
         let d3 = SystemTime::now();
         let mut req = ConsensusRequest::default();
 

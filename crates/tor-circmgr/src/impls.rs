@@ -65,6 +65,7 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
             dir,
             Some(self.guardmgr()),
             self.path_config().as_ref(),
+            self.runtime().wallclock(),
         )?;
 
         let plan = Plan {

@@ -468,7 +468,7 @@ mod test {
     use native_tls_crate as native_tls;
     use std::io::Result as IoResult;
     use std::net::{Ipv4Addr, SocketAddrV4};
-    use std::time::{Duration, Instant, SystemTime};
+    use std::time::{Duration, Instant};
 
     // Test "sleep" with a tiny delay, and make sure that at least that
     // much delay happens.
@@ -519,14 +519,14 @@ mod test {
         let rt = runtime.clone();
         runtime.block_on(async {
             let i1 = Instant::now();
-            let now = SystemTime::now();
+            let now = runtime.wallclock();
             let one_millis = Duration::from_millis(1);
             let one_millis_later = now + one_millis;
 
             rt.sleep_until_wallclock(one_millis_later).await;
 
             let i2 = Instant::now();
-            let newtime = SystemTime::now();
+            let newtime = runtime.wallclock();
             assert!(newtime >= one_millis_later);
             assert!(i2 - i1 >= one_millis);
         });

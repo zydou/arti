@@ -66,6 +66,7 @@ mod test {
 
     #[test]
     fn test_randomize_time() {
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_hour = Duration::from_secs(3600);
         let ten_sec = Duration::from_secs(10);

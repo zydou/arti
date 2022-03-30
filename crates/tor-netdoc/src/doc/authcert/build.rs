@@ -146,6 +146,7 @@ mod test {
 
     #[test]
     fn simple_cert() {
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_hour = Duration::new(3600, 0);
         let later = now + one_hour * 2;
@@ -166,6 +167,7 @@ mod test {
 
     #[test]
     fn failing_cert() {
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_hour = Duration::new(3600, 0);
         let later = now + one_hour * 2;

@@ -4,6 +4,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
+use std::time::SystemTime;
 use tor_error::bad_api_usage;
 use tracing::debug;
 
@@ -187,6 +188,7 @@ impl TargetCircUsage {
         netdir: crate::DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
         config: &crate::PathConfig,
+        now: SystemTime,
     ) -> Result<(
         TorPath<'a>,
         SupportedCircUsage,
@@ -201,7 +203,7 @@ impl TargetCircUsage {
             TargetCircUsage::Preemptive { port, .. } => {
                 // FIXME(eta): this is copypasta from `TargetCircUsage::Exit`.
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(port.iter().copied())
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -220,7 +222,7 @@ impl TargetCircUsage {
                 isolation,
             } => {
                 let (path, mon, usable) = ExitPathBuilder::from_target_ports(p.clone())
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path
                     .exit_policy()
                     .expect("ExitPathBuilder gave us a one-hop circuit?");
@@ -236,7 +238,7 @@ impl TargetCircUsage {
             }
             TargetCircUsage::TimeoutTesting => {
                 let (path, mon, usable) = ExitPathBuilder::for_timeout_testing()
-                    .pick_path(rng, netdir, guards, config)?;
+                    .pick_path(rng, netdir, guards, config, now)?;
                 let policy = path.exit_policy();
                 let usage = match policy {
                     Some(policy) if policy.allows_some_port() => SupportedCircUsage::Exit {
@@ -665,6 +667,8 @@ pub(crate) mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
+        let now = SystemTime::now();
 
         // Only doing basic tests for now.  We'll test the path
         // building code a lot more closely in the tests for TorPath
@@ -672,7 +676,7 @@ pub(crate) mod test {
 
         // First, a one-hop directory circuit
         let (p_dir, u_dir, _, _) = TargetCircUsage::Dir
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert!(matches!(u_dir, SupportedCircUsage::Dir));
         assert_eq!(p_dir.len(), 1);
@@ -689,7 +693,7 @@ pub(crate) mod test {
             isolation: isolation.clone(),
         };
         let (p_exit, u_exit, _, _) = exit_usage
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert!(matches!(
             u_exit,
@@ -703,7 +707,7 @@ pub(crate) mod test {
 
         // Now try testing circuits.
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         let path = match OwnedPath::try_from(&path).unwrap() {
             OwnedPath::ChannelOnly(_) => panic!("Impossible path type."),
@@ -741,9 +745,11 @@ pub(crate) mod test {
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;
+        #[allow(clippy::disallowed_methods)]
+        let now = SystemTime::now();
 
         let (path, usage, _, _) = TargetCircUsage::TimeoutTesting
-            .build_path(&mut rng, di, guards, &config)
+            .build_path(&mut rng, di, guards, &config, now)
             .unwrap();
         assert_eq!(path.len(), 3);
         assert_isoleq!(usage, SupportedCircUsage::NoUsage);

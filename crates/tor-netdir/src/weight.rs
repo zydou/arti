@@ -619,6 +619,7 @@ mod test {
     #[test]
     fn weightset_from_consensus() {
         use rand::Rng;
+        #[allow(clippy::disallowed_methods)]
         let now = SystemTime::now();
         let one_hour = Duration::new(3600, 0);
         let mut rng = rand::thread_rng();
