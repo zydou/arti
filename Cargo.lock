@@ -3409,6 +3409,7 @@ dependencies = [
  "backtrace",
  "derive_more",
  "futures",
+ "once_cell",
  "thiserror",
 ]
 
