@@ -91,7 +91,7 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     ///
     /// If this function returns Ok, the resulting spec must be
     /// contained by the original spec, and must support `usage`.
-    fn restrict_mut(&mut self, usage: &Self::Usage) -> Result<()>;
+    fn restrict_mut(&mut self, usage: &Self::Usage) -> std::result::Result<(), RestrictionFailed>;
 
     /// Find all open circuits in `list` whose specifications permit
     /// `usage`.
@@ -103,6 +103,16 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     ) -> Vec<&'b mut OpenEntry<Self, C>> {
         abstract_spec_find_supported(list, usage)
     }
+}
+
+/// An error type returned by [`AbstractSpec::restrict_mut`]
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RestrictionFailed {
+    /// Tried to restrict a specification, but the circuit didn't support the
+    /// requested usage.
+    #[error("Specification did not support desired usage")]
+    NotSupported,
 }
 
 /// Default implementation of `AbstractSpec::find_supported`; provided as a separate function
@@ -1358,7 +1368,6 @@ mod test {
     use once_cell::sync::Lazy;
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
-    use tor_error::bad_api_usage;
     use tor_guardmgr::fallback::FallbackList;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
@@ -1416,15 +1425,15 @@ mod test {
             };
             ports_ok && iso_ok
         }
-        fn restrict_mut(&mut self, other: &FakeSpec) -> Result<()> {
+        fn restrict_mut(&mut self, other: &FakeSpec) -> std::result::Result<(), RestrictionFailed> {
             if !self.ports.is_superset(&other.ports) {
-                return Err(bad_api_usage!("not supported").into());
+                return Err(RestrictionFailed::NotSupported);
             }
             let new_iso = match (self.isolation, other.isolation) {
                 (None, x) => x,
                 (x, None) => x,
                 (Some(a), Some(b)) if a == b => Some(a),
-                (_, _) => return Err(bad_api_usage!("not supported").into()),
+                (_, _) => return Err(RestrictionFailed::NotSupported),
             };
 
             self.isolation = new_iso;

@@ -9,6 +9,8 @@ use thiserror::Error;
 use tor_error::{Bug, ErrorKind, HasKind};
 use tor_linkspec::OwnedChanTarget;
 
+use crate::mgr::RestrictionFailed;
+
 /// An error returned while looking up or building a circuit
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
@@ -35,6 +37,15 @@ pub enum Error {
     // of allowable failures of a circuit request.
     #[error("Circuit canceled")]
     CircCanceled,
+
+    /// We were told that we could use a circuit, but when we tried, we found
+    /// that its usage did not support what we wanted.
+    ///
+    /// This can happen due to a race when a number of tasks all decide that
+    /// they can use the same pending circuit at once: one of them will restrict
+    /// the circuit, and the others will get this error.
+    #[error("Couldn't apply circuit restriction")]
+    UsageMismatched(#[from] RestrictionFailed),
 
     /// A circuit build took too long to finish.
     #[error("Circuit took too long to build")]
@@ -144,6 +155,7 @@ impl HasKind for Error {
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::CircTimeout => EK::TorNetworkTimeout,
             E::GuardNotUsable => EK::TransientFailure,
+            E::UsageMismatched(_) => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,
             E::RequestFailed(e) => e
                 .sources()
@@ -176,7 +188,7 @@ impl Error {
     fn severity(&self) -> usize {
         use Error as E;
         match self {
-            E::GuardNotUsable => 10,
+            E::GuardNotUsable | E::UsageMismatched(_) => 10,
             E::PendingCanceled => 20,
             E::CircCanceled => 20,
             E::CircTimeout => 30,

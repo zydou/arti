@@ -18,3 +18,6 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.2.0
 
+### tor-circmgr
+
+MODIFIED: Added a new variant in tor_circmgr::Error.
