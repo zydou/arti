@@ -236,6 +236,11 @@ impl ConsensusFlavor {
 /// The signature of a single directory authority on a networkstatus document.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct Signature {
     /// The name of the digest algorithm used to make the signature.
     ///
@@ -252,6 +257,11 @@ pub struct Signature {
 /// A collection of signatures that can be checked on a networkstatus document
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct SignatureGroup {
     /// The sha256 of the document itself
     sha256: Option<[u8; 32]>,
@@ -264,6 +274,12 @@ pub struct SignatureGroup {
 /// A shared-random value produced by the directory authorities.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct SharedRandVal {
     /// How many authorities revealed shares that contributed to this value.
     n_reveals: u8,
@@ -282,6 +298,12 @@ struct SharedRandVal {
 /// votes or only in consensuses, even though we don't implement votes yet.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct CommonHeader {
     /// What kind of consensus document is this?  Absent in votes and
     /// in ns-flavored consensuses.
@@ -309,6 +331,12 @@ struct CommonHeader {
 /// The header of a consensus networkstatus.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct ConsensusHeader {
     /// Header fields common to votes and consensuses
     hdr: CommonHeader,
@@ -327,6 +355,12 @@ struct ConsensusHeader {
 /// (Corresponds to a dir-source line.)
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct DirSource {
     /// human-readable nickname for this authority.
     nickname: String,
@@ -421,6 +455,12 @@ impl RelayWeight {
 /// All information about a single authority, as represented in a consensus
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
     dir_source: DirSource,
@@ -434,6 +474,12 @@ struct ConsensusVoterInfo {
 /// The signed footer of a consensus netstatus.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 struct Footer {
     /// Weights to be applied to certain classes of relays when choosing
     /// for different roles.
@@ -478,6 +524,11 @@ pub trait RouterStatus: Sealed {
 /// votes and ns consensuses.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct Consensus<RS> {
     /// Part of the header shared by all consensus types.
     header: ConsensusHeader,
@@ -1402,6 +1453,11 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 /// have.  Make sure only to provide authority certificates representing
 /// real authorities!
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct UnvalidatedConsensus<RS> {
     /// The consensus object. We don't want to expose this until it's
     /// validated.

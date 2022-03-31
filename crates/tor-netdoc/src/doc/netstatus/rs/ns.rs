@@ -21,6 +21,11 @@ use std::convert::TryInto;
 ///
 /// Only available if `tor-netdoc` is built with the `ns_consensus` feature.
 #[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct NsConsensusRouterStatus {
     /// Underlying generic routerstatus object.
     ///
