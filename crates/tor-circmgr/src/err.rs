@@ -27,6 +27,10 @@ pub enum Error {
     #[error("Pending circuit(s) failed without reporting status")]
     PendingCanceled,
 
+    /// We were waiting on a pending circuits, but it failed.
+    #[error("Pending circuit failed.")]
+    PendingFailed(Box<Error>),
+
     /// A circuit succeeded, but was cancelled before it could be used.
     ///
     /// Circuits can be cancelled either by a call to
@@ -153,6 +157,7 @@ impl HasKind for Error {
             E::NoPath(_) => EK::NoPath,
             E::NoExit(_) => EK::NoExit,
             E::PendingCanceled => EK::ReactorShuttingDown,
+            E::PendingFailed(e) => e.kind(),
             E::CircTimeout => EK::TorNetworkTimeout,
             E::GuardNotUsable => EK::TransientFailure,
             E::UsageMismatched(_) => EK::TransientFailure,
@@ -204,6 +209,7 @@ impl Error {
             E::Spawn { .. } => 90,
             E::State(_) => 90,
             E::Bug(_) => 100,
+            E::PendingFailed(e) => e.severity(),
         }
     }
 

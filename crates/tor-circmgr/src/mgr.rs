@@ -945,20 +945,58 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         act: Action<B>,
         usage: &<B::Spec as AbstractSpec>::Usage,
     ) -> std::result::Result<B::Circ, RetryError<Box<Error>>> {
+        /// Store the error `err` into `retry_err`, as appropriate.
+        fn record_error(
+            retry_err: &mut RetryError<Box<Error>>,
+            source: streams::Source,
+            building: bool,
+            mut err: Error,
+        ) {
+            if source == streams::Source::Right {
+                // We don't care about this error, since it is from neither a circuit we launched
+                // nor one that we're waiting on.
+                return;
+            }
+            if !building {
+                // We aren't building our own circuits, so our errors are
+                // secondary reports of other circuits' failures.
+                err = Error::PendingFailed(Box::new(err));
+            }
+            retry_err.push(err);
+        }
+        /// Return a string describing what it means, within the context of this
+        /// function, to have gotten an answer from `source`.
+        fn describe_source(building: bool, source: streams::Source) -> &'static str {
+            match (building, source) {
+                (_, streams::Source::Right) => "optimistic advice",
+                (true, streams::Source::Left) => "circuit we're building",
+                (false, streams::Source::Left) => "pending circuit",
+            }
+        }
+
         // Get or make a stream of futures to wait on.
-        let wait_on_stream = match act {
+        let (building, wait_on_stream) = match act {
             Action::Open(c) => {
+                // There's already a perfectly good open circuit; we can return
+                // it now.
                 return Ok(c);
             }
-            Action::Wait(f) => f,
+            Action::Wait(f) => {
+                // There is one or more pending circuit that we're waiting for.
+                // If any succeeds, we try to use it.  If they all fail, we
+                // fail.
+                (false, f)
+            }
             Action::Build(plans) => {
+                // We're going to launch one or more circuits in parallel.  We
+                // report success if any succeeds, and failure of they all fail.
                 let futures = FuturesUnordered::new();
                 for plan in plans {
                     let self_clone = Arc::clone(&self);
                     // (This is where we actually launch circuits.)
                     futures.push(self_clone.spawn_launch(usage, plan));
                 }
-                futures
+                (true, futures)
             }
         };
 
@@ -978,13 +1016,17 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             (pending, recv)
         };
 
-        // We use our "select_biased" stream combiner here to ensure
-        // that:
-        //   1) Circuits from wait_on_stream (the ones we're pending
-        //      on) are preferred.
+        // We use our "select_biased" stream combiner here to ensure that:
+        //   1) Circuits from wait_on_stream (the ones we're pending on) are
+        //      preferred.
         //   2) We exit this function when those circuits are exhausted.
-        //   3) We still get notified about other circuits that might
-        //      meet our interests.
+        //   3) We still get notified about other circuits that might meet our
+        //      interests.
+        //
+        // The events from Left stream are the oes that we explicitly asked for,
+        // so we'll treat errors there as real problems.  The events from the
+        // Right stream are ones that we got opportunistically told about; it's
+        // not a big deal if those fail.
         let mut incoming = streams::select_biased(wait_on_stream, additional_stream.map(Ok));
 
         let mut retry_error = RetryError::in_attempt_to("wait for circuits");
@@ -1014,45 +1056,46 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 return Ok(ent.circ.clone());
                             }
                             Err(e) => {
-                                // TODO: as below, improve this log message.
                                 if src == streams::Source::Left {
                                     info!(
-                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                        src, id, &e
+                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        describe_source(building, src),
+                                        id,
+                                        &e
                                     );
                                 } else {
                                     debug!(
-                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                        src, id, &e
+                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        describe_source(building, src),
+                                        id,
+                                        &e
                                     );
                                 }
-                                if src == streams::Source::Left {
-                                    retry_error.push(e);
-                                }
+                                record_error(&mut retry_error, src, building, e);
                                 continue;
                             }
                         }
                     }
                 }
                 Ok(Err(ref e)) => {
-                    debug!("{:?} sent error {:?}", src, e);
-                    if src == streams::Source::Left {
-                        retry_error.push(e.clone());
-                    }
+                    debug!("{} sent error {:?}", describe_source(building, src), e);
+                    record_error(&mut retry_error, src, building, e.clone());
                 }
                 Err(oneshot::Canceled) => {
                     debug!(
-                        "{:?} went away (Canceled), quitting take_action right away",
-                        src
+                        "{} went away (Canceled), quitting take_action right away",
+                        describe_source(building, src)
                     );
-                    retry_error.push(Error::PendingCanceled);
+                    record_error(&mut retry_error, src, building, Error::PendingCanceled);
                     return Err(retry_error);
                 }
             }
 
-            // TODO: Improve this log message; using :? here will make it
-            // hard to understand.
-            info!("While waiting on circuit: {:?} from {:?}", id, src);
+            info!(
+                "While waiting on circuit: {:?} from {}",
+                id,
+                describe_source(building, src)
+            );
         }
 
         // Nothing worked.  We drop the pending request now explicitly
