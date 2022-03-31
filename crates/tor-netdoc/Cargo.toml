@@ -35,7 +35,7 @@ experimental-api = []
 # for anything besides testing, you are probably putting your users in danger.
 #
 # The struct fields exposed by this feature are not covered by semantic version.
-# In fact, using this feature will ives you the opposite of a "semver
+# In fact, using this feature will give you the opposite of a "semver
 # guarantee": you should be mildly surprised when your code _doesn't_ break from
 # version to version.
 dangerous-expose-struct-fields = ["visible", "visibility"]
