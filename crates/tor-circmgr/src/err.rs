@@ -1,12 +1,12 @@
 //! Declare an error type for tor-circmgr
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
-use tor_error::{Bug, ErrorKind, HasKind};
+use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::OwnedChanTarget;
 
 use crate::mgr::RestrictionFailed;
@@ -174,6 +174,84 @@ impl HasKind for Error {
             E::Guard(e) => e.kind(),
             E::ExpiredConsensus => EK::DirectoryExpired,
             E::Spawn { cause, .. } => cause.kind(),
+        }
+    }
+}
+
+impl HasRetryTime for Error {
+    fn retry_time(&self) -> tor_error::RetryTime {
+        use tor_error::RetryTime as RT;
+        use Error as E;
+
+        match self {
+            // If we fail because of a timeout, there is no need to wait before trying again.
+            E::CircTimeout | E::RequestTimeout => RT::Immediate,
+
+            // If we can't build a path for the usage at all, then retrying
+            // won't help.
+            //
+            // TODO: In some rare cases, these errors can actually happen when
+            // we have walked ourselves into a snag in our path selection.  See
+            // additional "TODO" comments in exitpath.rs.
+            E::NoPath(_) | E::NoExit(_) => RT::Never,
+
+            // These don't reflect a real problem in the circuit building, but
+            // rather mean that we were waiting for something that didn't pan out.
+            // It's okay to try again after a short delay.
+            E::GuardNotUsable
+            | E::PendingCanceled
+            | E::CircCanceled
+            | E::Protocol { .. }
+            | E::UsageMismatched(_) => RT::AfterWaiting,
+
+            // For Channel errors, we can mostly delegate the retry_time decision to
+            // the inner error.
+            //
+            // (We have to handle UnusableTarget specially, since it just means
+            // that we picked a guard or fallback we couldn't use.  A channel to
+            // _that_ target will never succeed, but circuit operations using it
+            // will do fine.)
+            E::Channel {
+                cause: tor_chanmgr::Error::UnusableTarget(_),
+                ..
+            } => RT::AfterWaiting,
+            E::Channel { cause, .. } => cause.retry_time(),
+
+            // These errors are safe to delegate.
+            E::Guard(e) => e.retry_time(),
+            E::PendingFailed(e) => e.retry_time(),
+
+            // When we encounter a bunch of errors, choose the earliest.
+            E::RequestFailed(errors) => {
+                RT::earliest_approx(errors.sources().map(|err| err.retry_time()))
+                    .unwrap_or(RT::Never)
+            }
+
+            // This will not resolve on its own till the DirMgr gets a working consensus.
+            E::ExpiredConsensus => RT::Never,
+
+            // These all indicate an internal error, or an error that shouldn't
+            // be able to happen when we're building a circuit.
+            E::Spawn { .. } | E::GuardMgr(_) | E::State(_) | E::Bug(_) => RT::Never,
+        }
+    }
+
+    fn abs_retry_time<F>(&self, now: Instant, choose_delay: F) -> tor_error::AbsRetryTime
+    where
+        F: FnOnce() -> std::time::Duration,
+    {
+        match self {
+            // We special-case this kind of problem, since we want to choose the
+            // earliest valid retry time.
+            Self::RequestFailed(errors) => tor_error::RetryTime::earliest_absolute(
+                errors.sources().map(|err| err.retry_time()),
+                now,
+                choose_delay,
+            )
+            .unwrap_or(tor_error::AbsRetryTime::Never),
+
+            // For everything else, we just delegate.
+            _ => self.retry_time().absolute(now, choose_delay),
         }
     }
 }
