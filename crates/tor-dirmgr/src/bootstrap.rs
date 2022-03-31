@@ -291,7 +291,8 @@ pub(crate) async fn download<R: Runtime>(
             // We wait at the start of this loop, on all attempts but the first.
             // This ensures that we always wait between attempts, but not after
             // the final attempt.
-            if let Some(delay) = delay.take() {
+            let next_delay = retry.next_delay(&mut rand::thread_rng());
+            if let Some(delay) = delay.replace(next_delay) {
                 debug!("Waiting {:?} for next download attempt...", delay);
                 futures::select_biased! {
                     _ = reset_timeout_future => {
@@ -302,8 +303,6 @@ pub(crate) async fn download<R: Runtime>(
                     _ = FutureExt::fuse(runtime.sleep(delay)) => {}
                 };
             }
-            // Make sure that `delay` is set for the next iteration of the loop.
-            delay = Some(retry.next_delay(&mut rand::thread_rng()));
 
             info!("{}: {}", attempt + 1, state.describe());
             let reset_time = no_more_than_a_week_from(now, state.reset_time());
