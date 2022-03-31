@@ -91,6 +91,11 @@ pub struct RouterAnnotation {
 /// Before using this type to connect to a relay, you MUST check that
 /// it is valid, using is_expired_at().
 #[allow(dead_code)] // don't warn about fields not getting read.
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 pub struct RouterDesc {
     /// Human-readable nickname for this relay.
     ///

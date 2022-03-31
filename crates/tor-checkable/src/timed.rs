@@ -79,6 +79,41 @@ impl<T> TimerangeBound<T> {
         let start = self.start.map(|t| t - d);
         Self { start, ..self }
     }
+
+    /// Consume this TimeRangeBound, and return its underlying time bounds and
+    /// object.
+    ///
+    /// The caller takes responsibility for making sure that the bounds are
+    /// actually checked.
+    ///
+    /// This is an experimental API. Using it voids your stability guarantees.
+    /// It is only available when this crate is compiled with the
+    /// `experimental-api` feature.
+    #[cfg(feature = "experimental-api")]
+    pub fn dangerously_into_parts(self) -> (T, (Bound<time::SystemTime>, Bound<time::SystemTime>)) {
+        (
+            self.obj,
+            (
+                self.start.map(Bound::Included).unwrap_or(Bound::Unbounded),
+                self.end.map(Bound::Included).unwrap_or(Bound::Unbounded),
+            ),
+        )
+    }
+
+    /// Return a reference to the inner object of this TimeRangeBound, without
+    /// checking the time interval.
+    ///
+    /// The caller takes responsibility for making sure that nothing is actually
+    /// done with the inner object that would rely on the bounds being correct, until
+    /// the bounds are (eventually) checked.
+    ///
+    /// This is an experimental API. Using it voids your stability guarantees.
+    /// It is only available when this crate is compiled with the
+    /// `experimental-api` feature.
+    #[cfg(feature = "experimental-api")]
+    pub fn dangerously_peek(&self) -> &T {
+        &self.obj
+    }
 }
 
 impl<T> crate::Timebound<T> for TimerangeBound<T> {

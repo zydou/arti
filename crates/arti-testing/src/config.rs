@@ -91,6 +91,13 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                 .value_name("SECS")
                 .global(true),
         )
+        .arg(
+            Arg::with_name("dir-filter")
+                .long("dir-filter")
+                .takes_value(true)
+                .value_name("FILTER_NAME")
+                .global(true),
+        )
         .subcommand(
             SubCommand::with_name("connect")
                 .about("Try to bootstrap and connect to an address")
@@ -169,6 +176,12 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         }
     };
 
+    let dir_filter = matches
+        .value_of("dir-filter")
+        .map(crate::dirfilter::new_filter)
+        .transpose()?
+        .unwrap_or_else(crate::dirfilter::nil_filter);
+
     let action = if let Some(_m) = matches.subcommand_matches("bootstrap") {
         Action::Bootstrap
     } else if let Some(matches) = matches.subcommand_matches("connect") {
@@ -191,6 +204,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         config,
         timeout,
         tcp_breakage,
+        dir_filter,
         console_log,
         expectation,
     })

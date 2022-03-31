@@ -15,8 +15,19 @@ publish = false
 
 [dependencies]
 arti = { package = "arti", path = "../arti", version = "0.1.0" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.1.0" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.1.0", features = [
+    "dirfilter",
+] }
+tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.1.0", features = [
+    "dirfilter",
+] }
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.1.0", features = [
+    "experimental-api",
+    "dangerous-expose-struct-fields",
+] }
+tor-checkable = { path = "../tor-checkable", version = "0.1.0", features = ["experimental-api"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
+tor-error = { path = "../tor-error", version = "0.1.0" }
 arti-config = { path = "../arti-config", version = "0.1.0" }
 
 anyhow = "1.0.23"

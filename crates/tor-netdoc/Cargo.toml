@@ -29,6 +29,17 @@ ns_consensus = []
 # feature voids your "semver warrantee".
 experimental-api = []
 
+# Expose various struct fields as "pub", for testing.
+#
+# This feature is *super* dangerous for stability and correctness. If you use it
+# for anything besides testing, you are probably putting your users in danger.
+#
+# The struct fields exposed by this feature are not covered by semantic version.
+# In fact, using this feature will give you the opposite of a "semver
+# guarantee": you should be mildly surprised when your code _doesn't_ break from
+# version to version.
+dangerous-expose-struct-fields = ["visible", "visibility"]
+
 [dependencies]
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.1.0" }
@@ -49,6 +60,8 @@ phf = { version = "0.10.0", features = ["macros"] }
 serde = "1.0.103"
 signature = "1"
 thiserror = "1"
+visible = { version = "0.0.1", optional = true }
+visibility = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"
 
 rand = { version = "0.8", optional = true }

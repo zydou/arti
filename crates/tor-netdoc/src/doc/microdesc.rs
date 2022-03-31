@@ -52,6 +52,11 @@ pub type MdDigest = [u8; 32];
 
 /// A single microdescriptor.
 #[allow(dead_code)]
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    non_exhaustive
+)]
 #[derive(Clone, Debug)]
 pub struct Microdesc {
     /// The SHA256 digest of the text of this microdescriptor.  This

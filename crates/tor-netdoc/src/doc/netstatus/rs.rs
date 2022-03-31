@@ -27,6 +27,12 @@ pub use md::MdConsensusRouterStatus;
 pub use ns::NsConsensusRouterStatus;
 
 /// Shared implementation of MdConsensusRouterStatus and NsConsensusRouterStatus.
+#[cfg_attr(
+    feature = "dangerous-expose-struct-fields",
+    visible::StructFields(pub),
+    visibility::make(pub),
+    non_exhaustive
+)]
 #[derive(Debug, Clone)]
 struct GenericRouterStatus<D> {
     /// The nickname for this relay.
@@ -150,6 +156,7 @@ pub(crate) use implement_accessors;
 
 /// Helper to decode a document digest in the format in which it
 /// appears in a given kind of routerstatus.
+#[cfg_attr(feature = "dangerous-expose-struct-fields", visibility::make(pub))]
 trait FromRsString: Sized {
     /// Try to decode the given object.
     fn decode(s: &str) -> Result<Self>;

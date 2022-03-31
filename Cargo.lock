@@ -211,6 +211,10 @@ dependencies = [
  "rlimit",
  "serde",
  "tokio",
+ "tor-checkable",
+ "tor-dirmgr",
+ "tor-error",
+ "tor-netdoc",
  "tor-rtcompat",
  "tracing",
  "tracing-appender",
@@ -3515,6 +3519,8 @@ dependencies = [
  "tor-error",
  "tor-llcrypto",
  "tor-protover",
+ "visibility",
+ "visible",
  "weak-table",
 ]
 
@@ -3865,6 +3871,27 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "visibility"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8881d5cc0ae34e3db2f1de5af81e5117a420d2f937506c2dc20d6f4cfb069051"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "visible"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a044005fd5c0fc1ebd79c622e5606431c6b879a6a19acafb754be9926a2de73e"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "void"
