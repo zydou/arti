@@ -6,9 +6,9 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Provides the unified type-erased error type returned my many (esp. high-level) Tor APIs."
-keywords = [ "tor", "arti" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
-categories = [ "tor" ]
+keywords = ["tor", "arti"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+categories = ["tor"]
 
 [features]
 default = ["backtrace"]
