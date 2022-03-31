@@ -17,12 +17,12 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 /// A single relay's status, as represented in a microdesc consensus.
-#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),
     non_exhaustive
 )]
+#[derive(Debug, Clone)]
 pub struct MdConsensusRouterStatus {
     /// Underlying generic routerstatus object.
     ///

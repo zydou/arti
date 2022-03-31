@@ -27,13 +27,13 @@ pub use md::MdConsensusRouterStatus;
 pub use ns::NsConsensusRouterStatus;
 
 /// Shared implementation of MdConsensusRouterStatus and NsConsensusRouterStatus.
-#[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),
     visibility::make(pub),
     non_exhaustive
 )]
+#[derive(Debug, Clone)]
 struct GenericRouterStatus<D> {
     /// The nickname for this relay.
     ///
