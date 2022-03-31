@@ -18,7 +18,7 @@ use futures::FutureExt;
 use futures::StreamExt;
 use tor_dirclient::DirResponse;
 use tor_rtcompat::{Runtime, SleepProviderExt};
-use tracing::{info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 #[cfg(test)]
 use once_cell::sync::Lazy;
@@ -278,12 +278,32 @@ pub(crate) async fn download<R: Runtime>(
             return Ok((state, None));
         }
 
+        let reset_time = no_more_than_a_week_from(runtime.wallclock(), state.reset_time());
+        let mut reset_timeout_future = runtime.sleep_until_wallclock(reset_time).fuse();
+
         let mut retry = retry_config.schedule();
+        let mut delay = None;
 
         // Make several attempts to fetch whatever we're missing,
         // until either we can advance, or we've got a complete
         // document, or we run out of tries, or we run out of time.
         'next_attempt: for attempt in retry_config.attempts() {
+            // We wait at the start of this loop, on all attempts but the first.
+            // This ensures that we always wait between attempts, but not after
+            // the final attempt.
+            let next_delay = retry.next_delay(&mut rand::thread_rng());
+            if let Some(delay) = delay.replace(next_delay) {
+                debug!("Waiting {:?} for next download attempt...", delay);
+                futures::select_biased! {
+                    _ = reset_timeout_future => {
+                        info!("Download attempt timed out completely; resetting download state.");
+                        state = state.reset()?;
+                        continue 'next_state;
+                    }
+                    _ = FutureExt::fuse(runtime.sleep(delay)) => {}
+                };
+            }
+
             info!("{}: {}", attempt + 1, state.describe());
             let reset_time = no_more_than_a_week_from(now, state.reset_time());
 
@@ -329,18 +349,6 @@ pub(crate) async fn download<R: Runtime>(
                 // We have enough info to advance to another state.
                 state = state.advance()?;
                 continue 'next_state;
-            } else {
-                // We should wait a bit, and then retry.
-                // TODO: we shouldn't wait on the final attempt.
-                let reset_time = no_more_than_a_week_from(now, state.reset_time());
-                let delay = retry.next_delay(&mut rand::thread_rng());
-                futures::select_biased! {
-                    _ = runtime.sleep_until_wallclock(reset_time).fuse() => {
-                        state = state.reset()?;
-                        continue 'next_state;
-                    }
-                    _ = FutureExt::fuse(runtime.sleep(delay)) => {}
-                };
             }
         }
 
