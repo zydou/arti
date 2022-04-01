@@ -5,11 +5,13 @@ is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
 
-# Arti 0.2.0 — XXXX Apr 2022
+# Arti 0.2.0 — 1 Apr 2022
 
-BLURB
-
-(entries below are taken through 482b2e3256cc0c738dc1deb3029173b8619920dd)
+Arti 0.2.0 makes a large number of changes to Arti's code and
+infrastructure for better configurability, lower memory usage, support
+for running as a basic DNS resolver, improved stream isolation, better
+behavior under network failures, and API support for a "dormant mode" to
+suspend background activities.
 
 ### Breaking changes
 
@@ -26,16 +28,14 @@ Numerous other lower-level crates have breaking changes not noted here.
       - To remove unnecessary ad-hoc accessor functions until they prove to be
         needed.
 
-  This change
-  is not done in this release; we expect to have more breakage
-  in this area in our next release as well.  ([#314], [#371], [#372],
-  [#374], [#396], [#418],
-  [!391], [!401], [!417], [!421], [!423], [!425], [!427])
+  This change is not done in this release; we expect to have more
+  breakage in this area in our next release as well.  ([#314], [#371],
+  [#372], [#374], [#396], [#418], [!391], [!401], [!417], [!421],
+  [!423], [!425], [!427])
 - The [`Runtime`] trait now includes (and requires) UDP support. (Part
   of [!390]'s support for DNS.)
 - Stream isolation support is completely revised; see notes on isolation
   below.
-
 
 ### New features
 
@@ -70,9 +70,13 @@ Numerous other lower-level crates have breaking changes not noted here.
   the directory is in an inconsistent or non-working state. ([#397], [!431])
 - Arti now has initial support for a "Dormant Mode" where periodic events are
   suspended. Later, even more background tasks will be shut
-  down. ([#90], [!429])
+  down. ([#90], [!429], [!436])
+- Fallback directory caches are now handled with logic similar to guards,
+  so we can avoid ones that aren't working, and simplify our logic for
+  path construction.  As a fringe benefit, this unification means that
+  we can now use our guards as directory caches even when we don't have
+  an up-to-date consensus. ([#220], [#406], [!433])
 
-### Major bugfixes
 
 ### Infrastructure
 
@@ -80,7 +84,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   perform various kinds of stress-testing on our implementation. It can
   simulate several kinds of failure and overload conditions; we've been
   using it to improve Arti's behavior when the network is broken or
-  misbehaving. ([!378], [!392]; see also [#329])
+  misbehaving. ([#397], [!378], [!392], [!442]; see also [#329])
 - The [`arti-bench`] tool now constructs streams in parallel and
   supports isolated circuits, so we can
   stress-test the performance of a simulated busy client. ([#380], [!384])
@@ -115,19 +119,119 @@ Numerous other lower-level crates have breaking changes not noted here.
   attempt. ([#383], [!394])
 - Always send an "If-Modified-Since" header on consensus requests, since
   we wouldn't want a consensus that was far too old. ([#403], [!412])
-- Actually acknowledge preemptive circuits configuration. Previously,
+- Actually use "preemptive circuit" configuration. Previously,
   we missed a place where we needed to copy it.  (Part of [!417])
 - Backend support for collecting clock skew information; not yet
   used. ([#405], [!410])
 - Major refactoring for periodic events, to support an intial version of
   "dormant mode." ([!429])
+- Remove most uses of `SystemTime::now`, in favor of calling the equivalent
+  function on [`SleepProvider`]. ([#306], [!365])
+- Several bugs in the logic for retrying directory downloads
+  have been fixed, and several parameters have been tuned, to lead to
+  better behavior under certain network failure conditions. ([!439])
 
 ### Acknowledgments
 
-XXXXXXXXXXXXXXXXXXXXXXX
+Thanks to everybody who has contributed to this release, including
+Christian Grigis, Dimitris Apostolou, Lennart Kloock, Michael, solanav,
+Steven Murdoch, and Trinity Pointard.
 
-
-
+[!274]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/274
+[!318]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/318
+[!347]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/347
+[!365]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/365
+[!373]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/373
+[!374]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/374
+[!375]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/375
+[!377]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/377
+[!378]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/378
+[!379]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/379
+[!380]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/380
+[!381]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/381
+[!382]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/382
+[!383]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/383
+[!384]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/384
+[!386]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/386
+[!388]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/388
+[!389]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/389
+[!390]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/390
+[!391]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/391
+[!392]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/392
+[!393]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/393
+[!394]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/394
+[!396]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/396
+[!398]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/398
+[!401]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/401
+[!402]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/402
+[!403]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/403
+[!407]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/407
+[!408]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/408
+[!409]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/409
+[!410]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/410
+[!412]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/412
+[!415]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/415
+[!417]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/417
+[!418]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/418
+[!420]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/420
+[!421]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/421
+[!423]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/423
+[!425]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/425
+[!426]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/426
+[!427]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/427
+[!429]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/429
+[!431]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/431
+[!433]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/433
+[!434]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/434
+[!436]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/436
+[!439]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/439
+[!442]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/442
+[#90]: https://gitlab.torproject.org/tpo/core/arti/-/issues/90
+[#150]: https://gitlab.torproject.org/tpo/core/arti/-/issues/150
+[#220]: https://gitlab.torproject.org/tpo/core/arti/-/issues/220
+[#267]: https://gitlab.torproject.org/tpo/core/arti/-/issues/267
+[#306]: https://gitlab.torproject.org/tpo/core/arti/-/issues/306
+[#314]: https://gitlab.torproject.org/tpo/core/arti/-/issues/314
+[#329]: https://gitlab.torproject.org/tpo/core/arti/-/issues/329
+[#369]: https://gitlab.torproject.org/tpo/core/arti/-/issues/369
+[#371]: https://gitlab.torproject.org/tpo/core/arti/-/issues/371
+[#372]: https://gitlab.torproject.org/tpo/core/arti/-/issues/372
+[#374]: https://gitlab.torproject.org/tpo/core/arti/-/issues/374
+[#376]: https://gitlab.torproject.org/tpo/core/arti/-/issues/376
+[#377]: https://gitlab.torproject.org/tpo/core/arti/-/issues/377
+[#378]: https://gitlab.torproject.org/tpo/core/arti/-/issues/378
+[#380]: https://gitlab.torproject.org/tpo/core/arti/-/issues/380
+[#383]: https://gitlab.torproject.org/tpo/core/arti/-/issues/383
+[#384]: https://gitlab.torproject.org/tpo/core/arti/-/issues/384
+[#385]: https://gitlab.torproject.org/tpo/core/arti/-/issues/385
+[#386]: https://gitlab.torproject.org/tpo/core/arti/-/issues/386
+[#387]: https://gitlab.torproject.org/tpo/core/arti/-/issues/387
+[#388]: https://gitlab.torproject.org/tpo/core/arti/-/issues/388
+[#396]: https://gitlab.torproject.org/tpo/core/arti/-/issues/396
+[#397]: https://gitlab.torproject.org/tpo/core/arti/-/issues/397
+[#403]: https://gitlab.torproject.org/tpo/core/arti/-/issues/403
+[#405]: https://gitlab.torproject.org/tpo/core/arti/-/issues/405
+[#406]: https://gitlab.torproject.org/tpo/core/arti/-/issues/406
+[#407]: https://gitlab.torproject.org/tpo/core/arti/-/issues/407
+[#414]: https://gitlab.torproject.org/tpo/core/arti/-/issues/414
+[#415]: https://gitlab.torproject.org/tpo/core/arti/-/issues/415
+[#418]: https://gitlab.torproject.org/tpo/core/arti/-/issues/418
+[87a3f6b58a5e75f7]: https://gitlab.torproject.org/tpo/core/arti/-/commit/87a3f6b58a5e75f7060a6797b8e1b33175fd5329
+[cb103e04cf4d9853]: https://gitlab.torproject.org/tpo/core/arti/-/commit/cb103e04cf4d985333a6949f0fd646258dcedcd2
+[eed1f06662366511]: https://gitlab.torproject.org/tpo/core/arti/-/commit/eed1f06662366511fe5fd15ac0ab0cb69497f2cf
+[RFC 8305]: https://datatracker.ietf.org/doc/html/rfc8305
+[`DirMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/struct.DirMgr.html
+[`DirProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/trait.DirProvider.html
+[`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
+[`SleepProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.SleepProvider.html
+[`arti-bench`]: https://tpo.pages.torproject.net/core/doc/rust/arti_bench/index.html
+[`arti-testing`]: https://tpo.pages.torproject.net/core/doc/rust/arti_testing/index.html
+[`derive_more`]: https://docs.rs/derive_more/latest/derive_more/index.html
+[`educe`]:  https://docs.rs/educe/latest/educe/
+[`tor-basic-utils`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/index.html
+[forked version of `shellexpand`]: https://crates.io/crates/shellexpand-fork
+[proposal 336]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/336-randomize-guard-retries.md
+[stream isolation API]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/isolation/index.html
 
 
 
