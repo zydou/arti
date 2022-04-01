@@ -1,6 +1,6 @@
 [package]
 name = "tor-config"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
-tor-error = { path="../tor-error", version = "0.1.0"}
+tor-error = { path="../tor-error", version = "0.2.0"}
 
 thiserror = "1"
 derive_builder = "0.11"

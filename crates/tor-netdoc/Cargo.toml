@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdoc"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -41,12 +41,12 @@ experimental-api = []
 dangerous-expose-struct-fields = ["visible", "visibility"]
 
 [dependencies]
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
-tor-bytes = { path = "../tor-bytes", version = "0.1.0" }
-tor-cert = { path = "../tor-cert", version = "0.1.0" }
-tor-protover = { path = "../tor-protover", version = "0.1.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.1.0" }
-tor-error = { path = "../tor-error", version = "0.1.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0"}
+tor-bytes = { path = "../tor-bytes", version = "0.2.0"}
+tor-cert = { path = "../tor-cert", version = "0.2.0"}
+tor-protover = { path = "../tor-protover", version = "0.2.0"}
+tor-checkable = { path = "../tor-checkable", version = "0.2.0"}
+tor-error = { path = "../tor-error", version = "0.2.0"}
 
 base64 = "0.13.0"
 bitflags = "1"

@@ -1,6 +1,6 @@
 [package]
 name = "tor-socksproto"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -12,8 +12,8 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 caret = { path="../caret", version = "0.1.0"}
-tor-bytes = { path="../tor-bytes", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
+tor-bytes = { path="../tor-bytes", version = "0.2.0"}
+tor-error = { path="../tor-error", version = "0.2.0"}
 
 thiserror = "1"
 

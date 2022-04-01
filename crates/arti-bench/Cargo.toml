@@ -1,6 +1,6 @@
 [package]
 name = "arti-bench"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 authors = ["The Tor Project, Inc.", "eta <eta@torproject.org>"]
 license = "MIT OR Apache-2.0"
@@ -21,8 +21,8 @@ serde_json = "1.0.50"
 tracing = "0.1.18"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 tokio = { version = "1.7", features = ["full"] }
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0", features = ["tokio", "native-tls"] }
-arti = { path="../arti", version = "0.1.0"}
-arti-config = { path="../arti-config", version = "0.1.0"}
-arti-client = { package="arti-client", path = "../arti-client", version = "0.1.0"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0", features = ["tokio", "native-tls"] }
+arti = { path="../arti", version = "0.2.0"}
+arti-config = { path="../arti-config", version = "0.2.0"}
+arti-client = { package="arti-client", path = "../arti-client", version = "0.2.0"}
 tokio-socks = "0.5"
