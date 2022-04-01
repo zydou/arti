@@ -60,7 +60,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   the same decorrelated-jitter algorithm as directory requests, per
   [proposal 336]. ([cb103e04cf4d9853], part of [#407], [!426])
 - When all our guards have failed, we no longer retry them all
-  agressively, but rather assume that our net connection is down and
+  aggressively, but rather assume that our net connection is down and
   wait a while. ([eed1f06662366511], part of [#407], [!426])
 - When running as a directory client, we now remember more information
   about the source of each request, so we can avoid caches that have
@@ -123,7 +123,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   we missed a place where we needed to copy it.  (Part of [!417])
 - Backend support for collecting clock skew information; not yet
   used. ([#405], [!410])
-- Major refactoring for periodic events, to support an intial version of
+- Major refactoring for periodic events, to support an initial version of
   "dormant mode." ([!429])
 - Remove most uses of `SystemTime::now`, in favor of calling the equivalent
   function on [`SleepProvider`]. ([#306], [!365])
