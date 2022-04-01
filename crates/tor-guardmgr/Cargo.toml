@@ -1,6 +1,6 @@
 [package]
 name = "tor-guardmgr"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,16 +18,16 @@ default = []
 testing = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.1.0" }
-tor-config = { path = "../tor-config", version = "0.1.0" }
-tor-error = { path = "../tor-error", version = "0.1.0" }
-tor-netdir = { path = "../tor-netdir", version = "0.1.0" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.1.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.1.0" }
-tor-persist = { path = "../tor-persist", version = "0.1.0" }
-tor-proto = { path = "../tor-proto", version = "0.1.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0" }
-tor-units = { path = "../tor-units", version = "0.1.0" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0"}
+tor-config = { path = "../tor-config", version = "0.2.0"}
+tor-error = { path = "../tor-error", version = "0.2.0"}
+tor-netdir = { path = "../tor-netdir", version = "0.2.0"}
+tor-linkspec = { path = "../tor-linkspec", version = "0.2.0"}
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0"}
+tor-persist = { path = "../tor-persist", version = "0.2.0"}
+tor-proto = { path = "../tor-proto", version = "0.2.0"}
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0"}
+tor-units = { path = "../tor-units", version = "0.2.0"}
 
 derive_builder = "0.11"
 derive_more = "0.99"
@@ -43,8 +43,8 @@ thiserror = "1"
 tracing = "0.1.18"
 
 [dev-dependencies]
-tor-netdir = { path = "../tor-netdir", version = "0.1.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.1.0" }
-tor-persist = { path = "../tor-persist", version = "0.1.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.1.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.1.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.2.0", features = ["testing"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.2.0"}
+tor-persist = { path = "../tor-persist", version = "0.2.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.2.0"}

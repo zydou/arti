@@ -1,6 +1,6 @@
 [package]
 name = "arti-hyper"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -24,7 +24,7 @@ experimental-api = []
 
 [dependencies]
 anyhow = "1.0.23"
-arti-client = { path="../arti-client", version = "0.1.0"}
+arti-client = { path="../arti-client", version = "0.2.0"}
 educe = "0.4.6"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
@@ -32,8 +32,8 @@ tokio = { package = "tokio", version = "1.7", features = ["rt", "rt-multi-thread
 thiserror = "1"
 tls-api = { version = "0.7" }
 tls-api-native-tls = { version = "0.7.0" }
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.1.0", features=["tokio"] }
+tor-error = { path="../tor-error", version = "0.2.0"}
+tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0", features=["tokio"] }
 
 [dev-dependencies]
 tracing-subscriber = "0.3.0"

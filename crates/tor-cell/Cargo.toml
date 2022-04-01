@@ -1,6 +1,6 @@
 [package]
 name = "tor-cell"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -13,12 +13,12 @@ repository="https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 caret = { path="../caret", version = "0.1.0"}
 educe = "0.4.6"
-tor-basic-utils = { path="../tor-basic-utils", version = "0.1.0"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.1.0"}
-tor-bytes = { path="../tor-bytes", version = "0.1.0"}
-tor-cert = { path="../tor-cert", version = "0.1.0"}
-tor-error = { path="../tor-error", version = "0.1.0"}
-tor-linkspec = { path="../tor-linkspec", version = "0.1.0"}
+tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0"}
+tor-llcrypto = { path="../tor-llcrypto", version = "0.2.0"}
+tor-bytes = { path="../tor-bytes", version = "0.2.0"}
+tor-cert = { path="../tor-cert", version = "0.2.0"}
+tor-error = { path="../tor-error", version = "0.2.0"}
+tor-linkspec = { path="../tor-linkspec", version = "0.2.0"}
 
 arrayref = "0.3"
 bitflags = "1"

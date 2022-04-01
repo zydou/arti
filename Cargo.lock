@@ -73,7 +73,7 @@ checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
 
 [[package]]
 name = "arti"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -104,7 +104,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti",
@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "derive_builder",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "arti-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arti-client",
  "config",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "arti-hyper"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arti",
@@ -599,7 +599,7 @@ checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
 name = "caret"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "cargo-husky"
@@ -2544,7 +2544,7 @@ checksum = "8c31b5c4033f8fdde8700e4657be2c497e7288f01515be52168c631e2e4d4086"
 
 [[package]]
 name = "retry-error"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
 ]
@@ -3177,7 +3177,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -3186,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrayref",
  "bytes",
@@ -3202,7 +3202,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrayref",
  "bitflags",
@@ -3223,7 +3223,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "caret",
@@ -3237,7 +3237,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -3261,7 +3261,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "signature",
  "thiserror",
@@ -3270,7 +3270,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "bounded-vec-deque",
@@ -3308,7 +3308,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_builder",
  "directories",
@@ -3324,7 +3324,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "digest 0.10.3",
  "hex",
@@ -3334,7 +3334,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-compression",
  "base64",
@@ -3359,7 +3359,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -3404,7 +3404,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "backtrace",
  "derive_more",
@@ -3414,7 +3414,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -3427,7 +3427,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_builder",
  "derive_more",
@@ -3457,7 +3457,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "hex-literal",
  "tor-bytes",
@@ -3467,7 +3467,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes",
  "arrayref",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bitflags",
  "derive_builder",
@@ -3524,7 +3524,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "bitflags",
@@ -3553,7 +3553,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fslock",
  "sanitize-filename",
@@ -3566,7 +3566,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrayref",
  "asynchronous-codec",
@@ -3604,7 +3604,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "caret",
  "thiserror",
@@ -3612,7 +3612,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-io",
  "async-native-tls",
@@ -3632,7 +3632,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "futures",
@@ -3646,7 +3646,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "caret",
  "hex-literal",
@@ -3657,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "tor-units"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_more",
  "float-cmp",
