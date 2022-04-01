@@ -20,9 +20,9 @@ Numerous other lower-level crates have breaking changes not noted here.
 
 - Significant refactoring to our configuration handling logic and APIs.
   The goals here are:
-      - To have the current `ConfigBuilder` types
-        become the only user-visible configuration objects, and to have the
-        current `Config` objects become implementation details.
+      - To have the `ConfigBuilder` objects be the primary configuration
+        objects, and simplify the handling of configuration at the
+        `TorClient` and `arti` APIs.
       - To remove `arti-config` entirely, and fold its contents into
         `arti` or `arti-client` as appropriate.
       - To remove unnecessary ad-hoc accessor functions until they prove to be
