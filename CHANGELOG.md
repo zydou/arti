@@ -119,8 +119,8 @@ Numerous other lower-level crates have breaking changes not noted here.
   attempt. ([#383], [!394])
 - Always send an "If-Modified-Since" header on consensus requests, since
   we wouldn't want a consensus that was far too old. ([#403], [!412])
-- Actually use "preemptive circuit" configuration. Previously,
-  we missed a place where we needed to copy it.  (Part of [!417])
+- Actually use the configuration for preemptive circuit construction.
+  Previously, we missed a place where we needed to copy it.  (Part of [!417])
 - Backend support for collecting clock skew information; not yet
   used. ([#405], [!410])
 - Major refactoring for periodic events, to support an initial version of
