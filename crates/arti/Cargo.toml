@@ -38,7 +38,7 @@ futures = "0.3.14"
 tracing = "0.1.18"
 notify = "4.0"
 once_cell = { version = "1", optional = true }
-rlimit = "0.7.0"
+rlimit = "0.8.0"
 serde = { version = "1.0.103", features = ["derive"] }
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
