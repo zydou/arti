@@ -351,6 +351,7 @@ mod test {
         assert_float_eq!(s1.frac(), 0.0, abs <= TOL);
         assert!(s1.eq(&s1));
         assert!(s1.blockage().is_none());
+        assert!(!s1.usable());
 
         let s2 = ConnStatus {
             online: Some(false),
@@ -365,6 +366,7 @@ mod test {
             s2.blockage().unwrap().to_string(),
             "unable to connect to the internet"
         );
+        assert!(!s2.usable());
 
         let s3 = ConnStatus {
             online: Some(true),
@@ -374,6 +376,7 @@ mod test {
         assert_float_eq!(s3.frac(), 0.5, abs <= TOL);
         assert_eq!(s3.blockage(), None);
         assert!(!s3.eq(&s1));
+        assert!(!s3.usable());
 
         let s4 = ConnStatus {
             online: Some(true),
@@ -390,6 +393,7 @@ mod test {
         assert!(!s4.eq(&s2));
         assert!(!s4.eq(&s3));
         assert!(s4.eq(&s4));
+        assert!(!s4.usable());
 
         let s5 = ConnStatus {
             online: Some(true),
@@ -400,6 +404,7 @@ mod test {
         assert!(s5.blockage().is_none());
         assert!(s5.eq(&s5));
         assert!(!s5.eq(&s4));
+        assert!(s5.usable());
     }
 
     #[test]
