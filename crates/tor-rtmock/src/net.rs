@@ -40,7 +40,7 @@ type ConnReceiver = mpsc::Receiver<(LocalStream, SocketAddr)>;
 /// its own view of its address(es) on the network.
 pub struct MockNetwork {
     /// A map from address to the entries about listeners there.
-    listening: Mutex<HashMap<SocketAddr, ListenerEntry>>,
+    listening: Mutex<HashMap<SocketAddr, AddrBehavior>>,
 }
 
 /// The `MockNetwork`'s view of a listener.
@@ -53,6 +53,15 @@ struct ListenerEntry {
     /// A notional TLS certificate for this listener.  If absent, the
     /// listener isn't a TLS listener.
     tls_cert: Option<Vec<u8>>,
+}
+
+/// A possible non-error behavior from an address
+#[derive(Clone)]
+enum AddrBehavior {
+    /// There's a listener at this address, which would like to reply.
+    Listener(ListenerEntry),
+    /// All connections sent to this address will time out.
+    Timeout,
 }
 
 /// A view of a single host's access to a MockNetwork.
@@ -159,6 +168,16 @@ impl MockNetwork {
         }
     }
 
+    /// Add a "black hole" at the given address, where all traffic will time out.
+    pub fn add_blackhole(&self, address: SocketAddr) -> IoResult<()> {
+        let mut listener_map = self.listening.lock().expect("Poisoned lock for listener");
+        if listener_map.contains_key(&address) {
+            return Err(err(ErrorKind::AddrInUse));
+        }
+        listener_map.insert(address, AddrBehavior::Timeout);
+        Ok(())
+    }
+
     /// Tell the listener at `target_addr` (if any) about an incoming
     /// connection from `source_addr` at `peer_stream`.
     ///
@@ -177,12 +196,16 @@ impl MockNetwork {
             let listener_map = self.listening.lock().expect("Poisoned lock for listener");
             listener_map.get(&target_addr).map(Clone::clone)
         };
-        if let Some(mut entry) = entry {
-            if entry.send.send((peer_stream, source_addr)).await.is_ok() {
-                return Ok(entry.tls_cert);
+        match entry {
+            Some(AddrBehavior::Listener(mut entry)) => {
+                if entry.send.send((peer_stream, source_addr)).await.is_ok() {
+                    return Ok(entry.tls_cert);
+                }
+                Err(err(ErrorKind::ConnectionRefused))
             }
+            Some(AddrBehavior::Timeout) => futures::future::pending().await,
+            None => Err(err(ErrorKind::ConnectionRefused)),
         }
-        Err(err(ErrorKind::ConnectionRefused))
     }
 
     /// Register a listener at `addr` and return the ConnReceiver
@@ -203,7 +226,7 @@ impl MockNetwork {
 
         let entry = ListenerEntry { send, tls_cert };
 
-        listener_map.insert(addr, entry);
+        listener_map.insert(addr, AddrBehavior::Listener(entry));
 
         Ok(recv)
     }

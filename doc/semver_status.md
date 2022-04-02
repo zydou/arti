@@ -21,3 +21,8 @@ We can delete older sections here after we bump the releases.
 ### tor-socksproto
 
 BREAKING: Removed some unused accessors.
+
+### tor-rtmock
+
+MODIFIED: Added add_blackhole to MockNetwork.
+
