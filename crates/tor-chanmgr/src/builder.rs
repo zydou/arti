@@ -274,7 +274,7 @@ mod test {
             // Tell the client to believe in a different timestamp.
             client_rt.jump_to(now);
 
-            // Create the channelbuilder that we want to test.
+            // Create the channel builder that we want to test.
             let (snd, _rcv) = crate::event::channel();
             let builder = ChanBuilder::new(client_rt, snd);
 
@@ -298,6 +298,14 @@ mod test {
             let chan = r1.unwrap();
             assert_eq!(chan.ident(), &ed);
             assert!(chan.is_usable());
+            // In theory, time could pass here, so we can't just use
+            // "assert_eq!(dur_unused, dur_unused2)".
+            let dur_unused = Channel::duration_unused(&chan);
+            let dur_unused_2 = AbstractChannel::duration_unused(&chan);
+            let dur_unused_3 = Channel::duration_unused(&chan);
+            assert!(dur_unused.unwrap() <= dur_unused_2.unwrap());
+            assert!(dur_unused_2.unwrap() <= dur_unused_3.unwrap());
+
             r2.unwrap();
             Ok(())
         })
