@@ -203,16 +203,44 @@ mod test {
         let eu = SystemTime::UNIX_EPOCH + one_day * 8705;
         let za = SystemTime::UNIX_EPOCH + one_day * 8882;
 
+        // check_valid_at
         let tr = TimerangeBound::new("Hello world", cz_sk..eu);
         assert!(tr.check_valid_at(&za).is_err());
 
         let tr = TimerangeBound::new("Hello world", cz_sk..za);
         assert_eq!(tr.check_valid_at(&eu), Ok("Hello world"));
 
+        // check_valid_now
         let tr = TimerangeBound::new("hello world", de..);
         assert_eq!(tr.check_valid_now(), Ok("hello world"));
 
         let tr = TimerangeBound::new("hello world", ..za);
         assert!(tr.check_valid_now().is_err());
+
+        // Now try check_valid_at_opt() api
+        let tr = TimerangeBound::new("hello world", de..);
+        assert_eq!(tr.check_valid_at_opt(None), Ok("hello world"));
+        let tr = TimerangeBound::new("hello world", de..);
+        assert_eq!(
+            tr.check_valid_at_opt(Some(SystemTime::now())),
+            Ok("hello world")
+        );
+        let tr = TimerangeBound::new("hello world", ..za);
+        assert!(tr.check_valid_at_opt(None).is_err());
+    }
+
+    #[cfg(feature = "experimental-api")]
+    #[test]
+    fn test_dangerous() {
+        let t1 = SystemTime::now();
+        let t2 = t1 + Duration::from_secs(60 * 525600);
+        let tr = TimerangeBound::new("cups of coffee", t1..=t2);
+
+        assert_eq!(tr.dangerously_peek(), &"cups of coffee");
+
+        let (a, b) = tr.dangerously_into_parts();
+        assert_eq!(a, "cups of coffee");
+        assert_eq!(b.0, Bound::Included(t1));
+        assert_eq!(b.1, Bound::Included(t2));
     }
 }
