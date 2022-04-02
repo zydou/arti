@@ -19,15 +19,6 @@ pub enum SocksVersion {
     V5,
 }
 
-impl From<SocksVersion> for u8 {
-    fn from(v: SocksVersion) -> u8 {
-        match v {
-            SocksVersion::V4 => 4,
-            SocksVersion::V5 => 5,
-        }
-    }
-}
-
 impl TryFrom<u8> for SocksVersion {
     type Error = Error;
     fn try_from(v: u8) -> Result<SocksVersion> {
@@ -181,12 +172,6 @@ impl TryFrom<String> for SocksHostname {
 impl AsRef<str> for SocksHostname {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
-    }
-}
-
-impl From<SocksHostname> for String {
-    fn from(s: SocksHostname) -> String {
-        s.0
     }
 }
 
