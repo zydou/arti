@@ -1,4 +1,4 @@
-//! Declare the `RetryStrategy` enumeration and related code.
+//! Declare the `RetryTime` enumeration and related code.
 
 use std::{
     cmp::Ordering,
@@ -8,7 +8,7 @@ use strum::EnumDiscriminants;
 
 /// A description of when an operation may be retried.
 ///
-/// # Retry strategies values are contextual.
+/// # Retry times values are contextual.
 ///
 /// Note that retrying is necessarily contextual, depending on what exactly
 /// we're talking about retrying.
@@ -22,7 +22,7 @@ use strum::EnumDiscriminants;
 /// Thus, the same inner error condition ("failed to extend to the nth hop") can
 /// indicate either a "Retry after waiting for a while" or "Retry immediately."
 ///
-/// # Retry strategies depend on what we think might change.
+/// # Retry times depend on what we think might change.
 ///
 /// Whether retrying will help depends on what we think is likely to change in
 /// the near term.
@@ -45,6 +45,9 @@ use strum::EnumDiscriminants;
 pub enum RetryTime {
     /// The operation can be retried immediately, and no delay is needed.
     ///
+    /// The recipient of this `RetryTime` variant may retry the operation
+    /// immediately without waiting.
+    ///
     /// This case should be used cautiously: it risks making code retry in a
     /// loop without delay.  It should only be used for error conditions that
     /// are necessarily produced via a process that itself introduces a delay.
@@ -53,11 +56,13 @@ pub enum RetryTime {
     Immediate,
 
     /// The operation can be retried after a short delay, to prevent overloading
-    /// the network.
+    /// the network.  
     ///
-    /// The length of the delay will usually depend on how frequently the
-    /// operation has failed in the past.  The `RetryDelay` type from
-    /// `tor-basic-utils` is how we usually schedule these within Arti.
+    /// The recipient of this `RetryTime` variant should delay a short amount of
+    /// time before retrying.  The amount of time to delay should be randomized,
+    /// and should tend to grow larger the more failures there have been
+    /// recently for the given operation.  (The `RetryDelay` type from
+    /// `tor-basic-utils` is suitable for managing this calculation.)
     ///
     /// This case should be used for problems that tend to be "self correcting",
     /// such as remote server failures (the server might come back up).
@@ -65,12 +70,24 @@ pub enum RetryTime {
 
     /// The operation can be retried after a particular delay.
     ///
+    /// The recipient of this `RetryTime` variant should wait for at least the
+    /// given duration before retrying the operation.
+    ///
     /// This case should only be used if there is some reason not to return
     /// `AfterWaiting`: for example, if the implementor is providing their own
     /// back-off algorithm instead of using `RetryDelay.`
+    ///
+    /// (This is a separate variant from `At`, since the constructor may not
+    /// have convenient access to (a mocked view of) the current time.  If you
+    /// know that the current time is `now`, then `After(d)` is equivalent to
+    /// `At(now + d)`.)
     After(Duration),
 
     /// The operation can be retried at some particular time in the future.
+    ///
+    /// The recipient of this this `RetryTime` variant should wait until the
+    /// current time (as returned by `Instant::now` or `SleepProvider::now` as
+    /// appropriate) is at least this given instant.
     ///
     /// This case is appropriate for when we have a failure condition caused by
     /// waiting for multiple other timeouts.  (For example, if we believe that
@@ -80,6 +97,9 @@ pub enum RetryTime {
 
     /// Retrying is unlikely to make this operation succeed, unless something
     /// else is fixed first.
+    ///
+    /// The recipient of this `RetryTime` variant should generally give up, and
+    /// stop retrying the given operation.
     ///
     /// We don't mean "literally" that the operation will never succeed: only
     /// that retrying it in the near future without fixing the underlying cause
