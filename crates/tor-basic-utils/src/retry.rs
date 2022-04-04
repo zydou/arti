@@ -103,6 +103,11 @@ impl RetryDelay {
     pub fn next_delay<R: Rng>(&mut self, rng: &mut R) -> Duration {
         Duration::from_millis(u64::from(self.next_delay_msec(rng)))
     }
+
+    /// Return this [`RetryDelay`] to its original state.
+    pub fn reset(&mut self) {
+        self.last_delay_ms = 0;
+    }
 }
 
 impl Default for RetryDelay {

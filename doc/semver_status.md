@@ -18,6 +18,10 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.2.0
 
+### tor-basic-util
+
+MODIFIED: Added `reset()` method to RetrySchedule.
+
 ### tor-socksproto
 
 BREAKING: Removed some unused accessors.
@@ -25,4 +29,3 @@ BREAKING: Removed some unused accessors.
 ### tor-rtmock
 
 MODIFIED: Added add_blackhole to MockNetwork.
-
