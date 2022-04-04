@@ -31,6 +31,15 @@ pub enum Error {
     #[error("Pending circuit failed.")]
     PendingFailed(Box<Error>),
 
+    /// We were told that we could use a given circuit, but before we got a
+    /// chance to try it, its usage changed so that we had no longer find
+    /// it suitable.
+    ///
+    /// This is a version of `UsageMismatched` for when a race is the
+    /// likeliest explanation for the mismatch.
+    #[error("Circuit seemed suitable, but another request got it first.")]
+    LostUsabilityRace(#[source] RestrictionFailed),
+
     /// A circuit succeeded, but was cancelled before it could be used.
     ///
     /// Circuits can be cancelled either by a call to
@@ -48,6 +57,8 @@ pub enum Error {
     /// This can happen due to a race when a number of tasks all decide that
     /// they can use the same pending circuit at once: one of them will restrict
     /// the circuit, and the others will get this error.
+    ///
+    /// See `LostUsabilityRace`.
     #[error("Couldn't apply circuit restriction")]
     UsageMismatched(#[from] RestrictionFailed),
 
@@ -160,7 +171,8 @@ impl HasKind for Error {
             E::PendingFailed(e) => e.kind(),
             E::CircTimeout => EK::TorNetworkTimeout,
             E::GuardNotUsable => EK::TransientFailure,
-            E::UsageMismatched(_) => EK::TransientFailure,
+            E::UsageMismatched(_) => EK::Internal,
+            E::LostUsabilityRace(_) => EK::TransientFailure,
             E::RequestTimeout => EK::TorNetworkTimeout,
             E::RequestFailed(e) => e
                 .sources()
@@ -187,6 +199,11 @@ impl HasRetryTime for Error {
             // If we fail because of a timeout, there is no need to wait before trying again.
             E::CircTimeout | E::RequestTimeout => RT::Immediate,
 
+            // If a circuit that seemed usable was restricted before we got a
+            // chance to try it, that's not our fault: we can try again
+            // immediately.
+            E::LostUsabilityRace(_) => RT::Immediate,
+
             // If we can't build a path for the usage at all, then retrying
             // won't help.
             //
@@ -195,14 +212,16 @@ impl HasRetryTime for Error {
             // additional "TODO" comments in exitpath.rs.
             E::NoPath(_) | E::NoExit(_) => RT::Never,
 
+            // If we encounter UsageMismatched without first converting to
+            // LostUsabilityRace, it reflects a real problem in our code.
+            E::UsageMismatched(_) => RT::Never,
+
             // These don't reflect a real problem in the circuit building, but
             // rather mean that we were waiting for something that didn't pan out.
             // It's okay to try again after a short delay.
-            E::GuardNotUsable
-            | E::PendingCanceled
-            | E::CircCanceled
-            | E::Protocol { .. }
-            | E::UsageMismatched(_) => RT::AfterWaiting,
+            E::GuardNotUsable | E::PendingCanceled | E::CircCanceled | E::Protocol { .. } => {
+                RT::AfterWaiting
+            }
 
             // For Channel errors, we can mostly delegate the retry_time decision to
             // the inner error.
@@ -271,7 +290,7 @@ impl Error {
     fn severity(&self) -> usize {
         use Error as E;
         match self {
-            E::GuardNotUsable | E::UsageMismatched(_) => 10,
+            E::GuardNotUsable | E::LostUsabilityRace(_) => 10,
             E::PendingCanceled => 20,
             E::CircCanceled => 20,
             E::CircTimeout => 30,
@@ -286,6 +305,7 @@ impl Error {
             E::ExpiredConsensus => 50,
             E::Spawn { .. } => 90,
             E::State(_) => 90,
+            E::UsageMismatched(_) => 90,
             E::Bug(_) => 100,
             E::PendingFailed(e) => e.severity(),
         }

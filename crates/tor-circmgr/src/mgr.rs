@@ -1066,6 +1066,12 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 return Ok(ent.circ.clone());
                             }
                             Err(e) => {
+                                // In this case, a `UsageMismatched` error just means that we lost the race
+                                // to restrict this circuit.
+                                let e = match e {
+                                    Error::UsageMismatched(e) => Error::LostUsabilityRace(e),
+                                    x => x,
+                                };
                                 if src == streams::Source::Left {
                                     info!(
                                         "{} suggested we use {:?}, but restrictions failed: {:?}",
