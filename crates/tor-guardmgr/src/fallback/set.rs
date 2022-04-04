@@ -3,7 +3,7 @@
 use rand::seq::IteratorRandom;
 use std::time::Instant;
 
-use super::{FallbackDir, Status};
+use super::{DirStatus, FallbackDir};
 use crate::{ids::FallbackId, PickGuardError};
 use serde::Deserialize;
 
@@ -67,13 +67,13 @@ pub(super) struct Entry {
     /// guard as well.  Ought to fix that.)
     pub(super) fallback: crate::FirstHop,
     /// The status for the fallback directory.
-    pub(super) status: Status,
+    pub(super) status: DirStatus,
 }
 
 impl From<FallbackDir> for Entry {
     fn from(fallback: FallbackDir) -> Self {
         let fallback = fallback.as_guard();
-        let status = Status::default();
+        let status = DirStatus::default();
         Entry { fallback, status }
     }
 }

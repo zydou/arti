@@ -147,6 +147,7 @@ use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
 mod daemon;
+mod dirstatus;
 mod err;
 pub mod fallback;
 mod filter;

@@ -3,13 +3,13 @@
 use std::time::{Duration, Instant};
 use tor_basic_utils::retry::RetryDelay;
 
-/// Status information about whether a [`FallbackDir`](super::FallbackDir) is
-/// currently usable.
+/// Status information about whether a [`FallbackDir`](super::FallbackDir)
+/// is currently usable as a directory cache.
 ///
-/// This structure is used to track whether the fallback cache has recently
+/// This structure is used to track whether the cache has recently
 /// failed, and if so, when it can be retried.
 #[derive(Debug, Clone)]
-pub(crate) struct Status {
+pub(crate) struct DirStatus {
     /// Used to decide how long to delay before retrying a fallback cache
     /// that has failed.
     delay: RetryDelay,
@@ -24,16 +24,16 @@ pub(crate) struct Status {
 // TODO: we may want to make this configurable to a smaller value for chutney networks.
 const FALLBACK_RETRY_FLOOR: Duration = Duration::from_secs(150);
 
-impl Default for Status {
+impl Default for DirStatus {
     fn default() -> Self {
-        Status {
+        DirStatus {
             delay: RetryDelay::from_duration(FALLBACK_RETRY_FLOOR),
             retry_at: None,
         }
     }
 }
 
-impl Status {
+impl DirStatus {
     /// Return true if this `Status` is usable at the time `now`.
     pub(crate) fn usable_at(&self, now: Instant) -> bool {
         match self.retry_at {
@@ -75,7 +75,7 @@ mod test {
     fn status_basics() {
         let now = Instant::now();
 
-        let mut status = Status::default();
+        let mut status = DirStatus::default();
         // newly created status is usable.
         assert!(status.usable_at(now));
 

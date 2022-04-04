@@ -11,7 +11,6 @@
 //! `tor-dirmgr`: any changes here must be reflected there.
 
 mod set;
-mod status;
 
 use crate::ids::FallbackId;
 use derive_builder::Builder;
@@ -22,9 +21,9 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
+use crate::dirstatus::DirStatus;
 pub use set::FallbackList;
 pub(crate) use set::FallbackState;
-use status::Status;
 
 /// A directory whose location ships with Tor (or arti), and which we
 /// can use for bootstrapping when we don't know anything else about
