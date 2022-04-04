@@ -1,9 +1,10 @@
-//! Types and code to track the readiness status of a fallback directory.
+//! Types and code to track the readiness status of a directory cache.
 
 use std::time::{Duration, Instant};
 use tor_basic_utils::retry::RetryDelay;
 
 /// Status information about whether a [`FallbackDir`](super::FallbackDir)
+/// or [`Guard`](crate::guard::Guard)
 /// is currently usable as a directory cache.
 ///
 /// This structure is used to track whether the cache has recently

@@ -558,20 +558,12 @@ impl<R: Runtime> GuardMgr<R> {
     ) {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
-        for id in inner.lookup_ids(ed_identity, rsa_identity) {
-            match &id.0 {
-                FirstHopIdInner::Guard(_) => {
-                    // TODO: Nothing to do in this case yet; there is not yet a
-                    // separate "directory succeeding" status for guards.  But there
-                    // should be, eventually.  This is part of #329.
-                }
-                FirstHopIdInner::Fallback(id) => {
-                    if external_activity == ExternalActivity::DirCache {
-                        inner.fallbacks.note_success(id);
-                    }
-                }
-            }
-        }
+        inner.record_external_success(
+            ed_identity,
+            rsa_identity,
+            external_activity,
+            self.runtime.wallclock(),
+        );
     }
 
     /// Ensure that the message queue is flushed before proceeding to
@@ -741,6 +733,7 @@ impl GuardMgrInner {
                     self.guards.active_guards_mut().record_success(
                         id,
                         &self.params,
+                        None,
                         runtime.wallclock(),
                     );
                     // Either tell the request whether the guard is
@@ -790,6 +783,36 @@ impl GuardMgrInner {
         // not); we need to give them the information they're waiting
         // for.
         self.expire_and_answer_pending_requests(runtime.now());
+    }
+
+    /// Helper to implement `GuardMgr::note_external_success()`.
+    ///
+    /// (This has to be a separate function so that we can borrow params while
+    /// we have `mut self` borrowed.)
+    fn record_external_success(
+        &mut self,
+        ed_identity: &pk::ed25519::Ed25519Identity,
+        rsa_identity: &pk::rsa::RsaIdentity,
+        external_activity: ExternalActivity,
+        now: SystemTime,
+    ) {
+        for id in self.lookup_ids(ed_identity, rsa_identity) {
+            match &id.0 {
+                FirstHopIdInner::Guard(id) => {
+                    self.guards.active_guards_mut().record_success(
+                        id,
+                        &self.params,
+                        Some(external_activity),
+                        now,
+                    );
+                }
+                FirstHopIdInner::Fallback(id) => {
+                    if external_activity == ExternalActivity::DirCache {
+                        self.fallbacks.note_success(id);
+                    }
+                }
+            }
+        }
     }
 
     /// If the circuit built because of a given [`PendingRequest`] may
@@ -906,7 +929,7 @@ impl GuardMgrInner {
         wallclock: SystemTime,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         // Try to find a guard.
-        let first_error = match self.select_guard_once(usage) {
+        let first_error = match self.select_guard_once(usage, now) {
             Ok(res1) => return Ok(res1),
             Err(e) => {
                 trace!("Couldn't select guard on first attempt: {}", e);
@@ -926,7 +949,7 @@ impl GuardMgrInner {
                 self.guards
                     .active_guards_mut()
                     .select_primary_guards(&self.params);
-                match self.select_guard_once(usage) {
+                match self.select_guard_once(usage, now) {
                     Ok(res) => return Ok(res),
                     Err(e) => {
                         trace!("Couldn't select guard after expanding sample: {}", e);
@@ -949,11 +972,12 @@ impl GuardMgrInner {
     fn select_guard_once(
         &self,
         usage: &GuardUsage,
+        now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let (source, id) = self
             .guards
             .active_guards()
-            .pick_guard(usage, &self.params)?;
+            .pick_guard(usage, &self.params, now)?;
         let guard = self
             .guards
             .active_guards()

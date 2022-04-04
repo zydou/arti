@@ -544,8 +544,11 @@ impl GuardSet {
     }
 
     /// Return the earliest time at which any guard will be retriable.
-    pub(crate) fn next_retry(&self) -> Option<Instant> {
-        self.guards.values().filter_map(Guard::next_retry).min()
+    pub(crate) fn next_retry(&self, usage: &GuardUsage) -> Option<Instant> {
+        self.guards
+            .values()
+            .filter_map(|g| g.next_retry(usage))
+            .min()
     }
 
     /// Mark every `Unreachable` primary guard as `Unknown`.
@@ -586,46 +589,50 @@ impl GuardSet {
         }
     }
 
-    /// Record that an attempt to use the guard with `guard_id` has
-    /// just succeeded.
+    /// Record that an attempt to use the guard with `guard_id` has just
+    /// succeeded.
+    ///
+    /// If `how` is provided, it's an operation from outside the crate that the
+    /// guard succeeded at doing.
     pub(crate) fn record_success(
         &mut self,
         guard_id: &GuardId,
         params: &GuardParams,
+        how: Option<ExternalActivity>,
         now: SystemTime,
     ) {
         self.assert_consistency();
         if let Some(guard) = self.guards.get_mut(guard_id) {
-            let newly_confirmed = guard.record_success(now, params);
+            match how {
+                Some(external) => guard.record_external_success(external),
+                None => {
+                    let newly_confirmed = guard.record_success(now, params);
 
-            if newly_confirmed == NewlyConfirmed::Yes {
-                self.confirmed.push(guard_id.clone());
-                self.primary_guards_invalidated = true;
+                    if newly_confirmed == NewlyConfirmed::Yes {
+                        self.confirmed.push(guard_id.clone());
+                        self.primary_guards_invalidated = true;
+                    }
+                }
             }
+            self.assert_consistency();
         }
-        self.assert_consistency();
     }
 
     /// Record that an attempt to use the guard with `guard_id` has just failed.
     ///
-    /// If `how` is provided, it's a reason that the guard failed from outside
-    /// of the crate.
     pub(crate) fn record_failure(
         &mut self,
         guard_id: &GuardId,
         how: Option<ExternalActivity>,
         now: Instant,
     ) {
-        // TODO: For now, we treat failures of guards for circuit building the
-        // same as we treat failures for other reasons.  Eventually that should
-        // change, however.  We take this `ExternalFailure` information now in
-        // the expectation that it will be annoying to add it to the API later.
-        let _ = how;
-
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
         if let Some(guard) = self.guards.get_mut(guard_id) {
-            guard.record_failure(now, is_primary);
+            match how {
+                Some(external) => guard.record_external_failure(external, now),
+                None => guard.record_failure(now, is_primary),
+            }
         }
     }
 
@@ -720,6 +727,7 @@ impl GuardSet {
         &self,
         usage: &GuardUsage,
         params: &GuardParams,
+        now: Instant,
     ) -> Result<(ListKind, GuardId), PickGuardError> {
         debug_assert!(!self.primary_guards_invalidated);
         let n_options = match usage.kind {
@@ -727,18 +735,29 @@ impl GuardSet {
             GuardUsageKind::Data => params.data_parallelism,
         };
 
-        // count the number of running options, distinct from the total options.
-        let mut n_running: usize = 0;
+        // count whether any guards are actually "running" (not waiting for
+        // retry) separately from whether they are usable for this purpose.
+        let mut any_running = false;
 
         let mut options: Vec<_> = self
             .preference_order()
-            .filter(|(_, g)| g.usable() && g.reachable() != Reachable::Unreachable)
-            .inspect(|_| n_running += 1)
+            // Discard the guards that are down or unusable, and see if any
+            // are left.
+            .filter(|(_, g)| {
+                g.usable()
+                    && g.reachable() != Reachable::Unreachable
+                    && g.ready_for_usage(usage, now)
+            })
+            .inspect(|_| any_running = true)
+            // Now remove those that are excluded because we're already trying
+            // them on an exploratory basis, or because they don't support the
+            // operation we're attempting.
             .filter(|(_, g)| {
                 !g.exploratory_circ_pending()
                     && self.active_filter.permits(*g)
                     && g.conforms_to_usage(usage)
             })
+            // We only consider the first n_options such guards.
             .take(n_options)
             .collect();
 
@@ -753,8 +772,8 @@ impl GuardSet {
         match options.choose(&mut rand::thread_rng()) {
             Some((src, g)) => Ok((*src, g.guard_id().clone())),
             None => {
-                if n_running == 0 {
-                    let retry_at = self.next_retry();
+                if !any_running {
+                    let retry_at = self.next_retry(usage);
                     Err(PickGuardError::AllGuardsDown { retry_at })
                 } else {
                     Err(PickGuardError::NoGuardsUsable)
@@ -907,7 +926,7 @@ mod test {
 
         // Pick a guard and mark it as confirmed.
         let id1 = guards.sample[0].clone();
-        guards.record_success(&id1, &params, t2);
+        guards.record_success(&id1, &params, None, t2);
         assert_eq!(&guards.confirmed, &[id1.clone()]);
 
         // Encode the guards, then decode them.
@@ -944,10 +963,10 @@ mod test {
 
         // Pick a guard and mark it as confirmed.
         let id3 = guards.sample[3].clone();
-        guards.record_success(&id3, &params, t2);
+        guards.record_success(&id3, &params, None, t2);
         assert_eq!(&guards.confirmed, &[id3.clone()]);
         let id1 = guards.sample[1].clone();
-        guards.record_success(&id1, &params, t3);
+        guards.record_success(&id1, &params, None, t3);
         assert_eq!(&guards.confirmed, &[id3.clone(), id1.clone()]);
 
         // Select primary guards and make sure we're obeying the rules.
@@ -968,7 +987,7 @@ mod test {
         // Mark another guard as confirmed and see that the list changes to put
         // that guard right after the previously confirmed guards, but we keep
         // one of the previous unconfirmed primary guards.
-        guards.record_success(&p4, &params, t3);
+        guards.record_success(&p4, &params, None, t3);
         assert_eq!(&guards.confirmed, &[id3.clone(), id1.clone(), p4.clone()]);
         guards.select_primary_guards(&params);
         assert_eq!(guards.primary.len(), 4);
@@ -991,7 +1010,7 @@ mod test {
         // Mark one guard as confirmed; it will have a different timeout.
         // Pick a guard and mark it as confirmed.
         let id1 = guards.sample[0].clone();
-        guards.record_success(&id1, &params, t1);
+        guards.record_success(&id1, &params, None, t1);
         assert_eq!(&guards.confirmed, &[id1]);
 
         let one_day = Duration::from_secs(86400);
@@ -1027,7 +1046,7 @@ mod test {
         let usage = crate::GuardUsageBuilder::default().build().unwrap();
         let id1 = guards.primary[0].clone();
         let id2 = guards.primary[1].clone();
-        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id) = guards.pick_guard(&usage, &params, i1).unwrap();
         assert_eq!(src, ListKind::Primary);
         assert_eq!(&id, &id1);
 
@@ -1035,12 +1054,12 @@ mod test {
         guards.record_failure(&id, None, i1 + sec);
 
         // Second guard: try it, and try it again, and have it fail.
-        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id) = guards.pick_guard(&usage, &params, i1 + sec).unwrap();
         assert_eq!(src, ListKind::Primary);
         assert_eq!(&id, &id2);
         guards.record_attempt(&id, i1 + sec);
 
-        let (src, id_x) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id_x) = guards.pick_guard(&usage, &params, i1 + sec).unwrap();
         // We get the same guard this (second) time that we pick it too, since
         // it is a primary guard, and is_pending won't block it.
         assert_eq!(id_x, id);
@@ -1050,14 +1069,14 @@ mod test {
         guards.record_failure(&id, None, i1 + sec * 4);
 
         // Third guard: this one won't be primary.
-        let (src, id3) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id3) = guards.pick_guard(&usage, &params, i1 + sec * 4).unwrap();
         assert_eq!(src, ListKind::Sample);
         assert!(!guards.primary.contains(&id3));
         guards.record_attempt(&id3, i1 + sec * 5);
 
         // Fourth guard: Third guard will be pending, so a different one gets
         // handed out here.
-        let (src, id4) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id4) = guards.pick_guard(&usage, &params, i1 + sec * 5).unwrap();
         assert_eq!(src, ListKind::Sample);
         assert!(id3 != id4);
         assert!(!guards.primary.contains(&id4));
@@ -1085,8 +1104,8 @@ mod test {
         );
 
         // Have both guards succeed.
-        guards.record_success(&id3, &params, st1 + sec * 7);
-        guards.record_success(&id4, &params, st1 + sec * 8);
+        guards.record_success(&id3, &params, None, st1 + sec * 7);
+        guards.record_success(&id4, &params, None, st1 + sec * 8);
 
         // Check the impact of having both guards succeed.
         assert!(guards.primary_guards_invalidated);
@@ -1094,7 +1113,7 @@ mod test {
         assert_eq!(&guards.primary, &[id3.clone(), id4.clone()]);
 
         // Next time we ask for a guard, we get a primary guard again.
-        let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+        let (src, id) = guards.pick_guard(&usage, &params, i1 + sec * 10).unwrap();
         assert_eq!(src, ListKind::Primary);
         assert_eq!(&id, &id3);
 
@@ -1105,7 +1124,7 @@ mod test {
             .build()
             .unwrap();
         for _ in 0..64 {
-            let (src, id) = guards.pick_guard(&usage, &params).unwrap();
+            let (src, id) = guards.pick_guard(&usage, &params, i1 + sec * 10).unwrap();
             assert_eq!(src, ListKind::Primary);
             assert_eq!(
                 guards.circ_usability_status(&id, &usage, &params, i1 + sec * 10),
@@ -1150,7 +1169,7 @@ mod test {
 
         assert_eq!(guards.sample.len(), 5);
         for _ in 0..5 {
-            let (_, id) = guards.pick_guard(&usage, &params).unwrap();
+            let (_, id) = guards.pick_guard(&usage, &params, inst).unwrap();
             guards.record_attempt(&id, inst);
             guards.record_failure(&id, None, inst + sec);
 
@@ -1158,7 +1177,7 @@ mod test {
             st += sec * 2;
         }
 
-        let e = guards.pick_guard(&usage, &params);
+        let e = guards.pick_guard(&usage, &params, inst);
         assert!(matches!(e, Err(PickGuardError::AllGuardsDown { .. })));
 
         // Now in theory we should re-grow when we extend.
@@ -1187,13 +1206,13 @@ mod test {
         assert!(!guards.all_primary_guards_are_unreachable());
 
         // Let one primary guard fail.
-        let (kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
+        let (kind, p_id1) = guards.pick_guard(&usage, &params, Instant::now()).unwrap();
         assert_eq!(kind, ListKind::Primary);
         guards.record_failure(&p_id1, None, Instant::now());
         assert!(!guards.all_primary_guards_are_unreachable());
 
         // Now let the other one fail.
-        let (kind, p_id2) = guards.pick_guard(&usage, &params).unwrap();
+        let (kind, p_id2) = guards.pick_guard(&usage, &params, Instant::now()).unwrap();
         assert_eq!(kind, ListKind::Primary);
         guards.record_failure(&p_id2, None, Instant::now());
         assert!(guards.all_primary_guards_are_unreachable());
@@ -1201,7 +1220,7 @@ mod test {
         // Now mark the guards retriable.
         guards.mark_primary_guards_retriable();
         assert!(!guards.all_primary_guards_are_unreachable());
-        let (kind, p_id3) = guards.pick_guard(&usage, &params).unwrap();
+        let (kind, p_id3) = guards.pick_guard(&usage, &params, Instant::now()).unwrap();
         assert_eq!(kind, ListKind::Primary);
         assert_eq!(p_id3, p_id1);
     }
@@ -1221,8 +1240,8 @@ mod test {
         guards.select_primary_guards(&params);
         assert_eq!(guards.primary.len(), 2);
 
-        let (_kind, p_id1) = guards.pick_guard(&usage, &params).unwrap();
-        guards.record_success(&p_id1, &params, SystemTime::now());
+        let (_kind, p_id1) = guards.pick_guard(&usage, &params, Instant::now()).unwrap();
+        guards.record_success(&p_id1, &params, None, SystemTime::now());
         assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
 
         use tor_netdir::testnet;
