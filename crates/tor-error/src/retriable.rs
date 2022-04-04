@@ -4,6 +4,7 @@ use std::{
     cmp::Ordering,
     time::{Duration, Instant},
 };
+use strum::EnumDiscriminants;
 
 /// A description of when an operation may be retried.
 ///
@@ -35,8 +36,12 @@ use std::{
 /// traffic to port 23 (telnet), we say that building a request for such a relay
 /// is not retriable, even though technically such a relay might appear in the
 /// next consensus.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, EnumDiscriminants)]
 #[non_exhaustive]
+// We define a discriminant type so we can simplify loose_cmp.
+#[strum_discriminants(derive(Ord, PartialOrd))]
+// We don't want to expose RetryTimeDiscriminants.
+#[strum_discriminants(vis())]
 pub enum RetryTime {
     /// The operation can be retried immediately, and no delay is needed.
     ///
@@ -186,32 +191,70 @@ impl RetryTime {
     ///
     /// If you need an absolute comparison operator, convert to [`AbsRetryTime`] first.
     fn loose_cmp(&self, other: &Self) -> Ordering {
-        use Ordering::*;
+        use RetryTime as RT;
+
         match (self, other) {
-            // Immediate precedes everything.
-            (RetryTime::Immediate, RetryTime::Immediate) => Equal,
-            (RetryTime::Immediate, _) => Less,
-            (_, RetryTime::Immediate) => Greater,
+            // When we have the same type with an internal embedded duration or time,
+            // we compare based on the duration or time.
+            (RT::After(d1), RetryTime::After(d2)) => d1.cmp(d2),
+            (RT::At(t1), RetryTime::At(t2)) => t1.cmp(t2),
 
-            // When we have the same type, then we can compare based on actual
-            // times.
-            (RetryTime::AfterWaiting, RetryTime::AfterWaiting) => Equal,
-            (RetryTime::After(d1), RetryTime::After(d2)) => d1.cmp(d2),
-            (RetryTime::At(t1), RetryTime::At(t2)) => t1.cmp(t2),
+            // Otherwise, we compare based on discriminant type.
+            //
+            // This can't do a perfect "apples-to-apples" comparison for
+            // `AfterWaiting` vs `At` vs `After`, but at least it imposes a
+            // total order.
+            (a, b) => RetryTimeDiscriminants::from(a).cmp(&RetryTimeDiscriminants::from(b)),
+        }
+    }
+}
 
-            // Otherwise: pretend AfterWaiting is shorter than After, is shorter
-            // than At.
-            (RetryTime::AfterWaiting, RetryTime::After(_)) => Less,
-            (RetryTime::AfterWaiting, RetryTime::At(_)) => Less,
-            (RetryTime::After(_), RetryTime::AfterWaiting) => Greater,
-            (RetryTime::After(_), RetryTime::At(_)) => Less,
-            (RetryTime::At(_), RetryTime::AfterWaiting) => Greater,
-            (RetryTime::At(_), RetryTime::After(_)) => Greater,
+#[cfg(test)]
+mod test {
+    use super::*;
 
-            // Everything precedes Never.
-            (RetryTime::Never, RetryTime::Never) => Equal,
-            (RetryTime::Never, _) => Greater,
-            (_, RetryTime::Never) => Less,
+    #[test]
+    fn comparison() {
+        use RetryTime as RT;
+        let sec = Duration::from_secs(1);
+        let now = Instant::now();
+
+        let sorted = vec![
+            RT::Immediate,
+            RT::AfterWaiting,
+            RT::After(sec * 10),
+            RT::After(sec * 20),
+            RT::At(now),
+            RT::At(now + sec * 30),
+            RT::Never,
+        ];
+
+        // Verify that these objects are actually in loose-cmp sorted order.
+        for (i, a) in sorted.iter().enumerate() {
+            for (j, b) in sorted.iter().enumerate() {
+                assert_eq!(a.loose_cmp(b), i.cmp(&j));
+            }
+        }
+    }
+
+    #[test]
+    fn abs_comparison() {
+        use AbsRetryTime as ART;
+        let sec = Duration::from_secs(1);
+        let now = Instant::now();
+
+        let sorted = vec![
+            ART::Immediate,
+            ART::At(now),
+            ART::At(now + sec * 30),
+            ART::Never,
+        ];
+
+        // Verify that these objects are actually in loose-cmp sorted order.
+        for (i, a) in sorted.iter().enumerate() {
+            for (j, b) in sorted.iter().enumerate() {
+                assert_eq!(a.cmp(b), i.cmp(&j));
+            }
         }
     }
 }
