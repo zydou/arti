@@ -229,10 +229,10 @@ mod test {
     };
     use pk::ed25519::Ed25519Identity;
     use pk::rsa::RsaIdentity;
-    use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
+    use std::{net::SocketAddr, str::FromStr};
     use tor_proto::channel::Channel;
-    use tor_rtcompat::{test_with_one_runtime, TcpListener};
+    use tor_rtcompat::{test_with_one_runtime, SleepProviderExt, TcpListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
 
     // Make sure that the builder can build a real channel.  To test
@@ -274,7 +274,7 @@ mod test {
             // Tell the client to believe in a different timestamp.
             client_rt.jump_to(now);
 
-            // Create the channelbuilder that we want to test.
+            // Create the channel builder that we want to test.
             let (snd, _rcv) = crate::event::channel();
             let builder = ChanBuilder::new(client_rt, snd);
 
@@ -298,9 +298,99 @@ mod test {
             let chan = r1.unwrap();
             assert_eq!(chan.ident(), &ed);
             assert!(chan.is_usable());
+            // In theory, time could pass here, so we can't just use
+            // "assert_eq!(dur_unused, dur_unused2)".
+            let dur_unused = Channel::duration_unused(&chan);
+            let dur_unused_2 = AbstractChannel::duration_unused(&chan);
+            let dur_unused_3 = Channel::duration_unused(&chan);
+            assert!(dur_unused.unwrap() <= dur_unused_2.unwrap());
+            assert!(dur_unused_2.unwrap() <= dur_unused_3.unwrap());
+
             r2.unwrap();
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_connect_one() {
+        let client_addr = "192.0.1.16".parse().unwrap();
+        // We'll put a "relay" at this address
+        let addr1 = SocketAddr::from_str("192.0.2.17:443").unwrap();
+        // We'll put nothing at this address, to generate errors.
+        let addr2 = SocketAddr::from_str("192.0.3.18:443").unwrap();
+        // Well put a black hole at this address, to generate timeouts.
+        let addr3 = SocketAddr::from_str("192.0.4.19:443").unwrap();
+        // We'll put a "relay" at this address too
+        let addr4 = SocketAddr::from_str("192.0.9.9:443").unwrap();
+
+        test_with_one_runtime!(|rt| async move {
+            // Stub out the internet so that this connection can work.
+            let network = MockNetwork::new();
+
+            // Set up a client and server runtime with a given IP
+            let client_rt = network
+                .builder()
+                .add_address(client_addr)
+                .runtime(rt.clone());
+            let server_rt = network
+                .builder()
+                .add_address(addr1.ip())
+                .add_address(addr4.ip())
+                .runtime(rt.clone());
+            let _listener = server_rt.mock_net().listen(&addr1).await.unwrap();
+            let _listener2 = server_rt.mock_net().listen(&addr4).await.unwrap();
+            // TODO: Because this test doesn't mock time, there will actually be
+            // delays as we wait for connections to this address to time out. It
+            // would be good to use MockSleepProvider instead, once we figure
+            // out how to make it both reliable and convenient.
+            network.add_blackhole(addr3).unwrap();
+
+            // No addresses? Can't succeed.
+            let failure = connect_to_one(&client_rt, &[]).await;
+            assert!(failure.is_err());
+
+            // Connect to a set of addresses including addr1? That's a success.
+            for addresses in [
+                &[addr1][..],
+                &[addr1, addr2][..],
+                &[addr2, addr1][..],
+                &[addr1, addr3][..],
+                &[addr3, addr1][..],
+                &[addr1, addr2, addr3][..],
+                &[addr3, addr2, addr1][..],
+            ] {
+                let (_conn, addr) = connect_to_one(&client_rt, addresses).await.unwrap();
+                assert_eq!(addr, addr1);
+            }
+
+            // Connect to a set of addresses including addr2 but not addr1?
+            // That's an error of one kind or another.
+            for addresses in [
+                &[addr2][..],
+                &[addr2, addr3][..],
+                &[addr3, addr2][..],
+                &[addr3][..],
+            ] {
+                let expect_timeout = addresses.contains(&addr3);
+                let failure = rt
+                    .timeout(
+                        Duration::from_millis(300),
+                        connect_to_one(&client_rt, addresses),
+                    )
+                    .await;
+                if expect_timeout {
+                    assert!(failure.is_err());
+                } else {
+                    assert!(failure.unwrap().is_err());
+                }
+            }
+
+            // Connect to addr1 and addr4?  The first one should win.
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr1, addr4]).await.unwrap();
+            assert_eq!(addr, addr1);
+            let (_conn, addr) = connect_to_one(&client_rt, &[addr4, addr1]).await.unwrap();
+            assert_eq!(addr, addr4);
+        });
     }
 
     // TODO: Write tests for timeout logic, once there is smarter logic.

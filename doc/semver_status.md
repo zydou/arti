@@ -18,3 +18,11 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.2.0
 
+### tor-socksproto
+
+BREAKING: Removed some unused accessors.
+
+### tor-rtmock
+
+MODIFIED: Added add_blackhole to MockNetwork.
+
