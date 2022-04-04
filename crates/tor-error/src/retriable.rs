@@ -190,7 +190,7 @@ impl RetryTime {
     /// time when multiple attempts have failed.
     ///
     /// If you need an absolute comparison operator, convert to [`AbsRetryTime`] first.
-    fn loose_cmp(&self, other: &Self) -> Ordering {
+    pub fn loose_cmp(&self, other: &Self) -> Ordering {
         use RetryTime as RT;
 
         match (self, other) {
