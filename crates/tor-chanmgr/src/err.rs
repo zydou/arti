@@ -92,6 +92,37 @@ impl tor_error::HasKind for Error {
     }
 }
 
+impl tor_error::HasRetryTime for Error {
+    fn retry_time(&self) -> tor_error::RetryTime {
+        use tor_error::RetryTime as RT;
+        use Error as E;
+        match self {
+            // We can retry this action immediately; there was already a time delay.
+            E::ChanTimeout => RT::Immediate,
+
+            // These are worth retrying in a little while.
+            //
+            // TODO: Someday we might want to distinguish among different kinds of IO
+            // errors.
+            E::PendingFailed | E::Proto(_) | E::Io { .. } => RT::AfterWaiting,
+
+            // This error reflects multiple attempts, but every failure is an IO
+            // error, so we can also retry this after a delay.
+            //
+            // TODO: Someday we might want to distinguish among different kinds
+            // of IO errors.
+            E::ChannelBuild { .. } => RT::AfterWaiting,
+
+            // This one can't succeed: if the ChanTarget have addresses to begin with,
+            // it won't have addresses in the future.
+            E::UnusableTarget(_) => RT::Never,
+
+            // These aren't recoverable at all.
+            E::Spawn { .. } | E::Internal(_) => RT::Never,
+        }
+    }
+}
+
 impl Error {
     /// Construct a new `Error` from a `SpawnError`.
     pub(crate) fn from_spawn(spawning: &'static str, err: SpawnError) -> Error {

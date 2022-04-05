@@ -26,8 +26,9 @@ use crate::config::CircuitTiming;
 use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
+use tor_basic_utils::retry::RetryDelay;
 use tor_config::MutCfg;
-use tor_error::internal;
+use tor_error::{internal, AbsRetryTime, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -91,7 +92,7 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     ///
     /// If this function returns Ok, the resulting spec must be
     /// contained by the original spec, and must support `usage`.
-    fn restrict_mut(&mut self, usage: &Self::Usage) -> Result<()>;
+    fn restrict_mut(&mut self, usage: &Self::Usage) -> std::result::Result<(), RestrictionFailed>;
 
     /// Find all open circuits in `list` whose specifications permit
     /// `usage`.
@@ -103,6 +104,16 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     ) -> Vec<&'b mut OpenEntry<Self, C>> {
         abstract_spec_find_supported(list, usage)
     }
+}
+
+/// An error type returned by [`AbstractSpec::restrict_mut`]
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RestrictionFailed {
+    /// Tried to restrict a specification, but the circuit didn't support the
+    /// requested usage.
+    #[error("Specification did not support desired usage")]
+    NotSupported,
 }
 
 /// Default implementation of `AbstractSpec::find_supported`; provided as a separate function
@@ -767,6 +778,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             std::cmp::max(1, self.builder.launch_parallelism(usage)),
         );
 
+        let mut retry_schedule = RetryDelay::from_msec(100);
         let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a circuit");
 
         for n in 1..(max_iterations + 1) {
@@ -779,7 +791,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 Some(t) => t,
             };
 
-            match self.prepare_action(usage, dir, true) {
+            let error = match self.prepare_action(usage, dir, true) {
                 Ok(action) => {
                     // We successfully found an action: Take that action.
                     let outcome = self
@@ -791,9 +803,11 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         Ok(Ok(circ)) => return Ok(circ),
                         Ok(Err(e)) => {
                             info!("Circuit attempt {} failed.", n);
-                            retry_err.extend(e);
+                            Error::RequestFailed(e)
                         }
                         Err(_) => {
+                            // We ran out of "remaining" time; there is nothing
+                            // more to be done.
                             retry_err.push(Error::RequestTimeout);
                             break;
                         }
@@ -802,30 +816,36 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 Err(e) => {
                     // We couldn't pick the action!
                     info!("Couldn't pick action for circuit attempt {}: {}", n, &e);
-                    let small_delay = Duration::from_millis(50);
-                    let wait_for_action = match &e {
-                        Error::Guard(tor_guardmgr::PickGuardError::AllGuardsDown {
-                            retry_at: Some(instant),
-                        }) => {
-                            // If we failed because all guards are down, that's fine: we just wait until
-                            // the next guard is retriable.
-                            instant.saturating_duration_since(self.runtime.now()) + small_delay
-                        }
-                        _ => {
-                            // Any other errors are pretty unusual; wait a little while, then try again.
-                            small_delay
-                        }
-                    };
-                    retry_err.push(e);
-                    if remaining < wait_for_action {
-                        // We can't wait long enough.  Call this failed now.
-                        break;
-                    }
-                    self.runtime
-                        .sleep(std::cmp::min(remaining, wait_for_action))
-                        .await;
+                    e
                 }
             };
+
+            // There's been an error.  See how long we wait before we retry.
+            let now = self.runtime.now();
+            let retry_time =
+                error.abs_retry_time(now, || retry_schedule.next_delay(&mut rand::thread_rng()));
+
+            // Record the error, flattening it if needed.
+            match error {
+                Error::RequestFailed(e) => retry_err.extend(e),
+                e => retry_err.push(e),
+            }
+
+            // If this is the last iteration, don't bother waiting, since we won't retry.
+            if n == max_iterations {
+                break;
+            }
+
+            // Wait, or not, as appropriate.
+            match retry_time {
+                AbsRetryTime::Immediate => {}
+                AbsRetryTime::Never => break,
+                AbsRetryTime::At(t) => {
+                    let remaining = timeout_at.saturating_duration_since(now);
+                    let delay = t.saturating_duration_since(now);
+                    self.runtime.sleep(std::cmp::min(delay, remaining)).await;
+                }
+            }
         }
 
         Err(Error::RequestFailed(retry_err))
@@ -935,20 +955,58 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         act: Action<B>,
         usage: &<B::Spec as AbstractSpec>::Usage,
     ) -> std::result::Result<B::Circ, RetryError<Box<Error>>> {
+        /// Store the error `err` into `retry_err`, as appropriate.
+        fn record_error(
+            retry_err: &mut RetryError<Box<Error>>,
+            source: streams::Source,
+            building: bool,
+            mut err: Error,
+        ) {
+            if source == streams::Source::Right {
+                // We don't care about this error, since it is from neither a circuit we launched
+                // nor one that we're waiting on.
+                return;
+            }
+            if !building {
+                // We aren't building our own circuits, so our errors are
+                // secondary reports of other circuits' failures.
+                err = Error::PendingFailed(Box::new(err));
+            }
+            retry_err.push(err);
+        }
+        /// Return a string describing what it means, within the context of this
+        /// function, to have gotten an answer from `source`.
+        fn describe_source(building: bool, source: streams::Source) -> &'static str {
+            match (building, source) {
+                (_, streams::Source::Right) => "optimistic advice",
+                (true, streams::Source::Left) => "circuit we're building",
+                (false, streams::Source::Left) => "pending circuit",
+            }
+        }
+
         // Get or make a stream of futures to wait on.
-        let wait_on_stream = match act {
+        let (building, wait_on_stream) = match act {
             Action::Open(c) => {
+                // There's already a perfectly good open circuit; we can return
+                // it now.
                 return Ok(c);
             }
-            Action::Wait(f) => f,
+            Action::Wait(f) => {
+                // There is one or more pending circuit that we're waiting for.
+                // If any succeeds, we try to use it.  If they all fail, we
+                // fail.
+                (false, f)
+            }
             Action::Build(plans) => {
+                // We're going to launch one or more circuits in parallel.  We
+                // report success if any succeeds, and failure of they all fail.
                 let futures = FuturesUnordered::new();
                 for plan in plans {
                     let self_clone = Arc::clone(&self);
                     // (This is where we actually launch circuits.)
                     futures.push(self_clone.spawn_launch(usage, plan));
                 }
-                futures
+                (true, futures)
             }
         };
 
@@ -968,13 +1026,17 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             (pending, recv)
         };
 
-        // We use our "select_biased" stream combiner here to ensure
-        // that:
-        //   1) Circuits from wait_on_stream (the ones we're pending
-        //      on) are preferred.
+        // We use our "select_biased" stream combiner here to ensure that:
+        //   1) Circuits from wait_on_stream (the ones we're pending on) are
+        //      preferred.
         //   2) We exit this function when those circuits are exhausted.
-        //   3) We still get notified about other circuits that might
-        //      meet our interests.
+        //   3) We still get notified about other circuits that might meet our
+        //      interests.
+        //
+        // The events from Left stream are the oes that we explicitly asked for,
+        // so we'll treat errors there as real problems.  The events from the
+        // Right stream are ones that we got opportunistically told about; it's
+        // not a big deal if those fail.
         let mut incoming = streams::select_biased(wait_on_stream, additional_stream.map(Ok));
 
         let mut retry_error = RetryError::in_attempt_to("wait for circuits");
@@ -1004,45 +1066,52 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                 return Ok(ent.circ.clone());
                             }
                             Err(e) => {
-                                // TODO: as below, improve this log message.
+                                // In this case, a `UsageMismatched` error just means that we lost the race
+                                // to restrict this circuit.
+                                let e = match e {
+                                    Error::UsageMismatched(e) => Error::LostUsabilityRace(e),
+                                    x => x,
+                                };
                                 if src == streams::Source::Left {
                                     info!(
-                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                        src, id, &e
+                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        describe_source(building, src),
+                                        id,
+                                        &e
                                     );
                                 } else {
                                     debug!(
-                                        "{:?} suggested we use {:?}, but restrictions failed: {:?}",
-                                        src, id, &e
+                                        "{} suggested we use {:?}, but restrictions failed: {:?}",
+                                        describe_source(building, src),
+                                        id,
+                                        &e
                                     );
                                 }
-                                if src == streams::Source::Left {
-                                    retry_error.push(e);
-                                }
+                                record_error(&mut retry_error, src, building, e);
                                 continue;
                             }
                         }
                     }
                 }
                 Ok(Err(ref e)) => {
-                    debug!("{:?} sent error {:?}", src, e);
-                    if src == streams::Source::Left {
-                        retry_error.push(e.clone());
-                    }
+                    debug!("{} sent error {:?}", describe_source(building, src), e);
+                    record_error(&mut retry_error, src, building, e.clone());
                 }
                 Err(oneshot::Canceled) => {
                     debug!(
-                        "{:?} went away (Canceled), quitting take_action right away",
-                        src
+                        "{} went away (Canceled), quitting take_action right away",
+                        describe_source(building, src)
                     );
-                    retry_error.push(Error::PendingCanceled);
+                    record_error(&mut retry_error, src, building, Error::PendingCanceled);
                     return Err(retry_error);
                 }
             }
 
-            // TODO: Improve this log message; using :? here will make it
-            // hard to understand.
-            info!("While waiting on circuit: {:?} from {:?}", id, src);
+            info!(
+                "While waiting on circuit: {:?} from {}",
+                id,
+                describe_source(building, src)
+            );
         }
 
         // Nothing worked.  We drop the pending request now explicitly
@@ -1358,7 +1427,6 @@ mod test {
     use once_cell::sync::Lazy;
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
-    use tor_error::bad_api_usage;
     use tor_guardmgr::fallback::FallbackList;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
@@ -1416,15 +1484,15 @@ mod test {
             };
             ports_ok && iso_ok
         }
-        fn restrict_mut(&mut self, other: &FakeSpec) -> Result<()> {
+        fn restrict_mut(&mut self, other: &FakeSpec) -> std::result::Result<(), RestrictionFailed> {
             if !self.ports.is_superset(&other.ports) {
-                return Err(bad_api_usage!("not supported").into());
+                return Err(RestrictionFailed::NotSupported);
             }
             let new_iso = match (self.isolation, other.isolation) {
                 (None, x) => x,
                 (x, None) => x,
                 (Some(a), Some(b)) if a == b => Some(a),
-                (_, _) => return Err(bad_api_usage!("not supported").into()),
+                (_, _) => return Err(RestrictionFailed::NotSupported),
             };
 
             self.isolation = new_iso;
@@ -1517,7 +1585,7 @@ mod test {
             match op {
                 FakeOp::Succeed => Ok((plan.spec, FakeCirc { id: FakeId::next() })),
                 FakeOp::WrongSpec(s) => Ok((s, FakeCirc { id: FakeId::next() })),
-                FakeOp::Fail => Err(Error::PendingCanceled),
+                FakeOp::Fail => Err(Error::CircTimeout),
                 FakeOp::Delay(d) => {
                     let sl = self.runtime.sleep(d);
                     self.runtime.allow_one_advance(d);

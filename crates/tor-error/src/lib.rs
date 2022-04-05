@@ -43,6 +43,9 @@ pub use internal::*;
 mod report;
 pub use report::*;
 
+mod retriable;
+pub use retriable::*;
+
 mod truncated;
 pub use truncated::*;
 
