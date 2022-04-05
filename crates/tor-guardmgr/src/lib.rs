@@ -1316,4 +1316,61 @@ mod test {
             assert_eq!(guard.id().as_ref().rsa.as_bytes()[0] % 4, 0);
         });
     }
+
+    #[test]
+    fn external_status() {
+        use tor_linkspec::ChanTarget;
+        test_with_all_runtimes!(|rt| async move {
+            let (guardmgr, _statemgr, netdir) = init(rt);
+            let data_usage = GuardUsage::default();
+            let dir_usage = GuardUsageBuilder::new()
+                .kind(GuardUsageKind::OneHopDirectory)
+                .build()
+                .unwrap();
+            guardmgr.update_network(&netdir);
+            {
+                // Override this parameter, so that we can get deterministic results below.
+                let mut inner = guardmgr.inner.lock().unwrap();
+                inner.params.dir_parallelism = 1;
+            }
+
+            let (guard, mon, _usable) = guardmgr
+                .select_guard(data_usage.clone(), Some(&netdir))
+                .unwrap();
+            mon.succeeded();
+
+            // Record that this guard gave us a bad directory object.
+            guardmgr.note_external_failure(
+                guard.ed_identity(),
+                guard.rsa_identity(),
+                ExternalActivity::DirCache,
+            );
+
+            // We ask for another guard, for data usage.  We should get the same
+            // one as last time, since the director failure doesn't mean this
+            // guard is useless as a primary guard.
+            let (g2, mon, _usable) = guardmgr.select_guard(data_usage, Some(&netdir)).unwrap();
+            assert_eq!(g2.ed_identity(), guard.ed_identity());
+            mon.succeeded();
+
+            // But if we ask for a guard for directory usage, we should get a
+            // different one, since the last guard we gave out failed.
+            let (g3, mon, _usable) = guardmgr
+                .select_guard(dir_usage.clone(), Some(&netdir))
+                .unwrap();
+            assert_ne!(g3.ed_identity(), guard.ed_identity());
+            mon.succeeded();
+
+            // Now record a success for for directory usage.
+            guardmgr.note_external_success(
+                guard.ed_identity(),
+                guard.rsa_identity(),
+                ExternalActivity::DirCache,
+            );
+
+            // Now that the guard is working as a cache, asking for it should get us the same guard.
+            let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage, Some(&netdir)).unwrap();
+            assert_eq!(g4.ed_identity(), guard.ed_identity());
+        });
+    }
 }
