@@ -294,19 +294,36 @@ impl Guard {
     /// Copy all _non-persistent_ status from `other` to self.
     ///
     /// Requires that the two `Guard`s have the same ID.
-    pub(crate) fn copy_status_from(&mut self, other: &Guard) {
+    pub(crate) fn copy_status_from(self, other: Guard) -> Guard {
         debug_assert_eq!(self.id, other.id);
 
-        // TODO: This pattern is easy to mess up; it's too easy to forget to add
-        // some non-persistent field to this list.  We should use a better
-        // pattern here.
-        self.last_tried_to_connect_at = other.last_tried_to_connect_at;
-        self.retry_at = other.retry_at;
-        self.retry_schedule = other.retry_schedule.clone();
-        self.reachable = other.reachable;
-        self.is_dir_cache = other.is_dir_cache;
-        self.exploratory_circ_pending = other.exploratory_circ_pending;
-        self.dir_status = other.dir_status.clone();
+        Guard {
+            // All persistent fields are taken from `self`.
+            id: self.id,
+            orports: self.orports,
+            added_at: self.added_at,
+            added_by: self.added_by,
+            disabled: self.disabled,
+            confirmed_at: self.confirmed_at,
+            unlisted_since: self.unlisted_since,
+            unknown_fields: self.unknown_fields,
+
+            // All non-persistent fields get taken from `other`.
+            last_tried_to_connect_at: other.last_tried_to_connect_at,
+            retry_at: other.retry_at,
+            retry_schedule: other.retry_schedule,
+            reachable: other.reachable,
+            is_dir_cache: other.is_dir_cache,
+            exploratory_circ_pending: other.exploratory_circ_pending,
+            microdescriptor_missing: other.microdescriptor_missing,
+            circ_history: other.circ_history,
+            suspicious_behavior_warned: other.suspicious_behavior_warned,
+            dir_status: other.dir_status,
+            // Note that we _could_ remove either of the above blocks and add
+            // `..self` or `..other`, but that would be risky: it would increase
+            // the odds that we would forget to add some persistent or
+            // non-persistent field to the right group in the future.
+        }
     }
 
     /// Change the reachability status for this guard.

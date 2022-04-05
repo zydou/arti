@@ -181,12 +181,19 @@ impl GuardSet {
     }
 
     /// Copy non-persistent status from every guard shared with `other`.
-    pub(crate) fn copy_status_from(&mut self, other: &GuardSet) {
-        for (id, guard) in &mut self.guards {
-            if let Some(other_guard) = other.get(id) {
-                guard.copy_status_from(other_guard);
-            }
-        }
+    pub(crate) fn copy_status_from(&mut self, mut other: GuardSet) {
+        let mut old_guards = HashMap::new();
+        std::mem::swap(&mut old_guards, &mut self.guards);
+        self.guards = old_guards
+            .into_iter()
+            .map(|(id, guard)| {
+                if let Some(other_guard) = other.guards.remove(&id) {
+                    (id, guard.copy_status_from(other_guard))
+                } else {
+                    (id, guard)
+                }
+            })
+            .collect();
     }
 
     /// Return a serializable state object that can be stored to disk

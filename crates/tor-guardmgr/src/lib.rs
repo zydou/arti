@@ -610,8 +610,8 @@ impl GuardSets {
 
     /// Update all non-persistent state for the guards in this object with the
     /// state in `other`.
-    fn copy_status_from(&mut self, other: &GuardSets) {
-        self.default.copy_status_from(&other.default);
+    fn copy_status_from(&mut self, other: GuardSets) {
+        self.default.copy_status_from(other.default);
     }
 }
 
@@ -669,8 +669,8 @@ impl GuardMgrInner {
     /// Replace the active guard state with `new_state`, preserving
     /// non-persistent state for any guards that are retained.
     fn replace_guards_with(&mut self, mut new_guards: GuardSets, now: SystemTime) {
-        new_guards.copy_status_from(&self.guards);
-        self.guards = new_guards;
+        std::mem::swap(&mut self.guards, &mut new_guards);
+        self.guards.copy_status_from(new_guards);
         self.update(now, None);
     }
 
