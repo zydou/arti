@@ -1263,4 +1263,63 @@ mod test {
 
         assert_eq!(guards.missing_primary_microdescriptors(&netdir2), 1);
     }
+
+    #[test]
+    fn copy_status() {
+        let netdir = netdir();
+        let params = GuardParams {
+            min_filtered_sample_size: 5,
+            n_primary: 2,
+            max_sample_bw_fraction: 1.0,
+            ..GuardParams::default()
+        };
+        let mut guards1 = GuardSet::default();
+        guards1.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+        guards1.select_primary_guards(&params);
+        let mut guards2 = guards1.clone();
+
+        // Make a persistent change in guards1, and a different persistent change in guards2.
+        let id1 = guards1.primary[0].clone();
+        let id2 = guards1.primary[1].clone();
+        guards1.record_success(&id1, &params, None, SystemTime::now());
+        guards2.record_success(&id2, &params, None, SystemTime::now());
+        // Make a non-persistent change in guards2.
+        guards2.record_failure(&id2, None, Instant::now());
+
+        // Copy status: make sure non-persistent status changed, and  persistent didn't.
+        guards1.copy_status_from(guards2);
+        {
+            let g1 = guards1.get(&id1).unwrap();
+            let g2 = guards1.get(&id2).unwrap();
+            assert!(g1.confirmed());
+            assert!(!g2.confirmed());
+            assert_eq!(g1.reachable(), Reachable::Unknown);
+            assert_eq!(g2.reachable(), Reachable::Unreachable);
+        }
+
+        // Now make a new set of unrelated guards, and make sure that copying
+        // from it doesn't change the membership of guards1.
+        let mut guards3 = GuardSet::default();
+        let g1_set: HashSet<_> = guards1.guards.keys().map(Clone::clone).collect();
+        let mut g3_set: HashSet<_> = HashSet::new();
+        for _ in 0..4 {
+            // There is roughly a 1-in-5000 chance of getting the same set
+            // twice, so we loop until that doesn't happen.
+            guards3.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
+            guards3.select_primary_guards(&params);
+            g3_set = guards3.guards.keys().map(Clone::clone).collect();
+
+            // There is roughly a 1-in-5000 chance of getting the same set twice, so
+            if g1_set == g3_set {
+                guards3 = GuardSet::default();
+                continue;
+            }
+            break;
+        }
+        assert_ne!(g1_set, g3_set);
+        // Do the copy; make sure that the membership is unchanged.
+        guards1.copy_status_from(guards3);
+        let g1_set_new: HashSet<_> = guards1.guards.keys().map(Clone::clone).collect();
+        assert_eq!(g1_set, g1_set_new);
+    }
 }

@@ -660,6 +660,12 @@ impl Guard {
             orports: self.orports.clone(),
         }
     }
+
+    /// Testing only: Return true if this guard was ever contacted successfully.
+    #[cfg(test)]
+    pub(crate) fn confirmed(&self) -> bool {
+        self.confirmed_at.is_some()
+    }
 }
 
 impl tor_linkspec::ChanTarget for Guard {
