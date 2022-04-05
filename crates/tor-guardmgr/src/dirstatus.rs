@@ -3,12 +3,12 @@
 use std::time::{Duration, Instant};
 use tor_basic_utils::retry::RetryDelay;
 
-/// Status information about whether a [`FallbackDir`](super::FallbackDir)
-/// or [`Guard`](crate::guard::Guard)
-/// is currently usable as a directory cache.
+/// Status information about whether a
+/// [`FallbackDir`](crate::fallback::FallbackDir) or
+/// [`Guard`](crate::guard::Guard) is currently usable as a directory cache.
 ///
-/// This structure is used to track whether the cache has recently
-/// failed, and if so, when it can be retried.
+/// This structure is used to track whether the cache has recently failed, and
+/// if so, when it can be retried.
 #[derive(Debug, Clone)]
 pub(crate) struct DirStatus {
     /// Used to decide how long to delay before retrying a fallback cache
