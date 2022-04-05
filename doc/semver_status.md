@@ -21,3 +21,11 @@ We can delete older sections here after we bump the releases.
 ### tor-circmgr
 
 MODIFIED: Added a new variant in tor_circmgr::Error.
+
+### tor-rtmock
+
+MODIFIED: Added add_blackhole to MockNetwork.
+
+### tor-socksproto
+
+BREAKING: Removed some unused accessors.
