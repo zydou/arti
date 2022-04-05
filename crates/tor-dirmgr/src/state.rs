@@ -294,12 +294,9 @@ impl<DM: WriteNetDir> GetConsensusState<DM> {
                 parsed
             };
             let now = current_time(&self.writedir)?;
-            if let Ok(timely) = parsed.check_valid_at(&now) {
-                let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
-                (meta, timely)
-            } else {
-                return Ok(None);
-            }
+            let timely = parsed.check_valid_at(&now)?;
+            let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
+            (meta, timely)
         };
 
         // Check out what authorities we believe in, and see if enough
@@ -421,13 +418,10 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
                     .map_err(|e| Error::from_netdoc(DocSource::LocalCache, e))?
                     .check_signature()?;
                 let now = current_time(&self.writedir)?;
-                if let Ok(cert) = parsed.check_valid_at(&now) {
-                    self.missing_certs.remove(cert.key_ids());
-                    self.certs.push(cert);
-                    changed = true;
-                } else {
-                    warn!("Got a cert from our cache that we couldn't parse");
-                }
+                let cert = parsed.check_valid_at(&now)?;
+                self.missing_certs.remove(cert.key_ids());
+                self.certs.push(cert);
+                changed = true;
             }
         }
         Ok(changed)
@@ -451,9 +445,8 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
                     .expect("Certificate was not in input as expected");
                 if let Ok(wellsigned) = parsed.check_signature() {
                     let now = current_time(&self.writedir)?;
-                    if let Ok(timely) = wellsigned.check_valid_at(&now) {
-                        newcerts.push((timely, s));
-                    }
+                    let timely = wellsigned.check_valid_at(&now)?;
+                    newcerts.push((timely, s));
                 } else {
                     // TODO: note the source.
                     warn!("Badly signed certificate received and discarded.");
