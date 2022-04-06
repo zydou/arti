@@ -7,7 +7,7 @@ use pin_project::pin_project;
 use std::pin::Pin;
 
 /// Enumeration to indicate which of two streams provided a result.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(super) enum Source {
     /// Indicates a result coming from the left (preferred) stream.
     Left,

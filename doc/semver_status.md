@@ -22,10 +22,14 @@ We can delete older sections here after we bump the releases.
 
 MODIFIED: Added `reset()` method to RetrySchedule.
 
-### tor-socksproto
+### tor-circmgr
 
-BREAKING: Removed some unused accessors.
+MODIFIED: Added a new variant in tor_circmgr::Error.
 
 ### tor-rtmock
 
 MODIFIED: Added add_blackhole to MockNetwork.
+
+### tor-socksproto
+
+BREAKING: Removed some unused accessors.

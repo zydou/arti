@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tor_error::bad_api_usage;
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
@@ -15,7 +14,7 @@ use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
-use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry};
+use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
 use crate::Result;
 
 /// An exit policy, as supported by the last hop of a circuit.
@@ -293,7 +292,10 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         }
     }
 
-    fn restrict_mut(&mut self, usage: &TargetCircUsage) -> Result<()> {
+    fn restrict_mut(
+        &mut self,
+        usage: &TargetCircUsage,
+    ) -> std::result::Result<(), RestrictionFailed> {
         use SupportedCircUsage::*;
 
         match (self, usage) {
@@ -316,7 +318,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                         *isol1 = Some(new_isolation);
                         Ok(())
                     } else {
-                        Err(bad_api_usage!("Isolation not compatible").into())
+                        Err(RestrictionFailed::NotSupported)
                     }
                 } else {
                     // there was no isolation yet on self, applying the restriction from usage
@@ -325,7 +327,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 }
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
-            (_, _) => Err(bad_api_usage!("Mismatched usage types").into()),
+            (_, _) => Err(RestrictionFailed::NotSupported),
         }
     }
 

@@ -45,6 +45,30 @@ impl tor_error::HasKind for PickGuardError {
     }
 }
 
+impl tor_error::HasRetryTime for PickGuardError {
+    fn retry_time(&self) -> tor_error::RetryTime {
+        use tor_error::RetryTime as RT;
+        use PickGuardError as E;
+        match self {
+            // Some errors contain times that we can just use.
+            E::AllGuardsDown {
+                retry_at: Some(when),
+            } => RT::At(*when),
+            E::AllFallbacksDown {
+                retry_at: Some(when),
+            } => RT::At(*when),
+
+            // If we don't know when the guards/fallbacks will be back up,
+            // though, then we should suggest a random delay.
+            E::AllGuardsDown { .. } | E::AllFallbacksDown { .. } => RT::AfterWaiting,
+
+            // We were asked to choose some kind of guard that doesn't exist in
+            // our current universe; that's not going to be come viable down the
+            // line.
+            E::NoGuardsUsable | E::NoCandidatesAvailable => RT::Never,
+        }
+    }
+}
 /// An error caused while creating or updating a guard manager.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
