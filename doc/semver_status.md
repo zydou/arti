@@ -26,6 +26,10 @@ MODIFIED: Added `reset()` method to RetrySchedule.
 
 MODIFIED: Added a new variant in tor_circmgr::Error.
 
+### tor-proto
+
+MODIFIED: New accessors in tor_proto::Channel.
+
 ### tor-rtmock
 
 MODIFIED: Added add_blackhole to MockNetwork.

@@ -89,6 +89,8 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> {
     ed25519_id: Ed25519Identity,
     /// Validated RSA identity for this peer.
     rsa_id: RsaIdentity,
+    /// Validated clock skew for this peer.
+    clock_skew: ClockSkew,
 }
 
 /// Convert a CodecError to an Error, under the context that it occurs while
@@ -269,6 +271,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
     ///
     /// Note that the skew reported by this function might not be "true": the
     /// relay might have its clock set wrong, or it might be lying to us.
+    ///
+    /// The clock skew reported here is not yet authenticated; if you need to
+    /// make sure that the skew is authenticated, use
+    /// [`Channel::clock_skew`](super::Channel::clock_skew) instead.
     pub fn clock_skew(&self) -> ClockSkew {
         self.clock_skew
     }
@@ -481,6 +487,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
             target_addr: self.target_addr,
             ed25519_id,
             rsa_id,
+            clock_skew: self.clock_skew,
         })
     }
 }
@@ -526,6 +533,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> VerifiedChannel<T> {
             Box::new(tls_stream),
             self.unique_id,
             peer_id,
+            self.clock_skew,
         ))
     }
 }
@@ -980,6 +988,7 @@ pub(super) mod test {
                 target_addr: Some(peer_addr),
                 ed25519_id,
                 rsa_id,
+                clock_skew: ClockSkew::None,
             };
 
             let (_chan, _reactor) = ver.finish().await.unwrap();

@@ -64,11 +64,12 @@ mod unique_id;
 
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::circuit;
 use crate::circuit::celltypes::CreateResponse;
 use crate::util::ts::OptTimestamp;
+use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
+use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
@@ -135,6 +136,11 @@ pub(crate) struct ChannelDetails {
     /// If calling `time_since_update` returns None,
     /// this channel is still in use by at least one circuit.
     unused_since: OptTimestamp,
+    /// The declared clock skew on this channel, at the time when this channel was
+    /// created.
+    clock_skew: ClockSkew,
+    /// The time when this channel was successfully completed
+    opened_at: coarsetime::Instant,
 }
 
 impl Sink<ChanCell> for Channel {
@@ -239,6 +245,7 @@ impl Channel {
         stream: BoxedChannelStream,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
+        clock_skew: ClockSkew,
     ) -> (Self, reactor::Reactor) {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
@@ -254,6 +261,8 @@ impl Channel {
             peer_id,
             closed,
             unused_since,
+            clock_skew,
+            opened_at: coarsetime::Instant::now(),
         };
         let details = Arc::new(details);
 
@@ -296,6 +305,17 @@ impl Channel {
     /// create this channel.
     pub fn target(&self) -> &OwnedChanTarget {
         &self.details.peer_id
+    }
+
+    /// Return the amount of time that has passed since this channel became open.
+    pub fn age(&self) -> Duration {
+        self.details.opened_at.elapsed().into()
+    }
+
+    /// Return a ClockSkew declaring how much clock skew the other side of this channel
+    /// claimed that we had when we negotiated the connection.
+    pub fn clock_skew(&self) -> ClockSkew {
+        self.details.clock_skew
     }
 
     /// Return an error if this channel is somehow mismatched with the
@@ -461,6 +481,8 @@ pub(crate) mod test {
             peer_id,
             closed: AtomicBool::new(false),
             unused_since,
+            clock_skew: ClockSkew::None,
+            opened_at: coarsetime::Instant::now(),
         })
     }
 
