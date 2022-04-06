@@ -16,6 +16,7 @@ use crate::{
 use futures::channel::oneshot;
 use futures::FutureExt;
 use futures::StreamExt;
+use tor_checkable::TimeValidityError;
 use tor_dirclient::DirResponse;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{debug, info, trace, warn};
@@ -132,7 +133,15 @@ async fn load_once<R: Runtime>(
             missing.len()
         );
         let documents = load_all(dirmgr, missing)?;
-        state.add_from_cache(documents, dirmgr.store_if_rw())
+
+        match state.add_from_cache(documents, dirmgr.store_if_rw()) {
+            Err(Error::UntimelyObject(TimeValidityError::Expired(_))) => {
+                // This is just an expired object from the cache; we don't need
+                // to call that an error.  Treat it as if it were absent.
+                Ok(false)
+            }
+            other => other,
+        }
     };
 
     if matches!(outcome, Ok(true)) {
