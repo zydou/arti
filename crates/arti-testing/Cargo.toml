@@ -39,7 +39,7 @@ tracing = "0.1.18"
 notify = "4.0"
 pin-project = "1"
 rand = "0.8"
-rlimit = "0.8.0"
+rlimit = "0.7"
 serde = { version = "1.0.103", features = ["derive"] }
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 tokio = { version = "1.7", features = ["signal", "macros"] }
