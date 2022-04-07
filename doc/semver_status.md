@@ -25,6 +25,7 @@ MODIFIED: Added `reset()` method to RetrySchedule.
 ### tor-chanmgr
 
 BREAKING: Added members to `Error::Proto`
+BREAKING: Added `ChanProvenance` to `ChanMgr::get_or_launch`.
 
 ### tor-circmgr
 

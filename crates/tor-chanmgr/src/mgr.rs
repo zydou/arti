@@ -1,7 +1,7 @@
 //! Abstract implementation of a channel manager
 
 use crate::mgr::map::OpenEntry;
-use crate::{Error, Result};
+use crate::{ChanProvenance, Error, Result};
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -110,7 +110,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         &self,
         ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
-    ) -> Result<CF::Channel> {
+    ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
 
         /// Possible actions that we'll decide to take based on the
@@ -123,7 +123,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
             /// We're going to wait for it to finish.
             Wait(Pending<C>),
             /// We found a usable channel.  We're going to return it.
-            Return(Result<C>),
+            Return(Result<(C, ChanProvenance)>),
         }
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
@@ -140,7 +140,10 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                     Some(Open(ref ent)) => {
                         if ent.channel.is_usable() {
                             // Good channel. Return it.
-                            let action = Action::Return(Ok(ent.channel.clone()));
+                            let action = Action::Return(Ok((
+                                ent.channel.clone(),
+                                ChanProvenance::Preexisting,
+                            )));
                             (oldstate, action)
                         } else {
                             // Unusable channel.  Move to the Building
@@ -181,7 +184,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                 }
                 // There's an in-progress channel.  Wait for it.
                 Action::Wait(pend) => match pend.await {
-                    Ok(Ok(chan)) => return Ok(chan),
+                    Ok(Ok(chan)) => return Ok((chan, ChanProvenance::NewlyCreated)),
                     Ok(Err(e)) => {
                         last_err = Some(e);
                     }
@@ -207,7 +210,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         // It's okay if all the receivers went away:
                         // that means that nobody was waiting for this channel.
                         let _ignore_err = send.send(Ok(chan.clone()));
-                        return Ok(chan);
+                        return Ok((chan, ChanProvenance::NewlyCreated));
                     }
                     Err(e) => {
                         // The channel failed. Make it non-pending, tell the
@@ -340,8 +343,8 @@ mod test {
             let cf = FakeChannelFactory::new(runtime);
             let mgr = AbstractChanMgr::new(cf);
             let target = (413, '!');
-            let chan1 = mgr.get_or_launch(413, target).await.unwrap();
-            let chan2 = mgr.get_or_launch(413, target).await.unwrap();
+            let chan1 = mgr.get_or_launch(413, target).await.unwrap().0;
+            let chan2 = mgr.get_or_launch(413, target).await.unwrap().0;
 
             assert_eq!(chan1, chan2);
 
@@ -411,14 +414,14 @@ mod test {
                 mgr.get_or_launch(5, (5, 'a')),
             );
 
-            let ch3 = ch3.unwrap();
+            let ch3 = ch3.unwrap().0;
             let _ch4 = ch4.unwrap();
-            let ch5 = ch5.unwrap();
+            let ch5 = ch5.unwrap().0;
 
             ch3.start_closing();
             ch5.start_closing();
 
-            let ch3_new = mgr.get_or_launch(3, (3, 'b')).await.unwrap();
+            let ch3_new = mgr.get_or_launch(3, (3, 'b')).await.unwrap().0;
             assert_ne!(ch3, ch3_new);
             assert_eq!(ch3_new.mood, 'b');
 

@@ -73,13 +73,14 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     rt: &RT,
     target: &CT,
 ) -> Result<PendingClientCirc> {
-    let chan = chanmgr
-        .get_or_launch(target)
-        .await
-        .map_err(|cause| Error::Channel {
-            peer: OwnedChanTarget::from_chan_target(target),
-            cause,
-        })?;
+    let (chan, _provenance) =
+        chanmgr
+            .get_or_launch(target)
+            .await
+            .map_err(|cause| Error::Channel {
+                peer: OwnedChanTarget::from_chan_target(target),
+                cause,
+            })?;
     let (pending_circ, reactor) = chan.new_circ().await.map_err(|error| Error::Protocol {
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
