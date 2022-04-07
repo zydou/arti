@@ -669,6 +669,11 @@ impl GuardSet {
         }
     }
 
+    /// Return an iterator over all stored clock skew observations.
+    pub(crate) fn skew_observations(&self) -> impl Iterator<Item = &SkewObservation> {
+        self.guards.values().filter_map(|g| g.skew())
+    }
+
     /// Return whether the circuit manager can be allowed to use a
     /// circuit with the `guard_id`.
     ///

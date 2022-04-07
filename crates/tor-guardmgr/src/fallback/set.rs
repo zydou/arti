@@ -215,6 +215,13 @@ impl FallbackState {
             entry.status.clock_skew = Some(observation);
         }
     }
+
+    /// Return an iterator over all the clock skew observations we've made for fallback directories
+    pub(crate) fn skew_observations(&self) -> impl Iterator<Item = &SkewObservation> {
+        self.fallbacks
+            .iter()
+            .filter_map(|fb| fb.status.clock_skew.as_ref())
+    }
 }
 
 #[cfg(test)]

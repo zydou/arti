@@ -673,6 +673,12 @@ impl Guard {
         self.clock_skew = Some(observation);
     }
 
+    /// Return the most recent clock skew observation for this guard, if we have
+    /// made one.
+    pub(crate) fn skew(&self) -> Option<&SkewObservation> {
+        self.clock_skew.as_ref()
+    }
+
     /// Testing only: Return true if this guard was ever contacted successfully.
     #[cfg(test)]
     pub(crate) fn confirmed(&self) -> bool {

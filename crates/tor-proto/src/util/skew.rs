@@ -57,12 +57,21 @@ impl ClockSkew {
         }
     }
 
+    /// Return the magnitude of this clock skew.
+    pub fn magnitude(&self) -> Duration {
+        match self {
+            ClockSkew::Slow(d) => *d,
+            ClockSkew::None => Duration::from_secs(0),
+            ClockSkew::Fast(d) => *d,
+        }
+    }
+
     /// Return this value if it is greater than `min`; otherwise return None.
     pub fn if_above(self, min: Duration) -> Self {
-        match self {
-            ClockSkew::Slow(d) if d > min => ClockSkew::Slow(d),
-            ClockSkew::Fast(d) if d > min => ClockSkew::Fast(d),
-            _ => ClockSkew::None,
+        if self.magnitude() > min {
+            self
+        } else {
+            ClockSkew::None
         }
     }
 }
