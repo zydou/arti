@@ -18,7 +18,7 @@ Suites:
   "all": enables all suites.
 
 Notes:
-  You need to have grcov, rust-nightly, and llvm-tools-preview installed.
+  You need to have grcov and llvm-tools-preview installed.
   For integration tests, you'll need chutney and tor.
 EOF
 }
