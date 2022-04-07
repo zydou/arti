@@ -3462,6 +3462,7 @@ dependencies = [
  "derive_builder",
  "derive_more",
  "educe",
+ "float_eq",
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
