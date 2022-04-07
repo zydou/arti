@@ -41,11 +41,11 @@ pub(crate) async fn report_status_events(
 ) {
     loop {
         match events.next().await {
-            Some(Msg::Status(id, status, _skew)) => {
+            Some(Msg::Status(id, status, skew)) => {
                 // We've got a report about a guard status.
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    inner.handle_msg(id, status, &runtime);
+                    inner.handle_msg(id, status, skew, &runtime);
                 } else {
                     // The guard manager has gone away.
                     return;

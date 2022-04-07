@@ -3,6 +3,7 @@
 
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
+use crate::skew::SkewObservation;
 use crate::{
     ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
 };
@@ -658,6 +659,13 @@ impl GuardSet {
         if let Some(guard) = self.guards.get_mut(guard_id) {
             guard.note_exploratory_circ(false);
             guard.record_indeterminate_result();
+        }
+    }
+
+    /// Record that a given guard has told us about clock skew.
+    pub(crate) fn record_skew(&mut self, guard_id: &GuardId, observation: SkewObservation) {
+        if let Some(guard) = self.guards.get_mut(guard_id) {
+            guard.note_skew(observation);
         }
     }
 
