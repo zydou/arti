@@ -125,7 +125,8 @@ impl<R: Runtime> ChanMgr<R> {
         let chan = self.mgr.get_or_launch(*ed_identity, targetinfo).await?;
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
-        chan.check_match(target)?;
+        chan.check_match(target)
+            .map_err(Error::from_proto_no_skew)?;
         Ok(chan)
     }
 

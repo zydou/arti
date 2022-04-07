@@ -50,8 +50,6 @@ pub enum Error {
     HandshakeCertsExpired {
         /// For how long has the circuit been expired?
         expired_by: Duration,
-        /// How fast does the relay claim that our clock is?
-        skew: Duration,
     },
     /// Protocol violation at the channel level, other than at the handshake
     /// stage.

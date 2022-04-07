@@ -7,6 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{internal, ErrorKind};
+use tor_proto::ClockSkew;
 
 /// An error returned by a channel manager.
 #[derive(Debug, Error, Clone)]
@@ -25,8 +26,15 @@ pub enum Error {
     ChanTimeout,
 
     /// A protocol error while making a channel
-    #[error("Protocol error while opening a channel: {0}")]
-    Proto(#[from] tor_proto::Error),
+    #[error("Protocol error while opening a channel.")]
+    Proto {
+        /// The underlying error
+        #[source]
+        source: tor_proto::Error,
+        /// An authenticated ClockSkew (if available) that we received from the
+        /// peer.
+        clock_skew: Option<ClockSkew>,
+    },
 
     /// Network IO error or TLS error
     #[error("Network IO error, or TLS error, in {action}, talking to {peer}")]
@@ -82,9 +90,14 @@ impl tor_error::HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::ChanTimeout | E::Io { .. } | E::Proto(ProtoErr::ChanIoErr(_)) => EK::TorAccessFailed,
+            E::ChanTimeout
+            | E::Io { .. }
+            | E::Proto {
+                source: ProtoErr::ChanIoErr(_),
+                ..
+            } => EK::TorAccessFailed,
             E::Spawn { cause, .. } => cause.kind(),
-            E::Proto(e) => e.kind(),
+            E::Proto { source, .. } => source.kind(),
             E::PendingFailed => EK::TorAccessFailed,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
             Error::ChannelBuild { .. } => EK::TorAccessFailed,
@@ -104,7 +117,7 @@ impl tor_error::HasRetryTime for Error {
             //
             // TODO: Someday we might want to distinguish among different kinds of IO
             // errors.
-            E::PendingFailed | E::Proto(_) | E::Io { .. } => RT::AfterWaiting,
+            E::PendingFailed | E::Proto { .. } | E::Io { .. } => RT::AfterWaiting,
 
             // This error reflects multiple attempts, but every failure is an IO
             // error, so we can also retry this after a delay.
@@ -129,6 +142,29 @@ impl Error {
         Error::Spawn {
             spawning,
             cause: Arc::new(err),
+        }
+    }
+
+    /// Construct a new `Error` from a `tor_proto::Error`, with no additional
+    /// clock skew information.
+    ///
+    /// This is not an `Into` implementation because we don't want to call it
+    /// accidentally when we actually do have clock skew information.
+    pub(crate) fn from_proto_no_skew(source: tor_proto::Error) -> Self {
+        Error::Proto {
+            source,
+            clock_skew: None,
+        }
+    }
+
+    /// Return the clock skew information from this error (or from an internal
+    /// error).
+    ///
+    /// Only returns the clock skew information if it is authenticated.
+    pub fn clock_skew(&self) -> Option<ClockSkew> {
+        match self {
+            Error::Proto { clock_skew, .. } => *clock_skew,
+            _ => None,
         }
     }
 }

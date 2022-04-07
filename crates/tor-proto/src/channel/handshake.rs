@@ -328,7 +328,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
                 (TimeValidityError::Expired(expired_by), ClockSkew::Fast(skew))
                     if expired_by < skew =>
                 {
-                    Error::HandshakeCertsExpired { expired_by, skew }
+                    Error::HandshakeCertsExpired { expired_by }
                 }
                 // As it so happens, we don't need to check for this case, since the certs in use
                 // here only have an expiration time in them.

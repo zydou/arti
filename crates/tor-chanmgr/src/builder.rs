@@ -184,10 +184,22 @@ impl<R: Runtime> ChanBuilder<R> {
         let chan = builder
             .launch(tls)
             .connect(|| self.runtime.wallclock())
-            .await?;
+            .await
+            .map_err(Error::from_proto_no_skew)?;
+        let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
         let now = self.runtime.wallclock();
-        let chan = chan.check(target, &peer_cert, Some(now))?;
-        let (chan, reactor) = chan.finish().await?;
+        let chan = chan
+            .check(target, &peer_cert, Some(now))
+            .map_err(|source| match &source {
+                tor_proto::Error::HandshakeCertsExpired { .. } => {
+                    Error::Proto { source, clock_skew }
+                }
+                _ => Error::from_proto_no_skew(source),
+            })?;
+        let (chan, reactor) = chan
+            .finish()
+            .await
+            .map_err(|source| Error::Proto { source, clock_skew })?;
 
         {
             self.event_sender
