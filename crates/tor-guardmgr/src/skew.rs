@@ -1,5 +1,12 @@
 //! Code for creating and manipulating observations about clock skew.
 
+// TODO:
+//   - See if we can safely report a "no-confidence" value with even fewer
+//     observations than we currently collect.
+//   - If the universe of fallbacks and/or the guard sample size and/or the list
+//     of bridges is very small, see if we can still use that to make a
+//     low-confidence value.
+
 use std::time::{Duration, Instant};
 
 use tor_proto::ClockSkew;
