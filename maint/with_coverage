@@ -23,7 +23,7 @@ Options:
   -o <path>: set the output path for the coverage report (defaiult "coverage")
 
 Notes:
-  You need to have grcov, rust-nightly, and llvm-tools-preview installed.
+  You need to have grcov and llvm-tools-preview installed.
 EOF
 }
 
@@ -64,8 +64,8 @@ if [ $# -eq 0 ] && [ $interactive = "no" ]; then
     echo "Run ${SCRIPT_NAME} -h for help."
     exit 1
 fi
-
-echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=nightly}. (Override with \$RUST_COVERAGE_TOOLCHAIN)"
+default_toolchain=$(rustup show active-toolchain | cut -d' ' -f1)
+echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=${default_toolchain}}. (Override with \$RUST_COVERAGE_TOOLCHAIN)"
 
 # Validate that "+${RUST_COVERAGE_TOOLCHAIN}" is installed.  This will log a message to stderr
 # if it isn't.
@@ -84,7 +84,7 @@ if [ "$(rustup "+${RUST_COVERAGE_TOOLCHAIN}" component list --installed | grep l
 fi
 
 COVERAGE_BASEDIR=$(git rev-parse --show-toplevel)
-export RUSTFLAGS="-Z instrument-coverage"
+export RUSTFLAGS="-C instrument-coverage"
 export LLVM_PROFILE_FILE=$COVERAGE_BASEDIR/coverage_meta/%p-%m.profraw
 export RUSTUP_TOOLCHAIN="${RUST_COVERAGE_TOOLCHAIN}"
 
