@@ -64,7 +64,8 @@ if [ $# -eq 0 ] && [ $interactive = "no" ]; then
     echo "Run ${SCRIPT_NAME} -h for help."
     exit 1
 fi
-echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=stable}. (Override with \$RUST_COVERAGE_TOOLCHAIN)"
+default_toolchain=$(rustup show active-toolchain | cut -d' ' -f1)
+echo "Using toolchain +${RUST_COVERAGE_TOOLCHAIN:=${default_toolchain}}. (Override with \$RUST_COVERAGE_TOOLCHAIN)"
 
 # Validate that "+${RUST_COVERAGE_TOOLCHAIN}" is installed.  This will log a message to stderr
 # if it isn't.
