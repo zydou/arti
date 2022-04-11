@@ -96,6 +96,11 @@ impl SkewEstimate {
         self.estimate
     }
 
+    /// Return true if this estimate is worth telling the user about.
+    pub fn noteworthy(&self) -> bool {
+        !matches!(self.estimate, ClockSkew::None) && !matches!(self.confidence, Confidence::None)
+    }
+
     /// Compute an estimate of how skewed we think our clock is, based on the
     /// reports in `skews`.
     pub(crate) fn estimate_skew<'a>(
