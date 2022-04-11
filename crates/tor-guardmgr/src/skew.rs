@@ -313,7 +313,7 @@ mod test {
         assert!(est.is_none());
 
         // Same with fewer than min_observations.
-        let year = Duration::from_secs(365 * 60 * 60);
+        let year = Duration::from_secs(365 * 24 * 60 * 60);
         let obs = vec![
             SkewObservation {
                 skew: ClockSkew::Fast(year),
@@ -325,6 +325,10 @@ mod test {
         assert!(est.is_none());
 
         // Same with many observations all of which are obsolete.
+        //
+        // (advance the clock: not all Instant implementations let you go back a long time
+        // before startup.)
+        let now = now + year;
         let obs = vec![
             SkewObservation {
                 skew: ClockSkew::Fast(year),
