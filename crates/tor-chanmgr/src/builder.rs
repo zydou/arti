@@ -192,6 +192,10 @@ impl<R: Runtime> ChanBuilder<R> {
             .check(target, &peer_cert, Some(now))
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
+                    self.event_sender
+                        .lock()
+                        .expect("Lock poisoned")
+                        .record_handshake_done_with_skewed_clock();
                     Error::Proto { source, clock_skew }
                 }
                 _ => Error::from_proto_no_skew(source),
