@@ -29,6 +29,8 @@ impl SkewObservation {
 }
 
 /// An estimate of how skewed our clock is, plus a summary of why we think so.
+//
+// SEMVER NOTE: this type is re-exported from tor-circmgr.
 #[derive(Clone, Debug)]
 pub struct SkewEstimate {
     /// Our best guess for the magnitude of the skew.

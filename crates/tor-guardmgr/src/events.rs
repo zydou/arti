@@ -12,6 +12,8 @@ use tor_basic_utils::skip_fmt;
 ///
 /// Note that this stream can be lossy: if multiple events trigger before you
 /// read from it, you will only get the most recent estimate.
+//
+// SEMVER NOTE: this type is re-exported from tor-circmgr.
 #[derive(Clone, Educe)]
 #[educe(Debug)]
 pub struct ClockSkewEvents {
