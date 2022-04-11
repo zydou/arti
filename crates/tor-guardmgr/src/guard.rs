@@ -13,6 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::dirstatus::DirStatus;
+use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, FirstHopId, GuardUsageKind};
@@ -177,6 +178,10 @@ pub(crate) struct Guard {
     #[serde(skip)]
     suspicious_behavior_warned: bool,
 
+    /// Latest clock skew (if any) we have observed from this guard.
+    #[serde(skip)]
+    clock_skew: Option<SkewObservation>,
+
     /// Fields from the state file that was used to make this `Guard` that
     /// this version of Arti doesn't understand.
     #[serde(flatten)]
@@ -241,6 +246,7 @@ impl Guard {
             exploratory_circ_pending: false,
             circ_history: CircHistory::default(),
             suspicious_behavior_warned: false,
+            clock_skew: None,
             unknown_fields: Default::default(),
         }
     }
@@ -319,6 +325,7 @@ impl Guard {
             circ_history: other.circ_history,
             suspicious_behavior_warned: other.suspicious_behavior_warned,
             dir_status: other.dir_status,
+            clock_skew: other.clock_skew,
             // Note that we _could_ remove either of the above blocks and add
             // `..self` or `..other`, but that would be risky: it would increase
             // the odds that we would forget to add some persistent or
@@ -659,6 +666,17 @@ impl Guard {
             id: self.id.clone().into(),
             orports: self.orports.clone(),
         }
+    }
+
+    /// Record that a given fallback has told us about clock skew.
+    pub(crate) fn note_skew(&mut self, observation: SkewObservation) {
+        self.clock_skew = Some(observation);
+    }
+
+    /// Return the most recent clock skew observation for this guard, if we have
+    /// made one.
+    pub(crate) fn skew(&self) -> Option<&SkewObservation> {
+        self.clock_skew.as_ref()
     }
 
     /// Testing only: Return true if this guard was ever contacted successfully.

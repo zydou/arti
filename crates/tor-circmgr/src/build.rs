@@ -13,7 +13,7 @@ use std::sync::{
     Arc,
 };
 use std::time::{Duration, Instant};
-use tor_chanmgr::ChanMgr;
+use tor_chanmgr::{ChanMgr, ChanProvenance};
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
@@ -40,6 +40,7 @@ pub(crate) trait Buildable: Sized {
     async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
+        guard_status: &GuardStatusHandle,
         ct: &OwnedChanTarget,
         params: &CircParameters,
     ) -> Result<Self>;
@@ -49,6 +50,7 @@ pub(crate) trait Buildable: Sized {
     async fn create<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
+        guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<Self>;
@@ -72,14 +74,29 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     chanmgr: &ChanMgr<RT>,
     rt: &RT,
     target: &CT,
+    guard_status: &GuardStatusHandle,
 ) -> Result<PendingClientCirc> {
-    let chan = chanmgr
-        .get_or_launch(target)
-        .await
-        .map_err(|cause| Error::Channel {
-            peer: OwnedChanTarget::from_chan_target(target),
-            cause,
-        })?;
+    // Get or construct the channel.
+    let result = chanmgr.get_or_launch(target).await;
+
+    // Report the clock skew if appropriate, and exit if there has been an error.
+    let chan = match result {
+        Ok((chan, ChanProvenance::NewlyCreated)) => {
+            guard_status.skew(chan.clock_skew());
+            chan
+        }
+        Ok((chan, _)) => chan,
+        Err(cause) => {
+            if let Some(skew) = cause.clock_skew() {
+                guard_status.skew(skew);
+            }
+            return Err(Error::Channel {
+                peer: OwnedChanTarget::from_chan_target(target),
+                cause,
+            });
+        }
+    };
+    // Construct the (zero-hop) circuit.
     let (pending_circ, reactor) = chan.new_circ().await.map_err(|error| Error::Protocol {
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
@@ -98,10 +115,11 @@ impl Buildable for ClientCirc {
     async fn create_chantarget<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
+        guard_status: &GuardStatusHandle,
         ct: &OwnedChanTarget,
         params: &CircParameters,
     ) -> Result<Self> {
-        let circ = create_common(chanmgr, rt, ct).await?;
+        let circ = create_common(chanmgr, rt, ct, guard_status).await?;
         circ.create_firsthop_fast(params)
             .await
             .map_err(|error| Error::Protocol {
@@ -112,10 +130,11 @@ impl Buildable for ClientCirc {
     async fn create<RT: Runtime>(
         chanmgr: &ChanMgr<RT>,
         rt: &RT,
+        guard_status: &GuardStatusHandle,
         ct: &OwnedCircTarget,
         params: &CircParameters,
     ) -> Result<Self> {
-        let circ = create_common(chanmgr, rt, ct).await?;
+        let circ = create_common(chanmgr, rt, ct, guard_status).await?;
         circ.create_firsthop_ntor(ct, params.clone())
             .await
             .map_err(|error| Error::Protocol {
@@ -191,8 +210,14 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
             OwnedPath::ChannelOnly(target) => {
                 // If we fail now, it's the guard's fault.
                 guard_status.pending(GuardStatus::Failure);
-                let circ =
-                    C::create_chantarget(&self.chanmgr, &self.runtime, &target, &params).await?;
+                let circ = C::create_chantarget(
+                    &self.chanmgr,
+                    &self.runtime,
+                    &guard_status,
+                    &target,
+                    &params,
+                )
+                .await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, true);
                 n_hops_built.fetch_add(1, Ordering::SeqCst);
@@ -203,7 +228,8 @@ impl<R: Runtime, C: Buildable + Sync + Send + 'static> Builder<R, C> {
                 let n_hops = p.len() as u8;
                 // If we fail now, it's the guard's fault.
                 guard_status.pending(GuardStatus::Failure);
-                let circ = C::create(&self.chanmgr, &self.runtime, &p[0], &params).await?;
+                let circ =
+                    C::create(&self.chanmgr, &self.runtime, &guard_status, &p[0], &params).await?;
                 self.timeouts
                     .note_hop_completed(0, self.runtime.now() - start_time, n_hops == 0);
                 // If we fail after this point, we can't tell whether it's
@@ -615,6 +641,7 @@ mod test {
         async fn create_chantarget<RT: Runtime>(
             _: &ChanMgr<RT>,
             rt: &RT,
+            _guard_status: &GuardStatusHandle,
             ct: &OwnedChanTarget,
             _: &CircParameters,
         ) -> Result<Self> {
@@ -634,6 +661,7 @@ mod test {
         async fn create<RT: Runtime>(
             _: &ChanMgr<RT>,
             rt: &RT,
+            _guard_status: &GuardStatusHandle,
             ct: &OwnedCircTarget,
             _: &CircParameters,
         ) -> Result<Self> {

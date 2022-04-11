@@ -18,21 +18,22 @@ default = []
 testing = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0"}
-tor-config = { path = "../tor-config", version = "0.2.0"}
-tor-error = { path = "../tor-error", version = "0.2.0"}
-tor-netdir = { path = "../tor-netdir", version = "0.2.0"}
-tor-linkspec = { path = "../tor-linkspec", version = "0.2.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0"}
-tor-persist = { path = "../tor-persist", version = "0.2.0"}
-tor-proto = { path = "../tor-proto", version = "0.2.0"}
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0"}
-tor-units = { path = "../tor-units", version = "0.2.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
+tor-config = { path = "../tor-config", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.2.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.2.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.2.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0" }
+tor-persist = { path = "../tor-persist", version = "0.2.0" }
+tor-proto = { path = "../tor-proto", version = "0.2.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0" }
+tor-units = { path = "../tor-units", version = "0.2.0" }
 
 derive_builder = "0.11"
 derive_more = "0.99"
 educe = "0.4.6"
 futures = "0.3.14"
+humantime = "2"
 humantime-serde = "1.1.1"
 itertools = "0.10.1"
 pin-project = "1"
@@ -44,7 +45,9 @@ tracing = "0.1.18"
 
 [dev-dependencies]
 tor-netdir = { path = "../tor-netdir", version = "0.2.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.2.0"}
+tor-netdoc = { path = "../tor-netdoc", version = "0.2.0" }
 tor-persist = { path = "../tor-persist", version = "0.2.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.2.0"}
+tor-rtmock = { path = "../tor-rtmock", version = "0.2.0" }
+
+float_eq = "0.7"

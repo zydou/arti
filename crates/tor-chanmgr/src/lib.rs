@@ -82,6 +82,17 @@ pub struct ChanMgr<R: Runtime> {
     bootstrap_status: event::ConnStatusEvents,
 }
 
+/// Description of how we got a channel.
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum ChanProvenance {
+    /// This channel was newly launched, or was in progress and finished while
+    /// we were waiting.
+    NewlyCreated,
+    /// This channel already existed when we asked for it.
+    Preexisting,
+}
+
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
@@ -118,15 +129,19 @@ impl<R: Runtime> ChanMgr<R> {
     /// If there is already a channel launch attempt in progress, this
     /// function will wait until that launch is complete, and succeed
     /// or fail depending on its outcome.
-    pub async fn get_or_launch<T: ChanTarget + ?Sized>(&self, target: &T) -> Result<Channel> {
+    pub async fn get_or_launch<T: ChanTarget + ?Sized>(
+        &self,
+        target: &T,
+    ) -> Result<(Channel, ChanProvenance)> {
         let ed_identity = target.ed_identity();
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 
-        let chan = self.mgr.get_or_launch(*ed_identity, targetinfo).await?;
+        let (chan, provenance) = self.mgr.get_or_launch(*ed_identity, targetinfo).await?;
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
-        chan.check_match(target)?;
-        Ok(chan)
+        chan.check_match(target)
+            .map_err(Error::from_proto_no_skew)?;
+        Ok((chan, provenance))
     }
 
     /// Return a stream of [`ConnStatus`] events to tell us about changes

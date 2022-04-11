@@ -22,9 +22,25 @@ We can delete older sections here after we bump the releases.
 
 MODIFIED: Added `reset()` method to RetrySchedule.
 
+### tor-chanmgr
+
+BREAKING: Added members to `Error::Proto`
+BREAKING: Added `ChanProvenance` to `ChanMgr::get_or_launch`.
+
 ### tor-circmgr
 
 MODIFIED: Added a new variant in tor_circmgr::Error.
+
+### tor-guardmgr
+
+MODIFIED: New functions to get estimated clock skew.
+MODIFIED: New functions to report observed clock skew.
+
+### tor-proto
+
+MODIFIED: New accessors in tor_proto::Channel.
+BREAKING: Removed clock skew from Error::HandshakeCertsExpired.
+MODIFIED: New functions on ClockSkew.
 
 ### tor-rtmock
 

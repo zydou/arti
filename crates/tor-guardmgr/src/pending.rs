@@ -20,6 +20,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Instant;
+use tor_proto::ClockSkew;
 
 use tor_basic_utils::skip_fmt;
 
@@ -126,6 +127,9 @@ pub struct GuardMonitor {
     /// badly against the guard at all: typically, because the circuit's
     /// path is not random.
     ignore_indeterminate: bool,
+    /// If set, we will report the given clock skew as having been observed and
+    /// authenticated from this guard or fallback.
+    pending_skew: Option<ClockSkew>,
     /// A sender that needs to get told when the attempt to use the guard is
     /// finished or abandoned.
     ///
@@ -143,6 +147,7 @@ impl GuardMonitor {
             id,
             pending_status: GuardStatus::AttemptAbandoned,
             ignore_indeterminate: false,
+            pending_skew: None,
             snd: Some(snd),
         }
     }
@@ -183,6 +188,14 @@ impl GuardMonitor {
         self.pending_status = status;
     }
 
+    /// Set the given clock skew value to be reported to the guard manager.
+    ///
+    /// Clock skew can be reported on success or failure, but it should only be
+    /// reported if the first hop is actually authenticated.
+    pub fn skew(&mut self, skew: ClockSkew) {
+        self.pending_skew = Some(skew);
+    }
+
     /// Return the current pending status and "ignore indeterminate"
     /// status for this guard monitor.
     #[cfg(feature = "testing")]
@@ -214,7 +227,7 @@ impl GuardMonitor {
             .snd
             .take()
             .expect("GuardMonitor initialized with no sender")
-            .unbounded_send(daemon::Msg::Status(self.id, msg));
+            .unbounded_send(daemon::Msg::Status(self.id, msg, self.pending_skew));
     }
 
     /// Report the pending message for his guard, whatever it is.

@@ -139,6 +139,7 @@ use std::convert::{TryFrom, TryInto};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
+use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
 use tor_llcrypto::pk;
@@ -155,12 +156,14 @@ mod guard;
 mod ids;
 mod pending;
 mod sample;
+mod skew;
 mod util;
 
 pub use err::{GuardMgrError, PickGuardError};
 pub use filter::GuardFilter;
 pub use ids::FirstHopId;
 pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
+pub use skew::SkewEstimate;
 
 use pending::{PendingRequest, RequestId};
 use sample::GuardSet;
@@ -566,6 +569,14 @@ impl<R: Runtime> GuardMgr<R> {
         );
     }
 
+    /// Return our best estimate of our current clock skew, based on reports from the
+    /// guards and fallbacks we have contacted.
+    pub fn skew_estimate(&self) -> Option<SkewEstimate> {
+        let inner = self.inner.lock().expect("Poisoned lock");
+        let now = self.runtime.now();
+        SkewEstimate::estimate_skew(inner.skew_observations(), now)
+    }
+
     /// Ensure that the message queue is flushed before proceeding to
     /// the next step.  Used for testing.
     #[cfg(test)]
@@ -704,12 +715,30 @@ impl GuardMgrInner {
         &mut self,
         request_id: RequestId,
         status: GuardStatus,
+        skew: Option<ClockSkew>,
         runtime: &impl tor_rtcompat::SleepProvider,
     ) {
         if let Some(mut pending) = self.pending.remove(&request_id) {
             // If there was a pending request matching this RequestId, great!
             let guard_id = pending.guard_id();
             trace!(?guard_id, ?status, "Received report of guard status");
+
+            // First, handle the skew report (if any)
+            if let Some(skew) = skew {
+                let observation = skew::SkewObservation {
+                    skew,
+                    when: runtime.now(),
+                };
+
+                match &guard_id.0 {
+                    FirstHopIdInner::Guard(id) => {
+                        self.guards.active_guards_mut().record_skew(id, observation);
+                    }
+                    FirstHopIdInner::Fallback(id) => {
+                        self.fallbacks.note_skew(id, observation);
+                    }
+                }
+            }
 
             match (status, &guard_id.0) {
                 (GuardStatus::Failure, FirstHopIdInner::Fallback(id)) => {
@@ -813,6 +842,14 @@ impl GuardMgrInner {
                 }
             }
         }
+    }
+
+    /// Return an iterator over all of the clock skew observations we've made
+    /// for guards or fallbacks.
+    fn skew_observations(&self) -> impl Iterator<Item = &skew::SkewObservation> {
+        self.fallbacks
+            .skew_observations()
+            .chain(self.guards.active_guards().skew_observations())
     }
 
     /// If the circuit built because of a given [`PendingRequest`] may

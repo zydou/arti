@@ -9,6 +9,7 @@ use crate::GuardMgrInner;
 #[cfg(test)]
 use futures::channel::oneshot;
 use futures::{channel::mpsc, stream::StreamExt};
+use tor_proto::ClockSkew;
 
 use std::sync::{Mutex, Weak};
 
@@ -17,7 +18,7 @@ use std::sync::{Mutex, Weak};
 pub(crate) enum Msg {
     /// A message sent by a [`GuardMonitor`](crate::GuardMonitor) to
     /// report the status of an attempt to use a guard.
-    Status(RequestId, GuardStatus),
+    Status(RequestId, GuardStatus, Option<ClockSkew>),
     /// Tells the task to reply on the provided oneshot::Sender once
     /// it has seen this message.  Used to indicate that the message
     /// queue is flushed.
@@ -40,11 +41,11 @@ pub(crate) async fn report_status_events(
 ) {
     loop {
         match events.next().await {
-            Some(Msg::Status(id, status)) => {
+            Some(Msg::Status(id, status, skew)) => {
                 // We've got a report about a guard status.
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    inner.handle_msg(id, status, &runtime);
+                    inner.handle_msg(id, status, skew, &runtime);
                 } else {
                     // The guard manager has gone away.
                     return;

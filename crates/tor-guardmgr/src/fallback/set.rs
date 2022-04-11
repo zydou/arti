@@ -1,5 +1,6 @@
 //! Declare the [`FallbackState`] type, which is used to store a set of FallbackDir.
 
+use crate::skew::SkewObservation;
 use rand::seq::IteratorRandom;
 use std::time::{Duration, Instant};
 
@@ -55,19 +56,25 @@ pub(crate) struct FallbackState {
     fallbacks: Vec<Entry>,
 }
 
-/// Wrapper type for FallbackDir converted into crate::Guard, and Status.
+/// Wrapper type for FallbackDir converted into crate::Guard, and the status
+/// information that we store about it.
 ///
-/// Defines a sort order to ensure that we can look up fallback directories
-/// by binary search on keys.
+/// Defines a sort order to ensure that we can look up fallback directories by
+/// binary search on keys.
 #[derive(Debug, Clone)]
 pub(super) struct Entry {
     /// The inner fallback directory.
     ///
     /// (TODO: We represent this as a `FirstHop`, which could technically hold a
     /// guard as well.  Ought to fix that.)
-    pub(super) fallback: crate::FirstHop,
-    /// The status for the fallback directory.
-    pub(super) status: DirStatus,
+    fallback: crate::FirstHop,
+
+    /// Whether the directory is currently usable, and if not, when we can retry
+    /// it.
+    status: DirStatus,
+    /// The latest clock skew observation we have from this fallback directory
+    /// (if any).
+    clock_skew: Option<SkewObservation>,
 }
 
 /// Least amount of time we'll wait before retrying a fallback cache.
@@ -79,7 +86,11 @@ impl From<FallbackDir> for Entry {
     fn from(fallback: FallbackDir) -> Self {
         let fallback = fallback.as_guard();
         let status = DirStatus::new(FALLBACK_RETRY_FLOOR);
-        Entry { fallback, status }
+        Entry {
+            fallback,
+            status,
+            clock_skew: None,
+        }
     }
 }
 
@@ -189,6 +200,20 @@ impl FallbackState {
                 entry.status = other.status;
             }
         });
+    }
+
+    /// Record that a given fallback has told us about clock skew.
+    pub(crate) fn note_skew(&mut self, id: &FallbackId, observation: SkewObservation) {
+        if let Some(entry) = self.get_mut(id) {
+            entry.clock_skew = Some(observation);
+        }
+    }
+
+    /// Return an iterator over all the clock skew observations we've made for fallback directories
+    pub(crate) fn skew_observations(&self) -> impl Iterator<Item = &SkewObservation> {
+        self.fallbacks
+            .iter()
+            .filter_map(|fb| fb.clock_skew.as_ref())
     }
 }
 
@@ -352,8 +377,6 @@ mod test {
         set.note_success(&ids[0]);
         assert!(set.fallbacks[0].status.next_retriable().is_none());
         assert!(set.fallbacks[0].status.usable_at(now));
-
-        assert!(set.get_mut(&ids[0]).unwrap().status.usable_at(now));
 
         for id in ids.iter() {
             dbg!(id, set.get_mut(id).map(|e| e.id()));
