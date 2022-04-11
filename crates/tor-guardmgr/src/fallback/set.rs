@@ -56,21 +56,11 @@ pub(crate) struct FallbackState {
     fallbacks: Vec<Entry>,
 }
 
-/// The status information we store about a single fallback directory.
-#[derive(Debug, Clone)]
-struct FallbackStatus {
-    /// Whether the directory is currently usable, and if not, when we can retry
-    /// it.
-    status: DirStatus,
-    /// The latest clock skew observation we have from this fallback directory
-    /// (if any).
-    clock_skew: Option<SkewObservation>,
-}
-
-/// Wrapper type for FallbackDir converted into crate::Guard, and Status.
+/// Wrapper type for FallbackDir converted into crate::Guard, and the status
+/// information that we store about it.
 ///
-/// Defines a sort order to ensure that we can look up fallback directories
-/// by binary search on keys.
+/// Defines a sort order to ensure that we can look up fallback directories by
+/// binary search on keys.
 #[derive(Debug, Clone)]
 pub(super) struct Entry {
     /// The inner fallback directory.
@@ -78,8 +68,13 @@ pub(super) struct Entry {
     /// (TODO: We represent this as a `FirstHop`, which could technically hold a
     /// guard as well.  Ought to fix that.)
     fallback: crate::FirstHop,
-    /// The status for the fallback directory.
-    status: FallbackStatus,
+
+    /// Whether the directory is currently usable, and if not, when we can retry
+    /// it.
+    status: DirStatus,
+    /// The latest clock skew observation we have from this fallback directory
+    /// (if any).
+    clock_skew: Option<SkewObservation>,
 }
 
 /// Least amount of time we'll wait before retrying a fallback cache.
@@ -93,10 +88,8 @@ impl From<FallbackDir> for Entry {
         let status = DirStatus::new(FALLBACK_RETRY_FLOOR);
         Entry {
             fallback,
-            status: FallbackStatus {
-                status,
-                clock_skew: None,
-            },
+            status,
+            clock_skew: None,
         }
     }
 }
@@ -134,7 +127,7 @@ impl FallbackState {
 
         self.fallbacks
             .iter()
-            .filter(|ent| ent.status.status.usable_at(now))
+            .filter(|ent| ent.status.usable_at(now))
             .choose(rng)
             .map(|ent| &ent.fallback)
             .ok_or_else(|| PickGuardError::AllFallbacksDown {
@@ -148,7 +141,7 @@ impl FallbackState {
     fn next_retry(&self) -> Option<Instant> {
         self.fallbacks
             .iter()
-            .filter_map(|ent| ent.status.status.next_retriable())
+            .filter_map(|ent| ent.status.next_retriable())
             .min()
     }
 
@@ -180,7 +173,7 @@ impl FallbackState {
     /// operation as a success: a circuit success is not enough.
     pub(crate) fn note_success(&mut self, id: &FallbackId) {
         if let Some(entry) = self.get_mut(id) {
-            entry.status.status.note_success();
+            entry.status.note_success();
         }
     }
 
@@ -188,7 +181,7 @@ impl FallbackState {
     /// identity.
     pub(crate) fn note_failure(&mut self, id: &FallbackId, now: Instant) {
         if let Some(entry) = self.get_mut(id) {
-            entry.status.status.note_failure(now);
+            entry.status.note_failure(now);
         }
     }
 
@@ -212,7 +205,7 @@ impl FallbackState {
     /// Record that a given fallback has told us about clock skew.
     pub(crate) fn note_skew(&mut self, id: &FallbackId, observation: SkewObservation) {
         if let Some(entry) = self.get_mut(id) {
-            entry.status.clock_skew = Some(observation);
+            entry.clock_skew = Some(observation);
         }
     }
 
@@ -220,7 +213,7 @@ impl FallbackState {
     pub(crate) fn skew_observations(&self) -> impl Iterator<Item = &SkewObservation> {
         self.fallbacks
             .iter()
-            .filter_map(|fb| fb.status.clock_skew.as_ref())
+            .filter_map(|fb| fb.clock_skew.as_ref())
     }
 }
 
@@ -364,31 +357,26 @@ mod test {
 
         // Mark somebody down; try accessors.
         set.note_failure(&ids[3], now);
-        assert!(set.fallbacks[3].status.status.next_retriable().unwrap() > now);
-        assert!(!set.fallbacks[3].status.status.usable_at(now));
-        assert_eq!(
-            set.next_retry(),
-            set.fallbacks[3].status.status.next_retriable()
-        );
+        assert!(set.fallbacks[3].status.next_retriable().unwrap() > now);
+        assert!(!set.fallbacks[3].status.usable_at(now));
+        assert_eq!(set.next_retry(), set.fallbacks[3].status.next_retriable());
 
         // Mark somebody else down; try accessors.
         set.note_failure(&ids[0], now);
-        assert!(set.fallbacks[0].status.status.next_retriable().unwrap() > now);
-        assert!(!set.fallbacks[0].status.status.usable_at(now));
+        assert!(set.fallbacks[0].status.next_retriable().unwrap() > now);
+        assert!(!set.fallbacks[0].status.usable_at(now));
         assert_eq!(
             set.next_retry().unwrap(),
             std::cmp::min(
-                set.fallbacks[0].status.status.next_retriable().unwrap(),
-                set.fallbacks[3].status.status.next_retriable().unwrap()
+                set.fallbacks[0].status.next_retriable().unwrap(),
+                set.fallbacks[3].status.next_retriable().unwrap()
             )
         );
 
         // Mark somebody as running; try accessors.
         set.note_success(&ids[0]);
-        assert!(set.fallbacks[0].status.status.next_retriable().is_none());
-        assert!(set.fallbacks[0].status.status.usable_at(now));
-
-        assert!(set.get_mut(&ids[0]).unwrap().status.status.usable_at(now));
+        assert!(set.fallbacks[0].status.next_retriable().is_none());
+        assert!(set.fallbacks[0].status.usable_at(now));
 
         for id in ids.iter() {
             dbg!(id, set.get_mut(id).map(|e| e.id()));
@@ -409,17 +397,16 @@ mod test {
         assert_eq!(set2.fallbacks.len(), 6); // Started with 4, added 3, removed 1.
 
         // Make sure that the status entries  are correctly copied.
-        assert!(set2.get_mut(&ids[0]).unwrap().status.status.usable_at(now));
-        assert!(set2.get_mut(&ids[1]).unwrap().status.status.usable_at(now));
+        assert!(set2.get_mut(&ids[0]).unwrap().status.usable_at(now));
+        assert!(set2.get_mut(&ids[1]).unwrap().status.usable_at(now));
         assert!(set2.get_mut(&ids[2]).is_none());
-        assert!(!set2.get_mut(&ids[3]).unwrap().status.status.usable_at(now));
+        assert!(!set2.get_mut(&ids[3]).unwrap().status.usable_at(now));
 
         // Make sure that the new fbs are there.
         for new_fb in fbs_new {
             assert!(set2
                 .get_mut(&FallbackId::from_chan_target(&new_fb))
                 .unwrap()
-                .status
                 .status
                 .usable_at(now));
         }
