@@ -3468,6 +3468,7 @@ dependencies = [
  "humantime-serde",
  "itertools",
  "pin-project",
+ "postage",
  "rand 0.8.5",
  "retain_mut",
  "serde",

@@ -150,6 +150,7 @@ use tor_rtcompat::Runtime;
 mod daemon;
 mod dirstatus;
 mod err;
+mod events;
 pub mod fallback;
 mod filter;
 mod guard;
@@ -160,6 +161,7 @@ mod skew;
 mod util;
 
 pub use err::{GuardMgrError, PickGuardError};
+pub use events::ClockSkewEvents;
 pub use filter::GuardFilter;
 pub use ids::FirstHopId;
 pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
@@ -244,6 +246,13 @@ struct GuardMgrInner {
 
     /// Location in which to store persistent state.
     storage: DynStorageHandle<GuardSets>,
+
+    /// A sender object to publish changes in our estimated clock skew.
+    send_skew: postage::watch::Sender<Option<SkewEstimate>>,
+
+    /// A receiver object to hand out to observers who want to know about
+    /// changes in our estimated clock skew.
+    recv_skew: events::ClockSkewEvents,
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
@@ -289,6 +298,10 @@ impl<R: Runtime> GuardMgr<R> {
         // try to migrate it instead, but that's beyond the stability guarantee
         // that we're getting at this stage of our (pre-0.1) development.
         let state = storage.load()?.unwrap_or_default();
+
+        let (send_skew, recv_skew) = postage::watch::channel();
+        let recv_skew = ClockSkewEvents { inner: recv_skew };
+
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
             last_primary_retry_time: runtime.now(),
@@ -298,6 +311,8 @@ impl<R: Runtime> GuardMgr<R> {
             waiting: Vec::new(),
             fallbacks: fallbacks.into(),
             storage,
+            send_skew,
+            recv_skew,
         }));
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -569,12 +584,16 @@ impl<R: Runtime> GuardMgr<R> {
         );
     }
 
-    /// Return our best estimate of our current clock skew, based on reports from the
-    /// guards and fallbacks we have contacted.
-    pub fn skew_estimate(&self) -> Option<SkewEstimate> {
+    /// Return a stream of events about our estimated clock skew; these events
+    /// are `None` when we don't have enough information to make an estimate,
+    /// and `Some(`[`SkewEstiamte`]`)` otherwise.
+    ///
+    /// Note that this stream can be lossy: if the estimate changes more than
+    /// one before you read from the stream, you might only get the most recent
+    /// update.
+    pub fn skew_events(&self) -> ClockSkewEvents {
         let inner = self.inner.lock().expect("Poisoned lock");
-        let now = self.runtime.now();
-        SkewEstimate::estimate_skew(inner.skew_observations(), now)
+        inner.recv_skew.clone()
     }
 
     /// Ensure that the message queue is flushed before proceeding to
@@ -725,10 +744,8 @@ impl GuardMgrInner {
 
             // First, handle the skew report (if any)
             if let Some(skew) = skew {
-                let observation = skew::SkewObservation {
-                    skew,
-                    when: runtime.now(),
-                };
+                let now = runtime.now();
+                let observation = skew::SkewObservation { skew, when: now };
 
                 match &guard_id.0 {
                     FirstHopIdInner::Guard(id) => {
@@ -738,6 +755,14 @@ impl GuardMgrInner {
                         self.fallbacks.note_skew(id, observation);
                     }
                 }
+                // TODO: We call this whenever we receive an observed clock
+                // skew. That's not the perfect timing for two reasons.  First
+                // off, it might be too frequent: it does an O(n) calculation,
+                // which isn't ideal.  Second, it might be too infrequent: after
+                // an hour has passed, a given observation won't be up-to-date
+                // any more, and we might want to recalculate the skew
+                // accordingly.
+                self.update_skew(now);
             }
 
             match (status, &guard_id.0) {
@@ -850,6 +875,15 @@ impl GuardMgrInner {
         self.fallbacks
             .skew_observations()
             .chain(self.guards.active_guards().skew_observations())
+    }
+
+    /// Recalculate our estimated clock skew, and publish it to anybody who
+    /// cares.
+    fn update_skew(&mut self, now: Instant) {
+        let estimate = skew::SkewEstimate::estimate_skew(self.skew_observations(), now);
+        // TODO: we might want to do this only conditionally, when the skew
+        // estimate changes.
+        *self.send_skew.borrow_mut() = estimate;
     }
 
     /// If the circuit built because of a given [`PendingRequest`] may
