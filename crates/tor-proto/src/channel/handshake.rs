@@ -64,6 +64,9 @@ pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static>
     #[allow(dead_code)] // Relays will need this.
     netinfo_cell: msg::Netinfo,
     /// How much clock skew did we detect in this handshake?
+    ///
+    /// This value is _unauthenticated_, since we have not yet checked whether
+    /// the keys in the handshake are the ones we expected.
     clock_skew: ClockSkew,
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
@@ -89,7 +92,7 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> {
     ed25519_id: Ed25519Identity,
     /// Validated RSA identity for this peer.
     rsa_id: RsaIdentity,
-    /// Validated clock skew for this peer.
+    /// Authenticated clock skew for this peer.
     clock_skew: ClockSkew,
 }
 
@@ -242,6 +245,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> OutboundClientHandshake
             (None, _) => Err(Error::HandshakeProto("Missing certs cell".into())),
             (Some(certs_cell), Some((netinfo_cell, netinfo_rcvd_at))) => {
                 trace!("{}: received handshake, ready to verify.", self.unique_id);
+                // Try to compute our clock skew.  It won't be authenticated
+                // yet, since we haven't checked the certificates.
                 let clock_skew = if let Some(netinfo_timestamp) = netinfo_cell.timestamp() {
                     let delay = netinfo_rcvd_at - versions_flushed_at;
                     ClockSkew::from_handshake_timestamps(
@@ -373,6 +378,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
         let mut sigs = Vec::new();
 
         // Part 1: validate ed25519 stuff.
+        //
+        // (We are performing our timeliness checks now, but not inspecting them
+        // until later in the function, so that we can distinguish failures that
+        // might be caused by clock skew from failures that are definitely not
+        // clock skew.)
 
         // Check the identity->signing cert
         let (id_sk, id_sk_sig) = id_sk.check_key(&None)?.dangerously_split()?;
@@ -474,8 +484,20 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static> UnverifiedChannel<T> {
             return Err(Error::HandshakeProto("Peer RSA id not as expected".into()));
         }
 
-        // We note expired certs last, since any other reason we might reject a
-        // handshake is probably more serious.
+        // If we reach this point, the clock skew might be may now be considered
+        // authenticated: The certificates are what we wanted, and everything
+        // was well signed.
+        //
+        // The only remaining concern is certificate timeliness.  If the
+        // certificates are expired by an amount that is too large for the
+        // declared clock skew to explain, then  we'll return
+        // `Error::HandshakeProto`: in that case the clock skew is _not_
+        // authenticated.  But if the certs are only expired by a little bit,
+        // we'll reject the handshake with `Error::HandshakeCertsExpired`, and
+        // the caller can trust the clock skew.
+        //
+        // We note expired certs last, since we only want to return
+        // `HandshakeCertsExpired` when there are no other errors.
         id_sk_timeliness?;
         sk_tls_timeliness?;
         rsa_cert_timeliness?;
