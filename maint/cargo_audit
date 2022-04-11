@@ -13,14 +13,14 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # This is not a vulneriblity but an unmaintained warn for the
+    # This is not a vulnerability but an unmaintained warn for the
     # `net2` crate. It's pulled indirectly by `notify` 4.0. It's
     # fixed in `notify` 5.0 however only pre-releases are available
     # for now.
     --ignore RUSTSEC-2020-0016
-    # This is not a vulneriblity but an unmaintained warn for the
+    # This is not a vulnerability but an unmaintained warn for the
     # `tempdir` crate. It's pulled by `tls-api` 0.7.0. As of now
-    # there is no available fix, but a patch was submited upstream.
+    # there is no available fix, but a patch was submitted upstream.
     --ignore RUSTSEC-2018-0017
 )
 
