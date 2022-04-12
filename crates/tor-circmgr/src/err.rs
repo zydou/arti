@@ -323,3 +323,10 @@ impl Error {
         }
     }
 }
+
+/// A failure to build any preemptive circuits, with at least one error
+/// condition.
+///
+/// This is a separate type since we never report it outside the crate.
+#[derive(Debug)]
+pub(crate) struct PreemptiveCircError;

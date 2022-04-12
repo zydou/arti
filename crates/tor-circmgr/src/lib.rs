@@ -50,6 +50,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
 use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
@@ -61,7 +62,7 @@ use futures::StreamExt;
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 pub mod build;
 mod config;
@@ -85,6 +86,7 @@ pub use config::{
 };
 
 use crate::isolation::StreamIsolation;
+use crate::mgr::CircProvenance;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
@@ -418,7 +420,10 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// This function is invoked periodically from
     /// `continually_preemptively_build_circuits()`.
-    async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
+    async fn launch_circuits_preemptively(
+        &self,
+        netdir: DirInfo<'_>,
+    ) -> std::result::Result<(), err::PreemptiveCircError> {
         debug!("Checking preemptive circuit predictions.");
         let (circs, threshold) = {
             let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
@@ -427,18 +432,40 @@ impl<R: Runtime> CircMgr<R> {
         };
 
         if self.mgr.n_circs() >= threshold {
-            return;
+            return Ok(());
         }
+        let mut n_created = 0_usize;
+        let mut n_errors = 0_usize;
 
         let futures = circs
             .iter()
             .map(|usage| self.mgr.get_or_launch(usage, netdir));
         let results = futures::future::join_all(futures).await;
-        for (i, result) in results.iter().enumerate() {
+        for (i, result) in results.into_iter().enumerate() {
             match result {
-                Ok(_) => debug!("Circuit exists (or was created) for {:?}", circs[i]),
-                Err(e) => warn!("Failed to build preemptive circuit {:?}: {}", circs[i], e),
+                Ok((_, CircProvenance::NewlyCreated)) => {
+                    debug!("Preeemptive circuit was created for {:?}", circs[i]);
+                    n_created += 1;
+                }
+                Ok((_, CircProvenance::Preexisting)) => {
+                    trace!("Circuit already existed created for {:?}", circs[i]);
+                }
+                Err(e) => {
+                    warn!("Failed to build preemptive circuit {:?}: {}", circs[i], &e);
+                    n_errors += 1;
+                }
             }
+        }
+
+        if n_created > 0 || n_errors == 0 {
+            // Either we successfully made a circuit, or we didn't have any
+            // failures while looking for preexisting circuits.  Progress was
+            // made, so there's no need to back off.
+            Ok(())
+        } else {
+            // We didn't build any circuits and we hit at least one error:
+            // We'll call this unsuccessful.
+            Err(err::PreemptiveCircError)
         }
     }
 
@@ -666,12 +693,25 @@ impl<R: Runtime> CircMgr<R> {
     ) where
         D: NetDirProvider + Send + Sync + 'static + ?Sized,
     {
+        let base_delay = Duration::from_secs(10);
+        let mut retry = RetryDelay::from_duration(base_delay);
+
         while sched.next().await.is_some() {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                 if let Some(netdir) = dm.latest_netdir() {
-                    cm.launch_circuits_preemptively(DirInfo::Directory(&netdir))
+                    let result = cm
+                        .launch_circuits_preemptively(DirInfo::Directory(&netdir))
                         .await;
-                    sched.fire_in(Duration::from_secs(10));
+
+                    let delay = match result {
+                        Ok(()) => {
+                            retry.reset();
+                            base_delay
+                        }
+                        Err(_) => retry.next_delay(&mut rand::thread_rng()),
+                    };
+
+                    sched.fire_in(delay);
                 } else {
                     // wait for the provider to announce some event, which will probably be
                     // NewConsensus; this is therefore a decent yardstick for rechecking
