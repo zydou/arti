@@ -48,6 +48,17 @@ use weak_table::PtrWeakHashSet;
 
 mod streams;
 
+/// Description of how we got a circuit.
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum CircProvenance {
+    /// This channel was newly launched, or was in progress and finished while
+    /// we were waiting.
+    NewlyCreated,
+    /// This channel already existed when we asked for it.
+    Preexisting,
+}
+
 /// Represents restrictions on circuit usage.
 ///
 /// An `AbstractSpec` describes what a circuit can be used for.  Each
@@ -752,7 +763,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: &Arc<Self>,
         usage: &<B::Spec as AbstractSpec>::Usage,
         dir: DirInfo<'_>,
-    ) -> Result<B::Circ> {
+    ) -> Result<(B::Circ, CircProvenance)> {
         /// Return CEIL(a/b).
         ///
         /// Requires that a+b is less than usize::MAX.
@@ -954,7 +965,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         self: Arc<Self>,
         act: Action<B>,
         usage: &<B::Spec as AbstractSpec>::Usage,
-    ) -> std::result::Result<B::Circ, RetryError<Box<Error>>> {
+    ) -> std::result::Result<(B::Circ, CircProvenance), RetryError<Box<Error>>> {
         /// Store the error `err` into `retry_err`, as appropriate.
         fn record_error(
             retry_err: &mut RetryError<Box<Error>>,
@@ -989,7 +1000,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             Action::Open(c) => {
                 // There's already a perfectly good open circuit; we can return
                 // it now.
-                return Ok(c);
+                return Ok((c, CircProvenance::Preexisting));
             }
             Action::Wait(f) => {
                 // There is one or more pending circuit that we're waiting for.
@@ -1063,7 +1074,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                                         now + self.circuit_timing().max_dirtiness,
                                     );
                                 }
-                                return Ok(ent.circ.clone());
+                                return Ok((ent.circ.clone(), CircProvenance::NewlyCreated));
                             }
                             Err(e) => {
                                 // In this case, a `UsageMismatched` error just means that we lost the race
@@ -1674,14 +1685,14 @@ mod test {
 
             // Launch a circuit; make sure we get it.
             let c1 = rt.wait_for(mgr.get_or_launch(&webports, di())).await;
-            let c1 = c1.unwrap();
+            let c1 = c1.unwrap().0;
             assert_eq!(mgr.n_circs(), 1);
 
             // Make sure we get the one we already made if we ask for it.
             let port80 = FakeSpec::new(vec![80_u16]);
             let c2 = mgr.get_or_launch(&port80, di()).await;
 
-            let c2 = c2.unwrap();
+            let c2 = c2.unwrap().0;
             assert!(FakeCirc::eq(&c1, &c2));
             assert_eq!(mgr.n_circs(), 1);
 
@@ -1698,8 +1709,8 @@ mod test {
                 ))
                 .await;
 
-            let c3 = c3.unwrap();
-            let c4 = c4.unwrap();
+            let c3 = c3.unwrap().0;
+            let c4 = c4.unwrap().0;
             assert!(!FakeCirc::eq(&c1, &c3));
             assert!(FakeCirc::eq(&c3, &c4));
             assert_eq!(c3.id(), c4.id());
@@ -1716,7 +1727,7 @@ mod test {
             // Having removed them, let's launch another dnsport and make
             // sure we get a different circuit.
             let c5 = rt.wait_for(mgr.get_or_launch(&dnsport, di())).await;
-            let c5 = c5.unwrap();
+            let c5 = c5.unwrap().0;
             assert!(!FakeCirc::eq(&c3, &c5));
             assert!(!FakeCirc::eq(&c4, &c5));
             assert_eq!(mgr.n_circs(), 2);
@@ -1884,8 +1895,8 @@ mod test {
                 ))
                 .await;
 
-            let c1 = c1.unwrap();
-            let c2 = c2.unwrap();
+            let c1 = c1.unwrap().0;
+            let c2 = c2.unwrap().0;
 
             assert!(FakeCirc::eq(&c1, &c2));
         });
@@ -1938,9 +1949,9 @@ mod test {
                     ))
                     .await;
 
-                let c_iso1 = c_iso1.unwrap();
-                let c_iso2 = c_iso2.unwrap();
-                let c_none = c_none.unwrap();
+                let c_iso1 = c_iso1.unwrap().0;
+                let c_iso2 = c_iso2.unwrap().0;
+                let c_none = c_none.unwrap().0;
 
                 assert!(!FakeCirc::eq(&c_iso1, &c_iso2));
                 assert!(FakeCirc::eq(&c_iso1, &c_none) || FakeCirc::eq(&c_iso2, &c_none));
@@ -1981,7 +1992,7 @@ mod test {
                 ))
                 .await;
 
-            if let (Ok(c1), Ok(c2)) = (c1, c2) {
+            if let (Ok((c1, _)), Ok((c2, _))) = (c1, c2) {
                 assert!(FakeCirc::eq(&c1, &c2));
             } else {
                 panic!();
@@ -2022,8 +2033,8 @@ mod test {
 
             assert!(ok.is_ok());
 
-            let c1 = c1.unwrap();
-            let c2 = c2.unwrap();
+            let c1 = c1.unwrap().0;
+            let c2 = c2.unwrap().0;
 
             // If we had launched these separately, they wouldn't share
             // a circuit.
@@ -2058,11 +2069,11 @@ mod test {
                 .await;
 
             assert!(ok.is_ok());
-            let pop1 = pop1.unwrap();
+            let pop1 = pop1.unwrap().0;
 
             rt.advance(Duration::from_secs(30)).await;
             rt.advance(Duration::from_secs(15)).await;
-            let imap1 = rt.wait_for(mgr.get_or_launch(&imap, di())).await.unwrap();
+            let imap1 = rt.wait_for(mgr.get_or_launch(&imap, di())).await.unwrap().0;
 
             // This should expire the pop circuit, since it came from
             // get_or_launch() [which marks the circuit as being
@@ -2079,8 +2090,8 @@ mod test {
                 ))
                 .await;
 
-            let pop2 = pop2.unwrap();
-            let imap2 = imap2.unwrap();
+            let pop2 = pop2.unwrap().0;
+            let imap2 = imap2.unwrap().0;
 
             assert!(!FakeCirc::eq(&pop2, &pop1));
             assert!(FakeCirc::eq(&imap2, &imap1));

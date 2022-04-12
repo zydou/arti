@@ -380,7 +380,7 @@ impl<R: Runtime> CircMgr<R> {
     pub async fn get_or_launch_dir(&self, netdir: DirInfo<'_>) -> Result<ClientCirc> {
         self.expire_circuits();
         let usage = TargetCircUsage::Dir;
-        self.mgr.get_or_launch(&usage, netdir).await
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
     /// Return a circuit suitable for exiting to all of the provided
@@ -408,7 +408,7 @@ impl<R: Runtime> CircMgr<R> {
         }
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
-        self.mgr.get_or_launch(&usage, netdir).await
+        self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
     /// Launch circuits preemptively, using the preemptive circuit predictor's predictions.
