@@ -411,16 +411,14 @@ impl<R: Runtime> CircMgr<R> {
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
     }
 
-    /// Launch circuits preemptively, using the preemptive circuit predictor's predictions.
+    /// Launch circuits preemptively, using the preemptive circuit predictor's
+    /// predictions.
     ///
     /// # Note
     ///
-    /// This function is invoked periodically from the
-    /// `arti-client` crate, based on timings from the network
-    /// parameters. As with `launch_timeout_testing_circuit_if_appropriate`, this
-    /// should ideally be refactored to be internal to this crate, and not be a
-    /// public API here.
-    pub async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
+    /// This function is invoked periodically from
+    /// `continually_preemptively_build_circuits()`.
+    async fn launch_circuits_preemptively(&self, netdir: DirInfo<'_>) {
         debug!("Checking preemptive circuit predictions.");
         let (circs, threshold) = {
             let preemptive = self.predictor.lock().expect("preemptive lock poisoned");
@@ -480,17 +478,9 @@ impl<R: Runtime> CircMgr<R> {
     ///
     /// # Note
     ///
-    /// This function is invoked periodically from the
-    /// `arti-client` crate, based on timings from the network
-    /// parameters.  Please don't invoke it on your own; I hope we can
-    /// have this API go away in the future.
-    ///
-    /// I would much prefer to have this _not_ be a public API, and
-    /// instead have it be a daemon task.  The trouble is that it
-    /// needs to get a NetDir as input, and that isn't possible with
-    /// the current CircMgr design.  See
-    /// [arti#161](https://gitlab.torproject.org/tpo/core/arti/-/issues/161).
-    pub fn launch_timeout_testing_circuit_if_appropriate(&self, netdir: &NetDir) -> Result<()> {
+    /// This function is invoked periodically from
+    /// `continually_launch_timeout_testing_circuits`.
+    fn launch_timeout_testing_circuit_if_appropriate(&self, netdir: &NetDir) -> Result<()> {
         if !self.mgr.peek_builder().learning_timeouts() {
             return Ok(());
         }
