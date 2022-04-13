@@ -8,6 +8,7 @@ use educe::Educe;
 use futures::{Stream, StreamExt};
 use tor_basic_utils::skip_fmt;
 use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
+use tor_circmgr::{ClockSkewEvents, SkewEstimate};
 use tor_dirmgr::DirBootstrapStatus;
 use tracing::debug;
 
@@ -29,6 +30,8 @@ pub struct BootstrapStatus {
     conn_status: ConnStatus,
     /// Status for our directory information.
     dir_status: DirBootstrapStatus,
+    /// Current estimate of our clock skew.
+    skew: Option<SkewEstimate>,
 }
 
 impl BootstrapStatus {
@@ -73,7 +76,15 @@ impl BootstrapStatus {
         if let Some(b) = self.conn_status.blockage() {
             let message = b.to_string().into();
             let kind = b.into();
-            Some(Blockage { kind, message })
+            if matches!(kind, BlockageKind::ClockSkewed) && self.skew_is_noteworthy() {
+                Some(Blockage {
+                    kind,
+                    message: format!("Clock is {}", self.skew.as_ref().expect("logic error"))
+                        .into(),
+                })
+            } else {
+                Some(Blockage { kind, message })
+            }
         } else {
             None
         }
@@ -87,6 +98,16 @@ impl BootstrapStatus {
     /// Adjust this status based on new directory-status information.
     fn apply_dir_status(&mut self, status: DirBootstrapStatus) {
         self.dir_status = status;
+    }
+
+    /// Adjust this status based on new estimated clock skew information.
+    fn apply_skew_estimate(&mut self, status: Option<SkewEstimate>) {
+        self.skew = status;
+    }
+
+    /// Return true if our current clock skew estimate is considered noteworthy.
+    fn skew_is_noteworthy(&self) -> bool {
+        matches!(&self.skew, Some(s) if s.noteworthy())
     }
 }
 
@@ -115,6 +136,10 @@ pub enum BlockageKind {
     /// We have some other kind of problem connecting to Tor
     #[display(fmt = "Can't reach the Tor network")]
     CantReachTor,
+    /// We believe our clock is set incorrectly, and that's preventing us from
+    /// successfully with relays and/or from finding a directory that we trust.
+    #[display(fmt = "Clock is skewed.")]
+    ClockSkewed,
 }
 
 impl From<ConnBlockage> for BlockageKind {
@@ -122,6 +147,7 @@ impl From<ConnBlockage> for BlockageKind {
         match b {
             ConnBlockage::NoTcp => BlockageKind::Offline,
             ConnBlockage::NoHandshake => BlockageKind::Filtering,
+            ConnBlockage::CertsExpired => BlockageKind::ClockSkewed,
             _ => BlockageKind::CantReachTor,
         }
     }
@@ -136,14 +162,20 @@ impl fmt::Display for BootstrapStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let percent = (self.as_frac() * 100.0).round() as u32;
         if let Some(problem) = self.blocked() {
-            write!(f, "Stuck at {}%: {}", percent, problem)
+            write!(f, "Stuck at {}%: {}", percent, problem)?;
         } else {
             write!(
                 f,
                 "{}%: {}; {}",
                 percent, &self.conn_status, &self.dir_status
-            )
+            )?;
         }
+        if let Some(skew) = &self.skew {
+            if skew.noteworthy() {
+                write!(f, ". Clock is {}", skew)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -159,7 +191,8 @@ impl fmt::Display for BootstrapStatus {
 pub(crate) async fn report_status(
     mut sender: postage::watch::Sender<BootstrapStatus>,
     conn_status: ConnStatusEvents,
-    dir_status: impl Stream<Item = DirBootstrapStatus> + Unpin,
+    dir_status: impl Stream<Item = DirBootstrapStatus> + Send + Unpin,
+    skew_status: ClockSkewEvents,
 ) {
     /// Internal enumeration to combine incoming status changes.
     enum Event {
@@ -167,15 +200,21 @@ pub(crate) async fn report_status(
         Conn(ConnStatus),
         /// A directory status change
         Dir(DirBootstrapStatus),
+        /// A clock skew change
+        Skew(Option<SkewEstimate>),
     }
-    let mut stream =
-        futures::stream::select(conn_status.map(Event::Conn), dir_status.map(Event::Dir));
+    let mut stream = futures::stream::select_all(vec![
+        conn_status.map(Event::Conn).boxed(),
+        dir_status.map(Event::Dir).boxed(),
+        skew_status.map(Event::Skew).boxed(),
+    ]);
 
     while let Some(event) = stream.next().await {
         let mut b = sender.borrow_mut();
         match event {
             Event::Conn(e) => b.apply_conn_status(e),
             Event::Dir(e) => b.apply_dir_status(e),
+            Event::Skew(e) => b.apply_skew_estimate(e),
         }
         debug!("{}", *b);
     }

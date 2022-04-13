@@ -388,11 +388,13 @@ impl<R: Runtime> TorClient<R> {
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
+        let skew_status = circmgr.skew_events();
         runtime
             .spawn(status::report_status(
                 status_sender,
                 conn_status,
                 dir_status,
+                skew_status,
             ))
             .map_err(|e| ErrorDetail::from_spawn("top-level status reporter", e))?;
 

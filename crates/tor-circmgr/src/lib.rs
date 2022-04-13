@@ -78,6 +78,7 @@ mod usage;
 pub use err::Error;
 pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
+pub use tor_guardmgr::{ClockSkewEvents, SkewEstimate};
 pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
@@ -751,6 +752,17 @@ impl<R: Runtime> CircMgr<R> {
             target.rsa_identity(),
             external_activity,
         );
+    }
+
+    /// Return a stream of events about our estimated clock skew; these events
+    /// are `None` when we don't have enough information to make an estimate,
+    /// and `Some(`[`SkewEstiamte`]`)` otherwise.
+    ///
+    /// Note that this stream can be lossy: if the estimate changes more than
+    /// one before you read from the stream, you might only get the most recent
+    /// update.
+    pub fn skew_events(&self) -> ClockSkewEvents {
+        self.mgr.peek_builder().guardmgr().skew_events()
     }
 }
 

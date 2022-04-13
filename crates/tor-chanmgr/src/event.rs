@@ -20,13 +20,22 @@ pub struct ConnStatus {
     /// None if we haven't succeeded yet, but it's too early to say if
     /// that's a problem.
     online: Option<bool>,
+
+    /// Have we ever been able to make TLS handshakes and negotiate
+    /// certificates, _not including timeliness checking_?
+    ///
+    /// True if we've been able to make TLS handshakes and talk to Tor relays we
+    /// like recently. False if we've definitely been failing. None if we
+    /// haven't succeeded yet, but it's too early to say if that's a problem.
+    auth_works: Option<bool>,
+
     /// Have we been able to successfully negotiate full Tor handshakes?
     ///
-    /// True if we've been able to make TLS sessions recently.
+    /// True if we've been able to make Tor handshakes recently.
     /// False if we've definitely been failing.
     /// None if we haven't succeeded yet, but it's too early to say if
     /// that's a problem.
-    tls_works: Option<bool>,
+    handshake_works: Option<bool>,
 }
 
 /// A problem detected while connecting to the Tor network.
@@ -40,6 +49,11 @@ pub enum ConnBlockage {
     /// got hit by an attempted man-in-the-middle attack.
     #[display(fmt = "our internet connection seems to be filtered")]
     NoHandshake,
+    /// We've made TCP connections, and our TLS connections mostly succeeded,
+    /// but we encountered failures that are well explained by clock skew,
+    /// or expired certificates.
+    #[display(fmt = "relays all seem to be using expired certificates")]
+    CertsExpired,
 }
 
 impl ConnStatus {
@@ -48,12 +62,12 @@ impl ConnStatus {
     /// Note:(This would just be a PartialEq implementation, but I'm not sure I
     /// want to expose that PartialEq for this struct.)
     fn eq(&self, other: &ConnStatus) -> bool {
-        self.online == other.online && self.tls_works == other.tls_works
+        self.online == other.online && self.handshake_works == other.handshake_works
     }
 
     /// Return true if this status indicates that we can successfully open Tor channels.
     pub fn usable(&self) -> bool {
-        self.online == Some(true) && self.tls_works == Some(true)
+        self.online == Some(true) && self.handshake_works == Some(true)
     }
 
     /// Return a float representing "how bootstrapped" we are with respect to
@@ -66,7 +80,8 @@ impl ConnStatus {
         match self {
             Self {
                 online: Some(true),
-                tls_works: Some(true),
+                auth_works: Some(true),
+                handshake_works: Some(true),
             } => 1.0,
             Self {
                 online: Some(true), ..
@@ -84,9 +99,13 @@ impl ConnStatus {
                 ..
             } => Some(ConnBlockage::NoTcp),
             Self {
-                tls_works: Some(false),
+                auth_works: Some(false),
                 ..
             } => Some(ConnBlockage::NoHandshake),
+            Self {
+                handshake_works: Some(false),
+                ..
+            } => Some(ConnBlockage::CertsExpired),
             _ => None,
         }
     }
@@ -101,15 +120,25 @@ impl fmt::Display for ConnStatus {
                 ..
             } => write!(f, "unable to connect to the internet"),
             ConnStatus {
-                tls_works: None, ..
+                handshake_works: None,
+                ..
             } => write!(f, "handshaking with Tor relays"),
             ConnStatus {
-                tls_works: Some(false),
+                auth_works: Some(true),
+                handshake_works: Some(false),
+                ..
+            } => write!(
+                f,
+                "unable to handshake with Tor relays, possibly due to clock skew"
+            ),
+            ConnStatus {
+                handshake_works: Some(false),
                 ..
             } => write!(f, "unable to handshake with Tor relays"),
             ConnStatus {
                 online: Some(true),
-                tls_works: Some(true),
+                handshake_works: Some(true),
+                ..
             } => write!(f, "connecting successfully"),
         }
     }
@@ -180,6 +209,10 @@ struct ChanMgrStatus {
     // where TLS fails.
     last_tls_success: Option<Instant>,
 
+    /// When (if ever) have we ever finished the inner Tor handshake with a relay,
+    /// up to the point where we check for certificate timeliness?
+    last_chan_auth_success: Option<Instant>,
+
     /// When (if ever) have we successfully finished the inner Tor handshake
     /// with a relay?
     ///
@@ -198,6 +231,7 @@ impl ChanMgrStatus {
             n_attempts: 0,
             last_tcp_success: None,
             last_tls_success: None,
+            last_chan_auth_success: None,
             last_chan_success: None,
         }
     }
@@ -221,13 +255,23 @@ impl ChanMgrStatus {
             (false, false) => Some(false),
         };
 
-        let tls_works = match (self.last_chan_success.is_some(), early) {
+        let auth_works = match (self.last_chan_auth_success.is_some(), early) {
             (true, _) => Some(true),
             (_, true) => None,
             (false, false) => Some(false),
         };
 
-        ConnStatus { online, tls_works }
+        let handshake_works = match (self.last_chan_success.is_some(), early) {
+            (true, _) => Some(true),
+            (_, true) => None,
+            (false, false) => Some(false),
+        };
+
+        ConnStatus {
+            online,
+            auth_works,
+            handshake_works,
+        }
     }
 
     /// Note that an attempt to connect has been started.
@@ -247,11 +291,18 @@ impl ChanMgrStatus {
         self.last_tls_success = Some(now);
     }
 
+    /// Note that we've completed a Tor handshake with a relay, _but failed to
+    /// verify the certificates in a way that could indicate clock skew_.
+    fn record_handshake_done_with_skewed_clock(&mut self, now: Instant) {
+        self.last_chan_auth_success = Some(now);
+    }
+
     /// Note that we've completed a Tor handshake with a relay.
     ///
     /// (This includes performing the TLS handshake, and verifying that the
     /// relay was indeed the one that we wanted to reach.)
     fn record_handshake_done(&mut self, now: Instant) {
+        self.last_chan_auth_success = Some(now);
         self.last_chan_success = Some(now);
     }
 }
@@ -312,6 +363,14 @@ impl ChanMgrEventSender {
         self.push_at(now);
     }
 
+    /// Record that a handshake has succeeded _except for the certificate
+    /// timeliness check, which may indicate a skewed clock.
+    pub(crate) fn record_handshake_done_with_skewed_clock(&mut self) {
+        let now = Instant::now();
+        self.mgr_status.record_handshake_done_with_skewed_clock(now);
+        self.push_at(now);
+    }
+
     /// Note that we've completed a Tor handshake with a relay.
     ///
     /// (This includes performing the TLS handshake, and verifying that the
@@ -355,7 +414,8 @@ mod test {
 
         let s2 = ConnStatus {
             online: Some(false),
-            tls_works: None,
+            auth_works: None,
+            handshake_works: None,
         };
         assert_eq!(s2.to_string(), "unable to connect to the internet");
         assert_float_eq!(s2.frac(), 0.0, abs <= TOL);
@@ -370,7 +430,8 @@ mod test {
 
         let s3 = ConnStatus {
             online: Some(true),
-            tls_works: None,
+            auth_works: None,
+            handshake_works: None,
         };
         assert_eq!(s3.to_string(), "handshaking with Tor relays");
         assert_float_eq!(s3.frac(), 0.5, abs <= TOL);
@@ -380,7 +441,8 @@ mod test {
 
         let s4 = ConnStatus {
             online: Some(true),
-            tls_works: Some(false),
+            auth_works: Some(false),
+            handshake_works: Some(false),
         };
         assert_eq!(s4.to_string(), "unable to handshake with Tor relays");
         assert_float_eq!(s4.frac(), 0.5, abs <= TOL);
@@ -397,7 +459,8 @@ mod test {
 
         let s5 = ConnStatus {
             online: Some(true),
-            tls_works: Some(true),
+            auth_works: Some(true),
+            handshake_works: Some(true),
         };
         assert_eq!(s5.to_string(), "connecting successfully");
         assert_float_eq!(s5.frac(), 1.0, abs <= TOL);
@@ -418,7 +481,7 @@ mod test {
         // when we start, we're unable to reach any conclusions.
         let s0 = ms.conn_status_at(start);
         assert!(s0.online.is_none());
-        assert!(s0.tls_works.is_none());
+        assert!(s0.handshake_works.is_none());
 
         // Time won't let us make conclusions either, unless there have been
         // attempts.
@@ -436,22 +499,22 @@ mod test {
         // (... but after a while.)
         let s = ms.conn_status_at(start + hour);
         assert_eq!(s.online, Some(false));
-        assert_eq!(s.tls_works, Some(false));
+        assert_eq!(s.handshake_works, Some(false));
 
         // If TCP has succeeded, we should notice that.
         ms.record_tcp_success(start + sec);
         let s = ms.conn_status_at(start + sec * 2);
         assert_eq!(s.online, Some(true));
-        assert!(s.tls_works.is_none());
+        assert!(s.handshake_works.is_none());
         let s = ms.conn_status_at(start + hour);
         assert_eq!(s.online, Some(true));
-        assert_eq!(s.tls_works, Some(false));
+        assert_eq!(s.handshake_works, Some(false));
 
         // If the handshake succeeded, we can notice that too.
         ms.record_handshake_done(start + sec * 2);
         let s = ms.conn_status_at(start + sec * 3);
         assert_eq!(s.online, Some(true));
-        assert_eq!(s.tls_works, Some(true));
+        assert_eq!(s.handshake_works, Some(true));
     }
 
     #[test]

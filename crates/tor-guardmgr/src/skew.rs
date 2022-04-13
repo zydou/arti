@@ -29,6 +29,8 @@ impl SkewObservation {
 }
 
 /// An estimate of how skewed our clock is, plus a summary of why we think so.
+//
+// SEMVER NOTE: this type is re-exported from tor-circmgr.
 #[derive(Clone, Debug)]
 pub struct SkewEstimate {
     /// Our best guess for the magnitude of the skew.
@@ -92,6 +94,11 @@ impl SkewEstimate {
     /// Return our best estimate for the current clock skew.
     pub fn skew(&self) -> ClockSkew {
         self.estimate
+    }
+
+    /// Return true if this estimate is worth telling the user about.
+    pub fn noteworthy(&self) -> bool {
+        !matches!(self.estimate, ClockSkew::None) && !matches!(self.confidence, Confidence::None)
     }
 
     /// Compute an estimate of how skewed we think our clock is, based on the
