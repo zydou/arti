@@ -1,0 +1,508 @@
+//! # `fs-mistrust`: make sure that files are really private.
+//!
+//! This crates provides a set of functionality to check the permissions on
+//! files and directories to ensure that they are effectively private—that is,
+//! that they are only readable or writable by trusted[^1] users.
+//!
+//! That's trickier than it sounds:
+//!
+//! * Even if the permissions on the file itself are correct, we also need to
+//!   check the permissions on the directory holding it, since they might allow
+//!   an untrusted user to replace the file, or change its permissions.  
+//! * Similarly, we need to check the permissions on the parent of _that_
+//!   directory, since they might let an untrusted user replace the directory or
+//!   change _its_ permissions.  (And so on!)
+//! * It can be tricky to define "a trusted user".  On Unix systems, we usually
+//!   say that each user is trusted by themself, and that root (UID 0) is
+//!   trusted.  But it's hard to say which _groups_ are trusted: even if a given
+//!   group contains only trusted users today, there's no OS-level guarantee
+//!   that untrusted users won't be added to that group in the future.
+//! * Symbolic links add another layer of confusion.  If there are any symlinks
+//!   in the path you're checking, then you need to check permissions on the
+//!   directory containing the symlink, and then the permissions on the target
+//!   path, _and all of its ancestors_ too.
+//! * Many programs first canonicalize the path being checked, removing all
+//!   `..`s and symlinks.  That's sufficient for telling whether the _final_
+//!   file can be modified by an untrusted user, but not for whether the _path_
+//!   can be modified by an untrusted user.  If there is a modifiable symlink in
+//!   the middle of the path, or at any stage of the path resolution, somebody
+//!   who can modify that symlink can change which file the path points to.
+//! * TODO: explain the complications that hard links create.
+//!
+//! Different programs try to solve this problem in different ways, often with
+//! very little rationale.  This crate tries to give a reasonable implementation
+//! for file privacy checking and enforcement, along with clear justifications
+//! in its source for why it behaves that way.
+//!
+//! [^1]: we define "trust" here in the computer-security sense of the word: a
+//!      user is "trusted" if they have the opportunity to break our security
+//!      guarantees.  For example, `root` on a Unix environment is "trusted",
+//!      whether you actually trust them or not.
+//!
+//! ## What we actually do
+//!
+//! To make sure that every step in the file resolution process is checked, we
+//! emulate that process on our own.  We inspect each component in the provided
+//! path, to see whether it is modifiable by an untrusted user.  If we encounter
+//! one or more symlinks, then we resolve every component of the path added by
+//! those symlink, until we finally reach the target.
+//!
+//! In effect, we are emulating `realpath` (or `fs::canonicalize` if you
+//! prefer), and looking at the permissions on every part of the filesystem we
+//! touch in doing so, to see who has permissions to change our target file or
+//! the process that led us to it.
+//!
+//! ## Limitations
+//!
+//! We currently assume a fairly vanilla Unix environment: we'll tolerate other
+//! systems, but we don't actually look at the details of any of these:
+//!    * Windows security (ACLs, SecurityDescriptors, etc)
+//!    * SELinux capabilities
+//!    * POSIX (and other) ACLs.
+//!
+//! We don't check for mount-points and the privacy of filesystem devices
+//! themselves.  (For example, we don't distinguish between our local
+//! administrator and the administrator of a remote filesystem. We also don't
+//! distinguish between local filesystems and insecure networked filesystems.)
+//!
+//! This code has not been audited for correct operation in a setuid
+//! environment; there are almost certainly security holes in that case.
+//!
+//! This is fairly new software, and hasn't been audited yet.
+//!
+//! All of the above issues are considered "good to fix, if practical".
+//!
+//! ## Acknowledgements
+//!
+//! The list of checks performed here was inspired by the lists from OpenSSH's
+//! [safe_path], GnuPG's [check_permissions], and Tor's [check_private_dir]. All
+//! errors are my own.
+//!
+//! [safe_path]:
+//!     https://github.com/openssh/openssh-portable/blob/master/misc.c#L2177
+//! [check_permissions]:
+//!     https://github.com/gpg/gnupg/blob/master/g10/gpg.c#L1551
+//! [check_private_dir]:
+//!     https://gitlab.torproject.org/tpo/core/tor/-/blob/main/src/lib/fs/dir.c#L70
+
+// TODO: Stuff to add before this crate is ready....
+//  - Ability to create directory if it doesn't exist.
+//  - Get more flexible about group permissions. (diziet had an idea.)
+//  - Stop-at-homedir support.
+//  - Test the absolute heck out of it.
+
+// POSSIBLY TODO:
+//  - Forbid special files even when not checking file type?
+//  - Cache information across runs.
+//  - Add a way to recursively check the contents of a directory.
+//  - Define a hard-to-misuse API for opening files, making secret directories, etc etc.
+
+#![deny(missing_docs)]
+#![warn(noop_method_call)]
+#![deny(unreachable_pub)]
+#![warn(clippy::all)]
+#![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
+#![deny(clippy::cast_lossless)]
+#![deny(clippy::checked_conversions)]
+#![warn(clippy::cognitive_complexity)]
+#![deny(clippy::debug_assert_with_mut_call)]
+#![deny(clippy::exhaustive_enums)]
+#![deny(clippy::exhaustive_structs)]
+#![deny(clippy::expl_impl_clone_on_copy)]
+#![deny(clippy::fallible_impl_from)]
+#![deny(clippy::implicit_clone)]
+#![deny(clippy::large_stack_arrays)]
+#![warn(clippy::manual_ok_or)]
+#![deny(clippy::missing_docs_in_private_items)]
+#![deny(clippy::missing_panics_doc)]
+#![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
+#![warn(clippy::rc_buffer)]
+#![deny(clippy::ref_option_ref)]
+#![warn(clippy::semicolon_if_nothing_returned)]
+#![warn(clippy::trait_duplication_in_bounds)]
+#![deny(clippy::unnecessary_wraps)]
+#![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+
+mod err;
+mod imp;
+#[cfg(test)]
+pub(crate) mod testing;
+pub mod walk;
+
+use std::path::{Path, PathBuf};
+
+pub use err::Error;
+
+/// A result type as returned by this crate
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// Configuration for verifying that a file or directory is really "private".
+///
+/// By default, we mistrust everything that we can: we assume  that every
+/// directory on the filesystem is potentially misconfigured.  This object can
+/// be used to change that.
+///
+/// Once you have a working [`Mistrust`], you can call its "`check_*`" methods
+/// directly, or use [`verifier()`](Mistrust::verifier) to configure a more
+/// complicated check.
+///  
+/// See the [crate documentation](crate) for more information.
+///
+/// # TODO
+///
+/// *  support more kinds of trust configuration, including more trusted users,
+///    trusted groups, multiple trusted directories, etc?
+//
+// TODO: Example.
+#[derive(Debug, Clone)]
+pub struct Mistrust {
+    /// If the user called [`Mistrust::ignore_prefix`], what did they give us?
+    ///
+    /// (This is stored in canonical form.)
+    ignore_prefix: Option<PathBuf>,
+
+    /// What user ID do we trust by default (if any?)
+    #[cfg(target_family = "unix")]
+    trust_uid: Option<u32>,
+}
+
+impl Default for Mistrust {
+    fn default() -> Self {
+        Self {
+            ignore_prefix: None,
+            #[cfg(target_family = "unix")]
+            trust_uid: Some(unsafe { libc::getuid() }),
+        }
+    }
+}
+
+/// An object used to perform a single check.
+///
+/// A `Verifier` is used when the default "check" methods (TODO) on [`Mistrust`]
+/// are not sufficient for your needs.
+#[derive(Clone, Debug)]
+#[must_use]
+pub struct Verifier<'a> {
+    /// The [`Mistrust`] that was used to create this verifier.
+    mistrust: &'a Mistrust,
+
+    /// Has the user called [`Verifier::permit_readable`]?
+    readable_okay: bool,
+
+    /// Has the user called [`Verifier::all_errors`]?
+    collect_multiple_errors: bool,
+
+    /// If the user called [`Verifier::require_file`] or
+    /// [`Verifier::require_directory`], which did they call?
+    enforce_type: Option<Type>,
+}
+
+/// A type of object that we have been told to require.
+#[derive(Debug, Clone, Copy)]
+enum Type {
+    /// A directory.
+    Dir,
+    /// A regular file.
+    File,
+}
+
+impl Mistrust {
+    /// Initialize a new default `Mistrust`.
+    ///
+    /// By default:
+    ///    *  we will inspect all directories that are used to resolve any path that is checked.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set a path as an "ignored prefix" for all of our checks.
+    ///
+    /// Any path that is a part of this prefix will be _assumed_ to have valid
+    /// permissions and ownership. For example, if you call
+    /// `ignore_prefix("/u1/users")`, then we will not check `/`, `/u1`, or
+    /// `/u1/users`.
+    ///
+    /// A typical use of this function is to ignore `${HOME}/..`.
+    ///
+    /// If this directory cannot be found or resolved, this function will return
+    /// an error.
+    pub fn ignore_prefix<P: AsRef<Path>>(&mut self, directory: P) -> Result<&mut Self> {
+        let directory = directory
+            .as_ref()
+            .canonicalize()
+            .map_err(|e| Error::inspecting(e, directory.as_ref()))?;
+        // TODO: Permit "not found?" . Use "walkdir" to do a more tolerant canonicalization?
+        self.ignore_prefix = Some(directory);
+        Ok(self)
+    }
+
+    /// Configure this `Mistrust` to trust only the admin (root) user.
+    ///
+    /// By default, both the currently running user and the root user will be trusted.
+    #[cfg(target_family = "unix")]
+    pub fn trust_admin_only(&mut self) -> &mut Self {
+        self.trust_uid = None;
+        self
+    }
+
+    /// Create a new [`Verifier`] with this configuration, to perform a single check.
+    pub fn verifier(&self) -> Verifier<'_> {
+        Verifier {
+            mistrust: self,
+            readable_okay: false,
+            collect_multiple_errors: false,
+            enforce_type: None,
+        }
+    }
+
+    /// Verify that `dir` is a directory that only trusted users can read from,
+    /// list the files in,  or write to.
+    ///
+    /// If it is, and we can verify that, return `Ok(())`.  Otherwise, return
+    /// the first problem that we encountered when verifying it.
+    ///
+    /// `m.check_directory(dir)` is equivalent to
+    /// `m.verifier().require_directory().check(dir)`.  If you need different
+    /// behavior, see [`Verifier`] for more options.
+    pub fn check_directory<P: AsRef<Path>>(&self, dir: P) -> Result<()> {
+        self.verifier().require_directory().check(dir)
+    }
+}
+
+impl<'a> Verifier<'a> {
+    /// Configure this `Verifier` to require that all paths it checks be
+    /// files (not directories).
+    pub fn require_file(mut self) -> Self {
+        self.enforce_type = Some(Type::File);
+        self
+    }
+
+    /// Configure this `Verifier` to require that all paths it checks be
+    /// directories.
+    pub fn require_directory(mut self) -> Self {
+        self.enforce_type = Some(Type::Dir);
+        self
+    }
+
+    /// Configure this `Verifier` to permit the target files/directory to be
+    /// _readable_ by untrusted users.
+    ///
+    /// By default, we assume that the caller wants the target file or directory
+    /// to be only readable or writable by trusted users.  With this flag, we
+    /// permit the target file or directory to be readable by untrusted users,
+    /// but not writable.
+    ///
+    /// (Note that we always allow the _parent directories_ of the target to be
+    /// readable by untrusted users, since their readability does not make the
+    /// target readable.)
+    pub fn permit_readable(mut self) -> Self {
+        self.readable_okay = true;
+        self
+    }
+
+    /// Tell this `Verifier` to accumulate as many errors as possible, rather
+    /// than stopping at the first one.
+    ///
+    /// If a single error is found, that error will be returned.  Otherwise, the
+    /// resulting error type will be [`Error::Multiple`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use fs_mistrust::Mistrust;
+    /// if let Err(e) = Mistrust::new().verifier().all_errors().check("/home/gardenGnostic/.gnupg/") {
+    ///    for error in e.errors() {
+    ///       println!("{}", e)
+    ///    }
+    /// }
+    /// ```
+    pub fn all_errors(mut self) -> Self {
+        self.collect_multiple_errors = true;
+        self
+    }
+
+    /// Check whether the file or directory at `path` conforms to the
+    /// requirements of this `Verifier` and the [`Mistrust`] that created it.
+    pub fn check<P: AsRef<Path>>(self, path: P) -> Result<()> {
+        let path = path.as_ref();
+
+        // This is the powerhouse of our verifier code:
+        //
+        // See the `imp` module for actual implementation logic.
+        let mut error_iterator = self.check_errors(path.as_ref());
+
+        // Collect either the first error, or all errors.
+        let opt_error: Option<Error> = if self.collect_multiple_errors {
+            error_iterator.collect()
+        } else {
+            let next = error_iterator.next();
+            drop(error_iterator); // so that "canonical" is no loner borrowed.
+            next
+        };
+
+        match opt_error {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use testing::Dir;
+
+    #[test]
+    fn simple_cases() {
+        let d = Dir::new();
+        d.dir("a/b/c");
+        d.dir("e/f/g");
+        d.chmod("a", 0o755);
+        d.chmod("a/b", 0o755);
+        d.chmod("a/b/c", 0o700);
+        d.chmod("e", 0o755);
+        d.chmod("e/f", 0o777);
+
+        let mut m = Mistrust::new();
+        // Ignore the permissions on /tmp/whatever-tempdir-gave-us
+        m.ignore_prefix(d.canonical_root()).unwrap();
+        // /a/b/c should be fine...
+        m.check_directory(d.path("a/b/c")).unwrap();
+        // /e/f/g should not.
+        let e = m.check_directory(d.path("e/f/g")).unwrap_err();
+        assert!(matches!(e, Error::BadPermission(_, 0o022)));
+        assert_eq!(e.path().unwrap(), d.path("e/f").canonicalize().unwrap());
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn admin_only() {
+        use std::os::unix::prelude::MetadataExt;
+
+        let d = Dir::new();
+        d.dir("a/b");
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+
+        if d.path("a/b").metadata().unwrap().uid() == 0 {
+            // Nothing to do here; we _are_ root.
+            return;
+        }
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+        // With normal settings should be okay...
+        m.check_directory(d.path("a/b")).unwrap();
+
+        // With admin_only, it'll fail.
+        m.trust_admin_only();
+        let err = m.check_directory(d.path("a/b")).unwrap_err();
+        assert!(matches!(err, Error::BadOwner(_, _)));
+        assert_eq!(err.path().unwrap(), d.path("a").canonicalize().unwrap());
+    }
+
+    #[test]
+    fn want_type() {
+        let d = Dir::new();
+        d.dir("a");
+        d.file("b");
+        d.chmod("a", 0o700);
+        d.chmod("b", 0o600);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // If we insist stuff is its own type, it works fine.
+        m.verifier().require_directory().check(d.path("a")).unwrap();
+        m.verifier().require_file().check(d.path("b")).unwrap();
+
+        // If we insist on a different type, we hit an error.
+        let e = m
+            .verifier()
+            .require_directory()
+            .check(d.path("b"))
+            .unwrap_err();
+        assert!(matches!(e, Error::BadType(_)));
+        assert_eq!(e.path().unwrap(), d.path("b").canonicalize().unwrap());
+
+        let e = m.verifier().require_file().check(d.path("a")).unwrap_err();
+        assert!(matches!(e, Error::BadType(_)));
+        assert_eq!(e.path().unwrap(), d.path("a").canonicalize().unwrap());
+
+        // TODO: Possibly, make sure that a special file matches neither.
+    }
+
+    #[test]
+    fn readable_ok() {
+        let d = Dir::new();
+        d.dir("a/b");
+        d.file("a/b/c");
+        d.chmod("a", 0o750);
+        d.chmod("a/b", 0o750);
+        d.chmod("a/b/c", 0o640);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // These will fail, since the file or directory is readable.
+        let e = m.verifier().check(d.path("a/b")).unwrap_err();
+        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert_eq!(e.path().unwrap(), d.path("a/b").canonicalize().unwrap());
+        let e = m.verifier().check(d.path("a/b/c")).unwrap_err();
+        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert_eq!(e.path().unwrap(), d.path("a/b/c").canonicalize().unwrap());
+
+        // Now allow readable targets.
+        m.verifier().permit_readable().check(d.path("a/b")).unwrap();
+        m.verifier()
+            .permit_readable()
+            .check(d.path("a/b/c"))
+            .unwrap();
+    }
+
+    #[test]
+    fn multiple_errors() {
+        let d = Dir::new();
+        d.dir("a/b");
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // Only one error occurs, so we get that error.
+        let e = m
+            .verifier()
+            .all_errors()
+            .check(d.path("a/b/c"))
+            .unwrap_err();
+        assert!(matches!(e, Error::NotFound(_)));
+        assert_eq!(1, e.errors().count());
+
+        // Introduce a second error...
+        d.chmod("a/b", 0o770);
+        let e = m
+            .verifier()
+            .all_errors()
+            .check(d.path("a/b/c"))
+            .unwrap_err();
+        assert!(matches!(e, Error::Multiple(_)));
+        let errs: Vec<_> = e.errors().collect();
+        assert_eq!(2, errs.len());
+        assert!(matches!(&errs[0], Error::BadPermission(_, _)));
+        assert!(matches!(&errs[1], Error::NotFound(_)));
+    }
+
+    // TODO: Write far more tests.
+    // * Can there be a test for a failed readlink()?  I can't see an easy way
+    //   to provoke that without trying to make a time-of-check/time-of-use race
+    //   condition, since we stat the link before we call readlink on it.
+    // * Can there be a test for a failing call to std::env::current_dir?  Seems
+    //   hard to provoke without calling set_current_dir(), which isn't good
+    //   manners in a test.
+}
