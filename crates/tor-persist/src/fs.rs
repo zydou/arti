@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use tracing::warn;
+use tracing::{info, warn};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
@@ -102,6 +102,7 @@ impl FsStateMgr {
     /// Requires that we hold the lock.
     fn clean(&self) {
         for fname in clean::files_to_delete(&self.inner.statepath, SystemTime::now()) {
+            info!("Deleting obsolete file {}", fname.display());
             if let Err(e) = std::fs::remove_file(&fname) {
                 warn!("Unable to delete {}: {}", fname.display(), e);
             }

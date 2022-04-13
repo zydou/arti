@@ -6,11 +6,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use tracing::{info, warn};
+use tracing::warn;
 
 /// Return true if `path` looks like a filename we'd like to remove from our
 /// state directory.
-fn fname_looks_deletable(path: &Path) -> bool {
+fn fname_looks_obsolete(path: &Path) -> bool {
     if let Some(extension) = path.extension() {
         if extension == "toml" {
             // We don't make toml files any more.  We migrated to json because
@@ -29,18 +29,22 @@ fn fname_looks_deletable(path: &Path) -> bool {
     false
 }
 
-/// How old must a file be before we're willing to remove it?
+/// How old must an obsolete-looking file be before we're willing to remove it?
+//
+// TODO: This could someday be configurable, if there are in fact users who want
+// to keep obsolete files around in their state directories for months or years,
+// or who need to get rid of them immediately.
 const CUTOFF: Duration = Duration::from_secs(4 * 24 * 60 * 60);
 
 /// Return true if `entry` is very old relative to `now` and therefore safe to delete.
-fn very_old(entry: &std::fs::DirEntry, now: SystemTime) -> bool {
-    entry
-        .metadata()
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|m| now.duration_since(m).ok())
-        .map(|d| d > CUTOFF)
-        == Some(true)
+fn very_old(entry: &std::fs::DirEntry, now: SystemTime) -> std::io::Result<bool> {
+    Ok(match now.duration_since(entry.metadata()?.modified()?) {
+        Ok(age) => age > CUTOFF,
+        Err(_) => {
+            // If duration_since failed, this file is actually from the future, and so it definitely isn't older than the cutoff.
+            false
+        }
+    })
 }
 
 /// Implementation helper for [`FsStateMgr::clean()`](super::FsStateMgr::clean):
@@ -49,15 +53,22 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
     let mut result = Vec::new();
     for entry in std::fs::read_dir(statepath).into_iter().flatten().flatten() {
         let path = entry.path();
-        if let Ok(basename) = path.strip_prefix(statepath) {
-            if fname_looks_deletable(basename) {
-                if very_old(&entry, now) {
-                    info!("Deleting obsolete file {}", entry.path().display());
-                    result.push(path);
-                } else {
+        let basename = entry.file_name();
+
+        if fname_looks_obsolete(Path::new(&basename)) {
+            match very_old(&entry, now) {
+                Ok(true) => result.push(path),
+                Ok(false) => {
                     warn!(
                         "Found obsolete file {}; will delete it when it is older.",
                         entry.path().display(),
+                    );
+                }
+                Err(err) => {
+                    warn!(
+                        "Found obsolete file {} but could not access its modification time: {}",
+                        entry.path().display(),
+                        err,
                     );
                 }
             }
@@ -82,8 +93,8 @@ mod test {
             ("marzipan.json", false),
         ];
 
-        for (name, deletable) in examples {
-            assert_eq!(fname_looks_deletable(Path::new(name)), deletable);
+        for (name, obsolete) in examples {
+            assert_eq!(fname_looks_obsolete(Path::new(name)), obsolete);
         }
     }
 
@@ -97,8 +108,8 @@ mod test {
 
         let mut r = std::fs::read_dir(dir.path()).unwrap();
         let ent = r.next().unwrap().unwrap();
-        assert!(!very_old(&ent, now));
-        assert!(very_old(&ent, now + CUTOFF * 2));
+        assert!(!very_old(&ent, now).unwrap());
+        assert!(very_old(&ent, now + CUTOFF * 2).unwrap());
     }
 
     #[test]
