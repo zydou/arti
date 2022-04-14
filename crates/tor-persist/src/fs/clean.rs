@@ -67,7 +67,10 @@ pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf>
         .map_err(dir_read_failed) // Result from fs::read_dir
         .into_iter()
         .flatten()
-        .map_while(|result| result.map_err(dir_read_failed).ok()); // Result from dir.next()
+        // TODO: Use map_while once we are on Rust >= 1.57
+        .map(|result| result.map_err(dir_read_failed).ok()) // Result from dir.next()
+        .take_while(|result| result.is_some())
+        .flatten();
 
     for entry in entries {
         let path = entry.path();
