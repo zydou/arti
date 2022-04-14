@@ -51,7 +51,25 @@ fn very_old(entry: &std::fs::DirEntry, now: SystemTime) -> std::io::Result<bool>
 /// list all files in `statepath` that are ready to delete as of `now`.
 pub(super) fn files_to_delete(statepath: &Path, now: SystemTime) -> Vec<PathBuf> {
     let mut result = Vec::new();
-    for entry in std::fs::read_dir(statepath).into_iter().flatten().flatten() {
+
+    let dir_read_failed = |err: std::io::Error| {
+        use std::io::ErrorKind as EK;
+        match err.kind() {
+            EK::NotFound => {}
+            _ => warn!(
+                "Failed to scan directory {} for obsolete files: {}",
+                statepath.display(),
+                err,
+            ),
+        }
+    };
+    let entries = std::fs::read_dir(statepath)
+        .map_err(dir_read_failed) // Result from fs::read_dir
+        .into_iter()
+        .flatten()
+        .map_while(|result| result.map_err(dir_read_failed).ok()); // Result from dir.next()
+
+    for entry in entries {
         let path = entry.path();
         let basename = entry.file_name();
 
