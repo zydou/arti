@@ -1,10 +1,14 @@
 //! Filesystem + JSON implementation of StateMgr.
 
+mod clean;
+
 use crate::{load_error, store_error};
 use crate::{Error, LockStatus, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
+use tracing::{info, warn};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
@@ -92,6 +96,18 @@ impl FsStateMgr {
             .parent()
             .expect("No parent directory even after path.join?")
     }
+
+    /// Remove old and/or obsolete items from this storage manager.
+    ///
+    /// Requires that we hold the lock.
+    fn clean(&self) {
+        for fname in clean::files_to_delete(&self.inner.statepath, SystemTime::now()) {
+            info!("Deleting obsolete file {}", fname.display());
+            if let Err(e) = std::fs::remove_file(&fname) {
+                warn!("Unable to delete {}: {}", fname.display(), e);
+            }
+        }
+    }
 }
 
 impl StateMgr for FsStateMgr {
@@ -112,6 +128,7 @@ impl StateMgr for FsStateMgr {
         if lockfile.owns_lock() {
             Ok(LockStatus::AlreadyHeld)
         } else if lockfile.try_lock()? {
+            self.clean();
             Ok(LockStatus::NewlyAcquired)
         } else {
             Ok(LockStatus::NoLock)

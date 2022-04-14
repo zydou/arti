@@ -3595,6 +3595,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tor-error",
+ "tracing",
 ]
 
 [[package]]
