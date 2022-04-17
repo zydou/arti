@@ -498,6 +498,33 @@ mod test {
         assert!(matches!(&errs[1], Error::NotFound(_)));
     }
 
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn sticky() {
+        let d = Dir::new();
+        d.dir("a/b/c");
+        d.chmod("a", 0o777);
+        d.chmod("a/b", 0o755);
+        d.chmod("a/b/c", 0o700);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // `a` is world-writable, so the first check will fail.
+        m.check_directory(d.path("a/b/c")).unwrap_err();
+
+        // Now `a` is world-writable _and_ sticky, so the check should succeed.
+        d.chmod("a", 0o777 | crate::imp::STICKY_BIT);
+
+        m.check_directory(d.path("a/b/c")).unwrap();
+
+        // Make sure we got the right definition!
+        #[allow(clippy::useless_conversion)]
+        {
+            assert_eq!(crate::imp::STICKY_BIT, u32::from(libc::S_ISVTX));
+        }
+    }
+
     // TODO: Write far more tests.
     // * Can there be a test for a failed readlink()?  I can't see an easy way
     //   to provoke that without trying to make a time-of-check/time-of-use race

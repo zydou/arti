@@ -10,6 +10,18 @@ use crate::{
     Error, Result, Type,
 };
 
+/// Definition for the "sticky bit", which on Unix means that the contents of
+/// directory may not be renamed, deleted, or otherwise modified by a non-owner
+/// of those contents, even if the user has write permissions on the directory.
+///
+/// This is the usual behavior for /tmp: You can make your own directories in
+/// /tmp, but you can't modify other people's.
+///
+/// (We'd use libc's version of `S_ISVTX`, but they vacillate between u16 and
+/// u32 depending what platform you're on.)
+#[cfg(target_family = "unix")]
+pub(crate) const STICKY_BIT: u32 = 0o1000;
+
 impl<'a> super::Verifier<'a> {
     /// Return an iterator of all the security problems with `path`.
     ///
@@ -108,12 +120,24 @@ impl<'a> super::Verifier<'a> {
                 0o077
             } else {
                 // If this is the target object and it may be readable, or if
-                // this is _any parent directory_, then we only forbid the
+                // this is _any parent directory_, then we typically forbid the
                 // group-write and all-write bits.  (Those are the bits that
                 // would allow non-trusted users to change the object, or change
                 // things around in a directory.)
-                0o022
-                // TODO: Handle sticky bit.
+                if meta.is_dir()
+                    && meta.mode() & STICKY_BIT != 0
+                    && path_type == PathType::Intermediate
+                {
+                    // This is an intermediate directory and this sticky bit is
+                    // set.  Thus, we don't care if it is world-writable or
+                    // group-writable, since only the _owner_  of a file in this
+                    // directory can move or rename it.
+                    0o000
+                } else {
+                    // It's not a sticky-bit intermediate directory; actually
+                    // forbid 022.
+                    0o022
+                }
             };
             let bad_bits = meta.mode() & forbidden_bits;
             if bad_bits != 0 {
