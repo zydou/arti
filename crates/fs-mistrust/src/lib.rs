@@ -89,7 +89,6 @@
 //  - Test the absolute heck out of it.
 
 // POSSIBLY TODO:
-//  - Forbid special files even when not checking file type?
 //  - Cache information across runs.
 //  - Add a way to recursively check the contents of a directory.
 //  - Define a hard-to-misuse API for opening files, making secret directories, etc etc.
@@ -205,7 +204,7 @@ pub struct Verifier<'a> {
 
     /// If the user called [`Verifier::require_file`] or
     /// [`Verifier::require_directory`], which did they call?
-    enforce_type: Option<Type>,
+    enforce_type: Type,
 }
 
 /// A type of object that we have been told to require.
@@ -215,6 +214,10 @@ enum Type {
     Dir,
     /// A regular file.
     File,
+    /// A directory or a regular file.
+    DirOrFile,
+    /// Absolutely anything at all.
+    Anything,
 }
 
 impl Mistrust {
@@ -279,7 +282,7 @@ impl Mistrust {
             mistrust: self,
             readable_okay: false,
             collect_multiple_errors: false,
-            enforce_type: None,
+            enforce_type: Type::DirOrFile,
         }
     }
 
@@ -310,14 +313,25 @@ impl<'a> Verifier<'a> {
     /// Configure this `Verifier` to require that all paths it checks be
     /// files (not directories).
     pub fn require_file(mut self) -> Self {
-        self.enforce_type = Some(Type::File);
+        self.enforce_type = Type::File;
         self
     }
 
     /// Configure this `Verifier` to require that all paths it checks be
     /// directories.
     pub fn require_directory(mut self) -> Self {
-        self.enforce_type = Some(Type::Dir);
+        self.enforce_type = Type::Dir;
+        self
+    }
+
+    /// Configure this `Verifier` to allow the paths that it checks to be
+    /// filesystem objects of any type.
+    ///
+    /// By default, the final path (after resolving all links) must be a
+    /// directory or a regular file, not (for example) a block device or a named
+    /// pipe.
+    pub fn permit_all_object_types(mut self) -> Self {
+        self.enforce_type = Type::Anything;
         self
     }
 
@@ -397,7 +411,7 @@ impl<'a> Verifier<'a> {
     ///  * after creating the directory, we found that it had a permissions or
     ///    ownership problem.
     pub fn make_directory<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
-        self.enforce_type = Some(Type::Dir);
+        self.enforce_type = Type::Dir;
 
         let path = path.as_ref();
         match self.clone().check(path) {

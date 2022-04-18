@@ -1,6 +1,9 @@
 //! Implementation logic for `fs-mistrust`.
 
-use std::{fs::Metadata, path::Path};
+use std::{
+    fs::{FileType, Metadata},
+    path::Path,
+};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::prelude::MetadataExt;
@@ -88,18 +91,11 @@ impl<'a> super::Verifier<'a> {
             self.enforce_type
         } else {
             // We make sure that everything at a higher level is a directory.
-            Some(Type::Dir)
+            Type::Dir
         };
 
-        let have_type = meta.file_type();
-        match want_type {
-            Some(Type::Dir) if !have_type.is_dir() => {
-                errors.push(Error::BadType(path.into()));
-            }
-            Some(Type::File) if !have_type.is_file() => {
-                errors.push(Error::BadType(path.into()));
-            }
-            _ => {}
+        if !want_type.matches(meta.file_type()) {
+            errors.push(Error::BadType(path.into()));
         }
 
         // If we are on unix, make sure that the owner and permissions are
@@ -150,5 +146,18 @@ impl<'a> super::Verifier<'a> {
         }
 
         errors
+    }
+}
+
+impl super::Type {
+    /// Return true if this required type is matched by a given `FileType`
+    /// object.
+    fn matches(&self, have_type: FileType) -> bool {
+        match self {
+            Type::Dir => have_type.is_dir(),
+            Type::File => have_type.is_file(),
+            Type::DirOrFile => have_type.is_dir() || have_type.is_file(),
+            Type::Anything => true,
+        }
     }
 }
