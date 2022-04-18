@@ -86,7 +86,6 @@
 //!     https://gitlab.torproject.org/tpo/core/tor/-/blob/main/src/lib/fs/dir.c#L70
 
 // TODO: Stuff to add before this crate is ready....
-//  - Ability to create directory if it doesn't exist.
 //  - Test the absolute heck out of it.
 
 // POSSIBLY TODO:
@@ -131,7 +130,11 @@ mod imp;
 pub(crate) mod testing;
 pub mod walk;
 
-use std::path::{Path, PathBuf};
+use std::{
+    fs::DirBuilder,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 pub use err::Error;
 
@@ -292,6 +295,15 @@ impl Mistrust {
     pub fn check_directory<P: AsRef<Path>>(&self, dir: P) -> Result<()> {
         self.verifier().require_directory().check(dir)
     }
+
+    /// As `check_directory`, but create the directory if needed.
+    ///
+    /// `m.check_directory(dir)` is equivalent to
+    /// `m.verifier().make_directory(dir)`.  If you need different behavior, see
+    /// [`Verifier`] for more options.
+    pub fn make_directory<P: AsRef<Path>>(&self, dir: P) -> Result<()> {
+        self.verifier().make_directory(dir)
+    }
 }
 
 impl<'a> Verifier<'a> {
@@ -369,6 +381,44 @@ impl<'a> Verifier<'a> {
             Some(err) => Err(err),
             None => Ok(()),
         }
+    }
+
+    /// Check whether `path` is a valid directory, and create it if it doesn't
+    /// exist.
+    ///
+    /// Returns `Ok` if the directory already existed or if it was just created,
+    /// and it conforms to the requirements of this `Verifier` and the
+    /// [`Mistrust`] that created it.
+    ///
+    /// Return an error if:
+    ///  * there was a permissions or ownership problem in the path or any of
+    ///    its ancestors,
+    ///  * there was a problem when creating the directory
+    ///  * after creating the directory, we found that it had a permissions or
+    ///    ownership problem.
+    pub fn make_directory<P: AsRef<Path>>(mut self, path: P) -> Result<()> {
+        self.enforce_type = Some(Type::Dir);
+
+        let path = path.as_ref();
+        match self.clone().check(path) {
+            Err(Error::NotFound(_)) => {}
+            Err(other_error) => return Err(other_error),
+            Ok(()) => return Ok(()), // no error; file exists.
+        }
+
+        // Looks like we got a "not found", so we're creating the path.
+        let mut bld = DirBuilder::new();
+        #[cfg(target_family = "unix")]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            bld.mode(0o700);
+        }
+        bld.recursive(true)
+            .create(path)
+            .map_err(|e| Error::CreatingDir(Arc::new(e)))?;
+
+        // We built the path!  But for paranoia's sake, check it again.
+        self.check(path)
     }
 }
 
@@ -574,6 +624,36 @@ mod test {
         m.trust_group_id(gid ^ 1);
         let e = m.check_directory(d.path("a/b")).unwrap_err();
         assert!(matches!(e, Error::BadPermission(_, _)));
+    }
+
+    #[test]
+    fn make_directory() {
+        let d = Dir::new();
+        d.dir("a/b");
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        #[cfg(target_family = "unix")]
+        {
+            // Try once with bad permissions.
+            d.chmod("a", 0o777);
+            let e = m.make_directory(d.path("a/b/c/d")).unwrap_err();
+            assert!(matches!(e, Error::BadPermission(_, _)));
+
+            // Now make the permissions correct.
+            d.chmod("a", 0o0700);
+            d.chmod("a/b", 0o0700);
+        }
+
+        // Make the directory!
+        m.make_directory(d.path("a/b/c/d")).unwrap();
+
+        // Make sure it exists and has good permissions.
+        m.check_directory(d.path("a/b/c/d")).unwrap();
+
+        // Try make_directory again and make sure _that_ succeeds.
+        m.make_directory(d.path("a/b/c/d")).unwrap();
     }
 
     // TODO: Write far more tests.

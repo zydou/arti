@@ -67,6 +67,10 @@ pub enum Error {
     /// impossible.
     #[error("Problem finding current directory")]
     CurrentDirectory(#[source] Arc<IoError>),
+
+    /// We tried to create a directory, and encountered a failure in doing so.
+    #[error("Problem creating directory")]
+    CreatingDir(#[source] Arc<IoError>),
 }
 
 impl Error {
@@ -90,6 +94,7 @@ impl Error {
                 Error::Multiple(_) => return None,
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
+                Error::CreatingDir(_) => return None,
             }
             .as_path(),
         )
