@@ -114,7 +114,7 @@ impl<'a> super::Verifier<'a> {
             if uid != 0 && Some(uid) != self.mistrust.trust_uid {
                 errors.push(Error::BadOwner(path.into(), uid));
             }
-            let forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
+            let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
                 // If this is the target object, and it must not be readable,
                 // then we forbid it to be group-rwx and all-rwx.
                 0o077
@@ -139,6 +139,10 @@ impl<'a> super::Verifier<'a> {
                     0o022
                 }
             };
+            // If we trust the GID, then we allow even more bits to be set.
+            if self.mistrust.trust_gid == Some(meta.gid()) {
+                forbidden_bits &= !0o070;
+            }
             let bad_bits = meta.mode() & forbidden_bits;
             if bad_bits != 0 {
                 errors.push(Error::BadPermission(path.into(), bad_bits));

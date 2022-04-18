@@ -87,8 +87,6 @@
 
 // TODO: Stuff to add before this crate is ready....
 //  - Ability to create directory if it doesn't exist.
-//  - Get more flexible about group permissions. (diziet had an idea.)
-//  - Stop-at-homedir support.
 //  - Test the absolute heck out of it.
 
 // POSSIBLY TODO:
@@ -168,6 +166,10 @@ pub struct Mistrust {
     /// What user ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
     trust_uid: Option<u32>,
+
+    /// What group ID do we trust by default (if any?)
+    #[cfg(target_family = "unix")]
+    trust_gid: Option<u32>,
 }
 
 impl Default for Mistrust {
@@ -176,6 +178,8 @@ impl Default for Mistrust {
             ignore_prefix: None,
             #[cfg(target_family = "unix")]
             trust_uid: Some(unsafe { libc::getuid() }),
+            #[cfg(target_family = "unix")]
+            trust_gid: None,
         }
     }
 }
@@ -246,6 +250,23 @@ impl Mistrust {
     #[cfg(target_family = "unix")]
     pub fn trust_admin_only(&mut self) -> &mut Self {
         self.trust_uid = None;
+        self
+    }
+
+    #[cfg(target_family = "unix")]
+    /// Configure a trusted group ID for this `Mistrust`.
+    ///
+    /// If a group ID is considered "trusted", then any file or directory we
+    /// inspect is allowed to be readable and writable by that group.
+    ///
+    /// By default, no group ID is trusted, and any group-readable or
+    /// group-writable objects are treated the same as world-readable and
+    /// world-writable objects respectively.
+    ///
+    /// Anybody who is a member (or becomes a member) of the provided group will
+    /// be allowed to read and modify the verified files.
+    pub fn trust_group_id(&mut self, gid: u32) -> &mut Self {
+        self.trust_gid = Some(gid);
         self
     }
 
@@ -523,6 +544,36 @@ mod test {
         {
             assert_eq!(crate::imp::STICKY_BIT, u32::from(libc::S_ISVTX));
         }
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn trust_gid() {
+        use std::os::unix::prelude::MetadataExt;
+        let d = Dir::new();
+        d.dir("a/b");
+        d.chmod("a", 0o770);
+        d.chmod("a/b", 0o770);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // By default, we shouldn't be accept this directory, since it is
+        // group-writable.
+        let e = m.check_directory(d.path("a/b")).unwrap_err();
+        assert!(matches!(e, Error::BadPermission(_, _)));
+
+        // But we can make the group trusted, which will make it okay for the
+        // directory to be group-writable.
+        let gid = d.path("a/b").metadata().unwrap().gid();
+        m.trust_group_id(gid);
+        m.check_directory(d.path("a/b")).unwrap();
+
+        // OTOH, if we made a _different_ group trusted, it'll fail.
+
+        m.trust_group_id(gid ^ 1);
+        let e = m.check_directory(d.path("a/b")).unwrap_err();
+        assert!(matches!(e, Error::BadPermission(_, _)));
     }
 
     // TODO: Write far more tests.
