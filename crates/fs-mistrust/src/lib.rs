@@ -27,7 +27,11 @@
 //!   can be modified by an untrusted user.  If there is a modifiable symlink in
 //!   the middle of the path, or at any stage of the path resolution, somebody
 //!   who can modify that symlink can change which file the path points to.
-//! * TODO: explain the complications that hard links create.
+//! * Even if you have checked a directory as being writeable only by a trusted
+//!   user, that doesn't mean that the objects _in_ that directory are only
+//!   writeable by trusted users.  Those objects might be symlinks to some other
+//!   (more writeable) place on the file system; or they might be accessible
+//!   with hard links stored elsewhere on the file system.
 //!
 //! Different programs try to solve this problem in different ways, often with
 //! very little rationale.  This crate tries to give a reasonable implementation
@@ -205,6 +209,10 @@ pub struct Verifier<'a> {
     /// If the user called [`Verifier::require_file`] or
     /// [`Verifier::require_directory`], which did they call?
     enforce_type: Type,
+
+    /// If true, we want to check all the contents of this directory as well as
+    /// the directory itself.  Requires the `walkdir` feature.
+    check_contents: bool,
 }
 
 /// A type of object that we have been told to require.
@@ -283,6 +291,7 @@ impl Mistrust {
             readable_okay: false,
             collect_multiple_errors: false,
             enforce_type: Type::DirOrFile,
+            check_contents: false,
         }
     }
 
@@ -372,6 +381,20 @@ impl<'a> Verifier<'a> {
         self
     }
 
+    /// Configure this verifier so that, after checking the directory, check all
+    /// of its contents.
+    ///
+    /// Symlinks are not permitted; both files and directories are allowed. This
+    /// option implies `require_directory()`, since only a directory can have
+    /// contents.
+    ///
+    /// Requires that the `walkdir` feature is enabled.
+    #[cfg(feature = "walkdir")]
+    pub fn check_content(mut self) -> Self {
+        self.check_contents = true;
+        self.require_directory()
+    }
+
     /// Check whether the file or directory at `path` conforms to the
     /// requirements of this `Verifier` and the [`Mistrust`] that created it.
     pub fn check<P: AsRef<Path>>(self, path: P) -> Result<()> {
@@ -380,7 +403,9 @@ impl<'a> Verifier<'a> {
         // This is the powerhouse of our verifier code:
         //
         // See the `imp` module for actual implementation logic.
-        let mut error_iterator = self.check_errors(path.as_ref());
+        let mut error_iterator = self
+            .check_errors(path.as_ref())
+            .chain(self.check_content_errors(path.as_ref()));
 
         // Collect either the first error, or all errors.
         let opt_error: Option<Error> = if self.collect_multiple_errors {
@@ -392,9 +417,11 @@ impl<'a> Verifier<'a> {
         };
 
         match opt_error {
-            Some(err) => Err(err),
-            None => Ok(()),
+            Some(err) => return Err(err),
+            None => {}
         }
+
+        Ok(())
     }
 
     /// Check whether `path` is a valid directory, and create it if it doesn't
@@ -668,6 +695,33 @@ mod test {
 
         // Try make_directory again and make sure _that_ succeeds.
         m.make_directory(d.path("a/b/c/d")).unwrap();
+    }
+
+    #[test]
+    fn check_contents() {
+        let d = Dir::new();
+        d.dir("a/b/c");
+        d.file("a/b/c/d");
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+        d.chmod("a/b/c", 0o755);
+        d.chmod("a/b/c/d", 0o644);
+
+        let mut m = Mistrust::new();
+        m.ignore_prefix(d.canonical_root()).unwrap();
+
+        // A check should work...
+        m.check_directory(d.path("a/b")).unwrap();
+
+        // But we get errors if we check the contents.
+        let e = m
+            .verifier()
+            .all_errors()
+            .check_content()
+            .check(d.path("a/b"))
+            .unwrap_err();
+
+        assert_eq!(2, e.errors().count());
     }
 
     // TODO: Write far more tests.

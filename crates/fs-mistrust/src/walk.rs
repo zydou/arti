@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-/// The type of a single path from `ResolvePath`.
+/// The type of a single path inspected by [`Verifier`](crate::Verifier).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)]
 pub(crate) enum PathType {
@@ -22,6 +22,8 @@ pub(crate) enum PathType {
     Intermediate,
     /// This is a symbolic link.
     Symlink,
+    /// This is a file _inside_ the target directory.
+    Content,
 }
 
 /// An iterator to resolve and canonicalize a filename, imitating the actual

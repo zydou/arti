@@ -25,6 +25,11 @@ use crate::{
 #[cfg(target_family = "unix")]
 pub(crate) const STICKY_BIT: u32 = 0o1000;
 
+/// Helper: Box an iterator of errors.
+fn boxed<'a, I: Iterator<Item = Error> + 'a>(iter: I) -> Box<dyn Iterator<Item = Error> + 'a> {
+    Box::new(iter)
+}
+
 impl<'a> super::Verifier<'a> {
     /// Return an iterator of all the security problems with `path`.
     ///
@@ -37,13 +42,6 @@ impl<'a> super::Verifier<'a> {
     // to the code.  It's not urgent, since the allocations won't cost much
     // compared to the filesystem access.
     pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
-        /// Helper: Box an iterator.
-        fn boxed<'a, I: Iterator<Item = Error> + 'a>(
-            iter: I,
-        ) -> Box<dyn Iterator<Item = Error> + 'a> {
-            Box::new(iter)
-        }
-
         let rp = match ResolvePath::new(path) {
             Ok(rp) => rp,
             Err(e) => return boxed(vec![e].into_iter()),
@@ -69,6 +67,41 @@ impl<'a> super::Verifier<'a> {
         )
     }
 
+    /// If check_contents is set, return an iterator over all the errors in
+    /// elements _contained in this directory_.
+    #[cfg(feature = "walkdir")]
+    pub(crate) fn check_content_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
+        use std::sync::Arc;
+
+        if !self.check_contents {
+            return boxed(std::iter::empty());
+        }
+
+        boxed(
+            walkdir::WalkDir::new(path)
+                .follow_links(false)
+                .min_depth(1)
+                .into_iter()
+                .flat_map(move |ent| match ent {
+                    Err(err) => vec![Error::Listing(Arc::new(err))],
+                    Ok(ent) => match ent.metadata() {
+                        Ok(meta) => self
+                            .check_one(ent.path(), PathType::Content, &meta)
+                            .into_iter()
+                            .map(|e| Error::Content(Box::new(e)))
+                            .collect(),
+                        Err(err) => vec![Error::Listing(Arc::new(err))],
+                    },
+                }),
+        )
+    }
+
+    /// Return an empty iterator.
+    #[cfg(not(feature = "walkdir"))]
+    pub(crate) fn check_content_errors(&self, _path: &Path) -> impl Iterator<Item = Error> + '_ {
+        std::iter::empty()
+    }
+
     /// Check a single `path` for conformance with this `Concrete` mistrust.
     ///
     /// `position` is the position of the path within the ancestors of the
@@ -78,20 +111,16 @@ impl<'a> super::Verifier<'a> {
     fn check_one(&self, path: &Path, path_type: PathType, meta: &Metadata) -> Vec<Error> {
         let mut errors = Vec::new();
 
-        if path_type == PathType::Symlink {
-            // There's nothing to check on a symlink; its permissions and
-            // ownership do not actually matter.
-            //
-            // TODO: Make sure that is correct.
-            return errors;
-        }
-
-        // Make sure that the object is of the right type (file vs directory).
-        let want_type = if path_type == PathType::Final {
-            self.enforce_type
-        } else {
-            // We make sure that everything at a higher level is a directory.
-            Type::Dir
+        let want_type = match path_type {
+            PathType::Symlink => {
+                // There's nothing to check on a symlink encountered _while
+                // looking up the target_; its permissions and ownership do not
+                // actually matter.
+                return errors;
+            }
+            PathType::Intermediate => Type::Dir,
+            PathType::Final => self.enforce_type,
+            PathType::Content => Type::DirOrFile,
         };
 
         if !want_type.matches(meta.file_type()) {
@@ -110,9 +139,11 @@ impl<'a> super::Verifier<'a> {
             if uid != 0 && Some(uid) != self.mistrust.trust_uid {
                 errors.push(Error::BadOwner(path.into(), uid));
             }
-            let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
-                // If this is the target object, and it must not be readable,
-                // then we forbid it to be group-rwx and all-rwx.
+            let mut forbidden_bits = if !self.readable_okay
+                && (path_type == PathType::Final || path_type == PathType::Content)
+            {
+                // If this is the target or a content object, and it must not be
+                // readable, then we forbid it to be group-rwx and all-rwx.
                 0o077
             } else {
                 // If this is the target object and it may be readable, or if

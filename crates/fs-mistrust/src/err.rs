@@ -71,6 +71,17 @@ pub enum Error {
     /// We tried to create a directory, and encountered a failure in doing so.
     #[error("Problem creating directory")]
     CreatingDir(#[source] Arc<IoError>),
+
+    /// We found a problem while checking the contents of the directory.
+    #[error("Invalid directory content")]
+    Content(#[source] Box<Error>),
+
+    /// We were unable to inspect the contents of the directory
+    ///
+    /// This error is only present when the `walkdir` feature is enabled.
+    #[cfg(feature = "walkdir")]
+    #[error("Unable to list directory")]
+    Listing(#[source] Arc<walkdir::Error>),
 }
 
 impl Error {
@@ -95,6 +106,8 @@ impl Error {
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
                 Error::CreatingDir(_) => return None,
+                Error::Content(e) => return e.path(),
+                Error::Listing(e) => return e.path(),
             }
             .as_path(),
         )

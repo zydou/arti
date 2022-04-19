@@ -10,8 +10,12 @@ keywords = ["fs", "file", "permissions", "ownership", "privacy"]
 categories = ["filesystem"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = [ "walkdir" ]
+
 [dependencies]
 thiserror = "1"
+walkdir = { version = "2", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
