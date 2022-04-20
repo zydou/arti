@@ -11,14 +11,14 @@ Arti is also the name of the software produced by this project.
 ## What is the status of Arti today?
 
 As of March 2022: Arti is ready for experimental use by developers
-interesting in embedding Tor support in their projects.  Arti can run as
+interested in embedding Tor support in their projects.  Arti can run as
 a simple Tor client and send anonymized traffic over the network, but it
 has no support for running as a relay or for using onion services.
 
 Before Arti is ready for production use, we need to make sure that it
 has all the important security features from the C Tor implementation; we
 need to improve its performance; and we need to improve its APIs based
-on user requirements.  We hope to have this done for our
+on user requirements.  We hope to have this done for
 [our 1.0.0 milestone](https://gitlab.torproject.org/tpo/core/arti/-/milestones/8#tab-issues) in September 2022.
 
 (After that, our 1.1 milestone will focus on anticensorship work,
