@@ -33,7 +33,7 @@ fn load_all<R: Runtime>(
 ) -> Result<HashMap<DocId, DocumentText>> {
     let mut loaded = HashMap::new();
     for query in docid::partition_by_type(missing.into_iter()).values() {
-        dirmgr.load_documents_into(query, &mut loaded)?;
+        query.load_documents_into(&mut loaded, &dirmgr.store)?;
     }
     Ok(loaded)
 }
