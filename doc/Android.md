@@ -28,7 +28,7 @@ You'll also need to get a NDK (you can skip this step if you already have one in
 You can download the NDK 22 [here](https://github.com/android/ndk/wiki/Unsupported-Downloads).
 Choose the right NDK for your platform, unzip the archive and set the environment variable `NDK_HOME` to point to your newly installed NDK (you'll need to adjust the path to match your setup).
 ```sh
-$ export NDK_HOME=/<path/to/where/you/unziped>/android-ndk-r22b/
+$ export NDK_HOME=/<path/to/where/you/unzipped>/android-ndk-r22b/
 ```
 
 Install cargo-ndk. It's not technically required, but does make it easier.
