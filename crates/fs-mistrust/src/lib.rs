@@ -95,7 +95,6 @@
 // POSSIBLY TODO:
 //  - Cache information across runs.
 //  - Add a way to recursively check the contents of a directory.
-//  - Define a hard-to-misuse API for opening files, making secret directories, etc etc.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -127,6 +126,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+mod dir;
 mod err;
 mod imp;
 #[cfg(test)]
@@ -139,6 +139,7 @@ use std::{
     sync::Arc,
 };
 
+pub use dir::SecureDir;
 pub use err::Error;
 
 /// A result type as returned by this crate
@@ -423,7 +424,6 @@ impl<'a> Verifier<'a> {
 
         Ok(())
     }
-
     /// Check whether `path` is a valid directory, and create it if it doesn't
     /// exist.
     ///
@@ -460,6 +460,28 @@ impl<'a> Verifier<'a> {
 
         // We built the path!  But for paranoia's sake, check it again.
         self.check(path)
+    }
+
+    /// Check whether `path` is a directory conforming to the requirements of
+    /// this `Verifier` and the [`Mistrust`] that created it.
+    ///
+    /// If it is, then return a new [`SecureDir`] that can be used to securely access
+    /// the contents of this directory.  
+    pub fn secure_dir<P: AsRef<Path>>(self, path: P) -> Result<SecureDir> {
+        let path = path.as_ref();
+        self.clone().require_directory().check(path)?;
+        SecureDir::new(&self, path)
+    }
+
+    /// Check whether `path` is a directory conforming to the requirements of
+    /// this `Verifier` and the [`Mistrust`] that created it.
+    ///
+    /// If successful, then return a new [`SecureDir`] that can be used to
+    /// securely access the contents of this directory.  
+    pub fn make_secure_dir<P: AsRef<Path>>(self, path: P) -> Result<SecureDir> {
+        let path = path.as_ref();
+        self.clone().require_directory().make_directory(path)?;
+        SecureDir::new(&self, path)
     }
 }
 

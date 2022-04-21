@@ -82,6 +82,12 @@ pub enum Error {
     #[cfg(feature = "walkdir")]
     #[error("Unable to list directory")]
     Listing(#[source] Arc<walkdir::Error>),
+
+    /// We were unable to open a file with [`SecureDir::open`](crate::SecureDir::open)
+
+    /// Tried to use an invalid path with a [`SecureDir`](crate::SecureDir),
+    #[error("Path was not valid for use with SecureDir.")]
+    InvalidSubdirectory,
 }
 
 impl Error {
@@ -106,6 +112,7 @@ impl Error {
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
                 Error::CreatingDir(_) => return None,
+                Error::InvalidSubdirectory => return None,
                 Error::Content(e) => return e.path(),
                 Error::Listing(e) => return e.path(),
             }
