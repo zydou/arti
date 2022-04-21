@@ -3456,6 +3456,7 @@ dependencies = [
 name = "tor-guardmgr"
 version = "0.2.0"
 dependencies = [
+ "base64",
  "derive_builder",
  "derive_more",
  "educe",

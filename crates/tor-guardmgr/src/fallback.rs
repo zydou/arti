@@ -88,6 +88,33 @@ impl FallbackDirBuilder {
     }
 }
 
+/// Return a list of the default fallback directories shipped with
+/// arti.
+//
+// TODO: this shouldn't be exposed in the public API; we will deal with that in a moment
+pub fn default_fallbacks() -> FallbackList {
+    /// Build a fallback directory; panic if input is bad.
+    fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDir {
+        let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
+        let ed = base64::decode_config(ed, base64::STANDARD_NO_PAD)
+            .expect("Bad hex in built-in fallback list");
+        let ed = Ed25519Identity::from_bytes(&ed).expect("Wrong length in built-in fallback list");
+        let mut bld = FallbackDir::builder();
+        bld.rsa_identity(rsa).ed_identity(ed);
+
+        ports
+            .iter()
+            .map(|s| s.parse().expect("Bad socket address in fallbacklist"))
+            .for_each(|p| {
+                bld.orport(p);
+            });
+
+        bld.build()
+            .expect("Unable to build default fallback directory!?")
+    }
+    include!("fallback_dirs.inc").into()
+}
+
 impl tor_linkspec::ChanTarget for FallbackDir {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
