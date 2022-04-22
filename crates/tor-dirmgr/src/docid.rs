@@ -1,11 +1,11 @@
 //! Declare a general purpose "document ID type" for tracking which
 //! documents we want and which we have.
 
-use std::sync::Mutex;
 use std::{borrow::Borrow, collections::HashMap};
 use tracing::trace;
 
-use crate::{DocumentText, DynStore};
+use crate::storage::Store;
+use crate::DocumentText;
 use tor_dirclient::request;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
@@ -199,14 +199,18 @@ impl DocQuery {
         }
     }
 
-    /// Load all the documents for a single DocumentQuery from the store.
-    pub(crate) fn load_documents_into(
+    /// Load documents specified by this `DocQuery` from the store, if they can be found.
+    ///
+    /// # Note
+    ///
+    /// This function may not return all documents that the query asked for. If this happens, no
+    /// error will be returned. It is the caller's responsibility to handle this case.
+    pub(crate) fn load_from_store_into(
         &self,
         result: &mut HashMap<DocId, DocumentText>,
-        store: &Mutex<DynStore>,
+        store: &dyn Store,
     ) -> crate::Result<()> {
         use DocQuery::*;
-        let store = store.lock().expect("Directory storage lock poisoned");
         match self {
             LatestConsensus {
                 flavor,

@@ -1,6 +1,7 @@
 //! Functions to download or load directory objects, using the
 //! state machines in the `states` module.
 
+use std::ops::Deref;
 use std::{
     collections::HashMap,
     sync::{Arc, Weak},
@@ -21,19 +22,21 @@ use tor_dirclient::DirResponse;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{debug, info, trace, warn};
 
+use crate::storage::Store;
 #[cfg(test)]
 use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
 
-/// Try to read a set of documents from `dirmgr` by ID.
-fn load_all<R: Runtime>(
-    dirmgr: &DirMgr<R>,
-    missing: Vec<DocId>,
+/// Load a set of documents from a `Store`, returning all documents found in the store.
+/// Note that this may be less than the number of documents in `missing`.
+fn load_documents_from_store(
+    missing: &[DocId],
+    store: &dyn Store,
 ) -> Result<HashMap<DocId, DocumentText>> {
     let mut loaded = HashMap::new();
-    for query in docid::partition_by_type(missing.into_iter()).values() {
-        query.load_documents_into(&mut loaded, &dirmgr.store)?;
+    for query in docid::partition_by_type(missing.iter().copied()).values() {
+        query.load_from_store_into(&mut loaded, store)?;
     }
     Ok(loaded)
 }
@@ -132,7 +135,11 @@ async fn load_once<R: Runtime>(
             "Found {} missing documents; trying to load them",
             missing.len()
         );
-        let documents = load_all(dirmgr, missing)?;
+
+        let documents = {
+            let store = dirmgr.store.lock().expect("store lock poisoned");
+            load_documents_from_store(&missing, store.deref())?
+        };
 
         match state.add_from_cache(documents, dirmgr.store_if_rw()) {
             Err(Error::UntimelyObject(TimeValidityError::Expired(_))) => {

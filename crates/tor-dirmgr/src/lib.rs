@@ -86,6 +86,7 @@ use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tracing::{debug, info, trace, warn};
 
+use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -763,7 +764,8 @@ impl<R: Runtime> DirMgr<R> {
         use itertools::Itertools;
         let mut result = HashMap::new();
         let query: DocQuery = (*doc).into();
-        query.load_documents_into(&mut result, &self.store)?;
+        let store = self.store.lock().expect("store lock poisoned");
+        query.load_from_store_into(&mut result, store.deref())?;
         let item = result.into_iter().at_most_one().map_err(|_| {
             Error::CacheCorruption("Found more than one entry in storage for given docid")
         })?;
@@ -789,8 +791,9 @@ impl<R: Runtime> DirMgr<R> {
     {
         let partitioned = docid::partition_by_type(docs);
         let mut result = HashMap::new();
+        let store = self.store.lock().expect("store lock poisoned");
         for (_, query) in partitioned.into_iter() {
-            query.load_documents_into(&mut result, &self.store)?;
+            query.load_from_store_into(&mut result, store.deref())?;
         }
         Ok(result)
     }
