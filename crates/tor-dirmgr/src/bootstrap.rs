@@ -11,7 +11,7 @@ use std::{
 use crate::{
     docid::{self, ClientRequest},
     state::WriteNetDir,
-    upgrade_weak_ref, DirMgr, DirState, DocId, DocumentText, Error, Readiness, Result,
+    upgrade_weak_ref, DirMgr, DirState, DocId, DocQuery, DocumentText, Error, Readiness, Result,
 };
 
 use futures::channel::oneshot;
@@ -27,6 +27,7 @@ use crate::storage::Store;
 use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
+use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 /// Load a set of documents from a `Store`, returning all documents found in the store.
 /// Note that this may be less than the number of documents in `missing`.
@@ -39,6 +40,67 @@ fn load_documents_from_store(
         query.load_from_store_into(&mut loaded, store)?;
     }
     Ok(loaded)
+}
+
+/// Construct an appropriate ClientRequest to download a consensus
+/// of the given flavor.
+// FIXME(eta): remove pub
+pub(crate) fn make_consensus_request(
+    now: SystemTime,
+    flavor: ConsensusFlavor,
+    store: &dyn Store,
+) -> Result<ClientRequest> {
+    let mut request = tor_dirclient::request::ConsensusRequest::new(flavor);
+
+    let default_cutoff = crate::default_consensus_cutoff(now)?;
+
+    match store.latest_consensus_meta(flavor) {
+        Ok(Some(meta)) => {
+            let valid_after = meta.lifetime().valid_after();
+            request.set_last_consensus_date(std::cmp::max(valid_after, default_cutoff));
+            request.push_old_consensus_digest(*meta.sha3_256_of_signed());
+        }
+        latest => {
+            if let Err(e) = latest {
+                warn!("Error loading directory metadata: {}", e);
+            }
+            // If we don't have a consensus, then request one that's
+            // "reasonably new".  That way, our clock is set far in the
+            // future, we won't download stuff we can't use.
+            request.set_last_consensus_date(default_cutoff);
+        }
+    }
+
+    Ok(ClientRequest::Consensus(request))
+}
+
+/// Convert a DocQuery into a set of ClientRequests, suitable for sending
+/// to a directory cache.
+// FIXME(eta): remove pub
+pub(crate) fn query_into_requests<R: Runtime>(
+    rt: &R,
+    q: DocQuery,
+    store: &dyn Store,
+) -> Result<Vec<ClientRequest>> {
+    let mut res = Vec::new();
+    for q in q.split_for_download() {
+        match q {
+            DocQuery::LatestConsensus { flavor, .. } => {
+                res.push(make_consensus_request(rt.wallclock(), flavor, store)?);
+            }
+            DocQuery::AuthCert(ids) => {
+                res.push(ClientRequest::AuthCert(ids.into_iter().collect()));
+            }
+            DocQuery::Microdesc(ids) => {
+                res.push(ClientRequest::Microdescs(ids.into_iter().collect()));
+            }
+            #[cfg(feature = "routerdesc")]
+            DocQuery::RouterDesc(ids) => {
+                res.push(ClientRequest::RouterDescs(ids.into_iter().collect()));
+            }
+        }
+    }
+    Ok(res)
 }
 
 /// Testing helper: if this is Some, then we return it in place of any

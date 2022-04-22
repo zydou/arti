@@ -804,57 +804,22 @@ impl<R: Runtime> DirMgr<R> {
     /// This conversion has to be a function of the dirmgr, since it may
     /// require knowledge about our current state.
     fn query_into_requests(&self, q: DocQuery) -> Result<Vec<ClientRequest>> {
-        let mut res = Vec::new();
-        for q in q.split_for_download() {
-            match q {
-                DocQuery::LatestConsensus { flavor, .. } => {
-                    res.push(self.make_consensus_request(self.runtime.wallclock(), flavor)?);
-                }
-                DocQuery::AuthCert(ids) => {
-                    res.push(ClientRequest::AuthCert(ids.into_iter().collect()));
-                }
-                DocQuery::Microdesc(ids) => {
-                    res.push(ClientRequest::Microdescs(ids.into_iter().collect()));
-                }
-                #[cfg(feature = "routerdesc")]
-                DocQuery::RouterDesc(ids) => {
-                    res.push(ClientRequest::RouterDescs(ids.into_iter().collect()));
-                }
-            }
-        }
-        Ok(res)
+        // FIXME(eta): this code is not long for this world
+        let store = self.store.lock().expect("Directory storage lock poisoned");
+        bootstrap::query_into_requests(&self.runtime, q, store.deref())
     }
 
     /// Construct an appropriate ClientRequest to download a consensus
     /// of the given flavor.
+    #[allow(dead_code)]
     fn make_consensus_request(
         &self,
         now: SystemTime,
         flavor: ConsensusFlavor,
     ) -> Result<ClientRequest> {
-        let mut request = tor_dirclient::request::ConsensusRequest::new(flavor);
-
-        let default_cutoff = default_consensus_cutoff(now)?;
-
-        let r = self.store.lock().expect("Directory storage lock poisoned");
-        match r.latest_consensus_meta(flavor) {
-            Ok(Some(meta)) => {
-                let valid_after = meta.lifetime().valid_after();
-                request.set_last_consensus_date(std::cmp::max(valid_after, default_cutoff));
-                request.push_old_consensus_digest(*meta.sha3_256_of_signed());
-            }
-            latest => {
-                if let Err(e) = latest {
-                    warn!("Error loading directory metadata: {}", e);
-                }
-                // If we don't have a consensus, then request one that's
-                // "reasonably new".  That way, our clock is set far in the
-                // future, we won't download stuff we can't use.
-                request.set_last_consensus_date(default_cutoff);
-            }
-        }
-
-        Ok(ClientRequest::Consensus(request))
+        // FIXME(eta): this code is not long for this world
+        let store = self.store.lock().expect("Directory storage lock poisoned");
+        bootstrap::make_consensus_request(now, flavor, store.deref())
     }
 
     /// Given a request we sent and the response we got from a
@@ -1053,7 +1018,7 @@ const CONSENSUS_ALLOW_SKEW: Duration = Duration::from_secs(3600 * 48);
 
 /// Given a time `now`, return the age of the oldest consensus that we should
 /// request at that time.
-fn default_consensus_cutoff(now: SystemTime) -> Result<SystemTime> {
+pub(crate) fn default_consensus_cutoff(now: SystemTime) -> Result<SystemTime> {
     let cutoff = time::OffsetDateTime::from(now - CONSENSUS_ALLOW_SKEW);
     // We now round cutoff to the next hour, so that we aren't leaking our exact
     // time to the directory cache.
