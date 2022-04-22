@@ -39,14 +39,8 @@ pub struct LoggingConfig {
     /// Configuration for one or more logfiles.
     #[serde(default)]
     #[builder_field_attr(serde(default))]
-    #[builder(
-        setter(custom),
-        field(
-            type = "Option<Vec<LogfileConfigBuilder>>",
-            build = "self.build_files()?"
-        )
-    )]
-    files: Vec<LogfileConfig>,
+    #[builder(sub_builder)]
+    files: LogfileListConfig,
 }
 
 /// Return a default tracing filter value for `logging.console`.
@@ -68,20 +62,28 @@ impl LoggingConfig {
     }
 }
 
-impl LoggingConfigBuilder {
+/// Local type alias, mostly helpful for derive_builder to DTRT
+type LogfileListConfig = Vec<LogfileConfig>;
+
+#[derive(Default, Clone, Deserialize)]
+#[serde(transparent)]
+/// List of logfiles to use, being built as part of the configuration
+pub struct LogfileListConfigBuilder {
+    /// The logfiles, as overridden
+    files: Option<Vec<LogfileConfigBuilder>>,
+}
+
+impl LogfileListConfigBuilder {
     /// Add a file logger
-    pub fn append_file(&mut self, file: LogfileConfigBuilder) -> &mut Self {
+    pub fn append(&mut self, file: LogfileConfigBuilder) -> &mut Self {
         self.files
-            .get_or_insert_with(LoggingConfigBuilder::default_files)
+            .get_or_insert_with(Self::default_files)
             .push(file);
         self
     }
 
     /// Set the list of file loggers to the supplied `files`
-    pub fn set_files(
-        &mut self,
-        files: impl IntoIterator<Item = LogfileConfigBuilder>,
-    ) -> &mut Self {
+    pub fn set(&mut self, files: impl IntoIterator<Item = LogfileConfigBuilder>) -> &mut Self {
         self.files = Some(files.into_iter().collect());
         self
     }
@@ -94,7 +96,7 @@ impl LoggingConfigBuilder {
     }
 
     /// Resolve `LoggingConfigBuilder.files` to a value for `LoggingConfig.files`
-    pub(crate) fn build_files(&self) -> Result<Vec<LogfileConfig>, ConfigBuildError> {
+    pub(crate) fn build(&self) -> Result<Vec<LogfileConfig>, ConfigBuildError> {
         let default_buffer;
         let files = match &self.files {
             Some(files) => files,
