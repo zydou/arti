@@ -38,7 +38,14 @@ pub struct LoggingConfig {
 
     /// Configuration for one or more logfiles.
     #[serde(default)]
-    #[builder(default)]
+    #[builder_field_attr(serde(default))]
+    #[builder(
+        setter(custom),
+        field(
+            type = "Option<Vec<LogfileConfigBuilder>>",
+            build = "self.build_files()?"
+        )
+    )]
     files: Vec<LogfileConfig>,
 }
 
@@ -61,8 +68,54 @@ impl LoggingConfig {
     }
 }
 
+impl LoggingConfigBuilder {
+    /// Add a file logger
+    pub fn append_file(&mut self, file: LogfileConfigBuilder) -> &mut Self {
+        self.files
+            .get_or_insert_with(LoggingConfigBuilder::default_files)
+            .push(file);
+        self
+    }
+
+    /// Set the list of file loggers to the supplied `files`
+    pub fn set_files(
+        &mut self,
+        files: impl IntoIterator<Item = LogfileConfigBuilder>,
+    ) -> &mut Self {
+        self.files = Some(files.into_iter().collect());
+        self
+    }
+
+    /// Default logfiles
+    ///
+    /// (Currently) there are no defauolt logfiles.
+    pub(crate) fn default_files() -> Vec<LogfileConfigBuilder> {
+        vec![]
+    }
+
+    /// Resolve `LoggingConfigBuilder.files` to a value for `LoggingConfig.files`
+    pub(crate) fn build_files(&self) -> Result<Vec<LogfileConfig>, ConfigBuildError> {
+        let default_buffer;
+        let files = match &self.files {
+            Some(files) => files,
+            None => {
+                default_buffer = Self::default_files();
+                &default_buffer
+            }
+        };
+        let files = files
+            .iter()
+            .map(|item| item.build())
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.within("files"))?;
+        Ok(files)
+    }
+}
+
 /// Configuration information for an (optionally rotating) logfile.
 #[derive(Deserialize, Debug, Builder, Clone, Eq, PartialEq)]
+#[builder(derive(Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct LogfileConfig {
     /// How often to rotate the file?
     #[serde(default)]
