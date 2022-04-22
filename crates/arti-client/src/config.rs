@@ -526,13 +526,13 @@ mod test {
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
             .orports(vec!["127.0.0.7:7".parse().unwrap()])
-            .build()
-            .unwrap();
+            .clone();
 
         let mut bld = TorClientConfig::builder();
         bld.tor_network()
             .authorities(vec![auth])
-            .fallback_caches(vec![fallback]);
+            .fallback_caches()
+            .set(vec![fallback]);
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));

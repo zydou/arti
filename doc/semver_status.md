@@ -18,6 +18,10 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.2.0
 
+### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
+
+BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
+
 ### tor-basic-util
 
 MODIFIED: Added `reset()` method to RetrySchedule.
