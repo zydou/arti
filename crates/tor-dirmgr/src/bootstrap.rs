@@ -74,16 +74,18 @@ pub(crate) fn make_consensus_request(
     Ok(ClientRequest::Consensus(request))
 }
 
-/// Convert a DocQuery into a set of ClientRequests, suitable for sending
-/// to a directory cache.
+/// Construct a set of `ClientRequest`s in order to fetch the documents in `docs`.
 // FIXME(eta): remove pub
-pub(crate) fn query_into_requests<R: Runtime>(
+pub(crate) fn make_requests_for_documents<R: Runtime>(
     rt: &R,
-    q: DocQuery,
+    docs: &[DocId],
     store: &dyn Store,
 ) -> Result<Vec<ClientRequest>> {
     let mut res = Vec::new();
-    for q in q.split_for_download() {
+    for q in docid::partition_by_type(docs.iter().copied())
+        .into_iter()
+        .flat_map(|(_, x)| x.split_for_download().into_iter())
+    {
         match q {
             DocQuery::LatestConsensus { flavor, .. } => {
                 res.push(make_consensus_request(rt.wallclock(), flavor, store)?);
@@ -145,13 +147,13 @@ async fn fetch_single<R: Runtime>(
 /// Don't launch more than `parallelism` requests at once.
 async fn fetch_multiple<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
-    missing: Vec<DocId>,
+    missing: &[DocId],
     parallelism: usize,
 ) -> Result<Vec<(ClientRequest, DirResponse)>> {
-    let mut requests = Vec::new();
-    for (_type, query) in docid::partition_by_type(missing.into_iter()) {
-        requests.extend(dirmgr.query_into_requests(query)?);
-    }
+    let requests = {
+        let store = dirmgr.store.lock().expect("store lock poisoned");
+        make_requests_for_documents(&dirmgr.runtime, missing, store.deref())?
+    };
 
     // TODO: instead of waiting for all the queries to finish, we
     // could stream the responses back or something.
@@ -265,7 +267,7 @@ async fn download_attempt<R: Runtime>(
 ) -> Result<bool> {
     let mut changed = false;
     let missing = state.missing_docs();
-    let fetched = fetch_multiple(Arc::clone(dirmgr), missing, parallelism).await?;
+    let fetched = fetch_multiple(Arc::clone(dirmgr), &missing, parallelism).await?;
     for (client_req, dir_response) in fetched {
         let source = dir_response.source().map(Clone::clone);
         let text = match String::from_utf8(dir_response.into_output())

@@ -79,7 +79,6 @@ use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
-use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
@@ -798,30 +797,6 @@ impl<R: Runtime> DirMgr<R> {
         Ok(result)
     }
 
-    /// Convert a DocQuery into a set of ClientRequests, suitable for sending
-    /// to a directory cache.
-    ///
-    /// This conversion has to be a function of the dirmgr, since it may
-    /// require knowledge about our current state.
-    fn query_into_requests(&self, q: DocQuery) -> Result<Vec<ClientRequest>> {
-        // FIXME(eta): this code is not long for this world
-        let store = self.store.lock().expect("Directory storage lock poisoned");
-        bootstrap::query_into_requests(&self.runtime, q, store.deref())
-    }
-
-    /// Construct an appropriate ClientRequest to download a consensus
-    /// of the given flavor.
-    #[allow(dead_code)]
-    fn make_consensus_request(
-        &self,
-        now: SystemTime,
-        flavor: ConsensusFlavor,
-    ) -> Result<ClientRequest> {
-        // FIXME(eta): this code is not long for this world
-        let store = self.store.lock().expect("Directory storage lock poisoned");
-        bootstrap::make_consensus_request(now, flavor, store.deref())
-    }
-
     /// Given a request we sent and the response we got from a
     /// directory server, see whether we should expand that response
     /// into "something larger".
@@ -1043,6 +1018,7 @@ mod test {
     use crate::docmeta::{AuthCertMeta, ConsensusMeta};
     use std::time::Duration;
     use tempfile::TempDir;
+    use tor_netdoc::doc::netstatus::ConsensusFlavor;
     use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
     use tor_rtcompat::SleepProvider;
 
@@ -1192,9 +1168,11 @@ mod test {
             let (_tempdir, mgr) = new_mgr(rt);
 
             // Try with an empty store.
-            let req = mgr
-                .make_consensus_request(now, ConsensusFlavor::Microdesc)
-                .unwrap();
+            let req = {
+                let store = mgr.store.lock().unwrap();
+                bootstrap::make_consensus_request(now, ConsensusFlavor::Microdesc, store.deref())
+                    .unwrap()
+            };
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);
@@ -1221,9 +1199,11 @@ mod test {
             }
 
             // Now try again.
-            let req = mgr
-                .make_consensus_request(now, ConsensusFlavor::Microdesc)
-                .unwrap();
+            let req = {
+                let store = mgr.store.lock().unwrap();
+                bootstrap::make_consensus_request(now, ConsensusFlavor::Microdesc, store.deref())
+                    .unwrap()
+            };
             match req {
                 ClientRequest::Consensus(r) => {
                     let ds: Vec<_> = r.old_consensus_digests().collect();
@@ -1248,12 +1228,15 @@ mod test {
             };
             let mut rng = rand::thread_rng();
             #[cfg(feature = "routerdesc")]
-            let rd_ids: Vec<[u8; 20]> = (0..1000).map(|_| rng.gen()).collect();
-            let md_ids: Vec<[u8; 32]> = (0..1000).map(|_| rng.gen()).collect();
+            let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.gen())).collect();
+            let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.gen())).collect();
 
             // Try an authcert.
-            let query = DocQuery::AuthCert(vec![certid1]);
-            let reqs = mgr.query_into_requests(query).unwrap();
+            let query = DocId::AuthCert(certid1);
+            let store = mgr.store.lock().unwrap();
+            let reqs =
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[query], store.deref())
+                    .unwrap();
             assert_eq!(reqs.len(), 1);
             let req = &reqs[0];
             if let ClientRequest::AuthCert(r) = req {
@@ -1263,16 +1246,17 @@ mod test {
             }
 
             // Try a bunch of mds.
-            let query = DocQuery::Microdesc(md_ids);
-            let reqs = mgr.query_into_requests(query).unwrap();
+            let reqs = bootstrap::make_requests_for_documents(&mgr.runtime, &md_ids, store.deref())
+                .unwrap();
             assert_eq!(reqs.len(), 2);
             assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
 
             // Try a bunch of rds.
             #[cfg(feature = "routerdesc")]
             {
-                let query = DocQuery::RouterDesc(rd_ids);
-                let reqs = mgr.query_into_requests(query).unwrap();
+                let reqs =
+                    bootstrap::make_requests_for_documents(&mgr.runtime, &rd_ids, store.deref())
+                        .unwrap();
                 assert_eq!(reqs.len(), 2);
                 assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
             }
@@ -1288,9 +1272,12 @@ mod test {
             let (_tempdir, mgr) = new_mgr(rt);
 
             // Try a simple request: nothing should happen.
-            let q = DocId::Microdesc([99; 32]).into();
-            let r = &mgr.query_into_requests(q).unwrap()[0];
-            let expanded = mgr.expand_response_text(r, "ABC".to_string());
+            let q = DocId::Microdesc([99; 32]);
+            let r = {
+                let store = mgr.store.lock().unwrap();
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], store.deref()).unwrap()
+            };
+            let expanded = mgr.expand_response_text(&r[0], "ABC".to_string());
             assert_eq!(&expanded.unwrap(), "ABC");
 
             // Try a consensus response that doesn't look like a diff in
@@ -1299,9 +1286,12 @@ mod test {
                 flavor: ConsensusFlavor::Microdesc,
                 cache_usage: CacheUsage::CacheOkay,
             };
-            let q: DocQuery = latest_id.into();
-            let r = &mgr.query_into_requests(q.clone()).unwrap()[0];
-            let expanded = mgr.expand_response_text(r, "DEF".to_string());
+            let r = {
+                let store = mgr.store.lock().unwrap();
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[latest_id], store.deref())
+                    .unwrap()
+            };
+            let expanded = mgr.expand_response_text(&r[0], "DEF".to_string());
             assert_eq!(&expanded.unwrap(), "DEF");
 
             // Now stick some metadata and a string into the storage so that
@@ -1326,8 +1316,12 @@ mod test {
 
             // Try expanding something that isn't a consensus, even if we'd like
             // one.
-            let r = &mgr.query_into_requests(q).unwrap()[0];
-            let expanded = mgr.expand_response_text(r, "hello".to_string());
+            let r = {
+                let store = mgr.store.lock().unwrap();
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[latest_id], store.deref())
+                    .unwrap()
+            };
+            let expanded = mgr.expand_response_text(&r[0], "hello".to_string());
             assert_eq!(&expanded.unwrap(), "hello");
 
             // Finally, try "expanding" a diff (by applying it and checking the digest.
@@ -1337,7 +1331,7 @@ hash 9999999999999999999999999999999999999999999999999999999999999999 8382374ca7
 replacement line
 .
 ".to_string();
-            let expanded = mgr.expand_response_text(r, diff);
+            let expanded = mgr.expand_response_text(&r[0], diff);
 
             assert_eq!(expanded.unwrap(), "line 1\nreplacement line\nline 3\n");
 
@@ -1348,7 +1342,7 @@ hash 9999999999999999999999999999999999999999999999999999999999999999 9999999999
 replacement line
 .
 ".to_string();
-            let expanded = mgr.expand_response_text(r, diff);
+            let expanded = mgr.expand_response_text(&r[0], diff);
             assert!(expanded.is_err());
         });
     }
