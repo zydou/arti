@@ -39,7 +39,7 @@ pub struct LoggingConfig {
     /// Configuration for one or more logfiles.
     #[serde(default)]
     #[builder(default)]
-    file: Vec<LogfileConfig>,
+    files: Vec<LogfileConfig>,
 }
 
 /// Return a default tracing filter value for `logging.console`.
@@ -188,20 +188,20 @@ where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
     let mut guards = Vec::new();
-    if config.file.is_empty() {
+    if config.files.is_empty() {
         // As above, we have Option<Layer> implements Layer, so we can return
         // None in this case.
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.file[0])?;
+    let (layer, guard) = logfile_layer(&config.files[0])?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
     // arbitrary depth.
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
-    for logfile in &config.file[1..] {
+    for logfile in &config.files[1..] {
         let (new_layer, guard) = logfile_layer(logfile)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);
