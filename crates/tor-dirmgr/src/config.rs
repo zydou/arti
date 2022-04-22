@@ -12,6 +12,7 @@ use crate::retry::DownloadSchedule;
 use crate::storage::DynStore;
 use crate::{Authority, Result};
 use tor_config::ConfigBuildError;
+use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
 
 use derive_builder::Builder;
@@ -39,11 +40,11 @@ pub struct NetworkConfig {
     ///
     /// This section can be changed in a running Arti client.  Doing so will
     /// affect future download attempts only.
-    #[serde(default = "fallbacks::default_fallbacks")]
-    #[builder(default = "fallbacks::default_fallbacks()")]
+    #[builder(sub_builder)]
+    #[serde(default)]
     #[serde(rename = "fallback_caches")]
     #[builder_field_attr(serde(rename = "fallback_caches"))]
-    #[builder(setter(into, name = "fallback_caches"))]
+    #[builder(setter(name = "fallback_caches"))]
     pub(crate) fallbacks: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
@@ -61,7 +62,9 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         NetworkConfig {
-            fallbacks: fallbacks::default_fallbacks(),
+            fallbacks: FallbackListBuilder::default()
+                .build()
+                .expect("build default fallbacks"),
             authorities: crate::authority::default_authorities(),
         }
     }
@@ -82,7 +85,7 @@ impl NetworkConfig {
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if self.authorities.is_some() && self.fallbacks.is_none() {
+        if self.authorities.is_some() && self.fallbacks.is_unmodified_default() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -310,37 +313,6 @@ impl DownloadScheduleConfig {
     }
 }
 
-/// Helpers for initializing the fallback list.
-mod fallbacks {
-    use tor_guardmgr::fallback::{FallbackDir, FallbackList};
-    use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
-    /// Return a list of the default fallback directories shipped with
-    /// arti.
-    pub(crate) fn default_fallbacks() -> FallbackList {
-        /// Build a fallback directory; panic if input is bad.
-        fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDir {
-            let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
-            let ed = base64::decode_config(ed, base64::STANDARD_NO_PAD)
-                .expect("Bad hex in built-in fallback list");
-            let ed =
-                Ed25519Identity::from_bytes(&ed).expect("Wrong length in built-in fallback list");
-            let mut bld = FallbackDir::builder();
-            bld.rsa_identity(rsa).ed_identity(ed);
-
-            ports
-                .iter()
-                .map(|s| s.parse().expect("Bad socket address in fallbacklist"))
-                .for_each(|p| {
-                    bld.orport(p);
-                });
-
-            bld.build()
-                .expect("Unable to build default fallback directory!?")
-        }
-        include!("fallback_dirs.inc").into()
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -393,13 +365,12 @@ mod test {
         ]);
         assert!(bld.build().is_err());
 
-        bld.fallback_caches(vec![FallbackDir::builder()
+        bld.fallback_caches().set(vec![FallbackDir::builder()
             .rsa_identity([b'x'; 20].into())
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())
             .orport("[::]:99".parse().unwrap())
-            .build()
-            .unwrap()]);
+            .clone()]);
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), 2);
         assert_eq!(cfg.fallbacks.len(), 1);

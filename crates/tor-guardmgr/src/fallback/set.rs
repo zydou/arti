@@ -4,9 +4,11 @@ use crate::skew::SkewObservation;
 use rand::seq::IteratorRandom;
 use std::time::{Duration, Instant};
 
-use super::{DirStatus, FallbackDir};
+use super::{DirStatus, FallbackDir, FallbackDirBuilder};
+use crate::fallback::default_fallbacks;
 use crate::{ids::FallbackId, PickGuardError};
 use serde::Deserialize;
+use tor_config::ConfigBuildError;
 
 /// A list of fallback directories.
 ///
@@ -25,6 +27,56 @@ impl<T: IntoIterator<Item = FallbackDir>> From<T> for FallbackList {
         FallbackList {
             fallbacks: fallbacks.into_iter().collect(),
         }
+    }
+}
+
+/// List of fallback directories, being built as part of the configuration
+///
+/// Fallback directories (represented by [`FallbackDir`]) are used by Tor
+/// clients when they don't already have enough other directory information to
+/// contact the network.
+///
+/// This is a builder pattern struct which will be resolved into a `FallbackList`
+/// during configuration resolution, via the [`build`](FallbackListBuilder::build) method.
+#[derive(Default, Clone, Deserialize)]
+#[serde(transparent)]
+pub struct FallbackListBuilder {
+    /// The fallbacks, as overridden
+    pub(crate) fallbacks: Option<Vec<FallbackDirBuilder>>,
+}
+
+impl FallbackListBuilder {
+    /// Append `fallback` to the list
+    pub fn append(&mut self, fallback: FallbackDirBuilder) {
+        self.fallbacks
+            .get_or_insert_with(default_fallbacks)
+            .push(fallback);
+    }
+
+    /// Replace the list with the supplied one
+    pub fn set(&mut self, fallbacks: impl IntoIterator<Item = FallbackDirBuilder>) {
+        self.fallbacks = Some(fallbacks.into_iter().collect());
+    }
+
+    /// Checks whether any calls have been made to set or adjust the set
+    pub fn is_unmodified_default(&self) -> bool {
+        self.fallbacks.is_none()
+    }
+
+    /// Resolve into a `FallbackList`
+    pub fn build(&self) -> Result<FallbackList, ConfigBuildError> {
+        let default_buffer;
+        let fallbacks = if let Some(f) = &self.fallbacks {
+            f
+        } else {
+            default_buffer = default_fallbacks();
+            &default_buffer
+        };
+        let fallbacks = fallbacks
+            .iter()
+            .map(|item| item.build())
+            .collect::<Result<_, _>>()?;
+        Ok(FallbackList { fallbacks })
     }
 }
 

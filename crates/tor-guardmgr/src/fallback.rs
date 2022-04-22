@@ -22,8 +22,8 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 
 use crate::dirstatus::DirStatus;
-pub use set::FallbackList;
 pub(crate) use set::FallbackState;
+pub use set::{FallbackList, FallbackListBuilder};
 
 /// A directory whose location ships with Tor (or arti), and which we
 /// can use for bootstrapping when we don't know anything else about
@@ -86,6 +86,30 @@ impl FallbackDirBuilder {
         }
         Ok(())
     }
+}
+
+/// Return a list of the default fallback directories shipped with
+/// arti.
+pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
+    /// Build a fallback directory; panic if input is bad.
+    fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDirBuilder {
+        let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
+        let ed = base64::decode_config(ed, base64::STANDARD_NO_PAD)
+            .expect("Bad hex in built-in fallback list");
+        let ed = Ed25519Identity::from_bytes(&ed).expect("Wrong length in built-in fallback list");
+        let mut bld = FallbackDir::builder();
+        bld.rsa_identity(rsa).ed_identity(ed);
+
+        ports
+            .iter()
+            .map(|s| s.parse().expect("Bad socket address in fallbacklist"))
+            .for_each(|p| {
+                bld.orport(p);
+            });
+
+        bld
+    }
+    include!("fallback_dirs.inc")
 }
 
 impl tor_linkspec::ChanTarget for FallbackDir {

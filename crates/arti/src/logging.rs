@@ -38,8 +38,9 @@ pub struct LoggingConfig {
 
     /// Configuration for one or more logfiles.
     #[serde(default)]
-    #[builder(default)]
-    file: Vec<LogfileConfig>,
+    #[builder_field_attr(serde(default))]
+    #[builder(sub_builder)]
+    files: LogfileListConfig,
 }
 
 /// Return a default tracing filter value for `logging.console`.
@@ -61,8 +62,62 @@ impl LoggingConfig {
     }
 }
 
+/// Local type alias, mostly helpful for derive_builder to DTRT
+type LogfileListConfig = Vec<LogfileConfig>;
+
+#[derive(Default, Clone, Deserialize)]
+#[serde(transparent)]
+/// List of logfiles to use, being built as part of the configuration
+pub struct LogfileListConfigBuilder {
+    /// The logfiles, as overridden
+    files: Option<Vec<LogfileConfigBuilder>>,
+}
+
+impl LogfileListConfigBuilder {
+    /// Add a file logger
+    pub fn append(&mut self, file: LogfileConfigBuilder) -> &mut Self {
+        self.files
+            .get_or_insert_with(Self::default_files)
+            .push(file);
+        self
+    }
+
+    /// Set the list of file loggers to the supplied `files`
+    pub fn set(&mut self, files: impl IntoIterator<Item = LogfileConfigBuilder>) -> &mut Self {
+        self.files = Some(files.into_iter().collect());
+        self
+    }
+
+    /// Default logfiles
+    ///
+    /// (Currently) there are no defauolt logfiles.
+    pub(crate) fn default_files() -> Vec<LogfileConfigBuilder> {
+        vec![]
+    }
+
+    /// Resolve `LoggingConfigBuilder.files` to a value for `LoggingConfig.files`
+    pub(crate) fn build(&self) -> Result<Vec<LogfileConfig>, ConfigBuildError> {
+        let default_buffer;
+        let files = match &self.files {
+            Some(files) => files,
+            None => {
+                default_buffer = Self::default_files();
+                &default_buffer
+            }
+        };
+        let files = files
+            .iter()
+            .map(|item| item.build())
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.within("files"))?;
+        Ok(files)
+    }
+}
+
 /// Configuration information for an (optionally rotating) logfile.
 #[derive(Deserialize, Debug, Builder, Clone, Eq, PartialEq)]
+#[builder(derive(Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct LogfileConfig {
     /// How often to rotate the file?
     #[serde(default)]
@@ -188,20 +243,20 @@ where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
     let mut guards = Vec::new();
-    if config.file.is_empty() {
+    if config.files.is_empty() {
         // As above, we have Option<Layer> implements Layer, so we can return
         // None in this case.
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.file[0])?;
+    let (layer, guard) = logfile_layer(&config.files[0])?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
     // arbitrary depth.
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
-    for logfile in &config.file[1..] {
+    for logfile in &config.files[1..] {
         let (new_layer, guard) = logfile_layer(logfile)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);

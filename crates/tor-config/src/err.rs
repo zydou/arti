@@ -45,6 +45,13 @@ impl From<derive_builder::UninitializedFieldError> for ConfigBuildError {
     }
 }
 
+impl From<derive_builder::SubfieldBuildError<ConfigBuildError>> for ConfigBuildError {
+    fn from(e: derive_builder::SubfieldBuildError<ConfigBuildError>) -> Self {
+        let (field, problem) = e.into_parts();
+        problem.within(field)
+    }
+}
+
 impl ConfigBuildError {
     /// Return a new ConfigBuildError that prefixes its field name with
     /// `prefix` and a dot.

@@ -1012,7 +1012,7 @@ mod test {
     impl DirRcv {
         fn new(now: SystemTime, authorities: Option<Vec<Authority>>) -> Self {
             let mut netcfg = crate::NetworkConfig::builder();
-            netcfg.fallback_caches(vec![]);
+            netcfg.fallback_caches().set(vec![]);
             if let Some(a) = authorities {
                 netcfg.authorities(a);
             }

@@ -114,21 +114,33 @@ impl SystemConfig {
 ///
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Builder, Clone, Eq, PartialEq, Default)]
+#[builder(derive(Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ArtiConfig {
     /// Configuration for application behavior.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     application: ApplicationConfig,
 
     /// Configuration for proxy listeners
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     proxy: ProxyConfig,
 
     /// Logging configuration
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     logging: LoggingConfig,
 
     /// Information on system resources used by Arti.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
 
     /// Configuration of the actual Tor client
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(flatten))]
     tor: TorClientConfig,
 }
 
@@ -173,92 +185,6 @@ impl ArtiConfig {
     /// Return the [`ProxyConfig`] for this configuration.
     pub fn proxy(&self) -> &ProxyConfig {
         &self.proxy
-    }
-}
-
-/// Builder object used to construct an ArtiConfig.
-///
-/// Most code won't need this, and should use [`TorClientConfigBuilder`] instead.
-///
-/// Unlike other builder types in Arti, this builder works by exposing an
-/// inner builder for each section in the [`TorClientConfig`].
-#[derive(Default, Clone, Deserialize)]
-// This ought to be replaced by a derive-builder generated struct (probably as part of #374),
-// but currently derive-builder can't do this.
-pub struct ArtiConfigBuilder {
-    /// Builder for the actual Tor client.
-    #[serde(flatten)]
-    tor: TorClientConfigBuilder,
-
-    /// Builder for the application section
-    #[serde(default)]
-    application: ApplicationConfigBuilder,
-    /// Builder for the proxy section.
-    #[serde(default)]
-    proxy: ProxyConfigBuilder,
-    /// Builder for the logging section.
-    #[serde(default)]
-    logging: LoggingConfigBuilder,
-    /// Builder for system resource configuration.
-    #[serde(default)]
-    system: SystemConfigBuilder,
-}
-
-impl ArtiConfigBuilder {
-    /// Try to construct a new [`ArtiConfig`] from this builder.
-    pub fn build(&self) -> Result<ArtiConfig, ConfigBuildError> {
-        let application = self
-            .application
-            .build()
-            .map_err(|e| e.within("application"))?;
-        let proxy = self.proxy.build().map_err(|e| e.within("proxy"))?;
-        let logging = self.logging.build().map_err(|e| e.within("logging"))?;
-        let system = self.system.build().map_err(|e| e.within("system"))?;
-        let tor = TorClientConfigBuilder::from(self.clone());
-        let tor = tor.build()?;
-        Ok(ArtiConfig {
-            application,
-            proxy,
-            logging,
-            system,
-            tor,
-        })
-    }
-
-    /// Return a mutable reference to an [`ApplicationConfigBuilder`] to use in
-    /// configuring the Arti process.
-    pub fn application(&mut self) -> &mut ApplicationConfigBuilder {
-        &mut self.application
-    }
-
-    /// Return a mutable reference to a [`ProxyConfig`] to use in
-    /// configuring the Arti process.
-    pub fn proxy(&mut self) -> &mut ProxyConfigBuilder {
-        &mut self.proxy
-    }
-
-    /// Return a mutable reference to a
-    /// [`LoggingConfigBuilder`]
-    /// to use in configuring the Arti process.
-    pub fn logging(&mut self) -> &mut LoggingConfigBuilder {
-        &mut self.logging
-    }
-
-    /// Return a mutable reference to a `TorClientConfigBuilder`.
-    /// to use in configuring the underlying Tor network.
-    ///
-    /// Most programs shouldn't need to alter this configuration: it's only for
-    /// cases when you need to use a nonstandard set of Tor directory authorities
-    /// and fallback caches.
-    pub fn tor(&mut self) -> &mut TorClientConfigBuilder {
-        &mut self.tor
-    }
-
-    /// Return a mutable reference to a [`SystemConfigBuilder`].
-    ///
-    /// This section controls the system parameters used by Arti.
-    pub fn system(&mut self) -> &mut SystemConfigBuilder {
-        &mut self.system
     }
 }
 
@@ -309,8 +235,7 @@ mod test {
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
             .orports(vec!["127.0.0.7:7".parse().unwrap()])
-            .build()
-            .unwrap();
+            .clone();
 
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
@@ -318,7 +243,8 @@ mod test {
         bld.tor()
             .tor_network()
             .authorities(vec![auth])
-            .fallback_caches(vec![fallback]);
+            .fallback_caches()
+            .set(vec![fallback]);
         bld.tor()
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
