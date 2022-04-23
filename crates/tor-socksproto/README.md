@@ -45,7 +45,7 @@ for two reasons:
    of the individual handshakes that most other SOCKS
    implementations don't expose.  (For example, if we are told to
    connect to a raw IP address, the type of the handshake can help
-   us guess whether that IP address came from a DNS response–in
+   us guess whether that IP address came from a DNS response – in
    which case we should warn about a possible DNS leak.)
 
 Currently, `tor-socksproto` does no networking code: it _only_

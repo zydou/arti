@@ -28,7 +28,7 @@ Everywhere else besides arti_error::Error, we try to make our error types follow
  * All should implement Clone, Display, Error, Debug, Send, Sync, 'static.
  * When we wrap an inner error, we always include context information describing what was happening when the inner error occurred.  This means that we should usually not `impl From<TheirInner> for MyError`.
  * Whenever appropriate, we have a `pub fn kind(&self) -> ErrorKind` function.
- * When a  public function can fail for a number of reasons that are much more limited than the crate's entire Error type, we should consider give that function its own Error type.
+ * When a public function can fail for a number of reasons that are much more limited than the crate's entire Error type, we should consider giving that function its own Error type.
  * We use `Box<>` as needed to keep the size of the enumeration fairly small.
  * We allow more instability in these types than we allow in arti_client: these types should be inaccessible from the arti_client when "error-details" is not enabled.
 
@@ -84,7 +84,7 @@ enum ErrorDetail {
 }
 
 #[cfg(feature("error-details"))]
-pub use ErrorDetail; //This becomes public only if we have 
+pub use ErrorDetail; // This becomes public only if we have
 
 impl std::error::Error for ErrorDetail { ... }
 
@@ -151,7 +151,7 @@ We _do_ expose the entire error enumeration from these crates.  That means we mi
 
 **TODO**: should be documented somewhere! perhaps more generally ("tor-* crates are more unstable")
 
-#### Who is responsible for putting calling parameters into the error ?
+#### Who is responsible for putting calling parameters into the error?
 
 Eg, tor-chanmgr has this:
 
@@ -175,7 +175,7 @@ For example, when tor-circmgr calls `build_channel`, it is tor-circmgr which is 
 
 #### Describing the error type
 
-When a problem is reported, different error types should generally produce different messages.  Where should this be done ?
+When a problem is reported, different error types should generally produce different messages.  Where should this be done?
 
 Answer: the place where the type is embedded.  For example:
 

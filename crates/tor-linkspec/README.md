@@ -10,7 +10,7 @@ describe how to connect to Tor relays.
 When describing the location of a Tor relay on the network, the
 Tor protocol uses a set of "link specifiers", each of which
 corresponds to a single aspect of the relay's location or
-identity—such as its IP address and port, its Ed25519 identity
+identity — such as its IP address and port, its Ed25519 identity
 key, its (legacy) RSA identity fingerprint, or so on.  This
 crate's [`LinkSpec`] type encodes these structures.
 

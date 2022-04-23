@@ -123,7 +123,7 @@ pub enum DormantMode {
 pub struct StreamPrefs {
     /// What kind of IPv6/IPv4 we'd prefer, and how strongly.
     ip_ver_pref: IpVersionPreference,
-    /// How should we isolate connection(s) ?
+    /// How should we isolate connection(s)?
     isolation: StreamIsolationPreference,
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
