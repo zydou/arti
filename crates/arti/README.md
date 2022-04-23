@@ -7,7 +7,6 @@ A minimal command line program for connecting to the tor network
 This crate is the primary command-line interface for
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
-Many other crates in Arti depend on it.
 
 Note that Arti is a work in progress; although we've tried to
 write all the critical security components, you probably shouldn't

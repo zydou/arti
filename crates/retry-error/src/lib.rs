@@ -1,9 +1,9 @@
 //! An error attempt to represent multiple failures.
 //!
 //! This crate implements [`RetryError`], a type to use when you
-//! retry something a few times, and all those attempts.  Instead of
-//! returning only a single error, it records _all of the errors
-//! received_, in case they are different.
+//! retry something a few times, and all those attempts can fail differently
+//! each time.  Instead of returning only a single error, it records
+//! _all of the errors received_, in case they are different.
 //!
 //! This crate is developed as part of
 //! [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
