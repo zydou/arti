@@ -16,7 +16,7 @@ yet exists, including:
  - Launching new tasks
  - Blocking until a task is finished.
 
-Additionally, the `AsyncRead` and `AsyncWrite` traits provide by
+Additionally, the `AsyncRead` and `AsyncWrite` traits provided by
 [`futures`] are not the same as those provided by `tokio`, and
 require compatibility wrappers to use.
 
@@ -108,8 +108,8 @@ its default configuration.
 
 ### Why support `async_std`?
 
-Although Tokio currently a more popular and widely supported
-asynchronous runtime than `async_std` is, we believe that it's
+Although Tokio is currently a more popular and widely supported
+asynchronous runtime than `async_std`, we believe that it's
 critical to build Arti against multiple runtimes.
 
 By supporting multiple runtimes, we avoid making tokio-specific

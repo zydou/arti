@@ -1,6 +1,6 @@
 //! Information about directory authorities
 //!
-//! From a client's point of view, an authority's role is to to sign the
+//! From a client's point of view, an authority's role is to sign the
 //! consensus directory.
 
 use derive_builder::Builder;

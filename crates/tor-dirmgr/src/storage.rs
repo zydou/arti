@@ -52,7 +52,7 @@ impl AsRef<[u8]> for DocumentText {
 }
 
 impl DocumentText {
-    /// Try to return a view of this document as a a string.
+    /// Try to return a view of this document as a string.
     pub(crate) fn as_str(&self) -> std::result::Result<&str, Utf8Error> {
         self.s.as_str_impl()
     }

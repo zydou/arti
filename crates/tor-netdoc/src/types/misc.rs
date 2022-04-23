@@ -245,7 +245,7 @@ mod rsa {
                     .with_msg("invalid RSA exponent"))
             }
         }
-        /// Give an error if the length of of this key's modulus, in
+        /// Give an error if the length of this key's modulus, in
         /// bits, is not contained in 'bounds'
         pub(crate) fn check_len<B: RangeBounds<usize>>(self, bounds: B) -> Result<Self> {
             if bounds.contains(&self.0.bits()) {
@@ -256,7 +256,7 @@ mod rsa {
                     .with_msg("invalid RSA length"))
             }
         }
-        /// Give an error if the length of of this key's modulus, in
+        /// Give an error if the length of this key's modulus, in
         /// bits, is not exactly `n`.
         pub(crate) fn check_len_eq(self, n: usize) -> Result<Self> {
             self.check_len(n..=n)

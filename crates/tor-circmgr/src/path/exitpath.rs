@@ -430,7 +430,7 @@ mod test {
                 .unwrap();
             let exit_relay = netdir.by_id(distinct_exit.iter().next().unwrap()).unwrap();
 
-            // Now we'll try a forced exit that is not the same same as our
+            // Now we'll try a forced exit that is not the same as our
             // actual guard.
             let (path, mon, usable) = ExitPathBuilder::from_chosen_exit(exit_relay.clone())
                 .pick_path(&mut rng, dirinfo, Some(&guards), &config, rt.wallclock())

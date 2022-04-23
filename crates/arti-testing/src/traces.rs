@@ -7,7 +7,7 @@ use std::sync::{
 use tracing::Subscriber;
 use tracing_subscriber::Layer;
 
-/// Count of the the number of tracing events of each severity.
+/// Count of the number of tracing events of each severity.
 #[derive(Default)]
 pub(crate) struct TraceCount {
     /// number of trace events

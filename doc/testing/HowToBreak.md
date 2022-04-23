@@ -133,7 +133,7 @@ fallbacks, the TCP-failure code won't yet make them start failing when
 you connect to the network.  As a workaround, bootstrap in a separate
 `arti-testing` call, then connect with TCP failures enabled.)
 
-Here's an an example of failing during bootstrapping.  (Clear your cache
+Here's an example of failing during bootstrapping.  (Clear your cache
 first.)
 
 `arti-testing bootstrap -c ${ARTI_CONF} --timeout 30 --tcp-failure error`

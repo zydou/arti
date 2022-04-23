@@ -17,7 +17,7 @@ it, so that higher-level crates don't need to know about the
 particular documents that describe the network and its properties.
 
 There are two intended users for this crate.  First, producers
-like [`tor-dirmgr`] create [`NetDir`] objects fill them with
+like [`tor-dirmgr`] create [`NetDir`] objects and fill them with
 information from the Tor network directory.  Later, consumers
 like [`tor-circmgr`] use [`NetDir`]s to select relays for random
 paths through the Tor network.

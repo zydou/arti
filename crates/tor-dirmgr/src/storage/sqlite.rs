@@ -565,7 +565,7 @@ impl Store for SqliteStore {
 struct SavedBlobHandle<'a> {
     /// Transaction we're using to add the blob to the ExtDocs table.
     tx: Transaction<'a>,
-    /// Filename for the file, with respect to the the blob directory.
+    /// Filename for the file, with respect to the blob directory.
     #[allow(unused)]
     fname: String,
     /// Declared digest string for this blob. Of the format

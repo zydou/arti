@@ -9,7 +9,7 @@ proxy where to connect.  Versions 4, 4a, and 5 are sometimes
 encountered in the wild.
 
 The `tor-socksproto` crate tries to hide the actual details of the
-protocol, and expose a stateful handshake type that eventually
+protocol, and exposes a stateful handshake type that eventually
 provides a [`SocksRequest`] or an error.  It is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
@@ -41,7 +41,7 @@ Arti uses this crate instead of some other SOCKS implementation,
 for two reasons:
 
  * First, because we need to support Tor SOCKS extensions.
- * Second, and because we sometimes need to see particular details
+ * Second, because we sometimes need to see particular details
    of the individual handshakes that most other SOCKS
    implementations don't expose.  (For example, if we are told to
    connect to a raw IP address, the type of the handshake can help
@@ -55,7 +55,7 @@ network functionality to this crate or elsewhere in the future.
 We'll definitely want to add client functionality.
 
 Possibly, this approach will prove useful for other uses.  If it
-does, We can put the tor-only functionality behind a Cargo build
+does, we can put the tor-only functionality behind a Cargo build
 feature, so that others can use this crate more safely.
 
 License: MIT OR Apache-2.0

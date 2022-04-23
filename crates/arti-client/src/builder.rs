@@ -108,7 +108,7 @@ impl<R: Runtime> TorClientBuilder<R> {
 
     /// Install a [`DirFilter`](tor_dirmgr::filter::DirFilter) to
     ///
-    /// Only available whe compiled with the the `dirfilter` feature: this code
+    /// Only available when compiled with the `dirfilter` feature: this code
     /// is unstable and not recommended for production use.
     #[cfg(feature = "dirfilter")]
     pub fn dirfilter<F>(mut self, filter: F) -> Self

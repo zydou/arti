@@ -102,7 +102,7 @@ enum Attempt {
 impl<E: Debug + Display> Error for RetryError<E> {}
 
 impl<E> RetryError<E> {
-    /// Crate a new RetryError, with no failed attempts,
+    /// Create a new RetryError, with no failed attempts.
     ///
     /// The provided `doing` argument is a short string that describes
     /// what we were trying to do when we failed too many times.  It

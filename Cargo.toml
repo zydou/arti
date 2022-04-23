@@ -3,7 +3,7 @@
 # Here we declare that this is a workspace, containing several crates
 # within it.
 #
-# Please keep this list toplogically sorted by dependency relation, so
+# Please keep this list topologically sorted by dependency relation, so
 # that every crate appears _before_ any other crate that depends on it.
 members = [
     "crates/tor-basic-utils",
@@ -48,7 +48,7 @@ resolver = "2"
 # (Assuming xz compression on the binary.)
 #
 # The biggest win is to run `strip --strip-debug` on the binary after
-# generating it, to through out debugging symbols that we inherited from
+# generating it, to throw out debugging symbols that we inherited from
 # other libraries.  Don't do `strip --strip-unused`, though, or you'll
 # break backtraces.  That saves about 21% download size.
 

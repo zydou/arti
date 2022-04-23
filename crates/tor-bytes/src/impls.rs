@@ -227,7 +227,7 @@ mod curve25519_impls {
     }
 }
 
-/// Implement readable and writeable for the the RsaIdentity type.
+/// Implement readable and writeable for the RsaIdentity type.
 mod rsa_impls {
     use super::*;
     use tor_llcrypto::pk::rsa::*;

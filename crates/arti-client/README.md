@@ -127,7 +127,7 @@ Streams can be isolated in two ways:
 - by generating [`IsolationToken`]s, and passing them in via [`StreamPrefs`]
   to [`TorClient::connect`].
 
-## Multiple runtime support
+## Multiple runtimes support
 
 Arti uses the [`tor_rtcompat`] crate to support multiple asynchronous
 runtimes; currently, both [Tokio](https://tokio.rs) and

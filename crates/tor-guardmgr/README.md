@@ -8,7 +8,7 @@ This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
 implement [Tor](https://www.torproject.org/) in Rust.
 
-"Guard nodes" are mechanism that Tor clients uses to limit the
+"Guard nodes" are mechanism that Tor clients use to limit the
 impact of hostile relays. Approximately: each client chooses a
 small set of relays to use as its "guards".  Later, when the
 client picks its paths through network, rather than choosing a
@@ -86,7 +86,7 @@ below) and comments and internal documentation in this crate.
 
 ## References
 
-Guard nodes were first proposes (as "helper nodes") in "Defending
+Guard nodes were first proposed (as "helper nodes") in "Defending
 Anonymous Communications Against Passive Logging Attacks" by
 Matthew Wright, Micah Adler, Brian N. Levine, and Clay Shields in
 the Proceedings of the 2003 IEEE Symposium on Security and

@@ -57,7 +57,7 @@ All of the `FooConfig` structs should be made directly `Deserialize` and `Serial
 The knowledge of the default config file location(s) and sources should be (exposed) in `arti-client` (not `arti`), with the implication that we hope that most embedders will use it.
 (`tor-config` can continue to be the actual implementation of env vars, default path lookup, etc.)
 
-Individual `tor-*` crates will retain their knowledge of their own configuration.  arti-config will retain the the knowledge of executable-specific config settings (notably logging), and can be reused by shallow embedders if they like.
+Individual `tor-*` crates will retain their knowledge of their own configuration.  arti-config will retain the knowledge of executable-specific config settings (notably logging), and can be reused by shallow embedders if they like.
 
 ### API suggestions
 

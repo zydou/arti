@@ -27,7 +27,7 @@ needs to examine fine-grained details of the Tor network.
 ### Design notes
 
 We're giving `tor-protover` its own crate within arti because it
-needs to be used to multiple higher level crates that do not
+needs to be used by multiple higher level crates that do not
 themselves depend on one another.  (For example, [`tor-proto`]
 needs to know which variant of a subprotocol can be used with a
 given relay, whereas [`tor-netdoc`] needs to parse lists of

@@ -528,7 +528,7 @@ impl NetDir {
     /// Return an iterator over all Relay objects, including invalid ones
     /// that we can't use.
     pub fn all_relays(&self) -> impl Iterator<Item = UncheckedRelay<'_>> {
-        // TODO: I'd like if if we could memoize this so we don't have to
+        // TODO: I'd like if we could memoize this so we don't have to
         // do so many hashtable lookups.
         self.consensus
             .relays()

@@ -210,7 +210,7 @@ fn discard_outliers(mut values: Vec<ClockSkew>) -> Vec<f64> {
         .collect()
 }
 
-/// Compute and return the the mean and standard deviation of `values`.
+/// Compute and return the mean and standard deviation of `values`.
 ///
 /// Returns `(Nan,Nan)` if `values` is empty.
 fn mean_and_standard_deviation(values: &[f64]) -> (f64, f64) {

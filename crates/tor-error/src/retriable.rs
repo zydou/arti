@@ -125,7 +125,7 @@ pub trait HasRetryTime {
     /// Return an absolute retry when the operation that gave this error can be
     /// retried.
     ///
-    // Requires that `now` is the current time, and `choose_delay` is a
+    /// Requires that `now` is the current time, and `choose_delay` is a
     /// function to choose a delay for [`RetryTime::AfterWaiting`].
     fn abs_retry_time<F>(&self, now: Instant, choose_delay: F) -> AbsRetryTime
     where

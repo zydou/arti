@@ -13,7 +13,7 @@
 //! It is used to write tests for higher-level
 //! crates in Arti that rely on asynchronous runtimes.
 //!
-//! This crate should should only be used for writing tests.
+//! This crate should only be used for writing tests.
 //!
 //! Currently, we support mocking the passage of time (via
 //! [`MockSleepRuntime`]), and impersonating the internet (via
