@@ -756,7 +756,7 @@ impl<R: Runtime> CircMgr<R> {
 
     /// Return a stream of events about our estimated clock skew; these events
     /// are `None` when we don't have enough information to make an estimate,
-    /// and `Some(`[`SkewEstiamte`]`)` otherwise.
+    /// and `Some(`[`SkewEstimate`]`)` otherwise.
     ///
     /// Note that this stream can be lossy: if the estimate changes more than
     /// one before you read from the stream, you might only get the most recent
