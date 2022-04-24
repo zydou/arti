@@ -56,6 +56,113 @@
 //! touch in doing so, to see who has permissions to change our target file or
 //! the process that led us to it.
 //!
+//! ## Examples
+//!
+//! ### Simple cases
+//!
+//! Make sure that a directory is only readable or writeable by us (simple
+//! case):
+//!
+//! ```no_run
+//! use fs_mistrust::Mistrust;
+//! match Mistrust::new().check_directory("/home/itchy/.local/hat-swap") {
+//!     Ok(()) => println!("directory is good"),
+//!     Err(e) => println!("problem with our hat-swap directory: {}", e),
+//! }
+//! ```
+//!
+//! As above, but create the directory, and its parents if they do not already
+//! exist.
+//!
+//! ```
+//! use fs_mistrust::Mistrust;
+//! match Mistrust::new().make_directory("/home/itchy/.local/hat-swap") {
+//!     Ok(()) => println!("directory exists (or was created without trouble"),
+//!     Err(e) => println!("problem with our hat-swap directory: {}", e),
+//! }
+//! ```
+//!
+//! ### Configuring a [`Mistrust`]
+//!
+//! You can adjust the [`Mistrust`] object to change what it permits:
+//!
+//! ```no_run
+//! # fn example() -> fs_mistrust::Result<()> {
+//! use fs_mistrust::Mistrust;
+//!
+//! let mut my_mistrust = Mistrust::new();
+//!
+//! // Assume that our home directory and its parents are all well-configured.
+//! my_mistrust.ignore_prefix("/home/doze/")?;
+//!
+//! // Assume that a given group will only contain trusted users.
+//! my_mistrust.trust_group_id(413);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! See [`Mistrust`] for more options.
+//!
+//! ### Using [`Verifier`] for more fine-grained checks
+//!
+//! For more fine-grained control over a specific check, you can use the
+//! [`Verifier`] API.  Unlike [`Mistrust`], which generally you'll want to
+//! configure for several requests, the changes in [`Verifier`] generally make
+//! sense only for one request at a time.
+//!
+//! ```no_run
+//! # fn example() -> fs_mistrust::Result<()> {
+//! use fs_mistrust::Mistrust;
+//! let mistrust = Mistrust::new();
+//!
+//! // Require that an object is a regular file; allow it to be world-
+//! // readable.
+//! mistrust
+//!     .verifier()
+//!     .permit_readable()
+//!     .require_file()
+//!     .check("/home/trace/.path_cfg")?;
+//!
+//! // Make sure that a directory _and all of its contents_ are private.
+//! // Create the directory if it does not exist.
+//! // Return an error object containing _all_ of the problems discovered.
+//! mistrust
+//!     .verifier()
+//!     .require_directory()
+//!     .check_content()
+//!     .all_errors()
+//!     .make_directory("/home/trace/private_keys/");
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! See [`Verifier`] for more options.
+//!
+//! ### Using [`SecureDir`] for safety.
+//!
+//! You can use the [`SecureDir`] API to ensure not only that a directory is
+//! private, but that all of your accesses to its contents continue to verify
+//! and enforce _their_ permissions.
+//!
+//! ```
+//! # fn example() -> anyhow::Result<()> {
+//! use fs_mistrust::{Mistrust, SecureDir};
+//! use std::fs::{File, OpenOptions};
+//! let dir = Mistrust::new()
+//!     .verifier()
+//!     .secure_dir("/Users/clover/riddles")?;
+//!
+//! // You can use the SecureDir object to access files and directories.
+//! // All of these must be relative paths within the path you used to
+//! // build the SecureDir.
+//! dir.make_directory("timelines")?;
+//! let file = dir.open("timelines/vault-destroyed.md",
+//!     OpenOptions::new().write(true).create(true))?;
+//! // (... use file...)
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! ## Limitations
 //!
 //! We currently assume a fairly vanilla Unix environment: we'll tolerate other
@@ -161,8 +268,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// *  support more kinds of trust configuration, including more trusted users,
 ///    trusted groups, multiple trusted directories, etc?
-//
-// TODO: Example.
 #[derive(Debug, Clone)]
 pub struct Mistrust {
     /// If the user called [`Mistrust::ignore_prefix`], what did they give us?
@@ -193,8 +298,8 @@ impl Default for Mistrust {
 
 /// An object used to perform a single check.
 ///
-/// A `Verifier` is used when the default "check" methods (TODO) on [`Mistrust`]
-/// are not sufficient for your needs.
+/// A `Verifier` is used when [`Mistrust::check_directory`] and
+/// [`Mistrust::make_directory`] are not sufficient for your needs.
 #[derive(Clone, Debug)]
 #[must_use]
 pub struct Verifier<'a> {
