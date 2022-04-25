@@ -21,6 +21,8 @@
 /// `FnMut(&ThingBuilder) -> Result<Thing, ConfigBuildErro>`; the default is to call
 /// `thing_builder.build()`.
 ///
+/// ### Example - list of structs with builders
+///
 /// ```
 /// use derive_builder::Builder;
 /// use serde::Deserialize;
@@ -50,6 +52,34 @@
 /// thinglist.replace(vec![ThingBuilder::default().value(38).clone()]);
 /// assert_eq!{ thinglist.build().unwrap().things, &[Thing { value: 38 }] }
 /// ```
+///
+/// ### Example - list of trivial values
+///
+/// ```
+/// use derive_builder::Builder;
+/// use serde::Deserialize;
+/// use tor_config::{define_list_config_builder, ConfigBuildError};
+///
+/// #[derive(Debug)]
+/// pub struct ValueList { values: Vec<u32> }
+///
+/// define_list_config_builder! {
+///    /// List of values, being built as part of the configuration
+///    pub struct ValueListBuilder {
+///        pub(crate) values: [u32],
+///    }
+///    built: ValueList = ValueList { values };
+///    default = vec![27];
+///    item_build: |&value| Ok(value);
+/// }
+///
+/// let mut valuelist = ValueListBuilder::default();
+/// assert_eq!{ valuelist.build().unwrap().values, &[27] }
+///
+/// valuelist.append(12);
+/// assert_eq!{ valuelist.build().unwrap().values, &[27, 12] }
+/// ```
+
 #[macro_export]
 macro_rules! define_list_config_builder {
     {
