@@ -72,7 +72,10 @@ macro_rules! define_list_config_builder {
             $field_vis $things: Option<Vec<$EntryBuilder>>,
         }
         impl $ListBuilder {
-            /// Add one
+            /// Add one item to the end of the list.
+            ///
+            /// If the list hasn't been set or adjusted yet, it is initialised to the default.
+            /// Then `item` is added.
             pub fn append(&mut self, item: $EntryBuilder) -> &mut Self {
                 self.$things
                     .get_or_insert_with(|| $default)
@@ -80,18 +83,27 @@ macro_rules! define_list_config_builder {
                 self
             }
 
-            /// Set the list to the supplied one, discarding any previous settings
+            /// Set the list to the supplied one, discarding any previous settings.
+            ///
+            /// After `replace` has been called, the default list will no longer be used.
             pub fn replace(&mut self, list: impl IntoIterator<Item = $EntryBuilder>) -> &mut Self {
                 self.$things = Some(list.into_iter().collect());
                 self
             }
 
-            /// Checks whether any calls have been made to set or adjust the list
+            /// Checks whether any calls have been made to set or adjust the list.
+            ///
+            /// If `append` or `replace` have been called, this will return `true`.
             pub fn is_unmodified_default(&self) -> bool {
                 self.$things.is_none()
             }
 
-            /// Resolve to a list of built items
+            /// Resolve this list to a list of built items.
+            ///
+            /// If the value is still the [`Default`],
+            /// a built-in default list will be built and returned;
+            /// otherwise each applicable item will be built,
+            /// and the results collected into a single built list.
             pub fn build(&self) -> Result<$Built, ConfigBuildError> {
                 let default_buffer;
                 let $things = match &self.$things {
