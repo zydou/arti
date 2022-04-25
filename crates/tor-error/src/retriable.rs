@@ -302,4 +302,19 @@ mod test {
             AbsRetryTime::At(now + sec)
         );
     }
+
+    #[test]
+    fn abs_from_sum() {
+        let base = Instant::now();
+        let delta = Duration::from_secs(1);
+        assert_eq!(
+            AbsRetryTime::from_sum(base, delta),
+            AbsRetryTime::At(base + delta)
+        );
+
+        assert_eq!(
+            AbsRetryTime::from_sum(base, Duration::MAX),
+            AbsRetryTime::Never
+        );
+    }
 }
