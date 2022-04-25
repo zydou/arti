@@ -27,7 +27,8 @@ use crate::storage::Store;
 use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
-use tor_circmgr::CircMgr;
+use tor_circmgr::{CircMgr, DirInfo};
+use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 /// If there were errors from a peer in `outcome`, record those errors by
@@ -173,45 +174,33 @@ pub(crate) fn make_requests_for_documents<R: Runtime>(
     Ok(res)
 }
 
-/// Testing helper: if this is Some, then we return it in place of any
-/// response to fetch_single.
-///
-/// Note that only one test uses this: otherwise there would be a race
-/// condition. :p
-#[cfg(test)]
-static CANNED_RESPONSE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
-
 /// Launch a single client request and get an associated response.
 async fn fetch_single<R: Runtime>(
-    dirmgr: Arc<DirMgr<R>>,
+    rt: &R,
     request: ClientRequest,
+    current_netdir: Option<&NetDir>,
+    circmgr: Arc<CircMgr<R>>,
 ) -> Result<(ClientRequest, DirResponse)> {
-    #[cfg(test)]
-    {
-        let m = CANNED_RESPONSE.lock().expect("Poisoned mutex");
-        if let Some(s) = m.as_ref() {
-            return Ok((request, DirResponse::from_body(s)));
-        }
-    }
-    let circmgr = dirmgr.circmgr()?;
-    let cur_netdir = dirmgr.opt_netdir();
-    let dirinfo = match cur_netdir {
-        Some(ref netdir) => netdir.as_ref().into(),
+    let dirinfo: DirInfo = match current_netdir {
+        Some(netdir) => netdir.into(),
         None => tor_circmgr::DirInfo::Nothing,
     };
-    let outcome = tor_dirclient::get_resource(
-        request.as_requestable(),
-        dirinfo,
-        &dirmgr.runtime,
-        circmgr.clone(),
-    )
-    .await;
+    let outcome =
+        tor_dirclient::get_resource(request.as_requestable(), dirinfo, rt, circmgr.clone()).await;
 
     note_request_outcome(&circmgr, &outcome);
 
     let resource = outcome?;
     Ok((request, resource))
 }
+
+/// Testing helper: if this is Some, then we return it in place of any
+/// response to fetch_multiple.
+///
+/// Note that only one test uses this: otherwise there would be a race
+/// condition. :p
+#[cfg(test)]
+static CANNED_RESPONSE: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(vec![]));
 
 /// Launch a set of download requests for a set of missing objects in
 /// `missing`, and return each request along with the response it received.
@@ -227,10 +216,24 @@ async fn fetch_multiple<R: Runtime>(
         make_requests_for_documents(&dirmgr.runtime, missing, store.deref())?
     };
 
+    #[cfg(test)]
+    {
+        let m = CANNED_RESPONSE.lock().expect("Poisoned mutex");
+        if !m.is_empty() {
+            return Ok(requests
+                .into_iter()
+                .zip(m.iter().map(DirResponse::from_body))
+                .collect());
+        }
+    }
+
+    let circmgr = dirmgr.circmgr()?;
+    let netdir = dirmgr.opt_netdir();
+
     // TODO: instead of waiting for all the queries to finish, we
     // could stream the responses back or something.
     let responses: Vec<Result<(ClientRequest, DirResponse)>> = futures::stream::iter(requests)
-        .map(|query| fetch_single(Arc::clone(&dirmgr), query))
+        .map(|query| fetch_single(&dirmgr.runtime, query, netdir.as_deref(), circmgr.clone()))
         .buffer_unordered(parallelism)
         .collect()
         .await;
@@ -727,11 +730,11 @@ mod test {
             {
                 let mut resp = CANNED_RESPONSE.lock().unwrap();
                 // H4 and H5.
-                *resp = Some(
+                *resp = vec![
                     "7768696c652069206c696b6520746f207761746368207468696e6773206f6e20
                      545620536174656c6c697465206f66206c6f766520536174656c6c6974652d2d"
                         .to_owned(),
-                );
+                ];
             }
             let mgr = Arc::new(mgr);
             let mut on_usable = None;
