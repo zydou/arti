@@ -15,6 +15,7 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
+tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0"}
 tor-error = { path="../tor-error", version = "0.2.0"}
 
 thiserror = "1"

@@ -17,6 +17,10 @@
 /// nontrivial, you should put the actual defaulting functionality in a (probably-private)
 /// function, as the macro will expand it twice.
 ///
+/// The `item_build` clause, if supplied, provides a closure with type
+/// `FnMut(&ThingBuilder) -> Result<Thing, ConfigBuildErro>`; the default is to call
+/// `thing_builder.build()`.
+///
 /// ```
 /// use derive_builder::Builder;
 /// use serde::Deserialize;
@@ -59,6 +63,7 @@ macro_rules! define_list_config_builder {
         }
         built: $Built:ty = $built:expr;
         default = $default:expr;
+        $( item_build: $item_build:expr; )?
     } => {
         $($docs_and_attrs)*
         #[derive(Default, Clone, Deserialize)]
@@ -100,10 +105,16 @@ macro_rules! define_list_config_builder {
                         &default_buffer
                     }
                 };
+
                 let $things = $things
                     .iter()
-                    .map(|item| item.build())
-                    .collect::<Result<_, _>>()?;
+                    .map(
+                        $crate::macro_coalesce_args!{
+                            [ $( $item_build )? ],
+                            [ |item| item.build() ],
+                        }
+                    )
+                    .collect::<Result<_, ConfigBuildError>>()?;
                 Ok($built)
             }
         }

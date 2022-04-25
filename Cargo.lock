@@ -3342,6 +3342,7 @@ dependencies = [
  "serde",
  "shellexpand-fork",
  "thiserror",
+ "tor-basic-utils",
  "tor-error",
  "tracing",
  "tracing-test",
