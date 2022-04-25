@@ -105,7 +105,7 @@ macro_rules! define_list_config_builder {
                 let $things = $things
                     .iter()
                     .map(
-                        $crate::macro_coalesce_args!{
+                        $crate::macro_first_nonempty!{
                             [ $( $item_build )? ],
                             [ |item| item.build() ],
                         }

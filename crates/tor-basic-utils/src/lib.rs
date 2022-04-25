@@ -162,10 +162,10 @@ macro_rules! define_accessor_trait {
 /// `macro_coalesce_args` takes each of its possible expansions in `[ ]` and returns
 /// the first nonempty one.
 #[macro_export]
-macro_rules! macro_coalesce_args {
+macro_rules! macro_first_nonempty {
     { [ $($yes:tt)+ ] $($rhs:tt)* } => { $($yes)* };
     { [ ]$(,)? [ $($otherwise:tt)* ] $($rhs:tt)* } => {
-        $crate::macro_coalesce_args!{ [ $($otherwise)* ] $($rhs)* }
+        $crate::macro_first_nonempty!{ [ $($otherwise)* ] $($rhs)* }
     };
 }
 

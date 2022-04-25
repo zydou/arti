@@ -55,7 +55,7 @@ pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
 pub use path::CfgPath;
 
-pub use tor_basic_utils::macro_coalesce_args;
+pub use tor_basic_utils::macro_first_nonempty;
 
 /// Rules for reconfiguring a running Arti instance.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
