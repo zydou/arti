@@ -151,7 +151,7 @@ pub enum AbsRetryTime {
 }
 
 impl AbsRetryTime {
-    /// Construct an AbsRetryTime representing `base` + `plus`
+    /// Construct an AbsRetryTime representing `base` + `plus`.
     fn from_sum(base: Instant, plus: Duration) -> Self {
         match base.checked_add(plus) {
             Some(t) => AbsRetryTime::At(t),
