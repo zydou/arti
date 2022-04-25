@@ -150,6 +150,16 @@ pub enum AbsRetryTime {
     Never,
 }
 
+impl AbsRetryTime {
+    /// Construct an AbsRetryTime representing `base` + `plus`
+    fn from_sum(base: Instant, plus: Duration) -> Self {
+        match base.checked_add(plus) {
+            Some(t) => AbsRetryTime::At(t),
+            None => AbsRetryTime::Never,
+        }
+    }
+}
+
 impl RetryTime {
     /// Convert this [`RetryTime`] in to an absolute time.
     ///
@@ -161,14 +171,8 @@ impl RetryTime {
     {
         match self {
             RetryTime::Immediate => AbsRetryTime::Immediate,
-            RetryTime::AfterWaiting => match now.checked_add(choose_delay()) {
-                Some(t) => AbsRetryTime::At(t),
-                None => AbsRetryTime::Never,
-            },
-            RetryTime::After(d) => match now.checked_add(d) {
-                Some(t) => AbsRetryTime::At(t),
-                None => AbsRetryTime::Never,
-            },
+            RetryTime::AfterWaiting => AbsRetryTime::from_sum(now, choose_delay()),
+            RetryTime::After(d) => AbsRetryTime::from_sum(now, d),
             RetryTime::At(t) => AbsRetryTime::At(t),
             RetryTime::Never => AbsRetryTime::Never,
         }
@@ -187,10 +191,8 @@ impl RetryTime {
         I: Iterator<Item = RetryTime>,
         F: FnOnce() -> Duration,
     {
-        let chosen_delay = once_cell::unsync::Lazy::new(|| match now.checked_add(choose_delay()) {
-            Some(t) => AbsRetryTime::At(t),
-            None => AbsRetryTime::Never,
-        });
+        let chosen_delay =
+            once_cell::unsync::Lazy::new(|| AbsRetryTime::from_sum(now, choose_delay()));
 
         items
             .map(|item| match item {
