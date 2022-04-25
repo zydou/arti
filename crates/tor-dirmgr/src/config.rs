@@ -9,7 +9,7 @@
 //! here must be reflected in the version of `arti-client`.
 
 use crate::authority::AuthorityList;
-use crate::retry::DownloadSchedule;
+use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
 use crate::{Authority, AuthorityListBuilder, Result};
 use tor_config::ConfigBuildError;
@@ -19,6 +19,7 @@ use tor_netdoc::doc::netstatus;
 use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
@@ -132,12 +133,22 @@ pub struct DownloadScheduleConfig {
 
 /// Default value for retry_bootstrap in DownloadScheduleConfig.
 fn default_retry_bootstrap() -> DownloadSchedule {
-    DownloadSchedule::new(128, std::time::Duration::new(1, 0), 1)
+    DownloadScheduleBuilder::default()
+        .attempts(128)
+        .initial_delay(Duration::new(1, 0))
+        .parallelism(1)
+        .build()
+        .expect("build default_retry_bootstrap")
 }
 
 /// Default value for microdesc_bootstrap in DownloadScheduleConfig.
 fn default_microdesc_schedule() -> DownloadSchedule {
-    DownloadSchedule::new(3, std::time::Duration::new(1, 0), 4)
+    let mut ds = DownloadSchedule::builder();
+    ds.attempts(3)
+        .initial_delay(Duration::new(1, 0))
+        .parallelism(4);
+    ds.build()
+        .expect("failed to build default microdesc schedule")
 }
 
 impl Default for DownloadScheduleConfig {
@@ -388,10 +399,39 @@ mod test {
         assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
 
-        bld.retry_consensus(DownloadSchedule::new(7, Duration::new(86400, 0), 1))
-            .retry_bootstrap(DownloadSchedule::new(4, Duration::new(3600, 0), 1))
-            .retry_certs(DownloadSchedule::new(5, Duration::new(3600, 0), 1))
-            .retry_microdescs(DownloadSchedule::new(6, Duration::new(3600, 0), 1));
+        bld.retry_consensus(
+            DownloadSchedule::builder()
+                .attempts(7)
+                .initial_delay(Duration::new(86400, 0))
+                .parallelism(1)
+                .build()
+                .unwrap(),
+        );
+        bld.retry_bootstrap(
+            DownloadSchedule::builder()
+                .attempts(4)
+                .initial_delay(Duration::new(3600, 0))
+                .parallelism(1)
+                .build()
+                .unwrap(),
+        );
+
+        bld.retry_certs(
+            DownloadSchedule::builder()
+                .attempts(5)
+                .initial_delay(Duration::new(3600, 0))
+                .parallelism(1)
+                .build()
+                .unwrap(),
+        );
+        bld.retry_microdescs(
+            DownloadSchedule::builder()
+                .attempts(6)
+                .initial_delay(Duration::new(3600, 0))
+                .parallelism(1)
+                .build()
+                .unwrap(),
+        );
 
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.retry_microdescs().parallelism(), 1);

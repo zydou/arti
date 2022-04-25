@@ -51,7 +51,9 @@ pub struct DownloadSchedule {
 
 impl Default for DownloadSchedule {
     fn default() -> Self {
-        DownloadSchedule::new(3, Duration::from_millis(1000), 1)
+        DownloadSchedule::builder()
+            .build()
+            .expect("build default DownloadSchedule")
     }
 }
 
@@ -81,29 +83,6 @@ impl DownloadSchedule {
     /// Return a new [`DownloadScheduleBuilder`]
     pub fn builder() -> DownloadScheduleBuilder {
         DownloadScheduleBuilder::default()
-    }
-
-    /// Create a new DownloadSchedule to control our logic for retrying
-    /// a given download.
-    ///
-    /// The resulting configuration will always make at least one
-    /// attempt, and at most `attempts`.  After a failure, it will
-    /// wait at least `initial_delay` before trying again.
-    #[allow(clippy::missing_panics_doc)] // can't really panic.
-    pub fn new(attempts: u32, initial_delay: Duration, parallelism: u8) -> Self {
-        // If unwrapping `1.try_into()` is not safe there are bigger problems
-        #![allow(clippy::unwrap_used)]
-        let num_retries = attempts
-            .try_into()
-            .unwrap_or_else(|_| 1.try_into().unwrap());
-        let parallelism = parallelism
-            .try_into()
-            .unwrap_or_else(|_| 1.try_into().unwrap());
-        DownloadSchedule {
-            num_retries,
-            initial_delay,
-            parallelism,
-        }
     }
 
     /// Return an iterator to use over all the supported attempts for

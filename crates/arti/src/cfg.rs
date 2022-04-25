@@ -248,10 +248,22 @@ mod test {
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.tor()
-            .download_schedule()
-            .retry_certs(DownloadSchedule::new(10, sec, 3))
-            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+        bld.tor().download_schedule().retry_certs(
+            DownloadSchedule::builder()
+                .attempts(10)
+                .initial_delay(sec)
+                .parallelism(3)
+                .build()
+                .expect("build download schedule"),
+        );
+        bld.tor().download_schedule().retry_microdescs(
+            DownloadSchedule::builder()
+                .attempts(30)
+                .initial_delay(10 * sec)
+                .parallelism(9)
+                .build()
+                .expect("build download schedule"),
+        );
         bld.tor()
             .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
