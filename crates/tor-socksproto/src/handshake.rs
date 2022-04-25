@@ -8,7 +8,6 @@ use tor_bytes::Result as BytesResult;
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_error::internal;
 
-use std::convert::TryInto;
 use std::net::IpAddr;
 
 /// An ongoing SOCKS handshake.

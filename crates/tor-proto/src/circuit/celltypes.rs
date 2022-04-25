@@ -7,8 +7,6 @@
 use crate::{Error, Result};
 use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
 
-use std::convert::TryFrom;
-
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
 #[derive(Debug)]
@@ -68,7 +66,6 @@ impl TryFrom<ChanMsg> for ClientCircChanMsg {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use std::convert::TryFrom;
 
     #[test]
     fn create_response() {

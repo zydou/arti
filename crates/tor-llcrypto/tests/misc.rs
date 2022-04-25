@@ -1,8 +1,6 @@
 use hex_literal::hex;
 use tor_llcrypto as ll;
 
-use std::convert::TryInto;
-
 #[test]
 fn test_ed25519_identity() {
     use ll::pk::ed25519::{Ed25519Identity, PublicKey};

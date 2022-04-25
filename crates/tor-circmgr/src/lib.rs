@@ -59,7 +59,6 @@ use tor_rtcompat::Runtime;
 
 use futures::task::SpawnExt;
 use futures::StreamExt;
-use std::convert::TryInto;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, trace, warn};

@@ -15,7 +15,6 @@ use derive_builder::Builder;
 use derive_more::AsRef;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;

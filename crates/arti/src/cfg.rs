@@ -2,8 +2,6 @@
 //
 // (Thia module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
-use std::convert::TryFrom;
-
 use derive_builder::Builder;
 use serde::Deserialize;
 
@@ -194,7 +192,6 @@ mod test {
 
     use arti_client::config::dir;
     use arti_config::ARTI_DEFAULTS;
-    use std::convert::TryInto;
     use std::time::Duration;
 
     use super::*;

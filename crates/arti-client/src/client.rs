@@ -18,7 +18,6 @@ use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
-use std::convert::TryInto;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};

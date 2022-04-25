@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::task::SpawnExt;
 use futures::Future;
-use std::convert::TryInto;
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,

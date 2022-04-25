@@ -196,8 +196,6 @@ mod tests {
     #[test]
     #[cfg(feature = "hsv3-client")]
     fn blinding() {
-        use std::convert::TryInto;
-
         // Test the ed25519 blinding function.
         //
         // These test vectors are from our ed25519 implementation and related

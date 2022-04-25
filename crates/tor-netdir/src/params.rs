@@ -18,7 +18,6 @@
 //! in range, and provides default values for any parameters that are
 //! missing.
 
-use std::convert::TryInto;
 use tor_units::{
     BoundedInt32, IntegerDays, IntegerMilliseconds, IntegerSeconds, Percentage, SendMeVersion,
 };
@@ -449,7 +448,6 @@ mod test {
 
     #[test]
     fn all_parameters() {
-        use std::convert::TryFrom;
         use std::time::Duration;
         let mut p = NetParameters::default();
         let mp = [

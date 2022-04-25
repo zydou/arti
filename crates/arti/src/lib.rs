@@ -136,8 +136,6 @@ use anyhow::{Context, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::{info, warn};
 
-use std::convert::TryInto;
-
 /// Shorthand for a boxed and pinned Future.
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 

@@ -15,7 +15,6 @@
 use bounded_vec_deque::BoundedVecDeque;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use std::convert::TryInto;
 use std::time::Duration;
 use tor_netdir::params::NetParameters;
 

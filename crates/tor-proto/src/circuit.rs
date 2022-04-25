@@ -68,7 +68,6 @@ use futures::channel::{mpsc, oneshot};
 
 use crate::circuit::sendme::StreamRecvWindow;
 use futures::SinkExt;
-use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::sync::Arc;
 use tor_cell::relaycell::StreamId;

@@ -7,7 +7,6 @@ use crate::{DirInfo, Error, Result};
 use async_trait::async_trait;
 use educe::Educe;
 use futures::future::OptionFuture;
-use std::convert::TryInto;
 use std::sync::Arc;
 use tor_basic_utils::skip_fmt;
 use tor_error::internal;

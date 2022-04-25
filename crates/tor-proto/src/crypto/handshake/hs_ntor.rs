@@ -37,7 +37,6 @@ use cipher::{NewCipher, StreamCipher};
 use digest::Digest;
 use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};
-use std::convert::TryInto;
 use tor_error::into_internal;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;

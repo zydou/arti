@@ -8,7 +8,6 @@ use crate::chancell::msg::{DestroyReason, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_L
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
 use educe::Educe;
-use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};

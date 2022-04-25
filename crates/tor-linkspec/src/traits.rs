@@ -4,8 +4,6 @@
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
-use std::convert::TryInto;
-
 /// Information about a Tor relay used to connect to it.
 ///
 /// Anything that implements 'ChanTarget' can be used as the
