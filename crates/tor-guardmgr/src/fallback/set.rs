@@ -8,7 +8,7 @@ use super::{DirStatus, FallbackDir, FallbackDirBuilder};
 use crate::fallback::default_fallbacks;
 use crate::{ids::FallbackId, PickGuardError};
 use serde::Deserialize;
-use tor_config::{define_list_config_builder, ConfigBuildError};
+use tor_config::define_list_config_builder;
 
 /// A list of fallback directories.
 ///

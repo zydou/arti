@@ -93,7 +93,7 @@ macro_rules! define_list_config_builder {
         $( item_build: $item_build:expr; )?
     } => {
         $(#[ $docs_and_attrs ])*
-        #[derive(Default, Clone, Deserialize)]
+        #[derive(Default, Clone, $crate::serde::Deserialize)]
         #[serde(transparent)]
         ///
         /// This is a builder pattern struct which will be resolved
@@ -135,7 +135,7 @@ macro_rules! define_list_config_builder {
             /// a built-in default list will be built and returned;
             /// otherwise each applicable item will be built,
             /// and the results collected into a single built list.
-            pub fn build(&self) -> Result<$Built, ConfigBuildError> {
+            pub fn build(&self) -> Result<$Built, $crate::ConfigBuildError> {
                 let default_buffer;
                 let $things = match &self.$things {
                     Some($things) => $things,
@@ -153,7 +153,7 @@ macro_rules! define_list_config_builder {
                             [ |item| item.build() ],
                         }
                     )
-                    .collect::<Result<_, ConfigBuildError>>()?;
+                    .collect::<Result<_, $crate::ConfigBuildError>>()?;
                 Ok($built)
             }
         }
