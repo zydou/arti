@@ -108,8 +108,7 @@ impl LogfileListConfigBuilder {
         let files = files
             .iter()
             .map(|item| item.build())
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.within("files"))?;
+            .collect::<Result<_, _>>()?;
         Ok(files)
     }
 }
