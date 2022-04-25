@@ -159,3 +159,34 @@ macro_rules! define_list_config_builder {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn nonempty_default() {
+        define_list_config_builder! {
+            struct ListBuilder {
+                chars: [char],
+            }
+            built: List = chars;
+            default = vec!['a'];
+            item_build: |&c| Ok(c);
+        }
+
+        type List = Vec<char>;
+
+        let mut b = ListBuilder::default();
+        assert!(b.is_unmodified_default());
+        assert_eq! { (&b).build().expect("build failed"), ['a'] };
+
+        b.append('b');
+        assert!(!b.is_unmodified_default());
+        assert_eq! { (&b).build().expect("build failed"), ['a', 'b'] };
+
+        for mut b in IntoIterator::into_iter([b, ListBuilder::default()]) {
+            b.replace(vec!['x', 'y']);
+            assert!(!b.is_unmodified_default());
+            assert_eq! { (&b).build().expect("build failed"), ['x', 'y'] };
+        }
+    }
+}
