@@ -259,10 +259,13 @@ mod test {
             .path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
+        bld.tor().preemptive_circuits().disable_at_threshold(12);
         bld.tor()
             .preemptive_circuits()
-            .disable_at_threshold(12)
-            .initial_predicted_ports(vec![80, 443])
+            .initial_predicted_ports()
+            .set(vec![80, 443]);
+        bld.tor()
+            .preemptive_circuits()
             .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
         bld.tor()
