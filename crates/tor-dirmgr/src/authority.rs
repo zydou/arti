@@ -21,7 +21,12 @@ pub struct Authority {
     /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
     /// this authority.
     // TODO: It would be lovely to use a better hash for these identities.
+    #[cfg(not(feature = "experimental-api"))]
     pub(crate) v3ident: RsaIdentity,
+    #[cfg(feature = "experimental-api")]
+    /// A SHA1 digest of the DER-encoded long-term v3 RSA identity key for
+    /// this authority.
+    pub v3ident: RsaIdentity,
 }
 
 impl Authority {
