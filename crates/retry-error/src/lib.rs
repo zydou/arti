@@ -127,9 +127,11 @@ impl<E> RetryError<E> {
     where
         T: Into<E>,
     {
-        self.n_errors += 1;
-        let attempt = Attempt::Single(self.n_errors);
-        self.errors.push((attempt, err.into()));
+        if self.n_errors < usize::MAX {
+            self.n_errors += 1;
+            let attempt = Attempt::Single(self.n_errors);
+            self.errors.push((attempt, err.into()));
+        }
     }
 
     /// Return an iterator over all of the reasons that the attempt
@@ -328,5 +330,28 @@ Attempt 3: invalid IP address syntax"
 Tried to parse some integers 3 times, but all attempts failed.
 Attempts 1..3: invalid digit found in string"
         );
+    }
+
+    #[test]
+    fn overflow() {
+        use std::num::ParseIntError;
+        let mut err: RetryError<ParseIntError> =
+            RetryError::in_attempt_to("parse too many integers");
+        assert!(err.is_empty());
+        let mut errors: Vec<ParseIntError> = vec!["no", "numbers"]
+            .iter()
+            .filter_map(|s| s.parse::<u16>().err())
+            .collect();
+        err.n_errors = usize::MAX;
+        err.errors.push((
+            Attempt::Range(1, err.n_errors),
+            errors.pop().expect("parser did not fail"),
+        ));
+        assert!(err.n_errors == usize::MAX);
+        assert!(err.len() == 1);
+
+        err.push(errors.pop().expect("parser did not fail"));
+        assert!(err.n_errors == usize::MAX);
+        assert!(err.len() == 1);
     }
 }

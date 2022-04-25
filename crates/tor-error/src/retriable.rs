@@ -161,8 +161,14 @@ impl RetryTime {
     {
         match self {
             RetryTime::Immediate => AbsRetryTime::Immediate,
-            RetryTime::AfterWaiting => AbsRetryTime::At(now + choose_delay()),
-            RetryTime::After(d) => AbsRetryTime::At(now + d),
+            RetryTime::AfterWaiting => match now.checked_add(choose_delay()) {
+                Some(t) => AbsRetryTime::At(t),
+                None => AbsRetryTime::Never,
+            },
+            RetryTime::After(d) => match now.checked_add(d) {
+                Some(t) => AbsRetryTime::At(t),
+                None => AbsRetryTime::Never,
+            },
             RetryTime::At(t) => AbsRetryTime::At(t),
             RetryTime::Never => AbsRetryTime::Never,
         }
@@ -181,11 +187,14 @@ impl RetryTime {
         I: Iterator<Item = RetryTime>,
         F: FnOnce() -> Duration,
     {
-        let chosen_delay = once_cell::unsync::Lazy::new(choose_delay);
+        let chosen_delay = once_cell::unsync::Lazy::new(|| match now.checked_add(choose_delay()) {
+            Some(t) => AbsRetryTime::At(t),
+            None => AbsRetryTime::Never,
+        });
 
         items
             .map(|item| match item {
-                RetryTime::AfterWaiting => AbsRetryTime::At(now + *chosen_delay),
+                RetryTime::AfterWaiting => *chosen_delay,
                 other => other.absolute(now, || unreachable!()),
             })
             .min()
@@ -276,5 +285,19 @@ mod test {
                 assert_eq!(a.cmp(b), i.cmp(&j));
             }
         }
+    }
+
+    #[test]
+    fn earliest_absolute() {
+        let sec = Duration::from_secs(1);
+        let now = Instant::now();
+
+        let times = vec![RetryTime::AfterWaiting, RetryTime::Never];
+
+        let earliest = RetryTime::earliest_absolute(times.into_iter(), now, || sec);
+        assert_eq!(
+            earliest.expect("no absolute time"),
+            AbsRetryTime::At(now + sec)
+        );
     }
 }
