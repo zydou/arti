@@ -2,7 +2,7 @@
 name = "tor-units"
 version = "0.2.0"
 authors = ["Dennis Jackson <git@dennisjj.co.uk>"]
-edition = "2018"
+edition = "2021"
 rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
