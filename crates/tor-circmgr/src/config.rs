@@ -186,7 +186,9 @@ fn default_preemptive_threshold() -> usize {
 type PredictedPortsList = Vec<u16>;
 
 define_list_config_builder! {
-    /// List of preemptive ports, being built as part of the configuration
+    /// List of preemptive ports, being built as part of the configuration.
+    ///
+    /// The default is `[80, 443]`.
     pub struct PredictedPortsListBuilder {
         pub(crate) ports: [u16],
     }

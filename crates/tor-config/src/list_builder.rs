@@ -7,6 +7,7 @@
 ///
 /// `#[derive(Default, Clone, Deserialize)]` will be applied, but you can specify other attributes
 /// too.  You should supply a doc comment for the builder struct, as shown in the example.
+/// The doc comment should state the default value.
 ///
 /// The `built` clause specifies the type of the built value, and how to construct it.
 /// In the expression part, `things` (the field name) will be the resolved `Vec<Thing>`

@@ -66,7 +66,9 @@ impl LoggingConfig {
 type LogfileListConfig = Vec<LogfileConfig>;
 
 define_list_config_builder! {
-    /// List of logfiles to use, being built as part of the configuration
+    /// List of logfiles to use, being built as part of the configuration.
+    ///
+    /// The default is not to log to any files.
     pub struct LogfileListConfigBuilder {
         files: [LogfileConfigBuilder],
     }

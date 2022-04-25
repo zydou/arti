@@ -31,11 +31,14 @@ impl<T: IntoIterator<Item = FallbackDir>> From<T> for FallbackList {
 }
 
 define_list_config_builder! {
-    /// List of fallback directories, being built as part of the configuration
+    /// List of fallback directories, being built as part of the configuration.
     ///
     /// Fallback directories (represented by [`FallbackDir`]) are used by Tor
     /// clients when they don't already have enough other directory information to
     /// contact the network.
+    ///
+    /// The default is to use a set of compiled-in fallback directories,
+    /// whose addresses and public keys are shipped as part of the Arti source code.
     pub struct FallbackListBuilder {
         pub(crate) fallbacks: [FallbackDirBuilder],
     }
