@@ -27,7 +27,75 @@ use crate::storage::Store;
 use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
+use tor_circmgr::CircMgr;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
+
+/// If there were errors from a peer in `outcome`, record those errors by
+/// marking the circuit (if any) as needing retirement, and noting the peer
+/// (if any) as having failed.
+fn note_request_outcome<R: Runtime>(
+    circmgr: &CircMgr<R>,
+    outcome: &tor_dirclient::Result<tor_dirclient::DirResponse>,
+) {
+    use tor_dirclient::Error::RequestFailed;
+    // Extract an error and a source from this outcome, if there is one.
+    //
+    // This is complicated because DirResponse can encapsulate the notion of
+    // a response that failed part way through a download: in the case, it
+    // has some data, and also an error.
+    let (err, source) = match outcome {
+        Ok(req) => {
+            if let (Some(e), Some(source)) = (req.error(), req.source()) {
+                (
+                    RequestFailed {
+                        error: e.clone(),
+                        source: Some(source.clone()),
+                    },
+                    source,
+                )
+            } else {
+                return;
+            }
+        }
+        Err(RequestFailed {
+            source: Some(source),
+            ..
+        }) => (
+            // TODO: Use an @ binding in the pattern once we are on MSRV >=
+            // 1.56.
+            outcome.as_ref().unwrap_err().clone(),
+            source,
+        ),
+        _ => return,
+    };
+
+    note_cache_error(circmgr, source, &err.into());
+}
+
+/// Record that a problem has occurred because of a failure in an answer from `source`.
+fn note_cache_error<R: Runtime>(
+    circmgr: &CircMgr<R>,
+    source: &tor_dirclient::SourceInfo,
+    problem: &Error,
+) {
+    use tor_circmgr::ExternalActivity;
+
+    if !problem.indicates_cache_failure() {
+        return;
+    }
+
+    info!("Marking {:?} as failed: {}", source, problem);
+    circmgr.note_external_failure(source.cache_id(), ExternalActivity::DirCache);
+    circmgr.retire_circ(source.unique_circ_id());
+}
+
+/// Record that `source` has successfully given us some directory info.
+fn note_cache_success<R: Runtime>(circmgr: &CircMgr<R>, source: &tor_dirclient::SourceInfo) {
+    use tor_circmgr::ExternalActivity;
+
+    trace!("Marking {:?} as successful", source);
+    circmgr.note_external_success(source.cache_id(), ExternalActivity::DirCache);
+}
 
 /// Load a set of documents from a `Store`, returning all documents found in the store.
 /// Note that this may be less than the number of documents in `missing`.
@@ -131,11 +199,15 @@ async fn fetch_single<R: Runtime>(
         Some(ref netdir) => netdir.as_ref().into(),
         None => tor_circmgr::DirInfo::Nothing,
     };
-    let outcome =
-        tor_dirclient::get_resource(request.as_requestable(), dirinfo, &dirmgr.runtime, circmgr)
-            .await;
+    let outcome = tor_dirclient::get_resource(
+        request.as_requestable(),
+        dirinfo,
+        &dirmgr.runtime,
+        circmgr.clone(),
+    )
+    .await;
 
-    dirmgr.note_request_outcome(&outcome);
+    note_request_outcome(&circmgr, &outcome);
 
     let resource = outcome?;
     Ok((request, resource))
@@ -276,7 +348,7 @@ async fn download_attempt<R: Runtime>(
             Ok(t) => t,
             Err(e) => {
                 if let Some(source) = source {
-                    dirmgr.note_cache_error(&source, &e);
+                    note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
                 continue;
             }
@@ -288,13 +360,13 @@ async fn download_attempt<R: Runtime>(
                     Ok(b) => {
                         changed |= b;
                         if let Some(source) = source {
-                            dirmgr.note_cache_success(&source);
+                            note_cache_success(dirmgr.circmgr()?.deref(), &source);
                         }
                     }
                     Err(e) => {
                         warn!("error while adding directory info: {}", e);
                         if let Some(source) = source {
-                            dirmgr.note_cache_error(&source, &e);
+                            note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                         }
                     }
                 }
@@ -302,7 +374,7 @@ async fn download_attempt<R: Runtime>(
             Err(e) => {
                 warn!("Error when expanding directory text: {}", e);
                 if let Some(source) = source {
-                    dirmgr.note_cache_error(&source, &e);
+                    note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
             }
         }
