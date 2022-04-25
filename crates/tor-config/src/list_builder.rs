@@ -47,7 +47,7 @@
 /// thinglist.append(ThingBuilder::default().value(42).clone());
 /// assert_eq!{ thinglist.build().unwrap().things, &[Thing { value: 42 }] }
 ///
-/// thinglist.set(vec![ThingBuilder::default().value(38).clone()]);
+/// thinglist.replace(vec![ThingBuilder::default().value(38).clone()]);
 /// assert_eq!{ thinglist.build().unwrap().things, &[Thing { value: 38 }] }
 /// ```
 #[macro_export]
@@ -81,7 +81,7 @@ macro_rules! define_list_config_builder {
             }
 
             /// Set the list to the supplied one, discarding any previous settings
-            pub fn set(&mut self, list: impl IntoIterator<Item = $EntryBuilder>) -> &mut Self {
+            pub fn replace(&mut self, list: impl IntoIterator<Item = $EntryBuilder>) -> &mut Self {
                 self.$things = Some(list.into_iter().collect());
                 self
             }

@@ -353,7 +353,7 @@ mod test {
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
-        bld.authorities().set(vec![
+        bld.authorities().replace(vec![
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
@@ -365,7 +365,7 @@ mod test {
         ]);
         assert!(bld.build().is_err());
 
-        bld.fallback_caches().set(vec![FallbackDir::builder()
+        bld.fallback_caches().replace(vec![FallbackDir::builder()
             .rsa_identity([b'x'; 20].into())
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())

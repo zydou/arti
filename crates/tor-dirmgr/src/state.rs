@@ -1012,9 +1012,9 @@ mod test {
     impl DirRcv {
         fn new(now: SystemTime, authorities: Option<Vec<AuthorityBuilder>>) -> Self {
             let mut netcfg = crate::NetworkConfig::builder();
-            netcfg.fallback_caches().set(vec![]);
+            netcfg.fallback_caches().replace(vec![]);
             if let Some(a) = authorities {
-                netcfg.authorities().set(a);
+                netcfg.authorities().replace(a);
             }
             let cfg = DirMgrConfig {
                 cache_path: "/we_will_never_use_this/".into(),

@@ -398,8 +398,8 @@ mod test {
             .clone();
 
         let mut bld = TorClientConfig::builder();
-        bld.tor_network().authorities().set(vec![auth]);
-        bld.tor_network().fallback_caches().set(vec![fallback]);
+        bld.tor_network().authorities().replace(vec![auth]);
+        bld.tor_network().fallback_caches().replace(vec![fallback]);
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
