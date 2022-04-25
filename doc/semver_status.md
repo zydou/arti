@@ -42,6 +42,10 @@ BREAKING: Added `ChanProvenance` to `ChanMgr::get_or_launch`.
 MODIFIED: Added a new variant in tor_circmgr::Error.
 BREAKING: Made internal scheduled entry points non-public.
 
+### tor-dirmgr
+
+BREAKING: AuthorityBuilder::build now throws ConfigBuildError, not a custom error type
+
 ### tor-guardmgr
 
 MODIFIED: New functions to get estimated clock skew.

@@ -5,6 +5,7 @@
 
 use derive_builder::Builder;
 use serde::Deserialize;
+use tor_config::ConfigBuildError;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A single authority that signs a consensus directory.
@@ -13,6 +14,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 // we want our authorities format to be future-proof against adding new info
 // about each authority.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Deserialize))]
 pub struct Authority {
     /// A memorable nickname for this authority.
