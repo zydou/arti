@@ -5,7 +5,7 @@
 
 use derive_builder::Builder;
 use serde::Deserialize;
-use tor_config::ConfigBuildError;
+use tor_config::{define_list_config_builder, ConfigBuildError};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A single authority that signs a consensus directory.
@@ -41,17 +41,29 @@ impl Authority {
     }
 }
 
+/// Authority list, built
+pub(crate) type AuthorityList = Vec<Authority>;
+
+define_list_config_builder! {
+    [
+        /// List of authorities, being built as part of the configuration
+    ]
+    pub struct AuthorityListBuilder {
+        authorities: [AuthorityBuilder],
+    }
+    built: AuthorityList = authorities;
+    default = default_authorities();
+}
+
 /// Return a vector of the default directory authorities.
-pub(crate) fn default_authorities() -> Vec<Authority> {
+pub(crate) fn default_authorities() -> Vec<AuthorityBuilder> {
     /// Build an authority; panic if input is bad.
-    fn auth(name: &str, key: &str) -> Authority {
+    fn auth(name: &str, key: &str) -> AuthorityBuilder {
         let v3ident =
             RsaIdentity::from_hex(key).expect("Built-in authority identity had bad hex!?");
-        AuthorityBuilder::new()
-            .name(name)
-            .v3ident(v3ident)
-            .build()
-            .expect("unable to construct built-in authority!?")
+        let mut auth = AuthorityBuilder::new();
+        auth.name(name).v3ident(v3ident);
+        auth
     }
 
     // (List generated August 2020.)
@@ -115,7 +127,7 @@ mod test {
 
     #[test]
     fn auth() {
-        let dflt = default_authorities();
+        let dflt = AuthorityListBuilder::default().build().unwrap();
         assert_eq!(&dflt[0].name[..], "bastet");
         assert_eq!(
             &dflt[0].v3ident.to_string()[..],

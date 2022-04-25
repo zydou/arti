@@ -229,8 +229,7 @@ mod test {
         let auth = dir::Authority::builder()
             .name("Fred")
             .v3ident([22; 20].into())
-            .build()
-            .unwrap();
+            .clone();
         let fallback = dir::FallbackDir::builder()
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
@@ -240,9 +239,9 @@ mod test {
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
+        bld.tor().tor_network().authorities().set(vec![auth]);
         bld.tor()
             .tor_network()
-            .authorities(vec![auth])
             .fallback_caches()
             .set(vec![fallback]);
         bld.tor()
