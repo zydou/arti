@@ -21,10 +21,11 @@ relay = []
 hsv3-client = []
 
 [dependencies]
-aes = { version = "0.7.0", features = ["ctr"] }
+aes = { version = "0.8" }
 arrayref = "0.3"
 base64 = "0.13.0"
 curve25519-dalek = "3.2"
+ctr = "0.9"
 digest = "0.10.0"
 ed25519-dalek = { version = "1", features = ["batch"] }
 hex = "0.4"
@@ -45,7 +46,7 @@ thiserror = "1"
 [dev-dependencies]
 hex-literal = "0.3"
 rand = "0.8"
-cipher = "0.3.0"
+cipher = "0.4.1"
 serde_test = "1.0.124"
 
 # This is a magic crate that runs the tests and checks the format

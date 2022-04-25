@@ -21,7 +21,7 @@ use tor_llcrypto::d::{Sha3_256, Shake256};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
 use tor_llcrypto::util::rand_compat::RngCompatExt;
 
-use cipher::{NewCipher, StreamCipher};
+use cipher::{KeyIvInit, StreamCipher};
 
 use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};

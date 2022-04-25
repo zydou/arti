@@ -9,5 +9,9 @@
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
 pub mod aes {
     // These implement StreamCipher.
-    pub use ::aes::{Aes128Ctr, Aes256Ctr};
+    /// AES128 in counter mode as used by Tor.
+    pub type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
+
+    /// AES256 in counter mode as used by Tor.  
+    pub type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 }
