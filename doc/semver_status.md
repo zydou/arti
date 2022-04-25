@@ -18,6 +18,10 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.2.0
 
+### All crates
+
+BREAKING: Requiring Rust 1.56, edition 2021.
+
 ### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
 
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
@@ -60,3 +64,4 @@ MODIFIED: Added add_blackhole to MockNetwork.
 ### tor-socksproto
 
 BREAKING: Removed some unused accessors.
+
