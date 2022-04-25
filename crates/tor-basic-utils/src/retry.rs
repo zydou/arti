@@ -143,6 +143,8 @@ mod test {
         assert_eq!(rd.delay_bounds(), (1000, 4500));
         rd.last_delay_ms = 3_000_000_000;
         assert_eq!(rd.delay_bounds(), (1000, std::u32::MAX));
+        rd.reset();
+        assert_eq!(rd.delay_bounds(), (1000, 1001));
     }
 
     #[test]
