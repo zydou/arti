@@ -7,25 +7,45 @@ use std::convert::TryInto;
 use std::num::{NonZeroU32, NonZeroU8};
 use std::time::Duration;
 
+use derive_builder::Builder;
 use serde::Deserialize;
 use tor_basic_utils::retry::RetryDelay;
+use tor_config::ConfigBuildError;
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
-#[derive(Debug, Copy, Clone, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Builder, Copy, Clone, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Deserialize))]
 pub struct DownloadSchedule {
     /// How many times to retry before giving up?
+    #[builder(
+        setter(name = "attempts", strip_option),
+        field(
+            type = "Option<u32>",
+            build = r#"build_nonzero(self.num_retries, 3, "num_retries")?"#
+        )
+    )]
     num_retries: NonZeroU32,
 
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
     #[serde(with = "humantime_serde")]
+    #[builder(default = "Duration::from_millis(1000)")]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
     initial_delay: Duration,
 
     /// When we want to download a bunch of these at a time, how many
     /// attempts should we try to launch at once?
     #[serde(default = "default_parallelism")]
+    #[builder(
+        setter(strip_option),
+        field(
+            type = "Option<u8>",
+            build = r#"build_nonzero(self.parallelism, 1, "parallelism")?"#
+        )
+    )]
     parallelism: NonZeroU8,
 }
 
@@ -35,6 +55,22 @@ impl Default for DownloadSchedule {
     }
 }
 
+/// Helper for building a NonZero* field
+fn build_nonzero<NZ, I>(
+    spec: Option<I>,
+    default: I,
+    field: &'static str,
+) -> Result<NZ, ConfigBuildError>
+where
+    I: TryInto<NZ>,
+{
+    spec.unwrap_or(default).try_into().map_err(|_| {
+        let field = field.into();
+        let problem = "zero specifiedc, but not permitted".to_string();
+        ConfigBuildError::Invalid { field, problem }
+    })
+}
+
 /// Return the default parallelism for DownloadSchedule.
 fn default_parallelism() -> NonZeroU8 {
     #![allow(clippy::unwrap_used)]
@@ -42,6 +78,11 @@ fn default_parallelism() -> NonZeroU8 {
 }
 
 impl DownloadSchedule {
+    /// Return a new [`DownloadScheduleBuilder`]
+    pub fn builder() -> DownloadScheduleBuilder {
+        DownloadScheduleBuilder::default()
+    }
+
     /// Create a new DownloadSchedule to control our logic for retrying
     /// a given download.
     ///
