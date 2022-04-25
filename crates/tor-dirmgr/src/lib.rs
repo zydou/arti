@@ -92,6 +92,7 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
+use crate::state::DirState;
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
     DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
@@ -839,81 +840,6 @@ enum Readiness {
     Complete,
     /// There is more information to download, but we don't need to
     Usable,
-}
-
-/// A "state" object used to represent our progress in downloading a
-/// directory.
-///
-/// These state objects are not meant to know about the network, or
-/// how to fetch documents at all.  Instead, they keep track of what
-/// information they are missing, and what to do when they get that
-/// information.
-///
-/// Every state object has two possible transitions: "resetting", and
-/// "advancing".  Advancing happens when a state has no more work to
-/// do, and needs to transform into a different kind of object.
-/// Resetting happens when this state needs to go back to an initial
-/// state in order to start over -- either because of an error or
-/// because the information it has downloaded is no longer timely.
-trait DirState: Send {
-    /// Return a human-readable description of this state.
-    fn describe(&self) -> String;
-    /// Return a list of the documents we're missing.
-    ///
-    /// If every document on this list were to be loaded or downloaded, then
-    /// the state should either become "ready to advance", or "complete."
-    ///
-    /// This list should never _grow_ on a given state; only advancing
-    /// or resetting the state should add new DocIds that weren't
-    /// there before.
-    fn missing_docs(&self) -> Vec<DocId>;
-    /// Describe whether this state has reached `ready` status.
-    fn is_ready(&self, ready: Readiness) -> bool;
-    /// Return true if this state can advance to another state via its
-    /// `advance` method.
-    fn can_advance(&self) -> bool;
-    /// Add one or more documents from our cache; returns 'true' if there
-    /// was any change in this state.
-    ///
-    /// If `storage` is provided, then we should write any state changes into
-    /// it.  (We don't read from it in this method.)
-    fn add_from_cache(
-        &mut self,
-        docs: HashMap<DocId, DocumentText>,
-        storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool>;
-
-    /// Add information that we have just downloaded to this state; returns
-    /// 'true' if there as any change in this state.
-    ///
-    /// This method receives a copy of the original request, and
-    /// should reject any documents that do not pertain to it.
-    ///
-    /// If `storage` is provided, then we should write any accepted documents
-    /// into `storage` so they can be saved in a cache.
-    // TODO: It might be good to say "there was a change but also an
-    // error" in this API if possible.
-    // TODO: It would be better to not have this function be async,
-    // once the `must_not_suspend` lint is stable.
-    // TODO: this should take a "DirSource" too.
-    fn add_from_download(
-        &mut self,
-        text: &str,
-        request: &ClientRequest,
-        storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool>;
-    /// Return a summary of this state as a [`DirStatus`].
-    fn bootstrap_status(&self) -> event::DirStatus;
-
-    /// Return a configuration for attempting downloads.
-    fn dl_config(&self) -> Result<DownloadSchedule>;
-    /// If possible, advance to the next state.
-    fn advance(self: Box<Self>) -> Result<Box<dyn DirState>>;
-    /// Return a time (if any) when downloaders should stop attempting to
-    /// advance this state, and should instead reset it and start over.
-    fn reset_time(&self) -> Option<SystemTime>;
-    /// Reset this state and start over.
-    fn reset(self: Box<Self>) -> Result<Box<dyn DirState>>;
 }
 
 /// Try to upgrade a weak reference to a DirMgr, and give an error on

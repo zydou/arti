@@ -8,10 +8,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use crate::state::DirState;
 use crate::{
     docid::{self, ClientRequest},
     state::WriteNetDir,
-    upgrade_weak_ref, DirMgr, DirState, DocId, DocQuery, DocumentText, Error, Readiness, Result,
+    upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
 };
 
 use futures::channel::oneshot;
