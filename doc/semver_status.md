@@ -21,6 +21,8 @@ We can delete older sections here after we bump the releases.
 ### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
 
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
+BREAKING: Configuration of directory authoorities overhauled; now uses AuthorityListBuilder.
+BREAKING: Configuration of preemptive ports overhauled; now uses PredictedPortsListBuilder..
 
 ### arti
 
