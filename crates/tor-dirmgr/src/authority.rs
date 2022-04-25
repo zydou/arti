@@ -45,9 +45,7 @@ impl Authority {
 pub(crate) type AuthorityList = Vec<Authority>;
 
 define_list_config_builder! {
-    [
-        /// List of authorities, being built as part of the configuration
-    ]
+    /// List of authorities, being built as part of the configuration
     pub struct AuthorityListBuilder {
         authorities: [AuthorityBuilder],
     }

@@ -31,13 +31,11 @@ impl<T: IntoIterator<Item = FallbackDir>> From<T> for FallbackList {
 }
 
 define_list_config_builder! {
-    [
-        /// List of fallback directories, being built as part of the configuration
-        ///
-        /// Fallback directories (represented by [`FallbackDir`]) are used by Tor
-        /// clients when they don't already have enough other directory information to
-        /// contact the network.
-    ]
+    /// List of fallback directories, being built as part of the configuration
+    ///
+    /// Fallback directories (represented by [`FallbackDir`]) are used by Tor
+    /// clients when they don't already have enough other directory information to
+    /// contact the network.
     pub struct FallbackListBuilder {
         pub(crate) fallbacks: [FallbackDirBuilder],
     }

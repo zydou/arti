@@ -35,9 +35,7 @@
 /// pub struct ThingList { things: Vec<Thing> }
 ///
 /// define_list_config_builder! {
-///    [
-///        /// List of things, being built as part of the configuration
-///    ]
+///    /// List of things, being built as part of the configuration
 ///    pub struct ThingListBuilder {
 ///        pub(crate) things: [ThingBuilder],
 ///    }
@@ -55,9 +53,7 @@
 #[macro_export]
 macro_rules! define_list_config_builder {
     {
-        [
-            $($docs_and_attrs:tt)*
-        ]
+        $(#[ $docs_and_attrs:meta ])*
         pub struct $ListBuilder:ident {
             $field_vis:vis $things:ident : [$EntryBuilder:ty] $(,)?
         }
@@ -65,7 +61,7 @@ macro_rules! define_list_config_builder {
         default = $default:expr;
         $( item_build: $item_build:expr; )?
     } => {
-        $($docs_and_attrs)*
+        $(#[ $docs_and_attrs ])*
         #[derive(Default, Clone, Deserialize)]
         #[serde(transparent)]
         ///
