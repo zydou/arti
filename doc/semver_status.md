@@ -66,3 +66,7 @@ MODIFIED: Added add_blackhole to MockNetwork.
 ### tor-socksproto
 
 BREAKING: Removed some unused accessors.
+
+### tor-config
+
+MODIFIED: New macros define_list_config_builder macro_first_nonempty
