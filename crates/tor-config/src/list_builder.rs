@@ -85,7 +85,7 @@
 macro_rules! define_list_config_builder {
     {
         $(#[ $docs_and_attrs:meta ])*
-        pub struct $ListBuilder:ident {
+        $vis:vis struct $ListBuilder:ident {
             $field_vis:vis $things:ident : [$EntryBuilder:ty] $(,)?
         }
         built: $Built:ty = $built:expr;
@@ -98,7 +98,7 @@ macro_rules! define_list_config_builder {
         ///
         /// This is a builder pattern struct which will be resolved
         /// during configuration resolution, via the `build` method.
-        pub struct $ListBuilder {
+        $vis struct $ListBuilder {
             /// The list, as overridden
             $field_vis $things: Option<Vec<$EntryBuilder>>,
         }
@@ -107,7 +107,7 @@ macro_rules! define_list_config_builder {
             ///
             /// If the list hasn't been set or adjusted yet, it is initialised to the default.
             /// Then `item` is added.
-            pub fn append(&mut self, item: $EntryBuilder) -> &mut Self {
+            $vis fn append(&mut self, item: $EntryBuilder) -> &mut Self {
                 self.$things
                     .get_or_insert_with(|| $default)
                     .push(item);
@@ -117,7 +117,7 @@ macro_rules! define_list_config_builder {
             /// Set the list to the supplied one, discarding any previous settings.
             ///
             /// After `replace` has been called, the default list will no longer be used.
-            pub fn replace(&mut self, list: impl IntoIterator<Item = $EntryBuilder>) -> &mut Self {
+            $vis fn replace(&mut self, list: impl IntoIterator<Item = $EntryBuilder>) -> &mut Self {
                 self.$things = Some(list.into_iter().collect());
                 self
             }
@@ -125,7 +125,7 @@ macro_rules! define_list_config_builder {
             /// Checks whether any calls have been made to set or adjust the list.
             ///
             /// If `append` or `replace` have been called, this will return `true`.
-            pub fn is_unmodified_default(&self) -> bool {
+            $vis fn is_unmodified_default(&self) -> bool {
                 self.$things.is_none()
             }
 
@@ -135,7 +135,7 @@ macro_rules! define_list_config_builder {
             /// a built-in default list will be built and returned;
             /// otherwise each applicable item will be built,
             /// and the results collected into a single built list.
-            pub fn build(&self) -> Result<$Built, $crate::ConfigBuildError> {
+            $vis fn build(&self) -> Result<$Built, $crate::ConfigBuildError> {
                 let default_buffer;
                 let $things = match &self.$things {
                     Some($things) => $things,
