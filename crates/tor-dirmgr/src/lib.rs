@@ -92,7 +92,7 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
-pub use authority::{Authority, AuthorityBuilder};
+pub use authority::{Authority, AuthorityBuilder, AuthorityListBuilder};
 pub use config::{
     DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
     NetworkConfigBuilder,

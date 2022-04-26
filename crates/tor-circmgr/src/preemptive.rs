@@ -94,12 +94,10 @@ mod test {
 
     #[test]
     fn predicts_starting_ports() {
-        let cfg = PreemptiveCircuitConfig::builder()
-            .initial_predicted_ports(vec![])
-            .prediction_lifetime(Duration::from_secs(2))
-            .build()
-            .unwrap();
-        let predictor = PreemptiveCircuitPredictor::new(cfg);
+        let mut cfg = PreemptiveCircuitConfig::builder();
+        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.prediction_lifetime(Duration::from_secs(2));
+        let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
         assert_isoleq!(
             predictor.predict(),
@@ -109,13 +107,10 @@ mod test {
             }]
         );
 
-        let cfg = PreemptiveCircuitConfig::builder()
-            .initial_predicted_ports(vec![80])
-            .prediction_lifetime(Duration::from_secs(2))
-            .build()
-            .unwrap();
-
-        let predictor = PreemptiveCircuitPredictor::new(cfg);
+        let mut cfg = PreemptiveCircuitConfig::builder();
+        cfg.initial_predicted_ports().replace(vec![80]);
+        cfg.prediction_lifetime(Duration::from_secs(2));
+        let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
         let results = predictor.predict();
         assert_eq!(results.len(), 2);
@@ -135,12 +130,10 @@ mod test {
 
     #[test]
     fn predicts_used_ports() {
-        let cfg = PreemptiveCircuitConfig::builder()
-            .initial_predicted_ports(vec![])
-            .prediction_lifetime(Duration::from_secs(2))
-            .build()
-            .unwrap();
-        let mut predictor = PreemptiveCircuitPredictor::new(cfg);
+        let mut cfg = PreemptiveCircuitConfig::builder();
+        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.prediction_lifetime(Duration::from_secs(2));
+        let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
         assert_isoleq!(
             predictor.predict(),
@@ -170,12 +163,10 @@ mod test {
 
     #[test]
     fn does_not_predict_old_ports() {
-        let cfg = PreemptiveCircuitConfig::builder()
-            .initial_predicted_ports(vec![])
-            .prediction_lifetime(Duration::from_secs(2))
-            .build()
-            .unwrap();
-        let mut predictor = PreemptiveCircuitPredictor::new(cfg);
+        let mut cfg = PreemptiveCircuitConfig::builder();
+        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.prediction_lifetime(Duration::from_secs(2));
+        let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
         let more_than_an_hour_ago = Instant::now() - Duration::from_secs(60 * 60 + 1);
 
         predictor.note_usage(Some(TargetPort::ipv4(2345)), more_than_an_hour_ago);
