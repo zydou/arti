@@ -19,15 +19,15 @@ use tor_config::ConfigBuildError;
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Deserialize))]
 pub struct DownloadSchedule {
-    /// How many times to retry before giving up?
+    /// How many attempts to make before giving up?
     #[builder(
-        setter(name = "attempts", strip_option),
+        setter(strip_option),
         field(
             type = "Option<u32>",
-            build = r#"build_nonzero(self.num_retries, 3, "num_retries")?"#
+            build = r#"build_nonzero(self.attempts, 3, "attempts")?"#
         )
     )]
-    num_retries: NonZeroU32,
+    attempts: NonZeroU32,
 
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
@@ -53,7 +53,7 @@ impl DownloadScheduleBuilder {
     /// Default value for retry_bootstrap in DownloadScheduleConfig.
     pub fn build_retry_bootstrap(&self) -> Result<DownloadSchedule, ConfigBuildError> {
         let mut bld = self.clone();
-        bld.num_retries.get_or_insert(128);
+        bld.attempts.get_or_insert(128);
         bld.initial_delay.get_or_insert_with(|| Duration::new(1, 0));
         bld.parallelism.get_or_insert(1);
         bld.build()
@@ -62,7 +62,7 @@ impl DownloadScheduleBuilder {
     /// Default value for microdesc_bootstrap in DownloadScheduleConfig.
     pub fn build_retry_microdescs(&self) -> Result<DownloadSchedule, ConfigBuildError> {
         let mut bld = self.clone();
-        bld.num_retries.get_or_insert(3);
+        bld.attempts.get_or_insert(3);
         bld.initial_delay
             .get_or_insert_with(|| (Duration::new(1, 0)));
         bld.parallelism.get_or_insert(4);
@@ -109,13 +109,13 @@ impl DownloadSchedule {
     /// Return an iterator to use over all the supported attempts for
     /// this configuration.
     pub fn attempts(&self) -> impl Iterator<Item = u32> {
-        0..(self.num_retries.into())
+        0..(self.attempts.into())
     }
 
     /// Return the number of times that we're supposed to retry, according
     /// to this DownloadSchedule.
     pub fn n_attempts(&self) -> u32 {
-        self.num_retries.into()
+        self.attempts.into()
     }
 
     /// Return the number of parallel attempts that we're supposed to launch,
