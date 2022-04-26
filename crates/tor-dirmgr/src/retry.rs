@@ -89,7 +89,7 @@ where
 {
     spec.unwrap_or(default).try_into().map_err(|_| {
         let field = field.into();
-        let problem = "zero specifiedc, but not permitted".to_string();
+        let problem = "zero specified, but not permitted".to_string();
         ConfigBuildError::Invalid { field, problem }
     })
 }
