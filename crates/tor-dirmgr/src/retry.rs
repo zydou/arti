@@ -51,7 +51,7 @@ pub struct DownloadSchedule {
 
 impl DownloadScheduleBuilder {
     /// Default value for retry_bootstrap in DownloadScheduleConfig.
-    pub fn build_retry_bootstrap(&self) -> Result<DownloadSchedule, ConfigBuildError> {
+    pub(crate) fn build_retry_bootstrap(&self) -> Result<DownloadSchedule, ConfigBuildError> {
         let mut bld = self.clone();
         bld.attempts.get_or_insert(128);
         bld.initial_delay.get_or_insert_with(|| Duration::new(1, 0));
@@ -60,7 +60,7 @@ impl DownloadScheduleBuilder {
     }
 
     /// Default value for microdesc_bootstrap in DownloadScheduleConfig.
-    pub fn build_retry_microdescs(&self) -> Result<DownloadSchedule, ConfigBuildError> {
+    pub(crate) fn build_retry_microdescs(&self) -> Result<DownloadSchedule, ConfigBuildError> {
         let mut bld = self.clone();
         bld.attempts.get_or_insert(3);
         bld.initial_delay
