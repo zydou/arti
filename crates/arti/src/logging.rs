@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::Path;
 use std::str::FromStr;
-use tor_config::{CfgPath, ConfigBuildError};
+use tor_config::{define_list_config_builder, CfgPath, ConfigBuildError};
 use tracing::Subscriber;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
@@ -65,53 +65,15 @@ impl LoggingConfig {
 /// Local type alias, mostly helpful for derive_builder to DTRT
 type LogfileListConfig = Vec<LogfileConfig>;
 
-#[derive(Default, Clone, Deserialize)]
-#[serde(transparent)]
-/// List of logfiles to use, being built as part of the configuration
-pub struct LogfileListConfigBuilder {
-    /// The logfiles, as overridden
-    files: Option<Vec<LogfileConfigBuilder>>,
-}
-
-impl LogfileListConfigBuilder {
-    /// Add a file logger
-    pub fn append(&mut self, file: LogfileConfigBuilder) -> &mut Self {
-        self.files
-            .get_or_insert_with(Self::default_files)
-            .push(file);
-        self
-    }
-
-    /// Set the list of file loggers to the supplied `files`
-    pub fn set(&mut self, files: impl IntoIterator<Item = LogfileConfigBuilder>) -> &mut Self {
-        self.files = Some(files.into_iter().collect());
-        self
-    }
-
-    /// Default logfiles
+define_list_config_builder! {
+    /// List of logfiles to use, being built as part of the configuration.
     ///
-    /// (Currently) there are no defauolt logfiles.
-    pub(crate) fn default_files() -> Vec<LogfileConfigBuilder> {
-        vec![]
+    /// The default is not to log to any files.
+    pub struct LogfileListConfigBuilder {
+        files: [LogfileConfigBuilder],
     }
-
-    /// Resolve `LoggingConfigBuilder.files` to a value for `LoggingConfig.files`
-    pub(crate) fn build(&self) -> Result<Vec<LogfileConfig>, ConfigBuildError> {
-        let default_buffer;
-        let files = match &self.files {
-            Some(files) => files,
-            None => {
-                default_buffer = Self::default_files();
-                &default_buffer
-            }
-        };
-        let files = files
-            .iter()
-            .map(|item| item.build())
-            .collect::<Result<_, _>>()
-            .map_err(|e| e.within("files"))?;
-        Ok(files)
-    }
+    built: LogfileListConfig = files;
+    default = vec![];
 }
 
 /// Configuration information for an (optionally rotating) logfile.

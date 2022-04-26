@@ -229,8 +229,7 @@ mod test {
         let auth = dir::Authority::builder()
             .name("Fred")
             .v3ident([22; 20].into())
-            .build()
-            .unwrap();
+            .clone();
         let fallback = dir::FallbackDir::builder()
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
@@ -240,11 +239,11 @@ mod test {
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
+        bld.tor().tor_network().authorities().replace(vec![auth]);
         bld.tor()
             .tor_network()
-            .authorities(vec![auth])
             .fallback_caches()
-            .set(vec![fallback]);
+            .replace(vec![fallback]);
         bld.tor()
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
@@ -260,10 +259,13 @@ mod test {
             .path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
+        bld.tor().preemptive_circuits().disable_at_threshold(12);
         bld.tor()
             .preemptive_circuits()
-            .disable_at_threshold(12)
-            .initial_predicted_ports(vec![80, 443])
+            .initial_predicted_ports()
+            .replace(vec![80, 443]);
+        bld.tor()
+            .preemptive_circuits()
             .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
         bld.tor()

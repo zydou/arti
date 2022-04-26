@@ -8,9 +8,10 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
+use crate::authority::AuthorityList;
 use crate::retry::DownloadSchedule;
 use crate::storage::DynStore;
-use crate::{Authority, Result};
+use crate::{Authority, AuthorityListBuilder, Result};
 use tor_config::ConfigBuildError;
 use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
@@ -54,9 +55,8 @@ pub struct NetworkConfig {
     /// with Arti.)
     ///
     /// This section cannot be changed in a running Arti client.
-    #[serde(default = "crate::authority::default_authorities")]
-    #[builder(default = "crate::authority::default_authorities()")]
-    pub(crate) authorities: Vec<Authority>,
+    #[builder(sub_builder)]
+    pub(crate) authorities: AuthorityList,
 }
 
 impl Default for NetworkConfig {
@@ -65,7 +65,9 @@ impl Default for NetworkConfig {
             fallbacks: FallbackListBuilder::default()
                 .build()
                 .expect("build default fallbacks"),
-            authorities: crate::authority::default_authorities(),
+            authorities: AuthorityListBuilder::default()
+                .build()
+                .expect("unable to construct built-in authorities!?"),
         }
     }
 }
@@ -85,7 +87,7 @@ impl NetworkConfig {
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if self.authorities.is_some() && self.fallbacks.is_unmodified_default() {
+        if !self.authorities.is_unmodified_default() && self.fallbacks.is_unmodified_default() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -351,21 +353,19 @@ mod test {
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
-        bld.authorities(vec![
+        bld.authorities().replace(vec![
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
-                .build()
-                .unwrap(),
+                .clone(),
             Authority::builder()
                 .name("world")
                 .v3ident([b'!'; 20].into())
-                .build()
-                .unwrap(),
+                .clone(),
         ]);
         assert!(bld.build().is_err());
 
-        bld.fallback_caches().set(vec![FallbackDir::builder()
+        bld.fallback_caches().replace(vec![FallbackDir::builder()
             .rsa_identity([b'x'; 20].into())
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())

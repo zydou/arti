@@ -21,6 +21,8 @@ We can delete older sections here after we bump the releases.
 ### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
 
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
+BREAKING: Configuration of directory authoorities overhauled; now uses AuthorityListBuilder.
+BREAKING: Configuration of preemptive ports overhauled; now uses PredictedPortsListBuilder..
 
 ### arti
 
@@ -42,6 +44,10 @@ BREAKING: Added `ChanProvenance` to `ChanMgr::get_or_launch`.
 MODIFIED: Added a new variant in tor_circmgr::Error.
 BREAKING: Made internal scheduled entry points non-public.
 
+### tor-dirmgr
+
+BREAKING: AuthorityBuilder::build now throws ConfigBuildError, not a custom error type
+
 ### tor-guardmgr
 
 MODIFIED: New functions to get estimated clock skew.
@@ -60,3 +66,7 @@ MODIFIED: Added add_blackhole to MockNetwork.
 ### tor-socksproto
 
 BREAKING: Removed some unused accessors.
+
+### tor-config
+
+MODIFIED: New macros define_list_config_builder macro_first_nonempty

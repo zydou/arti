@@ -959,7 +959,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::cognitive_complexity)]
     use super::*;
-    use crate::{Authority, DownloadScheduleConfig};
+    use crate::{Authority, AuthorityBuilder, DownloadScheduleConfig};
     use std::convert::TryInto;
     use std::sync::{
         atomic::{self, AtomicBool},
@@ -1010,11 +1010,11 @@ mod test {
     }
 
     impl DirRcv {
-        fn new(now: SystemTime, authorities: Option<Vec<Authority>>) -> Self {
+        fn new(now: SystemTime, authorities: Option<Vec<AuthorityBuilder>>) -> Self {
             let mut netcfg = crate::NetworkConfig::builder();
-            netcfg.fallback_caches().set(vec![]);
+            netcfg.fallback_caches().replace(vec![]);
             if let Some(a) = authorities {
-                netcfg.authorities(a);
+                netcfg.authorities().replace(a);
             }
             let cfg = DirMgrConfig {
                 cache_path: "/we_will_never_use_this/".into(),
@@ -1068,13 +1068,9 @@ mod test {
     fn rsa(s: &str) -> RsaIdentity {
         RsaIdentity::from_hex(s).unwrap()
     }
-    fn test_authorities() -> Vec<Authority> {
-        fn a(s: &str) -> Authority {
-            Authority::builder()
-                .name("ignore")
-                .v3ident(rsa(s))
-                .build()
-                .unwrap()
+    fn test_authorities() -> Vec<AuthorityBuilder> {
+        fn a(s: &str) -> AuthorityBuilder {
+            Authority::builder().name("ignore").v3ident(rsa(s)).clone()
         }
         vec![
             a("5696AB38CB3852AFA476A5C07B2D4788963D5567"),

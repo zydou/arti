@@ -390,8 +390,7 @@ mod test {
         let auth = dir::Authority::builder()
             .name("Fred")
             .v3ident([22; 20].into())
-            .build()
-            .unwrap();
+            .clone();
         let fallback = dir::FallbackDir::builder()
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
@@ -399,10 +398,8 @@ mod test {
             .clone();
 
         let mut bld = TorClientConfig::builder();
-        bld.tor_network()
-            .authorities(vec![auth])
-            .fallback_caches()
-            .set(vec![fallback]);
+        bld.tor_network().authorities().replace(vec![auth]);
+        bld.tor_network().fallback_caches().replace(vec![fallback]);
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
