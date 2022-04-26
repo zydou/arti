@@ -3,7 +3,6 @@
 use crate::{Error, Result};
 
 use caret::caret_int;
-use std::convert::TryFrom;
 use std::fmt;
 use std::net::IpAddr;
 
@@ -243,7 +242,6 @@ impl fmt::Display for SocksAddr {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use std::convert::TryInto;
 
     #[test]
     fn display_sa() {

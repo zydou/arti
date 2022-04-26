@@ -2,7 +2,8 @@
 name = "tor-dirmgr"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Bootstrap and update an accurate Tor network directory"
@@ -25,19 +26,19 @@ dirfilter = []
 experimental-api = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
 retry-error = { path = "../retry-error", version = "0.1.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.2.0"}
-tor-circmgr = { path = "../tor-circmgr", version = "0.2.0"}
-tor-config = { path = "../tor-config", version = "0.2.0"}
-tor-consdiff = { path = "../tor-consdiff", version = "0.2.0"}
-tor-dirclient = { path = "../tor-dirclient", version = "0.2.0"}
-tor-error = { path = "../tor-error", version = "0.2.0"}
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.2.0"}
-tor-netdir = { path = "../tor-netdir", version = "0.2.0"}
-tor-netdoc = { path = "../tor-netdoc", version = "0.2.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0"}
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0"}
+tor-checkable = { path = "../tor-checkable", version = "0.2.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.2.0" }
+tor-config = { path = "../tor-config", version = "0.2.0" }
+tor-consdiff = { path = "../tor-consdiff", version = "0.2.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.2.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.2.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.2.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.2.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0" }
 
 async-trait = "0.1.2"
 base64 = "0.13.0"

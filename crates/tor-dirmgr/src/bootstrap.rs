@@ -390,7 +390,6 @@ mod test {
     use crate::storage::DynStore;
     use crate::test::new_mgr;
     use crate::DownloadSchedule;
-    use std::convert::TryInto;
     use std::sync::Mutex;
     use tor_netdoc::doc::microdesc::MdDigest;
     use tor_rtcompat::SleepProvider;

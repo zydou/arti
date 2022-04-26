@@ -230,7 +230,6 @@ mod test {
     use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
-    use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;

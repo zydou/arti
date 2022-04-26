@@ -2,23 +2,24 @@
 name = "tor-chanmgr"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Manage a set of connections to the Tor network"
-keywords = [ "tor", "arti", "async" ]
-categories = [ "network-programming", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "async"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 
 [dependencies]
-tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0"}
-tor-error = { path="../tor-error", version = "0.2.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0"}
-tor-proto = { path="../tor-proto", version = "0.2.0"}
-tor-linkspec = { path="../tor-linkspec", version = "0.2.0"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.2.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.2.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0" }
+tor-proto = { path = "../tor-proto", version = "0.2.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.2.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0" }
 
 async-trait = "0.1.2"
 derive_more = "0.99"
@@ -33,5 +34,5 @@ thiserror = "1"
 float_eq = "0.7"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
-tor-rtmock = { path="../tor-rtmock", version = "0.2.0"}
-tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0", features=["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.2.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", features = ["tokio", "native-tls"] }

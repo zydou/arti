@@ -2,7 +2,8 @@
 name = "tor-config"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Low-level configuration for the Arti Tor implementation"
@@ -15,8 +16,8 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
-tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0"}
-tor-error = { path="../tor-error", version = "0.2.0"}
+tor-error = { path = "../tor-error", version = "0.2.0" }
+tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0" }
 
 thiserror = "1"
 derive_builder = "0.11.2"

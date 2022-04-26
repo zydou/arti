@@ -11,7 +11,6 @@ use crate::{parse::parser::Section, util::private::Sealed};
 use crate::{Error, Result};
 use std::net;
 
-use std::convert::TryInto;
 use tor_error::internal;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;

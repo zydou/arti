@@ -1,7 +1,6 @@
 //! Different kinds of messages that can be encoded in channel cells.
 
 use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
-use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, Error, Readable, Reader, Result, Writer};

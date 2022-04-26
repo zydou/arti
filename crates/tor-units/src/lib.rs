@@ -47,7 +47,6 @@
 
 use derive_more::{Add, Display, Div, From, FromStr, Mul};
 
-use std::convert::{TryFrom, TryInto};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -430,7 +429,6 @@ mod tests {
     use float_cmp::assert_approx_eq;
 
     use super::*;
-    use std::convert::TryInto;
 
     type TestFoo = BoundedInt32<1, 5>;
     type TestBar = BoundedInt32<-45, 17>;

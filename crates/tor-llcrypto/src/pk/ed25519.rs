@@ -10,7 +10,6 @@
 //! protocol to uniquely identify a relay.
 
 use arrayref::array_ref;
-use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
@@ -38,7 +37,6 @@ impl Ed25519Identity {
     ///
     /// ```
     /// use tor_llcrypto::pk::ed25519::{Ed25519Identity, PublicKey};
-    /// use std::convert::TryInto;
     ///
     /// let bytes = b"klsadjfkladsfjklsdafkljasdfsdsd!";
     /// let id = Ed25519Identity::new(*bytes);

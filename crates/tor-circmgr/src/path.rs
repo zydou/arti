@@ -11,8 +11,6 @@ use tor_guardmgr::fallback::FallbackDir;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget};
 use tor_netdir::Relay;
 
-use std::convert::TryFrom;
-
 use crate::usage::ExitPolicy;
 use crate::Result;
 
@@ -142,7 +140,6 @@ impl OwnedPath {
 #[cfg(test)]
 fn assert_same_path_when_owned(path: &TorPath<'_>) {
     #![allow(clippy::unwrap_used)]
-    use std::convert::TryInto;
     use tor_linkspec::ChanTarget;
     let owned: OwnedPath = path.try_into().unwrap();
 

@@ -15,7 +15,6 @@ use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
 use tor_netdoc::doc::routerdesc::RdDigest;
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::path::{self, Path, PathBuf};
 use std::time::SystemTime;
 

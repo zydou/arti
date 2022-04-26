@@ -960,7 +960,6 @@ mod test {
     #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::{Authority, AuthorityBuilder, DownloadScheduleConfig};
-    use std::convert::TryInto;
     use std::sync::{
         atomic::{self, AtomicBool},
         Arc,

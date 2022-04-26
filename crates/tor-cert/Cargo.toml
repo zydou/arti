@@ -2,19 +2,20 @@
 name = "tor-cert"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Non-standard certificate formats used by Tor"
-keywords = [ "tor", "arti", "certificate" ]
-categories = [ "parser-implementations" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "certificate"]
+categories = ["parser-implementations"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-caret = { path="../caret", version = "0.1.0"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.2.0"}
-tor-bytes = { path="../tor-bytes", version = "0.2.0"}
-tor-checkable = { path="../tor-checkable", version = "0.2.0"}
+caret = { path = "../caret", version = "0.1.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.2.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.2.0" }
 
 digest = "0.10.0"
 signature = "1"

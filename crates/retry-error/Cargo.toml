@@ -2,13 +2,14 @@
 name = "retry-error"
 version = "0.1.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "An error type for an operation that can fail more than once"
-keywords = [ "tor", "arti", "async", "retry" ]
-categories = [ "rust-patterns" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "async", "retry"]
+categories = ["rust-patterns"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dev-dependencies]
 

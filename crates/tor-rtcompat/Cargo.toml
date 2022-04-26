@@ -2,24 +2,25 @@
 name = "tor-rtcompat"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Compatibility layer for asynchronous runtimes, used by Tor"
-keywords = [ "tor", "arti", "async" ]
-categories = [ "asynchronous" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "async"]
+categories = ["asynchronous"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 
-default = [ ]
-async-std = [ "async-std-crate", "async-io", "async_executors/async_std" ]
-tokio = [ "tokio-crate", "tokio-util", "async_executors/tokio_tp" ]
+default = []
+async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
+tokio = ["tokio-crate", "tokio-util", "async_executors/tokio_tp"]
 # TODO: This feature makes us link native-tls statically even if we
 # don't want to use native-tls in the first place.  That's not so clever!
-static = [ "native-tls-crate/vendored" ]
-native-tls = [ "native-tls-crate", "async-native-tls" ]
-rustls = [ "rustls-crate", "async-rustls", "x509-signature" ]
+static = ["native-tls-crate/vendored"]
+native-tls = ["native-tls-crate", "async-native-tls"]
+rustls = ["rustls-crate", "async-rustls", "x509-signature"]
 
 [dependencies]
 
@@ -29,13 +30,21 @@ educe = "0.4.6"
 futures = "0.3.14"
 pin-project = "1"
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
-rustls-crate = { package = "rustls", version = "0.19", optional = true, features = [ "dangerous_configuration" ] }
+rustls-crate = { package = "rustls", version = "0.19", optional = true, features = [
+    "dangerous_configuration",
+] }
 
 async-std-crate = { package = "async-std", version = "1.7.0", optional = true }
 async-io = { version = "1.4.1", optional = true }
 async-native-tls = { version = "0.4.0", optional = true }
 
-tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["rt", "rt-multi-thread", "io-util", "net", "time" ] }
+tokio-crate = { package = "tokio", version = "1.7", optional = true, features = [
+    "rt",
+    "rt-multi-thread",
+    "io-util",
+    "net",
+    "time",
+] }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 
 async-rustls = { version = "0.2.0", optional = true }
@@ -44,4 +53,3 @@ x509-signature = { version = "0.5.0", optional = true }
 [dev-dependencies]
 # Used for testing our TLS implementation.
 native-tls-crate = { package = "native-tls", version = "0.2" }
-

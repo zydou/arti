@@ -2,13 +2,14 @@
 name = "tor-netdir"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Types to represent and use a Tor network directory"
-keywords = [ "tor", "arti" ]
-categories = [ "network-programming" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti"]
+categories = ["network-programming"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
@@ -21,16 +22,16 @@ experimental-api = []
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = [ "hex", "hex-literal", "tor-netdoc/build_docs" ]
+testing = ["hex", "hex-literal", "tor-netdoc/build_docs"]
 
 [dependencies]
-tor-checkable = { path="../tor-checkable", version = "0.2.0"}
-tor-config = { path="../tor-config", version = "0.2.0"}
-tor-netdoc = { path="../tor-netdoc", version = "0.2.0"}
-tor-linkspec = { path="../tor-linkspec", version = "0.2.0"}
-tor-llcrypto = { path="../tor-llcrypto", version = "0.2.0"}
-tor-protover = { path="../tor-protover", version = "0.2.0"}
-tor-units = { path="../tor-units", version = "0.2.0"}
+tor-checkable = { path = "../tor-checkable", version = "0.2.0" }
+tor-config = { path = "../tor-config", version = "0.2.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.2.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.2.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.2.0" }
+tor-protover = { path = "../tor-protover", version = "0.2.0" }
+tor-units = { path = "../tor-units", version = "0.2.0" }
 
 bitflags = "1"
 derive_builder = "0.11.2"
@@ -47,5 +48,5 @@ futures = "0.3.14"
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
-tor-netdoc = { path="../tor-netdoc", version = "0.2.0", features=["build_docs"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.2.0", features = ["build_docs"] }
 rand_chacha = "0.3"

@@ -2,21 +2,21 @@
 name = "tor-socksproto"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Encode and decode the SOCKS protocol, as extended in Tor"
-keywords = [ "tor", "arti", "socks" ]
-categories = [ "network-programming" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "socks"]
+categories = ["network-programming"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-caret = { path="../caret", version = "0.1.0"}
-tor-bytes = { path="../tor-bytes", version = "0.2.0"}
-tor-error = { path="../tor-error", version = "0.2.0"}
+caret = { path = "../caret", version = "0.1.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.2.0" }
 
 thiserror = "1"
 
 [dev-dependencies]
 hex-literal = "0.3"
-

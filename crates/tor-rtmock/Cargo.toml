@@ -2,13 +2,14 @@
 name = "tor-rtmock"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Testing mock support for tor-rtcomapt"
-keywords = [ "tor", "arti", "async", "testing" ]
-categories = [ "asynchronous", ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "async", "testing"]
+categories = ["asynchronous"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 async-trait = "0.1.2"
@@ -22,4 +23,4 @@ tor-rtcompat = { version = "0.2.0", path = "../tor-rtcompat" }
 [dev-dependencies]
 futures-await-test = "0.3.0"
 rand = "0.8"
-tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0", features=["tokio", "native-tls" ] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", features = ["tokio", "native-tls"] }

@@ -12,7 +12,6 @@ use crate::crypto::cell::{
 use crate::util::err::ReactorError;
 use crate::{Error, Result};
 use std::collections::VecDeque;
-use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use tor_cell::chancell::msg::{ChanMsg, Relay};

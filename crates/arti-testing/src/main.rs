@@ -94,7 +94,6 @@ use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 use anyhow::{anyhow, Result};
 use tracing_subscriber::prelude::*;
 //use std::path::PathBuf;
-use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;

@@ -2,13 +2,14 @@
 name = "tor-llcrypto"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Low level cryptography wrappers used by Tor"
-keywords = [ "tor", "arti", "cryptography" ]
-categories = [ "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
@@ -53,7 +54,7 @@ serde_test = "1.0.124"
 [dev-dependencies.cargo-husky]
 version = "1.5.0"
 default-features = false
-features = [ "user-hooks" ]
+features = ["user-hooks"]
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }

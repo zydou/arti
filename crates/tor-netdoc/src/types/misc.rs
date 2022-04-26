@@ -113,7 +113,6 @@ mod b16impl {
 mod curve25519impl {
     use super::B64;
     use crate::{Error, ParseErrorKind as EK, Pos, Result};
-    use std::convert::TryInto;
     use tor_llcrypto::pk::curve25519::PublicKey;
 
     /// A Curve25519 public key, encoded in base64 with optional padding
@@ -420,7 +419,6 @@ mod test {
 
     #[test]
     fn curve25519() -> Result<()> {
-        use std::convert::TryInto;
         use tor_llcrypto::pk::curve25519::PublicKey;
         let k1 = "ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz8=";
         let k2 = hex::decode("a69c2d8475d6f245c3d1ff5f13b50f62c38002ee2e8f9391c12a2608cc4a933f")

@@ -36,8 +36,6 @@
 use old_rand_core::{CryptoRng as OldCryptoRng, Error as OldError, RngCore as OldRngCore};
 use rand_core::{CryptoRng, Error, RngCore};
 
-use std::convert::TryInto;
-
 /// Extension trait for the _current_ versions of [`RngCore`]; adds a
 /// compatibility-wrapper function.
 pub trait RngCompatExt: RngCore {

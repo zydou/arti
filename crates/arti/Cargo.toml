@@ -2,32 +2,33 @@
 name = "arti"
 version = "0.2.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
-edition = "2018"
+edition = "2021"
+rust-version = "1.56"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "A rust implementation of the Tor privacy tools."
-keywords = [ "tor", "arti", "privacy", "anonymity" ]
-categories = [ "command-line-utilities", "cryptography" ]
-repository="https://gitlab.torproject.org/tpo/core/arti.git/"
+keywords = ["tor", "arti", "privacy", "anonymity"]
+categories = ["command-line-utilities", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = [ "tokio", "native-tls" ]
-async-std = [ "arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell" ]
-tokio = [ "tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio" ]
-native-tls = [ "arti-client/native-tls", "tor-rtcompat/native-tls" ]
-rustls = [ "arti-client/rustls", "tor-rtcompat/rustls" ]
-static = [ "static-sqlite", "static-native-tls" ]
-static-sqlite = [ "arti-client/static-sqlite" ]
-static-native-tls = [ "arti-client/static-native-tls", "native-tls" ]
-journald = [ "tracing-journald" ]
+default = ["tokio", "native-tls"]
+async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell"]
+tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio"]
+native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
+rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
+static = ["static-sqlite", "static-native-tls"]
+static-sqlite = ["arti-client/static-sqlite"]
+static-native-tls = ["arti-client/static-native-tls", "native-tls"]
+journald = ["tracing-journald"]
 
 [dependencies]
-arti-client = { package="arti-client", path = "../arti-client", version = "0.2.0", default-features=false}
-tor-config = { path="../tor-config", version = "0.2.0"}
-tor-error = { path="../tor-error", version = "0.2.0", default-features=false }
-tor-rtcompat = { path="../tor-rtcompat", version = "0.2.0", default-features=false }
-tor-socksproto = { path="../tor-socksproto", version = "0.2.0"}
-arti-config = { path="../arti-config", version = "0.2.0"}
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.2.0", default-features = false }
+tor-config = { path = "../tor-config", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.2.0", default-features = false }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", default-features = false }
+tor-socksproto = { path = "../tor-socksproto", version = "0.2.0" }
+arti-config = { path = "../arti-config", version = "0.2.0" }
 
 anyhow = "1.0.23"
 async-ctrlc = { version = "1.2.0", optional = true }
@@ -51,4 +52,4 @@ trust-dns-proto = "0.21.1"
 libc = { version = "0.2", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.8", features = [ "winerror" ] }
+winapi = { version = "0.3.8", features = ["winerror"] }

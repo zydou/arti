@@ -365,7 +365,6 @@ pub(crate) mod test {
     use crate::isolation::{IsolationToken, StreamIsolationBuilder};
     use crate::path::OwnedPath;
     use crate::test::OptDummyGuardMgr;
-    use std::convert::TryFrom;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
 

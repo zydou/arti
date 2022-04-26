@@ -3,7 +3,6 @@ use arti_hyper::*;
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use hyper::Body;
-use std::convert::TryInto;
 use tls_api::{TlsConnector, TlsConnectorBuilder};
 
 #[tokio::main]

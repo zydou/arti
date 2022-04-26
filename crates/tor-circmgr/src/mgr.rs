@@ -37,7 +37,6 @@ use futures::future::{FutureExt, Shared};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::task::SpawnExt;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::panic::AssertUnwindSafe;
