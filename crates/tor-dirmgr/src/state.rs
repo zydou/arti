@@ -217,7 +217,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(wd.config().schedule().retry_consensus)
+            Ok(wd.config().schedule.retry_consensus)
         } else {
             Err(Error::ManagerDropped)
         }
@@ -398,7 +398,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(wd.config().schedule().retry_certs)
+            Ok(wd.config().schedule.retry_certs)
         } else {
             Err(Error::ManagerDropped)
         }
@@ -627,7 +627,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
         let partial_dir = match Weak::upgrade(&writedir) {
             Some(wd) => {
                 let config = wd.config();
-                let params = config.override_net_params();
+                let params = &config.override_net_params;
                 let mut dir = PartialNetDir::new(consensus, Some(params));
                 if let Some(old_dir) = wd.netdir().get() {
                     dir.fill_from_previous_netdir(&old_dir);
@@ -696,7 +696,7 @@ impl<DM: WriteNetDir> GetMicrodescsState<DM> {
                         self.reset_time = pick_download_time(netdir.lifetime());
                         // We re-set the parameters here, in case they have been
                         // reconfigured.
-                        netdir.replace_overridden_parameters(wd.config().override_net_params());
+                        netdir.replace_overridden_parameters(&wd.config().override_net_params);
                         wd.netdir().replace(netdir);
                         wd.netdir_consensus_changed();
                         wd.netdir_descriptors_changed();
@@ -791,7 +791,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(wd.config().schedule().retry_microdescs)
+            Ok(wd.config().schedule.retry_microdescs)
         } else {
             Err(Error::ManagerDropped)
         }

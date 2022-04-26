@@ -8,10 +8,10 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
-use crate::authority::AuthorityList;
+use crate::authority::{Authority, AuthorityList};
 use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
-use crate::{Authority, AuthorityListBuilder, Result};
+use crate::{AuthorityListBuilder, Result};
 use tor_config::ConfigBuildError;
 use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
@@ -226,11 +226,6 @@ impl DirMgrConfig {
         )?))
     }
 
-    /// Return the configured cache path.
-    pub fn cache_path(&self) -> &std::path::Path {
-        self.cache_path.as_ref()
-    }
-
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
         &self.network.authorities
@@ -239,17 +234,6 @@ impl DirMgrConfig {
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
         &self.network.fallbacks
-    }
-
-    /// Return set of configured networkstatus parameter overrides.
-    pub fn override_net_params(&self) -> &netstatus::NetParams<i32> {
-        &self.override_net_params
-    }
-
-    /// Return the schedule configuration we should use to decide when to
-    /// attempt and retry downloads.
-    pub fn schedule(&self) -> &DownloadScheduleConfig {
-        &self.schedule
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -393,7 +377,7 @@ mod test {
         bld.override_net_params.set("circwindow".into(), 999);
         bld.cache_path = tmp.path().into();
 
-        assert_eq!(bld.override_net_params().get("circwindow").unwrap(), &999);
+        assert_eq!(bld.override_net_params.get("circwindow").unwrap(), &999);
 
         Ok(())
     }
