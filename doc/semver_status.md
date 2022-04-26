@@ -23,6 +23,9 @@ We can delete older sections here after we bump the releases.
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
 BREAKING: Configuration of directory authoorities overhauled; now uses AuthorityListBuilder.
 BREAKING: Configuration of preemptive ports overhauled; now uses PredictedPortsListBuilder..
+BREAKING: Configuration of download schedules overhauled; now uses builders
+BREAKING: download schedules: "num_retries" configuration field renamed to (accurate) "attempts"
+BREAKING: download schedules: Setting zero values for attempts or parallelism is now rejected
 
 ### arti
 
@@ -47,6 +50,8 @@ BREAKING: Made internal scheduled entry points non-public.
 ### tor-dirmgr
 
 BREAKING: AuthorityBuilder::build now throws ConfigBuildError, not a custom error type
+BREAKING: DownloadSchedule::new() replaced with DownloadScheduleBuilder
+BREAKING: DownloadScheduleConfigBuilder now has accessors for the schedules, not setters
 
 ### tor-guardmgr
 
