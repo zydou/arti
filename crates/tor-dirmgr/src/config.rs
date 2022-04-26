@@ -182,7 +182,7 @@ pub struct DirMgrConfig {
     pub cache_path: PathBuf,
 
     /// Configuration information about the network.
-    pub network_config: NetworkConfig,
+    pub network: NetworkConfig,
 
     /// Configuration information about when we download things.
     ///
@@ -194,7 +194,7 @@ pub struct DirMgrConfig {
     /// on in-progress attempts as well, at least at the top level.  Users
     /// should _not_ assume that the effect of changing this option will always
     /// be delayed.)
-    pub schedule_config: DownloadScheduleConfig,
+    pub schedule: DownloadScheduleConfig,
 
     /// A map of network parameters that we're overriding from their settings in
     /// the consensus.
@@ -233,12 +233,12 @@ impl DirMgrConfig {
 
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        &self.network_config.authorities
+        &self.network.authorities
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network_config.fallbacks
+        &self.network.fallbacks
     }
 
     /// Return set of configured networkstatus parameter overrides.
@@ -249,7 +249,7 @@ impl DirMgrConfig {
     /// Return the schedule configuration we should use to decide when to
     /// attempt and retry downloads.
     pub fn schedule(&self) -> &DownloadScheduleConfig {
-        &self.schedule_config
+        &self.schedule
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -259,11 +259,11 @@ impl DirMgrConfig {
     pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
-            network_config: NetworkConfig {
-                fallbacks: new_config.network_config.fallbacks.clone(),
-                authorities: self.network_config.authorities.clone(),
+            network: NetworkConfig {
+                fallbacks: new_config.network.fallbacks.clone(),
+                authorities: self.network.authorities.clone(),
             },
-            schedule_config: new_config.schedule_config.clone(),
+            schedule: new_config.schedule.clone(),
             override_net_params: new_config.override_net_params.clone(),
             extensions: new_config.extensions.clone(),
         }

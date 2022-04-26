@@ -52,6 +52,7 @@ BREAKING: Made internal scheduled entry points non-public.
 BREAKING: AuthorityBuilder::build now throws ConfigBuildError, not a custom error type
 BREAKING: DownloadSchedule::new() replaced with DownloadScheduleBuilder
 BREAKING: DownloadScheduleConfigBuilder now has accessors for the schedules, not setters
+BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
 
 ### tor-guardmgr
 

@@ -342,8 +342,8 @@ impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
     #[rustfmt::skip]
     fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
-            network_config:      self.tor_network        .clone(),
-            schedule_config:     self.download_schedule  .clone(),
+            network:             self.tor_network        .clone(),
+            schedule:            self.download_schedule  .clone(),
             cache_path:          self.storage.expand_cache_dir()?,
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),

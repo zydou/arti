@@ -1018,7 +1018,7 @@ mod test {
             }
             let cfg = DirMgrConfig {
                 cache_path: "/we_will_never_use_this/".into(),
-                network_config: netcfg.build().unwrap(),
+                network: netcfg.build().unwrap(),
                 ..Default::default()
             };
             let cfg = Arc::new(cfg);
