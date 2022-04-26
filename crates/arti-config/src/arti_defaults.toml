@@ -83,16 +83,16 @@ state_dir = "${ARTI_LOCAL_DATA}"
 [download_schedule]
 
 # How to retry our initial bootstrapping when we're trying to start up.
-retry_bootstrap = { num_retries = 128, initial_delay = "1 sec" }
+retry_bootstrap = { attempts = 128, initial_delay = "1 sec" }
 
 # How to retry a single consensus download.
-retry_consensus = { num_retries = 3, initial_delay = "1 sec" }
+retry_consensus = { attempts = 3, initial_delay = "1 sec" }
 
 # How to retry a set of authority certificate downloads.
-retry_certs = { num_retries = 3, initial_delay = "1 sec" }
+retry_certs = { attempts = 3, initial_delay = "1 sec" }
 
 # How to retry a set of microdescriptor downloads.
-retry_microdescs = { num_retries = 3, initial_delay = "1 sec", parallelism = 4 }
+retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
 
 # Tells the circuit manager rule for constructing circuit paths
 [path_rules]

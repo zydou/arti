@@ -219,7 +219,6 @@ mod test {
 
     #[test]
     fn builder() {
-        use arti_client::config::dir::DownloadSchedule;
         use tor_config::CfgPath;
         let sec = std::time::Duration::from_secs(1);
 
@@ -245,10 +244,24 @@ mod test {
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld.tor().download_schedule().retry_certs().attempts(10);
         bld.tor()
             .download_schedule()
-            .retry_certs(DownloadSchedule::new(10, sec, 3))
-            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+            .retry_certs()
+            .initial_delay(sec);
+        bld.tor().download_schedule().retry_certs().parallelism(3);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .attempts(30);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .initial_delay(10 * sec);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .parallelism(9);
         bld.tor()
             .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);

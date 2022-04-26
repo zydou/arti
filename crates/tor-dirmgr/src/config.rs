@@ -8,10 +8,10 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
-use crate::authority::AuthorityList;
-use crate::retry::DownloadSchedule;
+use crate::authority::{Authority, AuthorityList};
+use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
-use crate::{Authority, AuthorityListBuilder, Result};
+use crate::{AuthorityListBuilder, Result};
 use tor_config::ConfigBuildError;
 use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
@@ -110,34 +110,30 @@ impl NetworkConfigBuilder {
 #[builder(derive(Deserialize))]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
-    #[serde(default = "default_retry_bootstrap")]
-    #[builder(default = "default_retry_bootstrap()")]
-    retry_bootstrap: DownloadSchedule,
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
+    )]
+    #[builder_field_attr(serde(default))]
+    pub(crate) retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
-    #[serde(default)]
-    #[builder(default)]
-    retry_consensus: DownloadSchedule,
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
-    #[serde(default)]
-    #[builder(default)]
-    retry_certs: DownloadSchedule,
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
-    #[serde(default = "default_microdesc_schedule")]
-    #[builder(default = "default_microdesc_schedule()")]
-    retry_microdescs: DownloadSchedule,
-}
-
-/// Default value for retry_bootstrap in DownloadScheduleConfig.
-fn default_retry_bootstrap() -> DownloadSchedule {
-    DownloadSchedule::new(128, std::time::Duration::new(1, 0), 1)
-}
-
-/// Default value for microdesc_bootstrap in DownloadScheduleConfig.
-fn default_microdesc_schedule() -> DownloadSchedule {
-    DownloadSchedule::new(3, std::time::Duration::new(1, 0), 4)
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_microdescs.build_retry_microdescs()?")
+    )]
+    #[builder_field_attr(serde(default))]
+    pub(crate) retry_microdescs: DownloadSchedule,
 }
 
 impl Default for DownloadScheduleConfig {
@@ -186,7 +182,7 @@ pub struct DirMgrConfig {
     pub cache_path: PathBuf,
 
     /// Configuration information about the network.
-    pub network_config: NetworkConfig,
+    pub network: NetworkConfig,
 
     /// Configuration information about when we download things.
     ///
@@ -198,7 +194,7 @@ pub struct DirMgrConfig {
     /// on in-progress attempts as well, at least at the top level.  Users
     /// should _not_ assume that the effect of changing this option will always
     /// be delayed.)
-    pub schedule_config: DownloadScheduleConfig,
+    pub schedule: DownloadScheduleConfig,
 
     /// A map of network parameters that we're overriding from their settings in
     /// the consensus.
@@ -230,30 +226,14 @@ impl DirMgrConfig {
         )?))
     }
 
-    /// Return the configured cache path.
-    pub fn cache_path(&self) -> &std::path::Path {
-        self.cache_path.as_ref()
-    }
-
     /// Return a slice of the configured authorities
     pub fn authorities(&self) -> &[Authority] {
-        &self.network_config.authorities
+        &self.network.authorities
     }
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network_config.fallbacks
-    }
-
-    /// Return set of configured networkstatus parameter overrides.
-    pub fn override_net_params(&self) -> &netstatus::NetParams<i32> {
-        &self.override_net_params
-    }
-
-    /// Return the schedule configuration we should use to decide when to
-    /// attempt and retry downloads.
-    pub fn schedule(&self) -> &DownloadScheduleConfig {
-        &self.schedule_config
+        &self.network.fallbacks
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -263,11 +243,11 @@ impl DirMgrConfig {
     pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
-            network_config: NetworkConfig {
-                fallbacks: new_config.network_config.fallbacks.clone(),
-                authorities: self.network_config.authorities.clone(),
+            network: NetworkConfig {
+                fallbacks: new_config.network.fallbacks.clone(),
+                authorities: self.network.authorities.clone(),
             },
-            schedule_config: new_config.schedule_config.clone(),
+            schedule: new_config.schedule.clone(),
             override_net_params: new_config.override_net_params.clone(),
             extensions: new_config.extensions.clone(),
         }
@@ -290,29 +270,6 @@ pub struct DirMgrExtensions {
     /// A filter to be used when installing new directory objects.
     #[cfg(feature = "dirfilter")]
     pub filter: crate::filter::FilterConfig,
-}
-
-impl DownloadScheduleConfig {
-    /// Return configuration for retrying our entire bootstrap
-    /// operation at startup.
-    pub(crate) fn retry_bootstrap(&self) -> &DownloadSchedule {
-        &self.retry_bootstrap
-    }
-
-    /// Return configuration for retrying a consensus download.
-    pub(crate) fn retry_consensus(&self) -> &DownloadSchedule {
-        &self.retry_consensus
-    }
-
-    /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_certs(&self) -> &DownloadSchedule {
-        &self.retry_certs
-    }
-
-    /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_microdescs(&self) -> &DownloadSchedule {
-        &self.retry_microdescs
-    }
 }
 
 #[cfg(test)]
@@ -384,21 +341,30 @@ mod test {
         let mut bld = DownloadScheduleConfig::builder();
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs().parallelism(), 4);
-        assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
-        assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
+        assert_eq!(cfg.retry_microdescs.parallelism(), 4);
+        assert_eq!(cfg.retry_microdescs.n_attempts(), 3);
+        assert_eq!(cfg.retry_bootstrap.n_attempts(), 128);
 
-        bld.retry_consensus(DownloadSchedule::new(7, Duration::new(86400, 0), 1))
-            .retry_bootstrap(DownloadSchedule::new(4, Duration::new(3600, 0), 1))
-            .retry_certs(DownloadSchedule::new(5, Duration::new(3600, 0), 1))
-            .retry_microdescs(DownloadSchedule::new(6, Duration::new(3600, 0), 0));
+        bld.retry_consensus().attempts(7);
+        bld.retry_consensus().initial_delay(Duration::new(86400, 0));
+        bld.retry_consensus().parallelism(1);
+        bld.retry_bootstrap().attempts(4);
+        bld.retry_bootstrap().initial_delay(Duration::new(3600, 0));
+        bld.retry_bootstrap().parallelism(1);
+
+        bld.retry_certs().attempts(5);
+        bld.retry_certs().initial_delay(Duration::new(3600, 0));
+        bld.retry_certs().parallelism(1);
+        bld.retry_microdescs().attempts(6);
+        bld.retry_microdescs().initial_delay(Duration::new(3600, 0));
+        bld.retry_microdescs().parallelism(1);
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs().parallelism(), 1); // gets clamped
-        assert_eq!(cfg.retry_microdescs().n_attempts(), 6);
-        assert_eq!(cfg.retry_bootstrap().n_attempts(), 4);
-        assert_eq!(cfg.retry_consensus().n_attempts(), 7);
-        assert_eq!(cfg.retry_certs().n_attempts(), 5);
+        assert_eq!(cfg.retry_microdescs.parallelism(), 1);
+        assert_eq!(cfg.retry_microdescs.n_attempts(), 6);
+        assert_eq!(cfg.retry_bootstrap.n_attempts(), 4);
+        assert_eq!(cfg.retry_consensus.n_attempts(), 7);
+        assert_eq!(cfg.retry_certs.n_attempts(), 5);
 
         Ok(())
     }
@@ -411,7 +377,7 @@ mod test {
         bld.override_net_params.set("circwindow".into(), 999);
         bld.cache_path = tmp.path().into();
 
-        assert_eq!(bld.override_net_params().get("circwindow").unwrap(), &999);
+        assert_eq!(bld.override_net_params.get("circwindow").unwrap(), &999);
 
         Ok(())
     }

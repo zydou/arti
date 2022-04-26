@@ -341,8 +341,8 @@ impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
     #[rustfmt::skip]
     fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
-            network_config:      self.tor_network        .clone(),
-            schedule_config:     self.download_schedule  .clone(),
+            network:             self.tor_network        .clone(),
+            schedule:            self.download_schedule  .clone(),
             cache_path:          self.storage.expand_cache_dir()?,
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
@@ -383,7 +383,6 @@ mod test {
 
     #[test]
     fn builder() {
-        use tor_dirmgr::DownloadSchedule;
         let sec = std::time::Duration::from_secs(1);
 
         let auth = dir::Authority::builder()
@@ -402,9 +401,14 @@ mod test {
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
+        bld.download_schedule().retry_certs().attempts(10);
+        bld.download_schedule().retry_certs().initial_delay(sec);
+        bld.download_schedule().retry_certs().parallelism(3);
+        bld.download_schedule().retry_microdescs().attempts(30);
         bld.download_schedule()
-            .retry_certs(DownloadSchedule::new(10, sec, 3))
-            .retry_microdescs(DownloadSchedule::new(30, 10 * sec, 9));
+            .retry_microdescs()
+            .initial_delay(10 * sec);
+        bld.download_schedule().retry_microdescs().parallelism(9);
         bld.override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
         bld.path_rules()

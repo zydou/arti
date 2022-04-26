@@ -534,7 +534,7 @@ impl<R: Runtime> DirMgr<R> {
                 // TODO(nickm): instead of getting this every time we loop, it
                 // might be a good idea to refresh it with each attempt, at
                 // least at the point of checking the number of attempts.
-                *dirmgr.config.get().schedule().retry_bootstrap()
+                dirmgr.config.get().schedule.retry_bootstrap
             };
             let mut retry_delay = retry_config.schedule();
 
@@ -607,7 +607,7 @@ impl<R: Runtime> DirMgr<R> {
         // We don't support changing these: doing so basically would require us
         // to abort all our in-progress downloads, since they might be based on
         // no-longer-viable information.
-        if new_config.cache_path() != config.cache_path() {
+        if new_config.cache_path != config.cache_path {
             how.cannot_change("storage.cache_path")?;
         }
         if new_config.authorities() != config.authorities() {
@@ -618,14 +618,14 @@ impl<R: Runtime> DirMgr<R> {
             return Ok(());
         }
 
-        let params_changed = new_config.override_net_params() != config.override_net_params();
+        let params_changed = new_config.override_net_params != config.override_net_params;
 
         self.config
             .map_and_replace(|cfg| cfg.update_from_config(new_config));
 
         if params_changed {
             let _ignore_err = self.netdir.mutate(|netdir| {
-                netdir.replace_overridden_parameters(new_config.override_net_params());
+                netdir.replace_overridden_parameters(&new_config.override_net_params);
                 Ok(())
             });
             // (It's okay to ignore the error, since it just means that there
