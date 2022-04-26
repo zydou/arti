@@ -76,13 +76,11 @@ impl FallbackDirBuilder {
     }
     /// Check whether this builder is ready to make a FallbackDir.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if let Some(orports) = &self.orports {
-            if orports.is_empty() {
-                return Err(ConfigBuildError::Invalid {
-                    field: "orport".to_string(),
-                    problem: "list was empty".to_string(),
-                });
-            }
+        if ! self.orports.as_ref().map(|l| !l.is_empty()).unwrap_or(false) {
+            return Err(ConfigBuildError::Invalid {
+                field: "orport".to_string(),
+                problem: "list was empty".to_string(),
+            });
         }
         Ok(())
     }
