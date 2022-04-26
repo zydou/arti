@@ -391,10 +391,10 @@ mod test {
         bld.retry_consensus(DownloadSchedule::new(7, Duration::new(86400, 0), 1))
             .retry_bootstrap(DownloadSchedule::new(4, Duration::new(3600, 0), 1))
             .retry_certs(DownloadSchedule::new(5, Duration::new(3600, 0), 1))
-            .retry_microdescs(DownloadSchedule::new(6, Duration::new(3600, 0), 0));
+            .retry_microdescs(DownloadSchedule::new(6, Duration::new(3600, 0), 1));
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs().parallelism(), 1); // gets clamped
+        assert_eq!(cfg.retry_microdescs().parallelism(), 1);
         assert_eq!(cfg.retry_microdescs().n_attempts(), 6);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 4);
         assert_eq!(cfg.retry_consensus().n_attempts(), 7);
