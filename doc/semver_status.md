@@ -60,6 +60,7 @@ BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
 
 ### tor-guardmgr
 
+BREAKING: FallbackDirBuilder::orport() removed, and orports() now gives &mut SocketAddrListBuilder
 MODIFIED: New functions to get estimated clock skew.
 MODIFIED: New functions to report observed clock skew.
 

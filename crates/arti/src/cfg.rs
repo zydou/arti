@@ -226,11 +226,12 @@ mod test {
             .name("Fred")
             .v3ident([22; 20].into())
             .clone();
-        let fallback = dir::FallbackDir::builder()
+        let mut fallback = dir::FallbackDir::builder();
+        fallback
             .rsa_identity([23; 20].into())
             .ed_identity([99; 32].into())
-            .orports(vec!["127.0.0.7:7".parse().unwrap()])
-            .clone();
+            .orports()
+            .push("127.0.0.7:7".parse().unwrap());
 
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));

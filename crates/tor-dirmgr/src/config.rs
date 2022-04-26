@@ -333,12 +333,14 @@ mod test {
         ]);
         assert!(bld.build().is_err());
 
-        bld.set_fallback_caches(vec![FallbackDir::builder()
-            .rsa_identity([b'x'; 20].into())
-            .ed_identity([b'y'; 32].into())
-            .orport("127.0.0.1:99".parse().unwrap())
-            .orport("[::]:99".parse().unwrap())
-            .clone()]);
+        bld.set_fallback_caches(vec![{
+            let mut bld = FallbackDir::builder();
+            bld.rsa_identity([b'x'; 20].into())
+                .ed_identity([b'y'; 32].into());
+            bld.orports().push("127.0.0.1:99".parse().unwrap());
+            bld.orports().push("[::]:99".parse().unwrap());
+            bld
+        }]);
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), 2);
         assert_eq!(cfg.fallback_caches.len(), 1);

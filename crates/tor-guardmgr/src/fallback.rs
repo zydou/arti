@@ -15,6 +15,7 @@ mod set;
 use crate::ids::FallbackId;
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
+use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -41,7 +42,14 @@ pub struct FallbackDir {
     /// Ed25519 identity for the directory relay
     ed_identity: Ed25519Identity,
     /// List of ORPorts for the directory relay
+    #[builder(sub_builder(fn_name = "build"), setter(custom))]
     orports: Vec<SocketAddr>,
+}
+
+define_list_builder_accessors! {
+    struct FallbackDirBuilder {
+        pub orports: [SocketAddr],
+    }
 }
 
 impl FallbackDir {
@@ -66,13 +74,6 @@ impl FallbackDirBuilder {
     /// fallback directories.
     pub fn new() -> Self {
         Self::default()
-    }
-    /// Add a single OR port for this fallback directory.
-    ///
-    /// This field is required, and may be called more than once.
-    pub fn orport(&mut self, orport: SocketAddr) -> &mut Self {
-        self.orports.get_or_insert_with(Vec::new).push(orport);
-        self
     }
     /// Builds a new `FallbackDir`.
     ///
@@ -108,7 +109,7 @@ pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
             .iter()
             .map(|s| s.parse().expect("Bad socket address in fallbacklist"))
             .for_each(|p| {
-                bld.orport(p);
+                bld.orports().push(p);
             });
 
         bld
