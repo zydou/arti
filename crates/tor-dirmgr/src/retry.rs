@@ -49,6 +49,27 @@ pub struct DownloadSchedule {
     parallelism: NonZeroU8,
 }
 
+impl DownloadScheduleBuilder {
+    /// Default value for retry_bootstrap in DownloadScheduleConfig.
+    pub fn build_retry_bootstrap(&self) -> Result<DownloadSchedule, ConfigBuildError> {
+        let mut bld = self.clone();
+        bld.num_retries.get_or_insert(128);
+        bld.initial_delay.get_or_insert_with(|| Duration::new(1, 0));
+        bld.parallelism.get_or_insert(1);
+        bld.build()
+    }
+
+    /// Default value for microdesc_bootstrap in DownloadScheduleConfig.
+    pub fn build_retry_microdescs(&self) -> Result<DownloadSchedule, ConfigBuildError> {
+        let mut bld = self.clone();
+        bld.num_retries.get_or_insert(3);
+        bld.initial_delay
+            .get_or_insert_with(|| (Duration::new(1, 0)));
+        bld.parallelism.get_or_insert(4);
+        bld.build()
+    }
+}
+
 impl Default for DownloadSchedule {
     fn default() -> Self {
         DownloadSchedule::builder()

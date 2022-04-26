@@ -384,7 +384,6 @@ mod test {
 
     #[test]
     fn builder() {
-        use tor_dirmgr::DownloadSchedule;
         let sec = std::time::Duration::from_secs(1);
 
         let auth = dir::Authority::builder()
@@ -403,22 +402,14 @@ mod test {
         bld.storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.download_schedule().retry_certs(
-            DownloadSchedule::builder()
-                .attempts(10)
-                .initial_delay(sec)
-                .parallelism(3)
-                .build()
-                .expect("build schedule"),
-        );
-        bld.download_schedule().retry_microdescs(
-            DownloadSchedule::builder()
-                .attempts(30)
-                .initial_delay(10 * sec)
-                .parallelism(9)
-                .build()
-                .expect("build schedule"),
-        );
+        bld.download_schedule().retry_certs().attempts(10);
+        bld.download_schedule().retry_certs().initial_delay(sec);
+        bld.download_schedule().retry_certs().parallelism(3);
+        bld.download_schedule().retry_microdescs().attempts(30);
+        bld.download_schedule()
+            .retry_microdescs()
+            .initial_delay(10 * sec);
+        bld.download_schedule().retry_microdescs().parallelism(9);
         bld.override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
         bld.path_rules()

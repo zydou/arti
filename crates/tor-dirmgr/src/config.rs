@@ -19,7 +19,6 @@ use tor_netdoc::doc::netstatus;
 use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::PathBuf;
-use std::time::Duration;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
@@ -111,44 +110,30 @@ impl NetworkConfigBuilder {
 #[builder(derive(Deserialize))]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
-    #[serde(default = "default_retry_bootstrap")]
-    #[builder(default = "default_retry_bootstrap()")]
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
+    )]
+    #[builder_field_attr(serde(default))]
     retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
-    #[serde(default)]
-    #[builder(default)]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
-    #[serde(default)]
-    #[builder(default)]
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
     retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
-    #[serde(default = "default_microdesc_schedule")]
-    #[builder(default = "default_microdesc_schedule()")]
+    #[builder(
+        sub_builder,
+        field(build = "self.retry_microdescs.build_retry_microdescs()?")
+    )]
+    #[builder_field_attr(serde(default))]
     retry_microdescs: DownloadSchedule,
-}
-
-/// Default value for retry_bootstrap in DownloadScheduleConfig.
-fn default_retry_bootstrap() -> DownloadSchedule {
-    DownloadScheduleBuilder::default()
-        .attempts(128)
-        .initial_delay(Duration::new(1, 0))
-        .parallelism(1)
-        .build()
-        .expect("build default_retry_bootstrap")
-}
-
-/// Default value for microdesc_bootstrap in DownloadScheduleConfig.
-fn default_microdesc_schedule() -> DownloadSchedule {
-    let mut ds = DownloadSchedule::builder();
-    ds.attempts(3)
-        .initial_delay(Duration::new(1, 0))
-        .parallelism(4);
-    ds.build()
-        .expect("failed to build default microdesc schedule")
 }
 
 impl Default for DownloadScheduleConfig {
@@ -399,39 +384,19 @@ mod test {
         assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
         assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
 
-        bld.retry_consensus(
-            DownloadSchedule::builder()
-                .attempts(7)
-                .initial_delay(Duration::new(86400, 0))
-                .parallelism(1)
-                .build()
-                .unwrap(),
-        );
-        bld.retry_bootstrap(
-            DownloadSchedule::builder()
-                .attempts(4)
-                .initial_delay(Duration::new(3600, 0))
-                .parallelism(1)
-                .build()
-                .unwrap(),
-        );
+        bld.retry_consensus().attempts(7);
+        bld.retry_consensus().initial_delay(Duration::new(86400, 0));
+        bld.retry_consensus().parallelism(1);
+        bld.retry_bootstrap().attempts(4);
+        bld.retry_bootstrap().initial_delay(Duration::new(3600, 0));
+        bld.retry_bootstrap().parallelism(1);
 
-        bld.retry_certs(
-            DownloadSchedule::builder()
-                .attempts(5)
-                .initial_delay(Duration::new(3600, 0))
-                .parallelism(1)
-                .build()
-                .unwrap(),
-        );
-        bld.retry_microdescs(
-            DownloadSchedule::builder()
-                .attempts(6)
-                .initial_delay(Duration::new(3600, 0))
-                .parallelism(1)
-                .build()
-                .unwrap(),
-        );
+        bld.retry_certs().attempts(5);
+        bld.retry_certs().initial_delay(Duration::new(3600, 0));
+        bld.retry_certs().parallelism(1);
+        bld.retry_microdescs().attempts(6);
+        bld.retry_microdescs().initial_delay(Duration::new(3600, 0));
+        bld.retry_microdescs().parallelism(1);
 
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.retry_microdescs().parallelism(), 1);

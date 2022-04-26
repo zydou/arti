@@ -222,7 +222,6 @@ mod test {
 
     #[test]
     fn builder() {
-        use arti_client::config::dir::DownloadSchedule;
         use tor_config::CfgPath;
         let sec = std::time::Duration::from_secs(1);
 
@@ -248,22 +247,24 @@ mod test {
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.tor().download_schedule().retry_certs(
-            DownloadSchedule::builder()
-                .attempts(10)
-                .initial_delay(sec)
-                .parallelism(3)
-                .build()
-                .expect("build download schedule"),
-        );
-        bld.tor().download_schedule().retry_microdescs(
-            DownloadSchedule::builder()
-                .attempts(30)
-                .initial_delay(10 * sec)
-                .parallelism(9)
-                .build()
-                .expect("build download schedule"),
-        );
+        bld.tor().download_schedule().retry_certs().attempts(10);
+        bld.tor()
+            .download_schedule()
+            .retry_certs()
+            .initial_delay(sec);
+        bld.tor().download_schedule().retry_certs().parallelism(3);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .attempts(30);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .initial_delay(10 * sec);
+        bld.tor()
+            .download_schedule()
+            .retry_microdescs()
+            .parallelism(9);
         bld.tor()
             .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
