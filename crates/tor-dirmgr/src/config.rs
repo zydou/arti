@@ -115,17 +115,17 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_bootstrap.build_retry_bootstrap()?")
     )]
     #[builder_field_attr(serde(default))]
-    retry_bootstrap: DownloadSchedule,
+    pub(crate) retry_bootstrap: DownloadSchedule,
 
     /// Configuration for how to retry a consensus download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    retry_consensus: DownloadSchedule,
+    pub(crate) retry_consensus: DownloadSchedule,
 
     /// Configuration for how to retry an authority cert download.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    retry_certs: DownloadSchedule,
+    pub(crate) retry_certs: DownloadSchedule,
 
     /// Configuration for how to retry a microdescriptor download.
     #[builder(
@@ -133,7 +133,7 @@ pub struct DownloadScheduleConfig {
         field(build = "self.retry_microdescs.build_retry_microdescs()?")
     )]
     #[builder_field_attr(serde(default))]
-    retry_microdescs: DownloadSchedule,
+    pub(crate) retry_microdescs: DownloadSchedule,
 }
 
 impl Default for DownloadScheduleConfig {
@@ -288,29 +288,6 @@ pub struct DirMgrExtensions {
     pub filter: crate::filter::FilterConfig,
 }
 
-impl DownloadScheduleConfig {
-    /// Return configuration for retrying our entire bootstrap
-    /// operation at startup.
-    pub(crate) fn retry_bootstrap(&self) -> &DownloadSchedule {
-        &self.retry_bootstrap
-    }
-
-    /// Return configuration for retrying a consensus download.
-    pub(crate) fn retry_consensus(&self) -> &DownloadSchedule {
-        &self.retry_consensus
-    }
-
-    /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_certs(&self) -> &DownloadSchedule {
-        &self.retry_certs
-    }
-
-    /// Return configuration for retrying an authority certificate download
-    pub(crate) fn retry_microdescs(&self) -> &DownloadSchedule {
-        &self.retry_microdescs
-    }
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -380,9 +357,9 @@ mod test {
         let mut bld = DownloadScheduleConfig::builder();
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs().parallelism(), 4);
-        assert_eq!(cfg.retry_microdescs().n_attempts(), 3);
-        assert_eq!(cfg.retry_bootstrap().n_attempts(), 128);
+        assert_eq!(cfg.retry_microdescs.parallelism(), 4);
+        assert_eq!(cfg.retry_microdescs.n_attempts(), 3);
+        assert_eq!(cfg.retry_bootstrap.n_attempts(), 128);
 
         bld.retry_consensus().attempts(7);
         bld.retry_consensus().initial_delay(Duration::new(86400, 0));
@@ -399,11 +376,11 @@ mod test {
         bld.retry_microdescs().parallelism(1);
 
         let cfg = bld.build().unwrap();
-        assert_eq!(cfg.retry_microdescs().parallelism(), 1);
-        assert_eq!(cfg.retry_microdescs().n_attempts(), 6);
-        assert_eq!(cfg.retry_bootstrap().n_attempts(), 4);
-        assert_eq!(cfg.retry_consensus().n_attempts(), 7);
-        assert_eq!(cfg.retry_certs().n_attempts(), 5);
+        assert_eq!(cfg.retry_microdescs.parallelism(), 1);
+        assert_eq!(cfg.retry_microdescs.n_attempts(), 6);
+        assert_eq!(cfg.retry_bootstrap.n_attempts(), 4);
+        assert_eq!(cfg.retry_consensus.n_attempts(), 7);
+        assert_eq!(cfg.retry_certs.n_attempts(), 5);
 
         Ok(())
     }

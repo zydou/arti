@@ -217,7 +217,7 @@ impl<DM: WriteNetDir> DirState for GetConsensusState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(*wd.config().schedule().retry_consensus())
+            Ok(wd.config().schedule().retry_consensus)
         } else {
             Err(Error::ManagerDropped)
         }
@@ -398,7 +398,7 @@ impl<DM: WriteNetDir> DirState for GetCertsState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(*wd.config().schedule().retry_certs())
+            Ok(wd.config().schedule().retry_certs)
         } else {
             Err(Error::ManagerDropped)
         }
@@ -791,7 +791,7 @@ impl<DM: WriteNetDir> DirState for GetMicrodescsState<DM> {
     }
     fn dl_config(&self) -> Result<DownloadSchedule> {
         if let Some(wd) = Weak::upgrade(&self.writedir) {
-            Ok(*wd.config().schedule().retry_microdescs())
+            Ok(wd.config().schedule().retry_microdescs)
         } else {
             Err(Error::ManagerDropped)
         }
@@ -1139,7 +1139,7 @@ mod test {
         // Download configuration is simple: only 1 request can be done in
         // parallel.  It uses a consensus retry schedule.
         let retry = state.dl_config().unwrap();
-        assert_eq!(&retry, DownloadScheduleConfig::default().retry_consensus());
+        assert_eq!(retry, DownloadScheduleConfig::default().retry_consensus);
 
         // Do we know what we want?
         let docs = state.missing_docs();
@@ -1240,7 +1240,7 @@ mod test {
         let consensus_expires = datetime!(2020-08-07 12:43:20 UTC).into();
         assert_eq!(state.reset_time(), Some(consensus_expires));
         let retry = state.dl_config().unwrap();
-        assert_eq!(&retry, DownloadScheduleConfig::default().retry_certs());
+        assert_eq!(retry, DownloadScheduleConfig::default().retry_certs);
 
         // Bootstrap status okay?
         assert_eq!(
@@ -1366,7 +1366,7 @@ mod test {
             assert!(reset_time <= valid_until);
         }
         let retry = state.dl_config().unwrap();
-        assert_eq!(&retry, DownloadScheduleConfig::default().retry_microdescs());
+        assert_eq!(retry, DownloadScheduleConfig::default().retry_microdescs);
         assert_eq!(
             state.bootstrap_status().to_string(),
             "fetching microdescriptors (0/4)"

@@ -534,7 +534,7 @@ impl<R: Runtime> DirMgr<R> {
                 // TODO(nickm): instead of getting this every time we loop, it
                 // might be a good idea to refresh it with each attempt, at
                 // least at the point of checking the number of attempts.
-                *dirmgr.config.get().schedule().retry_bootstrap()
+                dirmgr.config.get().schedule().retry_bootstrap
             };
             let mut retry_delay = retry_config.schedule();
 
