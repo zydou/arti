@@ -33,7 +33,7 @@ pub use set::{FallbackList, FallbackListBuilder};
 // structure: we want our fallback directory configuration format to
 // be future-proof against adding new info about each fallback.
 #[derive(Debug, Clone, Deserialize, Builder, Eq, PartialEq)]
-#[builder(build_fn(validate = "FallbackDirBuilder::validate", error = "ConfigBuildError"))]
+#[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
 #[builder(derive(Deserialize))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
@@ -74,15 +74,21 @@ impl FallbackDirBuilder {
         self.orports.get_or_insert_with(Vec::new).push(orport);
         self
     }
-    /// Check whether this builder is ready to make a FallbackDir.
-    fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if ! self.orports.as_ref().map(|l| !l.is_empty()).unwrap_or(false) {
+    /// Builds a new `FallbackDir`.
+    ///
+    /// ### Errors
+    ///
+    /// Errors unless both of `rsa_identity`, `ed_identity`, and at least one `orport`,
+    /// have been provided.
+    pub fn build(&self) -> std::result::Result<FallbackDir, ConfigBuildError> {
+        let built = self.build_unvalidated()?;
+        if built.orports.is_empty() {
             return Err(ConfigBuildError::Invalid {
                 field: "orport".to_string(),
                 problem: "list was empty".to_string(),
             });
         }
-        Ok(())
+        Ok(built)
     }
 }
 
