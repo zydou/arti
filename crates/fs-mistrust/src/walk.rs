@@ -225,39 +225,46 @@ impl Iterator for ResolvePath {
             };
             self.steps_remaining -= 1;
 
-            // ..and add that component to the our resolved path.
-            if next_part == "." {
+            // ..and add that component to the our resolved path to see what we
+            // should inspect next.
+            let inspecting: std::borrow::Cow<'_, Path> = if next_part == "." {
                 // Do nothing.
+                self.resolved.as_path().into()
             } else if next_part == ".." {
                 // We can safely remove the last part of our path: We know it is
                 // canonical, so ".." will not give surprising results.  (If we
                 // are already at the root, "PathBuf::pop" will do nothing.)
-                self.resolved.pop();
+                self.resolved
+                    .parent()
+                    .unwrap_or(self.resolved.as_path())
+                    .into()
             } else {
                 // We extend our path.  This may _temporarily_ make `resolved`
                 // non-canonical if next_part is the name of a symlink; we'll
                 // fix that in a minute.
                 //
                 // This is the only thing that can ever make `resolved` longer.
-                self.resolved.push(&next_part);
-            }
+                self.resolved.join(&next_part).into()
+            };
 
-            match self.already_inspected.get(&self.resolved) {
+            // Now "inspecting" is the path we want to look at.  Later in this
+            // function, we should replace "self.resolved" with "inspecting" if we
+            // find that "inspecting" is a good canonical path.
+
+            match self.already_inspected.get(inspecting.as_ref()) {
                 Some(Some(link_target)) => {
                     // We already inspected this path, and it is a symlink.
                     // Follow it, and loop.
                     //
                     // (See notes below starting with "This is a symlink!" for
                     // more explanation of what we're doing here.)
-                    if link_target.is_relative() {
-                        self.resolved.pop();
-                    }
                     push_prefix(&mut self.stack, link_target.as_path());
                     continue;
                 }
                 Some(None) => {
                     // We've already inspected this path, and it's canonical.
                     // We told the caller about it once before, so we just loop.
+                    self.resolved = inspecting.into_owned();
                     continue;
                 }
                 None => {
@@ -266,15 +273,13 @@ impl Iterator for ResolvePath {
             }
 
             // Look up the lstat() of the file, to see if it's a symlink.
-            let metadata = match self.resolved.symlink_metadata() {
+            let metadata = match inspecting.symlink_metadata() {
                 Ok(m) => m,
                 Err(e) => {
                     // Oops: can't lstat.  Move the last component back on to the stack, and terminate.
-                    let failed_path = self.resolved.clone();
                     self.stack.push(next_part);
-                    self.resolved.pop();
                     self.terminated = true;
-                    return Some(Err(Error::inspecting(e, failed_path)));
+                    return Some(Err(Error::inspecting(e, inspecting)));
                 }
             };
 
@@ -282,43 +287,33 @@ impl Iterator for ResolvePath {
                 // This is a symlink!
                 //
                 // We have to find out where it leads us...
-                let link_target = match self.resolved.read_link() {
+                let link_target = match inspecting.read_link() {
                     Ok(t) => t,
                     Err(e) => {
                         // Oops: can't readlink.  Move the last component back on to the stack, and terminate.
-                        let failed_path = self.resolved.clone();
                         self.stack.push(next_part);
-                        self.resolved.pop();
                         self.terminated = true;
-                        return Some(Err(Error::inspecting(e, failed_path)));
+                        return Some(Err(Error::inspecting(e, inspecting)));
                     }
                 };
-                let orig_resolved = self.resolved.clone();
 
-                // If the symlink is relative, then we have to pop it off the
-                // end of "self.resolved" to maintain our invariant that
-                // self.resolved is canonical, and to make sure that the parts
-                // of the symlink are resolved relative to the directory
-                // containing the symlink.
-                //
-                // (In other words, if /a/b is a symlink to c/d, then we want to
-                // continue looking up with a/c/d, not a/b/c/d).
-                //
-                // If the symlink is absolute, there's no need to clear
-                // self.resolved: the symlink's  first component will be "/" or
-                // the equivalent, and it will replace the whole path when we `push` it.
-                if link_target.is_relative() {
-                    self.resolved.pop();
-                }
+                // We don't modify self.resolved here: we would be putting a
+                // symlink onto it, and symlinks aren't canonical.  (If the
+                // symlink is relative, then we'll continue resolving it from
+                // its target on the next iteration.  If the symlink is
+                // absolute, its first component will be "/" or the equivalent,
+                // which will replace self.resolved.)
                 push_prefix(&mut self.stack, link_target.as_path());
                 self.already_inspected
-                    .insert(orig_resolved.clone(), Some(link_target));
+                    .insert(inspecting.to_path_buf(), Some(link_target));
                 // We yield the link name, not the value of resolved.
-                return Some(Ok((orig_resolved, PathType::Symlink, metadata)));
+                return Some(Ok((inspecting.into_owned(), PathType::Symlink, metadata)));
             } else {
                 // It's not a symlink: Therefore it is a real canonical
                 // directory or file that exists.
-                self.already_inspected.insert(self.resolved.clone(), None);
+                self.already_inspected
+                    .insert(inspecting.to_path_buf(), None);
+                self.resolved = inspecting.into_owned();
                 let path_type = if self.stack.is_empty() {
                     PathType::Final
                 } else {
