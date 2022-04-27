@@ -879,7 +879,7 @@ dependencies = [
 [[package]]
 name = "derive_builder"
 version = "0.11.2"
-source = "git+https://github.com/ijackson/rust-derive-builder?rev=4516209ce98f6506bf729aa7cdbced97747f7dd1#4516209ce98f6506bf729aa7cdbced97747f7dd1"
+source = "git+https://github.com/ijackson/rust-derive-builder?rev=ba0c1a5311bd9f93ddf5f5b8ec2a5f6f03b22fbe#ba0c1a5311bd9f93ddf5f5b8ec2a5f6f03b22fbe"
 dependencies = [
  "derive_builder_macro",
 ]
@@ -898,7 +898,7 @@ dependencies = [
 [[package]]
 name = "derive_builder_macro"
 version = "0.11.2"
-source = "git+https://github.com/ijackson/rust-derive-builder?rev=4516209ce98f6506bf729aa7cdbced97747f7dd1#4516209ce98f6506bf729aa7cdbced97747f7dd1"
+source = "git+https://github.com/ijackson/rust-derive-builder?rev=a69d5eee830bddd5ff9b146b51e27580b1a7b6b0#a69d5eee830bddd5ff9b146b51e27580b1a7b6b0"
 dependencies = [
  "derive_builder_core",
  "syn",
