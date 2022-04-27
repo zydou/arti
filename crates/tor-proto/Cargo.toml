@@ -30,7 +30,7 @@ tor-cell = { path = "../tor-cell", version = "0.2.0" }
 
 arrayref = "0.3"
 bytes = "1"
-cipher = "0.3.0"
+cipher = "0.4.1"
 coarsetime = "0.1.20"
 digest = "0.10.0"
 educe = "0.4.6"

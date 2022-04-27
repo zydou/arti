@@ -1,4 +1,4 @@
-use cipher::{NewCipher, StreamCipher};
+use cipher::{KeyIvInit, StreamCipher};
 use digest::{self, Digest, ExtendableOutput};
 use hex_literal::hex;
 use tor_llcrypto as ll;

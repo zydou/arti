@@ -63,6 +63,10 @@ BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
 MODIFIED: New functions to get estimated clock skew.
 MODIFIED: New functions to report observed clock skew.
 
+### tor-llcrypto
+
+BREAKING: AES implementations now implement cipher 0.4 traits.
+
 ### tor-proto
 
 MODIFIED: New accessors in tor_proto::Channel.
