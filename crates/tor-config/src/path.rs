@@ -35,10 +35,20 @@ pub struct CfgPath(PathInner);
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 enum PathInner {
+    /// A path that should be used literally, with no expansion.
+    Literal(LiteralPath),
     /// A path that should be expanded from a string using ShellExpand.
     Shell(String),
-    /// A path that should be used literally, with no expansion.
-    Literal(PathBuf),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+/// Inner implementation of PathInner:Literal
+///
+/// `LiteralPath` exists to arrange that `PathInner::Literal`'s (de)serialization
+/// does not overlap with `PathInner::Shell`'s.
+struct LiteralPath {
+    ///
+    literal: PathBuf,
 }
 
 /// An error that has occurred while expanding a path.
@@ -95,13 +105,15 @@ impl CfgPath {
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
         match &self.0 {
             PathInner::Shell(s) => expand(s),
-            PathInner::Literal(p) => Ok(p.clone()),
+            PathInner::Literal(LiteralPath { literal }) => Ok(literal.clone()),
         }
     }
 
     /// Construct a new `CfgPath` from a system path.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
-        CfgPath(PathInner::Literal(path.as_ref().to_owned()))
+        CfgPath(PathInner::Literal(LiteralPath {
+            literal: path.as_ref().to_owned(),
+        }))
     }
 }
 
@@ -153,7 +165,7 @@ fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
 impl std::fmt::Display for CfgPath {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
-            PathInner::Literal(p) => write!(fmt, "{:?} [exactly]", p),
+            PathInner::Literal(LiteralPath { literal }) => write!(fmt, "{:?} [exactly]", literal),
             PathInner::Shell(s) => s.fmt(fmt),
         }
     }
