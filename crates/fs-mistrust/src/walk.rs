@@ -230,7 +230,8 @@ impl Iterator for ResolvePath {
                 // Do nothing.
             } else if next_part == ".." {
                 // We can safely remove the last part of our path: We know it is
-                // canonical, so ".." will not give surprising results.
+                // canonical, so ".." will not give surprising results.  (If we
+                // are already at the root, "PathBuf::pop" will do nothing.)
                 self.resolved.pop();
             } else {
                 // We extend our path.  This may _temporarily_ make `resolved`
@@ -597,5 +598,34 @@ mod test {
         assert!(matches!(err, Err(Error::CouldNotInspect(_, _))));
 
         assert!(r.next().is_none());
+    }
+
+    #[test]
+    fn past_root() {
+        let d = testing::Dir::new();
+        let root = d.canonical_root();
+        d.dir("a/b");
+        d.chmod("a", 0o700);
+        d.chmod("a/b", 0o700);
+
+        let root_as_relative: PathBuf = root
+            .components()
+            .filter(|c| matches!(c, std::path::Component::Normal(_)))
+            .collect();
+        let n = root.components().count();
+        // Start with our the "root" directory of our Dir...
+        let mut inspect_path = root.to_path_buf();
+        // Then go way past the root of the filesystem
+        for _ in 0..n * 2 {
+            inspect_path.push("..");
+        }
+        // Then back down to the "root" directory of the dir..
+        inspect_path.push(root_as_relative);
+        // Then to a/b.
+        inspect_path.push("a/b");
+
+        let r = ResolvePath::new(inspect_path.clone()).unwrap();
+        let final_path = r.last().unwrap().unwrap().0;
+        assert_eq!(final_path, inspect_path.canonicalize().unwrap());
     }
 }
