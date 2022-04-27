@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use directories::{BaseDirs, ProjectDirs};
 use once_cell::sync::Lazy;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use tor_error::{ErrorKind, HasKind};
 
@@ -29,14 +29,14 @@ use tor_error::{ErrorKind, HasKind};
 /// For more information, see that crate's documentation.
 ///
 /// Alternatively, a `CfgPath` can contain literal `PathBuf`, which will not be expaneded.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
 
 /// Inner implementation of CfgPath
 ///
 /// `PathInner` exists to avoid making the variants part of the public Rust API
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 enum PathInner {
     /// A path that should be used literally, with no expansion.
@@ -45,7 +45,7 @@ enum PathInner {
     Shell(String),
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 /// Inner implementation of PathInner:Literal
 ///
 /// `LiteralPath` exists to arrange that `PathInner::Literal`'s (de)serialization
@@ -309,8 +309,10 @@ mod test {
 #[cfg(test)]
 mod test_serde {
     use super::*;
+    use std::ffi::OsString;
+    use std::fmt::Debug;
 
-    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    #[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
     struct TestConfigFile {
         p: CfgPath,
     }
@@ -355,5 +357,67 @@ mod test_serde {
             assert_eq!(cp.as_unexpanded_str(), None);
             assert_eq!(cp.as_literal_path(), Some(&*PathBuf::from("lit")));
         }
+    }
+
+    fn non_string_path() -> PathBuf {
+        #[cfg(target_family = "unix")]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            return PathBuf::from(OsString::from_vec(vec![0x80_u8]));
+        }
+
+        #[cfg(target_family = "windows")]
+        {
+            use std::os::windows::ffi::OsStringExt;
+            return PathBuf::from(OsString::from_wide(&[0xD800_u16]));
+        }
+
+        #[allow(unreachable_code)]
+        // Cannot test non-Stringy Paths on this platform
+        PathBuf::default()
+    }
+
+    fn test_roundtrip_cases<SER, S, DESER, E, F>(ser: SER, deser: DESER)
+    where
+        SER: Fn(&TestConfigFile) -> Result<S, E>,
+        DESER: Fn(&S) -> Result<TestConfigFile, F>,
+        S: Debug,
+        E: Debug,
+        F: Debug,
+    {
+        let case = |easy, p| {
+            let input = TestConfigFile { p };
+            let s = match ser(&input) {
+                Ok(s) => s,
+                Err(e) if easy => panic!("ser failed {:?} e={:?}", &input, &e),
+                Err(_) => return,
+            };
+            dbg!(&input, &s);
+            let output = deser(&s).expect("deser failed");
+            assert_eq!(&input, &output, "s={:?}", &s);
+        };
+
+        case(true, CfgPath::new("string".into()));
+        case(true, CfgPath::new_literal(PathBuf::from("nice path")));
+        case(true, CfgPath::new_literal(PathBuf::from("path with ✓")));
+
+        // Non-UTF-8 paths are really hard to serialize.  We allow the serializsaton
+        // to fail, and if it does, we skip the rest of the round trip test.
+        // But, if they did serialise, we want to make sure that we can deserialize.
+        // Hence this test case.
+        case(false, CfgPath::new_literal(non_string_path()));
+    }
+
+    #[test]
+    fn roundtrip_json() {
+        test_roundtrip_cases(
+            |input| serde_json::to_string(&input),
+            |json| serde_json::from_str(json),
+        );
+    }
+
+    #[test]
+    fn roundtrip_toml() {
+        test_roundtrip_cases(|input| toml::to_string(&input), |toml| toml::from_str(toml));
     }
 }
