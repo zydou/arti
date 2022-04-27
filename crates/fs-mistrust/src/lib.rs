@@ -236,6 +236,9 @@
 mod dir;
 mod err;
 mod imp;
+#[cfg(target_family = "unix")]
+mod user;
+
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod walk;
@@ -387,6 +390,24 @@ impl Mistrust {
     /// be allowed to read and modify the verified files.
     pub fn trust_group_id(&mut self, gid: u32) -> &mut Self {
         self.trust_gid = Some(gid);
+        self
+    }
+
+    #[cfg(target_family = "unix")]
+    /// Configure this `Mistrust` to trust the group (if any) with the same name
+    /// as the current user.
+    ///
+    /// The behavior is the same as for [`Mistrust::trust_group_id`], except
+    /// that we look for a group with the same name as the current user.  We
+    /// require that we are currently executing as a member of that group.  We
+    /// do not check whether the group has other members besides us.
+    ///
+    /// This behavior is convenient on systems where each user has their own
+    /// group, and users' home directories are group-writable.
+    pub fn trust_self_named_group(&mut self) -> &mut Self {
+        if let Some(gid) = user::get_self_named_gid() {
+            self.trust_gid = Some(gid);
+        }
         self
     }
 
