@@ -362,8 +362,8 @@ impl TorClientConfigBuilder {
         let mut builder = Self::default();
         builder
             .storage()
-            .cache_dir(CfgPath::from_path(cache_dir))
-            .state_dir(CfgPath::from_path(state_dir));
+            .cache_dir(CfgPath::new_literal(cache_dir.as_ref()))
+            .state_dir(CfgPath::new_literal(state_dir.as_ref()));
         builder
     }
 }

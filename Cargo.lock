@@ -3291,13 +3291,16 @@ dependencies = [
 name = "tor-config"
 version = "0.2.0"
 dependencies = [
+ "config",
  "derive_builder",
  "directories",
  "dirs",
  "once_cell",
  "serde",
+ "serde_json",
  "shellexpand-fork",
  "thiserror",
+ "toml",
  "tor-basic-utils",
  "tor-error",
  "tracing",

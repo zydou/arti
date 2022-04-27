@@ -27,11 +27,15 @@ use tor_error::{ErrorKind, HasKind};
 /// so should use appropriate system-specific overrides under the
 /// hood. (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
+///
+/// Alternatively, a `CfgPath` can contain literal `PathBuf`, which will not be expaneded.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
 
 /// Inner implementation of CfgPath
+///
+/// `PathInner` exists to avoid making the variants part of the public Rust API
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
 enum PathInner {
@@ -101,6 +105,13 @@ impl CfgPath {
         CfgPath(PathInner::Shell(s))
     }
 
+    /// Construct a new `CfgPath` designating a literal not-to-be-expanded `PathBuf`
+    pub fn new_literal<P: Into<PathBuf>>(path: P) -> Self {
+        CfgPath(PathInner::Literal(LiteralPath {
+            literal: path.into(),
+        }))
+    }
+
     /// Return the path on disk designated by this `CfgPath`.
     pub fn path(&self) -> Result<PathBuf, CfgPathError> {
         match &self.0 {
@@ -109,11 +120,28 @@ impl CfgPath {
         }
     }
 
-    /// Construct a new `CfgPath` from a system path.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
-        CfgPath(PathInner::Literal(LiteralPath {
-            literal: path.as_ref().to_owned(),
-        }))
+    /// If the `CfgPath` is a string that should be expaneded, return the (unexpanded) string,
+    ///
+    /// Before use, this string would have be to expanded.  So if you want a path to actually use,
+    /// call `path` instead.
+    ///
+    /// Returns `None` if the `CfgPath` is a literal `PathBuf` not intended for expansion.
+    pub fn as_unexpanded_str(&self) -> Option<&str> {
+        match &self.0 {
+            PathInner::Shell(s) => Some(s),
+            PathInner::Literal(_) => None,
+        }
+    }
+
+    /// If the `CfgPath` designates a literal not-to-be-expanded `Path`, return a reference to it
+    ///
+    /// Returns `None` if the `CfgPath` is a string which should be expanded, which is the
+    /// usual case.
+    pub fn as_literal_path(&self) -> Option<&Path> {
+        match &self.0 {
+            PathInner::Shell(_) => None,
+            PathInner::Literal(LiteralPath { literal }) => Some(literal),
+        }
     }
 }
 
@@ -268,12 +296,64 @@ mod test {
 
     #[test]
     fn literal() {
-        let p = CfgPath::from_path(PathBuf::from("${ARTI_CACHE}/literally"));
+        let p = CfgPath::new_literal(PathBuf::from("${ARTI_CACHE}/literally"));
         // This doesn't get expanded, since we're using a literal path.
         assert_eq!(
             p.path().unwrap().to_str().unwrap(),
             "${ARTI_CACHE}/literally"
         );
         assert_eq!(p.to_string(), "\"${ARTI_CACHE}/literally\" [exactly]");
+    }
+}
+
+#[cfg(test)]
+mod test_serde {
+    use super::*;
+
+    #[derive(Deserialize, Eq, PartialEq, Debug)]
+    struct TestConfigFile {
+        p: CfgPath,
+    }
+
+    fn deser_json(json: &str) -> CfgPath {
+        dbg!(json);
+        let TestConfigFile { p } = serde_json::from_str(json).expect("deser json failed");
+        p
+    }
+    fn deser_toml(toml: &str) -> CfgPath {
+        dbg!(toml);
+        let TestConfigFile { p } = toml::from_str(toml).expect("deser toml failed");
+        p
+    }
+    fn deser_toml_cfg(toml: &str) -> CfgPath {
+        dbg!(toml);
+        let cfg = config::File::from_str(toml, config::FileFormat::Toml);
+        let cfg = config::Config::builder()
+            .add_source(cfg)
+            .build()
+            .expect("parse toml failed");
+        dbg!(&cfg);
+        let TestConfigFile { p } = cfg.try_deserialize().expect("deser cfg failed");
+        p
+    }
+
+    #[test]
+    fn test_parse() {
+        fn desers(toml: &str, json: &str) -> Vec<CfgPath> {
+            vec![deser_toml(toml), deser_toml_cfg(toml), deser_json(json)]
+        }
+
+        for cp in desers(r#"p = "string""#, r#"{ "p": "string" }"#) {
+            assert_eq!(cp.as_unexpanded_str(), Some("string"));
+            assert_eq!(cp.as_literal_path(), None);
+        }
+
+        for cp in desers(
+            r#"p = { literal = "lit" }"#,
+            r#"{ "p": {"literal": "lit"} }"#,
+        ) {
+            assert_eq!(cp.as_unexpanded_str(), None);
+            assert_eq!(cp.as_literal_path(), Some(&*PathBuf::from("lit")));
+        }
     }
 }
