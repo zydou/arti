@@ -517,7 +517,7 @@ impl<R: Runtime> DirMgr<R> {
         weak: Weak<Self>,
         mut on_complete: Option<oneshot::Sender<()>>,
     ) -> Result<()> {
-        let mut state: Box<dyn DirState> = Box::new(state::GetConsensusState::new(
+        let mut state: Box<dyn DirState> = Box::new(state::GetConsensusState::bodge_new(
             Weak::clone(&weak),
             CacheUsage::CacheOkay,
         )?);
@@ -727,7 +727,8 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// Return false if there is no such consensus.
     async fn load_directory(self: &Arc<Self>) -> Result<bool> {
-        let state = state::GetConsensusState::new(Arc::downgrade(self), CacheUsage::CacheOnly)?;
+        let state =
+            state::GetConsensusState::bodge_new(Arc::downgrade(self), CacheUsage::CacheOnly)?;
         let _ = bootstrap::load(Arc::clone(self), Box::new(state)).await?;
 
         Ok(self.netdir.get().is_some())

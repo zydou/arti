@@ -18,8 +18,8 @@ use crate::{Error, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
-use std::str::Utf8Error;
 use std::ops::{Deref, DerefMut};
+use std::str::Utf8Error;
 use std::time::SystemTime;
 use time::Duration;
 
