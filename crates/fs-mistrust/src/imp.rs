@@ -108,6 +108,7 @@ impl<'a> super::Verifier<'a> {
     /// target path.  If the `position` is 0, then it's the position of the
     /// target path itself. If `position` is 1, it's the target's parent, and so
     /// on.
+    #[must_use]
     pub(crate) fn check_one(
         &self,
         path: &Path,
