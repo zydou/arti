@@ -44,7 +44,7 @@ tor-proto = { path = "../tor-proto", version = "0.2.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0" }
 
 humantime-serde = "1.1.1"
-derive_builder = "0.11.2"
+derive_builder = { version = "0.11.2", git = "https://github.com/ijackson/rust-derive-builder", rev = "ba0c1a5311bd9f93ddf5f5b8ec2a5f6f03b22fbe" }
 derive_more = "0.99"
 directories = "4"
 educe = "0.4.6"
