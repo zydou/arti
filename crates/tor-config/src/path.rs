@@ -420,4 +420,12 @@ mod test_serde {
     fn roundtrip_toml() {
         test_roundtrip_cases(|input| toml::to_string(&input), |toml| toml::from_str(toml));
     }
+
+    #[test]
+    fn roundtrip_mpack() {
+        test_roundtrip_cases(
+            |input| rmp_serde::to_vec(&input),
+            |mpack| rmp_serde::from_slice(mpack),
+        );
+    }
 }
