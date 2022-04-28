@@ -94,6 +94,11 @@ mod test {
     fn groups() {
         let groups = cur_groups();
         let cur_gid = users::get_current_gid();
+        if groups.is_empty() {
+            // Some container/VM setups forget to put the (root) user into any
+            // groups at all.
+            return;
+        }
         assert!(groups.contains(&cur_gid));
     }
 
