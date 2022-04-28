@@ -38,8 +38,8 @@ tokio = { package = "tokio", version = "1.7", features = [
     "macros",
 ] }
 thiserror = "1"
-tls-api = { version = "0.7" }
-tls-api-native-tls = { version = "0.7.0" }
+tls-api = { version = "0.8" }
+tls-api-native-tls = { version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.2.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", features = ["tokio"] }
 
