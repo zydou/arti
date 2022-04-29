@@ -53,6 +53,7 @@ mod path;
 
 pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
+pub use paste::paste;
 pub use path::CfgPath;
 pub use serde;
 

@@ -22,6 +22,7 @@ tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0" }
 thiserror = "1"
 derive_builder = { version = "0.11.2", git = "https://github.com/ijackson/rust-derive-builder", rev = "ba0c1a5311bd9f93ddf5f5b8ec2a5f6f03b22fbe" }
 once_cell = "1"
+paste = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 shellexpand = { version = "2.1", package = "shellexpand-fork", optional = true }
 tracing = "0.1.18"
