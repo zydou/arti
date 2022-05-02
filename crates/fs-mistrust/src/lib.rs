@@ -56,6 +56,11 @@
 //! touch in doing so, to see who has permissions to change our target file or
 //! the process that led us to it.
 //!
+//! For groups, we use the following heuristic: If there is a group with the
+//! same name as the current user, and the current user belongs to that group,
+//! we assume that group is trusted.  Otherwise, we treat all groups as
+//! untrusted.
+//!
 //! ## Examples
 //!
 //! ### Simple cases
@@ -294,7 +299,7 @@ impl Default for Mistrust {
             #[cfg(target_family = "unix")]
             trust_uid: Some(unsafe { libc::getuid() }),
             #[cfg(target_family = "unix")]
-            trust_gid: None,
+            trust_gid: user::get_self_named_gid(),
         }
     }
 }
@@ -369,10 +374,28 @@ impl Mistrust {
 
     /// Configure this `Mistrust` to trust only the admin (root) user.
     ///
-    /// By default, both the currently running user and the root user will be trusted.
+    /// By default, both the currently running user and the root user will be
+    /// trusted.
+    ///
+    /// This option disables the default group-trust behavior as well.
     #[cfg(target_family = "unix")]
     pub fn trust_admin_only(&mut self) -> &mut Self {
         self.trust_uid = None;
+        self.trust_gid = None;
+        self
+    }
+
+    /// Configure this `Mistrust` to trust no groups at all.
+    ///
+    /// By default, we trust the group (if any) with the same name as the
+    /// current user if we are currently running as a member of that group.
+    ///
+    /// With this option set, no group is trusted, and and any group-readable or
+    /// group-writable objects are treated the same as world-readable and
+    /// world-writable objects respectively.
+    #[cfg(target_family = "unix")]
+    pub fn trust_no_group_id(&mut self) -> &mut Self {
+        self.trust_gid = None;
         self
     }
 
@@ -382,32 +405,13 @@ impl Mistrust {
     /// If a group ID is considered "trusted", then any file or directory we
     /// inspect is allowed to be readable and writable by that group.
     ///
-    /// By default, no group ID is trusted, and any group-readable or
-    /// group-writable objects are treated the same as world-readable and
-    /// world-writable objects respectively.
+    /// By default, we trust the group (if any) with the same name as the
+    /// current user, if we are currently running as a member of that group.
     ///
     /// Anybody who is a member (or becomes a member) of the provided group will
     /// be allowed to read and modify the verified files.
     pub fn trust_group_id(&mut self, gid: u32) -> &mut Self {
         self.trust_gid = Some(gid);
-        self
-    }
-
-    #[cfg(target_family = "unix")]
-    /// Configure this `Mistrust` to trust the group (if any) with the same name
-    /// as the current user.
-    ///
-    /// The behavior is the same as for [`Mistrust::trust_group_id`], except
-    /// that we look for a group with the same name as the current user.  We
-    /// require that we are currently executing as a member of that group.  We
-    /// do not check whether the group has other members besides us.
-    ///
-    /// This behavior is convenient on systems where each user has their own
-    /// group, and users' home directories are group-writable.
-    pub fn trust_self_named_group(&mut self) -> &mut Self {
-        if let Some(gid) = user::get_self_named_gid() {
-            self.trust_gid = Some(gid);
-        }
         self
     }
 
@@ -629,6 +633,7 @@ mod test {
         d.chmod("e/f", 0o777);
 
         let mut m = Mistrust::new();
+        m.trust_no_group_id();
         // Ignore the permissions on /tmp/whatever-tempdir-gave-us
         m.ignore_prefix(d.canonical_root()).unwrap();
         // /a/b/c should be fine...
@@ -676,6 +681,7 @@ mod test {
 
         let mut m = Mistrust::new();
         m.ignore_prefix(d.canonical_root()).unwrap();
+        m.trust_no_group_id();
 
         // If we insist stuff is its own type, it works fine.
         m.verifier().require_directory().check(d.path("a")).unwrap();
@@ -708,6 +714,7 @@ mod test {
 
         let mut m = Mistrust::new();
         m.ignore_prefix(d.canonical_root()).unwrap();
+        m.trust_no_group_id();
 
         // These will fail, since the file or directory is readable.
         let e = m.verifier().check(d.path("a/b")).unwrap_err();
@@ -734,6 +741,7 @@ mod test {
 
         let mut m = Mistrust::new();
         m.ignore_prefix(d.canonical_root()).unwrap();
+        m.trust_no_group_id();
 
         // Only one error occurs, so we get that error.
         let e = m
@@ -796,6 +804,7 @@ mod test {
 
         let mut m = Mistrust::new();
         m.ignore_prefix(d.canonical_root()).unwrap();
+        m.trust_no_group_id();
 
         // By default, we shouldn't be accept this directory, since it is
         // group-writable.
