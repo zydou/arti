@@ -23,6 +23,7 @@ static-native-tls = ["arti-client/static-native-tls", "native-tls"]
 journald = ["tracing-journald"]
 
 [dependencies]
+safelog = { path = "../safelog", version = "0.2.0" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.2.0", default-features = false }
 tor-config = { path = "../tor-config", version = "0.2.0" }
 tor-error = { path = "../tor-error", version = "0.2.0", default-features = false }
