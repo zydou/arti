@@ -283,6 +283,9 @@ pub struct Mistrust {
     /// (This is stored in canonical form.)
     ignore_prefix: Option<PathBuf>,
 
+    /// Are we configured to enable all permission and ownership tests?
+    disable_ownership_and_permission_checks: bool,
+
     /// What user ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
     trust_uid: Option<u32>,
@@ -296,6 +299,7 @@ impl Default for Mistrust {
     fn default() -> Self {
         Self {
             ignore_prefix: None,
+            disable_ownership_and_permission_checks: false,
             #[cfg(target_family = "unix")]
             trust_uid: Some(unsafe { libc::getuid() }),
             #[cfg(target_family = "unix")]
@@ -412,6 +416,21 @@ impl Mistrust {
     /// be allowed to read and modify the verified files.
     pub fn trust_group_id(&mut self, gid: u32) -> &mut Self {
         self.trust_gid = Some(gid);
+        self
+    }
+
+    /// Configure this `Mistrust` to trust every user and every group.
+    ///
+    /// With this option set, every file and directory is treated as having
+    /// valid permissions: even world-writeable files are allowed.  File-type
+    /// checks are still performed.
+    ///
+    /// This option is mainly useful to handle cases where you want to make
+    /// these checks optional, and still use [`SecureDir`] without having to
+    /// implement separate code paths for the "checking on" and "checking off"
+    /// cases.
+    pub fn dangerously_trust_everyone(&mut self) -> &mut Self {
+        self.disable_ownership_and_permission_checks = true;
         self
     }
 
@@ -879,6 +898,32 @@ mod test {
             .unwrap_err();
 
         assert_eq!(2, e.errors().count());
+    }
+
+    #[test]
+    fn trust_everyone() {
+        let d = Dir::new();
+        d.dir("a/b/c");
+        d.file("a/b/c/d");
+        d.chmod("a", 0o777);
+        d.chmod("a/b", 0o777);
+        d.chmod("a/b/c", 0o777);
+        d.chmod("a/b/c/d", 0o666);
+
+        let mut m = Mistrust::new();
+        m.dangerously_trust_everyone();
+
+        // This is fine.
+        m.check_directory(d.path("a/b/c")).unwrap();
+        // This isn't a directory!
+        let err = m.check_directory(d.path("a/b/c/d")).unwrap_err();
+        assert!(matches!(err, Error::BadType(_)));
+
+        // But it _is_ a file.
+        m.verifier()
+            .require_file()
+            .check(d.path("a/b/c/d"))
+            .unwrap();
     }
 
     // TODO: Write far more tests.

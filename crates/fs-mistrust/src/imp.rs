@@ -42,6 +42,19 @@ impl<'a> super::Verifier<'a> {
     // to the code.  It's not urgent, since the allocations won't cost much
     // compared to the filesystem access.
     pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
+        if self.mistrust.disable_ownership_and_permission_checks {
+            // We don't want to walk the path in this case at all: we'll just
+            // look at the last element.
+
+            let meta = match path.metadata() {
+                Ok(meta) => meta,
+                Err(e) => return boxed(vec![Error::inspecting(e, path)].into_iter()),
+            };
+            let mut errors = Vec::new();
+            self.check_type(path, PathType::Final, &meta, &mut errors);
+            return boxed(errors.into_iter());
+        }
+
         let rp = match ResolvePath::new(path) {
             Ok(rp) => rp,
             Err(e) => return boxed(vec![e].into_iter()),
@@ -73,7 +86,7 @@ impl<'a> super::Verifier<'a> {
     pub(crate) fn check_content_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
         use std::sync::Arc;
 
-        if !self.check_contents {
+        if !self.check_contents || self.mistrust.disable_ownership_and_permission_checks {
             return boxed(std::iter::empty());
         }
 
