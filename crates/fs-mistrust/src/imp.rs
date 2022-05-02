@@ -117,12 +117,27 @@ impl<'a> super::Verifier<'a> {
     ) -> Vec<Error> {
         let mut errors = Vec::new();
 
+        self.check_type(path, path_type, meta, &mut errors);
+        #[cfg(target_family = "unix")]
+        self.check_permissions(path, path_type, meta, &mut errors);
+        errors
+    }
+
+    /// Check whether a given file has the correct type, and push an error into
+    /// `errors` if not. Other inputs are as for `check_one`.
+    fn check_type(
+        &self,
+        path: &Path,
+        path_type: PathType,
+        meta: &Metadata,
+        errors: &mut Vec<Error>,
+    ) {
         let want_type = match path_type {
             PathType::Symlink => {
                 // There's nothing to check on a symlink encountered _while
                 // looking up the target_; its permissions and ownership do not
                 // actually matter.
-                return errors;
+                return;
             }
             PathType::Intermediate => Type::Dir,
             PathType::Final => self.enforce_type,
@@ -132,57 +147,60 @@ impl<'a> super::Verifier<'a> {
         if !want_type.matches(meta.file_type()) {
             errors.push(Error::BadType(path.into()));
         }
+    }
 
-        // If we are on unix, make sure that the owner and permissions are
-        // acceptable.
-        #[cfg(target_family = "unix")]
-        {
-            // We need to check that the owner is trusted, since the owner can
-            // always change the permissions of the object.  (If we're talking
-            // about a directory, the owner cah change the permissions and owner
-            // of anything in the directory.)
-            let uid = meta.uid();
-            if uid != 0 && Some(uid) != self.mistrust.trust_uid {
-                errors.push(Error::BadOwner(path.into(), uid));
-            }
-            let mut forbidden_bits = if !self.readable_okay
-                && (path_type == PathType::Final || path_type == PathType::Content)
-            {
-                // If this is the target or a content object, and it must not be
-                // readable, then we forbid it to be group-rwx and all-rwx.
-                0o077
-            } else {
-                // If this is the target object and it may be readable, or if
-                // this is _any parent directory_, then we typically forbid the
-                // group-write and all-write bits.  (Those are the bits that
-                // would allow non-trusted users to change the object, or change
-                // things around in a directory.)
-                if meta.is_dir()
-                    && meta.mode() & STICKY_BIT != 0
-                    && path_type == PathType::Intermediate
-                {
-                    // This is an intermediate directory and this sticky bit is
-                    // set.  Thus, we don't care if it is world-writable or
-                    // group-writable, since only the _owner_  of a file in this
-                    // directory can move or rename it.
-                    0o000
-                } else {
-                    // It's not a sticky-bit intermediate directory; actually
-                    // forbid 022.
-                    0o022
-                }
-            };
-            // If we trust the GID, then we allow even more bits to be set.
-            if self.mistrust.trust_gid == Some(meta.gid()) {
-                forbidden_bits &= !0o070;
-            }
-            let bad_bits = meta.mode() & forbidden_bits;
-            if bad_bits != 0 {
-                errors.push(Error::BadPermission(path.into(), bad_bits));
-            }
+    /// Check whether a given file has the correct ownership and permissions,
+    /// and push errors into `errors` if not. Other inputs are as for
+    /// `check_one`.
+    #[cfg(target_family = "unix")]
+    fn check_permissions(
+        &self,
+        path: &Path,
+        path_type: PathType,
+        meta: &Metadata,
+        errors: &mut Vec<Error>,
+    ) {
+        // We need to check that the owner is trusted, since the owner can
+        // always change the permissions of the object.  (If we're talking
+        // about a directory, the owner cah change the permissions and owner
+        // of anything in the directory.)
+        let uid = meta.uid();
+        if uid != 0 && Some(uid) != self.mistrust.trust_uid {
+            errors.push(Error::BadOwner(path.into(), uid));
         }
-
-        errors
+        let mut forbidden_bits = if !self.readable_okay
+            && (path_type == PathType::Final || path_type == PathType::Content)
+        {
+            // If this is the target or a content object, and it must not be
+            // readable, then we forbid it to be group-rwx and all-rwx.
+            0o077
+        } else {
+            // If this is the target object and it may be readable, or if
+            // this is _any parent directory_, then we typically forbid the
+            // group-write and all-write bits.  (Those are the bits that
+            // would allow non-trusted users to change the object, or change
+            // things around in a directory.)
+            if meta.is_dir() && meta.mode() & STICKY_BIT != 0 && path_type == PathType::Intermediate
+            {
+                // This is an intermediate directory and this sticky bit is
+                // set.  Thus, we don't care if it is world-writable or
+                // group-writable, since only the _owner_  of a file in this
+                // directory can move or rename it.
+                0o000
+            } else {
+                // It's not a sticky-bit intermediate directory; actually
+                // forbid 022.
+                0o022
+            }
+        };
+        // If we trust the GID, then we allow even more bits to be set.
+        if self.mistrust.trust_gid == Some(meta.gid()) {
+            forbidden_bits &= !0o070;
+        }
+        let bad_bits = meta.mode() & forbidden_bits;
+        if bad_bits != 0 {
+            errors.push(Error::BadPermission(path.into(), bad_bits));
+        }
     }
 }
 
