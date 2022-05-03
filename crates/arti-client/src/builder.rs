@@ -181,7 +181,8 @@ impl<R: Runtime> TorClientBuilder<R> {
             self.runtime,
             self.config,
             self.bootstrap_behavior,
-            self.fs_mistrust.unwrap_or_else(default_fs_mistrust),
+            self.fs_mistrust
+                .unwrap_or_else(crate::config::default_fs_mistrust),
             self.dirmgr_builder.as_ref(),
             dirmgr_extensions,
         )
@@ -194,15 +195,4 @@ impl<R: Runtime> TorClientBuilder<R> {
         r.bootstrap().await?;
         Ok(r)
     }
-}
-
-/// Return a default value for our fs_mistrust configuration.
-///
-/// This is based on the environment rather on the configuration file since,
-fn default_fs_mistrust() -> fs_mistrust::Mistrust {
-    let mut mistrust = fs_mistrust::Mistrust::new();
-    if std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some() {
-        mistrust.dangerously_trust_everyone();
-    }
-    mistrust
 }

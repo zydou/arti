@@ -38,6 +38,7 @@ MODIFIED: Configuration builder structs are now all Serialize+Deseralize+Debug.
 BREAKING: Replaced LoggingConfigBuilder::file (taking Vec) with LoggingConfigBuilder::files
 BREAKING: LoggingConfigBuilder::build() throws ConfigBuildError, not a bespoke error
 MODIFIED: LoggingConfigBuilder is now Deserialize
+BREAKING: Replaced API for `run` to require a fs_mistrust.
 
 
 ### arti-client

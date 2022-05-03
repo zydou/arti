@@ -151,6 +151,7 @@ pub async fn run<R: Runtime>(
     config_sources: arti_config::ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
+    fs_permissions: fs_mistrust::Mistrust,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
     // for bootstrap to complete, rather than getting errors.
@@ -159,6 +160,7 @@ pub async fn run<R: Runtime>(
     let client = TorClient::with_runtime(runtime.clone())
         .config(client_config)
         .bootstrap_behavior(OnDemand)
+        .override_fs_permission_checks(fs_permissions)
         .create_unbootstrapped()?;
     if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
@@ -281,16 +283,26 @@ pub fn main_main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
+    let mistrust = arti_client::config::default_fs_mistrust();
+
     let cfg_sources = {
         let mut cfg_sources = arti_config::ConfigurationSources::new();
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
         if config_files.len() == 0 {
             if let Some(default) = default_config_file() {
+                match mistrust.verifier().require_file().check(&default) {
+                    Ok(()) => {}
+                    Err(fs_mistrust::Error::NotFound(_)) => {}
+                    Err(e) => return Err(e.into()),
+                }
                 cfg_sources.push_optional_file(default);
             }
         } else {
-            config_files.for_each(|f| cfg_sources.push_file(f));
+            for f in config_files {
+                mistrust.verifier().require_file().check(f)?;
+                cfg_sources.push_file(f);
+            }
         }
 
         matches
@@ -355,6 +367,7 @@ pub fn main_main() -> Result<()> {
             cfg_sources,
             config,
             client_config,
+            mistrust,
         ))?;
         Ok(())
     } else {

@@ -81,6 +81,7 @@ dependencies = [
  "clap",
  "config",
  "derive_builder",
+ "fs-mistrust",
  "futures",
  "libc",
  "notify",

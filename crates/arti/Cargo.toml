@@ -24,6 +24,7 @@ journald = ["tracing-journald"]
 
 [dependencies]
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.2.0", default-features = false }
+fs-mistrust = { path = "../fs-mistrust", version = "0.1.0" }
 tor-config = { path = "../tor-config", version = "0.2.0" }
 tor-error = { path = "../tor-error", version = "0.2.0", default-features = false }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.2.0", default-features = false }
