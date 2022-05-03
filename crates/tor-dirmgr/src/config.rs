@@ -46,7 +46,7 @@ pub struct NetworkConfig {
     #[serde(rename = "fallback_caches")]
     #[builder_field_attr(serde(rename = "fallback_caches"))]
     #[builder(setter(name = "fallback_caches"))]
-    pub(crate) fallbacks: tor_guardmgr::fallback::FallbackList,
+    pub(crate) fallback_caches: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -62,7 +62,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         NetworkConfig {
-            fallbacks: FallbackListBuilder::default()
+            fallback_caches: FallbackListBuilder::default()
                 .build()
                 .expect("build default fallbacks"),
             authorities: AuthorityListBuilder::default()
@@ -80,14 +80,14 @@ impl NetworkConfig {
 
     /// Return the list of fallback directory caches from this configuration.
     pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.fallbacks
+        &self.fallback_caches
     }
 }
 
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if !self.authorities.is_unmodified_default() && self.fallbacks.is_unmodified_default() {
+        if !self.authorities.is_unmodified_default() && self.fallback_caches.is_unmodified_default() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -233,7 +233,7 @@ impl DirMgrConfig {
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network.fallbacks
+        &self.network.fallback_caches
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -244,7 +244,7 @@ impl DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
             network: NetworkConfig {
-                fallbacks: new_config.network.fallbacks.clone(),
+                fallback_caches: new_config.network.fallback_caches.clone(),
                 authorities: self.network.authorities.clone(),
             },
             schedule: new_config.schedule.clone(),
@@ -306,7 +306,7 @@ mod test {
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), dflt.authorities.len());
-        assert_eq!(cfg.fallbacks.len(), dflt.fallbacks.len());
+        assert_eq!(cfg.fallback_caches.len(), dflt.fallback_caches.len());
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
@@ -330,7 +330,7 @@ mod test {
             .clone()]);
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), 2);
-        assert_eq!(cfg.fallbacks.len(), 1);
+        assert_eq!(cfg.fallback_caches.len(), 1);
 
         Ok(())
     }
