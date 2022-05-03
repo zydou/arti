@@ -87,6 +87,9 @@ pub struct TorClient<R: Runtime> {
 
     /// Shared boolean for whether we're currently in "dormant mode" or not.
     dormant: Arc<AtomicBool>,
+
+    /// Settings for how we perform permissions checks on the filesystem.
+    fs_mistrust: fs_mistrust::Mistrust,
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -349,15 +352,17 @@ impl<R: Runtime> TorClient<R> {
         runtime: R,
         config: TorClientConfig,
         autobootstrap: BootstrapBehavior,
+        mistrust: fs_mistrust::Mistrust,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
         let dir_cfg = {
-            let mut c: tor_dirmgr::DirMgrConfig = (&config).try_into()?;
+            let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config(mistrust.clone())?;
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr = FsStateMgr::from_path(config.storage.expand_state_dir()?)?;
+        let statemgr =
+            FsStateMgr::from_path_and_mistrust(config.storage.expand_state_dir()?, &mistrust)?;
         let addr_cfg = config.address_filter.clone();
 
         let (status_sender, status_receiver) = postage::watch::channel();
@@ -414,6 +419,7 @@ impl<R: Runtime> TorClient<R> {
             should_bootstrap: autobootstrap,
             periodic_task_handles,
             dormant: Arc::new(AtomicBool::new(false)),
+            fs_mistrust: mistrust,
         })
     }
 
@@ -542,7 +548,9 @@ impl<R: Runtime> TorClient<R> {
             _ => {}
         }
 
-        let dir_cfg = new_config.try_into().map_err(wrap_err)?;
+        let dir_cfg = new_config
+            .dir_mgr_config(self.fs_mistrust.clone())
+            .map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;

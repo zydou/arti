@@ -39,6 +39,12 @@ BREAKING: Replaced LoggingConfigBuilder::file (taking Vec) with LoggingConfigBui
 BREAKING: LoggingConfigBuilder::build() throws ConfigBuildError, not a bespoke error
 MODIFIED: LoggingConfigBuilder is now Deserialize
 
+
+### arti-client
+
+MODIFIED: Code to configure fs-mistrust.
+BREAKING: TorConfig no longer implements TryInto<DirMgrConfig>
+
 ### tor-basic-util
 
 MODIFIED: Added `reset()` method to RetrySchedule.

@@ -324,20 +324,19 @@ impl TorClientConfig {
     pub fn builder() -> TorClientConfigBuilder {
         TorClientConfigBuilder::default()
     }
-}
 
-impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
-    type Error = ConfigBuildError;
-
+    /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
-    fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+    pub(crate) fn dir_mgr_config(&self, mistrust: fs_mistrust::Mistrust) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             cache_path:          self.storage.expand_cache_dir()?,
+            cache_trust:         mistrust,
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
         })
+
     }
 }
 

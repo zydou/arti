@@ -31,6 +31,7 @@ error_detail = []
 experimental-api = []
 
 [dependencies]
+fs-mistrust = { path = "../fs-mistrust", version = "0.1.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.2.0" }
 tor-config = { path = "../tor-config", version = "0.2.0" }

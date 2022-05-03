@@ -130,6 +130,7 @@ dependencies = [
  "derive_more",
  "directories",
  "educe",
+ "fs-mistrust",
  "futures",
  "humantime-serde",
  "once_cell",
@@ -3398,6 +3399,7 @@ dependencies = [
  "educe",
  "event-listener",
  "float_eq",
+ "fs-mistrust",
  "fslock",
  "futures",
  "futures-await-test",
@@ -3591,6 +3593,7 @@ dependencies = [
 name = "tor-persist"
 version = "0.2.0"
 dependencies = [
+ "fs-mistrust",
  "fslock",
  "sanitize-filename",
  "serde",
