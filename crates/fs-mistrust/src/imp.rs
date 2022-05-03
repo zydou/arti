@@ -71,6 +71,8 @@ impl<'a> super::Verifier<'a> {
         boxed(
             rp.filter(should_retain)
                 // Finally, check the path for errors.
+                //
+                // See `check_one` below for a note on TOCTOU issues.
                 .flat_map(move |r| match r {
                     Ok((path, path_type, metadata)) => {
                         self.check_one(path.as_path(), path_type, &metadata)
@@ -115,12 +117,11 @@ impl<'a> super::Verifier<'a> {
         std::iter::empty()
     }
 
-    /// Check a single `path` for conformance with this `Concrete` mistrust.
+    /// Check a single `path` for conformance with this `Verifier`.
     ///
-    /// `position` is the position of the path within the ancestors of the
-    /// target path.  If the `position` is 0, then it's the position of the
-    /// target path itself. If `position` is 1, it's the target's parent, and so
-    /// on.
+    /// Note that this result is only meaningful if all of the _ancestors_ of
+    /// this path have been checked.  Otherwise, a non-trusted user could change
+    /// where this path points after it has been checked.
     #[must_use]
     pub(crate) fn check_one(
         &self,

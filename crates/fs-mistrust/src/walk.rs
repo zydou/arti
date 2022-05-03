@@ -54,22 +54,30 @@ pub(crate) enum PathType {
 ///
 /// # Implementation notes
 ///
-/// Abstractly, at any given point, the directory that we're resolving looks like
-/// `"resolved"/"remaining"`, where `resolved` is the part that we've already
-/// looked at (in canonical form, with all symlinks resolved) and `remaining` is
-/// the part that we're still trying to resolve.
+/// Abstractly, at any given point, the directory that we're resolving looks
+/// like `"resolved"/"remaining"`, where `resolved` is the part that we've
+/// already looked at (in canonical form, with all symlinks resolved) and
+/// `remaining` is the part that we're still trying to resolve.
 ///
 /// We represent `resolved` as a nice plain PathBuf, and  `remaining` as a stack
-/// of strings that we want to push on to the end of the path.  We initialize the
-/// algorithm with `resolved` empty and `remaining` seeded with the path we want
-/// to resolve.  Once there are no more parts to push, the path resolution is
-/// done.
+/// of strings that we want to push on to the end of the path.  We initialize
+/// the algorithm with `resolved` empty and `remaining` seeded with the path we
+/// want to resolve.  Once there are no more parts to push, the path resolution
+/// is done.
 ///
 /// The following invariants apply whenever we are outside of the `next`
 /// function:
 ///    * `resolved.join(remaining)` is an alias for our target path.
 ///    * `resolved` is in canonical form.
 ///    * Every ancestor of `resolved` is a key of `already_inspected`.
+///
+/// # Limitations
+///
+/// Because we're using `Path::metadata` rather than something that would use
+/// `openat()` and `fstat()` under the hood, the permissions returned here are
+/// potentially susceptible to TOCTOU issues.  In this crate we address these
+/// issues by checking each yielded path immediately to make sure that only
+/// _trusted_ users can change it after it is checked.
 //
 // TODO: This code is potentially of use outside this crate.  Maybe it should be
 // public?

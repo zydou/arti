@@ -1,10 +1,32 @@
-//! # `fs-mistrust`: make sure that files are really private.
+//! # `fs-mistrust`: check whether file permissions are private.
 //!
-//! This crates provides a set of functionality to check the permissions on
-//! files and directories to ensure that they are effectively private—that is,
-//! that they are only readable or writable by trusted[^1] users.
+//! This crate provides a set of functionality to check the permissions on files
+//! and directories to ensure that they are effectively private—that is, that
+//! they are only readable or writable by trusted[^1] users.
 //!
-//! That's trickier than it sounds:
+//! This kind of check can protect your users' data against misconfigurations,
+//! such as cases where they've accidentally made their home directory
+//! world-writable, or where they're using a symlink stored in a directory owned
+//! by another user.
+//!
+//! The checks in this crate try to guarantee that, after a path has been shown
+//! to be private, no action by a _non-trusted user_ can make that path private.
+//! It's still possible for a _trusted user_ to change a path after it has been
+//! checked.  Because of that, you may want to use other mechanisms if you are
+//! concerned about time-of-check/time-of-use issues caused by _trusted_ users
+//! altering the filesystem.
+//!
+//! Also see the [Limitations](#limitations) section below.
+//!
+//! [^1]: we define "trust" here in the computer-security sense of the word: a
+//!      user is "trusted" if they have the opportunity to break our security
+//!      guarantees.  For example, `root` on a Unix environment is "trusted",
+//!      whether you actually trust them or not.
+//!
+//! ## What's so hard about checking permissions?
+//!
+//! Suppose that we want to know whether a given path can be read or modified by
+//! an untrusted user. That's trickier than it sounds:
 //!
 //! * Even if the permissions on the file itself are correct, we also need to
 //!   check the permissions on the directory holding it, since they might allow
@@ -38,10 +60,6 @@
 //! for file privacy checking and enforcement, along with clear justifications
 //! in its source for why it behaves that way.
 //!
-//! [^1]: we define "trust" here in the computer-security sense of the word: a
-//!      user is "trusted" if they have the opportunity to break our security
-//!      guarantees.  For example, `root` on a Unix environment is "trusted",
-//!      whether you actually trust them or not.
 //!
 //! ## What we actually do
 //!
@@ -170,11 +188,19 @@
 //!
 //! ## Limitations
 //!
+//! As noted above, this crate only checks whether a path can be changed by
+//! _non-trusted_ users.  After the path has been checked, a _trusted_ user can
+//! still change its permissions.  (For example, the user could make their home
+//! directory world-writable.)  This crate does not try to defend against _that
+//! kind_ of time-of-check/time-of-use issue.
+//!
 //! We currently assume a fairly vanilla Unix environment: we'll tolerate other
 //! systems, but we don't actually look at the details of any of these:
 //!    * Windows security (ACLs, SecurityDescriptors, etc)
 //!    * SELinux capabilities
 //!    * POSIX (and other) ACLs.
+//!
+//! On Windows, we accept all file permissions and owners.
 //!
 //! We don't check for mount-points and the privacy of filesystem devices
 //! themselves.  (For example, we don't distinguish between our local

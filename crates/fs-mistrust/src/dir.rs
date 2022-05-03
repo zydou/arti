@@ -17,6 +17,19 @@ use std::os::unix::fs::OpenOptionsExt;
 /// The accessor functions will enforce that whatever security properties we
 /// checked on the the directory also apply to all of the members that we access
 /// within the directory.
+///
+/// ## Limitations
+///
+/// Having a `CheckedDir` means only that, at the time it was created, we were
+/// confident that no _untrusted_ user could access it inappropriately.  It is
+/// still possible, after the `CheckedDir` is created, that a _trusted_ user can
+/// alter its permissions, make its path point somewhere else, or so forth.
+///
+/// If this kind of time-of-use/time-of-check issue is unacceptable, you may
+/// wish to look at other solutions, possibly involving `openat()` or related
+/// APIs.
+///
+/// See also the crate-level [Limitations](crate#limitations) section.
 pub struct CheckedDir {
     /// The `Mistrust` object whose rules we apply to members of this directory.
     mistrust: Mistrust,
