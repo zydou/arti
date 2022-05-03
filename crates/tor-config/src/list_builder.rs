@@ -14,9 +14,7 @@
 /// and should be consumed by the expression.
 /// If the built value is simply a `Vec`, you can just write `built: things;`.
 ///
-/// The `default` clause must provide an expression evaluating to a `Vec<ThingBuilder>`.  If it is
-/// nontrivial, you should put the actual defaulting functionality in a (probably-private)
-/// function, as the macro will expand it twice.
+/// The `default` clause must provide an expression evaluating to a `Vec<ThingBuilder>`.
 ///
 /// The `item_build` clause, if supplied, provides a closure with type
 /// `FnMut(&ThingBuilder) -> Result<Thing, ConfigBuildErro>`; the default is to call
@@ -109,7 +107,7 @@ macro_rules! define_list_config_builder {
             /// Then `item` is added.
             $vis fn append(&mut self, item: $EntryBuilder) -> &mut Self {
                 self.$things
-                    .get_or_insert_with(|| $default)
+                    .get_or_insert_with(Self::default_list)
                     .push(item);
                 self
             }
@@ -140,7 +138,7 @@ macro_rules! define_list_config_builder {
                 let $things = match &self.$things {
                     Some($things) => $things,
                     None => {
-                        default_buffer = $default;
+                        default_buffer = Self::default_list();
                         &default_buffer
                     }
                 };
@@ -155,6 +153,11 @@ macro_rules! define_list_config_builder {
                     )
                     .collect::<Result<_, $crate::ConfigBuildError>>()?;
                 Ok($built)
+            }
+
+            /// The default list
+            fn default_list() -> Vec<$EntryBuilder> {
+                 $default
             }
         }
     }
