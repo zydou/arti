@@ -4,14 +4,12 @@ mod clean;
 
 use crate::{load_error, store_error};
 use crate::{Error, LockStatus, Result, StateMgr};
+use fs_mistrust::CheckedDir;
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tracing::{info, warn};
-
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::DirBuilderExt;
 
 /// Implementation of StateMgr that stores state as JSON files on disk.
 ///
@@ -48,7 +46,7 @@ pub struct FsStateMgr {
 #[derive(Debug)]
 struct FsStateMgrInner {
     /// Directory in which we store state files.
-    statepath: PathBuf,
+    statepath: CheckedDir,
     /// Lockfile to achieve exclusive access to state files.
     lockfile: Mutex<fslock::LockFile>,
 }
@@ -58,17 +56,20 @@ impl FsStateMgr {
     ///
     /// This function will try to create `path` if it does not already
     /// exist.
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+    ///
+    /// All files must be "private" according to the rules specified in `mistrust`.
+    pub fn from_path_and_mistrust<P: AsRef<Path>>(
+        path: P,
+        mistrust: &fs_mistrust::Mistrust,
+    ) -> Result<Self> {
         let path = path.as_ref();
         let statepath = path.join("state");
-        let lockpath = path.join("state.lock");
 
-        {
-            let mut builder = std::fs::DirBuilder::new();
-            #[cfg(target_family = "unix")]
-            builder.mode(0o700);
-            builder.recursive(true).create(&statepath)?;
-        }
+        let statepath = mistrust
+            .verifier()
+            .check_content()
+            .make_secure_dir(statepath)?;
+        let lockpath = statepath.join("state.lock")?;
 
         let lockfile = Mutex::new(fslock::LockFile::open(&lockpath)?);
 
@@ -79,20 +80,32 @@ impl FsStateMgr {
             }),
         })
     }
-    /// Return a filename to use for storing data with `key`.
+    /// Like from_path_and_mistrust, but do not verify permissions.
+    ///
+    /// Testing only.
+    #[cfg(test)]
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Self::from_path_and_mistrust(
+            path,
+            fs_mistrust::Mistrust::new().dangerously_trust_everyone(),
+        )
+    }
+
+    /// Return a filename, relative to the top of this directory, to use for
+    /// storing data with `key`.
     ///
     /// See "Limitations" section on [`FsStateMgr`] for caveats.
-    fn filename(&self, key: &str) -> PathBuf {
-        self.inner
-            .statepath
-            .join(sanitize_filename::sanitize(key) + ".json")
+    fn rel_filename(&self, key: &str) -> PathBuf {
+        (sanitize_filename::sanitize(key) + ".json").into()
     }
     /// Return the top-level directory for this storage manager.
     ///
-    /// (This is the same directory passed to [`FsStateMgr::from_path`].)
+    /// (This is the same directory passed to
+    /// [`FsStateMgr::from_path_and_mistrust`].)
     pub fn path(&self) -> &Path {
         self.inner
             .statepath
+            .as_path()
             .parent()
             .expect("No parent directory even after path.join?")
     }
@@ -101,7 +114,7 @@ impl FsStateMgr {
     ///
     /// Requires that we hold the lock.
     fn clean(&self) {
-        for fname in clean::files_to_delete(&self.inner.statepath, SystemTime::now()) {
+        for fname in clean::files_to_delete(self.inner.statepath.as_path(), SystemTime::now()) {
             info!("Deleting obsolete file {}", fname.display());
             if let Err(e) = std::fs::remove_file(&fname) {
                 warn!("Unable to delete {}: {}", fname.display(), e);
@@ -149,17 +162,12 @@ impl StateMgr for FsStateMgr {
     where
         D: DeserializeOwned,
     {
-        let fname = self.filename(key);
+        let rel_fname = self.rel_filename(key);
 
-        let string = match std::fs::read_to_string(fname) {
-            Ok(s) => s,
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    return Ok(None);
-                } else {
-                    return Err(e.into());
-                }
-            }
+        let string = match self.inner.statepath.read_to_string(rel_fname) {
+            Ok(string) => string,
+            Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
+            Err(e) => return Err(e.into()),
         };
 
         Ok(Some(serde_json::from_str(&string).map_err(load_error)?))
@@ -173,13 +181,11 @@ impl StateMgr for FsStateMgr {
             return Err(Error::NoLock);
         }
 
-        let fname = self.filename(key);
+        let rel_fname = self.rel_filename(key);
 
         let output = serde_json::to_string_pretty(val).map_err(store_error)?;
 
-        let fname_tmp = fname.with_extension("tmp");
-        std::fs::write(&fname_tmp, &output)?;
-        std::fs::rename(fname_tmp, fname)?;
+        self.inner.statepath.write_and_replace(rel_fname, output)?;
 
         Ok(())
     }

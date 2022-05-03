@@ -71,6 +71,10 @@ BREAKING: Guard restriction builder interface changed to new list builder API.
 
 BREAKING: AES implementations now implement cipher 0.4 traits.
 
+### tor-persist
+
+BREAKING: Replaced from_path with from_path_and_mistrust
+
 ### tor-proto
 
 MODIFIED: New accessors in tor_proto::Channel.
