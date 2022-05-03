@@ -30,6 +30,7 @@ use std::os::unix::fs::OpenOptionsExt;
 /// APIs.
 ///
 /// See also the crate-level [Limitations](crate#limitations) section.
+#[derive(Debug, Clone)]
 pub struct CheckedDir {
     /// The `Mistrust` object whose rules we apply to members of this directory.
     mistrust: Mistrust,
