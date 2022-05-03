@@ -26,6 +26,7 @@ dirfilter = []
 experimental-api = []
 
 [dependencies]
+fs-mistrust = { path = "../fs-mistrust", version = "0.1.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
 retry-error = { path = "../retry-error", version = "0.1.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.2.0" }

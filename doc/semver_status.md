@@ -59,6 +59,7 @@ BREAKING: AuthorityBuilder::build now throws ConfigBuildError, not a custom erro
 BREAKING: DownloadSchedule::new() replaced with DownloadScheduleBuilder
 BREAKING: DownloadScheduleConfigBuilder now has accessors for the schedules, not setters
 BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
+BREAKING: Added new cache_trust element to DirMgrConfig.
 
 ### tor-guardmgr
 

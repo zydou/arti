@@ -83,6 +83,9 @@ pub enum Error {
     /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
     #[error("cannot bootstrap offline DirMgr")]
     OfflineMode,
+    /// A problem with file permissions on our cache directory.
+    #[error("Bad permissions in cache directory")]
+    CachePermissions(#[from] fs_mistrust::Error),
 
     /// Unable to spawn task
     #[error("unable to spawn {spawning}")]
@@ -154,6 +157,7 @@ impl Error {
             // These errors cannot come from a directory cache.
             Error::NoDownloadSupport
             | Error::CacheCorruption(_)
+            | Error::CachePermissions(_)
             | Error::SqliteError(_)
             | Error::UnrecognizedSchema
             | Error::BadNetworkConfig(_)
@@ -209,6 +213,13 @@ impl HasKind for Error {
             E::Unwanted(_) => EK::TorProtocolViolation,
             E::NoDownloadSupport => EK::NotImplemented,
             E::CacheCorruption(_) => EK::CacheCorrupted,
+            E::CachePermissions(e) => {
+                if e.is_bad_permission() {
+                    EK::FsPermissions
+                } else {
+                    EK::CacheAccessFailed
+                }
+            }
             E::SqliteError(e) => sqlite_error_kind(e),
             E::UnrecognizedSchema => EK::CacheCorrupted,
             E::BadNetworkConfig(_) => EK::InvalidConfig,

@@ -8,6 +8,7 @@ use crate::docmeta::{AuthCertMeta, ConsensusMeta};
 use crate::storage::{InputString, Store};
 use crate::{Error, Result};
 
+use fs_mistrust::CheckedDir;
 use tor_netdoc::doc::authcert::AuthCertKeyIds;
 use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
@@ -15,15 +16,13 @@ use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
 use tor_netdoc::doc::routerdesc::RdDigest;
 
 use std::collections::HashMap;
-use std::path::{self, Path, PathBuf};
+use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
 use time::OffsetDateTime;
 use tracing::trace;
-
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::DirBuilderExt;
 
 /// Local directory cache using a Sqlite3 connection.
 pub(crate) struct SqliteStore {
@@ -32,7 +31,7 @@ pub(crate) struct SqliteStore {
     /// Location for the sqlite3 database; used to reopen it.
     sql_path: Option<PathBuf>,
     /// Location to store blob files.
-    path: PathBuf,
+    blob_dir: CheckedDir,
     /// Lockfile to prevent concurrent write attempts from different
     /// processes.
     ///
@@ -61,19 +60,36 @@ impl SqliteStore {
     /// _per process_. Therefore, you might get unexpected results if
     /// two SqliteStores are created in the same process with the
     /// path.
-    pub(crate) fn from_path<P: AsRef<Path>>(path: P, mut readonly: bool) -> Result<Self> {
+    pub(crate) fn from_path_and_mistrust<P: AsRef<Path>>(
+        path: P,
+        mistrust: &fs_mistrust::Mistrust,
+        mut readonly: bool,
+    ) -> Result<Self> {
         let path = path.as_ref();
         let sqlpath = path.join("dir.sqlite3");
         let blobpath = path.join("dir_blobs/");
         let lockpath = path.join("dir.lock");
 
-        if !readonly {
-            let mut builder = std::fs::DirBuilder::new();
-            #[cfg(target_family = "unix")]
-            builder.mode(0o700);
-            builder.recursive(true).create(&blobpath).map_err(|err| {
-                Error::StorageError(format!("Creating directory at {:?}: {}", &blobpath, err))
-            })?;
+        let verifier = mistrust.verifier().permit_readable().check_content();
+
+        let blob_dir = if readonly {
+            verifier.secure_dir(blobpath)?
+        } else {
+            verifier.make_secure_dir(blobpath)?
+        };
+
+        // Check permissions on the sqlite and lock files; don't require them to
+        // exist.
+        for p in [&lockpath, &sqlpath] {
+            match mistrust
+                .verifier()
+                .permit_readable()
+                .require_file()
+                .check(p)
+            {
+                Ok(()) | Err(fs_mistrust::Error::NotFound(_)) => {}
+                Err(e) => return Err(e.into()),
+            }
         }
 
         let mut lockfile = fslock::LockFile::open(&lockpath)?;
@@ -86,7 +102,7 @@ impl SqliteStore {
             OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
         };
         let conn = rusqlite::Connection::open_with_flags(&sqlpath, flags)?;
-        let mut store = SqliteStore::from_conn(conn, &blobpath)?;
+        let mut store = SqliteStore::from_conn(conn, blob_dir)?;
         store.sql_path = Some(sqlpath);
         store.lockfile = Some(lockfile);
         Ok(store)
@@ -96,14 +112,10 @@ impl SqliteStore {
     /// for blob files.
     ///
     /// Used for testing with a memory-backed database.
-    pub(crate) fn from_conn<P>(conn: rusqlite::Connection, path: P) -> Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref().to_path_buf();
+    pub(crate) fn from_conn(conn: rusqlite::Connection, blob_dir: CheckedDir) -> Result<Self> {
         let mut result = SqliteStore {
             conn,
-            path,
+            blob_dir,
             lockfile: None,
             sql_path: None,
         };
@@ -153,36 +165,21 @@ impl SqliteStore {
         Ok(())
     }
 
-    /// Return the correct filename for a given blob, based on the filename
-    /// from the ExtDocs table.
-    fn blob_fname<P>(&self, path: P) -> Result<PathBuf>
-    where
-        P: AsRef<Path>,
-    {
-        let path = path.as_ref();
-        if !path
-            .components()
-            .all(|c| matches!(c, path::Component::Normal(_)))
-        {
-            return Err(Error::CacheCorruption("Invalid path in database"));
-        }
-
-        let mut result = self.path.clone();
-        result.push(path);
-        Ok(result)
-    }
-
     /// Read a blob from disk, mapping it if possible.
     fn read_blob<P>(&self, path: P) -> Result<InputString>
     where
         P: AsRef<Path>,
     {
         let path = path.as_ref();
-        let full_path = self.blob_fname(path)?;
-        InputString::load(&full_path).map_err(|err| {
+
+        let file = self.blob_dir.open(path, OpenOptions::new().read(true))?;
+
+        InputString::load(file).map_err(|err| {
             Error::StorageError(format!(
                 "Loading blob {:?} from storage at {:?}: {}",
-                path, full_path, err
+                path,
+                self.blob_dir.as_path().join(path),
+                err
             ))
         })
     }
@@ -202,10 +199,10 @@ impl SqliteStore {
         let digest = hex::encode(digest);
         let digeststr = format!("{}-{}", dtype, digest);
         let fname = format!("{}_{}", doctype, digeststr);
-        let full_path = self.blob_fname(&fname)?;
 
+        let full_path = self.blob_dir.join(&fname)?;
         let unlinker = Unlinker::new(&full_path);
-        std::fs::write(full_path, contents)?;
+        self.blob_dir.write_and_replace(&fname, contents)?;
 
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(INSERT_EXTDOC, params![digeststr, expires, dtype, fname])?;
@@ -301,7 +298,7 @@ impl Store for SqliteStore {
         tx.execute(DROP_OLD_ROUTERDESCS, [now - expiration.router_descs])?;
         tx.commit()?;
         for name in expired_blobs {
-            let fname = self.blob_fname(name);
+            let fname = self.blob_dir.join(name);
             if let Ok(fname) = fname {
                 let _ignore = std::fs::remove_file(fname);
             }
@@ -864,7 +861,12 @@ mod test {
         let tmp_dir = tempdir().unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
         let conn = rusqlite::Connection::open(&sql_path)?;
-        let store = SqliteStore::from_conn(conn, &tmp_dir)?;
+        let blob_dir = fs_mistrust::Mistrust::new()
+            .dangerously_trust_everyone()
+            .verifier()
+            .secure_dir(&tmp_dir)
+            .unwrap();
+        let store = SqliteStore::from_conn(conn, blob_dir)?;
 
         Ok((tmp_dir, store))
     }
@@ -872,46 +874,50 @@ mod test {
     #[test]
     fn init() -> Result<()> {
         let tmp_dir = tempdir().unwrap();
+        let blob_dir = fs_mistrust::Mistrust::new()
+            .dangerously_trust_everyone()
+            .verifier()
+            .secure_dir(&tmp_dir)
+            .unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
         // Initial setup: everything should work.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
-            let _store = SqliteStore::from_conn(conn, &tmp_dir)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Second setup: shouldn't need to upgrade.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
-            let _store = SqliteStore::from_conn(conn, &tmp_dir)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Third setup: shouldn't need to upgrade.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
             conn.execute_batch("UPDATE TorSchemaMeta SET version = 9002;")?;
-            let _store = SqliteStore::from_conn(conn, &tmp_dir)?;
+            let _store = SqliteStore::from_conn(conn, blob_dir.clone())?;
         }
         // Fourth: this says we can't read it, so we'll get an error.
         {
             let conn = rusqlite::Connection::open(&sql_path)?;
             conn.execute_batch("UPDATE TorSchemaMeta SET readable_by = 9001;")?;
-            let val = SqliteStore::from_conn(conn, &tmp_dir);
+            let val = SqliteStore::from_conn(conn, blob_dir);
             assert!(val.is_err());
         }
         Ok(())
     }
 
     #[test]
-    fn bad_blob_fnames() -> Result<()> {
+    fn bad_blob_fname() -> Result<()> {
         let (_tmp_dir, store) = new_empty()?;
 
-        assert!(store.blob_fname("abcd").is_ok());
-        assert!(store.blob_fname("abcd..").is_ok());
-        assert!(store.blob_fname("..abcd..").is_ok());
-        assert!(store.blob_fname(".abcd").is_ok());
+        assert!(store.blob_dir.join("abcd").is_ok());
+        assert!(store.blob_dir.join("abcd..").is_ok());
+        assert!(store.blob_dir.join("..abcd..").is_ok());
+        assert!(store.blob_dir.join(".abcd").is_ok());
 
-        assert!(store.blob_fname(".").is_err());
-        assert!(store.blob_fname("..").is_err());
-        assert!(store.blob_fname("../abcd").is_err());
-        assert!(store.blob_fname("/abcd").is_err());
+        assert!(store.blob_dir.join("..").is_err());
+        assert!(store.blob_dir.join("../abcd").is_err());
+        assert!(store.blob_dir.join("/abcd").is_err());
 
         Ok(())
     }
@@ -943,13 +949,13 @@ mod test {
             fname1,
             "greeting_sha1-7b502c3a1f48c8609ae212cdfb639dee39673f5e"
         );
-        assert_eq!(store.blob_fname(&fname1)?, tmp_dir.path().join(&fname1));
+        assert_eq!(store.blob_dir.join(&fname1)?, tmp_dir.path().join(&fname1));
         assert_eq!(
-            &std::fs::read(store.blob_fname(&fname1)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname1)?)?[..],
             b"Hello world"
         );
         assert_eq!(
-            &std::fs::read(store.blob_fname(&fname2)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname2)?)?[..],
             b"Goodbye, dear friends"
         );
 
@@ -964,10 +970,10 @@ mod test {
         // Now expire: the second file should go away.
         store.expire_all(&EXPIRATION_DEFAULTS)?;
         assert_eq!(
-            &std::fs::read(store.blob_fname(&fname1)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname1)?)?[..],
             b"Hello world"
         );
-        assert!(std::fs::read(store.blob_fname(&fname2)?).is_err());
+        assert!(std::fs::read(store.blob_dir.join(&fname2)?).is_err());
         let n: u32 = store
             .conn
             .query_row("SELECT COUNT(filename) FROM ExtDocs", [], |row| row.get(0))?;
@@ -1182,15 +1188,20 @@ mod test {
     #[test]
     fn from_path_rw() -> Result<()> {
         let tmp = tempdir().unwrap();
+        let mistrust = {
+            let mut m = fs_mistrust::Mistrust::new();
+            m.dangerously_trust_everyone();
+            m
+        };
 
         // Nothing there: can't open read-only
-        let r = SqliteStore::from_path(tmp.path(), true);
+        let r = SqliteStore::from_path_and_mistrust(tmp.path(), &mistrust, true);
         assert!(r.is_err());
         assert!(!tmp.path().join("dir_blobs").exists());
 
         // Opening it read-write will crate the files
         {
-            let mut store = SqliteStore::from_path(tmp.path(), false)?;
+            let mut store = SqliteStore::from_path_and_mistrust(tmp.path(), &mistrust, false)?;
             assert!(tmp.path().join("dir_blobs").is_dir());
             assert!(store.lockfile.is_some());
             assert!(!store.is_readonly());
@@ -1199,7 +1210,7 @@ mod test {
 
         // At this point, we can successfully make a read-only connection.
         {
-            let mut store2 = SqliteStore::from_path(tmp.path(), true)?;
+            let mut store2 = SqliteStore::from_path_and_mistrust(tmp.path(), &mistrust, true)?;
             assert!(store2.is_readonly());
 
             // Nobody else is locking this, so we can upgrade.
