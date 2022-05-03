@@ -1,0 +1,27 @@
+[package]
+name = "fs-mistrust"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Ensure that files can only be read or written by trusted users"
+keywords = ["fs", "file", "permissions", "ownership", "privacy"]
+categories = ["filesystem"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = ["walkdir"]
+
+[dependencies]
+thiserror = "1"
+walkdir = { version = "2", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+users = "0.11"
+once_cell = "1"
+
+[dev-dependencies]
+anyhow = "1.0.23"
+tempfile = "3"
