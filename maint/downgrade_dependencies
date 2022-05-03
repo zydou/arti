@@ -4,6 +4,12 @@
 # earliest version listed in our Cargo.toml files.  (And then
 # re-upgrades a few second-order dependencies that aren't actually
 # supported by our first-order dependencies in their oldest versions.)
+#
+# The purpose of this script is to make sure that we are actually
+# compatible with the versions listed in our Cargo.toml files.
+# Without testing this, we could wind up with code that built
+# successfully with the versions listed in Cargo.lock, while declaring
+# support for versions of our dependencies that won't actually work.
 
 cargo +nightly update -Z minimal-versions
 cargo update \
