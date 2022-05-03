@@ -17,17 +17,17 @@ use std::os::unix::fs::OpenOptionsExt;
 /// The accessor functions will enforce that whatever security properties we
 /// checked on the the directory also apply to all of the members that we access
 /// within the directory.
-pub struct SecureDir {
+pub struct CheckedDir {
     /// The `Mistrust` object whose rules we apply to members of this directory.
     mistrust: Mistrust,
     /// The location of this directory, in its original form.
     location: PathBuf,
-    /// The "readable_okay" flag that we used to create this SecureDir.
+    /// The "readable_okay" flag that we used to create this CheckedDir.
     readable_okay: bool,
 }
 
-impl SecureDir {
-    /// Create a SecureDir.
+impl CheckedDir {
+    /// Create a CheckedDir.
     pub(crate) fn new(verifier: &Verifier<'_>, path: &Path) -> Result<Self> {
         let mut mistrust = verifier.mistrust.clone();
         // Ignore the path that we already verified.  Since ignore_prefix
@@ -38,14 +38,14 @@ impl SecureDir {
         //   * If `path` is a prefix of the original ignored path, this will
         //     make us ignore _less_.
         mistrust.ignore_prefix(path)?;
-        Ok(SecureDir {
+        Ok(CheckedDir {
             mistrust,
             location: path.to_path_buf(),
             readable_okay: verifier.readable_okay,
         })
     }
 
-    /// Construct a new directory within this SecureDir, if it does not already
+    /// Construct a new directory within this CheckedDir, if it does not already
     /// exist.
     ///
     /// `path` must be a relative path to the new directory, containing no `..`
@@ -56,7 +56,7 @@ impl SecureDir {
         self.verifier().make_directory(self.location.join(path))
     }
 
-    /// Open a file within this SecureDir, using a set of [`OpenOptions`].
+    /// Open a file within this CheckedDir, using a set of [`OpenOptions`].
     ///
     /// `path` must be a relative path to the new directory, containing no `..`
     /// components.  We check, but do not create, the file's parent directories.
@@ -116,7 +116,7 @@ impl SecureDir {
     }
 
     /// Helper: create a [`Verifier`] with the appropriate rules for this
-    /// `SecureDir`.
+    /// `CheckedDir`.
     fn verifier(&self) -> Verifier<'_> {
         let mut v = self.mistrust.verifier();
         if self.readable_okay {

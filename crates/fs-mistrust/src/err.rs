@@ -83,10 +83,10 @@ pub enum Error {
     #[error("Unable to list directory")]
     Listing(#[source] Arc<walkdir::Error>),
 
-    /// We were unable to open a file with [`SecureDir::open`](crate::SecureDir::open)
+    /// We were unable to open a file with [`CheckedDir::open`](crate::CheckedDir::open)
 
-    /// Tried to use an invalid path with a [`SecureDir`](crate::SecureDir),
-    #[error("Path was not valid for use with SecureDir.")]
+    /// Tried to use an invalid path with a [`CheckedDir`](crate::CheckedDir),
+    #[error("Path was not valid for use with CheckedDir.")]
     InvalidSubdirectory,
 }
 

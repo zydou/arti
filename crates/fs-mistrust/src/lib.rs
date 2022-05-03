@@ -143,23 +143,23 @@
 //!
 //! See [`Verifier`] for more options.
 //!
-//! ### Using [`SecureDir`] for safety.
+//! ### Using [`CheckedDir`] for safety.
 //!
-//! You can use the [`SecureDir`] API to ensure not only that a directory is
+//! You can use the [`CheckedDir`] API to ensure not only that a directory is
 //! private, but that all of your accesses to its contents continue to verify
 //! and enforce _their_ permissions.
 //!
 //! ```
 //! # fn example() -> anyhow::Result<()> {
-//! use fs_mistrust::{Mistrust, SecureDir};
+//! use fs_mistrust::{Mistrust, CheckedDir};
 //! use std::fs::{File, OpenOptions};
 //! let dir = Mistrust::new()
 //!     .verifier()
 //!     .secure_dir("/Users/clover/riddles")?;
 //!
-//! // You can use the SecureDir object to access files and directories.
+//! // You can use the CheckedDir object to access files and directories.
 //! // All of these must be relative paths within the path you used to
-//! // build the SecureDir.
+//! // build the CheckedDir.
 //! dir.make_directory("timelines")?;
 //! let file = dir.open("timelines/vault-destroyed.md",
 //!     OpenOptions::new().write(true).create(true))?;
@@ -254,7 +254,7 @@ use std::{
     sync::Arc,
 };
 
-pub use dir::SecureDir;
+pub use dir::CheckedDir;
 pub use err::Error;
 
 /// A result type as returned by this crate
@@ -426,7 +426,7 @@ impl Mistrust {
     /// checks are still performed.
     ///
     /// This option is mainly useful to handle cases where you want to make
-    /// these checks optional, and still use [`SecureDir`] without having to
+    /// these checks optional, and still use [`CheckedDir`] without having to
     /// implement separate code paths for the "checking on" and "checking off"
     /// cases.
     pub fn dangerously_trust_everyone(&mut self) -> &mut Self {
@@ -614,23 +614,23 @@ impl<'a> Verifier<'a> {
     /// Check whether `path` is a directory conforming to the requirements of
     /// this `Verifier` and the [`Mistrust`] that created it.
     ///
-    /// If it is, then return a new [`SecureDir`] that can be used to securely access
+    /// If it is, then return a new [`CheckedDir`] that can be used to securely access
     /// the contents of this directory.  
-    pub fn secure_dir<P: AsRef<Path>>(self, path: P) -> Result<SecureDir> {
+    pub fn secure_dir<P: AsRef<Path>>(self, path: P) -> Result<CheckedDir> {
         let path = path.as_ref();
         self.clone().require_directory().check(path)?;
-        SecureDir::new(&self, path)
+        CheckedDir::new(&self, path)
     }
 
     /// Check whether `path` is a directory conforming to the requirements of
     /// this `Verifier` and the [`Mistrust`] that created it.
     ///
-    /// If successful, then return a new [`SecureDir`] that can be used to
+    /// If successful, then return a new [`CheckedDir`] that can be used to
     /// securely access the contents of this directory.  
-    pub fn make_secure_dir<P: AsRef<Path>>(self, path: P) -> Result<SecureDir> {
+    pub fn make_secure_dir<P: AsRef<Path>>(self, path: P) -> Result<CheckedDir> {
         let path = path.as_ref();
         self.clone().require_directory().make_directory(path)?;
-        SecureDir::new(&self, path)
+        CheckedDir::new(&self, path)
     }
 }
 
