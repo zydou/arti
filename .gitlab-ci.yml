@@ -132,6 +132,9 @@ build-repro:
 integration:
   stage: test
   image: debian:stable-slim
+  variables:
+    # The build environment here runs as root and seems to have umask 000.
+    ARTI_FS_DISABLE_PERMISSION_CHECKS: "true"
   script:
     - apt update
     - apt install -y tor git python3 curl dnsutils
