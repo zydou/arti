@@ -141,6 +141,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
+use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
@@ -1226,22 +1227,34 @@ pub struct GuardUsage {
     #[builder(default)]
     kind: GuardUsageKind,
     /// A list of restrictions on which guard may be used.
-    #[builder(default)]
-    restrictions: Vec<GuardRestriction>,
+    ///
+    /// The default is the empty list.
+    #[builder(sub_builder, setter(custom))]
+    restrictions: GuardRestrictionList,
+}
+
+/// List of socket restricteionesses, as configured
+pub type GuardRestrictionList = Vec<GuardRestriction>;
+
+define_list_builder_helper! {
+    pub struct GuardRestrictionListBuilder {
+        restrictions: [GuardRestriction],
+    }
+    built: GuardRestrictionList = restrictions;
+    default = vec![];
+    item_build: |restriction| Ok(restriction.clone());
+}
+
+define_list_builder_accessors! {
+    struct GuardUsageBuilder {
+        pub restrictions: [GuardRestriction],
+    }
 }
 
 impl GuardUsageBuilder {
     /// Create a new empty [`GuardUsageBuilder`].
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Add `restriction` to the list of restrictions on this guard usage.
-    pub fn push_restriction(&mut self, restriction: GuardRestriction) -> &mut Self {
-        self.restrictions
-            .get_or_insert_with(Vec::new)
-            .push(restriction);
-        self
     }
 }
 
@@ -1252,7 +1265,7 @@ impl GuardUsageBuilder {
 /// They're suitable for things like making sure that we don't start
 /// and end a circuit at the same relay, or requiring a specific
 /// subprotocol version for certain kinds of requests.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 #[non_exhaustive]
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.

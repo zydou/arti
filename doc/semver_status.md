@@ -62,6 +62,7 @@ BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
 
 MODIFIED: New functions to get estimated clock skew.
 MODIFIED: New functions to report observed clock skew.
+BREAKING: Guard restriction builder interface changed to new list builder API.
 
 ### tor-llcrypto
 

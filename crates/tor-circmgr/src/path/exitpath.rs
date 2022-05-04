@@ -160,7 +160,8 @@ impl<'a> ExitPathBuilder<'a> {
                     family.insert(*exit_relay.id());
                     // TODO(nickm): See "limitations" note on `known_family_members`.
                     family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
-                    b.push_restriction(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
+                    b.restrictions()
+                        .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
