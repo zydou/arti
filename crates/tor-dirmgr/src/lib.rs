@@ -76,7 +76,7 @@ use crate::shared_ref::SharedMutArc;
 pub use crate::shared_ref::SharedMutArc;
 use crate::storage::DynStore;
 use postage::watch;
-pub use retry::DownloadSchedule;
+pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
