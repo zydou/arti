@@ -11,7 +11,6 @@ use std::{
 use crate::state::DirState;
 use crate::{
     docid::{self, ClientRequest},
-    state::WriteNetDir,
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
 };
 
@@ -413,7 +412,7 @@ pub(crate) async fn download<R: Runtime>(
     let runtime = upgrade_weak_ref(&dirmgr)?.runtime.clone();
 
     'next_state: loop {
-        let retry_config = state.dl_config()?;
+        let retry_config = state.dl_config();
         let parallelism = retry_config.parallelism();
 
         // In theory this could be inside the loop below maybe?  If we
@@ -422,7 +421,7 @@ pub(crate) async fn download<R: Runtime>(
         let mut now = {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             load_once(&dirmgr, &mut state).await?;
-            dirmgr.now()
+            dirmgr.runtime.wallclock()
         };
 
         // Skip the downloads if we can...
@@ -486,7 +485,7 @@ pub(crate) async fn download<R: Runtime>(
                         continue 'next_state;
                     },
                 };
-                dirmgr.now()
+                dirmgr.runtime.wallclock()
             };
 
             // Exit if there is nothing more to download.
@@ -665,8 +664,8 @@ mod test {
             }
             Ok(changed)
         }
-        fn dl_config(&self) -> Result<DownloadSchedule> {
-            Ok(DownloadSchedule::default())
+        fn dl_config(&self) -> DownloadSchedule {
+            DownloadSchedule::default()
         }
         fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
             if self.can_advance() {
