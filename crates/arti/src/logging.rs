@@ -5,7 +5,8 @@ use derive_builder::Builder;
 use serde::Deserialize;
 use std::path::Path;
 use std::str::FromStr;
-use tor_config::{define_list_config_builder, CfgPath, ConfigBuildError};
+use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+use tor_config::{CfgPath, ConfigBuildError};
 use tracing::Subscriber;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
@@ -37,9 +38,11 @@ pub struct LoggingConfig {
     journald: Option<String>,
 
     /// Configuration for one or more logfiles.
+    ///
+    /// The default is not to log to any files.
     #[serde(default)]
     #[builder_field_attr(serde(default))]
-    #[builder(sub_builder)]
+    #[builder(sub_builder, setter(custom))]
     files: LogfileListConfig,
 }
 
@@ -65,15 +68,18 @@ impl LoggingConfig {
 /// Local type alias, mostly helpful for derive_builder to DTRT
 type LogfileListConfig = Vec<LogfileConfig>;
 
-define_list_config_builder! {
-    /// List of logfiles to use, being built as part of the configuration.
-    ///
-    /// The default is not to log to any files.
-    pub struct LogfileListConfigBuilder {
+define_list_builder_helper! {
+    struct LogfileListConfigBuilder {
         files: [LogfileConfigBuilder],
     }
     built: LogfileListConfig = files;
     default = vec![];
+}
+
+define_list_builder_accessors! {
+    struct LoggingConfigBuilder {
+        pub files: [LogfileConfigBuilder],
+    }
 }
 
 /// Configuration information for an (optionally rotating) logfile.

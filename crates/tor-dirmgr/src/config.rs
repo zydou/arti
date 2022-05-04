@@ -8,11 +8,12 @@
 //! The types in this module are re-exported from `arti-client`: any changes
 //! here must be reflected in the version of `arti-client`.
 
-use crate::authority::{Authority, AuthorityList};
+use crate::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityListBuilder};
 use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
-use crate::{AuthorityListBuilder, Result};
-use tor_config::ConfigBuildError;
+use crate::Result;
+use tor_config::{define_list_builder_accessors, ConfigBuildError};
+use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
 
@@ -41,12 +42,12 @@ pub struct NetworkConfig {
     ///
     /// This section can be changed in a running Arti client.  Doing so will
     /// affect future download attempts only.
-    #[builder(sub_builder)]
+    ///
+    /// The default is to use a set of compiled-in fallback directories,
+    /// whose addresses and public keys are shipped as part of the Arti source code.
     #[serde(default)]
-    #[serde(rename = "fallback_caches")]
-    #[builder_field_attr(serde(rename = "fallback_caches"))]
-    #[builder(setter(name = "fallback_caches"))]
-    pub(crate) fallbacks: tor_guardmgr::fallback::FallbackList,
+    #[builder(sub_builder, setter(custom))]
+    pub(crate) fallback_caches: tor_guardmgr::fallback::FallbackList,
 
     /// List of directory authorities which we expect to sign consensus
     /// documents.
@@ -55,14 +56,24 @@ pub struct NetworkConfig {
     /// with Arti.)
     ///
     /// This section cannot be changed in a running Arti client.
-    #[builder(sub_builder)]
+    ///
+    /// The default is to use a set of compiled-in authorities,
+    /// whose identities and public keys are shipped as part of the Arti source code.
+    #[builder(sub_builder, setter(custom))]
     pub(crate) authorities: AuthorityList,
+}
+
+define_list_builder_accessors! {
+    struct NetworkConfigBuilder {
+        pub fallback_caches: [FallbackDirBuilder],
+        pub authorities: [AuthorityBuilder],
+    }
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         NetworkConfig {
-            fallbacks: FallbackListBuilder::default()
+            fallback_caches: FallbackListBuilder::default()
                 .build()
                 .expect("build default fallbacks"),
             authorities: AuthorityListBuilder::default()
@@ -80,14 +91,14 @@ impl NetworkConfig {
 
     /// Return the list of fallback directory caches from this configuration.
     pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.fallbacks
+        &self.fallback_caches
     }
 }
 
 impl NetworkConfigBuilder {
     /// Check that this builder will give a reasonable network.
     fn validate(&self) -> std::result::Result<(), ConfigBuildError> {
-        if !self.authorities.is_unmodified_default() && self.fallbacks.is_unmodified_default() {
+        if self.opt_authorities().is_some() && self.opt_fallback_caches().is_none() {
             return Err(ConfigBuildError::Inconsistent {
                 fields: vec!["authorities".to_owned(), "fallbacks".to_owned()],
                 problem: "Non-default authorities are use, but the fallback list is not overridden"
@@ -233,7 +244,7 @@ impl DirMgrConfig {
 
     /// Return the configured set of fallback directories
     pub fn fallbacks(&self) -> &tor_guardmgr::fallback::FallbackList {
-        &self.network.fallbacks
+        &self.network.fallback_caches
     }
 
     /// Construct a new configuration object where all replaceable fields in
@@ -244,7 +255,7 @@ impl DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
             network: NetworkConfig {
-                fallbacks: new_config.network.fallbacks.clone(),
+                fallback_caches: new_config.network.fallback_caches.clone(),
                 authorities: self.network.authorities.clone(),
             },
             schedule: new_config.schedule.clone(),
@@ -306,11 +317,11 @@ mod test {
         let mut bld = NetworkConfig::builder();
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), dflt.authorities.len());
-        assert_eq!(cfg.fallbacks.len(), dflt.fallbacks.len());
+        assert_eq!(cfg.fallback_caches.len(), dflt.fallback_caches.len());
 
         // with any authorities set, the fallback list _must_ be set
         // or the build fails.
-        bld.authorities().replace(vec![
+        bld.set_authorities(vec![
             Authority::builder()
                 .name("Hello")
                 .v3ident([b'?'; 20].into())
@@ -322,7 +333,7 @@ mod test {
         ]);
         assert!(bld.build().is_err());
 
-        bld.fallback_caches().replace(vec![FallbackDir::builder()
+        bld.set_fallback_caches(vec![FallbackDir::builder()
             .rsa_identity([b'x'; 20].into())
             .ed_identity([b'y'; 32].into())
             .orport("127.0.0.1:99".parse().unwrap())
@@ -330,7 +341,7 @@ mod test {
             .clone()]);
         let cfg = bld.build().unwrap();
         assert_eq!(cfg.authorities.len(), 2);
-        assert_eq!(cfg.fallbacks.len(), 1);
+        assert_eq!(cfg.fallback_caches.len(), 1);
 
         Ok(())
     }

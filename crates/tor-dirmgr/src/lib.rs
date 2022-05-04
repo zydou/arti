@@ -76,7 +76,7 @@ use crate::shared_ref::SharedMutArc;
 pub use crate::shared_ref::SharedMutArc;
 use crate::storage::DynStore;
 use postage::watch;
-pub use retry::DownloadSchedule;
+pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider};
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
@@ -92,7 +92,7 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
-pub use authority::{Authority, AuthorityBuilder, AuthorityListBuilder};
+pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
     DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
     NetworkConfigBuilder,

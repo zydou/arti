@@ -47,12 +47,13 @@
 #![deny(clippy::unwrap_used)]
 
 mod err;
-mod list_builder;
+pub mod list_builder;
 mod mut_cfg;
 mod path;
 
 pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
+pub use paste::paste;
 pub use path::CfgPath;
 pub use serde;
 

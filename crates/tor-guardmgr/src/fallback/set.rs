@@ -8,7 +8,7 @@ use super::{DirStatus, FallbackDir, FallbackDirBuilder};
 use crate::fallback::default_fallbacks;
 use crate::{ids::FallbackId, PickGuardError};
 use serde::Deserialize;
-use tor_config::define_list_config_builder;
+use tor_config::define_list_builder_helper;
 
 /// A list of fallback directories.
 ///
@@ -30,15 +30,8 @@ impl<T: IntoIterator<Item = FallbackDir>> From<T> for FallbackList {
     }
 }
 
-define_list_config_builder! {
-    /// List of fallback directories, being built as part of the configuration.
-    ///
-    /// Fallback directories (represented by [`FallbackDir`]) are used by Tor
-    /// clients when they don't already have enough other directory information to
-    /// contact the network.
-    ///
-    /// The default is to use a set of compiled-in fallback directories,
-    /// whose addresses and public keys are shipped as part of the Arti source code.
+define_list_builder_helper! {
+    // pub because tor-dirmgr needs it for NetworkConfig.fallback_caches
     pub struct FallbackListBuilder {
         pub(crate) fallbacks: [FallbackDirBuilder],
     }

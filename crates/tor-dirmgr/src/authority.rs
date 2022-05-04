@@ -5,7 +5,7 @@
 
 use derive_builder::Builder;
 use serde::Deserialize;
-use tor_config::{define_list_config_builder, ConfigBuildError};
+use tor_config::{define_list_builder_helper, ConfigBuildError};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A single authority that signs a consensus directory.
@@ -44,12 +44,8 @@ impl Authority {
 /// Authority list, built
 pub(crate) type AuthorityList = Vec<Authority>;
 
-define_list_config_builder! {
-    /// List of authorities, being built as part of the configuration.
-    ///
-    /// The default is to use a set of compiled-in authorities,
-    /// whose identities and public keys are shipped as part of the Arti source code.
-    pub struct AuthorityListBuilder {
+define_list_builder_helper! {
+    pub(crate) struct AuthorityListBuilder {
         authorities: [AuthorityBuilder],
     }
     built: AuthorityList = authorities;

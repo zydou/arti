@@ -3337,6 +3337,7 @@ dependencies = [
  "directories",
  "dirs",
  "once_cell",
+ "paste",
  "rmp-serde",
  "serde",
  "serde_json",

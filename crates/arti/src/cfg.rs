@@ -235,11 +235,8 @@ mod test {
         let mut bld = ArtiConfig::builder();
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
-        bld.tor().tor_network().authorities().replace(vec![auth]);
-        bld.tor()
-            .tor_network()
-            .fallback_caches()
-            .replace(vec![fallback]);
+        bld.tor().tor_network().set_authorities(vec![auth]);
+        bld.tor().tor_network().set_fallback_caches(vec![fallback]);
         bld.tor()
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
@@ -272,8 +269,7 @@ mod test {
         bld.tor().preemptive_circuits().disable_at_threshold(12);
         bld.tor()
             .preemptive_circuits()
-            .initial_predicted_ports()
-            .replace(vec![80, 443]);
+            .set_initial_predicted_ports(vec![80, 443]);
         bld.tor()
             .preemptive_circuits()
             .prediction_lifetime(Duration::from_secs(3600))
