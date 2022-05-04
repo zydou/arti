@@ -83,4 +83,5 @@ BREAKING: Removed some unused accessors.
 
 ### tor-config
 
-MODIFIED: New macros define_list_config_builder macro_first_nonempty
+MODIFIED: New facilities for lists in builders (list_builder module, etc.)
+MODIFIED: New macro macro_first_nonempty
