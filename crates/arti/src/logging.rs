@@ -98,7 +98,7 @@ pub struct LogfileConfig {
 }
 
 /// How often to rotate a log file
-#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum LogRotation {
