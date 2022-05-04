@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use educe::Educe;
 use futures::{future::FutureObj, task::Spawn};
 use std::io::Result as IoResult;
+use std::time::{Instant, SystemTime};
 
 /// A runtime made of several parts, each of which implements one trait-group.
 ///
@@ -88,6 +89,16 @@ where
     #[inline]
     fn sleep(&self, duration: Duration) -> Self::SleepFuture {
         self.inner.sleep.sleep(duration)
+    }
+
+    #[inline]
+    fn now(&self) -> Instant {
+        self.inner.sleep.now()
+    }
+
+    #[inline]
+    fn wallclock(&self) -> SystemTime {
+        self.inner.sleep.wallclock()
     }
 }
 
