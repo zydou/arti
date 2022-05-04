@@ -178,7 +178,7 @@
 /// `[$generics]` are generics for `$ListBuilder`.
 /// Inline bounds (`T: Debug`) are not supported; use a `where` clause instead.
 /// Due to limitations of `macro_rules`, the parameters must be within `[ ]` rather than `< >`,
-/// and an extraneouspair of `[ ]` must appear around any `$where_clauses`.
+/// and an extraneous pair of `[ ]` must appear around any `$where_clauses`.
 #[macro_export]
 macro_rules! define_list_builder_helper {
     {
