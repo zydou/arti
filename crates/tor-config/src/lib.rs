@@ -51,6 +51,7 @@ pub mod list_builder;
 mod mut_cfg;
 mod path;
 
+pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
 pub use paste::paste;

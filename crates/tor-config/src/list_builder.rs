@@ -193,7 +193,8 @@ macro_rules! define_list_builder_helper {
         default = $default:expr;
         $( item_build: $item_build:expr; )?
     } => {
-        #[derive(Default, Clone, $crate::serde::Deserialize)]
+        #[derive($crate::educe::Educe, Clone, $crate::serde::Deserialize)]
+        #[educe(Default)]
         #[serde(transparent)]
         $(#[ $docs_and_attrs ])*
         /// Wrapper struct to help derive_builder find the right types and methods

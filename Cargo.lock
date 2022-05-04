@@ -3336,6 +3336,7 @@ dependencies = [
  "derive_builder",
  "directories",
  "dirs",
+ "educe",
  "once_cell",
  "paste",
  "rmp-serde",
