@@ -13,7 +13,7 @@
 
 use derive_builder::Builder;
 use derive_more::AsRef;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -45,17 +45,15 @@ pub mod dir {
 /// You can replace this configuration on a running Arti client.  Doing so will
 /// affect new streams and requests, but will have no effect on existing streams
 /// and requests.
-#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-#[serde(deny_unknown_fields)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ClientAddrConfig {
     /// Should we allow attempts to make Tor connections to local addresses?
     ///
     /// This option is off by default, since (by default) Tor exits will
     /// always reject connections to such addresses.
     #[builder(default)]
-    #[serde(default)]
     pub(crate) allow_local_addrs: bool,
 }
 
@@ -67,29 +65,25 @@ pub struct ClientAddrConfig {
 /// You can replace this configuration on a running Arti client.  Doing so will
 /// affect new streams and requests, but will have no effect on existing streams
 /// and requests—even those that are currently waiting.
-#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-#[serde(deny_unknown_fields)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct StreamTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
-    #[serde(with = "humantime_serde", default = "default_connect_timeout")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
-    #[serde(with = "humantime_serde", default = "default_dns_resolve_timeout")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
-    #[serde(with = "humantime_serde", default = "default_dns_resolve_ptr_timeout")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
@@ -155,18 +149,15 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 /// This section is for read/write storage.
 ///
 /// You cannot change this section on a running Arti client.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct StorageConfig {
     /// Location on disk for cached directory information.
     #[builder(setter(into), default = "default_cache_dir()")]
-    #[serde(default = "default_cache_dir")]
     cache_dir: CfgPath,
     /// Location on disk for less-sensitive persistent state information.
     #[builder(setter(into), default = "default_state_dir()")]
-    #[serde(default = "default_state_dir")]
     state_dir: CfgPath,
 }
 
@@ -240,7 +231,7 @@ impl StorageConfig {
 /// [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Serialize, Deserialize, Debug))]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
     #[builder(sub_builder)]

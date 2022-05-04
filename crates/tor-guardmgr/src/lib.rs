@@ -1265,7 +1265,7 @@ impl GuardUsageBuilder {
 /// They're suitable for things like making sure that we don't start
 /// and end a circuit at the same relay, or requiring a specific
 /// subprotocol version for certain kinds of requests.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum GuardRestriction {
     /// Don't pick a guard with the provided Ed25519 identity.

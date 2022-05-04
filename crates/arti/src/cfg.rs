@@ -3,7 +3,7 @@
 // (Thia module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
@@ -12,10 +12,9 @@ use tor_config::ConfigBuildError;
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
 /// Structure to hold our application configuration options
-#[derive(Deserialize, Debug, Default, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Default, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ApplicationConfig {
     /// If true, we should watch our configuration files for changes, and reload
     /// our configuration when they change.
@@ -24,7 +23,6 @@ pub struct ApplicationConfig {
     /// directory holding our configuration files changes its identity (because
     /// an intermediate symlink is changed, because the directory is removed and
     /// recreated, or for some other reason).
-    #[serde(default)]
     #[builder(default)]
     pub(crate) watch_configuration: bool,
 }
@@ -33,7 +31,7 @@ pub struct ApplicationConfig {
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
@@ -68,15 +66,13 @@ impl ProxyConfig {
 /// Configuration for system resources used by Tor.
 ///
 /// You cannot change this section on a running Arti client.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
 pub struct SystemConfig {
     /// Maximum number of file descriptors we should launch with
     #[builder(setter(into), default = "default_max_files()")]
-    #[serde(default = "default_max_files")]
     pub(crate) max_files: u64,
 }
 
@@ -113,7 +109,7 @@ impl SystemConfig {
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
 #[derive(Debug, Builder, Clone, Eq, PartialEq, Default)]
-#[builder(derive(Deserialize))]
+#[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ArtiConfig {
     /// Configuration for application behavior.

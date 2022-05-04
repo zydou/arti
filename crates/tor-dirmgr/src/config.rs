@@ -18,7 +18,7 @@ use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus;
 
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Configuration information about the Tor network itself; used as
@@ -29,10 +29,9 @@ use std::path::PathBuf;
 //
 // TODO: We should move this type around, since the fallbacks part will no longer be used in
 // dirmgr, but only in guardmgr.  Probably this type belongs in `arti-client`.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(validate = "Self::validate", error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct NetworkConfig {
     /// List of locations to look in when downloading directory information, if
     /// we don't actually have a directory yet.
@@ -45,7 +44,6 @@ pub struct NetworkConfig {
     ///
     /// The default is to use a set of compiled-in fallback directories,
     /// whose addresses and public keys are shipped as part of the Arti source code.
-    #[serde(default)]
     #[builder(sub_builder, setter(custom))]
     pub(crate) fallback_caches: tor_guardmgr::fallback::FallbackList,
 
@@ -115,10 +113,9 @@ impl NetworkConfigBuilder {
 ///
 /// This type is immutable once constructed. To make one, use
 /// [`DownloadScheduleConfigBuilder`], or deserialize it from a string.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct DownloadScheduleConfig {
     /// Top-level configuration for how to retry our initial bootstrap attempt.
     #[builder(

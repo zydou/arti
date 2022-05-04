@@ -7,16 +7,15 @@ use std::num::{NonZeroU32, NonZeroU8};
 use std::time::Duration;
 
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tor_basic_utils::retry::RetryDelay;
 use tor_config::ConfigBuildError;
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
-#[derive(Debug, Builder, Copy, Clone, Deserialize, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Builder, Copy, Clone, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct DownloadSchedule {
     /// How many attempts to make before giving up?
     #[builder(
@@ -30,14 +29,12 @@ pub struct DownloadSchedule {
 
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
-    #[serde(with = "humantime_serde")]
     #[builder(default = "Duration::from_millis(1000)")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     initial_delay: Duration,
 
     /// When we want to download a bunch of these at a time, how many
     /// attempts should we try to launch at once?
-    #[serde(default = "default_parallelism")]
     #[builder(
         setter(strip_option),
         field(
@@ -91,12 +88,6 @@ where
         let problem = "zero specified, but not permitted".to_string();
         ConfigBuildError::Invalid { field, problem }
     })
-}
-
-/// Return the default parallelism for DownloadSchedule.
-fn default_parallelism() -> NonZeroU8 {
-    #![allow(clippy::unwrap_used)]
-    1.try_into().unwrap()
 }
 
 impl DownloadSchedule {
