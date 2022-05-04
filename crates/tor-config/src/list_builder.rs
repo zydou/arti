@@ -323,6 +323,47 @@ macro_rules! define_list_builder_accessors {
     }
 }
 
+define_list_builder_helper! {
+    /// List of `T`, a straightforward type, being built as part of the configuration
+    ///
+    /// The default is the empty list.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// use derive_builder::Builder;
+    /// use serde::Deserialize;
+    /// use tor_config::{ConfigBuildError};
+    /// use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
+    /// use std::net::SocketAddr;
+    ///
+    /// #[derive(Debug, Clone, Builder)]
+    /// #[builder(build_fn(error = "ConfigBuildError"))]
+    /// #[builder(derive(Deserialize))]
+    /// pub struct FallbackDir {
+    ///     #[builder(sub_builder(fn_name = "build"), setter(custom))]
+    ///     orports: Vec<SocketAddr>,
+    /// }
+    ///
+    /// define_list_builder_accessors! {
+    ///     struct FallbackDirBuilder {
+    ///         pub orports: [SocketAddr],
+    ///     }
+    /// }
+    ///
+    /// let mut bld = FallbackDirBuilder::default();
+    /// bld.orports().push("[2001:db8:0::42]:12".parse().unwrap());
+    /// assert_eq!( bld.build().unwrap().orports[0].to_string(),
+    ///             "[2001:db8::42]:12" );
+    /// ```
+    pub struct VecBuilder[T] where [T: Clone] {
+        values: [T],
+    }
+    built: Vec<T> = values;
+    default = vec![];
+    item_build: |item| Ok(item.clone());
+}
+
 #[cfg(test)]
 mod test {
     use derive_builder::Builder;
