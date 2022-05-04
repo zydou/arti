@@ -4,6 +4,115 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
+# Arti 0.3.0 — XX May 2022
+
+BLURB GOES HERE XXXXXX
+
+This is up-to-date through 66ee39995d21fe7a03ddb6569b889cc6de7e458e
+
+### Breaking changes
+
+Here are the main breaking changes visible from the arti-client crate.
+Numerous other lower-level crates have breaking changes not noted here.
+
+- We now require Rust 1.56 or later. This change enables us to use more
+  recent versions of several of our dependencies, including a
+  significantly faster `aes`.  ([!472])
+
+- Some unused accessors have been removed from
+  `tor-socksproto`. ([3103549cba603173])
+
+- Our configuration logic has been significantly revised:
+  - Lists of objects, and contained configuration objects objects, are
+    now constructed using a uniform pattern.
+  - All of our config _builder_ types are now `Deserialize`. (XXXX But the
+    config types are not; say so once this merges? XXXXXXXXXx)
+  - Various types are now more consistently constructed, which breaks
+    some of the APIs.
+  - Paths can now be given as "literal" paths, which will not be
+    expanded.
+  - Several options have been renamed for consistency.
+  - ([#451], [!447], [!471], [!462], [!473], [!477], [!478], [!481],
+    [!474], [!475])
+
+
+
+### New features
+
+- Arti now tracks clock skew reports from the guard relays and
+  fallback directories that we contact, and uses this information to
+  infer whether our clock is actually skewed, and whether this skew is
+  the likely cause of a failure to bootstrap. ([!450], [!455])
+
+- We now remove obsolete files from our state directory. ([#282])
+
+- More objects from `tor-dirmgr` are now exposed when the
+  `experimental-api` feature is enabled. ([!463])
+
+- On startup, Arti now checks the permissions of the files and
+directories that it wants to use, and makes sure that they can't
+be accessed inappropriately by untrusted users. ([#315], [!468])
+  (XXXX Not finalized yet! Possibly wait!)
+
+### Major bugfixes
+
+- Our circuit-build logic is now much more careful about which errors are
+  retriable, and how long to wait between attempts. ([#421], [!443])
+
+- Resolved a race condition that could cause internal errors to be
+  erroneously reported during circuit construction. ([#427])
+
+- Stop interpreting a successfully constructed circuit as meaning that a
+  guard is working _as a directory_.  Even if it can build circuits, it
+  may be unable to answer directory requests to our satisfaction
+  ([b3e06b93b6a34922]).
+
+### Infrastructure
+
+- Our CI infrastructure now correctly detects (and reports!) failures
+  from cargo-audit.  ([!452])
+
+### Documentation and Examples
+
+### Cleanups, minor features, and minor bugfixes
+
+- We report more accurate and useful messages on failure to build a
+  circuits. ([f7810d42eb953bf5])
+
+- Avoid dropping information when reloading guards. ([#429])
+
+- Arti now treats expired or not-yet-valid directory objects as an error
+  condition, since they indicate that the directory cache (or the
+  client) likely has a skewed clock. ([#431])
+
+- We now back off on attempts to build preemptive circuits, if we find
+  that those attempts are failing.  ([#437], [!456])
+
+- As part of the configuration refactoring, we've extended the amount of
+  our configuration builders that are auto-generated. ([!462])
+
+- Improve handling of some integer overflows. ([!466])
+
+- More unit tests throughout the code.
+
+### Acknowledgments
+
+Thanks to everybody who has contributed to this release, including
+Christian Grigis, Dimitris Apostolou, Samanta Navarro, and
+Trinity Pointard.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Arti 0.2.0 — 1 Apr 2022
 
