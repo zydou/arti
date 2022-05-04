@@ -179,6 +179,14 @@
 /// Inline bounds (`T: Debug`) are not supported; use a `where` clause instead.
 /// Due to limitations of `macro_rules`, the parameters must be within `[ ]` rather than `< >`,
 /// and an extraneous pair of `[ ]` must appear around any `$where_clauses`.
+//
+// This difficulty with macro_rules is not well documented.
+// The upstream Rust bug tracker has this issue
+//   https://github.com/rust-lang/rust/issues/73174
+//   Matching function signature is nearly impossible in declarative macros (mbe)
+// which is not precisely this problem but is very nearby.
+// There's also the vapourware "declarative macros 2.0"
+//   https://github.com/rust-lang/rust/issues/39412
 #[macro_export]
 macro_rules! define_list_builder_helper {
     {
