@@ -174,11 +174,19 @@
 /// The `item_build` clause, if supplied, provides a closure with type
 /// `FnMut(&ThingBuilder) -> Result<Thing, ConfigBuildError>`;
 /// the default is to call `thing_builder.build()`.
+///
+/// `[$generics]` are generics for `$ListBuilder`.
+/// Inline bounds (`T: Debug`) are not supported; use a `where` clause instead.
+/// Due to limitations of `macro_rules`, the parameters must be within `[ ]` rather than `< >`,
+/// and an extraneouspair of `[ ]` must appear around any `$where_clauses`.
 #[macro_export]
 macro_rules! define_list_builder_helper {
     {
         $(#[ $docs_and_attrs:meta ])*
-        $vis:vis struct $ListBuilder:ident {
+        $vis:vis
+        struct $ListBuilder:ident $( [ $($generics:tt)* ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
             $field_vis:vis $things:ident : [$EntryBuilder:ty] $(,)?
         }
         built: $Built:ty = $built:expr;
@@ -192,12 +200,16 @@ macro_rules! define_list_builder_helper {
         ///
         /// This struct is not part of the configuration API.
         /// Refer to the containing structures for information on how to build the config.
-        $vis struct $ListBuilder {
+        $vis struct $ListBuilder $( < $($generics)* > )?
+        $( where $($where_clauses)* )?
+        {
             /// The list, as overridden
             $field_vis $things: Option<Vec<$EntryBuilder>>,
         }
 
-        impl $ListBuilder {
+        impl $( < $($generics)* > )? $ListBuilder $( < $($generics)* > )?
+        $( where $($where_clauses)* )?
+        {
             /// Resolve this list to a list of built items.
             ///
             /// If the value is still the [`Default`],
