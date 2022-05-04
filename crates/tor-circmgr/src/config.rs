@@ -5,7 +5,7 @@
 //! Most types in this module are re-exported by `arti-client`.
 
 use tor_basic_utils::define_accessor_trait;
-use tor_config::{define_list_config_builder, ConfigBuildError};
+use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackList;
 
 use derive_builder::Builder;
@@ -113,7 +113,9 @@ pub struct PreemptiveCircuitConfig {
     ///
     /// This value cannot be changed on a running Arti client, because doing so
     /// would be meaningless.
-    #[builder(sub_builder)]
+    ///
+    /// The default is `[80, 443]`.
+    #[builder(sub_builder, setter(custom))]
     pub(crate) initial_predicted_ports: PredictedPortsList,
 
     /// After we see the client request a connection to a new port, how long
@@ -185,16 +187,19 @@ fn default_preemptive_threshold() -> usize {
 /// Built list of configured preemptive ports
 type PredictedPortsList = Vec<u16>;
 
-define_list_config_builder! {
-    /// List of preemptive ports, being built as part of the configuration.
-    ///
-    /// The default is `[80, 443]`.
-    pub struct PredictedPortsListBuilder {
+define_list_builder_helper! {
+    struct PredictedPortsListBuilder {
         pub(crate) ports: [u16],
     }
     built: PredictedPortsList = ports;
     default = default_preemptive_ports();
     item_build: |&port| Ok(port);
+}
+
+define_list_builder_accessors! {
+    struct PreemptiveCircuitConfigBuilder {
+        pub initial_predicted_ports: [u16],
+    }
 }
 
 /// Return default target ports

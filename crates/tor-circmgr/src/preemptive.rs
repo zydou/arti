@@ -95,7 +95,7 @@ mod test {
     #[test]
     fn predicts_starting_ports() {
         let mut cfg = PreemptiveCircuitConfig::builder();
-        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
@@ -108,7 +108,7 @@ mod test {
         );
 
         let mut cfg = PreemptiveCircuitConfig::builder();
-        cfg.initial_predicted_ports().replace(vec![80]);
+        cfg.set_initial_predicted_ports(vec![80]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
@@ -131,7 +131,7 @@ mod test {
     #[test]
     fn predicts_used_ports() {
         let mut cfg = PreemptiveCircuitConfig::builder();
-        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
 
@@ -164,7 +164,7 @@ mod test {
     #[test]
     fn does_not_predict_old_ports() {
         let mut cfg = PreemptiveCircuitConfig::builder();
-        cfg.initial_predicted_ports().replace(vec![]);
+        cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
         let more_than_an_hour_ago = Instant::now() - Duration::from_secs(60 * 60 + 1);
