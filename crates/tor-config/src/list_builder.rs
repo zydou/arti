@@ -290,14 +290,14 @@ macro_rules! define_list_builder_accessors {
                 *self.$things.access_opt_mut() = Some(list)
             }
 
-            /// Inspect the being-built list (iwth default unresolved)
+            /// Inspect the being-built list (with default unresolved)
             ///
             /// If the list has not yet been set, or accessed, `&None` is returned.
             $vis fn [<opt_ $things>](&self) -> &Option<Vec<$EntryBuilder>> {
                 self.$things.access_opt()
             }
 
-            /// Mutably access the being-built list (iwth default unresolved)
+            /// Mutably access the being-built list (with default unresolved)
             ///
             /// If the list has not yet been set, or accessed, `&mut None` is returned.
             $vis fn [<opt_ $things _mut>](&mut self) -> &mut Option<Vec<$EntryBuilder>> {
