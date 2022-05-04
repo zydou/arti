@@ -117,18 +117,22 @@ mod test {
     #[test]
     fn dirpath_fallback() {
         let fb_owned = vec![
-            FallbackDir::builder()
-                .rsa_identity([0x01; 20].into())
-                .ed_identity([0x01; 32].into())
-                .orport("127.0.0.1:9000".parse().unwrap())
-                .build()
-                .unwrap(),
-            FallbackDir::builder()
-                .rsa_identity([0x03; 20].into())
-                .ed_identity([0x03; 32].into())
-                .orport("127.0.0.1:9003".parse().unwrap())
-                .build()
-                .unwrap(),
+            {
+                let mut bld = FallbackDir::builder();
+                bld.rsa_identity([0x01; 20].into())
+                    .ed_identity([0x01; 32].into())
+                    .orports()
+                    .push("127.0.0.1:9000".parse().unwrap());
+                bld.build().unwrap()
+            },
+            {
+                let mut bld = FallbackDir::builder();
+                bld.rsa_identity([0x03; 20].into())
+                    .ed_identity([0x03; 32].into())
+                    .orports()
+                    .push("127.0.0.1:9003".parse().unwrap());
+                bld.build().unwrap()
+            },
         ];
         let fb: FallbackList = fb_owned.clone().into();
         let dirinfo = (&fb).into();

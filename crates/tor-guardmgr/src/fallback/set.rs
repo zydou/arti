@@ -244,12 +244,12 @@ mod test {
         let ed: [u8; 32] = rng.gen();
         let rsa: [u8; 20] = rng.gen();
         let ip: u32 = rng.gen();
-        FallbackDir::builder()
-            .ed_identity(ed.into())
+        let mut bld = FallbackDir::builder();
+        bld.ed_identity(ed.into())
             .rsa_identity(rsa.into())
-            .orport(std::net::SocketAddrV4::new(ip.into(), 9090).into())
-            .build()
-            .unwrap()
+            .orports()
+            .push(std::net::SocketAddrV4::new(ip.into(), 9090).into());
+        bld.build().unwrap()
     }
 
     #[test]

@@ -60,6 +60,7 @@ BREAKING: DirMgrCfg: schedule and network fields rename (`_config` removed)
 
 ### tor-guardmgr
 
+BREAKING: FallbackDirBuilder::orport() removed, and orports() now gives &mut SocketAddrListBuilder
 MODIFIED: New functions to get estimated clock skew.
 MODIFIED: New functions to report observed clock skew.
 BREAKING: Guard restriction builder interface changed to new list builder API.
@@ -84,4 +85,5 @@ BREAKING: Removed some unused accessors.
 
 ### tor-config
 
-MODIFIED: New macros define_list_config_builder macro_first_nonempty
+MODIFIED: New facilities for lists in builders (list_builder module, etc.)
+MODIFIED: New macro macro_first_nonempty
