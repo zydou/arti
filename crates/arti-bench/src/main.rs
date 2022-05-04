@@ -68,7 +68,7 @@ fn random_payload(size: usize) -> Vec<u8> {
 }
 
 /// Timing information from the benchmarking server.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerTiming {
     /// When the connection was accepted.
     accepted_ts: SystemTime,
@@ -81,7 +81,7 @@ pub struct ServerTiming {
 }
 
 /// Timing information from the benchmarking client.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientTiming {
     /// When the client's connection succeeded.
     started_ts: SystemTime,
