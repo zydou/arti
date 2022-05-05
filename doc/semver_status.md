@@ -22,7 +22,7 @@ We can delete older sections here after we bump the releases.
 
 BREAKING: Requiring Rust 1.56, edition 2021.
 
-### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
+### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr)
 
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
 BREAKING: Configuration of directory authoorities overhauled; now uses AuthorityListBuilder.
