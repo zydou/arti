@@ -92,7 +92,7 @@ if [ "$INTEGRATION" = yes ] ; then
     ./tests/chutney/teardown
     # Report is generated after teardown because chutney/setup returns before any
     # test was done, so the report would be generated based on incomplete data.
-    ./maint/with_coverage -o coverage/integration -c /bin/true
+    ./maint/with_coverage -o coverage/integration -c true
     mv coverage_meta coverage_meta_integration
     echo '<a href="integration">integration</a><br/>' >> coverage/index.html
 fi
@@ -102,5 +102,5 @@ mkdir coverage_meta
 cat coverage_meta_*/commands > coverage_meta/commands
 mv coverage_meta_* coverage_meta
 
-./maint/with_coverage -o coverage/all -c /bin/true
+./maint/with_coverage -o coverage/all -c true
 
