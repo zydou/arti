@@ -57,7 +57,7 @@ impl OptTimestamp {
         self.time_since_update_at(coarsetime::Instant::now())
     }
 
-    /// Return the time between the time when `udpate` was last
+    /// Return the time between the time when `update` was last
     /// called, and the time `now`.
     ///
     /// Return `None` if `update` was never called, or `now` is before

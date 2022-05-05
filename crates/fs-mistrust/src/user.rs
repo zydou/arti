@@ -5,7 +5,7 @@ use std::{ffi::OsString, sync::Mutex};
 
 /// Cached values of user db entries we've looked up.
 ///
-/// Cacheing here saves time, AND makes our code testable.
+/// Caching here saves time, AND makes our code testable.
 ///
 /// Though this type has interior mutability, it isn't Sync, so we need to add a mutex.
 static CACHE: Lazy<Mutex<users::UsersCache>> = Lazy::new(|| Mutex::new(users::UsersCache::new()));
