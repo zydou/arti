@@ -13,6 +13,7 @@
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::mem;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
@@ -23,15 +24,14 @@ use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
 
-use crate::storage::{DynStore, EXPIRATION_DEFAULTS};
+use crate::storage::DynStore;
+use crate::DocSource;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
     retry::DownloadSchedule,
-    shared_ref::SharedMutArc,
     CacheUsage, ClientRequest, DirMgr, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
 };
-use crate::{DirEvent, DocSource};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::{
@@ -49,7 +49,7 @@ use tor_netdoc::{
 use tor_rtcompat::Runtime;
 
 /// A change to the currently running `NetDir`, returned by the state machines in this module.
-#[allow(dead_code)] // FIXME
+#[derive(Debug)]
 pub(crate) enum NetDirChange<'a> {
     /// If the provided `NetDir` is suitable for use (i.e. the caller determines it can build
     /// circuits with it), replace the current `NetDir` with it.
@@ -106,14 +106,7 @@ pub(crate) trait DirState: Send {
     fn can_advance(&self) -> bool;
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
-    ///
-    /// If `storage` is provided, then we should write any state changes into
-    /// it.  (We don't read from it in this method.)
-    fn add_from_cache(
-        &mut self,
-        docs: HashMap<DocId, DocumentText>,
-        storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool>;
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool>;
 
     /// Add information that we have just downloaded to this state; returns
     /// 'true' if there as any change in this state.
@@ -155,47 +148,12 @@ pub(crate) trait DirState: Send {
 /// in this module can _only_ interact with the DirMgr through
 /// modifying the NetDir and looking at the configuration.
 pub(crate) trait WriteNetDir: 'static + Sync + Send {
-    /// Return a reference where we can write or modify a NetDir.
-    fn netdir(&self) -> &SharedMutArc<NetDir>;
-
-    /// Called to note that the consensus stored in [`Self::netdir()`] has been
-    /// changed.
-    fn netdir_consensus_changed(&self);
-
-    /// Called to note that the descriptors stored in
-    /// [`Self::netdir()`] have been changed.
-    fn netdir_descriptors_changed(&self);
-
-    /// Checks whether the given `netdir` is ready to replace the previous
-    /// one.
-    ///
-    /// This is in addition to checks used when upgrading from a PartialNetDir.
-    fn netdir_is_sufficient(&self, _netdir: &NetDir) -> bool {
-        true
-    }
-
     /// Return the currently configured DynFilter for this state.
     #[cfg(feature = "dirfilter")]
     fn filter(&self) -> &dyn crate::filter::DirFilter;
 }
 
 impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
-    fn netdir(&self) -> &SharedMutArc<NetDir> {
-        &self.netdir
-    }
-    fn netdir_consensus_changed(&self) {
-        self.events.publish(DirEvent::NewConsensus);
-    }
-    fn netdir_descriptors_changed(&self) {
-        self.events.publish(DirEvent::NewDescriptors);
-    }
-    fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
-        match &self.circmgr {
-            Some(circmgr) => circmgr.netdir_is_sufficient(netdir),
-            None => true, // no circmgr? then we can use anything.
-        }
-    }
-
     #[cfg(feature = "dirfilter")]
     fn filter(&self) -> &dyn crate::filter::DirFilter {
         self.filter.as_deref().unwrap_or(&crate::filter::NilFilter)
@@ -326,11 +284,7 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetConsensusState<DM, R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_consensus
     }
-    fn add_from_cache(
-        &mut self,
-        docs: HashMap<DocId, DocumentText>,
-        _storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
         let text = match docs.into_iter().next() {
             None => return Ok(false),
             Some((
@@ -514,11 +468,7 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetCertsState<DM, R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_certs
     }
-    fn add_from_cache(
-        &mut self,
-        docs: HashMap<DocId, DocumentText>,
-        _storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
@@ -647,9 +597,8 @@ struct GetMicrodescsState<DM: WriteNetDir, R: Runtime> {
     n_microdescs: usize,
     /// The dirmgr to inform about a usable directory.
     writedir: Weak<DM>,
-    /// The current status of our netdir, if it is not yet ready to become the
-    /// main netdir in use for the TorClient.
-    partial: Option<PendingNetDir>,
+    /// The current status of our netdir.
+    partial: PendingNetDir,
     /// Metadata for the current consensus.
     meta: ConsensusMeta,
     /// A pending list of microdescriptor digests whose
@@ -659,11 +608,6 @@ struct GetMicrodescsState<DM: WriteNetDir, R: Runtime> {
     /// find a new one.  Since this is randomized, we only compute it
     /// once.
     reset_time: SystemTime,
-    /// If true, we should tell the storage to expire any outdated
-    /// information when we finish getting a usable consensus.
-    ///
-    /// Only cleared for testing.
-    expire_when_complete: bool,
 
     /// A `Runtime` implementation.
     rt: R,
@@ -674,66 +618,130 @@ struct GetMicrodescsState<DM: WriteNetDir, R: Runtime> {
     prev_netdir: Option<Arc<NetDir>>,
 }
 
-/// A network directory that is not yet ready to become _the_ current network directory.
+/// Information about a network directory that might not be ready to become _the_ current network
+/// directory.
 #[derive(Debug, Clone)]
 enum PendingNetDir {
     /// A NetDir for which we have a consensus, but not enough microdescriptors.
     Partial(PartialNetDir),
-    /// A NetDir that is "good enough to build circuits", but which we can't yet
-    /// use because our `writedir` says that it isn't yet sufficient. Probably
-    /// that is because we're waiting to download a microdescriptor for one or
-    /// more primary guards.
-    WaitingForGuards(NetDir),
+    /// A NetDir we're either trying to get our caller to replace, or that the caller
+    /// has already taken from us.
+    ///
+    /// After the netdir gets taken, the `collected_microdescs` and `missing_microdescs`
+    /// fields get used. Before then, we just do operations on the netdir.
+    Yielding {
+        /// The actual netdir. This starts out as `Some`, but our caller can `take()` it
+        /// from us.
+        netdir: Option<NetDir>,
+        /// Microdescs we have collected in order to yield to our caller.
+        collected_microdescs: Vec<Microdesc>,
+        /// Which microdescs we need for the netdir that either is or used to be in `netdir`.
+        ///
+        /// NOTE(eta): This MUST always match the netdir's own idea of which microdescs we need.
+        ///            We do this by copying the netdir's missing microdescs into here when we
+        ///            instantiate it.
+        ///            (This code assumes that it doesn't add more needed microdescriptors later!)
+        missing_microdescs: HashSet<MdDigest>,
+        /// The time at which we should renew this netdir.
+        reset_time: SystemTime,
+    },
+    /// A dummy value, so we can use `mem::replace`.
+    Dummy,
 }
 
 impl MdReceiver for PendingNetDir {
     fn missing_microdescs(&self) -> Box<dyn Iterator<Item = &MdDigest> + '_> {
         match self {
             PendingNetDir::Partial(partial) => partial.missing_microdescs(),
-            PendingNetDir::WaitingForGuards(netdir) => netdir.missing_microdescs(),
+            PendingNetDir::Yielding {
+                netdir,
+                missing_microdescs,
+                ..
+            } => {
+                if let Some(nd) = netdir.as_ref() {
+                    nd.missing_microdescs()
+                } else {
+                    Box::new(missing_microdescs.iter())
+                }
+            }
+            PendingNetDir::Dummy => unreachable!(),
         }
     }
 
     fn add_microdesc(&mut self, md: Microdesc) -> bool {
         match self {
             PendingNetDir::Partial(partial) => partial.add_microdesc(md),
-            PendingNetDir::WaitingForGuards(netdir) => netdir.add_microdesc(md),
+            PendingNetDir::Yielding {
+                netdir,
+                missing_microdescs,
+                collected_microdescs,
+                ..
+            } => {
+                let wanted = missing_microdescs.remove(md.digest());
+                if let Some(nd) = netdir.as_mut() {
+                    let digest = *md.digest();
+                    let nd_wanted = nd.add_microdesc(md);
+                    if wanted != nd_wanted {
+                        // This shouldn't ever happen; if it does, our invariants are violated.
+                        panic!("NetDir changed its mind about wanting microdesc {:?} (pending {}, nd {})", digest, wanted, nd_wanted);
+                    }
+                    nd_wanted
+                } else {
+                    collected_microdescs.push(md);
+                    wanted
+                }
+            }
+            PendingNetDir::Dummy => unreachable!(),
         }
     }
 
     fn n_missing(&self) -> usize {
         match self {
             PendingNetDir::Partial(partial) => partial.n_missing(),
-            PendingNetDir::WaitingForGuards(netdir) => netdir.n_missing(),
+            PendingNetDir::Yielding {
+                netdir,
+                missing_microdescs,
+                ..
+            } => {
+                if let Some(nd) = netdir.as_ref() {
+                    if nd.n_missing() != missing_microdescs.len() {
+                        // This shouldn't ever happen; if it does, our invariants are violated.
+                        panic!("PendingNetDir lost track of wanted microdescs (netdir wants {}, us {})", nd.n_missing(), missing_microdescs.len());
+                    }
+                    nd.n_missing()
+                } else {
+                    missing_microdescs.len()
+                }
+            }
+            PendingNetDir::Dummy => unreachable!(),
         }
     }
 }
 
 impl PendingNetDir {
-    /// Try to move `self` as far as possible towards a complete, netdir with
-    /// enough directory information (according to `writedir`).
-    ///
-    /// On success, return `Ok(netdir)` with a new usable [`NetDir`].  On error,
-    /// return a [`PendingNetDir`] representing any progress we were able to
-    /// make.
-    fn upgrade<WD: WriteNetDir>(mut self, writedir: &WD) -> std::result::Result<NetDir, Self> {
-        loop {
-            match self {
-                PendingNetDir::Partial(partial) => match partial.unwrap_if_sufficient() {
-                    Ok(netdir) => {
-                        self = PendingNetDir::WaitingForGuards(netdir);
+    /// If this PendingNetDir is Partial and could not be partial, upgrade it.
+    fn upgrade_if_necessary(&mut self) {
+        if matches!(self, PendingNetDir::Partial(..)) {
+            match mem::replace(self, PendingNetDir::Dummy) {
+                PendingNetDir::Partial(p) => match p.unwrap_if_sufficient() {
+                    Ok(nd) => {
+                        let missing = nd.missing_microdescs().copied().collect();
+                        let reset_time = pick_download_time(nd.lifetime());
+                        *self = PendingNetDir::Yielding {
+                            netdir: Some(nd),
+                            collected_microdescs: vec![],
+                            missing_microdescs: missing,
+                            reset_time,
+                        };
                     }
-                    Err(partial) => return Err(PendingNetDir::Partial(partial)),
+                    Err(p) => {
+                        *self = PendingNetDir::Partial(p);
+                    }
                 },
-                PendingNetDir::WaitingForGuards(netdir) => {
-                    if writedir.netdir_is_sufficient(&netdir) {
-                        return Ok(netdir);
-                    } else {
-                        return Err(PendingNetDir::WaitingForGuards(netdir));
-                    }
-                }
+                _ => unreachable!(),
             }
         }
+        assert!(!matches!(self, PendingNetDir::Dummy));
     }
 }
 
@@ -758,28 +766,24 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
             partial_dir.fill_from_previous_netdir(old_dir);
         }
 
-        let mut result = GetMicrodescsState {
+        GetMicrodescsState {
             cache_usage,
             n_microdescs,
             writedir,
-            partial: Some(PendingNetDir::Partial(partial_dir)),
+            partial: PendingNetDir::Partial(partial_dir),
             meta,
             newly_listed: Vec::new(),
             reset_time,
-            expire_when_complete: true,
             rt,
             config,
             prev_netdir,
-        };
-
-        result.consider_upgrade();
-        result
+        }
     }
 
     /// Add a bunch of microdescriptors to the in-progress netdir.
     ///
     /// Return true if the netdir has just become usable.
-    fn register_microdescs<I>(&mut self, mds: I) -> bool
+    fn register_microdescs<I>(&mut self, mds: I)
     where
         I: IntoIterator<Item = Microdesc>,
     {
@@ -791,93 +795,14 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
         } else {
             mds.into_iter().collect()
         };
-        if let Some(p) = &mut self.partial {
-            for md in mds {
+        let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
+        for md in mds {
+            if is_partial {
                 self.newly_listed.push(*md.digest());
-                p.add_microdesc(md);
             }
-            return self.consider_upgrade();
-        } else if let Some(wd) = Weak::upgrade(&self.writedir) {
-            let _ = wd.netdir().mutate(|netdir| {
-                for md in mds {
-                    netdir.add_microdesc(md);
-                }
-                wd.netdir_descriptors_changed();
-                Ok(())
-            });
+            self.partial.add_microdesc(md);
         }
-        false
-    }
-
-    /// Check whether this netdir we're building has _just_ become
-    /// usable when it was not previously usable.  If so, tell the
-    /// dirmgr about it and return true; otherwise return false.
-    fn consider_upgrade(&mut self) -> bool {
-        if let Some(p) = self.partial.take() {
-            if let Some(wd) = Weak::upgrade(&self.writedir) {
-                match p.upgrade(wd.as_ref()) {
-                    Ok(mut netdir) => {
-                        self.reset_time = pick_download_time(netdir.lifetime());
-                        // We re-set the parameters here, in case they have been
-                        // reconfigured.
-                        netdir.replace_overridden_parameters(&self.config.override_net_params);
-                        wd.netdir().replace(netdir);
-                        wd.netdir_consensus_changed();
-                        wd.netdir_descriptors_changed();
-                        return true;
-                    }
-                    Err(pending) => self.partial = Some(pending),
-                }
-            }
-        }
-        false
-    }
-
-    /// Mark the consensus that we're getting MDs for as non-pending in the
-    /// storage.
-    ///
-    /// Called when a consensus is no longer pending.
-    fn mark_consensus_usable(&self, storage: Option<&Mutex<DynStore>>) -> Result<()> {
-        if let Some(store) = storage {
-            let mut store = store.lock().expect("Directory storage lock poisoned");
-            info!("Marked consensus usable.");
-            store.mark_consensus_usable(&self.meta)?;
-            // Now that a consensus is usable, older consensuses may
-            // need to expire.
-            if self.expire_when_complete {
-                store.expire_all(&EXPIRATION_DEFAULTS)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
-    /// Try to obtain info from an inner `MdReceiver`
-    ///
-    /// Either finds an inner `MdReceiver` and calls `f` on it, or returns `default()`.
-    ///
-    /// Used for missing microdescs.
-    fn with_mdreceiver_for_missing<F, T>(&self, f: F) -> T
-    where
-        F: FnOnce(&dyn MdReceiver) -> T,
-        T: Default,
-    {
-        if let Some(partial) = &self.partial {
-            return f(partial);
-        } else if let Some(wd) = Weak::upgrade(&self.writedir) {
-            if let Some(nd) = wd.netdir().get() {
-                return f(nd.as_ref());
-            }
-        }
-        Default::default()
-    }
-
-    /// Number of missing microdescriptors, or 0
-    ///
-    /// Can return 0 if we don't have that information.
-    fn n_missing(&self) -> usize {
-        self.with_mdreceiver_for_missing(|d| d.n_missing())
+        self.partial.upgrade_if_necessary();
     }
 }
 
@@ -885,27 +810,51 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
     fn describe(&self) -> String {
         format!(
             "Downloading microdescriptors (we are missing {}).",
-            self.n_missing()
+            self.partial.n_missing()
         )
     }
     fn missing_docs(&self) -> Vec<DocId> {
-        self.with_mdreceiver_for_missing(|d| {
-            d.missing_microdescs()
-                .map(|d| DocId::Microdesc(*d))
-                .collect()
-        })
+        self.partial
+            .missing_microdescs()
+            .map(|d| DocId::Microdesc(*d))
+            .collect()
+    }
+    fn get_netdir_change(&mut self) -> Option<NetDirChange<'_>> {
+        match self.partial {
+            PendingNetDir::Yielding {
+                ref mut netdir,
+                ref mut collected_microdescs,
+                ..
+            } => {
+                if netdir.is_some() {
+                    Some(NetDirChange::AttemptReplace {
+                        netdir,
+                        consensus_meta: &self.meta,
+                    })
+                } else {
+                    collected_microdescs
+                        .is_empty()
+                        .then(|| NetDirChange::AddMicrodescs(mem::take(collected_microdescs)))
+                }
+            }
+            _ => None,
+        }
     }
     fn is_ready(&self, ready: Readiness) -> bool {
         match ready {
-            Readiness::Complete => self.n_missing() == 0,
-            Readiness::Usable => self.partial.is_none(),
+            Readiness::Complete => self.partial.n_missing() == 0,
+            Readiness::Usable => {
+                // We're "usable" if the calling code thought our netdir was usable enough to
+                // steal it.
+                matches!(self.partial, PendingNetDir::Yielding { ref netdir, .. } if netdir.is_none())
+            }
         }
     }
     fn can_advance(&self) -> bool {
         false
     }
     fn bootstrap_status(&self) -> DirStatus {
-        let n_present = self.n_microdescs - self.n_missing();
+        let n_present = self.n_microdescs - self.partial.n_missing();
         DirStatusInner::Validated {
             lifetime: self.meta.lifetime().clone(),
             n_mds: (n_present as u32, self.n_microdescs as u32),
@@ -916,11 +865,7 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_microdescs
     }
-    fn add_from_cache(
-        &mut self,
-        docs: HashMap<DocId, DocumentText>,
-        storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
@@ -935,14 +880,7 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
         }
 
         let changed = !microdescs.is_empty();
-        if self.register_microdescs(microdescs) {
-            // Just stopped being pending.
-            self.mark_consensus_usable(storage)?;
-            // We can save a lot of ram this way, though we don't want to do it
-            // so often.  As a compromise we call `shrink_to_fit at most twice
-            // per consensus: once when we're ready to use, and once when we are
-            // complete.
-        }
+        self.register_microdescs(microdescs);
 
         Ok(changed)
     }
@@ -994,17 +932,17 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
                 )?;
             }
         }
-        if self.register_microdescs(new_mds.into_iter().map(|(_, md)| md)) {
-            // Just stopped being pending.
-            self.mark_consensus_usable(storage)?;
-        }
+        self.register_microdescs(new_mds.into_iter().map(|(_, md)| md));
         Ok(true)
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(self)
     }
     fn reset_time(&self) -> Option<SystemTime> {
-        Some(self.reset_time)
+        Some(match self.partial {
+            PendingNetDir::Yielding { reset_time, .. } => reset_time,
+            _ => self.reset_time,
+        })
     }
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
         let cache_usage = if self.cache_usage == CacheUsage::CacheOnly {
@@ -1074,10 +1012,8 @@ mod test {
     #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::{Authority, AuthorityBuilder, DownloadScheduleConfig};
-    use std::sync::{
-        atomic::{self, AtomicBool},
-        Arc,
-    };
+    use std::convert::TryInto;
+    use std::sync::Arc;
     use tempfile::TempDir;
     use time::macros::datetime;
     use tor_netdoc::doc::authcert::AuthCertKeyIds;
@@ -1140,33 +1076,15 @@ mod test {
         Arc::new(cfg)
     }
 
-    struct DirRcv {
-        netdir: SharedMutArc<NetDir>,
-        consensus_changed: AtomicBool,
-        descriptors_changed: AtomicBool,
-    }
+    struct DirRcv;
 
     impl DirRcv {
         fn new() -> Self {
-            DirRcv {
-                netdir: Default::default(),
-                consensus_changed: false.into(),
-                descriptors_changed: false.into(),
-            }
+            DirRcv {}
         }
     }
 
     impl WriteNetDir for DirRcv {
-        fn netdir(&self) -> &SharedMutArc<NetDir> {
-            &self.netdir
-        }
-        fn netdir_consensus_changed(&self) {
-            self.consensus_changed.store(true, atomic::Ordering::SeqCst);
-        }
-        fn netdir_descriptors_changed(&self) {
-            self.descriptors_changed
-                .store(true, atomic::Ordering::SeqCst);
-        }
         #[cfg(feature = "dirfilter")]
         fn filter(&self) -> &dyn crate::filter::DirFilter {
             &crate::filter::NilFilter
@@ -1339,7 +1257,7 @@ mod test {
                 GetConsensusState::new(rt, cfg, CacheUsage::CacheOkay, None, Arc::downgrade(&rcv));
             let text: crate::storage::InputString = CONSENSUS.to_owned().into();
             let map = vec![(docid, text.into())].into_iter().collect();
-            let outcome = state.add_from_cache(map, None);
+            let outcome = state.add_from_cache(map);
             assert!(outcome.unwrap());
             assert!(state.can_advance());
         });
@@ -1402,7 +1320,7 @@ mod test {
             let docs = vec![(DocId::AuthCert(authcert_id_5696()), text1.into())]
                 .into_iter()
                 .collect();
-            let outcome = state.add_from_cache(docs, None);
+            let outcome = state.add_from_cache(docs);
             assert!(outcome.unwrap()); // no error, and something changed.
             assert!(!state.can_advance()); // But we aren't done yet.
             let missing = state.missing_docs();
@@ -1540,7 +1458,7 @@ mod test {
             let docs = vec![(DocId::Microdesc(md1), doc1.into())]
                 .into_iter()
                 .collect();
-            let outcome = state.add_from_cache(docs, Some(&store));
+            let outcome = state.add_from_cache(docs);
             assert!(outcome.unwrap()); // successfully loaded one MD.
             assert!(!state.can_advance());
             assert!(!state.is_ready(Readiness::Complete));
@@ -1557,9 +1475,6 @@ mod test {
 
             // Try adding the rest as if from a download.
             let mut req = tor_dirclient::request::MicrodescRequest::new();
-            // Clear this flag so that the test consensus won't expire the moment
-            // we're done.
-            state.expire_when_complete = false;
             let mut response = "".to_owned();
             for md_digest in [md2, md3, md4] {
                 response.push_str(md_text.get(&md_digest).unwrap());
@@ -1568,6 +1483,12 @@ mod test {
             let req = ClientRequest::Microdescs(req);
             let outcome = state.add_from_download(response.as_str(), &req, Some(&store));
             assert!(outcome.unwrap()); // successfully loaded MDs
+            match state.get_netdir_change().unwrap() {
+                NetDirChange::AttemptReplace { netdir, .. } => {
+                    assert!(netdir.take().is_some());
+                }
+                x => panic!("wrong netdir change: {:?}", x),
+            }
             assert!(state.is_ready(Readiness::Complete));
             assert!(state.is_ready(Readiness::Usable));
             assert_eq!(

@@ -670,6 +670,7 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// Return a reference to the store, if it is currently read-write.
+    #[cfg(test)]
     fn store_if_rw(&self) -> Option<&Mutex<DynStore>> {
         let rw = !self
             .store

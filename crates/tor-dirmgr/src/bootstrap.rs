@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::state::{DirState, NetDirChange, WriteNetDir};
+use crate::state::{DirState, NetDirChange};
 use crate::{
     docid::{self, ClientRequest},
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
@@ -28,7 +28,7 @@ use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
 use tor_circmgr::{CircMgr, DirInfo};
-use tor_netdir::{MdReceiver, NetDir};
+use tor_netdir::{DirEvent, MdReceiver, NetDir};
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 /// If there were errors from a peer in `outcome`, record those errors by
@@ -280,7 +280,7 @@ async fn load_once<R: Runtime>(
             load_documents_from_store(&missing, store.deref())?
         };
 
-        match state.add_from_cache(documents, dirmgr.store_if_rw()) {
+        match state.add_from_cache(documents) {
             Err(Error::UntimelyObject(TimeValidityError::Expired(_))) => {
                 // This is just an expired object from the cache; we don't need
                 // to call that an error.  Treat it as if it were absent.
@@ -309,6 +309,10 @@ pub(crate) async fn load<R: Runtime>(
     loop {
         trace!(state=%state.describe(), "Loading from cache");
         let changed = load_once(&dirmgr, &mut state).await?;
+        {
+            let mut store = dirmgr.store.lock().expect("store lock poisoned");
+            apply_netdir_changes(&dirmgr, &mut state, store.deref_mut())?;
+        }
 
         if state.can_advance() {
             state = state.advance()?;
@@ -350,14 +354,11 @@ fn apply_netdir_changes<R: Runtime>(
                     }
                 }
                 let cfg = dirmgr.config.get();
-                dirmgr.netdir.mutate(|dirmgr_netdir| {
-                    // Seems like this netdir is usable, so let's use it.
-                    *dirmgr_netdir = netdir.take().expect("AttemptReplace had None");
-                    dirmgr_netdir.replace_overridden_parameters(&cfg.override_net_params);
-                    Ok(())
-                })?;
-                dirmgr.netdir_consensus_changed();
-                dirmgr.netdir_descriptors_changed();
+                let mut netdir = netdir.take().expect("AttemptReplace had None");
+                netdir.replace_overridden_parameters(&cfg.override_net_params);
+                dirmgr.netdir.replace(netdir);
+                dirmgr.events.publish(DirEvent::NewConsensus);
+                dirmgr.events.publish(DirEvent::NewDescriptors);
 
                 info!("Marked consensus usable.");
                 store.mark_consensus_usable(consensus_meta)?;
@@ -373,7 +374,7 @@ fn apply_netdir_changes<R: Runtime>(
                     }
                     Ok(())
                 })?;
-                dirmgr.netdir_descriptors_changed();
+                dirmgr.events.publish(DirEvent::NewDescriptors);
                 Ok(false)
             }
         }
@@ -698,11 +699,7 @@ mod test {
                 })
                 .collect()
         }
-        fn add_from_cache(
-            &mut self,
-            docs: HashMap<DocId, DocumentText>,
-            _storage: Option<&Mutex<DynStore>>,
-        ) -> Result<bool> {
+        fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
             let mut changed = false;
             for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
