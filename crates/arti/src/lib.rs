@@ -273,6 +273,14 @@ pub fn main_main() -> Result<()> {
                     .value_name("LEVEL")
                     .help("Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error')."),
             )
+            .arg(
+                Arg::with_name("disable-fs-permission-checks")
+                    .long("disable-fs-permission-checks")
+                    .takes_value(false)
+                    .value_name("FILE")
+                    .global(true)
+                    .help("Don't check permissions on the files we use."),
+            )
             .subcommand(
                 SubCommand::with_name("proxy")
                     .about(
@@ -296,7 +304,8 @@ pub fn main_main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let fs_mistrust_disabled = fs_mistrust_disabled_via_env();
+    let fs_mistrust_disabled =
+        fs_mistrust_disabled_via_env() | matches.is_present("disable-fs-permission-checks");
 
     let mistrust = {
         // TODO: This is duplicate code from arti_client::config.  When we make
