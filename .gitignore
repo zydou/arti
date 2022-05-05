@@ -1,5 +1,6 @@
 /coverage/
 /coverage_meta/
+/coverage_meta_*/
 /target/
 /crates/*/target/
 /crates/*/target-coverage/
