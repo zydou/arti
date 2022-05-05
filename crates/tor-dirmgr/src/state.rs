@@ -14,7 +14,7 @@ use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_error::internal;
@@ -24,15 +24,13 @@ use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
 
-#[cfg(feature = "dirfilter")]
-use crate::filter::{DirFilter, NilFilter};
 use crate::storage::DynStore;
 use crate::DocSource;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
     retry::DownloadSchedule,
-    CacheUsage, ClientRequest, DirMgr, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
+    CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
 };
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -178,30 +176,7 @@ pub(crate) struct GetConsensusState<R: Runtime> {
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
-    filter: Arc<dyn DirFilter>,
-}
-
-impl<R: Runtime> GetConsensusState<R> {
-    /// Bodge version of Self::new() with the old pre-refactor signature.
-    /// This will go away when the refactor is complete.
-    #[allow(clippy::needless_pass_by_value)]
-    pub(crate) fn bodge_new(writedir: Weak<DirMgr<R>>, cache_usage: CacheUsage) -> Result<Self> {
-        if let Some(netdir) = Weak::upgrade(&writedir) {
-            let config = netdir.config.get();
-            let prev_netdir = netdir.opt_netdir();
-            let rt = netdir.runtime.clone();
-            Ok(Self::new(
-                rt,
-                config,
-                cache_usage,
-                prev_netdir,
-                #[cfg(feature = "dirfilter")]
-                netdir.filter.clone().unwrap_or_else(|| Arc::new(NilFilter)),
-            ))
-        } else {
-            Err(Error::ManagerDropped)
-        }
-    }
+    filter: Arc<dyn crate::filter::DirFilter>,
 }
 
 impl<R: Runtime> GetConsensusState<R> {
@@ -213,7 +188,7 @@ impl<R: Runtime> GetConsensusState<R> {
         config: Arc<DirMgrConfig>,
         cache_usage: CacheUsage,
         prev_netdir: Option<Arc<NetDir>>,
-        #[cfg(feature = "dirfilter")] filter: Arc<dyn DirFilter>,
+        #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
         let authority_ids = config
             .authorities()
@@ -421,7 +396,7 @@ struct GetCertsState<R: Runtime> {
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
-    filter: Arc<dyn DirFilter>,
+    filter: Arc<dyn crate::filter::DirFilter>,
 }
 
 impl<R: Runtime> DirState for GetCertsState<R> {
@@ -609,7 +584,7 @@ struct GetMicrodescsState<R: Runtime> {
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
-    filter: Arc<dyn DirFilter>,
+    filter: Arc<dyn crate::filter::DirFilter>,
 }
 
 /// Information about a network directory that might not be ready to become _the_ current network
@@ -749,7 +724,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
         rt: R,
         config: Arc<DirMgrConfig>,
         prev_netdir: Option<Arc<NetDir>>,
-        #[cfg(feature = "dirfilter")] filter: Arc<dyn DirFilter>,
+        #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
         let reset_time = consensus.lifetime().valid_until();
         let n_microdescs = consensus.relays().len();
@@ -1142,7 +1117,7 @@ mod test {
                 CacheUsage::CacheOkay,
                 None,
                 #[cfg(feature = "dirfilter")]
-                Arc::new(NilFilter),
+                Arc::new(crate::filter::NilFilter),
             );
 
             // Is description okay?
@@ -1210,7 +1185,7 @@ mod test {
                 CacheUsage::CacheOkay,
                 None,
                 #[cfg(feature = "dirfilter")]
-                Arc::new(NilFilter),
+                Arc::new(crate::filter::NilFilter),
             );
             let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
             assert!(outcome.unwrap());
@@ -1239,7 +1214,7 @@ mod test {
                 CacheUsage::CacheOkay,
                 None,
                 #[cfg(feature = "dirfilter")]
-                Arc::new(NilFilter),
+                Arc::new(crate::filter::NilFilter),
             );
             let text: crate::storage::InputString = CONSENSUS.to_owned().into();
             let map = vec![(docid, text.into())].into_iter().collect();
@@ -1262,7 +1237,7 @@ mod test {
                     CacheUsage::CacheOkay,
                     None,
                     #[cfg(feature = "dirfilter")]
-                    Arc::new(NilFilter),
+                    Arc::new(crate::filter::NilFilter),
                 );
                 let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
                 let req = crate::docid::ClientRequest::Consensus(req);
@@ -1385,7 +1360,7 @@ mod test {
                     cfg,
                     None,
                     #[cfg(feature = "dirfilter")]
-                    Arc::new(NilFilter),
+                    Arc::new(crate::filter::NilFilter),
                 )
             }
             fn d64(s: &str) -> MdDigest {

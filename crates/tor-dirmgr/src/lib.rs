@@ -517,10 +517,20 @@ impl<R: Runtime> DirMgr<R> {
         weak: Weak<Self>,
         mut on_complete: Option<oneshot::Sender<()>>,
     ) -> Result<()> {
-        let mut state: Box<dyn DirState> = Box::new(state::GetConsensusState::bodge_new(
-            Weak::clone(&weak),
-            CacheUsage::CacheOkay,
-        )?);
+        let mut state: Box<dyn DirState> = {
+            let dirmgr = upgrade_weak_ref(&weak)?;
+            Box::new(state::GetConsensusState::new(
+                dirmgr.runtime.clone(),
+                dirmgr.config.get(),
+                CacheUsage::CacheOkay,
+                dirmgr.netdir.get(),
+                #[cfg(feature = "dirfilter")]
+                dirmgr
+                    .filter
+                    .clone()
+                    .unwrap_or_else(|| Arc::new(crate::filter::NilFilter)),
+            ))
+        };
 
         let runtime = {
             let dirmgr = upgrade_weak_ref(&weak)?;
@@ -728,8 +738,16 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// Return false if there is no such consensus.
     async fn load_directory(self: &Arc<Self>) -> Result<bool> {
-        let state =
-            state::GetConsensusState::bodge_new(Arc::downgrade(self), CacheUsage::CacheOnly)?;
+        let state = state::GetConsensusState::new(
+            self.runtime.clone(),
+            self.config.get(),
+            CacheUsage::CacheOnly,
+            None,
+            #[cfg(feature = "dirfilter")]
+            self.filter
+                .clone()
+                .unwrap_or_else(|| Arc::new(crate::filter::NilFilter)),
+        );
         let _ = bootstrap::load(Arc::clone(self), Box::new(state)).await?;
 
         Ok(self.netdir.get().is_some())
