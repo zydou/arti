@@ -30,6 +30,8 @@ BREAKING: Configuration of preemptive ports overhauled; now uses PredictedPortsL
 BREAKING: Configuration of download schedules overhauled; now uses builders
 BREAKING: download schedules: "num_retries" configuration field renamed to (accurate) "attempts"
 BREAKING: download schedules: Setting zero values for attempts or parallelism is now rejected
+BREAKING: Validated configuration structs are no longer Deseralize.
+MODIFIED: Configuration builder structs are now all Serialize+Deseralize+Debug.
 
 ### arti
 
