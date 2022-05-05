@@ -22,7 +22,7 @@ We can delete older sections here after we bump the releases.
 
 BREAKING: Requiring Rust 1.56, edition 2021.
 
-### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr
+### configuration (affecting arti, arti-client, tor-dirmgr, tor-guardmgr)
 
 BREAKING: Configuration of fallback directories overhauled; now uses FalllbadkDirBuilder more.
 BREAKING: Configuration of directory authoorities overhauled; now uses AuthorityListBuilder.
@@ -30,6 +30,8 @@ BREAKING: Configuration of preemptive ports overhauled; now uses PredictedPortsL
 BREAKING: Configuration of download schedules overhauled; now uses builders
 BREAKING: download schedules: "num_retries" configuration field renamed to (accurate) "attempts"
 BREAKING: download schedules: Setting zero values for attempts or parallelism is now rejected
+BREAKING: Validated configuration structs are no longer Deseralize.
+MODIFIED: Configuration builder structs are now all Serialize+Deseralize+Debug.
 
 ### arti
 

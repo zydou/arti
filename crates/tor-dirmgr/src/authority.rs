@@ -4,7 +4,7 @@
 //! consensus directory.
 
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tor_config::{define_list_builder_helper, ConfigBuildError};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -13,9 +13,9 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 // Note that we do *not* set serde(deny_unknown_fields)] on this structure:
 // we want our authorities format to be future-proof against adding new info
 // about each authority.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct Authority {
     /// A memorable nickname for this authority.
     #[builder(setter(into))]

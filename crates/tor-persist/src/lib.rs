@@ -193,7 +193,7 @@ fn store_error(e: serde_json::Error) -> Error {
 ///
 /// This uses `#[serde(untagged)]` to attempt deserializing as a type `T` first, and falls back
 /// to a generic JSON value representation if that fails.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(untagged)]
 #[allow(clippy::exhaustive_enums)]
 pub enum Futureproof<T> {

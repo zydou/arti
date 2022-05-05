@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::str::FromStr;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
@@ -14,11 +14,10 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::Targets, fmt, registry, Layer};
 
 /// Structure to hold our logging configuration options
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[non_exhaustive] // TODO(nickm) remove public elements when I revise this.
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct LoggingConfig {
     /// Filtering directives that determine tracing levels as described at
     /// <https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/targets/struct.Targets.html#impl-FromStr>
@@ -26,21 +25,18 @@ pub struct LoggingConfig {
     /// You can override this setting with the -l, --log-level command line parameter.
     ///
     /// Example: "info,tor_proto::channel=trace"
-    #[serde(default = "default_console_filter")]
     #[builder(default = "default_console_filter()", setter(into, strip_option))]
     console: Option<String>,
 
     /// Filtering directives for the journald logger.
     ///
     /// Only takes effect if Arti is built with the `journald` filter.
-    #[serde(default)]
     #[builder(default, setter(into, strip_option))]
     journald: Option<String>,
 
     /// Configuration for one or more logfiles.
     ///
     /// The default is not to log to any files.
-    #[serde(default)]
     #[builder_field_attr(serde(default))]
     #[builder(sub_builder, setter(custom))]
     files: LogfileListConfig,
@@ -83,12 +79,11 @@ define_list_builder_accessors! {
 }
 
 /// Configuration information for an (optionally rotating) logfile.
-#[derive(Deserialize, Debug, Builder, Clone, Eq, PartialEq)]
-#[builder(derive(Deserialize))]
+#[derive(Debug, Builder, Clone, Eq, PartialEq)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct LogfileConfig {
     /// How often to rotate the file?
-    #[serde(default)]
     #[builder(default)]
     rotate: LogRotation,
     /// Where to write the files?
@@ -98,7 +93,7 @@ pub struct LogfileConfig {
 }
 
 /// How often to rotate a log file
-#[derive(Deserialize, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum LogRotation {

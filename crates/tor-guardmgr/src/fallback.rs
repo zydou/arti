@@ -19,7 +19,7 @@ use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
 use crate::dirstatus::DirStatus;
@@ -33,9 +33,9 @@ pub use set::{FallbackList, FallbackListBuilder};
 // Note that we do *not* set serde(deny_unknown_fields) on this
 // structure: we want our fallback directory configuration format to
 // be future-proof against adding new info about each fallback.
-#[derive(Debug, Clone, Deserialize, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(private, name = "build_unvalidated", error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct FallbackDir {
     /// RSA identity for the directory relay
     rsa_identity: RsaIdentity,

@@ -9,7 +9,7 @@ use tor_config::{define_list_builder_accessors, define_list_builder_helper, Conf
 use tor_guardmgr::fallback::FallbackList;
 
 use derive_builder::Builder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use std::time::Duration;
 
@@ -22,17 +22,15 @@ use std::time::Duration;
 /// paths that are constructed in the future, and prevents requests from being
 /// attached to existing circuits, if the configuration has become more
 /// restrictive.
-#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-#[serde(deny_unknown_fields)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct PathConfig {
     /// Set the length of a bit-prefix for a default IPv4 subnet-family.
     ///
     /// Any two relays will be considered to belong to the same family if their
     /// IPv4 addresses share at least this many initial bits.
     #[builder(default = "ipv4_prefix_default()")]
-    #[serde(default = "ipv4_prefix_default")]
     ipv4_subnet_family_prefix: u8,
 
     /// Set the length of a bit-prefix for a default IPv6 subnet-family.
@@ -40,7 +38,6 @@ pub struct PathConfig {
     /// Any two relays will be considered to belong to the same family if their
     /// IPv6 addresses share at least this many initial bits.
     #[builder(default = "ipv6_prefix_default()")]
-    #[serde(default = "ipv6_prefix_default")]
     ipv6_subnet_family_prefix: u8,
 }
 
@@ -94,16 +91,14 @@ impl Default for PathConfig {
 /// use [`PreemptiveCircuitConfigBuilder`].
 ///
 /// Except as noted, this configuration can be changed on a running Arti client.
-#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-#[serde(deny_unknown_fields)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct PreemptiveCircuitConfig {
     /// If we have at least this many available circuits, we suspend
     /// construction of preemptive circuits. whether our available circuits
     /// support our predicted exit ports or not.
     #[builder(default = "default_preemptive_threshold()")]
-    #[serde(default = "default_preemptive_threshold")]
     pub(crate) disable_at_threshold: usize,
 
     /// At startup, which exit ports should we expect that the client will want?
@@ -122,14 +117,12 @@ pub struct PreemptiveCircuitConfig {
     /// should we predict that the client will still want to have circuits
     /// available for that port?
     #[builder(default = "default_preemptive_duration()")]
-    #[serde(with = "humantime_serde", default = "default_preemptive_duration")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) prediction_lifetime: Duration,
 
     /// How many available circuits should we try to have, at minimum, for each
     /// predicted exit port?
     #[builder(default = "default_preemptive_min_exit_circs_for_port()")]
-    #[serde(default = "default_preemptive_min_exit_circs_for_port")]
     pub(crate) min_exit_circs_for_port: usize,
 }
 
@@ -143,15 +136,13 @@ pub struct PreemptiveCircuitConfig {
 /// not currently expired, and the request timing of all _future_
 /// requests.  However, there are currently bugs: see bug
 /// [#263](https://gitlab.torproject.org/tpo/core/arti/-/issues/263).
-#[derive(Debug, Clone, Builder, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
-#[builder(derive(Deserialize))]
-#[serde(deny_unknown_fields)]
+#[builder(derive(Debug, Serialize, Deserialize))]
 pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     #[builder(default = "default_max_dirtiness()")]
-    #[serde(with = "humantime_serde", default = "default_max_dirtiness")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) max_dirtiness: Duration,
 
@@ -159,7 +150,6 @@ pub struct CircuitTiming {
     /// after this much time.
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_timeout()")]
-    #[serde(with = "humantime_serde", default = "default_request_timeout")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) request_timeout: Duration,
 
@@ -167,14 +157,12 @@ pub struct CircuitTiming {
     /// this many attempts.
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_max_retries()")]
-    #[serde(default = "default_request_max_retries")]
     pub(crate) request_max_retries: u32,
 
     /// When waiting for requested circuits, wait at least this long
     /// before using a suitable-looking circuit launched by some other
     /// request.
     #[builder(default = "default_request_loyalty()")]
-    #[serde(with = "humantime_serde", default = "default_request_loyalty")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) request_loyalty: Duration,
 }

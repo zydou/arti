@@ -47,17 +47,17 @@
 //!
 //! ```
 //! use derive_builder::Builder;
-//! use serde::Deserialize;
+//! use serde::{Deserialize, Serialize};
 //! use tor_config::{define_list_builder_helper, define_list_builder_accessors, ConfigBuildError};
 //!
 //! #[derive(Builder, Debug, Eq, PartialEq)]
 //! #[builder(build_fn(error = "ConfigBuildError"))]
-//! #[builder(derive(Deserialize))]
+//! #[builder(derive(Debug, Serialize, Deserialize))]
 //! pub struct Thing { value: i32 }
 //!
 //! #[derive(Builder, Debug, Eq, PartialEq)]
 //! #[builder(build_fn(error = "ConfigBuildError"))]
-//! #[builder(derive(Deserialize))]
+//! #[builder(derive(Debug, Serialize, Deserialize))]
 //! pub struct Outer {
 //!     /// List of things, being built as part of the configuration
 //!     #[builder(sub_builder, setter(custom))]
@@ -93,12 +93,12 @@
 //!
 //! ```
 //! use derive_builder::Builder;
-//! use serde::Deserialize;
+//! use serde::{Deserialize, Serialize};
 //! use tor_config::{define_list_builder_helper, define_list_builder_accessors, ConfigBuildError};
 //!
 //! #[derive(Builder, Debug, Eq, PartialEq)]
 //! #[builder(build_fn(error = "ConfigBuildError"))]
-//! #[builder(derive(Deserialize))]
+//! #[builder(derive(Debug, Serialize, Deserialize))]
 //! pub struct Outer {
 //!     /// List of values, being built as part of the configuration
 //!     #[builder(sub_builder, setter(custom))]
@@ -148,7 +148,8 @@
 /// for example if the list is to be included in a struct in another module or crate.
 /// Usually `$field_vis` should be the same as `$vis`.
 ///
-/// `#[derive(Default, Clone, Deserialize)]` will be applied to the generated builder,
+/// `#[derive(Default, Clone, Debug, Serialize, Deserialize)]`
+///  will be applied to the generated builder,
 /// but you can specify other attributes too.
 /// There is no need to supply any documentation; this is an internal struct and
 /// the macro will supply a suitable (bland) doc comment.
@@ -201,7 +202,8 @@ macro_rules! define_list_builder_helper {
         default = $default:expr;
         $( item_build: $item_build:expr; )?
     } => {
-        #[derive($crate::educe::Educe, Clone, $crate::serde::Deserialize)]
+        #[derive($crate::educe::Educe, Clone, Debug)]
+        #[derive($crate::serde::Serialize, $crate::serde::Deserialize)]
         #[educe(Default)]
         #[serde(transparent)]
         $(#[ $docs_and_attrs ])*
@@ -340,14 +342,14 @@ define_list_builder_helper! {
     ///
     /// ```
     /// use derive_builder::Builder;
-    /// use serde::Deserialize;
+    /// use serde::{Deserialize, Serialize};
     /// use tor_config::{ConfigBuildError};
     /// use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
     /// use std::net::SocketAddr;
     ///
     /// #[derive(Debug, Clone, Builder)]
     /// #[builder(build_fn(error = "ConfigBuildError"))]
-    /// #[builder(derive(Deserialize))]
+    /// #[builder(derive(Debug, Serialize, Deserialize))]
     /// pub struct FallbackDir {
     ///     #[builder(sub_builder(fn_name = "build"), setter(custom))]
     ///     orports: Vec<SocketAddr>,
@@ -375,11 +377,11 @@ define_list_builder_helper! {
 #[cfg(test)]
 mod test {
     use derive_builder::Builder;
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
 
     #[test]
     fn nonempty_default() {
-        #[derive(Eq, PartialEq, Builder, Deserialize)]
+        #[derive(Eq, PartialEq, Builder, Serialize, Deserialize)]
         struct Outer {
             #[builder(sub_builder, setter(custom))]
             list: List,

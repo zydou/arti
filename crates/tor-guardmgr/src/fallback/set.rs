@@ -7,7 +7,6 @@ use std::time::{Duration, Instant};
 use super::{DirStatus, FallbackDir, FallbackDirBuilder};
 use crate::fallback::default_fallbacks;
 use crate::{ids::FallbackId, PickGuardError};
-use serde::Deserialize;
 use tor_config::define_list_builder_helper;
 
 /// A list of fallback directories.
@@ -15,8 +14,7 @@ use tor_config::define_list_builder_helper;
 /// Fallback directories (represented by [`FallbackDir`]) are used by Tor
 /// clients when they don't already have enough other directory information to
 /// contact the network.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FallbackList {
     /// The underlying fallbacks in this set.
     fallbacks: Vec<FallbackDir>,
