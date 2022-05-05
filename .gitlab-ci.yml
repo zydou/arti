@@ -172,7 +172,7 @@ coverage-aggregated:
 
 pages:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" # && $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
   stage: deploy
   image: debian:stable-slim
   script:
