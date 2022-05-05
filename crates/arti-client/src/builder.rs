@@ -121,13 +121,6 @@ impl<R: Runtime> TorClientBuilder<R> {
         self
     }
 
-    /// Replace the default configuration for permission validation with a given
-    /// fs_mistrust object.
-    pub fn override_fs_permission_checks(mut self, mistrust: fs_mistrust::Mistrust) -> Self {
-        self.fs_mistrust = Some(mistrust);
-        self
-    }
-
     /// Override the default function used to construct the directory provider.
     ///
     /// Only available when compiled with the `experimental-api` feature: this

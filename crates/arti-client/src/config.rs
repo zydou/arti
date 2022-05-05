@@ -362,7 +362,10 @@ impl TorClientConfigBuilder {
 ///
 /// This is based on the environment rather on the configuration, since we may
 /// want to use it to determine whether configuration files are safe to read.
-pub fn default_fs_mistrust() -> fs_mistrust::Mistrust {
+//
+// TODO: This function should probably go away and become part of our storage
+// configuration code, once we have made Mistrust configurable via Deserialize.
+pub(crate) fn default_fs_mistrust() -> fs_mistrust::Mistrust {
     let mut mistrust = fs_mistrust::Mistrust::new();
     if std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some() {
         mistrust.dangerously_trust_everyone();

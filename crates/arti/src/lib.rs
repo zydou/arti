@@ -151,17 +151,21 @@ pub async fn run<R: Runtime>(
     config_sources: arti_config::ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
-    fs_permissions: fs_mistrust::Mistrust,
+    fs_mistrust_disabled: bool,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
     // for bootstrap to complete, rather than getting errors.
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
-    let client = TorClient::with_runtime(runtime.clone())
+    let mut client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
-        .bootstrap_behavior(OnDemand)
-        .override_fs_permission_checks(fs_permissions)
-        .create_unbootstrapped()?;
+        .bootstrap_behavior(OnDemand);
+    if fs_mistrust_disabled {
+        client_builder = client_builder.disable_fs_permission_checks();
+    } else {
+        client_builder = client_builder.enable_fs_permission_checks();
+    }
+    let client = client_builder.create_unbootstrapped()?;
     if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
@@ -204,6 +208,15 @@ pub async fn run<R: Runtime>(
         }.fuse()
             => r.context("bootstrap"),
     )
+}
+
+/// Return true if the environment has been set up to disable FS mistrust.
+//
+// TODO(nickm): This is duplicate logic from arti_client config. When we make
+// fs_mistrust configurable via deserialize, as a real part of our configuration
+// logic, we should unify all this code.
+fn fs_mistrust_disabled_via_env() -> bool {
+    std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some()
 }
 
 /// Inner function to allow convenient error handling
@@ -283,7 +296,18 @@ pub fn main_main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let mistrust = arti_client::config::default_fs_mistrust();
+    let fs_mistrust_disabled = fs_mistrust_disabled_via_env();
+
+    let mistrust = {
+        // TODO: This is duplicate code from arti_client::config.  When we make
+        // fs_mistrust configurable via deserialize, as a real part of our configuration
+        // logic, we should unify this check.
+        let mut mistrust = fs_mistrust::Mistrust::new();
+        if fs_mistrust_disabled {
+            mistrust.dangerously_trust_everyone();
+        }
+        mistrust
+    };
 
     let cfg_sources = {
         let mut cfg_sources = arti_config::ConfigurationSources::new();
@@ -367,7 +391,7 @@ pub fn main_main() -> Result<()> {
             cfg_sources,
             config,
             client_config,
-            mistrust,
+            fs_mistrust_disabled,
         ))?;
         Ok(())
     } else {
