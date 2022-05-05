@@ -24,6 +24,8 @@ use tracing::{info, warn};
 
 use crate::event::{DirStatus, DirStatusInner};
 
+#[cfg(feature = "dirfilter")]
+use crate::filter::{DirFilter, NilFilter};
 use crate::storage::DynStore;
 use crate::DocSource;
 use crate::{
@@ -141,28 +143,9 @@ pub(crate) trait DirState: Send {
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>>;
 }
 
-/// An object where we can put a usable netdir.
-///
-/// Note that there's only one implementation for this trait: DirMgr.
-/// We make this a trait anyway to make sure that the different states
-/// in this module can _only_ interact with the DirMgr through
-/// modifying the NetDir and looking at the configuration.
-pub(crate) trait WriteNetDir: 'static + Sync + Send {
-    /// Return the currently configured DynFilter for this state.
-    #[cfg(feature = "dirfilter")]
-    fn filter(&self) -> &dyn crate::filter::DirFilter;
-}
-
-impl<R: Runtime> WriteNetDir for crate::DirMgr<R> {
-    #[cfg(feature = "dirfilter")]
-    fn filter(&self) -> &dyn crate::filter::DirFilter {
-        self.filter.as_deref().unwrap_or(&crate::filter::NilFilter)
-    }
-}
-
 /// Initial state: fetching or loading a consensus directory.
 #[derive(Clone, Debug)]
-pub(crate) struct GetConsensusState<DM: WriteNetDir, R: Runtime> {
+pub(crate) struct GetConsensusState<R: Runtime> {
     /// How should we get the consensus from the cache, if at all?
     cache_usage: CacheUsage,
 
@@ -177,17 +160,13 @@ pub(crate) struct GetConsensusState<DM: WriteNetDir, R: Runtime> {
     /// If present, our next state.
     ///
     /// (This is present once we have a consensus.)
-    next: Option<GetCertsState<DM, R>>,
+    next: Option<GetCertsState<R>>,
 
     /// A list of RsaIdentity for the authorities that we believe in.
     ///
     /// No consensus can be valid unless it purports to be signed by
     /// more than half of these authorities.
     authority_ids: Vec<RsaIdentity>,
-
-    /// A weak reference to the directory manager that wants us to
-    /// fetch this information.  When this references goes away, we exit.
-    writedir: Weak<DM>,
 
     /// A `Runtime` implementation.
     rt: R,
@@ -196,24 +175,36 @@ pub(crate) struct GetConsensusState<DM: WriteNetDir, R: Runtime> {
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
     prev_netdir: Option<Arc<NetDir>>,
+
+    /// A filter that gets applied to directory objects before we use them.
+    #[cfg(feature = "dirfilter")]
+    filter: Arc<dyn DirFilter>,
 }
 
-impl<R: Runtime> GetConsensusState<DirMgr<R>, R> {
+impl<R: Runtime> GetConsensusState<R> {
     /// Bodge version of Self::new() with the old pre-refactor signature.
     /// This will go away when the refactor is complete.
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn bodge_new(writedir: Weak<DirMgr<R>>, cache_usage: CacheUsage) -> Result<Self> {
         if let Some(netdir) = Weak::upgrade(&writedir) {
             let config = netdir.config.get();
             let prev_netdir = netdir.opt_netdir();
             let rt = netdir.runtime.clone();
-            Ok(Self::new(rt, config, cache_usage, prev_netdir, writedir))
+            Ok(Self::new(
+                rt,
+                config,
+                cache_usage,
+                prev_netdir,
+                #[cfg(feature = "dirfilter")]
+                netdir.filter.clone().unwrap_or_else(|| Arc::new(NilFilter)),
+            ))
         } else {
             Err(Error::ManagerDropped)
         }
     }
 }
 
-impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
+impl<R: Runtime> GetConsensusState<R> {
     /// Create a new `GetConsensusState`, using the cache as per `cache_usage` and downloading as
     /// per the relevant sections of `config`. If `prev_netdir` is supplied, information from that
     /// directory may be used to complete the next one.
@@ -222,8 +213,7 @@ impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
         config: Arc<DirMgrConfig>,
         cache_usage: CacheUsage,
         prev_netdir: Option<Arc<NetDir>>,
-        // NOTE(eta): This `writedir` is going away soon.
-        writedir: Weak<DM>,
+        #[cfg(feature = "dirfilter")] filter: Arc<dyn DirFilter>,
     ) -> Self {
         let authority_ids = config
             .authorities()
@@ -237,15 +227,16 @@ impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
             after,
             next: None,
             authority_ids,
-            writedir,
             rt,
             config,
             prev_netdir,
+            #[cfg(feature = "dirfilter")]
+            filter,
         }
     }
 }
 
-impl<DM: WriteNetDir, R: Runtime> DirState for GetConsensusState<DM, R> {
+impl<R: Runtime> DirState for GetConsensusState<R> {
     fn describe(&self) -> String {
         if self.next.is_some() {
             "About to fetch certificates."
@@ -332,7 +323,7 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetConsensusState<DM, R> {
     }
 }
 
-impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
+impl<R: Runtime> GetConsensusState<R> {
     /// Helper: try to set the current consensus text from an input
     /// string `text`.  Refuse it if the authorities could never be
     /// correct, or if it is ill-formed.
@@ -346,11 +337,7 @@ impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
             let (signedval, remainder, parsed) =
                 MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
             #[cfg(feature = "dirfilter")]
-            let parsed = if let Some(wd) = Weak::upgrade(&self.writedir) {
-                wd.filter().filter_consensus(parsed)?
-            } else {
-                parsed
-            };
+            let parsed = self.filter.filter_consensus(parsed)?;
             let now = self.rt.wallclock();
             let timely = parsed.check_valid_at(&now)?;
             let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
@@ -382,10 +369,11 @@ impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
             consensus_meta,
             missing_certs: desired_certs,
             certs: Vec::new(),
-            writedir: Weak::clone(&self.writedir),
             rt: self.rt.clone(),
             config: self.config.clone(),
             prev_netdir: self.prev_netdir.take(),
+            #[cfg(feature = "dirfilter")]
+            filter: self.filter.clone(),
         });
 
         // Unwrap should be safe because `next` was just assigned
@@ -408,7 +396,7 @@ impl<DM: WriteNetDir, R: Runtime> GetConsensusState<DM, R> {
 /// we are given a bad consensus signed with fictional certificates
 /// that we can never find.
 #[derive(Clone, Debug)]
-struct GetCertsState<DM: WriteNetDir, R: Runtime> {
+struct GetCertsState<R: Runtime> {
     /// The cache usage we had in mind when we began.  Used to reset.
     cache_usage: CacheUsage,
     /// Where did we get our consensus?
@@ -422,8 +410,6 @@ struct GetCertsState<DM: WriteNetDir, R: Runtime> {
     missing_certs: HashSet<AuthCertKeyIds>,
     /// A list of the certificates we've been able to load or download.
     certs: Vec<AuthCert>,
-    /// Reference to our directory manager.
-    writedir: Weak<DM>,
 
     /// A `Runtime` implementation.
     rt: R,
@@ -432,9 +418,13 @@ struct GetCertsState<DM: WriteNetDir, R: Runtime> {
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
     prev_netdir: Option<Arc<NetDir>>,
+
+    /// A filter that gets applied to directory objects before we use them.
+    #[cfg(feature = "dirfilter")]
+    filter: Arc<dyn DirFilter>,
 }
 
-impl<DM: WriteNetDir, R: Runtime> DirState for GetCertsState<DM, R> {
+impl<R: Runtime> DirState for GetCertsState<R> {
     fn describe(&self) -> String {
         let total = self.certs.len() + self.missing_certs.len();
         format!(
@@ -565,10 +555,11 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetCertsState<DM, R> {
                 self.cache_usage,
                 validated,
                 self.consensus_meta,
-                self.writedir,
                 self.rt,
                 self.config,
                 self.prev_netdir,
+                #[cfg(feature = "dirfilter")]
+                self.filter,
             )))
         } else {
             Ok(self)
@@ -583,20 +574,19 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetCertsState<DM, R> {
             self.config,
             self.cache_usage,
             self.prev_netdir,
-            self.writedir,
+            #[cfg(feature = "dirfilter")]
+            self.filter,
         )))
     }
 }
 
 /// Final state: we're fetching or loading microdescriptors
 #[derive(Debug, Clone)]
-struct GetMicrodescsState<DM: WriteNetDir, R: Runtime> {
+struct GetMicrodescsState<R: Runtime> {
     /// How should we get the consensus from the cache, if at all?
     cache_usage: CacheUsage,
     /// Total number of microdescriptors listed in the consensus.
     n_microdescs: usize,
-    /// The dirmgr to inform about a usable directory.
-    writedir: Weak<DM>,
     /// The current status of our netdir.
     partial: PendingNetDir,
     /// Metadata for the current consensus.
@@ -616,6 +606,10 @@ struct GetMicrodescsState<DM: WriteNetDir, R: Runtime> {
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
     prev_netdir: Option<Arc<NetDir>>,
+
+    /// A filter that gets applied to directory objects before we use them.
+    #[cfg(feature = "dirfilter")]
+    filter: Arc<dyn DirFilter>,
 }
 
 /// Information about a network directory that might not be ready to become _the_ current network
@@ -745,17 +739,17 @@ impl PendingNetDir {
     }
 }
 
-impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
+impl<R: Runtime> GetMicrodescsState<R> {
     /// Create a new [`GetMicrodescsState`] from a provided
     /// microdescriptor consensus.
     fn new(
         cache_usage: CacheUsage,
         consensus: MdConsensus,
         meta: ConsensusMeta,
-        writedir: Weak<DM>,
         rt: R,
         config: Arc<DirMgrConfig>,
         prev_netdir: Option<Arc<NetDir>>,
+        #[cfg(feature = "dirfilter")] filter: Arc<dyn DirFilter>,
     ) -> Self {
         let reset_time = consensus.lifetime().valid_until();
         let n_microdescs = consensus.relays().len();
@@ -769,7 +763,6 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
         GetMicrodescsState {
             cache_usage,
             n_microdescs,
-            writedir,
             partial: PendingNetDir::Partial(partial_dir),
             meta,
             newly_listed: Vec::new(),
@@ -777,6 +770,9 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
             rt,
             config,
             prev_netdir,
+
+            #[cfg(feature = "dirfilter")]
+            filter,
         }
     }
 
@@ -788,13 +784,10 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
         I: IntoIterator<Item = Microdesc>,
     {
         #[cfg(feature = "dirfilter")]
-        let mds: Vec<Microdesc> = if let Some(wd) = Weak::upgrade(&self.writedir) {
-            mds.into_iter()
-                .filter_map(|m| wd.filter().filter_md(m).ok())
-                .collect()
-        } else {
-            mds.into_iter().collect()
-        };
+        let mds: Vec<Microdesc> = mds
+            .into_iter()
+            .filter_map(|m| self.filter.filter_md(m).ok())
+            .collect();
         let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
         for md in mds {
             if is_partial {
@@ -806,7 +799,7 @@ impl<DM: WriteNetDir, R: Runtime> GetMicrodescsState<DM, R> {
     }
 }
 
-impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
+impl<R: Runtime> DirState for GetMicrodescsState<R> {
     fn describe(&self) -> String {
         format!(
             "Downloading microdescriptors (we are missing {}).",
@@ -963,7 +956,8 @@ impl<DM: WriteNetDir, R: Runtime> DirState for GetMicrodescsState<DM, R> {
             self.config,
             cache_usage,
             self.prev_netdir,
-            self.writedir,
+            #[cfg(feature = "dirfilter")]
+            self.filter,
         )))
     }
 }
@@ -1076,21 +1070,6 @@ mod test {
         Arc::new(cfg)
     }
 
-    struct DirRcv;
-
-    impl DirRcv {
-        fn new() -> Self {
-            DirRcv {}
-        }
-    }
-
-    impl WriteNetDir for DirRcv {
-        #[cfg(feature = "dirfilter")]
-        fn filter(&self) -> &dyn crate::filter::DirFilter {
-            &crate::filter::NilFilter
-        }
-    }
-
     // Test data
     const CONSENSUS: &str = include_str!("../testdata/mdconsensus1.txt");
     const CONSENSUS2: &str = include_str!("../testdata/mdconsensus2.txt");
@@ -1152,7 +1131,6 @@ mod test {
     #[test]
     fn get_consensus_state() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
-            let rcv = Arc::new(DirRcv::new());
             let rt = make_time_shifted_runtime(test_time(), rt);
             let cfg = make_dirmgr_config(None);
 
@@ -1163,7 +1141,8 @@ mod test {
                 cfg,
                 CacheUsage::CacheOkay,
                 None,
-                Arc::downgrade(&rcv),
+                #[cfg(feature = "dirfilter")]
+                Arc::new(NilFilter),
             );
 
             // Is description okay?
@@ -1230,7 +1209,8 @@ mod test {
                 cfg,
                 CacheUsage::CacheOkay,
                 None,
-                Arc::downgrade(&rcv),
+                #[cfg(feature = "dirfilter")]
+                Arc::new(NilFilter),
             );
             let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
             assert!(outcome.unwrap());
@@ -1253,8 +1233,14 @@ mod test {
 
             // Try again, but this time get the state from the cache.
             let cfg = make_dirmgr_config(Some(test_authorities()));
-            let mut state =
-                GetConsensusState::new(rt, cfg, CacheUsage::CacheOkay, None, Arc::downgrade(&rcv));
+            let mut state = GetConsensusState::new(
+                rt,
+                cfg,
+                CacheUsage::CacheOkay,
+                None,
+                #[cfg(feature = "dirfilter")]
+                Arc::new(NilFilter),
+            );
             let text: crate::storage::InputString = CONSENSUS.to_owned().into();
             let map = vec![(docid, text.into())].into_iter().collect();
             let outcome = state.add_from_cache(map);
@@ -1267,8 +1253,7 @@ mod test {
     fn get_certs_state() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             /// Construct a GetCertsState with our test data
-            fn new_getcerts_state(rt: impl Runtime) -> (Arc<DirRcv>, Box<dyn DirState>) {
-                let rcv = Arc::new(DirRcv::new());
+            fn new_getcerts_state(rt: impl Runtime) -> Box<dyn DirState> {
                 let rt = make_time_shifted_runtime(test_time(), rt);
                 let cfg = make_dirmgr_config(Some(test_authorities()));
                 let mut state = GetConsensusState::new(
@@ -1276,17 +1261,18 @@ mod test {
                     cfg,
                     CacheUsage::CacheOkay,
                     None,
-                    Arc::downgrade(&rcv),
+                    #[cfg(feature = "dirfilter")]
+                    Arc::new(NilFilter),
                 );
                 let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
                 let req = crate::docid::ClientRequest::Consensus(req);
                 let outcome = state.add_from_download(CONSENSUS, &req, None);
                 assert!(outcome.unwrap());
-                (rcv, Box::new(state).advance().unwrap())
+                Box::new(state).advance().unwrap()
             }
 
             let (_tempdir, store) = temp_store();
-            let (_rcv, mut state) = new_getcerts_state(rt.clone());
+            let mut state = new_getcerts_state(rt.clone());
             // Basic properties: description, status, reset time.
             assert_eq!(
                 &state.describe(),
@@ -1370,7 +1356,7 @@ mod test {
             );
 
             // If we start from scratch and reset, we're back in GetConsensus.
-            let (_rcv, state) = new_getcerts_state(rt);
+            let state = new_getcerts_state(rt);
             let state = state.reset().unwrap();
             assert_eq!(&state.describe(), "Looking for a consensus.");
 
@@ -1383,10 +1369,7 @@ mod test {
     fn get_microdescs_state() {
         tor_rtcompat::test_with_one_runtime!(|rt| async move {
             /// Construct a GetCertsState with our test data
-            fn new_getmicrodescs_state(
-                rt: impl Runtime,
-            ) -> (Arc<DirRcv>, GetMicrodescsState<DirRcv, impl Runtime>) {
-                let rcv = Arc::new(DirRcv::new());
+            fn new_getmicrodescs_state(rt: impl Runtime) -> GetMicrodescsState<impl Runtime> {
                 let rt = make_time_shifted_runtime(test_time(), rt);
                 let cfg = make_dirmgr_config(Some(test_authorities()));
                 let (signed, rest, consensus) = MdConsensus::parse(CONSENSUS2).unwrap();
@@ -1394,29 +1377,28 @@ mod test {
                     .dangerously_assume_timely()
                     .dangerously_assume_wellsigned();
                 let meta = ConsensusMeta::from_consensus(signed, rest, &consensus);
-                let state = GetMicrodescsState::new(
+                GetMicrodescsState::new(
                     CacheUsage::CacheOkay,
                     consensus,
                     meta,
-                    Arc::downgrade(&rcv),
                     rt,
                     cfg,
                     None,
-                );
-
-                (rcv, state)
+                    #[cfg(feature = "dirfilter")]
+                    Arc::new(NilFilter),
+                )
             }
             fn d64(s: &str) -> MdDigest {
                 base64::decode(s).unwrap().try_into().unwrap()
             }
 
             // If we start from scratch and reset, we're back in GetConsensus.
-            let (_rcv, state) = new_getmicrodescs_state(rt.clone());
+            let state = new_getmicrodescs_state(rt.clone());
             let state = Box::new(state).reset().unwrap();
             assert_eq!(&state.describe(), "Looking for a consensus.");
 
             // Check the basics.
-            let (_rcv, mut state) = new_getmicrodescs_state(rt.clone());
+            let mut state = new_getmicrodescs_state(rt.clone());
             assert_eq!(
                 &state.describe(),
                 "Downloading microdescriptors (we are missing 4)."
