@@ -48,6 +48,26 @@ use tor_netdoc::{
 };
 use tor_rtcompat::Runtime;
 
+/// A change to the currently running `NetDir`, returned by the state machines in this module.
+#[allow(dead_code)] // FIXME
+pub(crate) enum NetDirChange<'a> {
+    /// If the provided `NetDir` is suitable for use (i.e. the caller determines it can build
+    /// circuits with it), replace the current `NetDir` with it.
+    ///
+    /// The caller must call `DirState::on_netdir_replaced` if the replace was successful.
+    AttemptReplace {
+        /// The netdir to replace the current one with, if it's usable.
+        ///
+        /// The `Option` is always `Some` when returned from the state machine; it's there
+        /// so that the caller can call `.take()` to avoid cloning the netdir.
+        netdir: &'a mut Option<NetDir>,
+        /// The consensus metadata for this netdir.
+        consensus_meta: &'a ConsensusMeta,
+    },
+    /// Add the provided microdescriptors to the current `NetDir`.
+    AddMicrodescs(Vec<Microdesc>),
+}
+
 /// A "state" object used to represent our progress in downloading a
 /// directory.
 ///
@@ -76,6 +96,11 @@ pub(crate) trait DirState: Send {
     fn missing_docs(&self) -> Vec<DocId>;
     /// Describe whether this state has reached `ready` status.
     fn is_ready(&self, ready: Readiness) -> bool;
+    /// If the state object wants to make changes to the currently running `NetDir`,
+    /// return the proposed changes.
+    fn get_netdir_change(&mut self) -> Option<NetDirChange<'_>> {
+        None
+    }
     /// Return true if this state can advance to another state via its
     /// `advance` method.
     fn can_advance(&self) -> bool;
