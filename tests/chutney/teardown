@@ -3,15 +3,6 @@ set -xe
 
 cd "$(git rev-parse --show-toplevel)"
 
-# Tell shellcheck that yes, we know that we're sourcing a file.
-# shellcheck disable=SC1091
-source tests/chutney/arti.run
-
-# Tells shellcheck that these variables are set; exits early if they
-# are not.
-pid="${pid:?}"
-target="${target:?}"
-
 if [ -z "${CHUTNEY_PATH}" ]; then
     # Use the default chutney path we set up before.
     CHUTNEY_PATH="$(pwd)/chutney"
@@ -21,13 +12,22 @@ else
     echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
 fi
 
+# Tell shellcheck that yes, we know that we're sourcing a file.
+# shellcheck disable=SC1091
+source tests/chutney/arti.run
 
-# Tolerate a failure here: even in case the arti process already died
-# for some reason, we still want to shut down the chutney network.
-kill -s INT "$pid" || true
-# wait $pid, but $pid was started by a different process
-tail --pid="$pid" -f /dev/null
+# If Arti was started, stop it. If it wasn't, that's an error and it'll be reported
+# when we can't read $result later.
+if [ -n "$pid" ]; then
+    # Tolerate a failure here: even in case the arti process already died
+    # for some reason, we still want to shut down the chutney network.
+    kill -s INT "$pid" || true
+    # wait $pid, but $pid was started by a different process
+    tail --pid="$pid" -f /dev/null
+fi
 
+# Tells shellcheck that this variables is set; exits early if it isn't.
+target="${target:?}"
 "${CHUTNEY_PATH}/chutney" stop "${CHUTNEY_PATH}/$target"
 
 # Tell shellcheck that yes, we know that we're sourcing a file.

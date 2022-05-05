@@ -50,6 +50,7 @@ done
 
 target="networks/$NETWORK"
 cd "$(git rev-parse --show-toplevel)"
+echo "target=$target" > tests/chutney/arti.run
 
 if [ -z "${CHUTNEY_PATH}" ]; then
     # CHUTNEY_PATH isn't set; try cloning or updating a local chutney.
@@ -90,7 +91,6 @@ fi
 	set +e
 	"$cmd" proxy -c "${CHUTNEY_PATH}/net/nodes/arti.toml" -d 35353 &
 	pid=$!
-	echo "target=$target" > tests/chutney/arti.run
 	echo "pid=$pid" >> tests/chutney/arti.run
 	wait "$pid"
 	echo "result=$?" >> tests/chutney/arti.run
