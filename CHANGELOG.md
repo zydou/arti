@@ -53,7 +53,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   enabled (which it is, by default), the string `[scrubbed]` is printed
   in these contexts, rather than the sensitive information.
   At present, only target addresses are considered sensitive, though
-  we aim to increase that information moving forward.  This feature can
+  we aim to protect more information moving forward.  This feature can
   be disabled with the configuration option
   `storage.log_sensitive_information`.  ([#189], [!485])
 
@@ -61,12 +61,12 @@ Numerous other lower-level crates have breaking changes not noted here.
 
 - Our circuit-build logic is now much more careful about which errors are
   retriable, and how long to wait between attempts. ([#421], [!443])
-- Resolved a race condition that could cause internal errors to be
-  erroneously reported during circuit construction. ([#427])
-- Stop interpreting a successfully constructed circuit as meaning that a
+- We resolved a race condition that could cause internal errors to be
+  reported erroneously during circuit construction. ([#427])
+- We no longer interpret a successful circuit as meaning that a
   guard is working _as a directory_.  Even if it can build circuits, it
-  may be unable to answer directory requests to our satisfaction
-  ([b3e06b93b6a34922]).
+  may be unable to answer directory requests to our satisfaction.
+  ([b3e06b93b6a34922])
 
 ### Infrastructure
 
