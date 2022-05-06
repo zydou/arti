@@ -7,6 +7,7 @@ use futures::future::FutureExt;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Error as IoError};
 use futures::stream::StreamExt;
 use futures::task::SpawnExt;
+use safelog::sensitive;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use tracing::{error, info, warn};
@@ -162,7 +163,7 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
     info!(
         "Got a socks request: {} {}:{}",
         request.command(),
-        addr,
+        sensitive(&addr),
         port
     );
 
@@ -202,7 +203,7 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
                 }
             };
             // Okay, great! We have a connection over the Tor network.
-            info!("Got a stream for {}:{}", addr, port);
+            info!("Got a stream for {}:{}", sensitive(&addr), port);
             // TODO: Should send a SOCKS reply if something fails. See #258.
 
             // Send back a SOCKS response, telling the client that it

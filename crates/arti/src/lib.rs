@@ -130,6 +130,7 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::{TorClient, TorClientConfig};
 use arti_config::default_config_file;
+use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Result};
@@ -364,5 +365,5 @@ pub fn main_main() -> Result<()> {
 
 /// Main program, callable directly from a binary crate's `main`
 pub fn main() {
-    main_main().unwrap_or_else(tor_error::report_and_exit);
+    main_main().unwrap_or_else(|e| with_safe_logging_suppressed(|| tor_error::report_and_exit(e)));
 }

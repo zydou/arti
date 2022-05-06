@@ -1,0 +1,26 @@
+[package]
+name = "safelog"
+version = "0.2.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2021"
+rust-version = "1.56"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Conditionally suppress confidential information from logs"
+keywords = ["tor", "arti", "logging", "privacy"]
+# We must put *something* here and this will do
+categories = ["rust-patterns"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = []
+
+[dependencies]
+educe = "0.4.6"
+thiserror = "1"
+fluid-let = "1"
+serde = { version = "1.0.103", optional = true, features = ["derive"] }
+
+[dev-dependencies]
+serial_test = "0.6"
+static_assertions = "1"

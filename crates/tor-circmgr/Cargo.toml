@@ -19,6 +19,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 experimental-api = []
 
 [dependencies]
+safelog = { path = "../safelog", version = "0.2.0" }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.2.0" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.2.0" }
 tor-config = { path = "../tor-config", version = "0.2.0" }

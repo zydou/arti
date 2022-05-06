@@ -7,7 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{CfgPath, ConfigBuildError};
-use tracing::Subscriber;
+use tracing::{warn, Subscriber};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
@@ -40,6 +40,16 @@ pub struct LoggingConfig {
     #[builder_field_attr(serde(default))]
     #[builder(sub_builder, setter(custom))]
     files: LogfileListConfig,
+
+    /// If set to true, we disable safe logging on _all logs_, and store
+    /// potentially sensitive information at level `info` or higher.
+    ///
+    /// This can be useful for debugging, but it increases the value of your
+    /// logs to an attacker.  Do not turn this on in production unless you have
+    /// a good log rotation mechanism.
+    #[builder_field_attr(serde(default))]
+    #[builder(default)]
+    log_sensitive_information: bool,
 }
 
 /// Return a default tracing filter value for `logging.console`.
@@ -135,6 +145,28 @@ fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>
     })
 }
 
+/// Helper to disable safe-logging when formatting an event to be logged to the
+/// console.
+struct FormatWithSafeLoggingSuppressed<F> {
+    /// An inner formatting type that does the actual formatting.
+    inner: F,
+}
+impl<S, N, F> fmt::FormatEvent<S, N> for FormatWithSafeLoggingSuppressed<F>
+where
+    F: fmt::FormatEvent<S, N>,
+    N: for<'writer> fmt::FormatFields<'writer> + 'static,
+    S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
+{
+    fn format_event(
+        &self,
+        ctx: &fmt::FmtContext<'_, S, N>,
+        writer: fmt::format::Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        safelog::with_safe_logging_suppressed(|| self.inner.format_event(ctx, writer, event))
+    }
+}
+
 /// Try to construct a tracing [`Layer`] for logging to stdout.
 fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl Layer<S>>
 where
@@ -144,7 +176,14 @@ where
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
         .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
-    Ok(fmt::Layer::default().with_filter(filter))
+    // We suppress safe logging when formatting messages for the console,
+    // which we assume to be volatile.
+    let format = FormatWithSafeLoggingSuppressed {
+        inner: fmt::format(),
+    };
+    Ok(fmt::Layer::default()
+        .event_format(format)
+        .with_filter(filter))
 }
 
 /// Try to construct a tracing [`Layer`] for logging to journald, if one is
@@ -234,6 +273,10 @@ pub struct LogGuards {
     /// The actual list of guards we're returning.
     #[allow(unused)]
     guards: Vec<WorkerGuard>,
+
+    /// A safelog guard, for use if we have decided to disable safe logging.
+    #[allow(unused)]
+    safelog_guard: Option<safelog::Guard>,
 }
 
 /// Set up logging.
@@ -259,5 +302,22 @@ pub fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGua
 
     registry.init();
 
-    Ok(LogGuards { guards })
+    let safelog_guard = if config.log_sensitive_information {
+        match safelog::disable_safe_logging() {
+            Ok(guard) => Some(guard),
+            Err(e) => {
+                // We don't need to propagate this error; it isn't the end of
+                // the world if we were unable to disable safe logging.
+                warn!("Unable to disable safe logging: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    Ok(LogGuards {
+        guards,
+        safelog_guard,
+    })
 }
