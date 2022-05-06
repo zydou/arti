@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 /// safe-logging.
 ///
 /// The value of this atomic is less than 0 if we have enabled unsafe logging.
-/// greater than 0 if we have enabled safe logging 0 if nobody cares.
+/// greater than 0 if we have enabled safe logging, and 0 if nobody cares.
 static LOGGING_STATE: AtomicIsize = AtomicIsize::new(0);
 
 fluid_let!(
