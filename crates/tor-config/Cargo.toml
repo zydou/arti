@@ -1,6 +1,6 @@
 [package]
 name = "tor-config"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -16,8 +16,8 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
-tor-error = { path = "../tor-error", version = "0.2.0" }
-tor-basic-utils = { path="../tor-basic-utils", version = "0.2.0" }
+tor-error = { path = "../tor-error", version = "0.3.0"}
+tor-basic-utils = { path="../tor-basic-utils", version = "0.3.0"}
 
 thiserror = "1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
