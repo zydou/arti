@@ -2,6 +2,7 @@ stages:
   - check
   - build
   - test
+  - deploy
 
 variables:
   # We don't need Husky to install the Git hooks for CI.
@@ -35,8 +36,6 @@ rust-latest:
     - ./maint/cargo_audit
     - cp $CARGO_HOME/bin/cargo-audit .
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
-  tags:
-    - amd64
   cache:
     paths:
       - cargo-audit
@@ -45,6 +44,8 @@ rust-latest:
       - target/x86_64-unknown-linux-gnu/debug/arti
       - target/x86_64-unknown-linux-gnu/release/arti-bench
     expire_in: 1 hours
+  tags:
+    - amd64
 
 rust-latest-async-std-rustls:
   stage: build
@@ -85,16 +86,15 @@ coverage:
     - cp grcov $CARGO_HOME/bin/ || cargo install grcov
     - cp $CARGO_HOME/bin/grcov .
     # Generate report
-    - ./maint/with_coverage cargo test --verbose --all-features
-    - ./maint/with_coverage -f cobertura -o coverage.xml -c true
+    - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --verbose --all-features
   cache:
     paths:
       - grcov
   artifacts:
-    paths:
-      - 'coverage'
     reports:
       cobertura: coverage.xml
+  tags:
+    - amd64
 
 minimal-versions:
   stage: test
@@ -145,3 +145,42 @@ integration:
       - benchmark_results.json
   tags:
     - amd64
+
+coverage-aggregated:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  stage: test
+  image: rust:latest
+  needs: []
+  script:
+    - apt update && apt install -y tor python3 python3-pip python3-setuptools curl
+    # install deps for report generation
+    - pip3 install beautifulsoup4 lxml
+    - rustup component add llvm-tools-preview
+    - cp grcov $CARGO_HOME/bin/ || cargo install grcov
+    - cp $CARGO_HOME/bin/grcov .
+    # Generate report
+    - ./maint/coverage all
+  cache:
+    paths:
+      - grcov
+  artifacts:
+    paths:
+      - coverage
+  tags:
+    - amd64
+
+pages:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_REF_NAME == "main"
+  stage: deploy
+  image: debian:stable-slim
+  script:
+    - apt update && apt install -y git
+    # Export report as website, while keeping the existing public page
+    - git fetch
+    - git checkout origin/pages -- public/
+    - mv coverage public/
+  artifacts:
+    paths:
+      - public

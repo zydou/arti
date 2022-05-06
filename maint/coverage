@@ -10,7 +10,6 @@ Usage:
 
 Options:
   -h: Print this message.
-  -c: Continue using data from previous runs. (By default, data is deleted.)
 
 Suites:
   "unit": equivalent to cargo test --all-features
@@ -28,14 +27,11 @@ set -e
 TOPDIR=$(dirname "$0")/..
 cd "$TOPDIR"
 
-CLEAR=yes
 UNIT=no
 INTEGRATION=no
 
 while getopts "ch" opt ; do
     case "$opt" in
-	c) CLEAR=no
-	   ;;
 	h) usage
 	   exit 0
 	   ;;
@@ -68,15 +64,16 @@ if [ "$UNIT" = no ] && [ "$INTEGRATION" = no ]; then
     exit 1
 fi
 
-if [ "$CLEAR" = yes ] ; then
-    # Clear the old coverage report.  We do this by default unless
-    # we are given the -c option.
-    ./maint/with_coverage -s /bin/true
-fi
+# Clear the old coverage report and profiling data.
+rm -r coverage coverage_meta_{unit,integration} || true
+mkdir coverage
+echo '<a href="all">all</a><br/>' > coverage/index.html
 
 if [ "$UNIT" = yes ] ; then
     # Run the unit tests, with coverage.
-    ./maint/with_coverage -c -s cargo test --all-features
+    ./maint/with_coverage -o coverage/unit cargo test --all-features
+    mv coverage_meta coverage_meta_unit
+    echo '<a href="unit">unit</a><br/>' >> coverage/index.html
 fi
 
 if [ "$INTEGRATION" = yes ] ; then
@@ -89,12 +86,21 @@ if [ "$INTEGRATION" = yes ] ; then
     # go into a basic extensible integration-testing script that gets
     # run both from here and from the .gitlab-ci.yml file.
     trap ./tests/chutney/teardown 0
-    ./maint/with_coverage -c -s ./tests/chutney/setup proxy
+    ./maint/with_coverage -o coverage/integration -s ./tests/chutney/setup proxy
     curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
     trap - 0
     ./tests/chutney/teardown
+    # Report is generated after teardown because chutney/setup returns before any
+    # test was done, so the report would be generated based on incomplete data.
+    ./maint/with_coverage -o coverage/integration -c true
+    mv coverage_meta coverage_meta_integration
+    echo '<a href="integration">integration</a><br/>' >> coverage/index.html
 fi
 
-# Generate the coverage report.
-./maint/with_coverage -c /bin/true
+# Generate merged coverage report.
+mkdir coverage_meta
+cat coverage_meta_*/commands > coverage_meta/commands
+mv coverage_meta_* coverage_meta
+
+./maint/with_coverage -o coverage/all -c true
 
