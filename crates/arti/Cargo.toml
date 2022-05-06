@@ -35,7 +35,7 @@ anyhow = "1.0.23"
 async-ctrlc = { version = "1.2.0", optional = true }
 config = { version = "0.13", default-features = false, features = ["toml"] }
 cfg-if = "1.0.0"
-derive_builder = { version = "0.11", git = "https://github.com/ijackson/rust-derive-builder", rev = "ba0c1a5311bd9f93ddf5f5b8ec2a5f6f03b22fbe" }
+derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 futures = "0.3.14"
 tracing = "0.1.18"
 notify = "4.0"
