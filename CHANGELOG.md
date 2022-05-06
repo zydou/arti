@@ -27,7 +27,7 @@ Numerous other lower-level crates have breaking changes not noted here.
   Major changes are described below.  We expect that we're mostly
   done with breaking changes in this area, though we expect a few
   minor API breaks here in the next release.
-  - Lists of objects, and contained configuration objects objects, are
+  - Lists of objects, and contained configuration objects, are
     now constructed using a uniform pattern.
   - All of our config _builder_ types are now `Deserialize`; our
     configuration types themselves are not.
@@ -76,7 +76,7 @@ Numerous other lower-level crates have breaking changes not noted here.
 ### Cleanups, minor features, and minor bugfixes
 
 - We report more accurate and useful messages on failure to build a
-  circuits. ([f7810d42eb953bf5])
+  circuit. ([f7810d42eb953bf5])
 - Avoid dropping information when reloading guards. ([#429])
 - Arti now treats expired or not-yet-valid directory objects as an error
   condition, since they indicate that the directory cache (or the
