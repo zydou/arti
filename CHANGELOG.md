@@ -21,15 +21,12 @@ Numerous other lower-level crates have breaking changes not noted here.
 - We now require Rust 1.56 or later. This change enables us to use more
   recent versions of several of our dependencies, including a
   significantly faster `aes`.  ([!472])
-
 - Some unused accessors have been removed from
   `tor-socksproto`. ([3103549cba603173])
-
 - Our configuration logic and APIs have been significantly revised.
   Major changes are described below.  We expect that we're mostly
   done with breaking changes in this area, though we expect a few
   minor API breaks here in the next release.
-
   - Lists of objects, and contained configuration objects objects, are
     now constructed using a uniform pattern.
   - All of our config _builder_ types are now `Deserialize`; our
@@ -48,12 +45,9 @@ Numerous other lower-level crates have breaking changes not noted here.
   fallback directories that we contact, and uses this information to
   infer whether our clock is actually skewed, and whether this skew is
   the likely cause of a failure to bootstrap. ([!450], [!455])
-
 - We now remove obsolete files from our state directory. ([#282])
-
 - More objects from `tor-dirmgr` are now exposed when the
   `experimental-api` feature is enabled. ([!463])
-
 - Arti now has a feature to avoid logging certain sensitive information to
   persistent logs at level `info` or higher.  When safe logging is
   enabled (which it is, by default), the string `[scrubbed]` is printed
@@ -67,10 +61,8 @@ Numerous other lower-level crates have breaking changes not noted here.
 
 - Our circuit-build logic is now much more careful about which errors are
   retriable, and how long to wait between attempts. ([#421], [!443])
-
 - Resolved a race condition that could cause internal errors to be
   erroneously reported during circuit construction. ([#427])
-
 - Stop interpreting a successfully constructed circuit as meaning that a
   guard is working _as a directory_.  Even if it can build circuits, it
   may be unable to answer directory requests to our satisfaction
@@ -85,21 +77,15 @@ Numerous other lower-level crates have breaking changes not noted here.
 
 - We report more accurate and useful messages on failure to build a
   circuits. ([f7810d42eb953bf5])
-
 - Avoid dropping information when reloading guards. ([#429])
-
 - Arti now treats expired or not-yet-valid directory objects as an error
   condition, since they indicate that the directory cache (or the
   client) likely has a skewed clock. ([#431])
-
 - We now back off on attempts to build preemptive circuits, if we find
   that those attempts are failing.  ([#437], [!456])
-
 - As part of the configuration refactoring, we've extended the amount of
   our configuration builders that are auto-generated. ([!462])
-
 - Improve handling of some integer overflows. ([!466])
-
 - More unit tests throughout the code.
 
 ### Acknowledgments
