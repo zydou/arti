@@ -18,3 +18,19 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.3.0
 
+### arti-client
+
+MODIFIED: Code to configure fs-mistrust.
+BREAKING: TorConfig no longer implements TryInto<DirMgrConfig>
+
+### fs-mistrust
+
+MODIFIED: New APIs for CachedDir, Error.
+
+### tor-dirmgr
+
+BREAKING: Added new cache_trust element to DirMgrConfig.
+
+### tor-persist
+
++BREAKING: Replaced from_path with from_path_and_mistrust

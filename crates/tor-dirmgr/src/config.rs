@@ -189,6 +189,9 @@ pub struct DirMgrConfig {
     /// Cannot be changed on a running Arti client.
     pub cache_path: PathBuf,
 
+    /// Rules for whether to trust the the permissions on the cache_path.
+    pub cache_trust: fs_mistrust::Mistrust,
+
     /// Configuration information about the network.
     pub network: NetworkConfig,
 
@@ -228,10 +231,13 @@ impl DirMgrConfig {
     /// Note that each time this is called, a new store object will be
     /// created: you probably only want to call this once.
     pub(crate) fn open_store(&self, readonly: bool) -> Result<DynStore> {
-        Ok(Box::new(crate::storage::SqliteStore::from_path(
-            &self.cache_path,
-            readonly,
-        )?))
+        Ok(Box::new(
+            crate::storage::SqliteStore::from_path_and_mistrust(
+                &self.cache_path,
+                &self.cache_trust,
+                readonly,
+            )?,
+        ))
     }
 
     /// Return a slice of the configured authorities
@@ -251,6 +257,7 @@ impl DirMgrConfig {
     pub(crate) fn update_from_config(&self, new_config: &DirMgrConfig) -> DirMgrConfig {
         DirMgrConfig {
             cache_path: self.cache_path.clone(),
+            cache_trust: self.cache_trust.clone(),
             network: NetworkConfig {
                 fallback_caches: new_config.network.fallback_caches.clone(),
                 authorities: self.network.authorities.clone(),

@@ -200,6 +200,17 @@
 //!    * SELinux capabilities
 //!    * POSIX (and other) ACLs.
 //!
+//! We use a somewhat inaccurate heuristic when we're checking the permissions
+//! of items _inside_ a target directory (using [`Verifier::check_content`] or
+//! [`CheckedDir`]): we continue to forbid untrusted-writeable directories and
+//! files, but we still allow readable ones, even if we insisted that the target
+//! directory itself was required to to be unreadable.  This is too permissive
+//! in the case of readable objects with hard links: if there is a hard link to
+//! the file somewhere else, then an untrusted user can read it.  It is also too
+//! restrictive in the case of writeable objects _without_ hard links: if
+//! untrusted users have no path to those objects, they can't actually write
+//! them.
+//!
 //! On Windows, we accept all file permissions and owners.
 //!
 //! We don't check for mount-points and the privacy of filesystem devices
@@ -232,7 +243,6 @@
 
 // POSSIBLY TODO:
 //  - Cache information across runs.
-//  - Add a way to recursively check the contents of a directory.
 
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -907,7 +917,7 @@ mod test {
         d.chmod("a", 0o700);
         d.chmod("a/b", 0o700);
         d.chmod("a/b/c", 0o755);
-        d.chmod("a/b/c/d", 0o644);
+        d.chmod("a/b/c/d", 0o666);
 
         let mut m = Mistrust::new();
         m.ignore_prefix(d.canonical_root()).unwrap();
@@ -915,15 +925,18 @@ mod test {
         // A check should work...
         m.check_directory(d.path("a/b")).unwrap();
 
-        // But we get errors if we check the contents.
+        // But we get an error if we check the contents.
         let e = m
             .verifier()
             .all_errors()
             .check_content()
             .check(d.path("a/b"))
             .unwrap_err();
+        assert_eq!(1, e.errors().count());
 
-        assert_eq!(2, e.errors().count());
+        // We only expect an error on the _writable_ contents: the _readable_
+        // a/b/c is okay.
+        assert_eq!(e.path().unwrap(), d.path("a/b/c/d"));
     }
 
     #[test]

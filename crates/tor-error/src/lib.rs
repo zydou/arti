@@ -158,6 +158,15 @@ pub enum ErrorKind {
     #[display(fmt = "could not read/write persistent state")]
     PersistentStateAccessFailed,
 
+    /// We encountered a problem with filesystem permissions.
+    ///
+    /// This is likeliest to be caused by permissions on a file or directory
+    /// being too permissive; the next likeliest cause is that we were unable to
+    /// check the permissions on the file or directory, or on one of its
+    /// ancestors.
+    #[display(fmt = "problem with filesystem permissions")]
+    FsPermissions,
+
     /// Tor client's persistent state has been corrupted
     ///
     /// This could be because of a bug in the Tor code, or because something

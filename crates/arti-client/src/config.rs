@@ -321,20 +321,19 @@ impl TorClientConfig {
     pub fn builder() -> TorClientConfigBuilder {
         TorClientConfigBuilder::default()
     }
-}
 
-impl TryInto<dir::DirMgrConfig> for &TorClientConfig {
-    type Error = ConfigBuildError;
-
+    /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
-    fn try_into(self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+    pub(crate) fn dir_mgr_config(&self, mistrust: fs_mistrust::Mistrust) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             cache_path:          self.storage.expand_cache_dir()?,
+            cache_trust:         mistrust,
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
         })
+
     }
 }
 
@@ -354,6 +353,21 @@ impl TorClientConfigBuilder {
             .state_dir(CfgPath::new_literal(state_dir.as_ref()));
         builder
     }
+}
+
+/// Return a default value for our fs_mistrust configuration.
+///
+/// This is based on the environment rather on the configuration, since we may
+/// want to use it to determine whether configuration files are safe to read.
+//
+// TODO: This function should probably go away and become part of our storage
+// configuration code, once we have made Mistrust configurable via Deserialize.
+pub(crate) fn default_fs_mistrust() -> fs_mistrust::Mistrust {
+    let mut mistrust = fs_mistrust::Mistrust::new();
+    if std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some() {
+        mistrust.dangerously_trust_everyone();
+    }
+    mistrust
 }
 
 #[cfg(test)]

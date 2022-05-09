@@ -182,18 +182,21 @@ impl<'a> super::Verifier<'a> {
         if uid != 0 && Some(uid) != self.mistrust.trust_uid {
             errors.push(Error::BadOwner(path.into(), uid));
         }
-        let mut forbidden_bits = if !self.readable_okay
-            && (path_type == PathType::Final || path_type == PathType::Content)
-        {
-            // If this is the target or a content object, and it must not be
-            // readable, then we forbid it to be group-rwx and all-rwx.
+        let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
+            // If this is the target object, and it must not be readable, then
+            // we forbid it to be group-rwx and all-rwx.
+            //
+            // (We allow _content_ to be globally readable even if readable_okay
+            // is false, since we check that the Final directory is itself
+            // unreadable.  This is okay unless the content has hard links: see
+            // the Limitations section of the crate-level documentation.)
             0o077
         } else {
-            // If this is the target object and it may be readable, or if
-            // this is _any parent directory_, then we typically forbid the
-            // group-write and all-write bits.  (Those are the bits that
-            // would allow non-trusted users to change the object, or change
-            // things around in a directory.)
+            // If this is the target object and it may be readable, or if this
+            // is _any parent directory_ or any content, then we typically
+            // forbid the group-write and all-write bits.  (Those are the bits
+            // that would allow non-trusted users to change the object, or
+            // change things around in a directory.)
             if meta.is_dir() && meta.mode() & STICKY_BIT != 0 && path_type == PathType::Intermediate
             {
                 // This is an intermediate directory and this sticky bit is

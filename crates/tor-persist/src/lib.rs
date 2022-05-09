@@ -5,7 +5,7 @@
 //! implement [Tor](https://www.torproject.org/) in Rust.
 //!
 //! For now, users should construct storage objects directly with (for
-//! example) [`FsStateMgr::from_path()`], but use them primarily via the
+//! example) [`FsStateMgr::from_path_and_mistrust()`], but use them primarily via the
 //! interfaces of the [`StateMgr`] trait.
 
 #![deny(missing_docs)]
@@ -142,6 +142,10 @@ pub enum Error {
     #[error("IO error")]
     IoError(#[source] Arc<std::io::Error>),
 
+    /// Permissions on a file or path were incorrect
+    #[error("Invalid permissions on state file")]
+    Permissions(#[from] fs_mistrust::Error),
+
     /// Tried to save without holding an exclusive lock.
     //
     // TODO This error seems to actually be sometimes used to make store a no-op.
@@ -166,6 +170,11 @@ impl tor_error::HasKind for Error {
         use tor_error::ErrorKind as K;
         match self {
             E::IoError(..)     => K::PersistentStateAccessFailed,
+            E::Permissions(e)  => if e.is_bad_permission() {
+                K::FsPermissions
+            } else {
+                K::PersistentStateAccessFailed
+            }
             E::NoLock          => K::BadApiUsage,
             E::Serialize(..)   => K::Internal,
             E::Deserialize(..) => K::PersistentStateCorrupted,

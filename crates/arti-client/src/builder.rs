@@ -51,6 +51,8 @@ pub struct TorClientBuilder<R: Runtime> {
     /// How the client should behave when it is asked to do something on the Tor
     /// network before `bootstrap()` is called.
     bootstrap_behavior: BootstrapBehavior,
+    /// How the client should decide which file permissions to trust.
+    fs_mistrust: Option<fs_mistrust::Mistrust>,
     /// Optional object to construct a DirProvider.
     ///
     /// Wrapped in an Arc so that we don't need to force DirProviderBuilder to
@@ -70,6 +72,7 @@ impl<R: Runtime> TorClientBuilder<R> {
             runtime,
             config: TorClientConfig::default(),
             bootstrap_behavior: BootstrapBehavior::default(),
+            fs_mistrust: None,
             dirmgr_builder: Arc::new(DirMgrBuilder {}),
             #[cfg(feature = "dirfilter")]
             dirfilter: None,
@@ -90,6 +93,31 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// be used.
     pub fn bootstrap_behavior(mut self, bootstrap_behavior: BootstrapBehavior) -> Self {
         self.bootstrap_behavior = bootstrap_behavior;
+        self
+    }
+
+    /// Build an [`TorClient`] that will not validate permissions and
+    /// ownership on the filesystem.
+    ///
+    /// By default, these checks are enabled, unless the
+    /// `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable has been set or
+    /// this method has been called.
+    pub fn disable_fs_permission_checks(mut self) -> Self {
+        let mut mistrust = fs_mistrust::Mistrust::new();
+        mistrust.dangerously_trust_everyone();
+        self.fs_mistrust = Some(mistrust);
+        self
+    }
+
+    /// Build an [`TorClient`] that will always validate permissions and
+    /// ownership on the filesystem.
+    ///
+    /// By default, these checks are enabled, unless the
+    /// `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable has been set or
+    /// [`disable_fs_permission_checks`](Self::disable_fs_permission_checks)
+    /// method has been called.
+    pub fn enable_fs_permission_checks(mut self) -> Self {
+        self.fs_mistrust = Some(fs_mistrust::Mistrust::new());
         self
     }
 
@@ -146,6 +174,8 @@ impl<R: Runtime> TorClientBuilder<R> {
             self.runtime,
             self.config,
             self.bootstrap_behavior,
+            self.fs_mistrust
+                .unwrap_or_else(crate::config::default_fs_mistrust),
             self.dirmgr_builder.as_ref(),
             dirmgr_extensions,
         )

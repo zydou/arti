@@ -995,7 +995,12 @@ mod test {
     fn temp_store() -> (TempDir, Mutex<DynStore>) {
         let tempdir = TempDir::new().unwrap();
 
-        let store = crate::storage::SqliteStore::from_path(tempdir.path(), false).unwrap();
+        let store = crate::storage::SqliteStore::from_path_and_mistrust(
+            tempdir.path(),
+            fs_mistrust::Mistrust::new().dangerously_trust_everyone(),
+            false,
+        )
+        .unwrap();
 
         (tempdir, Mutex::new(Box::new(store)))
     }

@@ -17,8 +17,9 @@ use crate::docmeta::{AuthCertMeta, ConsensusMeta};
 use crate::{Error, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fs::File;
+use std::str::Utf8Error;
 use std::time::SystemTime;
-use std::{path::Path, str::Utf8Error};
 use time::Duration;
 
 pub(crate) mod sqlite;
@@ -124,18 +125,15 @@ impl InputString {
             }
         }
     }
-
-    /// Construct a new InputString from a file on disk, trying to
-    /// memory-map the file if possible.
-    pub(crate) fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let f = std::fs::File::open(path)?;
+    /// DOCDOC
+    pub(crate) fn load(file: File) -> Result<Self> {
         #[cfg(feature = "mmap")]
         {
             let mapping = unsafe {
                 // I'd rather have a safe option, but that's not possible
                 // with mmap, since other processes could in theory replace
                 // the contents of the file while we're using it.
-                memmap2::Mmap::map(&f)
+                memmap2::Mmap::map(&file)
             };
             if let Ok(bytes) = mapping {
                 return Ok(InputString::MappedBytes {
@@ -145,7 +143,7 @@ impl InputString {
             }
         }
         use std::io::{BufReader, Read};
-        let mut f = BufReader::new(f);
+        let mut f = BufReader::new(file);
         let mut result = String::new();
         f.read_to_string(&mut result)?;
         Ok(InputString::Utf8(result))
@@ -308,13 +306,9 @@ mod test {
     fn files() {
         let td = tempdir().unwrap();
 
-        let absent = td.path().join("absent");
-        let s = InputString::load(&absent);
-        assert!(s.is_err());
-
         let goodstr = td.path().join("goodstr");
         std::fs::write(&goodstr, "This is a reasonable file.\n").unwrap();
-        let s = InputString::load(&goodstr);
+        let s = InputString::load(File::open(goodstr).unwrap());
         let s = s.unwrap();
         assert_eq!(s.as_str().unwrap(), "This is a reasonable file.\n");
         assert_eq!(s.as_str().unwrap(), "This is a reasonable file.\n");
@@ -322,7 +316,7 @@ mod test {
 
         let badutf8 = td.path().join("badutf8");
         std::fs::write(&badutf8, b"Not good \xff UTF-8.\n").unwrap();
-        let s = InputString::load(&badutf8);
+        let s = InputString::load(File::open(badutf8).unwrap());
         assert!(s.is_err() || s.unwrap().as_str().is_err());
     }
 

@@ -83,19 +83,36 @@ pub enum Error {
     #[error("Unable to list directory")]
     Listing(#[source] Arc<walkdir::Error>),
 
-    /// We were unable to open a file with [`CheckedDir::open`](crate::CheckedDir::open)
-
     /// Tried to use an invalid path with a [`CheckedDir`](crate::CheckedDir),
     #[error("Path was not valid for use with CheckedDir.")]
     InvalidSubdirectory,
+
+    /// We encountered an error while attempting an IO operation on a file.
+    #[error("IO error on {0}")]
+    Io(PathBuf, #[source] Arc<IoError>),
+
+    /// We could not create an unused temporary path when trying to write a
+    /// file.
+    #[error("Could not name temporary file for {0}")]
+    NoTempFile(PathBuf),
 }
 
 impl Error {
-    /// Create an error from an IoError object.
+    /// Create an error from an IoError encountered while inspecting permissions
+    /// on an object.
     pub(crate) fn inspecting(err: IoError, fname: impl Into<PathBuf>) -> Self {
         match err.kind() {
             IoErrorKind::NotFound => Error::NotFound(fname.into()),
             _ => Error::CouldNotInspect(fname.into(), Arc::new(err)),
+        }
+    }
+
+    /// Create an error from an IoError encountered while performing IO (open,
+    /// read, write) on an object.
+    pub(crate) fn io(err: IoError, fname: impl Into<PathBuf>) -> Self {
+        match err.kind() {
+            IoErrorKind::NotFound => Error::NotFound(fname.into()),
+            _ => Error::Io(fname.into(), Arc::new(err)),
         }
     }
 
@@ -108,6 +125,8 @@ impl Error {
                 Error::BadOwner(pb, _) => pb,
                 Error::BadType(pb) => pb,
                 Error::CouldNotInspect(pb, _) => pb,
+                Error::Io(pb, _) => pb,
+                Error::NoTempFile(pb) => pb,
                 Error::Multiple(_) => return None,
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
@@ -118,6 +137,30 @@ impl Error {
             }
             .as_path(),
         )
+    }
+
+    /// Return true iff this error indicates a problem with filesystem
+    /// permissions.
+    ///
+    /// (Other errors typically indicate an IO problem, possibly one preventing
+    /// us from looking at permissions in the first place)
+    pub fn is_bad_permission(&self) -> bool {
+        match self {
+            Error::BadPermission(_, _) | Error::BadOwner(_, _) | Error::BadType(_) => true,
+
+            Error::NotFound(_)
+            | Error::CouldNotInspect(_, _)
+            | Error::StepsExceeded
+            | Error::CurrentDirectory(_)
+            | Error::CreatingDir(_)
+            | Error::Listing(_)
+            | Error::InvalidSubdirectory
+            | Error::Io(_, _)
+            | Error::NoTempFile(_) => false,
+
+            Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
+            Error::Content(err) => err.is_bad_permission(),
+        }
     }
 
     /// Return an iterator over all of the errors contained in this Error.

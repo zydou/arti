@@ -152,15 +152,21 @@ pub async fn run<R: Runtime>(
     config_sources: arti_config::ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
+    fs_mistrust_disabled: bool,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
     // for bootstrap to complete, rather than getting errors.
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
-    let client = TorClient::with_runtime(runtime.clone())
+    let mut client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
-        .bootstrap_behavior(OnDemand)
-        .create_unbootstrapped()?;
+        .bootstrap_behavior(OnDemand);
+    if fs_mistrust_disabled {
+        client_builder = client_builder.disable_fs_permission_checks();
+    } else {
+        client_builder = client_builder.enable_fs_permission_checks();
+    }
+    let client = client_builder.create_unbootstrapped()?;
     if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
     }
@@ -203,6 +209,15 @@ pub async fn run<R: Runtime>(
         }.fuse()
             => r.context("bootstrap"),
     )
+}
+
+/// Return true if the environment has been set up to disable FS mistrust.
+//
+// TODO(nickm): This is duplicate logic from arti_client config. When we make
+// fs_mistrust configurable via deserialize, as a real part of our configuration
+// logic, we should unify all this code.
+fn fs_mistrust_disabled_via_env() -> bool {
+    std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some()
 }
 
 /// Inner function to allow convenient error handling
@@ -259,6 +274,14 @@ pub fn main_main() -> Result<()> {
                     .value_name("LEVEL")
                     .help("Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error')."),
             )
+            .arg(
+                Arg::with_name("disable-fs-permission-checks")
+                    .long("disable-fs-permission-checks")
+                    .takes_value(false)
+                    .value_name("FILE")
+                    .global(true)
+                    .help("Don't check permissions on the files we use."),
+            )
             .subcommand(
                 SubCommand::with_name("proxy")
                     .about(
@@ -282,16 +305,38 @@ pub fn main_main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
+    let fs_mistrust_disabled =
+        fs_mistrust_disabled_via_env() | matches.is_present("disable-fs-permission-checks");
+
+    let mistrust = {
+        // TODO: This is duplicate code from arti_client::config.  When we make
+        // fs_mistrust configurable via deserialize, as a real part of our configuration
+        // logic, we should unify this check.
+        let mut mistrust = fs_mistrust::Mistrust::new();
+        if fs_mistrust_disabled {
+            mistrust.dangerously_trust_everyone();
+        }
+        mistrust
+    };
+
     let cfg_sources = {
         let mut cfg_sources = arti_config::ConfigurationSources::new();
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
         if config_files.len() == 0 {
             if let Some(default) = default_config_file() {
+                match mistrust.verifier().require_file().check(&default) {
+                    Ok(()) => {}
+                    Err(fs_mistrust::Error::NotFound(_)) => {}
+                    Err(e) => return Err(e.into()),
+                }
                 cfg_sources.push_optional_file(default);
             }
         } else {
-            config_files.for_each(|f| cfg_sources.push_file(f));
+            for f in config_files {
+                mistrust.verifier().require_file().check(f)?;
+                cfg_sources.push_file(f);
+            }
         }
 
         matches
@@ -356,6 +401,7 @@ pub fn main_main() -> Result<()> {
             cfg_sources,
             config,
             client_config,
+            fs_mistrust_disabled,
         ))?;
         Ok(())
     } else {
