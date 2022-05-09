@@ -187,7 +187,9 @@ pub struct DirMgr<R: Runtime> {
     ///
     /// We use the RwLock so that we can give this out to a bunch of other
     /// users, and replace it once a new directory is bootstrapped.
-    netdir: SharedMutArc<NetDir>,
+    // TODO(eta): Eurgh! This is so many Arcs! (especially considering this
+    //            gets wrapped in an Arc)
+    netdir: Arc<SharedMutArc<NetDir>>,
 
     /// A publisher handle that we notify whenever the consensus changes.
     events: event::FlagPublisher<DirEvent>,
@@ -523,7 +525,7 @@ impl<R: Runtime> DirMgr<R> {
                 dirmgr.runtime.clone(),
                 dirmgr.config.get(),
                 CacheUsage::CacheOkay,
-                dirmgr.netdir.get(),
+                Some(dirmgr.netdir.clone()),
                 #[cfg(feature = "dirfilter")]
                 dirmgr
                     .filter
@@ -706,7 +708,7 @@ impl<R: Runtime> DirMgr<R> {
         offline: bool,
     ) -> Result<Self> {
         let store = Mutex::new(config.open_store(offline)?);
-        let netdir = SharedMutArc::new();
+        let netdir = Arc::new(SharedMutArc::new());
         let events = event::FlagPublisher::new();
 
         let (send_status, receive_status) = postage::watch::channel();

@@ -25,13 +25,13 @@ use tracing::{info, warn};
 use crate::event::{DirStatus, DirStatusInner};
 
 use crate::storage::DynStore;
-use crate::DocSource;
 use crate::{
     docmeta::{AuthCertMeta, ConsensusMeta},
     event,
     retry::DownloadSchedule,
     CacheUsage, ClientRequest, DirMgrConfig, DocId, DocumentText, Error, Readiness, Result,
 };
+use crate::{DocSource, SharedMutArc};
 use tor_checkable::{ExternallySigned, SelfSigned, Timebound};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_netdoc::doc::{
@@ -141,6 +141,18 @@ pub(crate) trait DirState: Send {
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>>;
 }
 
+/// An object that can provide a previous netdir for the bootstrapping state machines to use.
+pub(crate) trait PreviousNetDir: Send + Sync + 'static + Debug {
+    /// Get the previous netdir, if there still is one.
+    fn get_netdir(&self) -> Option<Arc<NetDir>>;
+}
+
+impl PreviousNetDir for SharedMutArc<NetDir> {
+    fn get_netdir(&self) -> Option<Arc<NetDir>> {
+        self.get()
+    }
+}
+
 /// Initial state: fetching or loading a consensus directory.
 #[derive(Clone, Debug)]
 pub(crate) struct GetConsensusState<R: Runtime> {
@@ -172,7 +184,7 @@ pub(crate) struct GetConsensusState<R: Runtime> {
     /// purposes.
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
-    prev_netdir: Option<Arc<NetDir>>,
+    prev_netdir: Option<Arc<dyn PreviousNetDir>>,
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
@@ -187,7 +199,7 @@ impl<R: Runtime> GetConsensusState<R> {
         rt: R,
         config: Arc<DirMgrConfig>,
         cache_usage: CacheUsage,
-        prev_netdir: Option<Arc<NetDir>>,
+        prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
         let authority_ids = config
@@ -195,7 +207,10 @@ impl<R: Runtime> GetConsensusState<R> {
             .iter()
             .map(|auth| auth.v3ident)
             .collect();
-        let after = prev_netdir.as_ref().map(|nd| nd.lifetime().valid_after());
+        let after = prev_netdir
+            .as_ref()
+            .and_then(|x| x.get_netdir())
+            .map(|nd| nd.lifetime().valid_after());
 
         GetConsensusState {
             cache_usage,
@@ -392,7 +407,7 @@ struct GetCertsState<R: Runtime> {
     /// purposes.
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
-    prev_netdir: Option<Arc<NetDir>>,
+    prev_netdir: Option<Arc<dyn PreviousNetDir>>,
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
@@ -580,7 +595,7 @@ struct GetMicrodescsState<R: Runtime> {
     /// purposes.
     config: Arc<DirMgrConfig>,
     /// If one exists, the netdir we're trying to update.
-    prev_netdir: Option<Arc<NetDir>>,
+    prev_netdir: Option<Arc<dyn PreviousNetDir>>,
 
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
@@ -723,7 +738,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
         meta: ConsensusMeta,
         rt: R,
         config: Arc<DirMgrConfig>,
-        prev_netdir: Option<Arc<NetDir>>,
+        prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
         let reset_time = consensus.lifetime().valid_until();
@@ -731,8 +746,8 @@ impl<R: Runtime> GetMicrodescsState<R> {
 
         let params = &config.override_net_params;
         let mut partial_dir = PartialNetDir::new(consensus, Some(params));
-        if let Some(old_dir) = prev_netdir.as_ref() {
-            partial_dir.fill_from_previous_netdir(old_dir);
+        if let Some(old_dir) = prev_netdir.as_ref().and_then(|x| x.get_netdir()) {
+            partial_dir.fill_from_previous_netdir(&old_dir);
         }
 
         GetMicrodescsState {
