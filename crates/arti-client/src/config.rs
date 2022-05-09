@@ -250,9 +250,6 @@ pub struct TorClientConfig {
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
-    //
-    // TODO: This field seems anomalous and should perhaps be changed somehow.
-    // Maybe NetParams<i32> ought to derive Builder.
     #[builder(
         sub_builder,
         field(

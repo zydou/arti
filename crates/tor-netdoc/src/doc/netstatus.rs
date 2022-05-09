@@ -143,6 +143,9 @@ impl Lifetime {
 /// These are used to describe current settings for the Tor network,
 /// current weighting parameters for path selection, and so on.  They're
 /// encoded with a space-separated K=V format.
+///
+/// A `NetParams<i32>` is part of the validated directory manager configuraton,
+/// where it is built (in the builder-pattern sense) from a transparent HashMap.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct NetParams<T> {
     /// Map from keys to values.
