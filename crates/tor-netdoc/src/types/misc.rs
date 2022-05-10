@@ -15,6 +15,11 @@ pub(crate) use fingerprint::*;
 pub(crate) use rsa::*;
 pub(crate) use timeimpl::*;
 
+#[cfg(feature = "dangerous-expose-struct-fields")]
+pub use nickname::Nickname;
+#[cfg(not(feature = "dangerous-expose-struct-fields"))]
+pub(crate) use nickname::Nickname;
+
 /// Describes a value that van be decoded from a bunch of bytes.
 ///
 /// Used for decoding the objects between BEGIN and END tags.
@@ -390,6 +395,61 @@ mod fingerprint {
     }
 }
 
+/// A type for relay nicknames
+mod nickname {
+    use crate::{Error, ParseErrorKind as EK, Pos, Result};
+    use tinystr::TinyAsciiStr;
+
+    /// This is a strange limit, but it comes from Tor.
+    const MAX_NICKNAME_LEN: usize = 19;
+
+    /// The nickname for a Tor relay.
+    ///
+    /// These nicknames are legacy mechanism that's occasionally useful in
+    /// debugging. They should *never* be used to uniquely identify relays;
+    /// nothing prevents two relays from having the same nickname.
+    ///
+    /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
+    /// characters inclusive.
+    #[cfg_attr(feature = "dangerous-expose-struct-fields", visibility::make(pub))]
+    #[derive(Clone, Debug)]
+
+    pub(crate) struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
+
+    impl Nickname {
+        /// Return a view of this nickname as a string slice.
+        pub(crate) fn as_str(&self) -> &str {
+            self.0.as_str()
+        }
+    }
+
+    impl std::fmt::Display for Nickname {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            self.as_str().fmt(f)
+        }
+    }
+
+    impl std::str::FromStr for Nickname {
+        type Err = Error;
+
+        fn from_str(s: &str) -> Result<Self> {
+            let tiny = TinyAsciiStr::from_str(s).map_err(|_| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("Invalid nickname")
+            })?;
+
+            if tiny.is_ascii_alphanumeric() && !tiny.is_empty() {
+                Ok(Nickname(tiny))
+            } else {
+                Err(EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg("Invalid nickname"))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -517,6 +577,30 @@ mod test {
 
         assert!("xxxx".parse::<Fingerprint>().is_err());
         assert!("ffffffffff".parse::<Fingerprint>().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn nickname() -> Result<()> {
+        let n: Nickname = "Foo".parse()?;
+        assert_eq!(n.as_str(), "Foo");
+        assert_eq!(n.to_string(), "Foo");
+
+        let word = "Untr1gonometr1cally";
+        assert_eq!(word.len(), 19);
+        let long: Nickname = word.parse()?;
+        assert_eq!(long.as_str(), word);
+
+        let too_long = "abcdefghijklmnopqrstuvwxyz";
+        let not_ascii = "Eyjafjallajökull";
+        let too_short = "";
+        let other_invalid = "contains space";
+        assert!(not_ascii.len() <= 19);
+        assert!(too_long.parse::<Nickname>().is_err());
+        assert!(not_ascii.parse::<Nickname>().is_err());
+        assert!(too_short.parse::<Nickname>().is_err());
+        assert!(other_invalid.parse::<Nickname>().is_err());
+
         Ok(())
     }
 }

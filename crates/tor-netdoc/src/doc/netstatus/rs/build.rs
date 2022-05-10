@@ -118,7 +118,7 @@ impl<D: Clone> RouterStatusBuilder<D> {
     }
     /// Try to build a GenericRouterStatus from this builder.
     fn finish(&self) -> Result<GenericRouterStatus<D>> {
-        let nickname = self.nickname.clone().unwrap_or_else(|| "Unnamed".into());
+        let nickname = self.nickname.as_deref().unwrap_or("Unnamed").parse()?;
         let identity = self
             .identity
             .ok_or(Error::CannotBuild("Missing RSA identity"))?;
