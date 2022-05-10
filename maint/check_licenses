@@ -18,7 +18,6 @@ RECOGNIZED_LICENSES=(
 
 # List of packages that don't list a license.
 NO_LICENSE=(
-    cargo-husky
     fuchsia-cprng
 )
 

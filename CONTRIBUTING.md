@@ -69,11 +69,13 @@ To get the latest updates, you can run:
 
     $ cargo test --all-features
 
-> Note, if errors similar to "Error: IO error: No such file or directory (os
-> error 2)" involving `cargo-husky`, then check that the `.git/hooks`
-> directory exists, eg.
->
->     $ [[ -d "${PWD}/.git/hooks" ]] || { mkdir "${PWD}/.git/hooks"; }
+**Installing git hooks**
+
+This repository contains some useful [git hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks)
+that you might want to use to help avoid your code failing CI checks.
+You can install them with
+
+    $ cp -v maint/hooks/* .git/hooks/
 
 **Add fork URL**
 
