@@ -65,7 +65,7 @@ pub(crate) enum NetDirChange<'a> {
         consensus_meta: &'a ConsensusMeta,
     },
     /// Add the provided microdescriptors to the current `NetDir`.
-    AddMicrodescs(Vec<Microdesc>),
+    AddMicrodescs(&'a mut Vec<Microdesc>),
 }
 
 /// A "state" object used to represent our progress in downloading a
@@ -663,12 +663,9 @@ impl MdReceiver for PendingNetDir {
             } => {
                 let wanted = missing_microdescs.remove(md.digest());
                 if let Some(nd) = netdir.as_mut() {
-                    let digest = *md.digest();
                     let nd_wanted = nd.add_microdesc(md);
-                    if wanted != nd_wanted {
-                        // This shouldn't ever happen; if it does, our invariants are violated.
-                        panic!("NetDir changed its mind about wanting microdesc {:?} (pending {}, nd {})", digest, wanted, nd_wanted);
-                    }
+                    // This shouldn't ever happen; if it does, our invariants are violated.
+                    debug_assert_eq!(wanted, nd_wanted);
                     nd_wanted
                 } else {
                     collected_microdescs.push(md);
@@ -688,10 +685,8 @@ impl MdReceiver for PendingNetDir {
                 ..
             } => {
                 if let Some(nd) = netdir.as_ref() {
-                    if nd.n_missing() != missing_microdescs.len() {
-                        // This shouldn't ever happen; if it does, our invariants are violated.
-                        panic!("PendingNetDir lost track of wanted microdescs (netdir wants {}, us {})", nd.n_missing(), missing_microdescs.len());
-                    }
+                    // This shouldn't ever happen; if it does, our invariants are violated.
+                    debug_assert_eq!(nd.n_missing(), missing_microdescs.len());
                     nd.n_missing()
                 } else {
                     missing_microdescs.len()
@@ -817,7 +812,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                 } else {
                     collected_microdescs
                         .is_empty()
-                        .then(|| NetDirChange::AddMicrodescs(mem::take(collected_microdescs)))
+                        .then(move || NetDirChange::AddMicrodescs(collected_microdescs))
                 }
             }
             _ => None,

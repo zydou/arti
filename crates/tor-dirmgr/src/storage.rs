@@ -279,6 +279,7 @@ pub(crate) trait Store {
     fn store_routerdescs(&mut self, digests: &[(&str, SystemTime, &RdDigest)]) -> Result<()>;
 }
 
+// TODO(eta): maybe use something like the `delegate` crate to autogenerate this?
 impl Store for DynStore {
     fn is_readonly(&self) -> bool {
         self.deref().is_readonly()

@@ -113,7 +113,6 @@ fn load_documents_from_store(
 
 /// Construct an appropriate ClientRequest to download a consensus
 /// of the given flavor.
-// FIXME(eta): remove pub
 pub(crate) fn make_consensus_request(
     now: SystemTime,
     flavor: ConsensusFlavor,
@@ -144,7 +143,6 @@ pub(crate) fn make_consensus_request(
 }
 
 /// Construct a set of `ClientRequest`s in order to fetch the documents in `docs`.
-// FIXME(eta): remove pub
 pub(crate) fn make_requests_for_documents<R: Runtime>(
     rt: &R,
     docs: &[DocId],
@@ -390,7 +388,7 @@ fn apply_netdir_changes<R: Runtime>(
             }
             NetDirChange::AddMicrodescs(mds) => {
                 dirmgr.netdir.mutate(|netdir| {
-                    for md in mds {
+                    for md in mds.drain(..) {
                         netdir.add_microdesc(md);
                     }
                     Ok(())
@@ -506,7 +504,7 @@ pub(crate) async fn download<R: Runtime>(
             continue 'next_state;
         }
         // Apply any netdir changes that the state gives us.
-        // FIXME(eta): Don't throw away the return value (once we actually use this API).
+        // TODO(eta): Consider deprecating state.is_ready().
         {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
@@ -572,7 +570,7 @@ pub(crate) async fn download<R: Runtime>(
             };
 
             // Apply any netdir changes that the state gives us.
-            // FIXME(eta): Don't throw away the return value (once we actually use this API).
+            // TODO(eta): Consider deprecating state.is_ready().
             {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 let mut store = dirmgr.store.lock().expect("store lock poisoned");
