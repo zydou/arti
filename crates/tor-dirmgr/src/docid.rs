@@ -2,7 +2,10 @@
 //! documents we want and which we have.
 
 use std::{borrow::Borrow, collections::HashMap};
+use tracing::trace;
 
+use crate::storage::Store;
+use crate::DocumentText;
 use tor_dirclient::request;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
@@ -194,6 +197,62 @@ impl DocQuery {
                 v[..].chunks(N).map(|s| RouterDesc(s.to_vec())).collect()
             }
         }
+    }
+
+    /// Load documents specified by this `DocQuery` from the store, if they can be found.
+    ///
+    /// # Note
+    ///
+    /// This function may not return all documents that the query asked for. If this happens, no
+    /// error will be returned. It is the caller's responsibility to handle this case.
+    pub(crate) fn load_from_store_into(
+        &self,
+        result: &mut HashMap<DocId, DocumentText>,
+        store: &dyn Store,
+    ) -> crate::Result<()> {
+        use DocQuery::*;
+        match self {
+            LatestConsensus {
+                flavor,
+                cache_usage,
+            } => {
+                if *cache_usage == CacheUsage::MustDownload {
+                    // Do nothing: we don't want a cached consensus.
+                    trace!("MustDownload is set; not checking for cached consensus.");
+                } else if let Some(c) =
+                    store.latest_consensus(*flavor, cache_usage.pending_requirement())?
+                {
+                    trace!("Found a reasonable consensus in the cache");
+                    let id = DocId::LatestConsensus {
+                        flavor: *flavor,
+                        cache_usage: *cache_usage,
+                    };
+                    result.insert(id, c.into());
+                }
+            }
+            AuthCert(ids) => result.extend(
+                store
+                    .authcerts(ids)?
+                    .into_iter()
+                    .map(|(id, c)| (DocId::AuthCert(id), DocumentText::from_string(c))),
+            ),
+            Microdesc(digests) => {
+                result.extend(
+                    store
+                        .microdescs(digests)?
+                        .into_iter()
+                        .map(|(id, md)| (DocId::Microdesc(id), DocumentText::from_string(md))),
+                );
+            }
+            #[cfg(feature = "routerdesc")]
+            RouterDesc(digests) => result.extend(
+                store
+                    .routerdescs(digests)?
+                    .into_iter()
+                    .map(|(id, rd)| (DocId::RouterDesc(id), DocumentText::from_string(rd))),
+            ),
+        }
+        Ok(())
     }
 }
 

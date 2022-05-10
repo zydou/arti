@@ -3517,6 +3517,7 @@ dependencies = [
  "tor-netdir",
  "tor-netdoc",
  "tor-rtcompat",
+ "tor-rtmock",
  "tracing",
 ]
 
