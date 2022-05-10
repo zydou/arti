@@ -49,13 +49,5 @@ rand = "0.8"
 cipher = "0.4.1"
 serde_test = "1.0.124"
 
-# This is a magic crate that runs the tests and checks the format
-# before it lets you commit or push.  It installs git hooks for this whenever
-# you say "cargo test".
-[dev-dependencies.cargo-husky]
-version = "1.5.0"
-default-features = false
-features = ["user-hooks"]
-
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }
