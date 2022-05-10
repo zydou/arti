@@ -74,11 +74,11 @@ use crate::docid::{CacheUsage, ClientRequest, DocQuery};
 use crate::shared_ref::SharedMutArc;
 #[cfg(feature = "experimental-api")]
 pub use crate::shared_ref::SharedMutArc;
-use crate::storage::DynStore;
+use crate::storage::{DynStore, Store};
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
-use tor_netdir::{DirEvent, NetDir, NetDirProvider};
+use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
@@ -92,7 +92,7 @@ use std::time::Duration;
 use std::{collections::HashMap, sync::Weak};
 use std::{fmt::Debug, time::SystemTime};
 
-use crate::state::DirState;
+use crate::state::{DirState, NetDirChange};
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
     DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
@@ -852,6 +852,78 @@ impl<R: Runtime> DirMgr<R> {
             }
         }
         Ok(text)
+    }
+
+    /// If `state` has netdir changes to apply, apply them to our netdir.
+    ///
+    /// Return `true` if `state` just replaced the netdir.
+    fn apply_netdir_changes(
+        self: &Arc<Self>,
+        state: &mut Box<dyn DirState>,
+        store: &mut dyn Store,
+    ) -> Result<bool> {
+        if let Some(change) = state.get_netdir_change() {
+            match change {
+                NetDirChange::AttemptReplace {
+                    netdir,
+                    consensus_meta,
+                } => {
+                    // Check the new netdir is sufficient, if we have a circmgr.
+                    // (Unwraps are fine because the `Option` is `Some` until we take it.)
+                    if let Some(ref cm) = self.circmgr {
+                        if !cm
+                            .netdir_is_sufficient(netdir.as_ref().expect("AttemptReplace had None"))
+                        {
+                            debug!("Got a new NetDir, but it doesn't have enough guards yet.");
+                            return Ok(false);
+                        }
+                    }
+                    let is_stale = {
+                        // Done inside a block to not hold a long-lived copy of the NetDir.
+                        self.netdir
+                            .get()
+                            .map(|x| {
+                                x.lifetime().valid_after()
+                                    > netdir
+                                        .as_ref()
+                                        .expect("AttemptReplace had None")
+                                        .lifetime()
+                                        .valid_after()
+                            })
+                            .unwrap_or(false)
+                    };
+                    if is_stale {
+                        warn!("Got a new NetDir, but it's older than the one we currently have!");
+                        return Err(Error::NetDirOlder);
+                    }
+                    let cfg = self.config.get();
+                    let mut netdir = netdir.take().expect("AttemptReplace had None");
+                    netdir.replace_overridden_parameters(&cfg.override_net_params);
+                    self.netdir.replace(netdir);
+                    self.events.publish(DirEvent::NewConsensus);
+                    self.events.publish(DirEvent::NewDescriptors);
+
+                    info!("Marked consensus usable.");
+                    store.mark_consensus_usable(consensus_meta)?;
+                    // Now that a consensus is usable, older consensuses may
+                    // need to expire.
+                    store.expire_all(&crate::storage::EXPIRATION_DEFAULTS)?;
+                    Ok(true)
+                }
+                NetDirChange::AddMicrodescs(mds) => {
+                    self.netdir.mutate(|netdir| {
+                        for md in mds.drain(..) {
+                            netdir.add_microdesc(md);
+                        }
+                        Ok(())
+                    })?;
+                    self.events.publish(DirEvent::NewDescriptors);
+                    Ok(false)
+                }
+            }
+        } else {
+            Ok(false)
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crate::state::{DirState, NetDirChange};
+use crate::state::DirState;
 use crate::{
     docid::{self, ClientRequest},
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
@@ -28,7 +28,7 @@ use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
 use tor_circmgr::{CircMgr, DirInfo};
-use tor_netdir::{DirEvent, MdReceiver, NetDir};
+use tor_netdir::NetDir;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 /// If there were errors from a peer in `outcome`, record those errors by
@@ -310,7 +310,7 @@ pub(crate) async fn load<R: Runtime>(
         let changed = load_once(&dirmgr, &mut state).await?;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
-            apply_netdir_changes(&dirmgr, &mut state, store.deref_mut())?;
+            dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
         }
 
         if state.can_advance() {
@@ -329,77 +329,6 @@ pub(crate) async fn load<R: Runtime>(
     }
 
     Ok(state)
-}
-
-/// If `state` has netdir changes to apply, apply them to the netdir in `dirmgr`.
-///
-/// Return `true` if `state` just replaced the netdir.
-fn apply_netdir_changes<R: Runtime>(
-    dirmgr: &Arc<DirMgr<R>>,
-    state: &mut Box<dyn DirState>,
-    store: &mut dyn Store,
-) -> Result<bool> {
-    if let Some(change) = state.get_netdir_change() {
-        match change {
-            NetDirChange::AttemptReplace {
-                netdir,
-                consensus_meta,
-            } => {
-                // Check the new netdir is sufficient, if we have a circmgr.
-                // (Unwraps are fine because the `Option` is `Some` until we take it.)
-                if let Some(ref cm) = dirmgr.circmgr {
-                    if !cm.netdir_is_sufficient(netdir.as_ref().expect("AttemptReplace had None")) {
-                        debug!("Got a new NetDir, but it doesn't have enough guards yet.");
-                        return Ok(false);
-                    }
-                }
-                let is_stale = {
-                    // Done inside a block to not hold a long-lived copy of the NetDir.
-                    dirmgr
-                        .netdir
-                        .get()
-                        .map(|x| {
-                            x.lifetime().valid_after()
-                                > netdir
-                                    .as_ref()
-                                    .expect("AttemptReplace had None")
-                                    .lifetime()
-                                    .valid_after()
-                        })
-                        .unwrap_or(false)
-                };
-                if is_stale {
-                    warn!("Got a new NetDir, but it's older than the one we currently have!");
-                    return Err(Error::NetDirOlder);
-                }
-                let cfg = dirmgr.config.get();
-                let mut netdir = netdir.take().expect("AttemptReplace had None");
-                netdir.replace_overridden_parameters(&cfg.override_net_params);
-                dirmgr.netdir.replace(netdir);
-                dirmgr.events.publish(DirEvent::NewConsensus);
-                dirmgr.events.publish(DirEvent::NewDescriptors);
-
-                info!("Marked consensus usable.");
-                store.mark_consensus_usable(consensus_meta)?;
-                // Now that a consensus is usable, older consensuses may
-                // need to expire.
-                store.expire_all(&crate::storage::EXPIRATION_DEFAULTS)?;
-                Ok(true)
-            }
-            NetDirChange::AddMicrodescs(mds) => {
-                dirmgr.netdir.mutate(|netdir| {
-                    for md in mds.drain(..) {
-                        netdir.add_microdesc(md);
-                    }
-                    Ok(())
-                })?;
-                dirmgr.events.publish(DirEvent::NewDescriptors);
-                Ok(false)
-            }
-        }
-    } else {
-        Ok(false)
-    }
 }
 
 /// Helper: Make a set of download attempts for the current directory state,
@@ -508,7 +437,7 @@ pub(crate) async fn download<R: Runtime>(
         {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
-            apply_netdir_changes(&dirmgr, &mut state, store.deref_mut())?;
+            dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
         }
         if state.is_ready(Readiness::Complete) {
             return Ok((state, None));
@@ -574,7 +503,7 @@ pub(crate) async fn download<R: Runtime>(
             {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 let mut store = dirmgr.store.lock().expect("store lock poisoned");
-                apply_netdir_changes(&dirmgr, &mut state, store.deref_mut())?;
+                dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
             }
 
             // Exit if there is nothing more to download.
