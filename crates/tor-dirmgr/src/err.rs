@@ -14,6 +14,9 @@ pub enum Error {
     /// We received a document we didn't want at all.
     #[error("unwanted object: {0}")]
     Unwanted(&'static str),
+    /// The NetDir we downloaded is older than the one we already have.
+    #[error("downloaded netdir is older than the one we have")]
+    NetDirOlder,
     /// This DirMgr doesn't support downloads.
     #[error("tried to download information on a DirMgr with no download support")]
     NoDownloadSupport,
@@ -169,6 +172,7 @@ impl Error {
             | Error::BadHexInCache(_)
             | Error::OfflineMode
             | Error::Spawn { .. }
+            | Error::NetDirOlder
             | Error::Bug(_) => false,
 
             // For this one, we delegate.
@@ -224,6 +228,7 @@ impl HasKind for Error {
             E::UnrecognizedSchema => EK::CacheCorrupted,
             E::BadNetworkConfig(_) => EK::InvalidConfig,
             E::DirectoryNotPresent => EK::DirectoryExpired,
+            E::NetDirOlder => EK::TorDirectoryError,
             E::BadUtf8FromDirectory(_) => EK::TorProtocolViolation,
             E::BadUtf8InCache(_) => EK::CacheCorrupted,
             E::BadHexInCache(_) => EK::CacheCorrupted,

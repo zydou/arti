@@ -228,6 +228,7 @@ async fn fetch_multiple<R: Runtime>(
     }
 
     let circmgr = dirmgr.circmgr()?;
+    // TODO(eta): Maybe don't hold this netdir for so long?
     let netdir = dirmgr.opt_netdir();
 
     // TODO: instead of waiting for all the queries to finish, we
@@ -350,8 +351,28 @@ fn apply_netdir_changes<R: Runtime>(
                 // (Unwraps are fine because the `Option` is `Some` until we take it.)
                 if let Some(ref cm) = dirmgr.circmgr {
                     if !cm.netdir_is_sufficient(netdir.as_ref().expect("AttemptReplace had None")) {
+                        debug!("Got a new NetDir, but it doesn't have enough guards yet.");
                         return Ok(false);
                     }
+                }
+                let is_stale = {
+                    // Done inside a block to not hold a long-lived copy of the NetDir.
+                    dirmgr
+                        .netdir
+                        .get()
+                        .map(|x| {
+                            x.lifetime().valid_after()
+                                > netdir
+                                    .as_ref()
+                                    .expect("AttemptReplace had None")
+                                    .lifetime()
+                                    .valid_after()
+                        })
+                        .unwrap_or(false)
+                };
+                if is_stale {
+                    warn!("Got a new NetDir, but it's older than the one we currently have!");
+                    return Err(Error::NetDirOlder);
                 }
                 let cfg = dirmgr.config.get();
                 let mut netdir = netdir.take().expect("AttemptReplace had None");
