@@ -155,6 +155,9 @@ coverage-aggregated:
   stage: test
   image: rust:latest
   needs: []
+  variables:
+    # The build environment here runs as root and seems to have umask 000.
+    ARTI_FS_DISABLE_PERMISSION_CHECKS: "true"
   script:
     - apt update && apt install -y tor python3 python3-pip python3-setuptools curl
     # install deps for report generation
