@@ -90,6 +90,52 @@ impl ConfigurationSources {
         Self::default()
     }
 
+    /// Establish a [`ConfigurationSources`] the usual way from a command line and defaults
+    ///
+    /// The caller should have parsed the program's command line, and extracted (inter alia)
+    ///
+    ///  * `config_files_options`: Paths of config file(s)
+    ///  * `cmdline_toml_override_options`: Overrides ("key=value")
+    ///
+    /// The caller should also provide `default_config_file`, the default location of the
+    /// configuration file.  This is used if no file(s) are specified on the command line.
+    ///
+    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
+    pub fn from_cmdline<'o, F>(
+        default_config_file: impl Into<PathBuf>,
+        config_files_options: impl IntoIterator<Item = F>,
+        cmdline_toml_override_options: impl IntoIterator<Item = &'o str>,
+        mistrust: &fs_mistrust::Mistrust,
+    ) -> Result<Self, fs_mistrust::Error>
+    where
+        F: AsRef<Path>,
+    {
+        let mut cfg_sources = ConfigurationSources::new_empty();
+
+        let mut any_files = false;
+        for f in config_files_options {
+            let f = f.as_ref();
+            mistrust.verifier().require_file().check(f)?;
+            cfg_sources.push_file(f);
+            any_files = true;
+        }
+        if !any_files {
+            let default = default_config_file.into();
+            match mistrust.verifier().require_file().check(&default) {
+                Ok(()) => {}
+                Err(fs_mistrust::Error::NotFound(_)) => {}
+                Err(e) => return Err(e),
+            }
+            cfg_sources.push_optional_file(default);
+        }
+
+        for s in cmdline_toml_override_options {
+            cfg_sources.push_option(s);
+        }
+
+        Ok(cfg_sources)
+    }
+
     /// Add `p` to the list of files that we want to read configuration from.
     ///
     /// Configuration files are loaded and applied in the order that they are

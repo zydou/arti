@@ -371,32 +371,12 @@ pub fn main_main() -> Result<()> {
         mistrust
     };
 
-    let cfg_sources = {
-        let mut cfg_sources = arti_config::ConfigurationSources::new_empty();
-
-        let config_files = matches.values_of_os("config-files").unwrap_or_default();
-        if config_files.len() == 0 {
-            let default = default_config_file()?;
-            match mistrust.verifier().require_file().check(&default) {
-                Ok(()) => {}
-                Err(fs_mistrust::Error::NotFound(_)) => {}
-                Err(e) => return Err(e.into()),
-            }
-            cfg_sources.push_optional_file(default);
-        } else {
-            for f in config_files {
-                mistrust.verifier().require_file().check(f)?;
-                cfg_sources.push_file(f);
-            }
-        }
-
-        matches
-            .values_of("option")
-            .unwrap_or_default()
-            .for_each(|s| cfg_sources.push_option(s));
-
-        cfg_sources
-    };
+    let cfg_sources = arti_config::ConfigurationSources::from_cmdline(
+        default_config_file()?,
+        matches.values_of_os("config-files").unwrap_or_default(),
+        matches.values_of("option").unwrap_or_default(),
+        &mistrust,
+    )?;
 
     let cfg = cfg_sources.load()?;
 

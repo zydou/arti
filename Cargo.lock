@@ -166,6 +166,7 @@ dependencies = [
  "arti-client",
  "config",
  "derive_builder_fork_arti",
+ "fs-mistrust",
  "once_cell",
  "regex",
  "serde",
