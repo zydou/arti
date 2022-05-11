@@ -86,7 +86,7 @@ enum MustRead {
 
 impl ConfigurationSources {
     /// Create a new empty [`ConfigurationSources`].
-    pub fn new() -> Self {
+    pub fn new_empty() -> Self {
         Self::default()
     }
 

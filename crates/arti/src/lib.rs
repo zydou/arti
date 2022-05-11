@@ -369,7 +369,7 @@ pub fn main_main() -> Result<()> {
     };
 
     let cfg_sources = {
-        let mut cfg_sources = arti_config::ConfigurationSources::new();
+        let mut cfg_sources = arti_config::ConfigurationSources::new_empty();
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
         if config_files.len() == 0 {

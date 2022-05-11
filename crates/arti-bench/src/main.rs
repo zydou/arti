@@ -354,7 +354,7 @@ fn main() -> Result<()> {
         )
         .get_matches();
     info!("Parsing Arti configuration...");
-    let mut config_sources = arti_config::ConfigurationSources::new();
+    let mut config_sources = arti_config::ConfigurationSources::new_empty();
     matches
         .values_of_os("arti-config")
         .unwrap_or_default()
