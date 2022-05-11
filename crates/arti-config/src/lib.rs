@@ -101,21 +101,22 @@ impl ConfigurationSources {
     /// configuration file.  This is used if no file(s) are specified on the command line.
     ///
     /// `mistrust` is used to check whether the configuration files have appropriate permissions.
-    pub fn from_cmdline<'o, F>(
+    pub fn from_cmdline<F, O>(
         default_config_file: impl Into<PathBuf>,
         config_files_options: impl IntoIterator<Item = F>,
-        cmdline_toml_override_options: impl IntoIterator<Item = &'o str>,
+        cmdline_toml_override_options: impl IntoIterator<Item = O>,
         mistrust: &fs_mistrust::Mistrust,
     ) -> Result<Self, fs_mistrust::Error>
     where
-        F: AsRef<Path>,
+        F: Into<PathBuf>,
+        O: Into<String>,
     {
         let mut cfg_sources = ConfigurationSources::new_empty();
 
         let mut any_files = false;
         for f in config_files_options {
-            let f = f.as_ref();
-            mistrust.verifier().require_file().check(f)?;
+            let f = f.into();
+            mistrust.verifier().require_file().check(&f)?;
             cfg_sources.push_file(f);
             any_files = true;
         }
@@ -142,15 +143,14 @@ impl ConfigurationSources {
     /// added to this object.
     ///
     /// If the listed file is absent, loading the configuration won't succeed.
-    pub fn push_file<P: AsRef<Path>>(&mut self, p: P) {
-        self.files.push((p.as_ref().to_owned(), MustRead::MustRead));
+    pub fn push_file(&mut self, p: impl Into<PathBuf>) {
+        self.files.push((p.into(), MustRead::MustRead));
     }
 
     /// As `push_file`, but if the listed file can't be loaded, loading the
     /// configuration can still succeed.
-    pub fn push_optional_file<P: AsRef<Path>>(&mut self, p: P) {
-        self.files
-            .push((p.as_ref().to_owned(), MustRead::TolerateAbsence));
+    pub fn push_optional_file(&mut self, p: impl Into<PathBuf>) {
+        self.files.push((p.into(), MustRead::TolerateAbsence));
     }
 
     /// Add `s` to the list of overridden options to apply to our configuration.
@@ -159,8 +159,8 @@ impl ConfigurationSources {
     /// order that they are added to this object.
     ///
     /// The format for `s` is as in [`CmdLine`].
-    pub fn push_option<S: ToOwned<Owned = String> + ?Sized>(&mut self, option: &S) {
-        self.options.push(option.to_owned());
+    pub fn push_option(&mut self, option: impl Into<String>) {
+        self.options.push(option.into());
     }
 
     /// Return an iterator over the files that we care about.
