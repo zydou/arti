@@ -558,7 +558,10 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         }
     }
     fn reset_time(&self) -> Option<SystemTime> {
-        Some(self.consensus_meta.lifetime().valid_until())
+        Some(
+            self.consensus_meta.lifetime().valid_until()
+                + self.config.tolerance.post_valid_tolerance,
+        )
     }
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(Box::new(GetConsensusState::new(
@@ -628,8 +631,9 @@ enum PendingNetDir {
         ///            instantiate it.
         ///            (This code assumes that it doesn't add more needed microdescriptors later!)
         missing_microdescs: HashSet<MdDigest>,
-        /// The time at which we should renew this netdir.
-        reset_time: SystemTime,
+        /// The time at which we should renew this netdir, assuming we have
+        /// driven it to a "usable" state.
+        replace_dir_time: SystemTime,
     },
     /// A dummy value, so we can use `mem::replace`.
     Dummy,
@@ -707,12 +711,12 @@ impl PendingNetDir {
                 PendingNetDir::Partial(p) => match p.unwrap_if_sufficient() {
                     Ok(nd) => {
                         let missing = nd.missing_microdescs().copied().collect();
-                        let reset_time = pick_download_time(nd.lifetime());
+                        let replace_dir_time = pick_download_time(nd.lifetime());
                         *self = PendingNetDir::Yielding {
                             netdir: Some(nd),
                             collected_microdescs: vec![],
                             missing_microdescs: missing,
-                            reset_time,
+                            replace_dir_time,
                         };
                     }
                     Err(p) => {
@@ -738,7 +742,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
         prev_netdir: Option<Arc<dyn PreviousNetDir>>,
         #[cfg(feature = "dirfilter")] filter: Arc<dyn crate::filter::DirFilter>,
     ) -> Self {
-        let reset_time = consensus.lifetime().valid_until();
+        let reset_time = consensus.lifetime().valid_until() + config.tolerance.post_valid_tolerance;
         let n_microdescs = consensus.relays().len();
 
         let params = &config.override_net_params;
@@ -919,8 +923,25 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         Ok(self)
     }
     fn reset_time(&self) -> Option<SystemTime> {
+        // TODO(nickm): The reset logic is a little wonky here: we don't truly
+        // want to _reset_ this state at `replace_dir_time`.  In fact, we ought
+        // to be able to have multiple states running in parallel: one filling
+        // in the mds for an old consensus, and one trying to fetch a better
+        // one.  That's likely to require some amount of refactoring of the
+        // bootstrap code.
+
         Some(match self.partial {
-            PendingNetDir::Yielding { reset_time, .. } => reset_time,
+            // If the client has taken a completed netdir, the netdir is now
+            // usable: We can reset our download attempt when we choose to try
+            // to replace this directory.
+            PendingNetDir::Yielding {
+                replace_dir_time,
+                netdir: None,
+                ..
+            } => replace_dir_time,
+            // We don't have a completed netdir: Keep trying to fill this one in
+            // until it is _definitely_ unusable.  (Our clock might be skewed;
+            // there might be no up-to-date consensus.)
             _ => self.reset_time,
         })
     }
@@ -1268,8 +1289,12 @@ mod test {
             assert!(!state.can_advance());
             assert!(!state.is_ready(Readiness::Complete));
             assert!(!state.is_ready(Readiness::Usable));
-            let consensus_expires = datetime!(2020-08-07 12:43:20 UTC).into();
-            assert_eq!(state.reset_time(), Some(consensus_expires));
+            let consensus_expires: SystemTime = datetime!(2020-08-07 12:43:20 UTC).into();
+            let post_valid_tolerance = crate::DirSkewTolerance::default().post_valid_tolerance;
+            assert_eq!(
+                state.reset_time(),
+                Some(consensus_expires + post_valid_tolerance)
+            );
             let retry = state.dl_config();
             assert_eq!(retry, DownloadScheduleConfig::default().retry_certs);
 
@@ -1398,7 +1423,7 @@ mod test {
                 let fresh_until: SystemTime = datetime!(2021-10-27 21:27:00 UTC).into();
                 let valid_until: SystemTime = datetime!(2021-10-27 21:27:20 UTC).into();
                 assert!(reset_time >= fresh_until);
-                assert!(reset_time <= valid_until);
+                assert!(reset_time <= valid_until + state.config.tolerance.post_valid_tolerance);
             }
             let retry = state.dl_config();
             assert_eq!(retry, DownloadScheduleConfig::default().retry_microdescs);
