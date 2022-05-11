@@ -137,6 +137,12 @@ impl<'a> ExitPathBuilder<'a> {
         let lifetime = netdir.lifetime();
 
         // Check if the consensus isn't expired by > 72 hours
+        //
+        // TODO(nickm): Now that #412 is implemented, we should refactor our
+        // code so that the directory manager has an API that only hands out
+        // _usable_ directories, and _that_ code can take this 72-hour offset
+        // into account.  This might take corresponding changes in
+        // NetDirProvider, however.
         if now > lifetime.valid_until() + Duration::new(72 * 60 * 60, 0) {
             return Err(Error::ExpiredConsensus);
         }
