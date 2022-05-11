@@ -52,7 +52,7 @@ mod options;
 
 pub use cmdline::CmdLine;
 pub use options::ARTI_DEFAULTS;
-use tor_config::CfgPath;
+use tor_config::{CfgPath, CfgPathError};
 
 /// The synchronous configuration builder type we use.
 ///
@@ -162,8 +162,8 @@ where
 }
 
 /// Return a filename for the default user configuration file.
-pub fn default_config_file() -> Option<PathBuf> {
-    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path().ok()
+pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
+    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
 }
 
 #[cfg(test)]

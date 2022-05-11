@@ -263,7 +263,10 @@ pub fn main_main() -> Result<()> {
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
     let mut config_file_help = "Specify which config file(s) to read.".to_string();
-    if let Some(default) = arti_config::default_config_file() {
+    if let Ok(default) = arti_config::default_config_file() {
+        // If we couldn't resolve the default config file, then too bad.  If something
+        // actually tries to use it, it will produce an error, but don't fail here
+        // just for that reason.
         config_file_help.push_str(&format!(" Defaults to {:?}", default));
     }
 
@@ -373,14 +376,13 @@ pub fn main_main() -> Result<()> {
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
         if config_files.len() == 0 {
-            if let Some(default) = default_config_file() {
-                match mistrust.verifier().require_file().check(&default) {
-                    Ok(()) => {}
-                    Err(fs_mistrust::Error::NotFound(_)) => {}
-                    Err(e) => return Err(e.into()),
-                }
-                cfg_sources.push_optional_file(default);
+            let default = default_config_file()?;
+            match mistrust.verifier().require_file().check(&default) {
+                Ok(()) => {}
+                Err(fs_mistrust::Error::NotFound(_)) => {}
+                Err(e) => return Err(e.into()),
             }
+            cfg_sources.push_optional_file(default);
         } else {
             for f in config_files {
                 mistrust.verifier().require_file().check(f)?;
