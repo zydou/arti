@@ -197,7 +197,6 @@ mod test {
 
     #[test]
     fn default_config() {
-        // TODO: this is duplicate code.
         let cfg = config::Config::builder()
             .add_source(config::File::from_str(
                 ARTI_DEFAULTS,

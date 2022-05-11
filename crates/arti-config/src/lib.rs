@@ -169,10 +169,6 @@ impl ConfigurationSources {
     /// Load the configuration into a new [`config::Config`].
     pub fn load(&self) -> Result<config::Config, config::ConfigError> {
         let mut builder = config::Config::builder();
-        builder = builder.add_source(config::File::from_str(
-            options::ARTI_DEFAULTS,
-            config::FileFormat::Toml,
-        ));
         builder = add_sources(builder, &self.files, &self.options);
         builder.build()
     }
