@@ -136,6 +136,10 @@ impl Lifetime {
     pub fn valid_until(&self) -> time::SystemTime {
         self.valid_until
     }
+    /// Return true if this consensus is officially valid at the provided time.
+    pub fn valid_at(&self, when: time::SystemTime) -> bool {
+        self.valid_after <= when && when <= self.valid_until
+    }
 }
 
 /// A set of named network parameters.
