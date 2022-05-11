@@ -210,6 +210,10 @@ mod test {
         let default = ArtiConfig::default();
         assert_eq!(&parsed, &default);
 
+        let built_default = ArtiConfigBuilder::default().build().unwrap();
+        assert_eq!(&parsed, &built_default);
+        assert_eq!(&default, &built_default);
+
         // Make sure that the client configuration this gives us is the default one.
         let client_config = parsed.tor_client_config().unwrap();
         let dflt_client_config = TorClientConfig::default();
