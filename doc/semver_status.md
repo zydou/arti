@@ -40,3 +40,6 @@ MODIFIED: Lifetime has a valid_at() method.
 
 +BREAKING: Replaced from_path with from_path_and_mistrust
 
+### tor-proto
+
+MODIFIED: channel() method on ClientCirc.
