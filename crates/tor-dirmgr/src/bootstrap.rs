@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::state::DirState;
+use crate::DirMgrConfig;
 use crate::{
     docid::{self, ClientRequest},
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
@@ -117,10 +118,11 @@ pub(crate) fn make_consensus_request(
     now: SystemTime,
     flavor: ConsensusFlavor,
     store: &dyn Store,
+    config: &DirMgrConfig,
 ) -> Result<ClientRequest> {
     let mut request = tor_dirclient::request::ConsensusRequest::new(flavor);
 
-    let default_cutoff = crate::default_consensus_cutoff(now)?;
+    let default_cutoff = crate::default_consensus_cutoff(now, &config.tolerance)?;
 
     match store.latest_consensus_meta(flavor) {
         Ok(Some(meta)) => {
@@ -147,6 +149,7 @@ pub(crate) fn make_requests_for_documents<R: Runtime>(
     rt: &R,
     docs: &[DocId],
     store: &dyn Store,
+    config: &DirMgrConfig,
 ) -> Result<Vec<ClientRequest>> {
     let mut res = Vec::new();
     for q in docid::partition_by_type(docs.iter().copied())
@@ -155,7 +158,12 @@ pub(crate) fn make_requests_for_documents<R: Runtime>(
     {
         match q {
             DocQuery::LatestConsensus { flavor, .. } => {
-                res.push(make_consensus_request(rt.wallclock(), flavor, store)?);
+                res.push(make_consensus_request(
+                    rt.wallclock(),
+                    flavor,
+                    store,
+                    config,
+                )?);
             }
             DocQuery::AuthCert(ids) => {
                 res.push(ClientRequest::AuthCert(ids.into_iter().collect()));
@@ -211,7 +219,12 @@ async fn fetch_multiple<R: Runtime>(
 ) -> Result<Vec<(ClientRequest, DirResponse)>> {
     let requests = {
         let store = dirmgr.store.lock().expect("store lock poisoned");
-        make_requests_for_documents(&dirmgr.runtime, missing, store.deref())?
+        make_requests_for_documents(
+            &dirmgr.runtime,
+            missing,
+            store.deref(),
+            &dirmgr.config.get(),
+        )?
     };
 
     #[cfg(test)]
