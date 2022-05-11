@@ -39,3 +39,7 @@ BREAKING: Routerstatus::nickname() now returns &str, not &String.
 
 +BREAKING: Replaced from_path with from_path_and_mistrust
 
+### tor-rtcompat
+
+BREAKING: Runtime now requires the Debug trait to be implemented.
+

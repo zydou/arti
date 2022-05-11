@@ -16,7 +16,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 /// A wrapper Runtime that overrides the SleepProvider trait for the
 /// underlying runtime.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MockNetRuntime<R: Runtime> {
     /// The underlying runtime. Most calls get delegated here.
     runtime: R,
