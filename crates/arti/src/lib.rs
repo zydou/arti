@@ -128,8 +128,8 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
+use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::default_config_file;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{BlockOn, Runtime};
 
@@ -263,7 +263,7 @@ pub fn main_main() -> Result<()> {
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
     let mut config_file_help = "Specify which config file(s) to read.".to_string();
-    if let Ok(default) = arti_config::default_config_file() {
+    if let Ok(default) = default_config_file() {
         // If we couldn't resolve the default config file, then too bad.  If something
         // actually tries to use it, it will produce an error, but don't fail here
         // just for that reason.

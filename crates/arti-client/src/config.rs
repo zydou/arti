@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
-pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
+pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -368,6 +368,11 @@ pub(crate) fn default_fs_mistrust() -> fs_mistrust::Mistrust {
         mistrust.dangerously_trust_everyone();
     }
     mistrust
+}
+
+/// Return a filename for the default user configuration file.
+pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
+    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
 }
 
 #[cfg(test)]
