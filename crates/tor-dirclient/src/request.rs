@@ -7,12 +7,15 @@ use tor_netdoc::doc::microdesc::MdDigest;
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
+use tor_proto::circuit::ClientCirc;
 
 /// Alias for a result with a `RequestError`.
 type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
 use std::iter::FromIterator;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
+
+use crate::err::RequestError;
 
 /// A request for an object that can be served over the Tor directory system.
 pub trait Requestable {
@@ -30,6 +33,35 @@ pub trait Requestable {
     fn max_response_len(&self) -> usize {
         (16 * 1024 * 1024) - 1
     }
+
+    /// Return an error if there is some problem with the provided circuit that
+    /// would keep it from being used for this request.
+    fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
+        let _ = circ;
+        Ok(())
+    }
+}
+
+/// How much clock skew do we allow in the distance between the directory
+/// cache's clock and our own?
+///
+///  If we find more skew than this, we end the
+/// request early, on the theory that the directory will not tell us any
+/// information we'd accept.
+#[derive(Clone, Debug)]
+struct SkewLimit {
+    /// We refuse to proceed if the directory says we are more fast than this.
+    ///
+    /// (This is equivalent to deciding that, from our perspective, the
+    /// directory is at least this slow.)
+    max_fast: Duration,
+
+    /// We refuse to proceed if the directory says that we are more slow than
+    /// this.
+    ///
+    /// (This is equivalent to deciding that, from our perspective, the
+    /// directory is at least this fast.)
+    max_slow: Duration,
 }
 
 /// A Request for a consensus directory.
@@ -51,6 +83,8 @@ pub struct ConsensusRequest {
     ///
     /// (Currently we don't send this, since we can't handle diffs.)
     last_consensus_sha3_256: Vec<[u8; 32]>,
+    /// If present, the largest amount of clock skew to allow between ourself and a directory cache.
+    skew_limit: Option<SkewLimit>,
 }
 
 impl ConsensusRequest {
@@ -61,6 +95,7 @@ impl ConsensusRequest {
             authority_ids: Vec::new(),
             last_consensus_published: None,
             last_consensus_sha3_256: Vec::new(),
+            skew_limit: None,
         }
     }
 
@@ -97,6 +132,20 @@ impl ConsensusRequest {
     /// Return the date we're reporting for our most recent consensus.
     pub fn last_consensus_date(&self) -> Option<SystemTime> {
         self.last_consensus_published
+    }
+
+    /// Tell the directory client that we should abort the request early if the
+    /// directory's clock skew exceeds certain limits.
+    ///
+    /// The `max_fast` parameter is the most fast that we're willing to be with
+    /// respect to the directory (or in other words, the most slow that we're
+    /// willing to let the directory be with respect to us).
+    ///
+    /// The `max_slow` parameter is the most _slow_ that we're willing to be with
+    /// respect to the directory ((or in other words, the most slow that we're
+    /// willing to let the directory be with respect to us).
+    pub fn set_skew_limit(&mut self, max_fast: Duration, max_slow: Duration) {
+        self.skew_limit = Some(SkewLimit { max_fast, max_slow });
     }
 }
 
@@ -150,6 +199,21 @@ impl Requestable for ConsensusRequest {
 
     fn partial_docs_ok(&self) -> bool {
         false
+    }
+
+    fn check_circuit(&self, circ: &ClientCirc) -> Result<()> {
+        use tor_proto::ClockSkew::*;
+        // This is the clock skew _according to the directory_.
+        let skew = circ.channel().clock_skew();
+        match (&self.skew_limit, &skew) {
+            (Some(SkewLimit { max_slow, .. }), Slow(slow)) if slow > max_slow => {
+                Err(RequestError::TooMuchClockSkew)
+            }
+            (Some(SkewLimit { max_fast, .. }), Fast(fast)) if fast > max_fast => {
+                Err(RequestError::TooMuchClockSkew)
+            }
+            (_, _) => Ok(()),
+        }
     }
 }
 

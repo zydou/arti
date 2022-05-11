@@ -27,6 +27,10 @@ BREAKING: TorConfig no longer implements TryInto<DirMgrConfig>
 
 MODIFIED: New APIs for CachedDir, Error.
 
+### tor-dirclient
+
+MODIFIED: new max_skew api
+
 ### tor-dirmgr
 
 BREAKING: Added new cache_trust element to DirMgrConfig.

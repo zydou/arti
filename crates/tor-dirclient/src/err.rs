@@ -72,6 +72,13 @@ pub enum RequestError {
     /// Unrecognized content-encoding
     #[error("Unrecognized content encoding: {0:?}")]
     ContentEncoding(String),
+
+    /// Too much clock skew between us and the directory.
+    ///
+    /// (We've givin up on this request early, since any directory that it
+    /// believes in, we would reject as untimely.)
+    #[error("Too much clock skew with directory cache")]
+    TooMuchClockSkew,
 }
 
 impl From<TimeoutError> for RequestError {
@@ -147,6 +154,7 @@ impl HasKind for RequestError {
             E::HttparseError(_) => EK::TorProtocolViolation,
             E::HttpError(_) => EK::Internal,
             E::ContentEncoding(_) => EK::TorProtocolViolation,
+            E::TooMuchClockSkew => EK::TorDirectoryError,
         }
     }
 }

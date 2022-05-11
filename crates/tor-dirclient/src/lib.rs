@@ -121,6 +121,8 @@ where
         error,
     };
 
+    req.check_circuit(&circuit).map_err(wrap_err)?;
+
     // Launch the stream.
     let mut stream = runtime
         .timeout(begin_timeout, circuit.begin_dir_stream())
