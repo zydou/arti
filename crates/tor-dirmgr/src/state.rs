@@ -459,6 +459,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     .map_err(|e| Error::from_netdoc(DocSource::LocalCache, e))?
                     .check_signature()?;
                 let now = self.rt.wallclock();
+                let parsed = self.config.tolerance.extend_tolerance(parsed);
                 let cert = parsed.check_valid_at(&now)?;
                 self.missing_certs.remove(cert.key_ids());
                 self.certs.push(cert);
@@ -486,6 +487,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     .expect("Certificate was not in input as expected");
                 if let Ok(wellsigned) = parsed.check_signature() {
                     let now = self.rt.wallclock();
+                    let wellsigned = self.config.tolerance.extend_tolerance(wellsigned);
                     let timely = wellsigned.check_valid_at(&now)?;
                     newcerts.push((timely, s));
                 } else {

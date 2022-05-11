@@ -95,8 +95,8 @@ use std::{fmt::Debug, time::SystemTime};
 use crate::state::{DirState, NetDirChange};
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
-    DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
-    NetworkConfigBuilder,
+    DirMgrConfig, DirSkewTolerance, DirSkewToleranceBuilder, DownloadScheduleConfig,
+    DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
 };
 pub use docid::DocId;
 pub use err::Error;
