@@ -46,11 +46,13 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+pub mod cmdline;
 mod err;
 pub mod list_builder;
 mod mut_cfg;
 mod path;
 
+pub use cmdline::CmdLine;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
