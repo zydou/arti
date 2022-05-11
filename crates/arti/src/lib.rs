@@ -122,6 +122,8 @@ pub mod process;
 pub mod socks;
 pub mod watch_cfg;
 
+use std::fmt::Write;
+
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
     ProxyConfigBuilder, SystemConfig, SystemConfigBuilder,
@@ -267,7 +269,7 @@ pub fn main_main() -> Result<()> {
         // If we couldn't resolve the default config file, then too bad.  If something
         // actually tries to use it, it will produce an error, but don't fail here
         // just for that reason.
-        config_file_help.push_str(&format!(" Defaults to {:?}", default));
+        write!(config_file_help, " Defaults to {:?}", default).unwrap();
     }
 
     // We create the runtime now so that we can use its `Debug` impl to describe it for
