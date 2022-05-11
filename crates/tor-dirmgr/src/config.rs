@@ -16,7 +16,7 @@ use tor_checkable::timed::TimerangeBound;
 use tor_config::{define_list_builder_accessors, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_guardmgr::fallback::FallbackListBuilder;
-use tor_netdoc::doc::netstatus;
+use tor_netdoc::doc::netstatus::{self, Lifetime};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -211,6 +211,17 @@ impl DirSkewTolerance {
         timebound
             .extend_tolerance(self.post_valid_tolerance)
             .extend_pre_tolerance(self.pre_valid_tolerance)
+    }
+
+    /// Return a new consensus [`Lifetime`] that extgends the validity intervals
+    /// of `lifetime` according to this configuration.
+    pub(crate) fn extend_lifetime(&self, lifetime: &Lifetime) -> Lifetime {
+        Lifetime::new(
+            lifetime.valid_after() - self.pre_valid_tolerance,
+            lifetime.fresh_until(),
+            lifetime.valid_until() + self.post_valid_tolerance,
+        )
+        .expect("Logic error when constructing lifetime")
     }
 }
 

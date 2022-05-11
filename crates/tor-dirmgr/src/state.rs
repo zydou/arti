@@ -441,6 +441,11 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         let total_certs = n_missing_certs + n_certs;
         DirStatusInner::FetchingCerts {
             lifetime: self.consensus_meta.lifetime().clone(),
+            usable_lifetime: self
+                .config
+                .tolerance
+                .extend_lifetime(self.consensus_meta.lifetime()),
+
             n_certs: (n_certs as u16, total_certs as u16),
         }
         .into()
@@ -841,6 +846,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let n_present = self.n_microdescs - self.partial.n_missing();
         DirStatusInner::Validated {
             lifetime: self.meta.lifetime().clone(),
+            usable_lifetime: self.config.tolerance.extend_lifetime(self.meta.lifetime()),
             n_mds: (n_present as u32, self.n_microdescs as u32),
             usable: self.is_ready(Readiness::Usable),
         }
