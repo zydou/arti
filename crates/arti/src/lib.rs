@@ -128,8 +128,8 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
+use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::default_config_file;
 use safelog::with_safe_logging_suppressed;
 use tor_rtcompat::{BlockOn, Runtime};
 
@@ -263,7 +263,10 @@ pub fn main_main() -> Result<()> {
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
     let mut config_file_help = "Specify which config file(s) to read.".to_string();
-    if let Some(default) = arti_config::default_config_file() {
+    if let Ok(default) = default_config_file() {
+        // If we couldn't resolve the default config file, then too bad.  If something
+        // actually tries to use it, it will produce an error, but don't fail here
+        // just for that reason.
         config_file_help.push_str(&format!(" Defaults to {:?}", default));
     }
 
@@ -368,33 +371,12 @@ pub fn main_main() -> Result<()> {
         mistrust
     };
 
-    let cfg_sources = {
-        let mut cfg_sources = arti_config::ConfigurationSources::new();
-
-        let config_files = matches.values_of_os("config-files").unwrap_or_default();
-        if config_files.len() == 0 {
-            if let Some(default) = default_config_file() {
-                match mistrust.verifier().require_file().check(&default) {
-                    Ok(()) => {}
-                    Err(fs_mistrust::Error::NotFound(_)) => {}
-                    Err(e) => return Err(e.into()),
-                }
-                cfg_sources.push_optional_file(default);
-            }
-        } else {
-            for f in config_files {
-                mistrust.verifier().require_file().check(f)?;
-                cfg_sources.push_file(f);
-            }
-        }
-
-        matches
-            .values_of("option")
-            .unwrap_or_default()
-            .for_each(|s| cfg_sources.push_option(s));
-
-        cfg_sources
-    };
+    let cfg_sources = arti_config::ConfigurationSources::from_cmdline(
+        default_config_file()?,
+        matches.values_of_os("config-files").unwrap_or_default(),
+        matches.values_of("option").unwrap_or_default(),
+        &mistrust,
+    )?;
 
     let cfg = cfg_sources.load()?;
 

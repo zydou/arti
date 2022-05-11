@@ -122,7 +122,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
 
     let config = {
         // TODO: this is mostly duplicate code.
-        let mut cfg_sources = arti_config::ConfigurationSources::new();
+        let mut cfg_sources = arti_config::ConfigurationSources::new_empty();
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
 

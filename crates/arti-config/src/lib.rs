@@ -52,7 +52,6 @@ mod options;
 
 pub use cmdline::CmdLine;
 pub use options::ARTI_DEFAULTS;
-use tor_config::CfgPath;
 
 /// The synchronous configuration builder type we use.
 ///
@@ -86,8 +85,55 @@ enum MustRead {
 
 impl ConfigurationSources {
     /// Create a new empty [`ConfigurationSources`].
-    pub fn new() -> Self {
+    pub fn new_empty() -> Self {
         Self::default()
+    }
+
+    /// Establish a [`ConfigurationSources`] the usual way from a command line and defaults
+    ///
+    /// The caller should have parsed the program's command line, and extracted (inter alia)
+    ///
+    ///  * `config_files_options`: Paths of config file(s)
+    ///  * `cmdline_toml_override_options`: Overrides ("key=value")
+    ///
+    /// The caller should also provide `default_config_file`, the default location of the
+    /// configuration file.  This is used if no file(s) are specified on the command line.
+    ///
+    /// `mistrust` is used to check whether the configuration files have appropriate permissions.
+    pub fn from_cmdline<F, O>(
+        default_config_file: impl Into<PathBuf>,
+        config_files_options: impl IntoIterator<Item = F>,
+        cmdline_toml_override_options: impl IntoIterator<Item = O>,
+        mistrust: &fs_mistrust::Mistrust,
+    ) -> Result<Self, fs_mistrust::Error>
+    where
+        F: Into<PathBuf>,
+        O: Into<String>,
+    {
+        let mut cfg_sources = ConfigurationSources::new_empty();
+
+        let mut any_files = false;
+        for f in config_files_options {
+            let f = f.into();
+            mistrust.verifier().require_file().check(&f)?;
+            cfg_sources.push_file(f);
+            any_files = true;
+        }
+        if !any_files {
+            let default = default_config_file.into();
+            match mistrust.verifier().require_file().check(&default) {
+                Ok(()) => {}
+                Err(fs_mistrust::Error::NotFound(_)) => {}
+                Err(e) => return Err(e),
+            }
+            cfg_sources.push_optional_file(default);
+        }
+
+        for s in cmdline_toml_override_options {
+            cfg_sources.push_option(s);
+        }
+
+        Ok(cfg_sources)
     }
 
     /// Add `p` to the list of files that we want to read configuration from.
@@ -96,15 +142,14 @@ impl ConfigurationSources {
     /// added to this object.
     ///
     /// If the listed file is absent, loading the configuration won't succeed.
-    pub fn push_file<P: AsRef<Path>>(&mut self, p: P) {
-        self.files.push((p.as_ref().to_owned(), MustRead::MustRead));
+    pub fn push_file(&mut self, p: impl Into<PathBuf>) {
+        self.files.push((p.into(), MustRead::MustRead));
     }
 
     /// As `push_file`, but if the listed file can't be loaded, loading the
     /// configuration can still succeed.
-    pub fn push_optional_file<P: AsRef<Path>>(&mut self, p: P) {
-        self.files
-            .push((p.as_ref().to_owned(), MustRead::TolerateAbsence));
+    pub fn push_optional_file(&mut self, p: impl Into<PathBuf>) {
+        self.files.push((p.into(), MustRead::TolerateAbsence));
     }
 
     /// Add `s` to the list of overridden options to apply to our configuration.
@@ -113,8 +158,8 @@ impl ConfigurationSources {
     /// order that they are added to this object.
     ///
     /// The format for `s` is as in [`CmdLine`].
-    pub fn push_option<S: ToOwned<Owned = String> + ?Sized>(&mut self, option: &S) {
-        self.options.push(option.to_owned());
+    pub fn push_option(&mut self, option: impl Into<String>) {
+        self.options.push(option.into());
     }
 
     /// Return an iterator over the files that we care about.
@@ -161,15 +206,11 @@ where
     builder
 }
 
-/// Return a filename for the default user configuration file.
-pub fn default_config_file() -> Option<PathBuf> {
-    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path().ok()
-}
-
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use arti_client::config::default_config_file;
     use tempfile::tempdir;
 
     static EX_TOML: &str = "

@@ -17,6 +17,7 @@ tor-circmgr = { package = "tor-circmgr", path = "../tor-circmgr", version = "0.3
 tor-config = { package = "tor-config", path = "../tor-config", version = "0.3.0", features = [
     "expand-paths",
 ] }
+fs-mistrust = { path = "../fs-mistrust", version = "0.1.0" }
 config = { version = "0.13", default-features = false, features = ["toml"] }
 once_cell = "1"
 serde = { version = "1.0.103", features = ["derive"] }

@@ -43,3 +43,8 @@ BREAKING: Routerstatus::nickname() now returns &str, not &String.
 
 BREAKING: Runtime now requires the Debug trait to be implemented.
 
+### arti-config
+
+BREAKING: default_config_file moved to arti_client, and changed to return Result
+GREAKING: ConfigurationSource::new_empty renamed from ::new
+BREAKING: ConfigurationSource methods take Into<String> and Into<PathBuf> now
