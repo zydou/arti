@@ -47,9 +47,6 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
-mod options;
-
-pub use options::ARTI_DEFAULTS;
 use tor_config::CmdLine;
 
 /// The synchronous configuration builder type we use.

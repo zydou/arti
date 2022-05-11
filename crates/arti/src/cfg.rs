@@ -11,6 +11,9 @@ use tor_config::{impl_default_via_builder, ConfigBuildError};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
+/// Default options to use for our configuration.
+pub const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
+
 /// Structure to hold our application configuration options
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
