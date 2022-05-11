@@ -9,6 +9,7 @@
 use std::{
     cmp::{Eq, Ordering, PartialEq, PartialOrd},
     collections::BinaryHeap,
+    fmt,
     pin::Pin,
     sync::{Arc, Mutex, Weak},
     task::{Context, Poll, Waker},
@@ -19,6 +20,7 @@ use futures::Future;
 use tracing::trace;
 
 use std::collections::HashSet;
+use std::fmt::Formatter;
 use tor_rtcompat::SleepProvider;
 
 /// A dummy [`SleepProvider`] instance for testing.
@@ -33,6 +35,12 @@ use tor_rtcompat::SleepProvider;
 pub struct MockSleepProvider {
     /// The shared backend for this MockSleepProvider and its futures.
     state: Arc<Mutex<SleepSchedule>>,
+}
+
+impl fmt::Debug for MockSleepProvider {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MockSleepProvider").finish_non_exhaustive()
+    }
 }
 
 /// Shared backend for sleep provider and Sleeping futures.

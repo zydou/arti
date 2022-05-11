@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::stream;
 use futures::task::Spawn;
 use futures::{AsyncRead, AsyncWrite, Future};
+use std::fmt::Debug;
 use std::io::Result as IoResult;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
@@ -53,6 +54,7 @@ pub trait Runtime:
     + TcpProvider
     + TlsProvider<Self::TcpStream>
     + UdpProvider
+    + Debug
     + 'static
 {
 }
@@ -67,6 +69,7 @@ impl<T> Runtime for T where
         + TcpProvider
         + TlsProvider<Self::TcpStream>
         + UdpProvider
+        + Debug
         + 'static
 {
 }

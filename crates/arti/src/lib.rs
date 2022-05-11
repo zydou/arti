@@ -140,6 +140,39 @@ use tracing::{info, warn};
 /// Shorthand for a boxed and pinned Future.
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
 
+/// Create a runtime for Arti to use.
+fn create_runtime() -> std::io::Result<impl Runtime> {
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature="tokio", feature="native-tls"))] {
+        use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="tokio", feature="rustls"))] {
+            use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
+            use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="async-std", feature="rustls"))] {
+            use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
+        } else {
+            compile_error!("You must configure both an async runtime and a TLS stack. See doc/TROUBLESHOOTING.md for more.");
+        }
+    }
+    ChosenRuntime::create()
+}
+
+/// Return a (non-exhaustive) array of enabled Cargo features, for version printing purposes.
+fn list_enabled_features() -> &'static [&'static str] {
+    // HACK(eta): We can't get this directly, so we just do this awful hack instead.
+    // Note that we only list features that aren't about the runtime used, since that already
+    // gets printed separately.
+    &[
+        #[cfg(feature = "journald")]
+        "journald",
+        #[cfg(feature = "static-sqlite")]
+        "static-sqlite",
+        #[cfg(feature = "static-native-tls")]
+        "static-native-tls",
+    ]
+}
+
 /// Run the main loop of the proxy.
 ///
 /// # Panics
@@ -234,9 +267,25 @@ pub fn main_main() -> Result<()> {
         config_file_help.push_str(&format!(" Defaults to {:?}", default));
     }
 
+    // We create the runtime now so that we can use its `Debug` impl to describe it for
+    // the version string.
+    let runtime = create_runtime()?;
+    let features = list_enabled_features();
+    let long_version = format!(
+        "{}\nusing runtime: {:?}\noptional features: {}",
+        env!("CARGO_PKG_VERSION"),
+        runtime,
+        if features.is_empty() {
+            "<none>".into()
+        } else {
+            features.join(", ")
+        }
+    );
+
     let matches =
         App::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
+            .long_version(&long_version as &str)
             .author("The Tor Project Developers")
             .about("A Rust Tor implementation.")
             // HACK(eta): clap generates "arti [OPTIONS] <SUBCOMMAND>" for this usage string by
@@ -378,20 +427,6 @@ pub fn main_main() -> Result<()> {
         );
 
         process::use_max_file_limit(&config);
-
-        cfg_if::cfg_if! {
-            if #[cfg(all(feature="tokio", feature="native-tls"))] {
-            use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="tokio", feature="rustls"))] {
-                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
-                use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="async-std", feature="rustls"))] {
-                use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
-            }
-        }
-
-        let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
         rt_copy.block_on(run(

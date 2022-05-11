@@ -7,6 +7,7 @@
 
 use super::io::{stream_pair, LocalStream};
 use super::MockNetRuntime;
+use core::fmt;
 use tor_rtcompat::tls::TlsConnector;
 use tor_rtcompat::{CertifiedConn, Runtime, TcpListener, TcpProvider, TlsProvider};
 
@@ -18,6 +19,7 @@ use futures::sink::SinkExt;
 use futures::stream::{Stream, StreamExt};
 use futures::FutureExt;
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::io::{Error as IoError, ErrorKind, Result as IoResult};
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
@@ -101,6 +103,12 @@ pub struct MockNetProvider {
     /// We have to use a separate type here and reference count it,
     /// since the `next_port` counter needs to be shared.
     inner: Arc<MockNetProviderInner>,
+}
+
+impl fmt::Debug for MockNetProvider {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MockNetProvider").finish_non_exhaustive()
+    }
 }
 
 /// Shared part of a MockNetworkProvider.
