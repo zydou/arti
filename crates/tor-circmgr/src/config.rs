@@ -5,7 +5,7 @@
 //! Most types in this module are re-exported by `arti-client`.
 
 use tor_basic_utils::define_accessor_trait;
-use tor_config::impl_default_via_builder;
+use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackList;
 
@@ -41,7 +41,7 @@ pub struct PathConfig {
     #[builder(default = "ipv6_prefix_default()")]
     ipv6_subnet_family_prefix: u8,
 }
-impl_default_via_builder! { PathConfig }
+impl_standard_builder! { PathConfig }
 
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
@@ -119,7 +119,7 @@ pub struct PreemptiveCircuitConfig {
     #[builder(default = "default_preemptive_min_exit_circs_for_port()")]
     pub(crate) min_exit_circs_for_port: usize,
 }
-impl_default_via_builder! { PreemptiveCircuitConfig }
+impl_standard_builder! { PreemptiveCircuitConfig }
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
@@ -161,7 +161,7 @@ pub struct CircuitTiming {
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) request_loyalty: Duration,
 }
-impl_default_via_builder! { CircuitTiming }
+impl_standard_builder! { CircuitTiming }
 
 /// Return default threshold
 fn default_preemptive_threshold() -> usize {

@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
-pub use tor_config::impl_default_via_builder;
+pub use tor_config::impl_standard_builder;
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
@@ -57,7 +57,7 @@ pub struct ClientAddrConfig {
     #[builder(default)]
     pub(crate) allow_local_addrs: bool,
 }
-impl_default_via_builder! { ClientAddrConfig }
+impl_standard_builder! { ClientAddrConfig }
 
 /// Configuration for client behavior relating to stream connection timeouts
 ///
@@ -89,7 +89,7 @@ pub struct StreamTimeoutConfig {
     #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
-impl_default_via_builder! { StreamTimeoutConfig }
+impl_standard_builder! { StreamTimeoutConfig }
 
 impl ClientAddrConfig {
     /// Return a new [`ClientAddrConfigBuilder`].
@@ -146,7 +146,7 @@ pub struct StorageConfig {
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
 }
-impl_default_via_builder! { StorageConfig }
+impl_standard_builder! { StorageConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -269,7 +269,7 @@ pub struct TorClientConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 }
-impl_default_via_builder! { TorClientConfig }
+impl_standard_builder! { TorClientConfig }
 
 /// Helper to convert convert_override_net_params
 fn convert_override_net_params(

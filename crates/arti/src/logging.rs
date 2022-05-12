@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::str::FromStr;
-use tor_config::impl_default_via_builder;
+use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_config::{CfgPath, ConfigBuildError};
 use tracing::{warn, Subscriber};
@@ -52,7 +52,7 @@ pub struct LoggingConfig {
     #[builder(default)]
     log_sensitive_information: bool,
 }
-impl_default_via_builder! { LoggingConfig }
+impl_standard_builder! { LoggingConfig }
 
 /// Return a default tracing filter value for `logging.console`.
 #[allow(clippy::unnecessary_wraps)]

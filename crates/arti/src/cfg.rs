@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
-use tor_config::{impl_default_via_builder, ConfigBuildError};
+use tor_config::{impl_standard_builder, ConfigBuildError};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -26,7 +26,7 @@ pub struct ApplicationConfig {
     #[builder(default)]
     pub(crate) watch_configuration: bool,
 }
-impl_default_via_builder! { ApplicationConfig }
+impl_standard_builder! { ApplicationConfig }
 
 /// Configuration for one or more proxy listeners.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
@@ -44,7 +44,7 @@ pub struct ProxyConfig {
     #[builder(default)]
     pub(crate) dns_port: Option<u16>,
 }
-impl_default_via_builder! { ProxyConfig }
+impl_standard_builder! { ProxyConfig }
 
 /// Return the default value for `socks_port`
 #[allow(clippy::unnecessary_wraps)]
@@ -71,7 +71,7 @@ pub struct SystemConfig {
     #[builder(setter(into), default = "default_max_files()")]
     pub(crate) max_files: u64,
 }
-impl_default_via_builder! { SystemConfig }
+impl_standard_builder! { SystemConfig }
 
 /// Return the default maximum number of file descriptors to launch with.
 fn default_max_files() -> u64 {
@@ -128,7 +128,7 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(flatten))]
     tor: TorClientConfig,
 }
-impl_default_via_builder! { ArtiConfig }
+impl_standard_builder! { ArtiConfig }
 
 impl TryFrom<config::Config> for ArtiConfig {
     type Error = config::ConfigError;
