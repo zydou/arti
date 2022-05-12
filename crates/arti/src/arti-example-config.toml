@@ -1,4 +1,5 @@
 # (Built-in defaults for the arti configuration format.)
+# (This is an example file you can use as a template or as documentation.)
 
 # Rules about how arti should behave as an application
 [application]
