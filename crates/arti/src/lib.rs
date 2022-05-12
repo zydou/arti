@@ -126,7 +126,7 @@ use std::fmt::Write;
 
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
-    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder,
+    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 

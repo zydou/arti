@@ -47,9 +47,6 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
-mod options;
-
-pub use options::ARTI_DEFAULTS;
 use tor_config::CmdLine;
 
 /// The synchronous configuration builder type we use.
@@ -169,10 +166,6 @@ impl ConfigurationSources {
     /// Load the configuration into a new [`config::Config`].
     pub fn load(&self) -> Result<config::Config, config::ConfigError> {
         let mut builder = config::Config::builder();
-        builder = builder.add_source(config::File::from_str(
-            options::ARTI_DEFAULTS,
-            config::FileFormat::Toml,
-        ));
         builder = add_sources(builder, &self.files, &self.options);
         builder.build()
     }

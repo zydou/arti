@@ -18,6 +18,10 @@ We can delete older sections here after we bump the releases.
 
 ## Since Arti 0.3.0
 
+### arti
+
+ADDED: ARTI_EXAMPLE_CONFIG introduced
+
 ### arti-client
 
 MODIFIED: Code to configure fs-mistrust.
@@ -49,3 +53,4 @@ BREAKING: Runtime now requires the Debug trait to be implemented.
 BREAKING: default_config_file moved to arti_client, and changed to return Result
 GREAKING: ConfigurationSource::new_empty renamed from ::new
 BREAKING: ConfigurationSource methods take Into<String> and Into<PathBuf> now
+BREAKING: ARTI_DEFAULTS removed, in favour of ARTI_EXAMPLE_CONFIG in the arti crate
