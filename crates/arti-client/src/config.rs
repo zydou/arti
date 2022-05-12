@@ -73,18 +73,18 @@ pub struct StreamTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
 
