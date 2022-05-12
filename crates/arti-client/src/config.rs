@@ -91,20 +91,6 @@ pub struct StreamTimeoutConfig {
 }
 impl_standard_builder! { StreamTimeoutConfig }
 
-impl ClientAddrConfig {
-    /// Return a new [`ClientAddrConfigBuilder`].
-    pub fn builder() -> ClientAddrConfigBuilder {
-        ClientAddrConfigBuilder::default()
-    }
-}
-
-impl StreamTimeoutConfig {
-    /// Return a new [`StreamTimeoutConfigBuilder`].
-    pub fn builder() -> StreamTimeoutConfigBuilder {
-        StreamTimeoutConfigBuilder::default()
-    }
-}
-
 /// Return the default stream timeout
 fn default_connect_timeout() -> Duration {
     Duration::new(10, 0)
@@ -159,11 +145,6 @@ fn default_state_dir() -> CfgPath {
 }
 
 impl StorageConfig {
-    /// Return a new StorageConfigBuilder.
-    pub fn builder() -> StorageConfigBuilder {
-        StorageConfigBuilder::default()
-    }
-
     /// Try to expand `state_dir` to be a path buffer.
     pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
@@ -296,11 +277,6 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
 }
 
 impl TorClientConfig {
-    /// Return a new TorClientConfigBuilder.
-    pub fn builder() -> TorClientConfigBuilder {
-        TorClientConfigBuilder::default()
-    }
-
     /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
     pub(crate) fn dir_mgr_config(&self, mistrust: fs_mistrust::Mistrust) -> Result<dir::DirMgrConfig, ConfigBuildError> {

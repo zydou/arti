@@ -155,6 +155,13 @@ macro_rules! impl_standard_builder {
     {
         @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
     } => { $crate::paste!{
+        impl $Config {
+            /// Returns a fresh, default, builder
+            pub fn builder() -> [< $Config Builder >] {
+                Default::default()
+            }
+        }
+
         impl Default for $Config {
             fn default() -> Self {
                 // unwrap is good because one of the test cases above checks that it works!
