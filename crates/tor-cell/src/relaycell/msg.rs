@@ -8,6 +8,7 @@ use crate::chancell::msg::{DestroyReason, TAP_C_HANDSHAKE_LEN, TAP_S_HANDSHAKE_L
 use crate::chancell::CELL_DATA_LEN;
 use caret::caret_int;
 use educe::Educe;
+use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
 use tor_bytes::{Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
@@ -921,9 +922,9 @@ impl Resolve {
                 for o in v6.octets().iter().rev() {
                     let high_nybble = o >> 4;
                     let low_nybble = o & 15;
-                    s.push_str(&format!("{:x}.{:x}.", low_nybble, high_nybble));
+                    write!(s, "{:x}.{:x}.", low_nybble, high_nybble).unwrap();
                 }
-                s.push_str("ip6.arpa");
+                write!(s, "ip6.arpa").unwrap();
                 s
             }
         };

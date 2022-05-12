@@ -154,7 +154,7 @@ impl Reactor {
 
             // See if the output sink can have cells written to it yet.
             if let Poll::Ready(ret) = Pin::new(&mut self.output).poll_ready(cx) {
-                let _ = ret.map_err(codec_err_to_chan)?;
+                let () = ret.map_err(codec_err_to_chan)?;
                 // If it can, check whether we have any cells to send it from `Channel` senders.
                 if let Poll::Ready(msg) = Pin::new(&mut self.cells).poll_next(cx) {
                     match msg {
