@@ -193,23 +193,42 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use arti_client::config::dir;
+    use regex::Regex;
     use std::time::Duration;
 
     use super::*;
+
+    fn uncomment_example_settings(template: &str) -> String {
+        let re = Regex::new(r#"(?m)^\#([^ \n])"#).unwrap();
+        re.replace(template, |cap: &regex::Captures<'_>| -> _ {
+            cap.get(1).unwrap().as_str().to_string()
+        })
+        .into()
+    }
 
     #[test]
     fn default_config() {
         let empty_config = config::Config::builder().build().unwrap();
         let empty_config: ArtiConfig = empty_config.try_into().unwrap();
 
+        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
         let cfg = config::Config::builder()
-            .add_source(config::File::from_str(
-                ARTI_EXAMPLE_CONFIG,
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(&example, config::FileFormat::Toml))
             .build()
             .unwrap();
 
+        // This tests that the example settings do not *contradict* the defaults.
+        // But it does not prove that the example template file does not contain misspelled
+        // (and therefore ignored) items - which might even contradict the defaults if
+        // their spelling was changed.
+        //
+        // Really we should test that too, but that's dependent on a fix for
+        //  https://gitlab.torproject.org/tpo/core/arti/-/issues/417
+        // which is blocked on serde-ignored not handling serde(flatten).
+        //
+        // Also we should ideally test that every setting from the config appears here in
+        // the file.  Possibly that could be done with some kind of stunt Deserializer,
+        // but it's not trivial.
         let parsed: ArtiConfig = cfg.try_into().unwrap();
         let default = ArtiConfig::default();
         assert_eq!(&parsed, &default);

@@ -86,6 +86,7 @@ dependencies = [
  "libc",
  "notify",
  "once_cell",
+ "regex",
  "rlimit",
  "safelog",
  "serde",
