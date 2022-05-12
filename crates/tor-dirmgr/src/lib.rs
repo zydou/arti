@@ -255,18 +255,26 @@ impl<'a> BoolResetter<'a> {
 ///
 /// Used (for example) to report where we got a document from if it fails to
 /// parse.
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DocSource {
     /// We loaded the document from our cache.
-    #[display(fmt = "local cache")]
     LocalCache,
     /// We fetched the document from a server.
-    #[display(fmt = "directory server")]
     DirServer {
         /// Information about the server we fetched the document from.
         source: Option<SourceInfo>,
     },
+}
+
+impl std::fmt::Display for DocSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocSource::LocalCache => write!(f, "local cache"),
+            DocSource::DirServer { source: None } => write!(f, "directory server"),
+            DocSource::DirServer { source: Some(info) } => write!(f, "directory server {}", info),
+        }
+    }
 }
 
 impl<R: Runtime> DirMgr<R> {
