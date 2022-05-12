@@ -942,10 +942,8 @@ fn upgrade_weak_ref<T>(weak: &Weak<T>) -> Result<Arc<T>> {
     Weak::upgrade(weak).ok_or(Error::ManagerDropped)
 }
 
-/// Given a time `now`, return the age of the oldest consensus that we should
-/// request at that time.
-///
-/// DOCDOC allow_skew.
+/// Given a time `now`, and an amount of tolerated clock skew `tolerance`,
+/// return the age of the oldest consensus that we should request at that time.
 pub(crate) fn default_consensus_cutoff(
     now: SystemTime,
     tolerance: &DirSkewTolerance,
