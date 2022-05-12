@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
+pub use tor_config::impl_default_via_builder;
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
@@ -88,15 +89,7 @@ pub struct StreamTimeoutConfig {
     pub(crate) resolve_ptr_timeout: Duration,
 }
 
-// NOTE: it seems that `unwrap` may be safe because of builder defaults
-// check `derive_builder` documentation for details
-// https://docs.rs/derive_builder/0.10.2/derive_builder/#default-values
-#[allow(clippy::unwrap_used)]
-impl Default for ClientAddrConfig {
-    fn default() -> Self {
-        ClientAddrConfigBuilder::default().build().unwrap()
-    }
-}
+impl_default_via_builder! { ClientAddrConfig }
 
 impl ClientAddrConfig {
     /// Return a new [`ClientAddrConfigBuilder`].
@@ -105,12 +98,7 @@ impl ClientAddrConfig {
     }
 }
 
-#[allow(clippy::unwrap_used)]
-impl Default for StreamTimeoutConfig {
-    fn default() -> Self {
-        StreamTimeoutConfigBuilder::default().build().unwrap()
-    }
-}
+impl_default_via_builder! { StreamTimeoutConfig }
 
 impl StreamTimeoutConfig {
     /// Return a new [`StreamTimeoutConfigBuilder`].
@@ -171,11 +159,7 @@ fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
 }
 
-impl Default for StorageConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
-}
+impl_default_via_builder! { StorageConfig }
 
 impl StorageConfig {
     /// Return a new StorageConfigBuilder.
@@ -308,13 +292,7 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     }
 }
 
-impl Default for TorClientConfig {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("Could not build TorClientConfig from default configuration.")
-    }
-}
+impl_default_via_builder! { TorClientConfig }
 
 impl TorClientConfig {
     /// Return a new TorClientConfigBuilder.

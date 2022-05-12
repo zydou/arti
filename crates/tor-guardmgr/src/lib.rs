@@ -141,6 +141,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
+use tor_config::impl_default_via_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
@@ -1220,7 +1221,7 @@ pub enum GuardUsageKind {
 /// A set of parameters describing how a single guard should be selected.
 ///
 /// Used as an argument to [`GuardMgr::select_guard`].
-#[derive(Clone, Debug, Default, derive_builder::Builder)]
+#[derive(Clone, Debug, derive_builder::Builder)]
 #[builder(build_fn(error = "tor_config::ConfigBuildError"))]
 pub struct GuardUsage {
     /// The purpose for which this guard will be used.
@@ -1232,6 +1233,8 @@ pub struct GuardUsage {
     #[builder(sub_builder, setter(custom))]
     restrictions: GuardRestrictionList,
 }
+
+impl_default_via_builder! { GuardUsage }
 
 /// List of socket restricteionesses, as configured
 pub type GuardRestrictionList = Vec<GuardRestriction>;

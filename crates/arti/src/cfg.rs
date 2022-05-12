@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 
 use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
-use tor_config::ConfigBuildError;
+use tor_config::{impl_default_via_builder, ConfigBuildError};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
 /// Structure to hold our application configuration options
-#[derive(Debug, Default, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ApplicationConfig {
@@ -26,6 +26,7 @@ pub struct ApplicationConfig {
     #[builder(default)]
     pub(crate) watch_configuration: bool,
 }
+impl_default_via_builder! { ApplicationConfig }
 
 /// Configuration for one or more proxy listeners.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
@@ -108,7 +109,7 @@ impl SystemConfig {
 ///
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
-#[derive(Debug, Builder, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Builder, Clone, Eq, PartialEq)]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ArtiConfig {
@@ -137,6 +138,8 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(flatten))]
     tor: TorClientConfig,
 }
+
+impl_default_via_builder! { ArtiConfig }
 
 impl TryFrom<config::Config> for ArtiConfig {
     type Error = config::ConfigError;
