@@ -95,8 +95,8 @@ use std::{fmt::Debug, time::SystemTime};
 use crate::state::{DirState, NetDirChange};
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
-    DirMgrConfig, DownloadScheduleConfig, DownloadScheduleConfigBuilder, NetworkConfig,
-    NetworkConfigBuilder,
+    DirMgrConfig, DirSkewTolerance, DirSkewToleranceBuilder, DownloadScheduleConfig,
+    DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
 };
 pub use docid::DocId;
 pub use err::Error;
@@ -942,15 +942,17 @@ fn upgrade_weak_ref<T>(weak: &Weak<T>) -> Result<Arc<T>> {
     Weak::upgrade(weak).ok_or(Error::ManagerDropped)
 }
 
-/// At most how much age can we tolerate in a consensus?
-///
-/// TODO: Make this public and/or use it elsewhere; see arti#412.
-const CONSENSUS_ALLOW_SKEW: Duration = Duration::from_secs(3600 * 48);
-
-/// Given a time `now`, return the age of the oldest consensus that we should
-/// request at that time.
-pub(crate) fn default_consensus_cutoff(now: SystemTime) -> Result<SystemTime> {
-    let cutoff = time::OffsetDateTime::from(now - CONSENSUS_ALLOW_SKEW);
+/// Given a time `now`, and an amount of tolerated clock skew `tolerance`,
+/// return the age of the oldest consensus that we should request at that time.
+pub(crate) fn default_consensus_cutoff(
+    now: SystemTime,
+    tolerance: &DirSkewTolerance,
+) -> Result<SystemTime> {
+    /// We _always_ allow at least this much age in our consensuses, to account
+    /// for the fact that consensuses have some lifetime.
+    const MIN_AGE_TO_ALLOW: Duration = Duration::from_secs(3 * 3600);
+    let allow_skew = std::cmp::max(MIN_AGE_TO_ALLOW, tolerance.post_valid_tolerance);
+    let cutoff = time::OffsetDateTime::from(now - allow_skew);
     // We now round cutoff to the next hour, so that we aren't leaking our exact
     // time to the directory cache.
     //
@@ -1122,19 +1124,26 @@ mod test {
             let later = tomorrow + Duration::from_secs(86400);
 
             let (_tempdir, mgr) = new_mgr(rt);
+            let config = DirMgrConfig::default();
 
             // Try with an empty store.
             let req = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_consensus_request(now, ConsensusFlavor::Microdesc, store.deref())
-                    .unwrap()
+                bootstrap::make_consensus_request(
+                    now,
+                    ConsensusFlavor::Microdesc,
+                    store.deref(),
+                    &config,
+                )
+                .unwrap()
             };
+            let tolerance = DirSkewTolerance::default().post_valid_tolerance;
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);
                     let date = r.last_consensus_date().unwrap();
-                    assert!(date >= now - CONSENSUS_ALLOW_SKEW);
-                    assert!(date <= now - CONSENSUS_ALLOW_SKEW + Duration::from_secs(3600));
+                    assert!(date >= now - tolerance);
+                    assert!(date <= now - tolerance + Duration::from_secs(3600));
                 }
                 _ => panic!("Wrong request type"),
             }
@@ -1157,8 +1166,13 @@ mod test {
             // Now try again.
             let req = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_consensus_request(now, ConsensusFlavor::Microdesc, store.deref())
-                    .unwrap()
+                bootstrap::make_consensus_request(
+                    now,
+                    ConsensusFlavor::Microdesc,
+                    store.deref(),
+                    &config,
+                )
+                .unwrap()
             };
             match req {
                 ClientRequest::Consensus(r) => {
@@ -1186,13 +1200,18 @@ mod test {
             #[cfg(feature = "routerdesc")]
             let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.gen())).collect();
             let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.gen())).collect();
+            let config = DirMgrConfig::default();
 
             // Try an authcert.
             let query = DocId::AuthCert(certid1);
             let store = mgr.store.lock().unwrap();
-            let reqs =
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[query], store.deref())
-                    .unwrap();
+            let reqs = bootstrap::make_requests_for_documents(
+                &mgr.runtime,
+                &[query],
+                store.deref(),
+                &config,
+            )
+            .unwrap();
             assert_eq!(reqs.len(), 1);
             let req = &reqs[0];
             if let ClientRequest::AuthCert(r) = req {
@@ -1202,17 +1221,26 @@ mod test {
             }
 
             // Try a bunch of mds.
-            let reqs = bootstrap::make_requests_for_documents(&mgr.runtime, &md_ids, store.deref())
-                .unwrap();
+            let reqs = bootstrap::make_requests_for_documents(
+                &mgr.runtime,
+                &md_ids,
+                store.deref(),
+                &config,
+            )
+            .unwrap();
             assert_eq!(reqs.len(), 2);
             assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
 
             // Try a bunch of rds.
             #[cfg(feature = "routerdesc")]
             {
-                let reqs =
-                    bootstrap::make_requests_for_documents(&mgr.runtime, &rd_ids, store.deref())
-                        .unwrap();
+                let reqs = bootstrap::make_requests_for_documents(
+                    &mgr.runtime,
+                    &rd_ids,
+                    store.deref(),
+                    &config,
+                )
+                .unwrap();
                 assert_eq!(reqs.len(), 2);
                 assert!(matches!(reqs[0], ClientRequest::RouterDescs(_)));
             }
@@ -1224,6 +1252,7 @@ mod test {
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let now = rt.wallclock();
             let day = Duration::from_secs(86400);
+            let config = DirMgrConfig::default();
 
             let (_tempdir, mgr) = new_mgr(rt);
 
@@ -1231,7 +1260,8 @@ mod test {
             let q = DocId::Microdesc([99; 32]);
             let r = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], store.deref()).unwrap()
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], store.deref(), &config)
+                    .unwrap()
             };
             let expanded = mgr.expand_response_text(&r[0], "ABC".to_string());
             assert_eq!(&expanded.unwrap(), "ABC");
@@ -1244,8 +1274,13 @@ mod test {
             };
             let r = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[latest_id], store.deref())
-                    .unwrap()
+                bootstrap::make_requests_for_documents(
+                    &mgr.runtime,
+                    &[latest_id],
+                    store.deref(),
+                    &config,
+                )
+                .unwrap()
             };
             let expanded = mgr.expand_response_text(&r[0], "DEF".to_string());
             assert_eq!(&expanded.unwrap(), "DEF");
@@ -1274,8 +1309,13 @@ mod test {
             // one.
             let r = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[latest_id], store.deref())
-                    .unwrap()
+                bootstrap::make_requests_for_documents(
+                    &mgr.runtime,
+                    &[latest_id],
+                    store.deref(),
+                    &config,
+                )
+                .unwrap()
             };
             let expanded = mgr.expand_response_text(&r[0], "hello".to_string());
             assert_eq!(&expanded.unwrap(), "hello");

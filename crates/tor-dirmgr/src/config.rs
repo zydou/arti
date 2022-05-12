@@ -12,14 +12,16 @@ use crate::authority::{Authority, AuthorityBuilder, AuthorityList, AuthorityList
 use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
 use crate::Result;
+use tor_checkable::timed::TimerangeBound;
 use tor_config::{define_list_builder_accessors, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_guardmgr::fallback::FallbackListBuilder;
-use tor_netdoc::doc::netstatus;
+use tor_netdoc::doc::netstatus::{self, Lifetime};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Configuration information about the Tor network itself; used as
 /// part of Arti's configuration.
@@ -159,6 +161,70 @@ impl DownloadScheduleConfig {
     }
 }
 
+/// Configuration for how much
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[builder(build_fn(error = "ConfigBuildError"))]
+pub struct DirSkewTolerance {
+    /// For how long before a directory document is valid should we accept it?
+    ///
+    /// Having a nonzero value here allows us to tolerate a little clock skew.
+    ///
+    /// Defaults to 1 day.
+    #[builder(default = "Duration::from_millis(24 * 60 * 60)")]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    pub(crate) pre_valid_tolerance: Duration,
+
+    /// For how long after a directory document is valid should we consider it
+    /// usable?
+    ///
+    /// Having a nonzero value here allows us to tolerate a little clock skew,
+    /// and makes us more robust to temporary failures for the directory
+    /// authorities to reach consensus.
+    ///
+    /// Defaults to 3 days (per [prop212]).
+    ///
+    /// [prop212]:
+    ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
+    #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
+    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    pub(crate) post_valid_tolerance: Duration,
+}
+
+impl Default for DirSkewTolerance {
+    fn default() -> Self {
+        Self::builder()
+            .build()
+            .expect("default builder setting didn't work")
+    }
+}
+
+impl DirSkewTolerance {
+    /// Return a new builder to make a [`DirSkewTolerance`]
+    pub fn builder() -> DirSkewToleranceBuilder {
+        DirSkewToleranceBuilder::default()
+    }
+
+    /// Return a new [`TimerangeBound`] that extends the validity interval of
+    /// `timebound` according to this configuration.
+    pub(crate) fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {
+        timebound
+            .extend_tolerance(self.post_valid_tolerance)
+            .extend_pre_tolerance(self.pre_valid_tolerance)
+    }
+
+    /// Return a new consensus [`Lifetime`] that extgends the validity intervals
+    /// of `lifetime` according to this configuration.
+    pub(crate) fn extend_lifetime(&self, lifetime: &Lifetime) -> Lifetime {
+        Lifetime::new(
+            lifetime.valid_after() - self.pre_valid_tolerance,
+            lifetime.fresh_until(),
+            lifetime.valid_until() + self.post_valid_tolerance,
+        )
+        .expect("Logic error when constructing lifetime")
+    }
+}
+
 /// Configuration type for network directory operations.
 ///
 /// If the directory manager gains new configurabilities, this structure will gain additional
@@ -206,6 +272,9 @@ pub struct DirMgrConfig {
     /// should _not_ assume that the effect of changing this option will always
     /// be delayed.)
     pub schedule: DownloadScheduleConfig,
+
+    /// How much skew do we tolerate in directory validity times?
+    pub tolerance: DirSkewTolerance,
 
     /// A map of network parameters that we're overriding from their settings in
     /// the consensus.
@@ -263,6 +332,7 @@ impl DirMgrConfig {
                 authorities: self.network.authorities.clone(),
             },
             schedule: new_config.schedule.clone(),
+            tolerance: new_config.tolerance.clone(),
             override_net_params: new_config.override_net_params.clone(),
             extensions: new_config.extensions.clone(),
         }

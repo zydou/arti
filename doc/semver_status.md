@@ -34,6 +34,7 @@ BREAKING: Added new cache_trust element to DirMgrConfig.
 ### tor-netdoc
 
 BREAKING: Routerstatus::nickname() now returns &str, not &String.
+MODIFIED: Lifetime has a valid_at() method.
 
 ### tor-persist
 
