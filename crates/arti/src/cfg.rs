@@ -199,6 +199,9 @@ mod test {
 
     #[test]
     fn default_config() {
+        let empty_config = config::Config::builder().build().unwrap();
+        let empty_config: ArtiConfig = empty_config.try_into().unwrap();
+
         let cfg = config::Config::builder()
             .add_source(config::File::from_str(
                 ARTI_EXAMPLE_CONFIG,
@@ -210,6 +213,7 @@ mod test {
         let parsed: ArtiConfig = cfg.try_into().unwrap();
         let default = ArtiConfig::default();
         assert_eq!(&parsed, &default);
+        assert_eq!(&parsed, &empty_config);
 
         let built_default = ArtiConfigBuilder::default().build().unwrap();
         assert_eq!(&parsed, &built_default);
