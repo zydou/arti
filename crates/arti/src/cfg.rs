@@ -138,7 +138,6 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(flatten))]
     tor: TorClientConfig,
 }
-
 impl_default_via_builder! { ArtiConfig }
 
 impl TryFrom<config::Config> for ArtiConfig {
