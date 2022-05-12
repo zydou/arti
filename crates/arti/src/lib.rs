@@ -373,12 +373,15 @@ pub fn main_main() -> Result<()> {
         mistrust
     };
 
-    let cfg_sources = arti_config::ConfigurationSources::from_cmdline(
-        default_config_file()?,
-        matches.values_of_os("config-files").unwrap_or_default(),
-        matches.values_of("option").unwrap_or_default(),
-        &mistrust,
-    )?;
+    let cfg_sources = {
+        let mut cfg_sources = arti_config::ConfigurationSources::from_cmdline(
+            default_config_file()?,
+            matches.values_of_os("config-files").unwrap_or_default(),
+            matches.values_of("option").unwrap_or_default(),
+        );
+        cfg_sources.set_mistrust(mistrust);
+        cfg_sources
+    };
 
     let cfg = cfg_sources.load()?;
 
