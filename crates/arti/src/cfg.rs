@@ -12,7 +12,7 @@ use tor_config::{impl_default_via_builder, ConfigBuildError};
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
 /// Default options to use for our configuration.
-pub const ARTI_DEFAULTS: &str = concat!(include_str!("./arti_defaults.toml"),);
+pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"),);
 
 /// Structure to hold our application configuration options
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
@@ -193,7 +193,6 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use arti_client::config::dir;
-    use arti_config::ARTI_DEFAULTS;
     use std::time::Duration;
 
     use super::*;
@@ -202,7 +201,7 @@ mod test {
     fn default_config() {
         let cfg = config::Config::builder()
             .add_source(config::File::from_str(
-                ARTI_DEFAULTS,
+                ARTI_EXAMPLE_CONFIG,
                 config::FileFormat::Toml,
             ))
             .build()
