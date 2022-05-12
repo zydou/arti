@@ -44,17 +44,12 @@ pub struct ProxyConfig {
     #[builder(default)]
     pub(crate) dns_port: Option<u16>,
 }
+impl_default_via_builder! { ProxyConfig }
 
 /// Return the default value for `socks_port`
 #[allow(clippy::unnecessary_wraps)]
 fn default_socks_port() -> Option<u16> {
     Some(9150)
-}
-
-impl Default for ProxyConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
 }
 
 impl ProxyConfig {
@@ -76,16 +71,11 @@ pub struct SystemConfig {
     #[builder(setter(into), default = "default_max_files()")]
     pub(crate) max_files: u64,
 }
+impl_default_via_builder! { SystemConfig }
 
 /// Return the default maximum number of file descriptors to launch with.
 fn default_max_files() -> u64 {
     16384
-}
-
-impl Default for SystemConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
 }
 
 impl SystemConfig {
