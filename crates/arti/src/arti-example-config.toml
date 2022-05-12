@@ -36,17 +36,17 @@ socks_port = 9150
 console = "debug"
 
 # As above, but specify filtering directives for sending trace messages to 
-# the journald logging system.
-#
-#journald = ""
+# the journald logging system.  For example (not the default):
+#     journald = ""
 
 # You can also configure one or more log files, with different filters, and optional
 # rotation.
 #
-#file = [
-#   {path = "~/logs/debug.log", filter="debug"},
-#   {path = "~/logs/trace.log", filter="trace", rotate="daily"},
-#]
+# For example (not the default):
+#     file = [
+#         {path = "~/logs/debug.log", filter="debug"},
+#         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
+#     ]
 
 # Locations to use for storing things on disk.
 #
@@ -68,9 +68,10 @@ state_dir = "${ARTI_LOCAL_DATA}"
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.
 #
-#[override_net_params]
-#circwindow = 1000
-#min_paths_for_circs_pct = 60
+[override_net_params]
+# For example (not the eefaults):
+#     circwindow = 1000
+#     min_paths_for_circs_pct = 60
 
 # Configuration for timing when and how often we should download directory
 # information.
