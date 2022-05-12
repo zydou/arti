@@ -117,7 +117,7 @@ pub struct PreemptiveCircuitConfig {
     /// should we predict that the client will still want to have circuits
     /// available for that port?
     #[builder(default = "default_preemptive_duration()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) prediction_lifetime: Duration,
 
     /// How many available circuits should we try to have, at minimum, for each
@@ -143,14 +143,14 @@ pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     #[builder(default = "default_max_dirtiness()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) max_dirtiness: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
@@ -163,7 +163,7 @@ pub struct CircuitTiming {
     /// before using a suitable-looking circuit launched by some other
     /// request.
     #[builder(default = "default_request_loyalty()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) request_loyalty: Duration,
 }
 
