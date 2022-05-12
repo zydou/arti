@@ -92,16 +92,21 @@ impl Reconfigure {
     }
 }
 
-/// Defines `Default` for a struct with a `Builder`.  Use this, not `derive`.
+/// Defines standard impls for a struct with a `Builder`, incl `Default`
 ///
-/// Use this.  Do not `#[derive(Builder, Default)]`.  That latter approach would produce
+/// Generates:
+///
+///  * `impl Default for $Config`
+///  * a self-test that this actually works
+///
+/// **Use this.**  Do not `#[derive(Builder, Default)]`.  That latter approach would produce
 /// wrong answers if builder attributes are used to specify non-`Default` default values.
 ///
 /// `$Config`'s builder must have default values for all the fields,
 /// or this macro-generated self-test will fail.
 /// This should be OK for all elements of our configuration.
 #[macro_export]
-macro_rules! impl_default_via_builder { {
+macro_rules! impl_standard_builder { {
     $Config:ty
 } => {
     $crate::paste!{

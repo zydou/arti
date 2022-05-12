@@ -141,7 +141,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
-use tor_config::impl_default_via_builder;
+use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
@@ -1234,7 +1234,7 @@ pub struct GuardUsage {
     restrictions: GuardRestrictionList,
 }
 
-impl_default_via_builder! { GuardUsage }
+impl_standard_builder! { GuardUsage }
 
 /// List of socket restricteionesses, as configured
 pub type GuardRestrictionList = Vec<GuardRestriction>;
