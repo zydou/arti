@@ -30,9 +30,6 @@ pub enum Error {
     /// A schema version that says we can't read it.
     #[error("unrecognized data storage schema")]
     UnrecognizedSchema,
-    /// We couldn't configure the network.
-    #[error("bad network configuration")]
-    BadNetworkConfig(&'static str),
     /// User requested an operation that required a usable
     /// bootstrapped directory, but we didn't have one.
     #[error("directory not present or not up-to-date")]
@@ -163,7 +160,6 @@ impl Error {
             | Error::CachePermissions(_)
             | Error::SqliteError(_)
             | Error::UnrecognizedSchema
-            | Error::BadNetworkConfig(_)
             | Error::DirectoryNotPresent
             | Error::ManagerDropped
             | Error::CantAdvanceState
@@ -226,7 +222,6 @@ impl HasKind for Error {
             }
             E::SqliteError(e) => sqlite_error_kind(e),
             E::UnrecognizedSchema => EK::CacheCorrupted,
-            E::BadNetworkConfig(_) => EK::InvalidConfig,
             E::DirectoryNotPresent => EK::DirectoryExpired,
             E::NetDirOlder => EK::TorDirectoryError,
             E::BadUtf8FromDirectory(_) => EK::TorProtocolViolation,
