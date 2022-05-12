@@ -118,13 +118,11 @@ pub(crate) trait DirState: Send {
     /// into `storage` so they can be saved in a cache.
     // TODO: It might be good to say "there was a change but also an
     // error" in this API if possible.
-    // TODO: It would be better to not have this function be async,
-    // once the `must_not_suspend` lint is stable.
-    // TODO: this should take a "DirSource" too.
     fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<bool>;
     /// Return a summary of this state as a [`DirStatus`].
@@ -286,9 +284,9 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         &mut self,
         text: &str,
         _request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<bool> {
-        let source = DocSource::DirServer {};
         if let Some(meta) = self.add_consensus_text(source, text)? {
             if let Some(store) = storage {
                 let mut w = store.lock().expect("Directory storage lock poisoned");
@@ -477,6 +475,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<bool> {
         let asked_for: HashSet<_> = match request {
@@ -496,12 +495,16 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     let timely = wellsigned.check_valid_at(&now)?;
                     newcerts.push((timely, s));
                 } else {
-                    // TODO: note the source.
-                    warn!("Badly signed certificate received and discarded.");
+                    warn!(
+                        "Badly signed certificate received from {} and discarded.",
+                        source
+                    );
                 }
             } else {
-                // TODO: note the source.
-                warn!("Unparsable certificate received and discarded.");
+                warn!(
+                    "Unparsable certificate received received from {} and discarded.",
+                    source
+                );
             }
         }
 
@@ -509,7 +512,10 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         let len_orig = newcerts.len();
         newcerts.retain(|(cert, _)| asked_for.contains(cert.key_ids()));
         if newcerts.len() != len_orig {
-            warn!("Discarding certificates that we didn't ask for.");
+            warn!(
+                "Discarding certificates from {} that we didn't ask for.",
+                source
+            );
         }
 
         // We want to exit early if we aren't saving any certificates.
@@ -879,6 +885,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<bool> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
@@ -894,7 +901,8 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             let md = anno.into_microdesc();
             if !requested.contains(md.digest()) {
                 warn!(
-                    "Received microdescriptor we did not ask for: {:?}",
+                    "Received microdescriptor from {} we did not ask for: {:?}",
+                    source,
                     md.digest()
                 );
                 continue;
@@ -1190,11 +1198,17 @@ mod test {
                     cache_usage: CacheUsage::CacheOkay,
                 }
             ));
+            let source = DocSource::DirServer { source: None };
 
             // Now suppose that we get some complete junk from a download.
             let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
             let req = crate::docid::ClientRequest::Consensus(req);
-            let outcome = state.add_from_download("this isn't a consensus", &req, Some(&store));
+            let outcome = state.add_from_download(
+                "this isn't a consensus",
+                &req,
+                source.clone(),
+                Some(&store),
+            );
             assert!(matches!(outcome, Err(Error::NetDocError { .. })));
             // make sure it wasn't stored...
             assert!(store
@@ -1205,7 +1219,7 @@ mod test {
                 .is_none());
 
             // Now try again, with a real consensus... but the wrong authorities.
-            let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
+            let outcome = state.add_from_download(CONSENSUS, &req, source.clone(), Some(&store));
             assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
             assert!(store
                 .lock()
@@ -1226,7 +1240,7 @@ mod test {
                 #[cfg(feature = "dirfilter")]
                 Arc::new(crate::filter::NilFilter),
             );
-            let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
+            let outcome = state.add_from_download(CONSENSUS, &req, source, Some(&store));
             assert!(outcome.unwrap());
             assert!(store
                 .lock()
@@ -1278,9 +1292,10 @@ mod test {
                     #[cfg(feature = "dirfilter")]
                     Arc::new(crate::filter::NilFilter),
                 );
+                let source = DocSource::DirServer { source: None };
                 let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
                 let req = crate::docid::ClientRequest::Consensus(req);
-                let outcome = state.add_from_download(CONSENSUS, &req, None);
+                let outcome = state.add_from_download(CONSENSUS, &req, source, None);
                 assert!(outcome.unwrap());
                 Box::new(state).advance().unwrap()
             }
@@ -1337,10 +1352,12 @@ mod test {
 
             // Now try to add the other from a download ... but fail
             // because we didn't ask for it.
+            let source = DocSource::DirServer { source: None };
             let mut req = tor_dirclient::request::AuthCertRequest::new();
             req.push(authcert_id_5696()); // it's the wrong id.
             let req = ClientRequest::AuthCert(req);
-            let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
+            let outcome =
+                state.add_from_download(AUTHCERT_5A23, &req, source.clone(), Some(&store));
             assert!(!outcome.unwrap()); // no error, but nothing changed.
             let missing2 = state.missing_docs();
             assert_eq!(missing, missing2); // No change.
@@ -1355,7 +1372,7 @@ mod test {
             let mut req = tor_dirclient::request::AuthCertRequest::new();
             req.push(authcert_id_5a23()); // Right idea this time!
             let req = ClientRequest::AuthCert(req);
-            let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
+            let outcome = state.add_from_download(AUTHCERT_5A23, &req, source, Some(&store));
             assert!(outcome.unwrap()); // No error, _and_ something changed!
             let missing3 = state.missing_docs();
             assert!(missing3.is_empty());
@@ -1481,7 +1498,8 @@ mod test {
                 req.push(md_digest);
             }
             let req = ClientRequest::Microdescs(req);
-            let outcome = state.add_from_download(response.as_str(), &req, Some(&store));
+            let source = DocSource::DirServer { source: None };
+            let outcome = state.add_from_download(response.as_str(), &req, source, Some(&store));
             assert!(outcome.unwrap()); // successfully loaded MDs
             match state.get_netdir_change().unwrap() {
                 NetDirChange::AttemptReplace { netdir, .. } => {

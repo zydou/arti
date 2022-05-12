@@ -10,6 +10,7 @@ use std::{
 
 use crate::state::DirState;
 use crate::DirMgrConfig;
+use crate::DocSource;
 use crate::{
     docid::{self, ClientRequest},
     upgrade_weak_ref, DirMgr, DocId, DocQuery, DocumentText, Error, Readiness, Result,
@@ -383,7 +384,11 @@ async fn download_attempt<R: Runtime>(
         };
         match dirmgr.expand_response_text(&client_req, text) {
             Ok(text) => {
-                let outcome = state.add_from_download(&text, &client_req, Some(&dirmgr.store));
+                let doc_source = DocSource::DirServer {
+                    source: source.clone(),
+                };
+                let outcome =
+                    state.add_from_download(&text, &client_req, doc_source, Some(&dirmgr.store));
                 match outcome {
                     Ok(b) => {
                         changed |= b;
@@ -685,6 +690,7 @@ mod test {
             &mut self,
             text: &str,
             _request: &ClientRequest,
+            _source: DocSource,
             _storage: Option<&Mutex<DynStore>>,
         ) -> Result<bool> {
             let mut changed = false;

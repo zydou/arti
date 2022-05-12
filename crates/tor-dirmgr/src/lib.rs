@@ -78,6 +78,7 @@ use crate::storage::{DynStore, Store};
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
+use tor_dirclient::SourceInfo;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
@@ -261,11 +262,11 @@ pub enum DocSource {
     #[display(fmt = "local cache")]
     LocalCache,
     /// We fetched the document from a server.
-    //
-    // TODO: we'll should add a lot more information here in the future, once
-    // it's available from tor_dirclient::DirSource,
     #[display(fmt = "directory server")]
-    DirServer {},
+    DirServer {
+        /// Information about the server we fetched the document from.
+        source: Option<SourceInfo>,
+    },
 }
 
 impl<R: Runtime> DirMgr<R> {
