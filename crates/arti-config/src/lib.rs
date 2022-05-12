@@ -47,11 +47,10 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
-mod cmdline;
 mod options;
 
-pub use cmdline::CmdLine;
 pub use options::ARTI_DEFAULTS;
+use tor_config::CmdLine;
 
 /// The synchronous configuration builder type we use.
 ///

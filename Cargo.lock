@@ -3428,6 +3428,7 @@ dependencies = [
  "educe",
  "once_cell",
  "paste",
+ "regex",
  "rmp-serde",
  "serde",
  "serde_json",
