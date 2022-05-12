@@ -34,6 +34,7 @@ MODIFIED: New APIs for CachedDir, Error.
 ### tor-dirmgr
 
 BREAKING: Added new cache_trust element to DirMgrConfig.
+BREAKING: Delete Error::BadNetworkConfig
 
 ### tor-netdoc
 
