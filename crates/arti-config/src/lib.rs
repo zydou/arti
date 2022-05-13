@@ -190,8 +190,6 @@ where
     P: AsRef<Path>,
 {
     for (path, must_read) in files {
-        // Not going to use File::with_name here, since it doesn't
-        // quite do what we want.
         let required = must_read == &MustRead::MustRead;
 
         match mistrust.verifier().require_file().check(&path) {
@@ -200,6 +198,8 @@ where
             Err(e) => return Err(ConfigError::Foreign(e.into())),
         }
 
+        // Not going to use File::with_name here, since it doesn't
+        // quite do what we want.
         let f: config::File<_, _> = path.as_ref().into();
         builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
     }
