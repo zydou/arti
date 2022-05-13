@@ -296,7 +296,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         };
 
         let source = DocSource::LocalCache;
-        match self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?) {
+        match self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?, None) {
             Ok(_) => Ok((true, None)),
             Err(e) => Ok((false, Some(e))),
         }
@@ -304,11 +304,15 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
     fn add_from_download(
         &mut self,
         text: &str,
-        _request: &ClientRequest,
+        request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<(bool, Option<Error>)> {
-        match self.add_consensus_text(source, text) {
+        let requested_newer_than = match request {
+            ClientRequest::Consensus(r) => r.last_consensus_date(),
+            _ => None,
+        };
+        match self.add_consensus_text(source, text, requested_newer_than) {
             Ok(meta) => {
                 if let Some(store) = storage {
                     let mut w = store.lock().expect("Directory storage lock poisoned");
@@ -334,12 +338,20 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
 }
 
 impl<R: Runtime> GetConsensusState<R> {
-    /// Helper: try to set the current consensus text from an input
-    /// string `text`.  Refuse it if the authorities could never be
-    /// correct, or if it is ill-formed.
+    /// Helper: try to set the current consensus text from an input string
+    /// `text`.  Refuse it if the authorities could never be correct, or if it
+    /// is ill-formed.
+    ///
+    /// If `cutoff` is provided, treat any consensus older than `cutoff` as
+    /// older-than-requested.
     ///
     /// Errors from this method are not fatal to the download process.
-    fn add_consensus_text(&mut self, source: DocSource, text: &str) -> Result<&ConsensusMeta> {
+    fn add_consensus_text(
+        &mut self,
+        source: DocSource,
+        text: &str,
+        cutoff: Option<SystemTime>,
+    ) -> Result<&ConsensusMeta> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) =
@@ -349,6 +361,11 @@ impl<R: Runtime> GetConsensusState<R> {
             let parsed = self.config.tolerance.extend_tolerance(parsed);
             let now = self.rt.wallclock();
             let timely = parsed.check_valid_at(&now)?;
+            if let Some(cutoff) = cutoff {
+                if timely.peek_lifetime().valid_after() < cutoff {
+                    return Err(Error::Unwanted("consensus was older than requested"));
+                }
+            }
             let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
             (meta, timely)
         };
