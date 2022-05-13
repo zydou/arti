@@ -145,6 +145,8 @@ pub(crate) trait DirState: Send {
     /// Return a configuration for attempting downloads.
     fn dl_config(&self) -> DownloadSchedule;
     /// If possible, advance to the next state.
+    ///
+    /// Return `Err` only in the event of an unrecoverable error.
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>>;
     /// Return a time (if any) when downloaders should stop attempting to
     /// advance this state, and should instead reset it and start over.
@@ -371,7 +373,7 @@ impl<R: Runtime> GetConsensusState<R> {
         self.next = Some(GetCertsState {
             cache_usage: self.cache_usage,
             consensus_source: source,
-            unvalidated,
+            consensus: GetCertsConsensus::Unvalidated(unvalidated),
             consensus_meta,
             missing_certs: desired_certs,
             certs: Vec::new(),
@@ -393,6 +395,19 @@ impl<R: Runtime> GetConsensusState<R> {
     }
 }
 
+/// One of three possible internal states for the consensus in a GetCertsState.
+///
+/// This inner object is advanced by `try_checking_sigs`.
+#[derive(Clone, Debug)]
+enum GetCertsConsensus {
+    /// We have an unvalidated consensus; we haven't checked its signatures.
+    Unvalidated(UnvalidatedMdConsensus),
+    /// A validated consensus: the signatures are fine and we can advance.
+    Validated(MdConsensus),
+    /// A failure: the signatures were invalid, and we definitely need to reset.
+    Failed(Error),
+}
+
 /// Second state: fetching or loading authority certificates.
 ///
 /// TODO: we should probably do what C tor does, and try to use the
@@ -407,8 +422,9 @@ struct GetCertsState<R: Runtime> {
     cache_usage: CacheUsage,
     /// Where did we get our consensus?
     consensus_source: DocSource,
-    /// The consensus that we are trying to validate.
-    unvalidated: UnvalidatedMdConsensus,
+    /// The consensus that we are trying to validate, or an error if we've given
+    /// up on validating it.
+    consensus: GetCertsConsensus,
     /// Metadata for the consensus.
     consensus_meta: ConsensusMeta,
     /// A set of the certificate keypairs for the certificates we don't
@@ -455,16 +471,52 @@ impl<R: Runtime> GetCertsState<R> {
             .check_valid_at(&now)?;
         Ok((timely_cert, cert_text))
     }
+
+    /// If we have enough certificates, and we have not yet checked the
+    /// signatures on the consensus, try checking them.
+    ///
+    /// If the consensus is valid, remove the unvalidated consensus from `self`
+    /// and put the validated consensus there instead.
+    ///
+    /// If the consensus is invalid, throw it out set a blocking error.
+    fn try_checking_sigs(&mut self) {
+        use GetCertsConsensus as C;
+        // Temporary value; we'll replace the consensus field with something
+        // better before the method returns.
+        let mut consensus = C::Failed(Error::CantAdvanceState);
+        std::mem::swap(&mut consensus, &mut self.consensus);
+
+        let unvalidated = match consensus {
+            C::Unvalidated(uv) if uv.key_is_correct(&self.certs[..]).is_ok() => uv,
+            _ => {
+                // nothing to check at this point.  Either we already checked the consensus, or we don't yet have enough certificates.
+                self.consensus = consensus;
+                return;
+            }
+        };
+
+        self.consensus = match unvalidated.check_signature(&self.certs[..]) {
+            Ok(validated) => C::Validated(validated),
+            Err(err) => C::Failed(Error::from_netdoc(self.consensus_source.clone(), err)),
+        };
+    }
 }
 
 impl<R: Runtime> DirState for GetCertsState<R> {
     fn describe(&self) -> String {
-        let total = self.certs.len() + self.missing_certs.len();
-        format!(
-            "Downloading certificates for consensus (we are missing {}/{}).",
-            self.missing_certs.len(),
-            total
-        )
+        use GetCertsConsensus as C;
+        match &self.consensus {
+            C::Unvalidated(_) => {
+                let total = self.certs.len() + self.missing_certs.len();
+                format!(
+                    "Downloading certificates for consensus (we are missing {}/{}).",
+                    self.missing_certs.len(),
+                    total
+                )
+            }
+            C::Validated(_) => "Validated consensus; about to get microdescriptors".to_string(),
+            C::Failed(err) => format!("Failed to validate consensus: {}", err),
+        }
     }
     fn missing_docs(&self) -> Vec<DocId> {
         self.missing_certs
@@ -476,7 +528,13 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         false
     }
     fn can_advance(&self) -> bool {
-        self.unvalidated.key_is_correct(&self.certs[..]).is_ok()
+        matches!(self.consensus, GetCertsConsensus::Validated(_))
+    }
+    fn blocking_error(&self) -> Option<Error> {
+        match self.consensus {
+            GetCertsConsensus::Failed(ref err) => Some(err.clone()),
+            _ => None,
+        }
     }
     fn bootstrap_status(&self) -> DirStatus {
         let n_certs = self.certs.len();
@@ -520,6 +578,9 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     }
                 }
             }
+        }
+        if changed {
+            self.try_checking_sigs();
         }
         Ok((changed, nonfatal_error))
     }
@@ -587,16 +648,17 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             }
         }
 
+        if changed {
+            self.try_checking_sigs();
+        }
+
         Ok((changed, nonfatal_error))
     }
+
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        if self.can_advance() {
-            let consensus_source = self.consensus_source.clone();
-            let validated = self
-                .unvalidated
-                .check_signature(&self.certs[..])
-                .map_err(|e| Error::from_netdoc(consensus_source, e))?;
-            Ok(Box::new(GetMicrodescsState::new(
+        use GetCertsConsensus::*;
+        match self.consensus {
+            Validated(validated) => Ok(Box::new(GetMicrodescsState::new(
                 self.cache_usage,
                 validated,
                 self.consensus_meta,
@@ -605,11 +667,11 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 self.prev_netdir,
                 #[cfg(feature = "dirfilter")]
                 self.filter,
-            )))
-        } else {
-            Ok(self)
+            ))),
+            _ => Ok(self),
         }
     }
+
     fn reset_time(&self) -> Option<SystemTime> {
         Some(
             self.consensus_meta.lifetime().valid_until()
@@ -617,10 +679,21 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         )
     }
     fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
+        let cache_usage = if self.cache_usage == CacheUsage::CacheOnly {
+            // Cache only means we can't ever download.
+            CacheUsage::CacheOnly
+        } else {
+            // If we reset in this state, we should always go to "must
+            // download": Either we've failed to get the certs we needed, or we
+            // have found that the consensus wasn't valid.  Either case calls
+            // for a fresh consensus download attempt.
+            CacheUsage::MustDownload
+        };
+
         Ok(Box::new(GetConsensusState::new(
             self.rt,
             self.config,
-            self.cache_usage,
+            cache_usage,
             self.prev_netdir,
             #[cfg(feature = "dirfilter")]
             self.filter,
@@ -1454,7 +1527,7 @@ mod test {
             // If we start from scratch and reset, we're back in GetConsensus.
             let state = new_getcerts_state(rt);
             let state = state.reset().unwrap();
-            assert_eq!(&state.describe(), "Looking for a consensus.");
+            assert_eq!(&state.describe(), "Downloading a consensus.");
 
             // TODO: I'd like even more tests to make sure that we never
             // accept a certificate for an authority we don't believe in.
