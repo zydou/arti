@@ -359,6 +359,13 @@ fn main() -> Result<()> {
         .values_of_os("arti-config")
         .unwrap_or_default()
         .for_each(|f| config_sources.push_file(f));
+
+    // TODO really we ought to get this from the arti configuration, or something.
+    // But this is OK for now since we are a benchmarking tool.
+    let mut mistrust = fs_mistrust::Mistrust::new();
+    mistrust.dangerously_trust_everyone();
+    config_sources.set_mistrust(mistrust);
+
     let cfg = config_sources.load()?;
     let config: ArtiConfig = cfg.try_into()?;
     let tcc = config.tor_client_config()?;

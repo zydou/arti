@@ -49,6 +49,8 @@
 
 use tor_config::CmdLine;
 
+use config::ConfigError;
+
 /// The synchronous configuration builder type we use.
 ///
 /// (This is a type alias that config should really provide.)
@@ -63,6 +65,8 @@ pub struct ConfigurationSources {
     files: Vec<(PathBuf, MustRead)>,
     /// A list of command-line options to apply after parsing the files.
     options: Vec<String>,
+    /// We will check all files we read
+    mistrust: fs_mistrust::Mistrust,
 }
 
 /// Rules for whether we should proceed if a configuration file is unreadable.
@@ -100,8 +104,7 @@ impl ConfigurationSources {
         default_config_file: impl Into<PathBuf>,
         config_files_options: impl IntoIterator<Item = F>,
         cmdline_toml_override_options: impl IntoIterator<Item = O>,
-        mistrust: &fs_mistrust::Mistrust,
-    ) -> Result<Self, fs_mistrust::Error>
+    ) -> Self
     where
         F: Into<PathBuf>,
         O: Into<String>,
@@ -111,17 +114,11 @@ impl ConfigurationSources {
         let mut any_files = false;
         for f in config_files_options {
             let f = f.into();
-            mistrust.verifier().require_file().check(&f)?;
             cfg_sources.push_file(f);
             any_files = true;
         }
         if !any_files {
             let default = default_config_file.into();
-            match mistrust.verifier().require_file().check(&default) {
-                Ok(()) => {}
-                Err(fs_mistrust::Error::NotFound(_)) => {}
-                Err(e) => return Err(e),
-            }
             cfg_sources.push_optional_file(default);
         }
 
@@ -129,7 +126,7 @@ impl ConfigurationSources {
             cfg_sources.push_option(s);
         }
 
-        Ok(cfg_sources)
+        cfg_sources
     }
 
     /// Add `p` to the list of files that we want to read configuration from.
@@ -158,15 +155,25 @@ impl ConfigurationSources {
         self.options.push(option.into());
     }
 
+    /// Sets the filesystem permission mistrust
+    pub fn set_mistrust(&mut self, mistrust: fs_mistrust::Mistrust) {
+        self.mistrust = mistrust;
+    }
+
+    /// Reads the filesystem permission mistrust
+    pub fn mistrust(&self) -> &fs_mistrust::Mistrust {
+        &self.mistrust
+    }
+
     /// Return an iterator over the files that we care about.
     pub fn files(&self) -> impl Iterator<Item = &Path> {
         self.files.iter().map(|(f, _)| f.as_path())
     }
 
     /// Load the configuration into a new [`config::Config`].
-    pub fn load(&self) -> Result<config::Config, config::ConfigError> {
+    pub fn load(&self) -> Result<config::Config, ConfigError> {
         let mut builder = config::Config::builder();
-        builder = add_sources(builder, &self.files, &self.options);
+        builder = add_sources(builder, &self.mistrust, &self.files, &self.options)?;
         builder.build()
     }
 }
@@ -175,17 +182,25 @@ impl ConfigurationSources {
 /// builder.
 fn add_sources<P>(
     mut builder: ConfigBuilder,
+    mistrust: &fs_mistrust::Mistrust,
     files: &[(P, MustRead)],
     opts: &[String],
-) -> ConfigBuilder
+) -> Result<ConfigBuilder, ConfigError>
 where
     P: AsRef<Path>,
 {
     for (path, must_read) in files {
+        let required = must_read == &MustRead::MustRead;
+
+        match mistrust.verifier().require_file().check(&path) {
+            Ok(()) => {}
+            Err(fs_mistrust::Error::NotFound(_)) if !required => {}
+            Err(e) => return Err(ConfigError::Foreign(e.into())),
+        }
+
         // Not going to use File::with_name here, since it doesn't
         // quite do what we want.
         let f: config::File<_, _> = path.as_ref().into();
-        let required = must_read == &MustRead::MustRead;
         builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
     }
 
@@ -195,7 +210,7 @@ where
     }
     builder = builder.add_source(cmdline);
 
-    builder
+    Ok(builder)
 }
 
 #[cfg(test)]
@@ -217,7 +232,11 @@ friends = 4242
         files: &[(P, MustRead)],
         opts: &[String],
     ) -> Result<config::Config, config::ConfigError> {
-        add_sources(config::Config::builder(), files, opts).build()
+        let mut mistrust = fs_mistrust::Mistrust::new();
+        mistrust.dangerously_trust_everyone();
+        add_sources(config::Config::builder(), &mistrust, files, opts)
+            .unwrap()
+            .build()
     }
 
     #[test]
