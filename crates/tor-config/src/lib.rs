@@ -138,20 +138,26 @@ impl Reconfigure {
 ///  * a test that the `Builder` can be deserialized from an empty [`config::Config`],
 ///    and then built, and that the result is the same as the ordinary default.
 //
-// The implementation munches fake "trait bounds" off the RHS.
+// The implementation munches fake "trait bounds" (`: !Deserialie + !Wombat ...`) off the RHS.
 // We're going to add at least one more option.
 #[macro_export]
 macro_rules! impl_standard_builder {
+    // Convert the input into the "being processed format":
     {
         $Config:ty $(: $($options:tt)* )?
     } => { $crate::impl_standard_builder!{
+        // ^Being processed format:
         @ ( try_deserialize            ) $Config    :                 $( $( $options    )* )?
+        //  ~~~~~~~~~~~~~~~              ^^^^^^^    ^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // present iff not !Deserialize  type      always present    options yet to be parsed
     } };
+    // If !Deserialize is the next option, implement it by making $try_deserialize absent
     {
         @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)? !Deserialize $( $options:tt )*
     } => {  $crate::impl_standard_builder!{
         @ (                            ) $Config    :                    $( $options    )*
     } };
+    // Having parsed all options, produce output:
     {
         @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
     } => { $crate::paste!{
