@@ -19,6 +19,7 @@ use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_error::internal;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
+use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
@@ -126,7 +127,7 @@ pub(crate) trait DirState: Send {
     ///
     /// Return an `Err` only on a fatal error that means we should stop
     /// downloading entirely; return recovered-from errors inside the `Ok()`
-    /// variant.  (XXXX: the code does not do this yet.)
+    /// variant.
     fn add_from_download(
         &mut self,
         text: &str,
@@ -288,8 +289,10 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         };
 
         let source = DocSource::LocalCache;
-        self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?)
-            .map(|_| (true, None))
+        match self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?) {
+            Ok(_) => Ok((true, None)),
+            Err(e) => Ok((false, Some(e))),
+        }
     }
     fn add_from_download(
         &mut self,
@@ -298,14 +301,15 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
     ) -> Result<(bool, Option<Error>)> {
-        if let Some(meta) = self.add_consensus_text(source, text)? {
-            if let Some(store) = storage {
-                let mut w = store.lock().expect("Directory storage lock poisoned");
-                w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
+        match self.add_consensus_text(source, text) {
+            Ok(meta) => {
+                if let Some(store) = storage {
+                    let mut w = store.lock().expect("Directory storage lock poisoned");
+                    w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
+                }
+                Ok((true, None))
             }
-            Ok((true, None))
-        } else {
-            Ok((false, None))
+            Err(e) => Ok((false, Some(e))),
         }
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
@@ -326,11 +330,9 @@ impl<R: Runtime> GetConsensusState<R> {
     /// Helper: try to set the current consensus text from an input
     /// string `text`.  Refuse it if the authorities could never be
     /// correct, or if it is ill-formed.
-    fn add_consensus_text(
-        &mut self,
-        source: DocSource,
-        text: &str,
-    ) -> Result<Option<&ConsensusMeta>> {
+    ///
+    /// Errors from this method are not fatal to the download process.
+    fn add_consensus_text(&mut self, source: DocSource, text: &str) -> Result<&ConsensusMeta> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) =
@@ -377,7 +379,7 @@ impl<R: Runtime> GetConsensusState<R> {
 
         // Unwrap should be safe because `next` was just assigned
         #[allow(clippy::unwrap_used)]
-        Ok(Some(&self.next.as_ref().unwrap().consensus_meta))
+        Ok(&self.next.as_ref().unwrap().consensus_meta)
     }
 
     /// Return true if `id` is an authority identity we recognize
@@ -421,6 +423,33 @@ struct GetCertsState<R: Runtime> {
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
     filter: Arc<dyn crate::filter::DirFilter>,
+}
+
+impl<R: Runtime> GetCertsState<R> {
+    /// Handle a certificate result returned by `tor_netdoc`: checking it for timeliness
+    /// and well-signedness.
+    ///
+    /// On success return the `AuthCert` and the string that represents it within the string `within`.
+    /// On failure, return an error.
+    fn check_parsed_certificate<'s>(
+        &self,
+        parsed: tor_netdoc::Result<UncheckedAuthCert>,
+        source: &DocSource,
+        within: &'s str,
+    ) -> Result<(AuthCert, &'s str)> {
+        let parsed = parsed.map_err(|e| Error::from_netdoc(source.clone(), e))?;
+        let cert_text = parsed
+            .within(within)
+            .expect("Certificate was not in input as expected");
+        let wellsigned = parsed.check_signature()?;
+        let now = self.rt.wallclock();
+        let timely_cert = self
+            .config
+            .tolerance
+            .extend_tolerance(wellsigned)
+            .check_valid_at(&now)?;
+        Ok((timely_cert, cert_text))
+    }
 }
 
 impl<R: Runtime> DirState for GetCertsState<R> {
@@ -469,21 +498,25 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
+        let source = DocSource::LocalCache;
+        let mut nonfatal_error = None;
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
-                let parsed = AuthCert::parse(text)
-                    .map_err(|e| Error::from_netdoc(DocSource::LocalCache, e))?
-                    .check_signature()?;
-                let now = self.rt.wallclock();
-                let parsed = self.config.tolerance.extend_tolerance(parsed);
-                let cert = parsed.check_valid_at(&now)?;
-                self.missing_certs.remove(cert.key_ids());
-                self.certs.push(cert);
-                changed = true;
+                let parsed = AuthCert::parse(text);
+                match self.check_parsed_certificate(parsed, &source, text) {
+                    Ok((cert, _text)) => {
+                        self.missing_certs.remove(cert.key_ids());
+                        self.certs.push(cert);
+                        changed = true;
+                    }
+                    Err(e) => {
+                        nonfatal_error.get_or_insert(e);
+                    }
+                }
             }
         }
-        Ok((changed, None))
+        Ok((changed, nonfatal_error))
     }
     fn add_from_download(
         &mut self,
@@ -497,28 +530,17 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             _ => return Err(internal!("expected an AuthCert request").into()),
         };
 
+        let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
         for cert in AuthCert::parse_multiple(text) {
-            if let Ok(parsed) = cert {
-                let s = parsed
-                    .within(text)
-                    .expect("Certificate was not in input as expected");
-                if let Ok(wellsigned) = parsed.check_signature() {
-                    let now = self.rt.wallclock();
-                    let wellsigned = self.config.tolerance.extend_tolerance(wellsigned);
-                    let timely = wellsigned.check_valid_at(&now)?;
-                    newcerts.push((timely, s));
-                } else {
-                    warn!(
-                        "Badly signed certificate received from {} and discarded.",
-                        source
-                    );
+            match self.check_parsed_certificate(cert, &source, text) {
+                Ok((cert, cert_text)) => {
+                    newcerts.push((cert, cert_text));
                 }
-            } else {
-                warn!(
-                    "Unparsable certificate received received from {} and discarded.",
-                    source
-                );
+                Err(e) => {
+                    warn!("Problem with certificate received from {}: {}", &source, &e);
+                    nonfatal_error.get_or_insert(e);
+                }
             }
         }
 
@@ -530,11 +552,12 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 "Discarding certificates from {} that we didn't ask for.",
                 source
             );
+            nonfatal_error.get_or_insert(Error::Unwanted("Certificate we didn't request"));
         }
 
         // We want to exit early if we aren't saving any certificates.
         if newcerts.is_empty() {
-            return Ok((false, None));
+            return Ok((false, nonfatal_error));
         }
 
         if let Some(store) = storage {
@@ -559,7 +582,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             }
         }
 
-        Ok((changed, None))
+        Ok((changed, nonfatal_error))
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         if self.can_advance() {
@@ -911,10 +934,19 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             return Err(internal!("expected a microdesc request").into());
         };
         let mut new_mds = Vec::new();
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {
+        let mut nonfatal_err = None;
+
+        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed) {
+            let anno = match anno {
+                Err(e) => {
+                    nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
+                    continue;
+                }
+                Ok(a) => a,
+            };
             let txt = anno
                 .within(text)
-                .expect("annotation not from within text as expected");
+                .expect("microdesc not from within text as expected");
             let md = anno.into_microdesc();
             if !requested.contains(md.digest()) {
                 warn!(
@@ -922,6 +954,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                     source,
                     md.digest()
                 );
+                nonfatal_err.get_or_insert(Error::Unwanted("un-requested microdescriptor"));
                 continue;
             }
             new_mds.push((txt, md));
@@ -948,7 +981,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             }
         }
         self.register_microdescs(new_mds.into_iter().map(|(_, md)| md));
-        Ok((true, None))
+        Ok((true, nonfatal_err))
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(self)
@@ -1226,7 +1259,10 @@ mod test {
                 source.clone(),
                 Some(&store),
             );
-            assert!(matches!(outcome, Err(Error::NetDocError { .. })));
+            assert!(matches!(
+                outcome,
+                Ok((false, Some(Error::NetDocError { .. })))
+            ));
             // make sure it wasn't stored...
             assert!(store
                 .lock()
@@ -1237,7 +1273,10 @@ mod test {
 
             // Now try again, with a real consensus... but the wrong authorities.
             let outcome = state.add_from_download(CONSENSUS, &req, source.clone(), Some(&store));
-            assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
+            assert!(matches!(
+                outcome,
+                Ok((false, Some(Error::UnrecognizedAuthorities)))
+            ));
             assert!(store
                 .lock()
                 .unwrap()
