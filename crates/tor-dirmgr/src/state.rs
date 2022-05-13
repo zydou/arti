@@ -346,6 +346,7 @@ impl<R: Runtime> GetConsensusState<R> {
                 MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
             #[cfg(feature = "dirfilter")]
             let parsed = self.filter.filter_consensus(parsed)?;
+            let parsed = self.config.tolerance.extend_tolerance(parsed);
             let now = self.rt.wallclock();
             let timely = parsed.check_valid_at(&now)?;
             let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
