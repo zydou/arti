@@ -87,8 +87,21 @@ fn note_cache_error<R: Runtime>(
         return;
     }
 
-    info!("Marking {:?} as failed: {}", source, problem);
-    circmgr.note_external_failure(source.cache_id(), ExternalActivity::DirCache);
+    // Does the error here tell us whom to really blame?  If so, blame them
+    // instead.
+    //
+    // (This can happen if we notice a problem while downloading a certificate,
+    // but the real problem is that the consensus was no good.)
+    let real_source = match problem {
+        Error::NetDocError {
+            source: DocSource::DirServer { source: Some(info) },
+            ..
+        } => info,
+        _ => source,
+    };
+
+    info!("Marking {:?} as failed: {}", real_source, problem);
+    circmgr.note_external_failure(real_source.cache_id(), ExternalActivity::DirCache);
     circmgr.retire_circ(source.unique_circ_id());
 }
 
