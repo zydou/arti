@@ -133,6 +133,7 @@ pub use logging::{LoggingConfig, LoggingConfigBuilder};
 use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
+use tor_config::ConfigurationSources;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Result};
@@ -184,7 +185,7 @@ pub async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     dns_port: u16,
-    config_sources: arti_config::ConfigurationSources,
+    config_sources: ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
     fs_mistrust_disabled: bool,
@@ -374,7 +375,7 @@ pub fn main_main() -> Result<()> {
     };
 
     let cfg_sources = {
-        let mut cfg_sources = arti_config::ConfigurationSources::from_cmdline(
+        let mut cfg_sources = ConfigurationSources::from_cmdline(
             default_config_file()?,
             matches.values_of_os("config-files").unwrap_or_default(),
             matches.values_of("option").unwrap_or_default(),

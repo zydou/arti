@@ -27,6 +27,7 @@ tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.3.0"
     "dangerous-expose-struct-fields",
 ] }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0", features = ["experimental-api"] }
+tor-config = { path = "../tor-config", version = "0.3.0"}
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.3.0"}
 tor-error = { path = "../tor-error", version = "0.3.0"}
 arti-config = { path = "../arti-config", version = "0.3.0"}
