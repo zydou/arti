@@ -55,3 +55,5 @@ BREAKING: default_config_file moved to arti_client, and changed to return Result
 GREAKING: ConfigurationSource::new_empty renamed from ::new
 BREAKING: ConfigurationSource methods take Into<String> and Into<PathBuf> now
 BREAKING: ARTI_DEFAULTS removed, in favour of ARTI_EXAMPLE_CONFIG in the arti crate
+BREAKING: ConfigurationSource is now in the tor-config crate.
+DEPRECATION: arti-config is to be abolished.  Currently it is merely an empty tombstone.
