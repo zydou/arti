@@ -1,4 +1,18 @@
 //! `ConfigurationSources`: Helper for handling configuration files
+//!
+//! This module provides [`ConfigurationSources`].
+//!
+//! This layer brings together the functionality of [`config::File`],
+//! [`fs_mistrust`] and [`tor_config::cmdline`](crate::cmdline).
+//!
+//! A `ConfigurationSources` records a set of filenames of TOML files,
+//! ancillary instructions for reading them,
+//! and also a set of command line options.
+//!
+//! Usually, call [`ConfigurationSources::from_cmdline`],
+//! perhaps [`set_mistrust`](ConfigurationSources::set_mistrust),
+//! and finally [`load`](ConfigurationSources::load).
+//! The resulting [`config::Config`] can then be deserialized.
 
 use crate::CmdLine;
 
