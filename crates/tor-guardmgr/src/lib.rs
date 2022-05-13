@@ -1234,7 +1234,7 @@ pub struct GuardUsage {
     restrictions: GuardRestrictionList,
 }
 
-impl_standard_builder! { GuardUsage }
+impl_standard_builder! { GuardUsage: !Deserialize }
 
 /// List of socket restricteionesses, as configured
 pub type GuardRestrictionList = Vec<GuardRestriction>;

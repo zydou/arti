@@ -55,13 +55,6 @@ fn default_socks_port() -> Option<u16> {
     Some(9150)
 }
 
-impl ProxyConfig {
-    /// Return a new [`ProxyConfigBuilder`].
-    pub fn builder() -> ProxyConfigBuilder {
-        ProxyConfigBuilder::default()
-    }
-}
-
 /// Configuration for system resources used by Tor.
 ///
 /// You cannot change this section on a running Arti client.
@@ -79,13 +72,6 @@ impl_standard_builder! { SystemConfig }
 /// Return the default maximum number of file descriptors to launch with.
 fn default_max_files() -> u64 {
     16384
-}
-
-impl SystemConfig {
-    /// Return a new SystemConfigBuilder.
-    pub fn builder() -> SystemConfigBuilder {
-        SystemConfigBuilder::default()
-    }
 }
 
 /// Structure to hold Arti's configuration options, whether from a
@@ -154,11 +140,6 @@ impl ArtiConfig {
     /// Construct a [`TorClientConfig`] based on this configuration.
     pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
         Ok(self.tor.clone())
-    }
-
-    /// Return a new ArtiConfigBuilder.
-    pub fn builder() -> ArtiConfigBuilder {
-        ArtiConfigBuilder::default()
     }
 
     /// Return the [`ApplicationConfig`] for this configuration.

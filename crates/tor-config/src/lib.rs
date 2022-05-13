@@ -53,6 +53,7 @@ mod mut_cfg;
 mod path;
 
 pub use cmdline::CmdLine;
+pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
 pub use mut_cfg::MutCfg;
@@ -94,33 +95,100 @@ impl Reconfigure {
 
 /// Defines standard impls for a struct with a `Builder`, incl `Default`
 ///
-/// Generates:
-///
-///  * `impl Default for $Config`
-///  * a self-test that this actually works
-///
 /// **Use this.**  Do not `#[derive(Builder, Default)]`.  That latter approach would produce
 /// wrong answers if builder attributes are used to specify non-`Default` default values.
 ///
+/// # Input syntax
+///
+/// ```
+/// use derive_builder::Builder;
+/// use serde::{Deserialize, Serialize};
+/// use tor_config::impl_standard_builder;
+/// use tor_config::ConfigBuildError;
+///
+/// #[derive(Debug, Builder, Clone, Eq, PartialEq)]
+/// #[builder(derive(Serialize, Deserialize, Debug))]
+/// #[builder(build_fn(error = "ConfigBuildError"))]
+/// struct SomeConfigStruct { }
+/// impl_standard_builder! { SomeConfigStruct }
+///
+/// #[derive(Debug, Builder, Clone, Eq, PartialEq)]
+/// struct UnusualStruct { }
+/// impl_standard_builder! { UnusualStruct: !Deserialize }
+/// ```
+///
+/// # Requirements
+///
 /// `$Config`'s builder must have default values for all the fields,
 /// or this macro-generated self-test will fail.
-/// This should be OK for all elements of our configuration.
+/// This should be OK for all principal elements of our configuration.
+///
+/// `$ConfigBuilder` must have an appropriate `Deserialize` impl.
+///
+/// # Options
+///
+///  * `!Deserialize` suppresses the test case involving `Builder: Deserialize`.
+///    This should not be done for structs which are part of Arti's configuration,
+///    but can be appropriate for other types that use [`derive_builder`].
+///
+/// # Generates
+///
+///  * `impl Default for $Config`
+///  * a self-test that the `Default` impl actually works
+///  * a test that the `Builder` can be deserialized from an empty [`config::Config`],
+///    and then built, and that the result is the same as the ordinary default.
+//
+// The implementation munches fake "trait bounds" (`: !Deserialie + !Wombat ...`) off the RHS.
+// We're going to add at least one more option.
 #[macro_export]
-macro_rules! impl_standard_builder { {
-    $Config:ty
-} => {
-    $crate::paste!{
+macro_rules! impl_standard_builder {
+    // Convert the input into the "being processed format":
+    {
+        $Config:ty $(: $($options:tt)* )?
+    } => { $crate::impl_standard_builder!{
+        // ^Being processed format:
+        @ ( try_deserialize            ) $Config    :                 $( $( $options    )* )?
+        //  ~~~~~~~~~~~~~~~              ^^^^^^^    ^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // present iff not !Deserialize  type      always present    options yet to be parsed
+    } };
+    // If !Deserialize is the next option, implement it by making $try_deserialize absent
+    {
+        @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)? !Deserialize $( $options:tt )*
+    } => {  $crate::impl_standard_builder!{
+        @ (                            ) $Config    :                    $( $options    )*
+    } };
+    // Having parsed all options, produce output:
+    {
+        @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
+    } => { $crate::paste!{
+        impl $Config {
+            /// Returns a fresh, default, builder
+            pub fn builder() -> [< $Config Builder >] {
+                Default::default()
+            }
+        }
+
         impl Default for $Config {
             fn default() -> Self {
-                // unwrap is good because the test case above checks that it works!
+                // unwrap is good because one of the test cases above checks that it works!
                 [< $Config Builder >]::default().build().unwrap()
             }
         }
 
         #[test]
-        fn [< test_impl_Default_for_ $Config >] () { let _ = $Config::default(); }
-    }
-} }
+        fn [< test_impl_Default_for_ $Config >] () {
+            #[allow(unused_variables)]
+            let def = $Config::default();
+
+            $( // expands iff there was $try_deserialize, which is always try_deserialize
+                let empty_config = $crate::config_crate::Config::builder().build().unwrap();
+                let builder: [< $Config Builder >] = empty_config.$try_deserialize().unwrap();
+                let from_empty = builder.build().unwrap();
+                assert_eq!(def, from_empty);
+            )*
+        }
+    } };
+}
 
 #[cfg(test)]
 mod test {

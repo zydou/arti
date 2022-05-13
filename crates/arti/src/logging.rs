@@ -60,13 +60,6 @@ fn default_console_filter() -> Option<String> {
     Some("debug".to_owned())
 }
 
-impl LoggingConfig {
-    /// Return a new LoggingConfigBuilder
-    pub fn builder() -> LoggingConfigBuilder {
-        LoggingConfigBuilder::default()
-    }
-}
-
 /// Local type alias, mostly helpful for derive_builder to DTRT
 type LogfileListConfig = Vec<LogfileConfig>;
 

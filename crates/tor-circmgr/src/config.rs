@@ -53,10 +53,6 @@ fn ipv6_prefix_default() -> u8 {
 }
 
 impl PathConfig {
-    /// Return a new [`PathConfigBuilder`].
-    pub fn builder() -> PathConfigBuilder {
-        PathConfigBuilder::default()
-    }
     /// Return a subnet configuration based on these rules.
     pub fn subnet_config(&self) -> tor_netdir::SubnetConfig {
         tor_netdir::SubnetConfig::new(
@@ -219,20 +215,6 @@ fn default_request_max_retries() -> u32 {
 /// Return the default request loyalty timeout.
 fn default_request_loyalty() -> Duration {
     Duration::from_millis(50)
-}
-
-impl CircuitTiming {
-    /// Return a new [`CircuitTimingBuilder`]
-    pub fn builder() -> CircuitTimingBuilder {
-        CircuitTimingBuilder::default()
-    }
-}
-
-impl PreemptiveCircuitConfig {
-    /// Return a new [`PreemptiveCircuitConfigBuilder`]
-    pub fn builder() -> PreemptiveCircuitConfigBuilder {
-        PreemptiveCircuitConfigBuilder::default()
-    }
 }
 
 define_accessor_trait! {
