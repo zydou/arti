@@ -217,7 +217,6 @@ where
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use arti_client::config::default_config_file;
     use tempfile::tempdir;
 
     static EX_TOML: &str = "
@@ -279,14 +278,5 @@ world = \"nonsense\"
         assert_eq!(c.get_string("hello.friends").unwrap(), "4242".to_string());
         assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
         assert_eq!(c.get_string("other.var").unwrap(), "present".to_string());
-    }
-
-    #[test]
-    fn check_default() {
-        // We don't want to second-guess the directories crate too much
-        // here, so we'll just make sure it does _something_ plausible.
-
-        let dflt = default_config_file().unwrap();
-        assert!(dflt.ends_with("arti.toml"));
     }
 }
