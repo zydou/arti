@@ -106,28 +106,36 @@ pub(crate) trait DirState: Send {
     fn can_advance(&self) -> bool;
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool>;
+    ///
+    /// Return an `Err` only on a fatal error that means we should stop
+    /// downloading entirely; return recovered-from errors inside the `Ok()`
+    /// variant.
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+    ) -> Result<(bool, Option<Error>)>;
 
     /// Add information that we have just downloaded to this state; returns
     /// 'true' if there as any change in this state.
     ///
-    /// This method receives a copy of the original request, and
-    /// should reject any documents that do not pertain to it.
+    /// This method receives a copy of the original request, and should reject
+    /// any documents that do not pertain to it.
     ///
     /// If `storage` is provided, then we should write any accepted documents
     /// into `storage` so they can be saved in a cache.
-    // TODO: It might be good to say "there was a change but also an
-    // error" in this API if possible.
+    ///
+    /// Return an `Err` only on a fatal error that means we should stop
+    /// downloading entirely; return recovered-from errors inside the `Ok()`
+    /// variant.  (XXXX: the code does not do this yet.)
     fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool>;
+    ) -> Result<(bool, Option<Error>)>;
     /// Return a summary of this state as a [`DirStatus`].
     fn bootstrap_status(&self) -> event::DirStatus;
-
     /// Return a configuration for attempting downloads.
     fn dl_config(&self) -> DownloadSchedule;
     /// If possible, advance to the next state.
@@ -263,9 +271,12 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_consensus
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+    ) -> Result<(bool, Option<Error>)> {
         let text = match docs.into_iter().next() {
-            None => return Ok(false),
+            None => return Ok((false, None)),
             Some((
                 DocId::LatestConsensus {
                     flavor: ConsensusFlavor::Microdesc,
@@ -278,7 +289,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
 
         let source = DocSource::LocalCache;
         self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?)
-            .map(|meta| meta.is_some())
+            .map(|_| (true, None))
     }
     fn add_from_download(
         &mut self,
@@ -286,15 +297,15 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         _request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    ) -> Result<(bool, Option<Error>)> {
         if let Some(meta) = self.add_consensus_text(source, text)? {
             if let Some(store) = storage {
                 let mut w = store.lock().expect("Directory storage lock poisoned");
                 w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
             }
-            Ok(true)
+            Ok((true, None))
         } else {
-            Ok(false)
+            Ok((false, None))
         }
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
@@ -451,7 +462,10 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_certs
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+    ) -> Result<(bool, Option<Error>)> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
@@ -469,7 +483,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 changed = true;
             }
         }
-        Ok(changed)
+        Ok((changed, None))
     }
     fn add_from_download(
         &mut self,
@@ -477,7 +491,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    ) -> Result<(bool, Option<Error>)> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
             _ => return Err(internal!("expected an AuthCert request").into()),
@@ -520,7 +534,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         // We want to exit early if we aren't saving any certificates.
         if newcerts.is_empty() {
-            return Ok(false);
+            return Ok((false, None));
         }
 
         if let Some(store) = storage {
@@ -545,7 +559,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             }
         }
 
-        Ok(changed)
+        Ok((changed, None))
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         if self.can_advance() {
@@ -861,7 +875,10 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_microdescs
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(
+        &mut self,
+        docs: HashMap<DocId, DocumentText>,
+    ) -> Result<(bool, Option<Error>)> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
@@ -878,7 +895,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         let changed = !microdescs.is_empty();
         self.register_microdescs(microdescs);
 
-        Ok(changed)
+        Ok((changed, None))
     }
 
     fn add_from_download(
@@ -887,7 +904,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
         request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    ) -> Result<(bool, Option<Error>)> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
             req.digests().collect()
         } else {
@@ -931,7 +948,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             }
         }
         self.register_microdescs(new_mds.into_iter().map(|(_, md)| md));
-        Ok(true)
+        Ok((true, None))
     }
     fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
         Ok(self)
@@ -1241,7 +1258,7 @@ mod test {
                 Arc::new(crate::filter::NilFilter),
             );
             let outcome = state.add_from_download(CONSENSUS, &req, source, Some(&store));
-            assert!(outcome.unwrap());
+            assert!(outcome.unwrap().0);
             assert!(store
                 .lock()
                 .unwrap()
@@ -1272,7 +1289,7 @@ mod test {
             let text: crate::storage::InputString = CONSENSUS.to_owned().into();
             let map = vec![(docid, text.into())].into_iter().collect();
             let outcome = state.add_from_cache(map);
-            assert!(outcome.unwrap());
+            assert!(outcome.unwrap().0);
             assert!(state.can_advance());
         });
     }
@@ -1296,7 +1313,7 @@ mod test {
                 let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
                 let req = crate::docid::ClientRequest::Consensus(req);
                 let outcome = state.add_from_download(CONSENSUS, &req, source, None);
-                assert!(outcome.unwrap());
+                assert!(outcome.unwrap().0);
                 Box::new(state).advance().unwrap()
             }
 
@@ -1340,7 +1357,7 @@ mod test {
                 .into_iter()
                 .collect();
             let outcome = state.add_from_cache(docs);
-            assert!(outcome.unwrap()); // no error, and something changed.
+            assert!(outcome.unwrap().0); // no error, and something changed.
             assert!(!state.can_advance()); // But we aren't done yet.
             let missing = state.missing_docs();
             assert_eq!(missing.len(), 1); // Now we're only missing one!
@@ -1358,7 +1375,7 @@ mod test {
             let req = ClientRequest::AuthCert(req);
             let outcome =
                 state.add_from_download(AUTHCERT_5A23, &req, source.clone(), Some(&store));
-            assert!(!outcome.unwrap()); // no error, but nothing changed.
+            assert!(!outcome.unwrap().0); // no error, but nothing changed.
             let missing2 = state.missing_docs();
             assert_eq!(missing, missing2); // No change.
             assert!(store
@@ -1373,7 +1390,7 @@ mod test {
             req.push(authcert_id_5a23()); // Right idea this time!
             let req = ClientRequest::AuthCert(req);
             let outcome = state.add_from_download(AUTHCERT_5A23, &req, source, Some(&store));
-            assert!(outcome.unwrap()); // No error, _and_ something changed!
+            assert!(outcome.unwrap().0); // No error, _and_ something changed!
             let missing3 = state.missing_docs();
             assert!(missing3.is_empty());
             assert!(state.can_advance());
@@ -1476,7 +1493,7 @@ mod test {
                 .into_iter()
                 .collect();
             let outcome = state.add_from_cache(docs);
-            assert!(outcome.unwrap()); // successfully loaded one MD.
+            assert!(outcome.unwrap().0); // successfully loaded one MD.
             assert!(!state.can_advance());
             assert!(!state.is_ready(Readiness::Complete));
             assert!(!state.is_ready(Readiness::Usable));
@@ -1500,7 +1517,7 @@ mod test {
             let req = ClientRequest::Microdescs(req);
             let source = DocSource::DirServer { source: None };
             let outcome = state.add_from_download(response.as_str(), &req, source, Some(&store));
-            assert!(outcome.unwrap()); // successfully loaded MDs
+            assert!(outcome.unwrap().0); // successfully loaded MDs
             match state.get_netdir_change().unwrap() {
                 NetDirChange::AttemptReplace { netdir, .. } => {
                     assert!(netdir.take().is_some());

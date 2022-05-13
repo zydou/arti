@@ -283,14 +283,18 @@ async fn fetch_multiple<R: Runtime>(
 
 /// Try tp update `state` by loading cached information from `dirmgr`.
 /// Return true if anything changed.
+///
+/// Return an `Err` only on a fatal error that means we should stop
+/// downloading entirely; return recovered-from errors inside the `Ok()`
+/// variant.
 async fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
-) -> Result<bool> {
+) -> Result<(bool, Option<Error>)> {
     let missing = state.missing_docs();
-    let outcome = if missing.is_empty() {
+    let outcome: Result<(bool, Option<Error>)> = if missing.is_empty() {
         trace!("Found no missing documents; can't advance current state");
-        Ok(false)
+        Ok((false, None))
     } else {
         trace!(
             "Found {} missing documents; trying to load them",
@@ -306,13 +310,13 @@ async fn load_once<R: Runtime>(
             Err(Error::UntimelyObject(TimeValidityError::Expired(_))) => {
                 // This is just an expired object from the cache; we don't need
                 // to call that an error.  Treat it as if it were absent.
-                Ok(false)
+                Ok((false, None))
             }
             other => other,
         }
     };
 
-    if matches!(outcome, Ok(true)) {
+    if matches!(outcome, Ok((true, _))) {
         dirmgr.update_status(state.bootstrap_status());
     }
 
@@ -330,10 +334,14 @@ pub(crate) async fn load<R: Runtime>(
     let mut safety_counter = 0_usize;
     loop {
         trace!(state=%state.describe(), "Loading from cache");
-        let changed = load_once(&dirmgr, &mut state).await?;
+        let (changed, nonfatal_err) = load_once(&dirmgr, &mut state).await?;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
+        }
+
+        if let Some(e) = nonfatal_err {
+            debug!("Recoverable loading from cache: {}", e);
         }
 
         if state.can_advance() {
@@ -387,20 +395,17 @@ async fn download_attempt<R: Runtime>(
                 let doc_source = DocSource::DirServer {
                     source: source.clone(),
                 };
-                let outcome =
-                    state.add_from_download(&text, &client_req, doc_source, Some(&dirmgr.store));
-                match outcome {
-                    Ok(b) => {
-                        changed |= b;
-                        if let Some(source) = source {
-                            note_cache_success(dirmgr.circmgr()?.deref(), &source);
-                        }
-                    }
-                    Err(e) => {
-                        warn!("error while adding directory info: {}", e);
-                        if let Some(source) = source {
-                            note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
-                        }
+                let (b, opt_error) =
+                    state.add_from_download(&text, &client_req, doc_source, Some(&dirmgr.store))?;
+                changed |= b;
+                if let Some(e) = &opt_error {
+                    warn!("error while adding directory info: {}", e);
+                }
+                if let Some(source) = source {
+                    if let Some(e) = opt_error {
+                        note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
+                    } else {
+                        note_cache_success(dirmgr.circmgr()?.deref(), &source);
                     }
                 }
             }
@@ -674,7 +679,10 @@ mod test {
                 })
                 .collect()
         }
-        fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+        fn add_from_cache(
+            &mut self,
+            docs: HashMap<DocId, DocumentText>,
+        ) -> Result<(bool, Option<Error>)> {
             let mut changed = false;
             for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
@@ -684,7 +692,7 @@ mod test {
                     }
                 }
             }
-            Ok(changed)
+            Ok((changed, None))
         }
         fn add_from_download(
             &mut self,
@@ -692,7 +700,7 @@ mod test {
             _request: &ClientRequest,
             _source: DocSource,
             _storage: Option<&Mutex<DynStore>>,
-        ) -> Result<bool> {
+        ) -> Result<(bool, Option<Error>)> {
             let mut changed = false;
             for token in text.split_ascii_whitespace() {
                 if let Ok(v) = hex::decode(token) {
@@ -704,7 +712,7 @@ mod test {
                     }
                 }
             }
-            Ok(changed)
+            Ok((changed, None))
         }
         fn dl_config(&self) -> DownloadSchedule {
             DownloadSchedule::default()
