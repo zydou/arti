@@ -75,7 +75,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arti-client",
- "arti-config",
  "async-ctrlc",
  "cfg-if 1.0.0",
  "clap",
@@ -110,7 +109,6 @@ dependencies = [
  "anyhow",
  "arti",
  "arti-client",
- "arti-config",
  "clap",
  "float-ord",
  "fs-mistrust",
@@ -165,20 +163,6 @@ dependencies = [
 [[package]]
 name = "arti-config"
 version = "0.3.0"
-dependencies = [
- "arti-client",
- "config",
- "derive_builder_fork_arti",
- "fs-mistrust",
- "once_cell",
- "regex",
- "serde",
- "tempfile",
- "thiserror",
- "toml",
- "tor-circmgr",
- "tor-config",
-]
 
 [[package]]
 name = "arti-hyper"
@@ -205,7 +189,6 @@ dependencies = [
  "anyhow",
  "arti",
  "arti-client",
- "arti-config",
  "async-trait",
  "cfg-if 1.0.0",
  "clap",
