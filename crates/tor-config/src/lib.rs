@@ -51,6 +51,7 @@ mod err;
 pub mod list_builder;
 mod mut_cfg;
 mod path;
+pub mod sources;
 
 pub use cmdline::CmdLine;
 pub use config as config_crate;
@@ -60,6 +61,7 @@ pub use mut_cfg::MutCfg;
 pub use paste::paste;
 pub use path::{CfgPath, CfgPathError};
 pub use serde;
+pub use sources::ConfigurationSources;
 
 pub use tor_basic_utils::macro_first_nonempty;
 

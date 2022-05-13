@@ -75,7 +75,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arti-client",
- "arti-config",
  "async-ctrlc",
  "cfg-if 1.0.0",
  "clap",
@@ -110,7 +109,6 @@ dependencies = [
  "anyhow",
  "arti",
  "arti-client",
- "arti-config",
  "clap",
  "float-ord",
  "fs-mistrust",
@@ -120,6 +118,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-socks",
+ "tor-config",
  "tor-rtcompat",
  "tracing",
  "tracing-subscriber",
@@ -164,20 +163,6 @@ dependencies = [
 [[package]]
 name = "arti-config"
 version = "0.3.0"
-dependencies = [
- "arti-client",
- "config",
- "derive_builder_fork_arti",
- "fs-mistrust",
- "once_cell",
- "regex",
- "serde",
- "tempfile",
- "thiserror",
- "toml",
- "tor-circmgr",
- "tor-config",
-]
 
 [[package]]
 name = "arti-hyper"
@@ -204,7 +189,6 @@ dependencies = [
  "anyhow",
  "arti",
  "arti-client",
- "arti-config",
  "async-trait",
  "cfg-if 1.0.0",
  "clap",
@@ -217,6 +201,7 @@ dependencies = [
  "serde",
  "tokio",
  "tor-checkable",
+ "tor-config",
  "tor-dirmgr",
  "tor-error",
  "tor-netdoc",
@@ -3428,6 +3413,7 @@ dependencies = [
  "directories",
  "dirs",
  "educe",
+ "fs-mistrust",
  "once_cell",
  "paste",
  "regex",
@@ -3435,6 +3421,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shellexpand-fork",
+ "tempfile",
  "thiserror",
  "toml",
  "tor-basic-utils",

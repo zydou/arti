@@ -8,6 +8,8 @@ use clap::{App, AppSettings, Arg, SubCommand};
 use std::str::FromStr;
 use std::time::Duration;
 
+use tor_config::ConfigurationSources;
+
 /// Helper: parse an optional string as a number of seconds.
 fn int_str_to_secs(s: Option<&str>) -> Result<Option<Duration>> {
     match s {
@@ -122,7 +124,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
 
     let config = {
         // TODO: this is mostly duplicate code.
-        let mut cfg_sources = arti_config::ConfigurationSources::new_empty();
+        let mut cfg_sources = ConfigurationSources::new_empty();
 
         let config_files = matches.values_of_os("config-files").unwrap_or_default();
 

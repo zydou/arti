@@ -56,6 +56,7 @@ use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_socks::tcp::Socks5Stream;
+use tor_config::ConfigurationSources;
 use tor_rtcompat::Runtime;
 use tracing::info;
 
@@ -354,7 +355,7 @@ fn main() -> Result<()> {
         )
         .get_matches();
     info!("Parsing Arti configuration...");
-    let mut config_sources = arti_config::ConfigurationSources::new_empty();
+    let mut config_sources = ConfigurationSources::new_empty();
     matches
         .values_of_os("arti-config")
         .unwrap_or_default()

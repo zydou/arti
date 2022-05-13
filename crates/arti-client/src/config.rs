@@ -389,4 +389,13 @@ mod test {
 
         assert_ne!(val, TorClientConfig::default());
     }
+
+    #[test]
+    fn check_default() {
+        // We don't want to second-guess the directories crate too much
+        // here, so we'll just make sure it does _something_ plausible.
+
+        let dflt = default_config_file().unwrap();
+        assert!(dflt.ends_with("arti.toml"));
+    }
 }
