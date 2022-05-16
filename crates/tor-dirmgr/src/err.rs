@@ -189,6 +189,18 @@ impl Error {
             Error::ExternalDirProvider { .. } => false,
         }
     }
+
+    /// Return information about which directory cache caused this error, if
+    /// this error contains one.
+    pub(crate) fn responsible_cache(&self) -> Option<&tor_dirclient::SourceInfo> {
+        match self {
+            Error::NetDocError {
+                source: DocSource::DirServer { source },
+                ..
+            } => source.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 impl From<rusqlite::Error> for Error {

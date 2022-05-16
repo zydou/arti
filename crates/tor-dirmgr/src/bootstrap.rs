@@ -464,6 +464,11 @@ pub(crate) async fn download<R: Runtime>(
         // Have we gotten ourselves into a state that can't advance?  If so,
         // let the caller reset.
         if let Some(e) = state.blocking_error() {
+            // Report an error, if there's a source to report it about.
+            if let Some(source) = e.responsible_cache() {
+                let dirmgr = upgrade_weak_ref(&dirmgr)?;
+                note_cache_error(dirmgr.circmgr()?.deref(), source, &e);
+            }
             return Ok((state, Some(e)));
         }
 
@@ -561,6 +566,11 @@ pub(crate) async fn download<R: Runtime>(
             // Have we gotten ourselves into a state that can't advance?  If so,
             // let the caller reset.
             if let Some(e) = state.blocking_error() {
+                let dirmgr = upgrade_weak_ref(&dirmgr)?;
+                // Report an error, if there's a source to report it about.
+                if let Some(source) = e.responsible_cache() {
+                    note_cache_error(dirmgr.circmgr()?.deref(), source, &e);
+                }
                 return Ok((state, Some(e)));
             }
 
