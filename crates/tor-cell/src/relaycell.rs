@@ -45,6 +45,13 @@ caret_int! {
         /// Reply to an EXTEND2 cell.
         EXTENDED2 = 15,
 
+        /// UDP: Start of a stream
+        CONNECT_UDP = 16,
+        /// UDP: Acknowledge a CONNECT_UDP. Stream is open.
+        CONNECTED_UDP = 17,
+        /// UDP: Data on a UDP stream.
+        DATAGRAM = 18,
+
         /// HS: establish an introduction point.
         ESTABLISH_INTRO = 32,
         /// HS: establish a rendezvous point.
@@ -92,7 +99,10 @@ impl RelayCmd {
             | RelayCmd::CONNECTED
             | RelayCmd::RESOLVE
             | RelayCmd::RESOLVED
-            | RelayCmd::BEGIN_DIR => StreamIdReq::WantNonZero,
+            | RelayCmd::BEGIN_DIR
+            | RelayCmd::CONNECT_UDP
+            | RelayCmd::CONNECTED_UDP
+            | RelayCmd::DATAGRAM => StreamIdReq::WantNonZero,
             RelayCmd::EXTEND
             | RelayCmd::EXTENDED
             | RelayCmd::TRUNCATE

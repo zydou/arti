@@ -1,7 +1,12 @@
 // Tests for encoding/decoding relay messages into relay cell bodies.
 
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    str::FromStr,
+};
+
 use tor_bytes::Error;
-use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
+use tor_cell::relaycell::{msg, msg::Address, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
 
 const CELL_BODY_LEN: usize = 509;
 
@@ -113,4 +118,55 @@ fn test_streamid() {
 
     assert!(RelayCmd::EXTEND2.accepts_streamid_val(zero));
     assert!(!RelayCmd::EXTEND2.accepts_streamid_val(two));
+}
+
+#[test]
+fn test_address() {
+    // IPv4
+    let ipv4 = Ipv4Addr::from_str("1.2.3.4").expect("Unable to parse IPv4");
+    let addr = Address::from_str("1.2.3.4").expect("Unable to parse Address");
+    assert!(matches!(addr, Address::Ipv4(_)));
+    assert_eq!(addr, Address::Ipv4(ipv4));
+
+    // Wrong IPv4 should result in a hostname.
+    let addr = Address::from_str("1.2.3.372").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+
+    // Common bad IPv4 patterns
+    let addr = Address::from_str("0x23.42.42.42").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    let addr = Address::from_str("0x7f000001").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    let addr = Address::from_str("10.0.23").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    let addr = Address::from_str("2e3:4::10.0.23").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+
+    // IPv6
+    let ipv6 = Ipv6Addr::from_str("4242::9").expect("Unable to parse IPv6");
+    let addr = Address::from_str("4242::9").expect("Unable to parse Address");
+    assert!(matches!(addr, Address::Ipv6(_)));
+    assert_eq!(addr, Address::Ipv6(ipv6));
+
+    // Wrong IPv6 should result in a hostname.
+    let addr = Address::from_str("4242::9::5").expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+
+    // Hostname
+    let hostname = "www.torproject.org";
+    let addr = Address::from_str(hostname).expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    assert_eq!(addr, Address::Hostname(hostname.to_string().into_bytes()));
+
+    // Too long hostname. Following is 255 bytes which is off by one too many.
+    let hostname = "a".repeat(255);
+    let addr = Address::from_str(hostname.as_str());
+    assert!(addr.is_err());
+    assert_eq!(addr.err(), Some(Error::BadMessage("Hostname too long")));
+
+    // Some Unicode emojis (go Gen-Z!). Unfortunately, not allowed for a hostname.
+    let hostname = "👍️👍️👍️";
+    let addr = Address::from_str(hostname);
+    assert!(addr.is_err());
+    assert_eq!(addr.err(), Some(Error::BadMessage("Non-ascii address")));
 }
