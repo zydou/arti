@@ -1,4 +1,5 @@
 # (Built-in defaults for the arti configuration format.)
+# (This is an example file you can use as a template or as documentation.)
 
 # Rules about how arti should behave as an application
 [application]
@@ -8,7 +9,7 @@
 # paths to the directory holding the configuration files, if you
 # remove and recreate those directories, or if those directories
 # change for some other reason.)
-watch_configuration = false
+#watch_configuration = false
 
 # Set up the Arti program to run as a proxy.
 [proxy]
@@ -16,7 +17,7 @@ watch_configuration = false
 # listen on localhost.
 #
 # Note that only one process can listen on a given port at a time.
-socks_port = 9150
+#socks_port = 9150
 
 # Configure logging
 [logging]
@@ -33,20 +34,20 @@ socks_port = 9150
 #     trace_filter = "info,tor_proto::channel=trace"
 #
 # For more information, see https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html
-console = "debug"
+#console = "debug"
 
 # As above, but specify filtering directives for sending trace messages to 
-# the journald logging system.
-#
-#journald = ""
+# the journald logging system.  For example (not the default):
+#     journald = ""
 
 # You can also configure one or more log files, with different filters, and optional
 # rotation.
 #
-#file = [
-#   {path = "~/logs/debug.log", filter="debug"},
-#   {path = "~/logs/trace.log", filter="trace", rotate="daily"},
-#]
+# For example (not the default):
+#     file = [
+#         {path = "~/logs/debug.log", filter="debug"},
+#         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
+#     ]
 
 # Locations to use for storing things on disk.
 #
@@ -61,16 +62,17 @@ console = "debug"
 #
 # The state directory is not yet used.
 [storage]
-cache_dir = "${ARTI_CACHE}"
-state_dir = "${ARTI_LOCAL_DATA}"
+#cache_dir = "${ARTI_CACHE}"
+#state_dir = "${ARTI_LOCAL_DATA}"
 
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.
 #
-#[override_net_params]
-#circwindow = 1000
-#min_paths_for_circs_pct = 60
+[override_net_params]
+# For example (not the eefaults):
+#     circwindow = 1000
+#     min_paths_for_circs_pct = 60
 
 # Configuration for timing when and how often we should download directory
 # information.
@@ -83,16 +85,16 @@ state_dir = "${ARTI_LOCAL_DATA}"
 [download_schedule]
 
 # How to retry our initial bootstrapping when we're trying to start up.
-retry_bootstrap = { attempts = 128, initial_delay = "1 sec" }
+#retry_bootstrap = { attempts = 128, initial_delay = "1 sec" }
 
 # How to retry a single consensus download.
-retry_consensus = { attempts = 3, initial_delay = "1 sec" }
+#retry_consensus = { attempts = 3, initial_delay = "1 sec" }
 
 # How to retry a set of authority certificate downloads.
-retry_certs = { attempts = 3, initial_delay = "1 sec" }
+#retry_certs = { attempts = 3, initial_delay = "1 sec" }
 
 # How to retry a set of microdescriptor downloads.
-retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
+#retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
 
 # Tells the circuit manager rule for constructing circuit paths
 [path_rules]
@@ -101,8 +103,8 @@ retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
 # used in the same circuit?  For example, "ipv4_subnet_family_prefix=16"
 # means that two relays cannot appear in the same circuit if their
 # IPv4 addresses begin with the same 16 bits.
-ipv4_subnet_family_prefix = 16
-ipv6_subnet_family_prefix = 32
+#ipv4_subnet_family_prefix = 16
+#ipv6_subnet_family_prefix = 32
 
 
 # Configure preemptive circuit construction.
@@ -114,22 +116,22 @@ ipv6_subnet_family_prefix = 32
 # If we have at least this many available circuits, we suspend
 # construction of preemptive circuits. whether our available circuits
 # support our predicted exit ports or not.
-disable_at_threshold = 12
+#disable_at_threshold = 12
 
 # At startup, which exit ports should we expect that the client will want?
 #
 # (Over time, new ports are added to this list in response to what the client
 # has actually requested.)
-initial_predicted_ports = [80, 443]
+#initial_predicted_ports = [80, 443]
 
 # After we see the client request a connection to a new port, how long should we
 # predict that the client will still want to have circuitsw available for that
 # port?
-prediction_lifetime = "1 hour"
+#prediction_lifetime = "1 hour"
 
 # How many available circuits should we try to have, at minimum, for each
 # predicted exit port?
-min_exit_circs_for_port = 2
+#min_exit_circs_for_port = 2
 
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
@@ -137,27 +139,27 @@ min_exit_circs_for_port = 2
 
 # Once a circuit has been used for a request, we stop giving it out for
 # other requests after this time.
-max_dirtiness = "10 minutes"
+#max_dirtiness = "10 minutes"
 
 # When a circuit is requested, we keep trying to build circuits for up
 # to this long before the request gives up.
-request_timeout = "60 sec"
+#request_timeout = "60 sec"
 
 # When a circuit is requested, we make up to this many attempts to build
 # circuits for it before the request gives up.
-request_max_retries = 16
+#request_max_retries = 16
 
 # If a circuit is finished that would satisfy a pending request, but the
 # request is still waiting for its own circuits to complete, the request
 # will wait this long before using the unexpectedly available circuit.
-request_loyalty = "50 msec"
+#request_loyalty = "50 msec"
 
 # Rules for which addresses a client is willing to try to connect to over
 # the tor network.
 [address_filter]
 
 # Should we allow attempts to make Tor connections to local addresses?
-allow_local_addrs = false
+#allow_local_addrs = false
 
 # Rules for how long streams should wait when connecting to host or performing a
 # DNS lookup.
@@ -167,17 +169,17 @@ allow_local_addrs = false
 [stream_timeouts]
 
 # How long should we wait before timing out a stream when connecting to a host?
-connect_timeout = "10 sec"
+#connect_timeout = "10 sec"
 
 # How long should we wait before timing out when resolving a DNS record?
-resolve_timeout = "10 sec"
+#resolve_timeout = "10 sec"
 
 # How long should we wait before timing out when resolving a DNS PTR record?
-resolve_ptr_timeout = "10 sec"
+#resolve_ptr_timeout = "10 sec"
 
 # Configuration for the system resources used by Arti.
 [system]
 
 # What is the maximum number of file descriptors which should be available
 # to Arti when we launch?
-max_files = 16384
+#max_files = 16384

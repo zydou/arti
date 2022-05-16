@@ -126,7 +126,11 @@ impl InputString {
             }
         }
     }
-    /// DOCDOC
+    /// Try to create an [`InputString`] from an open [`File`].
+    ///
+    /// We'll try to memory-map the file if we can.  If that fails, or if we
+    /// were built without the `mmap` feature, we'll fall back to reading the
+    /// file into memory.
     pub(crate) fn load(file: File) -> Result<Self> {
         #[cfg(feature = "mmap")]
         {

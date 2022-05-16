@@ -33,7 +33,7 @@ impl Writer for bytes::BytesMut {
 
 // ----------------------------------------------------------------------
 
-impl<'a> Writeable for [u8] {
+impl Writeable for [u8] {
     fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
         b.write_all(self);
     }

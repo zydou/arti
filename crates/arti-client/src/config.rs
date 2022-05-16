@@ -18,7 +18,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
-pub use tor_config::{CfgPath, ConfigBuildError, Reconfigure};
+pub use tor_config::impl_standard_builder;
+pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, Reconfigure};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -56,6 +57,7 @@ pub struct ClientAddrConfig {
     #[builder(default)]
     pub(crate) allow_local_addrs: bool,
 }
+impl_standard_builder! { ClientAddrConfig }
 
 /// Configuration for client behavior relating to stream connection timeouts
 ///
@@ -73,51 +75,21 @@ pub struct StreamTimeoutConfig {
     /// How long should we wait before timing out a stream when connecting
     /// to a host?
     #[builder(default = "default_connect_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) connect_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS record?
     #[builder(default = "default_dns_resolve_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) resolve_timeout: Duration,
 
     /// How long should we wait before timing out when resolving a DNS
     /// PTR record?
     #[builder(default = "default_dns_resolve_ptr_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) resolve_ptr_timeout: Duration,
 }
-
-// NOTE: it seems that `unwrap` may be safe because of builder defaults
-// check `derive_builder` documentation for details
-// https://docs.rs/derive_builder/0.10.2/derive_builder/#default-values
-#[allow(clippy::unwrap_used)]
-impl Default for ClientAddrConfig {
-    fn default() -> Self {
-        ClientAddrConfigBuilder::default().build().unwrap()
-    }
-}
-
-impl ClientAddrConfig {
-    /// Return a new [`ClientAddrConfigBuilder`].
-    pub fn builder() -> ClientAddrConfigBuilder {
-        ClientAddrConfigBuilder::default()
-    }
-}
-
-#[allow(clippy::unwrap_used)]
-impl Default for StreamTimeoutConfig {
-    fn default() -> Self {
-        StreamTimeoutConfigBuilder::default().build().unwrap()
-    }
-}
-
-impl StreamTimeoutConfig {
-    /// Return a new [`StreamTimeoutConfigBuilder`].
-    pub fn builder() -> StreamTimeoutConfigBuilder {
-        StreamTimeoutConfigBuilder::default()
-    }
-}
+impl_standard_builder! { StreamTimeoutConfig }
 
 /// Return the default stream timeout
 fn default_connect_timeout() -> Duration {
@@ -160,6 +132,7 @@ pub struct StorageConfig {
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
 }
+impl_standard_builder! { StorageConfig }
 
 /// Return the default cache directory.
 fn default_cache_dir() -> CfgPath {
@@ -171,18 +144,7 @@ fn default_state_dir() -> CfgPath {
     CfgPath::new("${ARTI_LOCAL_DATA}".to_owned())
 }
 
-impl Default for StorageConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
-}
-
 impl StorageConfig {
-    /// Return a new StorageConfigBuilder.
-    pub fn builder() -> StorageConfigBuilder {
-        StorageConfigBuilder::default()
-    }
-
     /// Try to expand `state_dir` to be a path buffer.
     pub(crate) fn expand_state_dir(&self) -> Result<PathBuf, ConfigBuildError> {
         self.state_dir
@@ -293,6 +255,7 @@ pub struct TorClientConfig {
     #[builder_field_attr(serde(default))]
     pub(crate) stream_timeouts: StreamTimeoutConfig,
 }
+impl_standard_builder! { TorClientConfig }
 
 /// Helper to convert convert_override_net_params
 fn convert_override_net_params(
@@ -313,20 +276,7 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     }
 }
 
-impl Default for TorClientConfig {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("Could not build TorClientConfig from default configuration.")
-    }
-}
-
 impl TorClientConfig {
-    /// Return a new TorClientConfigBuilder.
-    pub fn builder() -> TorClientConfigBuilder {
-        TorClientConfigBuilder::default()
-    }
-
     /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
     pub(crate) fn dir_mgr_config(&self, mistrust: fs_mistrust::Mistrust) -> Result<dir::DirMgrConfig, ConfigBuildError> {
@@ -374,6 +324,11 @@ pub(crate) fn default_fs_mistrust() -> fs_mistrust::Mistrust {
         mistrust.dangerously_trust_everyone();
     }
     mistrust
+}
+
+/// Return a filename for the default user configuration file.
+pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
+    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
 }
 
 #[cfg(test)]
@@ -433,5 +388,14 @@ mod test {
         let val = bld.build().unwrap();
 
         assert_ne!(val, TorClientConfig::default());
+    }
+
+    #[test]
+    fn check_default() {
+        // We don't want to second-guess the directories crate too much
+        // here, so we'll just make sure it does _something_ plausible.
+
+        let dflt = default_config_file().unwrap();
+        assert!(dflt.ends_with("arti.toml"));
     }
 }

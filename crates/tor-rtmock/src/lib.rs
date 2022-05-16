@@ -137,6 +137,8 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 
+extern crate core;
+
 pub mod io;
 pub mod net;
 pub mod time;

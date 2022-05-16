@@ -122,15 +122,18 @@ pub mod process;
 pub mod socks;
 pub mod watch_cfg;
 
+use std::fmt::Write;
+
 pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
-    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder,
+    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
+use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
-use arti_config::default_config_file;
 use safelog::with_safe_logging_suppressed;
+use tor_config::ConfigurationSources;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Result};
@@ -139,6 +142,39 @@ use tracing::{info, warn};
 
 /// Shorthand for a boxed and pinned Future.
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
+
+/// Create a runtime for Arti to use.
+fn create_runtime() -> std::io::Result<impl Runtime> {
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature="tokio", feature="native-tls"))] {
+        use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="tokio", feature="rustls"))] {
+            use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
+            use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
+        } else if #[cfg(all(feature="async-std", feature="rustls"))] {
+            use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
+        } else {
+            compile_error!("You must configure both an async runtime and a TLS stack. See doc/TROUBLESHOOTING.md for more.");
+        }
+    }
+    ChosenRuntime::create()
+}
+
+/// Return a (non-exhaustive) array of enabled Cargo features, for version printing purposes.
+fn list_enabled_features() -> &'static [&'static str] {
+    // HACK(eta): We can't get this directly, so we just do this awful hack instead.
+    // Note that we only list features that aren't about the runtime used, since that already
+    // gets printed separately.
+    &[
+        #[cfg(feature = "journald")]
+        "journald",
+        #[cfg(feature = "static-sqlite")]
+        "static-sqlite",
+        #[cfg(feature = "static-native-tls")]
+        "static-native-tls",
+    ]
+}
 
 /// Run the main loop of the proxy.
 ///
@@ -149,7 +185,7 @@ pub async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     dns_port: u16,
-    config_sources: arti_config::ConfigurationSources,
+    config_sources: ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
     fs_mistrust_disabled: bool,
@@ -230,13 +266,32 @@ pub fn main_main() -> Result<()> {
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
     let mut config_file_help = "Specify which config file(s) to read.".to_string();
-    if let Some(default) = arti_config::default_config_file() {
-        config_file_help.push_str(&format!(" Defaults to {:?}", default));
+    if let Ok(default) = default_config_file() {
+        // If we couldn't resolve the default config file, then too bad.  If something
+        // actually tries to use it, it will produce an error, but don't fail here
+        // just for that reason.
+        write!(config_file_help, " Defaults to {:?}", default).unwrap();
     }
+
+    // We create the runtime now so that we can use its `Debug` impl to describe it for
+    // the version string.
+    let runtime = create_runtime()?;
+    let features = list_enabled_features();
+    let long_version = format!(
+        "{}\nusing runtime: {:?}\noptional features: {}",
+        env!("CARGO_PKG_VERSION"),
+        runtime,
+        if features.is_empty() {
+            "<none>".into()
+        } else {
+            features.join(", ")
+        }
+    );
 
     let matches =
         App::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
+            .long_version(&long_version as &str)
             .author("The Tor Project Developers")
             .about("A Rust Tor implementation.")
             // HACK(eta): clap generates "arti [OPTIONS] <SUBCOMMAND>" for this usage string by
@@ -320,30 +375,12 @@ pub fn main_main() -> Result<()> {
     };
 
     let cfg_sources = {
-        let mut cfg_sources = arti_config::ConfigurationSources::new();
-
-        let config_files = matches.values_of_os("config-files").unwrap_or_default();
-        if config_files.len() == 0 {
-            if let Some(default) = default_config_file() {
-                match mistrust.verifier().require_file().check(&default) {
-                    Ok(()) => {}
-                    Err(fs_mistrust::Error::NotFound(_)) => {}
-                    Err(e) => return Err(e.into()),
-                }
-                cfg_sources.push_optional_file(default);
-            }
-        } else {
-            for f in config_files {
-                mistrust.verifier().require_file().check(f)?;
-                cfg_sources.push_file(f);
-            }
-        }
-
-        matches
-            .values_of("option")
-            .unwrap_or_default()
-            .for_each(|s| cfg_sources.push_option(s));
-
+        let mut cfg_sources = ConfigurationSources::from_cmdline(
+            default_config_file()?,
+            matches.values_of_os("config-files").unwrap_or_default(),
+            matches.values_of("option").unwrap_or_default(),
+        );
+        cfg_sources.set_mistrust(mistrust);
         cfg_sources
     };
 
@@ -378,20 +415,6 @@ pub fn main_main() -> Result<()> {
         );
 
         process::use_max_file_limit(&config);
-
-        cfg_if::cfg_if! {
-            if #[cfg(all(feature="tokio", feature="native-tls"))] {
-            use tor_rtcompat::tokio::TokioNativeTlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="tokio", feature="rustls"))] {
-                use tor_rtcompat::tokio::TokioRustlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="async-std", feature="native-tls"))] {
-                use tor_rtcompat::async_std::AsyncStdNativeTlsRuntime as ChosenRuntime;
-            } else if #[cfg(all(feature="async-std", feature="rustls"))] {
-                use tor_rtcompat::async_std::AsyncStdRustlsRuntime as ChosenRuntime;
-            }
-        }
-
-        let runtime = ChosenRuntime::create()?;
 
         let rt_copy = runtime.clone();
         rt_copy.block_on(run(

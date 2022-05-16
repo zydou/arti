@@ -7,12 +7,15 @@ use serde::{Deserialize, Serialize};
 
 use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
-use tor_config::ConfigBuildError;
+use tor_config::{impl_standard_builder, ConfigBuildError};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
+/// Default options to use for our configuration.
+pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"),);
+
 /// Structure to hold our application configuration options
-#[derive(Debug, Default, Clone, Builder, Eq, PartialEq)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ApplicationConfig {
@@ -26,6 +29,7 @@ pub struct ApplicationConfig {
     #[builder(default)]
     pub(crate) watch_configuration: bool,
 }
+impl_standard_builder! { ApplicationConfig }
 
 /// Configuration for one or more proxy listeners.
 #[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
@@ -43,24 +47,12 @@ pub struct ProxyConfig {
     #[builder(default)]
     pub(crate) dns_port: Option<u16>,
 }
+impl_standard_builder! { ProxyConfig }
 
 /// Return the default value for `socks_port`
 #[allow(clippy::unnecessary_wraps)]
 fn default_socks_port() -> Option<u16> {
     Some(9150)
-}
-
-impl Default for ProxyConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
-}
-
-impl ProxyConfig {
-    /// Return a new [`ProxyConfigBuilder`].
-    pub fn builder() -> ProxyConfigBuilder {
-        ProxyConfigBuilder::default()
-    }
 }
 
 /// Configuration for system resources used by Tor.
@@ -75,23 +67,11 @@ pub struct SystemConfig {
     #[builder(setter(into), default = "default_max_files()")]
     pub(crate) max_files: u64,
 }
+impl_standard_builder! { SystemConfig }
 
 /// Return the default maximum number of file descriptors to launch with.
 fn default_max_files() -> u64 {
     16384
-}
-
-impl Default for SystemConfig {
-    fn default() -> Self {
-        Self::builder().build().expect("Default builder failed")
-    }
-}
-
-impl SystemConfig {
-    /// Return a new SystemConfigBuilder.
-    pub fn builder() -> SystemConfigBuilder {
-        SystemConfigBuilder::default()
-    }
 }
 
 /// Structure to hold Arti's configuration options, whether from a
@@ -108,7 +88,7 @@ impl SystemConfig {
 ///
 /// NOTE: These are NOT the final options or their final layout. Expect NO
 /// stability here.
-#[derive(Debug, Builder, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Builder, Clone, Eq, PartialEq)]
 #[builder(derive(Serialize, Deserialize, Debug))]
 #[builder(build_fn(error = "ConfigBuildError"))]
 pub struct ArtiConfig {
@@ -137,6 +117,7 @@ pub struct ArtiConfig {
     #[builder_field_attr(serde(flatten))]
     tor: TorClientConfig,
 }
+impl_standard_builder! { ArtiConfig }
 
 impl TryFrom<config::Config> for ArtiConfig {
     type Error = config::ConfigError;
@@ -161,11 +142,6 @@ impl ArtiConfig {
         Ok(self.tor.clone())
     }
 
-    /// Return a new ArtiConfigBuilder.
-    pub fn builder() -> ArtiConfigBuilder {
-        ArtiConfigBuilder::default()
-    }
-
     /// Return the [`ApplicationConfig`] for this configuration.
     pub fn application(&self) -> &ApplicationConfig {
         &self.application
@@ -187,25 +163,50 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use arti_client::config::dir;
-    use arti_config::ARTI_DEFAULTS;
+    use regex::Regex;
     use std::time::Duration;
 
     use super::*;
 
+    fn uncomment_example_settings(template: &str) -> String {
+        let re = Regex::new(r#"(?m)^\#([^ \n])"#).unwrap();
+        re.replace(template, |cap: &regex::Captures<'_>| -> _ {
+            cap.get(1).unwrap().as_str().to_string()
+        })
+        .into()
+    }
+
     #[test]
     fn default_config() {
-        // TODO: this is duplicate code.
+        let empty_config = config::Config::builder().build().unwrap();
+        let empty_config: ArtiConfig = empty_config.try_into().unwrap();
+
+        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
         let cfg = config::Config::builder()
-            .add_source(config::File::from_str(
-                ARTI_DEFAULTS,
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(&example, config::FileFormat::Toml))
             .build()
             .unwrap();
 
+        // This tests that the example settings do not *contradict* the defaults.
+        // But it does not prove that the example template file does not contain misspelled
+        // (and therefore ignored) items - which might even contradict the defaults if
+        // their spelling was changed.
+        //
+        // Really we should test that too, but that's dependent on a fix for
+        //  https://gitlab.torproject.org/tpo/core/arti/-/issues/417
+        // which is blocked on serde-ignored not handling serde(flatten).
+        //
+        // Also we should ideally test that every setting from the config appears here in
+        // the file.  Possibly that could be done with some kind of stunt Deserializer,
+        // but it's not trivial.
         let parsed: ArtiConfig = cfg.try_into().unwrap();
         let default = ArtiConfig::default();
         assert_eq!(&parsed, &default);
+        assert_eq!(&parsed, &empty_config);
+
+        let built_default = ArtiConfigBuilder::default().build().unwrap();
+        assert_eq!(&parsed, &built_default);
+        assert_eq!(&default, &built_default);
 
         // Make sure that the client configuration this gives us is the default one.
         let client_config = parsed.tor_client_config().unwrap();

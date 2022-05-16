@@ -67,16 +67,38 @@ follow Rust's semantic versioning best practices.)
 
 Arti can act as a SOCKS proxy that uses the Tor network.
 
-To try it out, run the demo program in `arti` as follows.  It will open a
+To try it out, compile and run the `arti` binary using the below. It will open a
 SOCKS proxy on port 9150.
 
-    % cargo run --release -- proxy
+    $ cargo run -p arti --release -- proxy
 
 Again, do not use this program yet if you seriously need anonymity, privacy,
 security, or stability.
 
+You can build a binary (but not run it) with:
+
+    $ cargo build -p arti --release
+
+The result can be found as `target/release/arti`.
+
 If you run into any trouble building the program, please have a
 look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
+
+### Custom compile-time options
+
+Arti has a number of configurable [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) that,
+among other things, can affect which asynchronous runtime to use. Use
+
+    $ cargo doc -p arti --open
+
+to view the Arti crate-level docs in your browser, which contain a full list.
+
+You can pass these features to Cargo while building with `--features` (note that you might need `--no-default-features`
+in order to not use the default runtime choices, too). For example, to use `async-std` instead of Tokio:
+
+    $ cargo run -p arti --no-default-features --features async-std,native-tls -- proxy
+
+Use `target/release/arti --version` to see what features the currently built Arti binary is using.
 
 ## Minimum supported Rust Version
 

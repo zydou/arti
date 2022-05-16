@@ -88,6 +88,7 @@ use arti::ArtiConfig;
 use arti_client::TorClient;
 use futures::task::SpawnExt;
 use rt::badtcp::BrokenTcpProvider;
+use tor_config::ConfigurationSources;
 use tor_dirmgr::filter::DirFilter;
 use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 
@@ -209,7 +210,7 @@ struct Job {
     console_log: String,
 
     /// Where we're getting our configuration from.
-    config: arti_config::ConfigurationSources,
+    config: ConfigurationSources,
 
     /// What we expect to happen.
     expectation: Option<Expectation>,

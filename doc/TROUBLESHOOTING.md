@@ -51,3 +51,37 @@ then you might be hitting a
 on native_tls on Alpine linux.
 
 You can solve this by building with `RUSTFLAGS=-Ctarget-feature=-crt-static`.
+
+### I get an error about "configuring both an async runtime and a TLS stack" when building Arti!
+
+If you're getting
+
+```
+error: You must configure both an async runtime and a TLS stack. See doc/TROUBLESHOOTING.md for more.
+```
+
+...then the combination of [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) (`--features`) you
+you configured while compiling Arti doesn't specify both an asynchronous runtime *and* a TLS stack to use.
+
+You must choose:
+
+- at least one asynchronous runtime (features `tokio`, `async-std`)
+  - (if you choose both, `tokio` will be used)
+- at least one TLS stack (features `native-tls`, `rustls`)
+  - (if you choose both, `native-tls` will be used)
+
+Pass these in with the `--features` argument when compiling (e.g. `--features tokio,native-tls`).
+
+Note that Arti configures Tokio and native-tls by default, so if you're gettnig this error, you probably tried to do
+something fancy with `--no-default-features`.
+
+### Arti isn't respecting my custom runtime choice!
+
+Make sure you're building just the Arti binary, and not the whole workspace; to do this, you'll need to specify `-p arti`
+when invoking Cargo, e.g.
+
+    $ cargo build -p arti --no-default-features --features async-std,native-tls
+
+You can verify which runtime is being used by passing `--version` to Arti, e.g.
+
+    $ target/release/arti --version

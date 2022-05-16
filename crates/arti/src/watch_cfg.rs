@@ -8,6 +8,7 @@ use std::time::Duration;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
 use notify::Watcher;
+use tor_config::ConfigurationSources;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, warn};
 
@@ -21,7 +22,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Whenever one or more files in `files` changes, try to reload our
 /// configuration from them and tell TorClient about it.
 pub fn watch_for_config_changes<R: Runtime>(
-    sources: arti_config::ConfigurationSources,
+    sources: ConfigurationSources,
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
@@ -79,7 +80,7 @@ pub fn watch_for_config_changes<R: Runtime>(
 ///
 /// Return true if we should stop watching for configuration changes.
 fn reconfigure<R: Runtime>(
-    sources: &arti_config::ConfigurationSources,
+    sources: &ConfigurationSources,
     original: &ArtiConfig,
     client: &TorClient<R>,
 ) -> anyhow::Result<bool> {

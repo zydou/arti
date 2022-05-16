@@ -5,6 +5,7 @@
 //! Most types in this module are re-exported by `arti-client`.
 
 use tor_basic_utils::define_accessor_trait;
+use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackList;
 
@@ -40,6 +41,7 @@ pub struct PathConfig {
     #[builder(default = "ipv6_prefix_default()")]
     ipv6_subnet_family_prefix: u8,
 }
+impl_standard_builder! { PathConfig }
 
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
@@ -51,10 +53,6 @@ fn ipv6_prefix_default() -> u8 {
 }
 
 impl PathConfig {
-    /// Return a new [`PathConfigBuilder`].
-    pub fn builder() -> PathConfigBuilder {
-        PathConfigBuilder::default()
-    }
     /// Return a subnet configuration based on these rules.
     pub fn subnet_config(&self) -> tor_netdir::SubnetConfig {
         tor_netdir::SubnetConfig::new(
@@ -70,14 +68,6 @@ impl PathConfig {
     pub(crate) fn at_least_as_permissive_as(&self, other: &Self) -> bool {
         self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
             && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
-    }
-}
-
-impl Default for PathConfig {
-    fn default() -> PathConfig {
-        PathConfigBuilder::default()
-            .build()
-            .expect("unusable hardwired defaults")
     }
 }
 
@@ -117,7 +107,7 @@ pub struct PreemptiveCircuitConfig {
     /// should we predict that the client will still want to have circuits
     /// available for that port?
     #[builder(default = "default_preemptive_duration()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) prediction_lifetime: Duration,
 
     /// How many available circuits should we try to have, at minimum, for each
@@ -125,6 +115,7 @@ pub struct PreemptiveCircuitConfig {
     #[builder(default = "default_preemptive_min_exit_circs_for_port()")]
     pub(crate) min_exit_circs_for_port: usize,
 }
+impl_standard_builder! { PreemptiveCircuitConfig }
 
 /// Configuration for circuit timeouts, expiration, and so on.
 ///
@@ -143,14 +134,14 @@ pub struct CircuitTiming {
     /// How long after a circuit has first been used should we give
     /// it out for new requests?
     #[builder(default = "default_max_dirtiness()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) max_dirtiness: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits
     /// after this much time.
     // TODO: Impose a maximum or minimum?
     #[builder(default = "default_request_timeout()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) request_timeout: Duration,
 
     /// When a circuit is requested, we stop retrying new circuits after
@@ -163,9 +154,10 @@ pub struct CircuitTiming {
     /// before using a suitable-looking circuit launched by some other
     /// request.
     #[builder(default = "default_request_loyalty()")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) request_loyalty: Duration,
 }
+impl_standard_builder! { CircuitTiming }
 
 /// Return default threshold
 fn default_preemptive_threshold() -> usize {
@@ -223,38 +215,6 @@ fn default_request_max_retries() -> u32 {
 /// Return the default request loyalty timeout.
 fn default_request_loyalty() -> Duration {
     Duration::from_millis(50)
-}
-
-// NOTE: it seems that `unwrap` may be safe because of builder defaults
-// check `derive_builder` documentation for details
-// https://docs.rs/derive_builder/0.10.2/derive_builder/#default-values
-#[allow(clippy::unwrap_used)]
-impl Default for CircuitTiming {
-    fn default() -> Self {
-        CircuitTimingBuilder::default().build().unwrap()
-    }
-}
-
-impl CircuitTiming {
-    /// Return a new [`CircuitTimingBuilder`]
-    pub fn builder() -> CircuitTimingBuilder {
-        CircuitTimingBuilder::default()
-    }
-}
-
-impl Default for PreemptiveCircuitConfig {
-    fn default() -> Self {
-        PreemptiveCircuitConfigBuilder::default()
-            .build()
-            .expect("preemptive circuit defaults")
-    }
-}
-
-impl PreemptiveCircuitConfig {
-    /// Return a new [`PreemptiveCircuitConfigBuilder`]
-    pub fn builder() -> PreemptiveCircuitConfigBuilder {
-        PreemptiveCircuitConfigBuilder::default()
-    }
 }
 
 define_accessor_trait! {
