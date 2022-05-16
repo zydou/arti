@@ -105,6 +105,11 @@ pub(crate) trait DirState: Send {
     /// Return true if this state can advance to another state via its
     /// `advance` method.
     fn can_advance(&self) -> bool;
+    /// Check whether this state will never be able to advance, and instead
+    /// needs to be reset because of some error.  If so, return that error.
+    fn blocking_error(&self) -> Option<Error> {
+        None
+    }
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
     ///

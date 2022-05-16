@@ -343,6 +343,9 @@ pub(crate) async fn load<R: Runtime>(
         if let Some(e) = nonfatal_err {
             debug!("Recoverable loading from cache: {}", e);
         }
+        if let Some(e) = state.blocking_error() {
+            return Err(e);
+        }
 
         if state.can_advance() {
             state = state.advance()?;
@@ -426,19 +429,18 @@ async fn download_attempt<R: Runtime>(
 }
 
 /// Download information into a DirState state machine until it is
-/// ["complete"](Readiness::Complete), or until we hit a
-/// non-recoverable error.
+/// ["complete"](Readiness::Complete), or until we hit a non-recoverable error.
 ///
 /// Use `dirmgr` to load from the cache or to launch downloads.
 ///
 /// Keep resetting the state as needed.
 ///
-/// The first time that the state becomes ["usable"](Readiness::Usable),
-/// notify the sender in `on_usable`.
+/// The first time that the state becomes ["usable"](Readiness::Usable), notify
+/// the sender in `on_usable`.
 ///
-/// Return Err only on a non-recoverable error.  On an error that
-/// merits another bootstrap attempt with the same state, return the
-/// state and an Error object in an option.
+/// Return Err only on a non-recoverable error.  On an error that merits another
+/// bootstrap attempt with the same state (after a reset), return the state and
+/// an Error object in an option.
 pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     mut state: Box<dyn DirState>,
@@ -458,6 +460,12 @@ pub(crate) async fn download<R: Runtime>(
             load_once(&dirmgr, &mut state).await?;
             dirmgr.runtime.wallclock()
         };
+
+        // Have we gotten ourselves into a state that can't advance?  If so,
+        // let the caller reset.
+        if let Some(e) = state.blocking_error() {
+            return Ok((state, Some(e)));
+        }
 
         // Skip the downloads if we can...
         if state.can_advance() {
@@ -548,6 +556,12 @@ pub(crate) async fn download<R: Runtime>(
                 // Unwrap should be safe due to parent `.is_some()` check
                 #[allow(clippy::unwrap_used)]
                 let _ = on_usable.take().unwrap().send(());
+            }
+
+            // Have we gotten ourselves into a state that can't advance?  If so,
+            // let the caller reset.
+            if let Some(e) = state.blocking_error() {
+                return Ok((state, Some(e)));
             }
 
             if state.can_advance() {
