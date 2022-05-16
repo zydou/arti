@@ -106,6 +106,15 @@ pub struct ClientCirc {
     unique_id: UniqId,
     /// Channel to send control messages to the reactor.
     control: mpsc::UnboundedSender<CtrlMsg>,
+    /// The channel that this ClientCirc is connected to and using to speak with
+    /// its first hop.
+    ///
+    /// # Warning
+    ///
+    /// Don't use this field to send or receive any data, or perform any network
+    /// operations for this circuit!  All network operations should be done by
+    /// the circuit reactor.
+    channel: Channel,
     /// For testing purposes: the CircId, for use in peek_circid().
     #[cfg(test)]
     circid: CircId,
@@ -208,6 +217,15 @@ impl ClientCirc {
     /// Return a description of all the hops in this circuit.
     pub fn path(&self) -> Vec<OwnedChanTarget> {
         self.path.all_hops()
+    }
+
+    /// Return a reference to the channel that this circuit is connected to.
+    ///
+    /// A client circuit is always connected to some relay via a [`Channel`].
+    /// That relay has to be the same relay as the first hop in the client's
+    /// path.
+    pub fn channel(&self) -> &Channel {
+        &self.channel
     }
 
     /// Extend the circuit via the ntor handshake to a new target last
@@ -452,7 +470,7 @@ impl PendingClientCirc {
         let reactor = Reactor {
             control: control_rx,
             outbound: Default::default(),
-            channel,
+            channel: channel.clone(),
             input,
             crypto_in: InboundClientCrypt::new(),
             hops: vec![],
@@ -467,6 +485,7 @@ impl PendingClientCirc {
             path,
             unique_id,
             control: control_tx,
+            channel,
             #[cfg(test)]
             circid: id,
         };

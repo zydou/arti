@@ -141,6 +141,15 @@ pub(crate) fn make_consensus_request(
         }
     }
 
+    request.set_skew_limit(
+        // If we are _fast_ by at least this much, then any valid directory will
+        // seem to be at least this far in the past.
+        config.tolerance.post_valid_tolerance,
+        // If we are _slow_ by this much, then any valid directory will seem to
+        // be at least this far in the future.
+        config.tolerance.pre_valid_tolerance,
+    );
+
     Ok(ClientRequest::Consensus(request))
 }
 
