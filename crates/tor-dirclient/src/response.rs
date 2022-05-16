@@ -24,7 +24,7 @@ pub struct DirResponse {
 /// We use this to remember when a request has failed, so we can
 /// abandon the circuit.
 #[derive(Debug, Clone, derive_more::Display)]
-#[display(fmt = "{cache_id} via {circuit}")]
+#[display(fmt = "{} via {}", circuit, cache_id)]
 pub struct SourceInfo {
     /// Unique identifier for the circuit we're using
     circuit: UniqId,
