@@ -250,6 +250,12 @@ impl HasKind for Bug {
 mod test {
     use super::*;
 
+    // We test this on Linux only.  This test case is to ensure that we are using the
+    // backtrace module correctly, etc., which can be checked by doing it on one platform.
+    // Doing it on others simply exposes us to the vagaries of platform backtrace support.
+    // Arti ought not to fail its tests just because someone is using a platform with poor
+    // backtrace support.
+    #[cfg(target_os = "linux")]
     #[test]
     fn internal_macro_test() {
         let start_of_func = line!();
