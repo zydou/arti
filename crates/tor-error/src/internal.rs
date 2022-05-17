@@ -264,11 +264,7 @@ mod test {
     //
     // So this list is a compromise.  See
     //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/509#note_2803085
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "macos",
-        target_os = "windows",
-    ))]
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     #[test]
     fn internal_macro_test() {
         let start_of_func = line!();
