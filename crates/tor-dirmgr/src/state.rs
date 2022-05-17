@@ -492,9 +492,7 @@ impl<R: Runtime> GetCertsState<R> {
             }
         };
 
-        let outcome;
-
-        (self.consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
+        let (new_consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
             Ok(validated) => (C::Validated(validated), Ok(())),
             Err(cause) => (
                 C::Failed,
@@ -504,6 +502,7 @@ impl<R: Runtime> GetCertsState<R> {
                 }),
             ),
         };
+        self.consensus = new_consensus;
 
         outcome
     }
