@@ -250,6 +250,21 @@ impl HasKind for Bug {
 mod test {
     use super::*;
 
+    // We test this on "important" and "reliable" platforms only.
+    //
+    // This test case mainly is to ensure that we are using the backtrace module correctly, etc.,
+    // which can be checked by doing it on one platform.
+    //
+    // Doing the test on on *all* platforms would simply expose us to the vagaries of platform
+    // backtrace support.  Arti ought not to fail its tests just because someone is using a
+    // platform with poor backtrace support.
+    //
+    // On the other hand, we *do* want to know that things are correct on platforms where we think
+    // Rust backtraces work properly.
+    //
+    // So this list is a compromise.  See
+    //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/509#note_2803085
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     #[test]
     fn internal_macro_test() {
         let start_of_func = line!();
