@@ -303,11 +303,11 @@ async fn fetch_multiple<R: Runtime>(
 async fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
-) -> Result<(bool, Option<Error>)> {
+) -> Result<Option<Error>> {
     let missing = state.missing_docs();
-    let outcome: Result<(bool, Option<Error>)> = if missing.is_empty() {
+    let outcome: Result<Option<Error>> = if missing.is_empty() {
         trace!("Found no missing documents; can't advance current state");
-        Ok((false, None))
+        Ok(Some(Error::NoChange(DocSource::LocalCache)))
     } else {
         trace!(
             "Found {} missing documents; trying to load them",
@@ -323,13 +323,13 @@ async fn load_once<R: Runtime>(
             Err(Error::UntimelyObject(TimeValidityError::Expired(_))) => {
                 // This is just an expired object from the cache; we don't need
                 // to call that an error.  Treat it as if it were absent.
-                Ok((false, None))
+                Ok(None)
             }
             other => other,
         }
     };
 
-    if matches!(outcome, Ok((true, _))) {
+    if outcome.is_ok() {
         dirmgr.update_status(state.bootstrap_status());
     }
 
@@ -347,13 +347,13 @@ pub(crate) async fn load<R: Runtime>(
     let mut safety_counter = 0_usize;
     loop {
         trace!(state=%state.describe(), "Loading from cache");
-        let (changed, nonfatal_err) = load_once(&dirmgr, &mut state).await?;
+        let nonfatal_err = load_once(&dirmgr, &mut state).await?;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
         }
 
-        if let Some(e) = nonfatal_err {
+        if let Some(e) = &nonfatal_err {
             debug!("Recoverable loading from cache: {}", e);
         }
         if let Some(e) = state.blocking_error() {
@@ -364,7 +364,8 @@ pub(crate) async fn load<R: Runtime>(
             state = state.advance()?;
             safety_counter = 0;
         } else {
-            if !changed {
+            if matches!(nonfatal_err, Some(Error::NoChange(_))) {
+                // XXXX refactor more.
                 break;
             }
             safety_counter += 1;
@@ -383,14 +384,11 @@ pub(crate) async fn load<R: Runtime>(
 ///
 /// This can launch one or more download requests, but will not launch more
 /// than `parallelism` requests at a time.
-///
-/// Return true if the state reports that it changed.
 async fn download_attempt<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     parallelism: usize,
-) -> Result<bool> {
-    let mut changed = false;
+) -> Result<()> {
     let missing = state.missing_docs();
     let fetched = fetch_multiple(Arc::clone(dirmgr), &missing, parallelism).await?;
     for (client_req, dir_response) in fetched {
@@ -411,9 +409,8 @@ async fn download_attempt<R: Runtime>(
                 let doc_source = DocSource::DirServer {
                     source: source.clone(),
                 };
-                let (b, opt_error) =
+                let opt_error =
                     state.add_from_download(&text, &client_req, doc_source, Some(&dirmgr.store))?;
-                changed |= b;
                 if let Some(e) = &opt_error {
                     warn!("error while adding directory info: {}", e);
                 }
@@ -434,11 +431,9 @@ async fn download_attempt<R: Runtime>(
         }
     }
 
-    if changed {
-        dirmgr.update_status(state.bootstrap_status());
-    }
+    dirmgr.update_status(state.bootstrap_status());
 
-    Ok(changed)
+    Ok(())
 }
 
 /// Download information into a DirState state machine until it is
@@ -534,14 +529,9 @@ pub(crate) async fn download<R: Runtime>(
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 futures::select_biased! {
                     outcome = download_attempt(&dirmgr, &mut state, parallelism.into()).fuse() => {
-                        match outcome {
-                            Err(e) => {
+                        if let Err(e) = outcome {
                                 warn!("Error while downloading: {}", e);
                                 continue 'next_attempt;
-                            }
-                            Ok(changed) => {
-                                changed
-                            }
                         }
                     }
                     _ = runtime.sleep_until_wallclock(reset_time).fuse() => {
@@ -716,10 +706,7 @@ mod test {
                 })
                 .collect()
         }
-        fn add_from_cache(
-            &mut self,
-            docs: HashMap<DocId, DocumentText>,
-        ) -> Result<(bool, Option<Error>)> {
+        fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<Option<Error>> {
             let mut changed = false;
             for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
@@ -729,7 +716,11 @@ mod test {
                     }
                 }
             }
-            Ok((changed, None))
+            if changed {
+                Ok(None)
+            } else {
+                Ok(Some(Error::NoChange(DocSource::LocalCache)))
+            }
         }
         fn add_from_download(
             &mut self,
@@ -737,7 +728,7 @@ mod test {
             _request: &ClientRequest,
             _source: DocSource,
             _storage: Option<&Mutex<DynStore>>,
-        ) -> Result<(bool, Option<Error>)> {
+        ) -> Result<Option<Error>> {
             let mut changed = false;
             for token in text.split_ascii_whitespace() {
                 if let Ok(v) = hex::decode(token) {
@@ -749,7 +740,11 @@ mod test {
                     }
                 }
             }
-            Ok((changed, None))
+            if changed {
+                Ok(None)
+            } else {
+                Ok(Some(Error::NoChange(DocSource::LocalCache)))
+            }
         }
         fn dl_config(&self) -> DownloadSchedule {
             DownloadSchedule::default()
