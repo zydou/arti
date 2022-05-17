@@ -515,7 +515,10 @@ impl<R: Runtime> GetCertsState<R> {
 
         self.consensus = match unvalidated.check_signature(&self.certs[..]) {
             Ok(validated) => C::Validated(validated),
-            Err(err) => C::Failed(Error::from_netdoc(self.consensus_source.clone(), err)),
+            Err(cause) => C::Failed(Error::ConsensusInvalid {
+                source: self.consensus_source.clone(),
+                cause,
+            }),
         };
     }
 }
