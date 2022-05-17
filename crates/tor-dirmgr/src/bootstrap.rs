@@ -368,10 +368,6 @@ pub(crate) async fn load<R: Runtime>(
             }
         }
 
-        if let Some(e) = state.blocking_error() {
-            return Err(e);
-        }
-
         if state.can_advance() {
             state = state.advance();
             safety_counter = 0;
@@ -479,21 +475,16 @@ pub(crate) async fn download<R: Runtime>(
         let mut now = {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let load_result = load_once(&dirmgr, state).await;
+            if let Err(e) = &load_result {
+                // If the load failed but the error can be blamed on a directory
+                // cache, do so.
+                if let Some(source) = e.responsible_cache() {
+                    note_cache_error(dirmgr.circmgr()?.deref(), source, e);
+                }
+            }
             propagate_fatal_errors!(load_result);
             dirmgr.runtime.wallclock()
         };
-
-        // Have we gotten ourselves into a state that can't advance?  If so,
-        // let the caller reset.
-        if let Some(e) = state.blocking_error() {
-            // XXXXX: remove.
-            // Report an error, if there's a source to report it about.
-            if let Some(source) = e.responsible_cache() {
-                let dirmgr = upgrade_weak_ref(&dirmgr)?;
-                note_cache_error(dirmgr.circmgr()?.deref(), source, &e);
-            }
-            return Err(e);
-        }
 
         // Skip the downloads if we can...
         if state.can_advance() {
@@ -581,17 +572,6 @@ pub(crate) async fn download<R: Runtime>(
                 // Unwrap should be safe due to parent `.is_some()` check
                 #[allow(clippy::unwrap_used)]
                 let _ = on_usable.take().unwrap().send(());
-            }
-
-            // Have we gotten ourselves into a state that can't advance?  If so,
-            // let the caller reset.
-            if let Some(e) = state.blocking_error() {
-                let dirmgr = upgrade_weak_ref(&dirmgr)?;
-                // Report an error, if there's a source to report it about.
-                if let Some(source) = e.responsible_cache() {
-                    note_cache_error(dirmgr.circmgr()?.deref(), source, &e);
-                }
-                return Err(e);
             }
 
             if state.can_advance() {

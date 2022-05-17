@@ -105,11 +105,6 @@ pub(crate) trait DirState: Send {
     /// Return true if this state can advance to another state via its
     /// `advance` method.
     fn can_advance(&self) -> bool;
-    /// Check whether this state will never be able to advance, and instead
-    /// needs to be reset because of some error.  If so, return that error.
-    fn blocking_error(&self) -> Option<Error> {
-        None
-    }
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
     ///
@@ -397,7 +392,7 @@ impl<R: Runtime> GetConsensusState<R> {
     }
 }
 
-/// One of three possible internal states for the consensus in a GetCertsState.
+/// One of two possible internal states for the consensus in a GetCertsState.
 ///
 /// This inner object is advanced by `try_checking_sigs`.
 #[derive(Clone, Debug)]
@@ -406,8 +401,8 @@ enum GetCertsConsensus {
     Unvalidated(UnvalidatedMdConsensus),
     /// A validated consensus: the signatures are fine and we can advance.
     Validated(MdConsensus),
-    /// A failure: the signatures were invalid, and we definitely need to reset.
-    Failed(Error),
+    /// We failed to validate the consensus, even after getting enough certificates.
+    Failed,
 }
 
 /// Second state: fetching or loading authority certificates.
@@ -481,11 +476,11 @@ impl<R: Runtime> GetCertsState<R> {
     /// and put the validated consensus there instead.
     ///
     /// If the consensus is invalid, throw it out set a blocking error.
-    fn try_checking_sigs(&mut self) {
+    fn try_checking_sigs(&mut self) -> Result<()> {
         use GetCertsConsensus as C;
         // Temporary value; we'll replace the consensus field with something
         // better before the method returns.
-        let mut consensus = C::Failed(Error::CantAdvanceState);
+        let mut consensus = C::Failed;
         std::mem::swap(&mut consensus, &mut self.consensus);
 
         let unvalidated = match consensus {
@@ -493,17 +488,24 @@ impl<R: Runtime> GetCertsState<R> {
             _ => {
                 // nothing to check at this point.  Either we already checked the consensus, or we don't yet have enough certificates.
                 self.consensus = consensus;
-                return;
+                return Ok(());
             }
         };
 
-        self.consensus = match unvalidated.check_signature(&self.certs[..]) {
-            Ok(validated) => C::Validated(validated),
-            Err(cause) => C::Failed(Error::ConsensusInvalid {
-                source: self.consensus_source.clone(),
-                cause,
-            }),
+        let outcome;
+
+        (self.consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
+            Ok(validated) => (C::Validated(validated), Ok(())),
+            Err(cause) => (
+                C::Failed,
+                Err(Error::ConsensusInvalid {
+                    source: self.consensus_source.clone(),
+                    cause,
+                }),
+            ),
         };
+
+        outcome
     }
 }
 
@@ -520,7 +522,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 )
             }
             C::Validated(_) => "Validated consensus; about to get microdescriptors".to_string(),
-            C::Failed(err) => format!("Failed to validate consensus: {}", err),
+            C::Failed => "Failed to validate consensus".to_string(),
         }
     }
     fn missing_docs(&self) -> Vec<DocId> {
@@ -534,12 +536,6 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     }
     fn can_advance(&self) -> bool {
         matches!(self.consensus, GetCertsConsensus::Validated(_))
-    }
-    fn blocking_error(&self) -> Option<Error> {
-        match self.consensus {
-            GetCertsConsensus::Failed(ref err) => Some(err.clone()),
-            _ => None,
-        }
     }
     fn bootstrap_status(&self) -> DirStatus {
         let n_certs = self.certs.len();
@@ -582,7 +578,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             }
         }
         if changed {
-            self.try_checking_sigs();
+            self.try_checking_sigs()?;
             opt_err_to_result(nonfatal_error)
         } else {
             Err(Error::NoChange(DocSource::LocalCache))
@@ -653,7 +649,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         }
 
         if changed {
-            self.try_checking_sigs();
+            self.try_checking_sigs()?;
             opt_err_to_result(nonfatal_error)
         } else {
             Err(nonfatal_error.unwrap_or(Error::NoChange(source)))
