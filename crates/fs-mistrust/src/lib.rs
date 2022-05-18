@@ -295,6 +295,9 @@ pub use err::Error;
 /// A result type as returned by this crate
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[cfg(target_family = "unix")]
+pub use user::{TrustedGroup, TrustedUser};
+
 /// Configuration for verifying that a file or directory is really "private".
 ///
 /// By default, we mistrust everything that we can: we assume  that every
@@ -329,12 +332,18 @@ pub struct Mistrust {
 
     /// What user ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
-    #[builder(setter(strip_option), default = "user::this_uid()")]
+    #[builder(
+        setter(into),
+        field(type = "TrustedUser", build = "self.trust_user.get_uid()?")
+    )]
     trust_user: Option<u32>,
 
     /// What group ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
-    #[builder(setter(strip_option), default = "user::get_self_named_gid()")]
+    #[builder(
+        setter(into),
+        field(type = "TrustedGroup", build = "self.trust_group.get_gid()?")
+    )]
     trust_group: Option<u32>,
 }
 
@@ -362,8 +371,8 @@ impl MistrustBuilder {
     /// This option disables the default group-trust behavior as well.
     #[cfg(target_family = "unix")]
     pub fn trust_admin_only(&mut self) -> &mut Self {
-        self.trust_user = Some(None);
-        self.trust_group = Some(None);
+        self.trust_user = TrustedUser::None;
+        self.trust_group = TrustedGroup::None;
         self
     }
 
@@ -377,7 +386,7 @@ impl MistrustBuilder {
     /// world-writable objects respectively.
     #[cfg(target_family = "unix")]
     pub fn trust_no_group_id(&mut self) -> &mut Self {
-        self.trust_group = Some(None);
+        self.trust_group = TrustedGroup::None;
         self
     }
 

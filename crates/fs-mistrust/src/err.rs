@@ -100,6 +100,14 @@ pub enum Error {
     /// [`Mistrust`](crate::Mistrust).
     #[error("Missing field: {0}")]
     MissingField(#[from] derive_builder::UninitializedFieldError),
+
+    /// A  group that we were configured to trust could not be found.
+    #[error("No such group: {0}")]
+    NoSuchGroup(String),
+
+    /// A user that we were configured to trust could not be found.
+    #[error("No such user: {0}")]
+    NoSuchUser(String),
 }
 
 impl Error {
@@ -140,6 +148,8 @@ impl Error {
                 Error::Content(e) => return e.path(),
                 Error::Listing(e) => return e.path(),
                 Error::MissingField(_) => return None,
+                Error::NoSuchGroup(_) => return None,
+                Error::NoSuchUser(_) => return None,
             }
             .as_path(),
         )
@@ -163,7 +173,9 @@ impl Error {
             | Error::InvalidSubdirectory
             | Error::Io(_, _)
             | Error::NoTempFile(_)
-            | Error::MissingField(_) => false,
+            | Error::MissingField(_)
+            | Error::NoSuchGroup(_)
+            | Error::NoSuchUser(_) => false,
 
             Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
             Error::Content(err) => err.is_bad_permission(),

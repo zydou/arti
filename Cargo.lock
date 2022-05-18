@@ -1201,6 +1201,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
+ "educe",
  "libc",
  "once_cell",
  "tempfile",
