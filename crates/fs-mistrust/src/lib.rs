@@ -283,6 +283,8 @@ mod user;
 pub(crate) mod testing;
 pub mod walk;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{
     fs::DirBuilder,
     path::{Path, PathBuf},
@@ -315,7 +317,10 @@ pub use user::{TrustedGroup, TrustedUser};
 /// *  support more kinds of trust configuration, including more trusted users,
 ///    trusted groups, multiple trusted directories, etc?
 #[derive(Debug, Clone, derive_builder::Builder)]
+#[cfg_attr(feature = "serde", builder(derive(Debug, Serialize, Deserialize)))]
+#[cfg_attr(not(feature = "serde"), builder(derive(Debug)))]
 #[builder(build_fn(error = "Error"))]
+#[cfg_attr(feature = "serde", builder_struct_attr(serde(default)))]
 pub struct Mistrust {
     /// If the user called [`MistrustBuilder::ignore_prefix`], what did they give us?
     ///

@@ -2,6 +2,8 @@
 
 use crate::Error;
 use once_cell::sync::Lazy;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{
     ffi::{OsStr, OsString},
     sync::Mutex,
@@ -80,7 +82,12 @@ fn cur_groups() -> Vec<u32> {
 }
 
 /// A user that we can be configured to trust.
+//
+// TODO: This thing is quite ugly to serialize and deserialize! Ideally I'd like
+// something where I can say `33` for a number, `"user"` for a username... and I
+// don't know what they should say for "Current" or "Nobody".
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(Default)]
 #[non_exhaustive]
 pub enum TrustedUser {
@@ -144,7 +151,10 @@ impl TrustedUser {
 }
 
 /// A group that we can be configured to trust.
+//
+// TODO: See TODO for User above.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(Default)]
 #[non_exhaustive]
 pub enum TrustedGroup {

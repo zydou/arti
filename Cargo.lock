@@ -1204,6 +1204,7 @@ dependencies = [
  "educe",
  "libc",
  "once_cell",
+ "serde",
  "tempfile",
  "thiserror",
  "users",
