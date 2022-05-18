@@ -87,7 +87,7 @@ impl FsStateMgr {
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
         Self::from_path_and_mistrust(
             path,
-            fs_mistrust::Mistrust::new().dangerously_trust_everyone(),
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
         )
     }
 

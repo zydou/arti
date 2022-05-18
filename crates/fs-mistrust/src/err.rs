@@ -95,6 +95,11 @@ pub enum Error {
     /// file.
     #[error("Could not name temporary file for {0}")]
     NoTempFile(PathBuf),
+
+    /// A field was missing when we tried to construct a
+    /// [`Mistrust`](crate::Mistrust).
+    #[error("Missing field: {0}")]
+    MissingField(#[from] derive_builder::UninitializedFieldError),
 }
 
 impl Error {
@@ -134,6 +139,7 @@ impl Error {
                 Error::InvalidSubdirectory => return None,
                 Error::Content(e) => return e.path(),
                 Error::Listing(e) => return e.path(),
+                Error::MissingField(_) => return None,
             }
             .as_path(),
         )
@@ -156,7 +162,8 @@ impl Error {
             | Error::Listing(_)
             | Error::InvalidSubdirectory
             | Error::Io(_, _)
-            | Error::NoTempFile(_) => false,
+            | Error::NoTempFile(_)
+            | Error::MissingField(_) => false,
 
             Error::Multiple(errs) => errs.iter().any(|e| e.is_bad_permission()),
             Error::Content(err) => err.is_bad_permission(),

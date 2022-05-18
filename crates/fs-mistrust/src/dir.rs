@@ -52,7 +52,7 @@ impl CheckedDir {
         // TODO:
         //   * If `path` is a prefix of the original ignored path, this will
         //     make us ignore _less_.
-        mistrust.ignore_prefix(path)?;
+        mistrust.ignore_prefix = crate::canonicalize_opt_prefix(&Some(Some(path.to_path_buf())))?;
         Ok(CheckedDir {
             mistrust,
             location: path.to_path_buf(),
@@ -268,8 +268,10 @@ mod test {
         d.chmod("a/b/c/f2", 0o666);
         d.chmod("a/b/d/f3", 0o600);
 
-        let mut m = Mistrust::new();
-        m.ignore_prefix(d.canonical_root()).unwrap();
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
 
         let sd = m.verifier().secure_dir(d.path("a/b")).unwrap();
 
@@ -314,8 +316,10 @@ mod test {
         d.dir("a");
         d.chmod("a", 0o700);
 
-        let mut m = Mistrust::new();
-        m.ignore_prefix(d.canonical_root()).unwrap();
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
 
         let sd = m.verifier().secure_dir(d.path("a")).unwrap();
 
@@ -332,8 +336,10 @@ mod test {
         let d = Dir::new();
         d.dir("a");
         d.chmod("a", 0o700);
-        let mut m = Mistrust::new();
-        m.ignore_prefix(d.canonical_root()).unwrap();
+        let m = Mistrust::builder()
+            .ignore_prefix(d.canonical_root())
+            .build()
+            .unwrap();
 
         let checked = m.verifier().secure_dir(d.path("a")).unwrap();
 

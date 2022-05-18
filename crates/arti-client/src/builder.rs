@@ -103,8 +103,7 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable has been set or
     /// this method has been called.
     pub fn disable_fs_permission_checks(mut self) -> Self {
-        let mut mistrust = fs_mistrust::Mistrust::new();
-        mistrust.dangerously_trust_everyone();
+        let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
         self.fs_mistrust = Some(mistrust);
         self
     }

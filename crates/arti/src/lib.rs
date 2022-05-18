@@ -363,15 +363,13 @@ pub fn main_main() -> Result<()> {
     let fs_mistrust_disabled =
         fs_mistrust_disabled_via_env() | matches.is_present("disable-fs-permission-checks");
 
-    let mistrust = {
-        // TODO: This is duplicate code from arti_client::config.  When we make
-        // fs_mistrust configurable via deserialize, as a real part of our configuration
-        // logic, we should unify this check.
-        let mut mistrust = fs_mistrust::Mistrust::new();
-        if fs_mistrust_disabled {
-            mistrust.dangerously_trust_everyone();
-        }
-        mistrust
+    // TODO: This is duplicate code from arti_client::config.  When we make
+    // fs_mistrust configurable via deserialize, as a real part of our configuration
+    // logic, we should unify this check.
+    let mistrust = if fs_mistrust_disabled {
+        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+    } else {
+        fs_mistrust::Mistrust::new()
     };
 
     let cfg_sources = {

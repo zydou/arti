@@ -861,8 +861,10 @@ mod test {
         let tmp_dir = tempdir().unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
         let conn = rusqlite::Connection::open(&sql_path)?;
-        let blob_dir = fs_mistrust::Mistrust::new()
+        let blob_dir = fs_mistrust::Mistrust::builder()
             .dangerously_trust_everyone()
+            .build()
+            .unwrap()
             .verifier()
             .secure_dir(&tmp_dir)
             .unwrap();
@@ -874,8 +876,10 @@ mod test {
     #[test]
     fn init() -> Result<()> {
         let tmp_dir = tempdir().unwrap();
-        let blob_dir = fs_mistrust::Mistrust::new()
+        let blob_dir = fs_mistrust::Mistrust::builder()
             .dangerously_trust_everyone()
+            .build()
+            .unwrap()
             .verifier()
             .secure_dir(&tmp_dir)
             .unwrap();
@@ -1188,11 +1192,7 @@ mod test {
     #[test]
     fn from_path_rw() -> Result<()> {
         let tmp = tempdir().unwrap();
-        let mistrust = {
-            let mut m = fs_mistrust::Mistrust::new();
-            m.dangerously_trust_everyone();
-            m
-        };
+        let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
 
         // Nothing there: can't open read-only
         let r = SqliteStore::from_path_and_mistrust(tmp.path(), &mistrust, true);

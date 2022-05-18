@@ -198,8 +198,8 @@ friends = 4242
         files: &[(P, MustRead)],
         opts: &[String],
     ) -> Result<config::Config, config::ConfigError> {
-        let mut mistrust = fs_mistrust::Mistrust::new();
-        mistrust.dangerously_trust_everyone();
+        let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
+
         add_sources(config::Config::builder(), &mistrust, files, opts)
             .unwrap()
             .build()

@@ -10,6 +10,14 @@ use std::{ffi::OsString, sync::Mutex};
 /// Though this type has interior mutability, it isn't Sync, so we need to add a mutex.
 static CACHE: Lazy<Mutex<users::UsersCache>> = Lazy::new(|| Mutex::new(users::UsersCache::new()));
 
+/// Return the UID for this user.
+///
+/// The return type is funny here, to please derive_builder.
+#[allow(clippy::unnecessary_wraps)]
+pub(crate) fn this_uid() -> Option<u32> {
+    Some(unsafe { libc::getuid() })
+}
+
 /// Look for a group with the same name as our username.
 ///
 /// If there is one, and we belong to it, return its gid.  Otherwise
