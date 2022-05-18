@@ -42,7 +42,7 @@ impl<'a> super::Verifier<'a> {
     // to the code.  It's not urgent, since the allocations won't cost much
     // compared to the filesystem access.
     pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
-        if self.mistrust.disable_ownership_and_permission_checks {
+        if self.mistrust.dangerously_trust_everyone {
             // We don't want to walk the path in this case at all: we'll just
             // look at the last element.
 
@@ -88,7 +88,7 @@ impl<'a> super::Verifier<'a> {
     pub(crate) fn check_content_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
         use std::sync::Arc;
 
-        if !self.check_contents || self.mistrust.disable_ownership_and_permission_checks {
+        if !self.check_contents || self.mistrust.dangerously_trust_everyone {
             return boxed(std::iter::empty());
         }
 
@@ -179,7 +179,7 @@ impl<'a> super::Verifier<'a> {
         // about a directory, the owner cah change the permissions and owner
         // of anything in the directory.)
         let uid = meta.uid();
-        if uid != 0 && Some(uid) != self.mistrust.trust_uid {
+        if uid != 0 && Some(uid) != self.mistrust.trust_user {
             errors.push(Error::BadOwner(path.into(), uid));
         }
         let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
@@ -211,7 +211,7 @@ impl<'a> super::Verifier<'a> {
             }
         };
         // If we trust the GID, then we allow even more bits to be set.
-        if self.mistrust.trust_gid == Some(meta.gid()) {
+        if self.mistrust.trust_group == Some(meta.gid()) {
             forbidden_bits &= !0o070;
         }
         let bad_bits = meta.mode() & forbidden_bits;

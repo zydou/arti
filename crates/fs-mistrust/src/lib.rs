@@ -320,26 +320,26 @@ pub struct Mistrust {
     ignore_prefix: Option<PathBuf>,
 
     /// Are we configured to enable all permission and ownership tests?
-    disable_ownership_and_permission_checks: bool,
+    dangerously_trust_everyone: bool,
 
     /// What user ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
-    trust_uid: Option<u32>,
+    trust_user: Option<u32>,
 
     /// What group ID do we trust by default (if any?)
     #[cfg(target_family = "unix")]
-    trust_gid: Option<u32>,
+    trust_group: Option<u32>,
 }
 
 impl Default for Mistrust {
     fn default() -> Self {
         Self {
             ignore_prefix: None,
-            disable_ownership_and_permission_checks: false,
+            dangerously_trust_everyone: false,
             #[cfg(target_family = "unix")]
-            trust_uid: Some(unsafe { libc::getuid() }),
+            trust_user: Some(unsafe { libc::getuid() }),
             #[cfg(target_family = "unix")]
-            trust_gid: user::get_self_named_gid(),
+            trust_group: user::get_self_named_gid(),
         }
     }
 }
@@ -420,8 +420,8 @@ impl Mistrust {
     /// This option disables the default group-trust behavior as well.
     #[cfg(target_family = "unix")]
     pub fn trust_admin_only(&mut self) -> &mut Self {
-        self.trust_uid = None;
-        self.trust_gid = None;
+        self.trust_user = None;
+        self.trust_group = None;
         self
     }
 
@@ -435,7 +435,7 @@ impl Mistrust {
     /// world-writable objects respectively.
     #[cfg(target_family = "unix")]
     pub fn trust_no_group_id(&mut self) -> &mut Self {
-        self.trust_gid = None;
+        self.trust_group = None;
         self
     }
 
@@ -451,7 +451,7 @@ impl Mistrust {
     /// Anybody who is a member (or becomes a member) of the provided group will
     /// be allowed to read and modify the verified files.
     pub fn trust_group_id(&mut self, gid: u32) -> &mut Self {
-        self.trust_gid = Some(gid);
+        self.trust_group = Some(gid);
         self
     }
 
@@ -466,7 +466,7 @@ impl Mistrust {
     /// implement separate code paths for the "checking on" and "checking off"
     /// cases.
     pub fn dangerously_trust_everyone(&mut self) -> &mut Self {
-        self.disable_ownership_and_permission_checks = true;
+        self.dangerously_trust_everyone = true;
         self
     }
 
