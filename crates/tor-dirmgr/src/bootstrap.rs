@@ -594,18 +594,14 @@ pub(crate) async fn download<R: Runtime>(
 
 /// Replace `state` with `state.reset()`.
 fn reset(state: &mut Box<dyn DirState>) {
-    let mut this_state: Box<dyn DirState> = Box::new(PoisonedState);
-    std::mem::swap(&mut this_state, state);
-    this_state = this_state.reset();
-    std::mem::swap(&mut this_state, state);
+    let cur_state = std::mem::replace(state, Box::new(PoisonedState));
+    *state = cur_state.reset();
 }
 
 /// Replace `state` with `state.advance()`.
 fn advance(state: &mut Box<dyn DirState>) {
-    let mut this_state: Box<dyn DirState> = Box::new(PoisonedState);
-    std::mem::swap(&mut this_state, state);
-    this_state = this_state.advance();
-    std::mem::swap(&mut this_state, state);
+    let cur_state = std::mem::replace(state, Box::new(PoisonedState));
+    *state = cur_state.advance();
 }
 
 /// Helper: Clamp `v` so that it is no more than one week from `now`.
