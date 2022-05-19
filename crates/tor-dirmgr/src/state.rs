@@ -19,6 +19,7 @@ use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
 use tor_error::internal;
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
+use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
@@ -106,39 +107,39 @@ pub(crate) trait DirState: Send {
     fn can_advance(&self) -> bool;
     /// Add one or more documents from our cache; returns 'true' if there
     /// was any change in this state.
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool>;
-
-    /// Add information that we have just downloaded to this state; returns
-    /// 'true' if there as any change in this state.
     ///
-    /// This method receives a copy of the original request, and
-    /// should reject any documents that do not pertain to it.
+    /// An error return does not necessarily mean that no data was added;
+    /// partial successes are possible.
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<()>;
+
+    /// Add information that we have just downloaded to this state.
+    ///
+    /// This method receives a copy of the original request, and should reject
+    /// any documents that do not pertain to it.
     ///
     /// If `storage` is provided, then we should write any accepted documents
     /// into `storage` so they can be saved in a cache.
-    // TODO: It might be good to say "there was a change but also an
-    // error" in this API if possible.
-    // TODO: It would be better to not have this function be async,
-    // once the `must_not_suspend` lint is stable.
-    // TODO: this should take a "DirSource" too.
+    ///
+    /// An error return does not necessarily mean that no data was added;
+    /// partial successes are possible.
     fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool>;
+    ) -> Result<()>;
     /// Return a summary of this state as a [`DirStatus`].
     fn bootstrap_status(&self) -> event::DirStatus;
-
     /// Return a configuration for attempting downloads.
     fn dl_config(&self) -> DownloadSchedule;
     /// If possible, advance to the next state.
-    fn advance(self: Box<Self>) -> Result<Box<dyn DirState>>;
+    fn advance(self: Box<Self>) -> Box<dyn DirState>;
     /// Return a time (if any) when downloaders should stop attempting to
     /// advance this state, and should instead reset it and start over.
     fn reset_time(&self) -> Option<SystemTime>;
     /// Reset this state and start over.
-    fn reset(self: Box<Self>) -> Result<Box<dyn DirState>>;
+    fn reset(self: Box<Self>) -> Box<dyn DirState>;
 }
 
 /// An object that can provide a previous netdir for the bootstrapping state machines to use.
@@ -265,9 +266,9 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_consensus
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<()> {
         let text = match docs.into_iter().next() {
-            None => return Ok(false),
+            None => return Err(Error::NoChange(DocSource::LocalCache)),
             Some((
                 DocId::LatestConsensus {
                     flavor: ConsensusFlavor::Microdesc,
@@ -275,61 +276,75 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
                 },
                 text,
             )) => text,
-            _ => return Err(Error::Unwanted("Not an md consensus")),
+            _ => return Err(Error::CacheCorruption("Not an md consensus")),
         };
 
         let source = DocSource::LocalCache;
-        self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?)
-            .map(|meta| meta.is_some())
+        self.add_consensus_text(source, text.as_str().map_err(Error::BadUtf8InCache)?, None)?;
+        Ok(())
     }
     fn add_from_download(
         &mut self,
         text: &str,
-        _request: &ClientRequest,
+        request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
-        let source = DocSource::DirServer {};
-        if let Some(meta) = self.add_consensus_text(source, text)? {
-            if let Some(store) = storage {
-                let mut w = store.lock().expect("Directory storage lock poisoned");
-                w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
-            }
-            Ok(true)
-        } else {
-            Ok(false)
+    ) -> Result<()> {
+        let requested_newer_than = match request {
+            ClientRequest::Consensus(r) => r.last_consensus_date(),
+            _ => None,
+        };
+        let meta = self.add_consensus_text(source, text, requested_newer_than)?;
+
+        if let Some(store) = storage {
+            let mut w = store.lock().expect("Directory storage lock poisoned");
+            w.store_consensus(meta, ConsensusFlavor::Microdesc, true, text)?;
         }
+        Ok(())
     }
-    fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        Ok(match self.next {
+    fn advance(self: Box<Self>) -> Box<dyn DirState> {
+        match self.next {
             Some(next) => Box::new(next),
             None => self,
-        })
+        }
     }
     fn reset_time(&self) -> Option<SystemTime> {
         None
     }
-    fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        Ok(self)
+    fn reset(self: Box<Self>) -> Box<dyn DirState> {
+        self
     }
 }
 
 impl<R: Runtime> GetConsensusState<R> {
-    /// Helper: try to set the current consensus text from an input
-    /// string `text`.  Refuse it if the authorities could never be
-    /// correct, or if it is ill-formed.
+    /// Helper: try to set the current consensus text from an input string
+    /// `text`.  Refuse it if the authorities could never be correct, or if it
+    /// is ill-formed.
+    ///
+    /// If `cutoff` is provided, treat any consensus older than `cutoff` as
+    /// older-than-requested.
+    ///
+    /// Errors from this method are not fatal to the download process.
     fn add_consensus_text(
         &mut self,
         source: DocSource,
         text: &str,
-    ) -> Result<Option<&ConsensusMeta>> {
+        cutoff: Option<SystemTime>,
+    ) -> Result<&ConsensusMeta> {
         // Try to parse it and get its metadata.
         let (consensus_meta, unvalidated) = {
             let (signedval, remainder, parsed) =
                 MdConsensus::parse(text).map_err(|e| Error::from_netdoc(source.clone(), e))?;
             #[cfg(feature = "dirfilter")]
             let parsed = self.filter.filter_consensus(parsed)?;
+            let parsed = self.config.tolerance.extend_tolerance(parsed);
             let now = self.rt.wallclock();
             let timely = parsed.check_valid_at(&now)?;
+            if let Some(cutoff) = cutoff {
+                if timely.peek_lifetime().valid_after() < cutoff {
+                    return Err(Error::Unwanted("consensus was older than requested"));
+                }
+            }
             let meta = ConsensusMeta::from_unvalidated(signedval, remainder, &timely);
             (meta, timely)
         };
@@ -355,7 +370,7 @@ impl<R: Runtime> GetConsensusState<R> {
         self.next = Some(GetCertsState {
             cache_usage: self.cache_usage,
             consensus_source: source,
-            unvalidated,
+            consensus: GetCertsConsensus::Unvalidated(unvalidated),
             consensus_meta,
             missing_certs: desired_certs,
             certs: Vec::new(),
@@ -368,13 +383,26 @@ impl<R: Runtime> GetConsensusState<R> {
 
         // Unwrap should be safe because `next` was just assigned
         #[allow(clippy::unwrap_used)]
-        Ok(Some(&self.next.as_ref().unwrap().consensus_meta))
+        Ok(&self.next.as_ref().unwrap().consensus_meta)
     }
 
     /// Return true if `id` is an authority identity we recognize
     fn recognizes_authority(&self, id: &RsaIdentity) -> bool {
         self.authority_ids.iter().any(|auth| auth == id)
     }
+}
+
+/// One of two possible internal states for the consensus in a GetCertsState.
+///
+/// This inner object is advanced by `try_checking_sigs`.
+#[derive(Clone, Debug)]
+enum GetCertsConsensus {
+    /// We have an unvalidated consensus; we haven't checked its signatures.
+    Unvalidated(UnvalidatedMdConsensus),
+    /// A validated consensus: the signatures are fine and we can advance.
+    Validated(MdConsensus),
+    /// We failed to validate the consensus, even after getting enough certificates.
+    Failed,
 }
 
 /// Second state: fetching or loading authority certificates.
@@ -391,8 +419,9 @@ struct GetCertsState<R: Runtime> {
     cache_usage: CacheUsage,
     /// Where did we get our consensus?
     consensus_source: DocSource,
-    /// The consensus that we are trying to validate.
-    unvalidated: UnvalidatedMdConsensus,
+    /// The consensus that we are trying to validate, or an error if we've given
+    /// up on validating it.
+    consensus: GetCertsConsensus,
     /// Metadata for the consensus.
     consensus_meta: ConsensusMeta,
     /// A set of the certificate keypairs for the certificates we don't
@@ -414,14 +443,86 @@ struct GetCertsState<R: Runtime> {
     filter: Arc<dyn crate::filter::DirFilter>,
 }
 
+impl<R: Runtime> GetCertsState<R> {
+    /// Handle a certificate result returned by `tor_netdoc`: checking it for timeliness
+    /// and well-signedness.
+    ///
+    /// On success return the `AuthCert` and the string that represents it within the string `within`.
+    /// On failure, return an error.
+    fn check_parsed_certificate<'s>(
+        &self,
+        parsed: tor_netdoc::Result<UncheckedAuthCert>,
+        source: &DocSource,
+        within: &'s str,
+    ) -> Result<(AuthCert, &'s str)> {
+        let parsed = parsed.map_err(|e| Error::from_netdoc(source.clone(), e))?;
+        let cert_text = parsed
+            .within(within)
+            .expect("Certificate was not in input as expected");
+        let wellsigned = parsed.check_signature()?;
+        let now = self.rt.wallclock();
+        let timely_cert = self
+            .config
+            .tolerance
+            .extend_tolerance(wellsigned)
+            .check_valid_at(&now)?;
+        Ok((timely_cert, cert_text))
+    }
+
+    /// If we have enough certificates, and we have not yet checked the
+    /// signatures on the consensus, try checking them.
+    ///
+    /// If the consensus is valid, remove the unvalidated consensus from `self`
+    /// and put the validated consensus there instead.
+    ///
+    /// If the consensus is invalid, throw it out set a blocking error.
+    fn try_checking_sigs(&mut self) -> Result<()> {
+        use GetCertsConsensus as C;
+        // Temporary value; we'll replace the consensus field with something
+        // better before the method returns.
+        let mut consensus = C::Failed;
+        std::mem::swap(&mut consensus, &mut self.consensus);
+
+        let unvalidated = match consensus {
+            C::Unvalidated(uv) if uv.key_is_correct(&self.certs[..]).is_ok() => uv,
+            _ => {
+                // nothing to check at this point.  Either we already checked the consensus, or we don't yet have enough certificates.
+                self.consensus = consensus;
+                return Ok(());
+            }
+        };
+
+        let (new_consensus, outcome) = match unvalidated.check_signature(&self.certs[..]) {
+            Ok(validated) => (C::Validated(validated), Ok(())),
+            Err(cause) => (
+                C::Failed,
+                Err(Error::ConsensusInvalid {
+                    source: self.consensus_source.clone(),
+                    cause,
+                }),
+            ),
+        };
+        self.consensus = new_consensus;
+
+        outcome
+    }
+}
+
 impl<R: Runtime> DirState for GetCertsState<R> {
     fn describe(&self) -> String {
-        let total = self.certs.len() + self.missing_certs.len();
-        format!(
-            "Downloading certificates for consensus (we are missing {}/{}).",
-            self.missing_certs.len(),
-            total
-        )
+        use GetCertsConsensus as C;
+        match &self.consensus {
+            C::Unvalidated(_) => {
+                let total = self.certs.len() + self.missing_certs.len();
+                format!(
+                    "Downloading certificates for consensus (we are missing {}/{}).",
+                    self.missing_certs.len(),
+                    total
+                )
+            }
+            C::Validated(_) => "Validated consensus; about to get microdescriptors".to_string(),
+            C::Failed => "Failed to validate consensus".to_string(),
+        }
     }
     fn missing_docs(&self) -> Vec<DocId> {
         self.missing_certs
@@ -433,7 +534,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         false
     }
     fn can_advance(&self) -> bool {
-        self.unvalidated.key_is_correct(&self.certs[..]).is_ok()
+        matches!(self.consensus, GetCertsConsensus::Validated(_))
     }
     fn bootstrap_status(&self) -> DirStatus {
         let n_certs = self.certs.len();
@@ -453,55 +554,58 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_certs
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<()> {
         let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
+        let source = DocSource::LocalCache;
+        let mut nonfatal_error = None;
         for id in &self.missing_docs() {
             if let Some(cert) = docs.get(id) {
                 let text = cert.as_str().map_err(Error::BadUtf8InCache)?;
-                let parsed = AuthCert::parse(text)
-                    .map_err(|e| Error::from_netdoc(DocSource::LocalCache, e))?
-                    .check_signature()?;
-                let now = self.rt.wallclock();
-                let parsed = self.config.tolerance.extend_tolerance(parsed);
-                let cert = parsed.check_valid_at(&now)?;
-                self.missing_certs.remove(cert.key_ids());
-                self.certs.push(cert);
-                changed = true;
+                let parsed = AuthCert::parse(text);
+                match self.check_parsed_certificate(parsed, &source, text) {
+                    Ok((cert, _text)) => {
+                        self.missing_certs.remove(cert.key_ids());
+                        self.certs.push(cert);
+                        changed = true;
+                    }
+                    Err(e) => {
+                        nonfatal_error.get_or_insert(e);
+                    }
+                }
             }
         }
-        Ok(changed)
+        if changed {
+            self.try_checking_sigs()?;
+            opt_err_to_result(nonfatal_error)
+        } else {
+            Err(Error::NoChange(DocSource::LocalCache))
+        }
     }
     fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
             _ => return Err(internal!("expected an AuthCert request").into()),
         };
 
+        let mut nonfatal_error = None;
         let mut newcerts = Vec::new();
         for cert in AuthCert::parse_multiple(text) {
-            if let Ok(parsed) = cert {
-                let s = parsed
-                    .within(text)
-                    .expect("Certificate was not in input as expected");
-                if let Ok(wellsigned) = parsed.check_signature() {
-                    let now = self.rt.wallclock();
-                    let wellsigned = self.config.tolerance.extend_tolerance(wellsigned);
-                    let timely = wellsigned.check_valid_at(&now)?;
-                    newcerts.push((timely, s));
-                } else {
-                    // TODO: note the source.
-                    warn!("Badly signed certificate received and discarded.");
+            match self.check_parsed_certificate(cert, &source, text) {
+                Ok((cert, cert_text)) => {
+                    newcerts.push((cert, cert_text));
                 }
-            } else {
-                // TODO: note the source.
-                warn!("Unparsable certificate received and discarded.");
+                Err(e) => {
+                    warn!("Problem with certificate received from {}: {}", &source, &e);
+                    nonfatal_error.get_or_insert(e);
+                }
             }
         }
 
@@ -509,12 +613,16 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         let len_orig = newcerts.len();
         newcerts.retain(|(cert, _)| asked_for.contains(cert.key_ids()));
         if newcerts.len() != len_orig {
-            warn!("Discarding certificates that we didn't ask for.");
+            warn!(
+                "Discarding certificates from {} that we didn't ask for.",
+                source
+            );
+            nonfatal_error.get_or_insert(Error::Unwanted("Certificate we didn't request"));
         }
 
         // We want to exit early if we aren't saving any certificates.
         if newcerts.is_empty() {
-            return Ok(false);
+            return Err(nonfatal_error.unwrap_or(Error::NoChange(source)));
         }
 
         if let Some(store) = storage {
@@ -539,16 +647,18 @@ impl<R: Runtime> DirState for GetCertsState<R> {
             }
         }
 
-        Ok(changed)
+        if changed {
+            self.try_checking_sigs()?;
+            opt_err_to_result(nonfatal_error)
+        } else {
+            Err(nonfatal_error.unwrap_or(Error::NoChange(source)))
+        }
     }
-    fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        if self.can_advance() {
-            let consensus_source = self.consensus_source.clone();
-            let validated = self
-                .unvalidated
-                .check_signature(&self.certs[..])
-                .map_err(|e| Error::from_netdoc(consensus_source, e))?;
-            Ok(Box::new(GetMicrodescsState::new(
+
+    fn advance(self: Box<Self>) -> Box<dyn DirState> {
+        use GetCertsConsensus::*;
+        match self.consensus {
+            Validated(validated) => Box::new(GetMicrodescsState::new(
                 self.cache_usage,
                 validated,
                 self.consensus_meta,
@@ -557,26 +667,37 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 self.prev_netdir,
                 #[cfg(feature = "dirfilter")]
                 self.filter,
-            )))
-        } else {
-            Ok(self)
+            )),
+            _ => self,
         }
     }
+
     fn reset_time(&self) -> Option<SystemTime> {
         Some(
             self.consensus_meta.lifetime().valid_until()
                 + self.config.tolerance.post_valid_tolerance,
         )
     }
-    fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        Ok(Box::new(GetConsensusState::new(
+    fn reset(self: Box<Self>) -> Box<dyn DirState> {
+        let cache_usage = if self.cache_usage == CacheUsage::CacheOnly {
+            // Cache only means we can't ever download.
+            CacheUsage::CacheOnly
+        } else {
+            // If we reset in this state, we should always go to "must
+            // download": Either we've failed to get the certs we needed, or we
+            // have found that the consensus wasn't valid.  Either case calls
+            // for a fresh consensus download attempt.
+            CacheUsage::MustDownload
+        };
+
+        Box::new(GetConsensusState::new(
             self.rt,
             self.config,
-            self.cache_usage,
+            cache_usage,
             self.prev_netdir,
             #[cfg(feature = "dirfilter")]
             self.filter,
-        )))
+        ))
     }
 }
 
@@ -773,9 +894,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
     }
 
     /// Add a bunch of microdescriptors to the in-progress netdir.
-    ///
-    /// Return true if the netdir has just become usable.
-    fn register_microdescs<I>(&mut self, mds: I)
+    fn register_microdescs<I>(&mut self, mds: I, source: &DocSource) -> Result<()>
     where
         I: IntoIterator<Item = Microdesc>,
     {
@@ -785,13 +904,20 @@ impl<R: Runtime> GetMicrodescsState<R> {
             .filter_map(|m| self.filter.filter_md(m).ok())
             .collect();
         let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
+        let mut changed = false;
         for md in mds {
             if is_partial {
                 self.newly_listed.push(*md.digest());
             }
             self.partial.add_microdesc(md);
+            changed = true;
         }
         self.partial.upgrade_if_necessary();
+        if changed {
+            Ok(())
+        } else {
+            Err(Error::NoChange(source.clone()))
+        }
     }
 }
 
@@ -855,7 +981,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_microdescs
     }
-    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<bool> {
+    fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<()> {
         let mut microdescs = Vec::new();
         for (id, text) in docs {
             if let DocId::Microdesc(digest) = id {
@@ -869,34 +995,43 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             }
         }
 
-        let changed = !microdescs.is_empty();
-        self.register_microdescs(microdescs);
-
-        Ok(changed)
+        self.register_microdescs(microdescs, &DocSource::LocalCache)
     }
 
     fn add_from_download(
         &mut self,
         text: &str,
         request: &ClientRequest,
+        source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let requested: HashSet<_> = if let ClientRequest::Microdescs(req) = request {
             req.digests().collect()
         } else {
             return Err(internal!("expected a microdesc request").into());
         };
         let mut new_mds = Vec::new();
-        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed).flatten() {
+        let mut nonfatal_err = None;
+
+        for anno in MicrodescReader::new(text, &AllowAnnotations::AnnotationsNotAllowed) {
+            let anno = match anno {
+                Err(e) => {
+                    nonfatal_err.get_or_insert_with(|| Error::from_netdoc(source.clone(), e));
+                    continue;
+                }
+                Ok(a) => a,
+            };
             let txt = anno
                 .within(text)
-                .expect("annotation not from within text as expected");
+                .expect("microdesc not from within text as expected");
             let md = anno.into_microdesc();
             if !requested.contains(md.digest()) {
                 warn!(
-                    "Received microdescriptor we did not ask for: {:?}",
+                    "Received microdescriptor from {} we did not ask for: {:?}",
+                    source,
                     md.digest()
                 );
+                nonfatal_err.get_or_insert(Error::Unwanted("un-requested microdescriptor"));
                 continue;
             }
             new_mds.push((txt, md));
@@ -922,11 +1057,16 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
                 )?;
             }
         }
-        self.register_microdescs(new_mds.into_iter().map(|(_, md)| md));
-        Ok(true)
+
+        if let Err(reg_err) =
+            self.register_microdescs(new_mds.into_iter().map(|(_, md)| md), &source)
+        {
+            nonfatal_err.get_or_insert(reg_err);
+        }
+        opt_err_to_result(nonfatal_err)
     }
-    fn advance(self: Box<Self>) -> Result<Box<dyn DirState>> {
-        Ok(self)
+    fn advance(self: Box<Self>) -> Box<dyn DirState> {
+        self
     }
     fn reset_time(&self) -> Option<SystemTime> {
         // TODO(nickm): The reset logic is a little wonky here: we don't truly
@@ -951,7 +1091,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             _ => self.reset_time,
         })
     }
-    fn reset(self: Box<Self>) -> Result<Box<dyn DirState>> {
+    fn reset(self: Box<Self>) -> Box<dyn DirState> {
         let cache_usage = if self.cache_usage == CacheUsage::CacheOnly {
             // Cache only means we can't ever download.
             CacheUsage::CacheOnly
@@ -965,14 +1105,14 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             // TODO(nickm) is this right?
             CacheUsage::CacheOkay
         };
-        Ok(Box::new(GetConsensusState::new(
+        Box::new(GetConsensusState::new(
             self.rt,
             self.config,
             cache_usage,
             self.prev_netdir,
             #[cfg(feature = "dirfilter")]
             self.filter,
-        )))
+        ))
     }
 }
 
@@ -1012,6 +1152,63 @@ fn client_download_range(lt: &Lifetime) -> (SystemTime, Duration) {
     let uncertainty = (remainder * 7) / 8;
 
     (valid_after + lowbound, uncertainty)
+}
+
+/// If `err` is some, return `Err(err)`.  Otherwise return Ok(()).
+fn opt_err_to_result(e: Option<Error>) -> Result<()> {
+    match e {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
+/// A dummy state implementation, used when we need to temporarily write a
+/// placeholder into a box.
+///
+/// Calling any method on this state will panic.
+#[derive(Clone, Debug)]
+pub(crate) struct PoisonedState;
+
+impl DirState for PoisonedState {
+    fn describe(&self) -> String {
+        unimplemented!()
+    }
+    fn missing_docs(&self) -> Vec<DocId> {
+        unimplemented!()
+    }
+    fn is_ready(&self, _ready: Readiness) -> bool {
+        unimplemented!()
+    }
+    fn can_advance(&self) -> bool {
+        unimplemented!()
+    }
+    fn add_from_cache(&mut self, _docs: HashMap<DocId, DocumentText>) -> Result<()> {
+        unimplemented!()
+    }
+    fn add_from_download(
+        &mut self,
+        _text: &str,
+        _request: &ClientRequest,
+        _source: DocSource,
+        _storage: Option<&Mutex<DynStore>>,
+    ) -> Result<()> {
+        unimplemented!()
+    }
+    fn bootstrap_status(&self) -> event::DirStatus {
+        unimplemented!()
+    }
+    fn dl_config(&self) -> DownloadSchedule {
+        unimplemented!()
+    }
+    fn advance(self: Box<Self>) -> Box<dyn DirState> {
+        unimplemented!()
+    }
+    fn reset_time(&self) -> Option<SystemTime> {
+        unimplemented!()
+    }
+    fn reset(self: Box<Self>) -> Box<dyn DirState> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
@@ -1190,11 +1387,17 @@ mod test {
                     cache_usage: CacheUsage::CacheOkay,
                 }
             ));
+            let source = DocSource::DirServer { source: None };
 
             // Now suppose that we get some complete junk from a download.
             let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
             let req = crate::docid::ClientRequest::Consensus(req);
-            let outcome = state.add_from_download("this isn't a consensus", &req, Some(&store));
+            let outcome = state.add_from_download(
+                "this isn't a consensus",
+                &req,
+                source.clone(),
+                Some(&store),
+            );
             assert!(matches!(outcome, Err(Error::NetDocError { .. })));
             // make sure it wasn't stored...
             assert!(store
@@ -1205,7 +1408,7 @@ mod test {
                 .is_none());
 
             // Now try again, with a real consensus... but the wrong authorities.
-            let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
+            let outcome = state.add_from_download(CONSENSUS, &req, source.clone(), Some(&store));
             assert!(matches!(outcome, Err(Error::UnrecognizedAuthorities)));
             assert!(store
                 .lock()
@@ -1226,8 +1429,8 @@ mod test {
                 #[cfg(feature = "dirfilter")]
                 Arc::new(crate::filter::NilFilter),
             );
-            let outcome = state.add_from_download(CONSENSUS, &req, Some(&store));
-            assert!(outcome.unwrap());
+            let outcome = state.add_from_download(CONSENSUS, &req, source, Some(&store));
+            assert!(outcome.is_ok());
             assert!(store
                 .lock()
                 .unwrap()
@@ -1239,7 +1442,7 @@ mod test {
             assert!(state.can_advance());
             assert_eq!(&state.describe(), "About to fetch certificates.");
             assert_eq!(state.missing_docs(), Vec::new());
-            let next = Box::new(state).advance().unwrap();
+            let next = Box::new(state).advance();
             assert_eq!(
                 &next.describe(),
                 "Downloading certificates for consensus (we are missing 2/2)."
@@ -1258,7 +1461,7 @@ mod test {
             let text: crate::storage::InputString = CONSENSUS.to_owned().into();
             let map = vec![(docid, text.into())].into_iter().collect();
             let outcome = state.add_from_cache(map);
-            assert!(outcome.unwrap());
+            assert!(outcome.is_ok());
             assert!(state.can_advance());
         });
     }
@@ -1278,11 +1481,12 @@ mod test {
                     #[cfg(feature = "dirfilter")]
                     Arc::new(crate::filter::NilFilter),
                 );
+                let source = DocSource::DirServer { source: None };
                 let req = tor_dirclient::request::ConsensusRequest::new(ConsensusFlavor::Microdesc);
                 let req = crate::docid::ClientRequest::Consensus(req);
-                let outcome = state.add_from_download(CONSENSUS, &req, None);
-                assert!(outcome.unwrap());
-                Box::new(state).advance().unwrap()
+                let outcome = state.add_from_download(CONSENSUS, &req, source, None);
+                assert!(outcome.is_ok());
+                Box::new(state).advance()
             }
 
             let (_tempdir, store) = temp_store();
@@ -1325,7 +1529,7 @@ mod test {
                 .into_iter()
                 .collect();
             let outcome = state.add_from_cache(docs);
-            assert!(outcome.unwrap()); // no error, and something changed.
+            assert!(outcome.is_ok()); // no error, and something changed.
             assert!(!state.can_advance()); // But we aren't done yet.
             let missing = state.missing_docs();
             assert_eq!(missing.len(), 1); // Now we're only missing one!
@@ -1337,11 +1541,13 @@ mod test {
 
             // Now try to add the other from a download ... but fail
             // because we didn't ask for it.
+            let source = DocSource::DirServer { source: None };
             let mut req = tor_dirclient::request::AuthCertRequest::new();
             req.push(authcert_id_5696()); // it's the wrong id.
             let req = ClientRequest::AuthCert(req);
-            let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
-            assert!(!outcome.unwrap()); // no error, but nothing changed.
+            let outcome =
+                state.add_from_download(AUTHCERT_5A23, &req, source.clone(), Some(&store));
+            assert!(matches!(outcome, Err(Error::Unwanted(_))));
             let missing2 = state.missing_docs();
             assert_eq!(missing, missing2); // No change.
             assert!(store
@@ -1355,8 +1561,8 @@ mod test {
             let mut req = tor_dirclient::request::AuthCertRequest::new();
             req.push(authcert_id_5a23()); // Right idea this time!
             let req = ClientRequest::AuthCert(req);
-            let outcome = state.add_from_download(AUTHCERT_5A23, &req, Some(&store));
-            assert!(outcome.unwrap()); // No error, _and_ something changed!
+            let outcome = state.add_from_download(AUTHCERT_5A23, &req, source, Some(&store));
+            assert!(outcome.is_ok()); // No error, _and_ something changed!
             let missing3 = state.missing_docs();
             assert!(missing3.is_empty());
             assert!(state.can_advance());
@@ -1367,7 +1573,7 @@ mod test {
                 .unwrap()
                 .is_empty());
 
-            let next = state.advance().unwrap();
+            let next = state.advance();
             assert_eq!(
                 &next.describe(),
                 "Downloading microdescriptors (we are missing 6)."
@@ -1375,8 +1581,8 @@ mod test {
 
             // If we start from scratch and reset, we're back in GetConsensus.
             let state = new_getcerts_state(rt);
-            let state = state.reset().unwrap();
-            assert_eq!(&state.describe(), "Looking for a consensus.");
+            let state = state.reset();
+            assert_eq!(&state.describe(), "Downloading a consensus.");
 
             // TODO: I'd like even more tests to make sure that we never
             // accept a certificate for an authority we don't believe in.
@@ -1412,7 +1618,7 @@ mod test {
 
             // If we start from scratch and reset, we're back in GetConsensus.
             let state = new_getmicrodescs_state(rt.clone());
-            let state = Box::new(state).reset().unwrap();
+            let state = Box::new(state).reset();
             assert_eq!(&state.describe(), "Looking for a consensus.");
 
             // Check the basics.
@@ -1459,7 +1665,7 @@ mod test {
                 .into_iter()
                 .collect();
             let outcome = state.add_from_cache(docs);
-            assert!(outcome.unwrap()); // successfully loaded one MD.
+            assert!(outcome.is_ok()); // successfully loaded one MD.
             assert!(!state.can_advance());
             assert!(!state.is_ready(Readiness::Complete));
             assert!(!state.is_ready(Readiness::Usable));
@@ -1481,8 +1687,9 @@ mod test {
                 req.push(md_digest);
             }
             let req = ClientRequest::Microdescs(req);
-            let outcome = state.add_from_download(response.as_str(), &req, Some(&store));
-            assert!(outcome.unwrap()); // successfully loaded MDs
+            let source = DocSource::DirServer { source: None };
+            let outcome = state.add_from_download(response.as_str(), &req, source, Some(&store));
+            assert!(outcome.is_ok()); // successfully loaded MDs
             match state.get_netdir_change().unwrap() {
                 NetDirChange::AttemptReplace { netdir, .. } => {
                     assert!(netdir.take().is_some());

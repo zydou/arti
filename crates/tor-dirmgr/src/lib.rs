@@ -70,6 +70,7 @@ mod storage;
 pub mod filter;
 
 use crate::docid::{CacheUsage, ClientRequest, DocQuery};
+use crate::err::BootstrapAction;
 #[cfg(not(feature = "experimental-api"))]
 use crate::shared_ref::SharedMutArc;
 #[cfg(feature = "experimental-api")]
@@ -78,6 +79,8 @@ use crate::storage::{DynStore, Store};
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use tor_circmgr::CircMgr;
+use tor_dirclient::SourceInfo;
+use tor_error::into_internal;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
@@ -254,18 +257,26 @@ impl<'a> BoolResetter<'a> {
 ///
 /// Used (for example) to report where we got a document from if it fails to
 /// parse.
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DocSource {
     /// We loaded the document from our cache.
-    #[display(fmt = "local cache")]
     LocalCache,
     /// We fetched the document from a server.
-    //
-    // TODO: we'll should add a lot more information here in the future, once
-    // it's available from tor_dirclient::DirSource,
-    #[display(fmt = "directory server")]
-    DirServer {},
+    DirServer {
+        /// Information about the server we fetched the document from.
+        source: Option<SourceInfo>,
+    },
+}
+
+impl std::fmt::Display for DocSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocSource::LocalCache => write!(f, "local cache"),
+            DocSource::DirServer { source: None } => write!(f, "directory server"),
+            DocSource::DirServer { source: Some(info) } => write!(f, "directory server {}", info),
+        }
+    }
 }
 
 impl<R: Runtime> DirMgr<R> {
@@ -552,15 +563,25 @@ impl<R: Runtime> DirMgr<R> {
             let mut retry_delay = retry_config.schedule();
 
             'retry_attempt: for _ in retry_config.attempts() {
-                let (newstate, recoverable_err) =
-                    bootstrap::download(Weak::clone(&weak), state, &mut on_complete).await?;
-                state = newstate;
+                let outcome =
+                    bootstrap::download(Weak::clone(&weak), &mut state, &mut on_complete).await;
 
-                if let Some(err) = recoverable_err {
+                if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
                         usable = true;
                         info!("Unable to completely download a directory: {}.  Nevertheless, the directory is usable, so we'll pause for now.", err);
                         break 'retry_attempt;
+                    }
+
+                    match err.bootstrap_action() {
+                        BootstrapAction::Nonfatal => {
+                            return Err(into_internal!(
+                                "Nonfatal error should not have propagated here"
+                            )(err)
+                            .into());
+                        }
+                        BootstrapAction::Reset => {}
+                        BootstrapAction::Fatal => return Err(err),
                     }
 
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());
@@ -569,7 +590,7 @@ impl<R: Runtime> DirMgr<R> {
                         err, delay
                     );
                     runtime.sleep(delay).await;
-                    state = state.reset()?;
+                    state = state.reset();
                 } else {
                     info!("Directory is complete.");
                     usable = true;
@@ -596,7 +617,7 @@ impl<R: Runtime> DirMgr<R> {
                 Some(t) => runtime.sleep_until_wallclock(t).await,
                 None => return Ok(()),
             }
-            state = state.reset()?;
+            state = state.reset();
         }
     }
 
@@ -855,13 +876,11 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// If `state` has netdir changes to apply, apply them to our netdir.
-    ///
-    /// Return `true` if `state` just replaced the netdir.
     fn apply_netdir_changes(
         self: &Arc<Self>,
         state: &mut Box<dyn DirState>,
         store: &mut dyn Store,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         if let Some(change) = state.get_netdir_change() {
             match change {
                 NetDirChange::AttemptReplace {
@@ -875,7 +894,7 @@ impl<R: Runtime> DirMgr<R> {
                             .netdir_is_sufficient(netdir.as_ref().expect("AttemptReplace had None"))
                         {
                             debug!("Got a new NetDir, but it doesn't have enough guards yet.");
-                            return Ok(false);
+                            return Ok(());
                         }
                     }
                     let is_stale = {
@@ -908,7 +927,7 @@ impl<R: Runtime> DirMgr<R> {
                     // Now that a consensus is usable, older consensuses may
                     // need to expire.
                     store.expire_all(&crate::storage::EXPIRATION_DEFAULTS)?;
-                    Ok(true)
+                    Ok(())
                 }
                 NetDirChange::AddMicrodescs(mds) => {
                     self.netdir.mutate(|netdir| {
@@ -918,11 +937,11 @@ impl<R: Runtime> DirMgr<R> {
                         Ok(())
                     })?;
                     self.events.publish(DirEvent::NewDescriptors);
-                    Ok(false)
+                    Ok(())
                 }
             }
         } else {
-            Ok(false)
+            Ok(())
         }
     }
 }
