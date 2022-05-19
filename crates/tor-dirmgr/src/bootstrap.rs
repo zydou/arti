@@ -331,6 +331,9 @@ async fn load_once<R: Runtime>(
         state.add_from_cache(documents)
     };
 
+    // We have to update the status here regardless of the outcome: even if
+    // there was an error, we might have received partial information that
+    // changed our status.
     dirmgr.update_status(state.bootstrap_status());
 
     outcome
