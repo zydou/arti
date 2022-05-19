@@ -581,7 +581,7 @@ impl<R: Runtime> DirMgr<R> {
                             .into());
                         }
                         BootstrapAction::Reset => {}
-                        BootstrapAction::Fatal | BootstrapAction::Impossible => return Err(err),
+                        BootstrapAction::Fatal => return Err(err),
                     }
 
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());

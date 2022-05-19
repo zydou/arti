@@ -362,7 +362,7 @@ pub(crate) async fn load<R: Runtime>(
                 BootstrapAction::Nonfatal => {
                     debug!("Recoverable error loading from cache: {}", e);
                 }
-                BootstrapAction::Fatal | BootstrapAction::Reset | BootstrapAction::Impossible => {
+                BootstrapAction::Fatal | BootstrapAction::Reset => {
                     return Err(e);
                 }
             }

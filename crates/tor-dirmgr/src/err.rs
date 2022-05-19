@@ -159,10 +159,6 @@ pub(crate) enum BootstrapAction {
     /// These are typically internal programming errors, filesystem access
     /// problems, directory manager shutdown, and the like.
     Fatal,
-    /// The error should not even be possible during the bootstrapping process.
-    ///
-    /// Having it occur there indicates a bug.
-    Impossible,
 }
 
 impl Error {
@@ -280,7 +276,8 @@ impl Error {
             | Error::Spawn { .. }
             | Error::ExternalDirProvider { .. } => BootstrapAction::Fatal,
 
-            Error::DirectoryNotPresent | Error::Bug(_) => BootstrapAction::Impossible,
+            // These should actually be impossible during the bootstrap process.
+            Error::DirectoryNotPresent | Error::Bug(_) => BootstrapAction::Fatal,
         }
     }
 }
