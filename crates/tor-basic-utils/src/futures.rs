@@ -310,9 +310,13 @@ where
         // macro because the closure's type parameters would be unnameable.
         macro_rules! get_output {
             ($self_:expr) => {
-                $self_.output.as_mut().unwrap().as_mut()
+                $self_.output.as_mut().expect(BAD_POLL_MSG).as_mut()
             };
         }
+        ///
+        const BAD_POLL_MSG: &str =
+            "future from SinkExt::prepare_send_from (SinkPrepareSendFuture) \
+                 polled after returning Ready(Ok)";
 
         let () = match ready!(get_output!(self_).poll_ready(cx)) {
             Err(e) => {
@@ -363,7 +367,7 @@ where
         };
 
         let sendable = SinkSendable {
-            output: self_.output.take().unwrap(),
+            output: self_.output.take().expect(BAD_POLL_MSG),
             tw: PhantomData,
         };
 
