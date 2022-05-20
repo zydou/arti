@@ -259,20 +259,25 @@ where
 #[pin_project]
 #[must_use]
 pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
+    ///
     #[pin]
     generator: IF,
-    // This Option exists because otherwise SinkPrepareSendFuture::poll()
-    // can't move `output` out of this struct to put it into the `SinkSendable`.
-    // (The poll() impl cannot borrow from SinkPrepareSendFuture.)
+
+    /// This Option exists because otherwise SinkPrepareSendFuture::poll()
+    /// can't move `output` out of this struct to put it into the `SinkSendable`.
+    /// (The poll() impl cannot borrow from SinkPrepareSendFuture.)
     output: Option<Pin<&'w mut OS>>,
-    // `fn(OM)` gives contravariance in OM.  Variance is confusing.
-    // Loosely, a SinkPrepareSendFuture<..OM> consumes an OM.
-    // Actually, we don't really need to add any variance restricions wrt OM,
-    // because the &mut OS already implies the correct variance,
-    // so we could have used the PhantomData<fn(*const OM)> trick.
-    // Happily there is no unsafe anywhere nearby, so it is not possible for us to write
-    // a bug due to getting the variance wrong - only to erroneously prevent some use
-    // case.
+
+    /// `fn(OM)` gives contravariance in OM.
+    ///
+    /// Variance is confusing.
+    /// Loosely, a SinkPrepareSendFuture<..OM> consumes an OM.
+    /// Actually, we don't really need to add any variance restricions wrt OM,
+    /// because the &mut OS already implies the correct variance,
+    /// so we could have used the PhantomData<fn(*const OM)> trick.
+    /// Happily there is no unsafe anywhere nearby, so it is not possible for us to write
+    /// a bug due to getting the variance wrong - only to erroneously prevent some use
+    /// case.
     tw: PhantomData<fn(OM)>,
 }
 
@@ -291,7 +296,9 @@ pub struct SinkPrepareSendFuture<'w, IF, OS, OM> {
 /// encounter an error when producing the output message.
 #[must_use]
 pub struct SinkSendable<'w, OS, OM> {
+    ///
     output: Pin<&'w mut OS>,
+    ///
     tw: PhantomData<fn(OM)>,
 }
 
