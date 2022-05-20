@@ -1,9 +1,10 @@
 //! Code to inspect user db information on unix.
 
+#[cfg(feature = "serde")]
+mod serde_support;
+
 use crate::Error;
 use once_cell::sync::Lazy;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 use std::{
     ffi::{OsStr, OsString},
     sync::Mutex,
@@ -82,12 +83,20 @@ fn cur_groups() -> Vec<u32> {
 }
 
 /// A user that we can be configured to trust.
-//
-// TODO: This thing is quite ugly to serialize and deserialize! Ideally I'd like
-// something where I can say `33` for a number, `"user"` for a username... and I
-// don't know what they should say for "Current" or "Nobody".
+///
+/// # Serde support
+///
+/// If this crate is build with the `serde1` feature enabled, you can serialize
+/// and deserialize this type from any of the following:
+///
+///  * `false` and the string `":none"` correspond to `TrustedUser::None`.
+///  * The string `":current"` and the map `{ special = ":current" }` correspond
+///    to `TrustedUser::Current`.
+///  * A numeric value (e.g., `413`) and the map `{ id = 413 }` correspond to
+///    `TrustedUser::Id(413)`.
+///  * A string not starting with `:` (e.g., "jane") and the map `{ name = "jane" }`
+///    correspond to `TrustedUser::Name("jane".into())`.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(Default)]
 #[non_exhaustive]
 pub enum TrustedUser {
@@ -151,10 +160,13 @@ impl TrustedUser {
 }
 
 /// A group that we can be configured to trust.
-//
-// TODO: See TODO for User above.
+///
+/// # Serde support
+///
+/// See the `serde support` section in [`TrustedUser`].  Additionally,
+/// you can represent `TrustedGroup::SelfNamed` with the string `":username"`
+/// or the map `{ special = ":username" }`.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[educe(Default)]
 #[non_exhaustive]
 pub enum TrustedGroup {
