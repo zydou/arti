@@ -11,7 +11,7 @@ use futures::Sink;
 use pin_project::pin_project;
 
 /// Switch to the nontrivial version of this, to get debugging output on stderr
-macro_rules! dprintln { { $f:literal $($a:tt)* } => { } }
+macro_rules! dprintln { { $f:literal $($a:tt)* } => { () } }
 //macro_rules! dprintln { { $f:literal $($a:tt)* } => { eprintln!(concat!("    ",$f) $($a)*) } }
 
 /// Extension trait for [`Sink`]
