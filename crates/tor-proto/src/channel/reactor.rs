@@ -145,7 +145,7 @@ impl Reactor {
                 self.cells.next()
             ) => {
                 let (msg, sendable) = ret.map_err(codec_err_to_chan)?;
-                let msg = msg.ok_or_else(|| ReactorError::Shutdown)?;
+                let msg = msg.ok_or(ReactorError::Shutdown)?;
                 sendable.send(msg).map_err(codec_err_to_chan)?;
             }
 
@@ -159,7 +159,7 @@ impl Reactor {
 
             ret = self.input.next() => {
                 let item = ret
-                    .ok_or_else(|| ReactorError::Shutdown)?
+                    .ok_or(ReactorError::Shutdown)?
                     .map_err(codec_err_to_chan)?;
                 crate::note_incoming_traffic();
                 self.handle_cell(item).await?;
