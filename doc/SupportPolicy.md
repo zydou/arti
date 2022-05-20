@@ -166,5 +166,7 @@ Low-severity, as per [tor's security policy].
 For now (pre 1.0.0) we will issue advisories for High and Critical
 security vulnerabilities only.
 
+Also (pre 1.0.0) we will not typically issue advisories for older Arti
+releases: we assume that all developers are upgrading regularly.
 
 [tor's security policy]: https://gitlab.torproject.org/tpo/core/team/-/wikis/NetworkTeam/SecurityPolicy
