@@ -305,7 +305,16 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut self_ = self.project();
 
-        let () = match ready!(self_.output.as_mut().unwrap().as_mut().poll_ready(cx)) {
+        /// returns `&mut Pin<&'w mut OS>` from self_.output
+        //
+        // macro because the closure's type parameters would be unnameable.
+        macro_rules! get_output {
+            ($self_:expr) => {
+                $self_.output.as_mut().unwrap().as_mut()
+            };
+        }
+
+        let () = match ready!(get_output!(self_).poll_ready(cx)) {
             Err(e) => {
                 dprintln!("poll: output poll = IF.Err    SO  IF.Err");
                 // Deliberately don't fuse by `take`ing output.  If we did that, we would expose
@@ -331,7 +340,7 @@ where
                 // But we must not return `Pending` without flushing, or the caller could block
                 // without flushing output, leading to untimely delivery of buffered data.
                 dprintln!("poll: generator = Pending     calling output flush");
-                let flushed = self_.output.as_mut().unwrap().as_mut().poll_flush(cx);
+                let flushed = get_output!(self_).poll_flush(cx);
                 return match flushed {
                     Poll::Ready(Err(e)) => {
                         dprintln!("poll: output flush = IF.Err   SO  IF.Err");
