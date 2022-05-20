@@ -336,9 +336,8 @@ where
                 // polled after it gave Ready.
                 return Poll::Ready(Err(e));
             }
-            Ok(x) => {
+            Ok(()) => {
                 dprintln!("poll: output poll = IF.Ok     calling generator");
-                x
             }
         };
 
