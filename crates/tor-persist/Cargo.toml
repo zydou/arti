@@ -20,7 +20,7 @@ testing = []
 fs-mistrust = { path = "../fs-mistrust", version = "0.1.0", features = ["walkdir"] }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_json = "1.0.50"
-sanitize-filename = "0.3.0"
+sanitize-filename = "0.4.0"
 thiserror = "1"
 tracing = "0.1.18"
 tor-error = { path = "../tor-error", version = "0.3.0"}
