@@ -945,4 +945,81 @@ mod test {
             assert_eq!(result.err().unwrap().kind(), ErrorKind::BootstrapRequired);
         });
     }
+
+    #[test]
+    fn streamprefs_isolate_every_stream() {
+        let mut observed = StreamPrefs::new();
+        observed.isolate_every_stream();
+        match observed.isolation {
+            StreamIsolationPreference::EveryStream => (),
+            _ => panic!("unexpected isolation: {:?}", observed.isolation),
+        };
+    }
+
+    #[test]
+    fn streamprefs_new_has_expected_defaults() {
+        let observed = StreamPrefs::new();
+        assert_eq!(observed.ip_ver_pref, IpVersionPreference::Ipv4Preferred);
+        assert!(!observed.optimistic_stream);
+        // StreamIsolationPreference does not implement Eq, check manually.
+        match observed.isolation {
+            StreamIsolationPreference::None => (),
+            _ => panic!("unexpected isolation: {:?}", observed.isolation),
+        };
+    }
+
+    #[test]
+    fn streamprefs_new_isolation_group() {
+        let mut observed = StreamPrefs::new();
+        observed.new_isolation_group();
+        match observed.isolation {
+            StreamIsolationPreference::Explicit(_) => (),
+            _ => panic!("unexpected isolation: {:?}", observed.isolation),
+        };
+    }
+
+    #[test]
+    fn streamprefs_ipv6_only() {
+        let mut observed = StreamPrefs::new();
+        observed.ipv6_only();
+        assert_eq!(observed.ip_ver_pref, IpVersionPreference::Ipv6Only);
+    }
+
+    #[test]
+    fn streamprefs_ipv6_preferred() {
+        let mut observed = StreamPrefs::new();
+        observed.ipv6_preferred();
+        assert_eq!(observed.ip_ver_pref, IpVersionPreference::Ipv6Preferred);
+    }
+
+    #[test]
+    fn streamprefs_ipv4_only() {
+        let mut observed = StreamPrefs::new();
+        observed.ipv4_only();
+        assert_eq!(observed.ip_ver_pref, IpVersionPreference::Ipv4Only);
+    }
+
+    #[test]
+    fn streamprefs_ipv4_preferred() {
+        let mut observed = StreamPrefs::new();
+        observed.ipv4_preferred();
+        assert_eq!(observed.ip_ver_pref, IpVersionPreference::Ipv4Preferred);
+    }
+
+    #[test]
+    fn streamprefs_optimistic() {
+        let mut observed = StreamPrefs::new();
+        observed.optimistic();
+        assert!(observed.optimistic_stream);
+    }
+
+    #[test]
+    fn streamprefs_set_isolation() {
+        let mut observed = StreamPrefs::new();
+        observed.set_isolation(IsolationToken::new());
+        match observed.isolation {
+            StreamIsolationPreference::Explicit(_) => (),
+            _ => panic!("unexpected isolation: {:?}", observed.isolation),
+        };
+    }
 }
