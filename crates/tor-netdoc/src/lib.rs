@@ -98,7 +98,7 @@ pub type BuildResult<T> = std::result::Result<T, BuildError>;
 
 /// Indicates whether we should parse an annotated list of objects or a
 /// non-annotated list.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Eq)]
 #[allow(clippy::exhaustive_enums)]
 pub enum AllowAnnotations {
     /// Parsing a document where items might be annotated.

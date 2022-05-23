@@ -273,7 +273,7 @@ pub(crate) trait AbstractCircBuilder: Send + Sync {
 /// All circuits start out "unused" and become "dirty" when their spec
 /// is first restricted -- that is, when they are first handed out to be
 /// used for a request.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ExpirationInfo {
     /// The circuit has never been used.
     Unused {
@@ -303,7 +303,7 @@ impl ExpirationInfo {
 }
 
 /// An entry for an open circuit held by an `AbstractCircMgr`.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq)]
 pub(crate) struct OpenEntry<S, C> {
     /// Current AbstractCircSpec for this circuit's permitted usages.
     spec: S,
@@ -1456,7 +1456,7 @@ mod test {
         }
     }
 
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Debug, PartialEq, Clone, Eq)]
     struct FakeCirc {
         id: FakeId,
     }

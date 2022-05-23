@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 
 /// An event emitted by some Tor-related crate.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TorEvent {
     /// An event with no data, used for testing purposes.

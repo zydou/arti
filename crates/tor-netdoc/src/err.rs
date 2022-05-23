@@ -165,7 +165,7 @@ impl fmt::Display for Pos {
 }
 
 /// A variety of parsing error.
-#[derive(Copy, Clone, Debug, derive_more::Display, PartialEq)]
+#[derive(Copy, Clone, Debug, derive_more::Display, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseErrorKind {
     /// An internal error in the parser: these should never happen.

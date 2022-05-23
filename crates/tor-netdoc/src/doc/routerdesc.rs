@@ -150,7 +150,7 @@ pub struct RouterDesc {
 }
 
 /// Description of the software a relay is running.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RelayPlatform {
     /// Software advertised to be some version of Tor, on some platform.
