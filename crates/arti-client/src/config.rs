@@ -145,6 +145,7 @@ impl BuilderExt for MistrustBuilder {
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
 pub struct StorageConfig {
     /// Location on disk for cached directory information.
     #[builder(setter(into), default = "default_cache_dir()")]
@@ -223,6 +224,7 @@ impl StorageConfig {
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
+#[non_exhaustive]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
     #[builder(sub_builder)]
@@ -318,7 +320,25 @@ impl TorClientConfig {
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
         })
+    }
 
+    /// Return a reference to the [`fs_mistrust::Mistrust`] object that we'll
+    /// use to check permissions on files and directories by default.
+    ///
+    /// # Usage notes
+    ///
+    /// In the future, specific files or directories may have stricter or looser
+    /// permissions checks applied to them than this default.  Callers shouldn't
+    /// use this [`Mistrust`] to predict what Arti will accept for a specific
+    /// file or directory.  Rather, you should use this if you have some file or
+    /// directory of your own on which you'd like to enforce the same rules as
+    /// Arti uses.
+    //
+    // NOTE: The presence of this accessor is _NOT_ in any form a commitment to
+    // expose every field from the configuration as an accessor.  We explicitly
+    // reject that slippery slope argument.
+    pub fn fs_mistrust(&self) -> &Mistrust {
+        self.storage.permissions()
     }
 }
 

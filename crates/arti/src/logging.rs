@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use derive_builder::Builder;
+use fs_mistrust::Mistrust;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::str::FromStr;
@@ -197,6 +198,7 @@ where
 /// dropped when the program exits, to flush buffered messages.
 fn logfile_layer<S>(
     config: &LogfileConfig,
+    mistrust: &Mistrust,
 ) -> Result<(impl Layer<S> + Send + Sync + Sized, WorkerGuard)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
@@ -214,6 +216,7 @@ where
     };
     let path = config.path.path()?;
     let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    mistrust.make_directory(directory)?;
     let fname = path
         .file_name()
         .ok_or_else(|| anyhow!("No path for log file"))
@@ -229,7 +232,10 @@ where
 ///
 /// On success, return that layer along with a list of [`WorkerGuard`]s that
 /// need to be dropped when the program exits.
-fn logfile_layers<S>(config: &LoggingConfig) -> Result<(impl Layer<S>, Vec<WorkerGuard>)>
+fn logfile_layers<S>(
+    config: &LoggingConfig,
+    mistrust: &Mistrust,
+) -> Result<(impl Layer<S>, Vec<WorkerGuard>)>
 where
     S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span> + Send + Sync,
 {
@@ -240,7 +246,7 @@ where
         return Ok((None, guards));
     }
 
-    let (layer, guard) = logfile_layer(&config.files[0])?;
+    let (layer, guard) = logfile_layer(&config.files[0], mistrust)?;
     guards.push(guard);
 
     // We have to use a dyn pointer here so we can build up linked list of
@@ -248,7 +254,7 @@ where
     let mut layer: Box<dyn Layer<S> + Send + Sync + 'static> = Box::new(layer);
 
     for logfile in &config.files[1..] {
-        let (new_layer, guard) = logfile_layer(logfile)?;
+        let (new_layer, guard) = logfile_layer(logfile, mistrust)?;
         layer = Box::new(layer.and_then(new_layer));
         guards.push(guard);
     }
@@ -272,7 +278,11 @@ pub struct LogGuards {
 ///
 /// Note that the returned LogGuard must be dropped precisely when the program
 /// quits; they're used to ensure that all the log messages are flushed.
-pub fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGuards> {
+pub fn setup_logging(
+    config: &LoggingConfig,
+    mistrust: &Mistrust,
+    cli: Option<&str>,
+) -> Result<LogGuards> {
     // Important: We have to make sure that the individual layers we add here
     // are not filters themselves.  That means, for example, that we can't add
     // an `EnvFilter` layer unless we want it to apply globally to _all_ layers.
@@ -286,7 +296,7 @@ pub fn setup_logging(config: &LoggingConfig, cli: Option<&str>) -> Result<LogGua
     #[cfg(feature = "journald")]
     let registry = registry.with(journald_layer(config)?);
 
-    let (layer, guards) = logfile_layers(config)?;
+    let (layer, guards) = logfile_layers(config, mistrust)?;
     let registry = registry.with(layer);
 
     registry.init();

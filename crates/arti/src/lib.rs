@@ -374,7 +374,16 @@ pub fn main_main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into().context("read configuration")?;
 
-    let _log_guards = logging::setup_logging(config.logging(), matches.value_of("loglevel"))?;
+    let log_mistrust = if fs_mistrust_disabled {
+        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+    } else {
+        config.tor.fs_mistrust().clone()
+    };
+    let _log_guards = logging::setup_logging(
+        config.logging(),
+        &log_mistrust,
+        matches.value_of("loglevel"),
+    )?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (

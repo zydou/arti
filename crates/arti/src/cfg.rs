@@ -115,7 +115,7 @@ pub struct ArtiConfig {
     /// Configuration of the actual Tor client
     #[builder(sub_builder)]
     #[builder_field_attr(serde(flatten))]
-    tor: TorClientConfig,
+    pub(crate) tor: TorClientConfig,
 }
 impl_standard_builder! { ArtiConfig }
 
