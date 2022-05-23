@@ -316,7 +316,7 @@ pub use user::{TrustedGroup, TrustedUser};
 ///
 /// *  support more kinds of trust configuration, including more trusted users,
 ///    trusted groups, multiple trusted directories, etc?
-#[derive(Debug, Clone, derive_builder::Builder)]
+#[derive(Debug, Clone, derive_builder::Builder, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", builder(derive(Debug, Serialize, Deserialize)))]
 #[cfg_attr(not(feature = "serde"), builder(derive(Debug)))]
 #[builder(build_fn(error = "Error"))]
