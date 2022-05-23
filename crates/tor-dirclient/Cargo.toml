@@ -27,7 +27,7 @@ tor-proto = { path = "../tor-proto", version = "0.3.0"}
 tor-netdoc = { path = "../tor-netdoc", version = "0.3.0"}
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.3.0"}
 
-async-compression = { version = "0.3.5", features = ["futures-io", "zlib"] }
+async-compression = { version = "0.3.14", features = ["futures-io", "zlib"] }
 base64 = "0.13.0"
 derive_more = "0.99"
 futures = "0.3.14"
