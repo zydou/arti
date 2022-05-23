@@ -414,6 +414,7 @@ where
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // why is this not the default in tests
+#[allow(clippy::print_stderr)]
 mod test {
     use super::*;
     use futures::channel::mpsc;
