@@ -3278,7 +3278,11 @@ version = "0.3.0"
 dependencies = [
  "derive_more",
  "educe",
+ "futures",
+ "futures-await-test",
+ "pin-project",
  "rand 0.8.5",
+ "tokio",
 ]
 
 [[package]]
