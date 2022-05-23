@@ -130,6 +130,9 @@
 //! assert_eq!{ builder.build().unwrap().values, &[27, 12] }
 //! ```
 
+pub use crate::define_list_builder_accessors;
+pub use crate::define_list_builder_helper;
+
 /// Define a list builder struct for use with [`define_list_builder_accessors`]
 ///
 /// Generates an builder struct that can be used with derive_builder
