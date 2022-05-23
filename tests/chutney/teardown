@@ -18,7 +18,7 @@ source tests/chutney/arti.run
 
 # If Arti was started, stop it. If it wasn't, that's an error and it'll be reported
 # when we can't read $result later.
-if [ -n "$pid" ]; then
+if [ -n "${pid:-}" ]; then
     # Tolerate a failure here: even in case the arti process already died
     # for some reason, we still want to shut down the chutney network.
     kill -s INT "$pid" || true
