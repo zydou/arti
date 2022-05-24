@@ -4,6 +4,87 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
+# Arti 0.4.0 — ? ??? 2022
+
+(XXXX This is up to date through b055cc27f1681cb3db2c42f230e5582e126cd2a2)
+
+### Breaking changes
+
+- We've merged the last (we hope) of our breaking configuration changes.
+  - Configuration and command-line loading is now handled consistently
+    via the option-agnostic `tor-config` crate. ([!495], [!498])
+  - We follow a uniform pattern where configuration objects are
+    constructed from associated Builder types, and these Builders
+    support [`serde`] traits, and everything provides a consistent
+    API. ([!499], [!505], [!507])
+  - The `arti-config` crate no longer exists: its functionality has been
+    divided among `arti`, `arti-client`, and `tor-config`. ([!508])
+  - The [`TorConfig`] object no longer implements
+    `TryInto<DirMgrConfig>`.
+- The [`Runtime`] trait now also requires that `Debug` be implemented.
+  ([!496])
+
+### New features
+
+- Arti now checks file permissions before starting up, and rejects
+  configuration files, state files, and cache files if they can be modified
+  by untrusted users. You can disable this feature with the
+  `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable.  ([#315],
+  [#465], [!468],
+  [!483], [!504], [!515])
+- Arti now tolerates a much wider array of broken networks and
+  installations when trying to boostrap a working connection to the Tor
+  network. This includes improved handling for skewed clocks,
+  untimely documents, and invalid consensus documents.  ([#412], [#466],
+  [#467], [!500], [!501], [!511])
+
+### Major bugfixes
+
+- Arti no longer exits or gets stuck when it has received a consensus
+  with invalid signatures, or a consensus claiming to be signed with
+  certificates that don't exist. ([#412], [#439], [!511])
+
+### Infrastructure
+
+- Clean up more effectively in chutney-based test
+  scripts. ([ee9730cab4e4b21e])
+- Nightly [coverage reports] are now generated and exported to gitlab
+  pages. ([!489])
+- We no longer include a dependency on [`cargo-husky`]: If you want to
+  have [git hooks] in your local repository, you'll need to install your
+  own. (See [CONTRIBUTING.md] for instructions.) ([!494])
+
+### Documentation and Examples
+
+- Better documentation for Cargo features. ([#445], [!496])
+
+### Cleanups, minor features, and minor bugfixes
+
+- Use [`tinystr`] to hold relay nicknames; this should save a bit of
+  memory. ([!405])
+- Refactor the [`DirMgr`] crate's bootstrapping implementation to reduce
+  amount of mutable state, reduce complexity, and reduce the amount of
+  code that has to modify a running directory. ([!488])
+- We only check the formatting of our backtraces on our target
+  platforms, to better tolerate operating systems where Rust's
+  backtraces don't correctly include function details. ([#455], [!512])
+- [`DirMgr`] is now better at remembering the origin
+  of a piece of directory information. ([ef2640acfaf9f873])
+- Used a new [`Sink::prepare_send_from`] helper to simplify the
+  implementation of Channel reactors. ([!514])
+
+
+### Acknowledgments
+
+
+
+[Coverage reports]: https://tpo.pages.torproject.net/core/arti/coverage/
+
+
+
+
+
+
 # Arti 0.3.0 — 6 May 2022
 
 Arti 0.3.0 includes several new features, including an improved
