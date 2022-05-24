@@ -912,6 +912,7 @@ impl GuardMgrInner {
     /// are unusable.
     fn expire_and_answer_pending_requests(&mut self, now: Instant) {
         // TODO: Use Vec::drain_filter or Vec::retain_mut when/if it's stable.
+        #[allow(deprecated)]
         use retain_mut::RetainMut;
 
         // A bit ugly: we use a separate Vec here to avoid borrowing issues,
@@ -919,6 +920,7 @@ impl GuardMgrInner {
         let mut waiting = Vec::new();
         std::mem::swap(&mut waiting, &mut self.waiting);
 
+        #[allow(deprecated)]
         RetainMut::retain_mut(&mut waiting, |pending| {
             let expired = pending
                 .waiting_since()
