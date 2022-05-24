@@ -12,7 +12,7 @@ use tor_config::ConfigurationSources;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, warn};
 
-use crate::ArtiConfig;
+use crate::{ArtiCombinedConfig, ArtiConfig};
 
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
@@ -85,14 +85,13 @@ fn reconfigure<R: Runtime>(
     client: &TorClient<R>,
 ) -> anyhow::Result<bool> {
     let config = sources.load()?;
-    let config: ArtiConfig = config.try_into()?;
+    let (config, client_config) = tor_config::resolve::<ArtiCombinedConfig>(config)?;
     if config.proxy() != original.proxy() {
         warn!("Can't (yet) reconfigure proxy settings while arti is running.");
     }
     if config.logging() != original.logging() {
         warn!("Can't (yet) reconfigure logging settings while arti is running.");
     }
-    let client_config = config.tor_client_config()?;
     client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
     if !config.application().watch_configuration {

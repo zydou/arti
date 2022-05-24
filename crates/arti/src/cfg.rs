@@ -5,7 +5,6 @@
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use arti_client::config::TorClientConfigBuilder;
 use arti_client::TorClientConfig;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 
@@ -111,37 +110,17 @@ pub struct ArtiConfig {
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
     pub(crate) system: SystemConfig,
-
-    /// Configuration of the actual Tor client
-    #[builder(sub_builder)]
-    #[builder_field_attr(serde(flatten))]
-    pub(crate) tor: TorClientConfig,
 }
 impl_standard_builder! { ArtiConfig }
 
-impl TryFrom<config::Config> for ArtiConfig {
-    type Error = config::ConfigError;
-    fn try_from(cfg: config::Config) -> Result<ArtiConfig, Self::Error> {
-        let builder: ArtiConfigBuilder = cfg.try_deserialize()?;
-        builder
-            .build()
-            .map_err(|e| config::ConfigError::Foreign(Box::new(e)))
-    }
+impl tor_config::load::TopLevel for ArtiConfig {
+    type Builder = ArtiConfigBuilder;
 }
 
-// This handwritten impl ought not to exist, but it is needed until #374 is done.
-impl From<ArtiConfigBuilder> for TorClientConfigBuilder {
-    fn from(cfg: ArtiConfigBuilder) -> TorClientConfigBuilder {
-        cfg.tor
-    }
-}
+/// Convenience alias
+pub type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
 
 impl ArtiConfig {
-    /// Construct a [`TorClientConfig`] based on this configuration.
-    pub fn tor_client_config(&self) -> Result<TorClientConfig, ConfigBuildError> {
-        Ok(self.tor.clone())
-    }
-
     /// Return the [`ApplicationConfig`] for this configuration.
     pub fn application(&self) -> &ApplicationConfig {
         &self.application
@@ -163,6 +142,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use arti_client::config::dir;
+    use arti_client::config::TorClientConfigBuilder;
     use regex::Regex;
     use std::time::Duration;
 
@@ -179,7 +159,7 @@ mod test {
     #[test]
     fn default_config() {
         let empty_config = config::Config::builder().build().unwrap();
-        let empty_config: ArtiConfig = empty_config.try_into().unwrap();
+        let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
 
         let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
         let cfg = config::Config::builder()
@@ -199,19 +179,18 @@ mod test {
         // Also we should ideally test that every setting from the config appears here in
         // the file.  Possibly that could be done with some kind of stunt Deserializer,
         // but it's not trivial.
-        let parsed: ArtiConfig = cfg.try_into().unwrap();
-        let default = ArtiConfig::default();
+        let parsed: ArtiCombinedConfig = tor_config::resolve(cfg).unwrap();
+
+        let default = (ArtiConfig::default(), TorClientConfig::default());
         assert_eq!(&parsed, &default);
         assert_eq!(&parsed, &empty_config);
 
-        let built_default = ArtiConfigBuilder::default().build().unwrap();
+        let built_default = (
+            ArtiConfigBuilder::default().build().unwrap(),
+            TorClientConfigBuilder::default().build().unwrap(),
+        );
         assert_eq!(&parsed, &built_default);
         assert_eq!(&default, &built_default);
-
-        // Make sure that the client configuration this gives us is the default one.
-        let client_config = parsed.tor_client_config().unwrap();
-        let dflt_client_config = TorClientConfig::default();
-        assert_eq!(&client_config, &dflt_client_config);
     }
 
     #[test]
@@ -231,11 +210,11 @@ mod test {
             .push("127.0.0.7:7".parse().unwrap());
 
         let mut bld = ArtiConfig::builder();
+        let mut bld_tor = TorClientConfig::builder();
 
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
 
-        let bld_tor = bld.tor();
         bld_tor.tor_network().set_authorities(vec![auth]);
         bld_tor.tor_network().set_fallback_caches(vec![fallback]);
         bld_tor

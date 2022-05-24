@@ -49,6 +49,7 @@
 pub mod cmdline;
 mod err;
 pub mod list_builder;
+pub mod load;
 mod mut_cfg;
 mod path;
 pub mod sources;
@@ -57,6 +58,7 @@ pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
+pub use load::resolve;
 pub use mut_cfg::MutCfg;
 pub use paste::paste;
 pub use path::{CfgPath, CfgPathError};

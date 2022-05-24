@@ -125,8 +125,8 @@ pub mod watch_cfg;
 use std::fmt::Write;
 
 pub use cfg::{
-    ApplicationConfig, ApplicationConfigBuilder, ArtiConfig, ArtiConfigBuilder, ProxyConfig,
-    ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
+    ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig, ArtiConfig, ArtiConfigBuilder,
+    ProxyConfig, ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
@@ -371,13 +371,13 @@ pub fn main_main() -> Result<()> {
     };
 
     let cfg = cfg_sources.load()?;
-
-    let config: ArtiConfig = cfg.try_into().context("read configuration")?;
+    let (config, client_config) =
+        tor_config::resolve::<ArtiCombinedConfig>(cfg).context("read configuration")?;
 
     let log_mistrust = if fs_mistrust_disabled {
         fs_mistrust::Mistrust::new_dangerously_trust_everyone()
     } else {
-        config.tor.fs_mistrust().clone()
+        client_config.fs_mistrust().clone()
     };
     let _log_guards = logging::setup_logging(
         config.logging(),
@@ -400,8 +400,6 @@ pub fn main_main() -> Result<()> {
             (None, Some(s)) => s,
             (None, None) => 0,
         };
-
-        let client_config = config.tor_client_config()?;
 
         info!(
             "Starting Arti {} in SOCKS proxy mode on port {}...",

@@ -288,6 +288,10 @@ pub struct TorClientConfig {
 }
 impl_standard_builder! { TorClientConfig }
 
+impl tor_config::load::TopLevel for TorClientConfig {
+    type Builder = TorClientConfigBuilder;
+}
+
 /// Helper to convert convert_override_net_params
 fn convert_override_net_params(
     builder: &HashMap<String, i32>,
