@@ -1,3 +1,6 @@
+// This example showcase how to use the trait IsolationHelper to build complexe isolation rules.
+// For most usages, using a combination of TorClient::isolated_client and IsolationToken should
+// be enough.
 use std::collections::HashSet;
 
 use anyhow::Result;
