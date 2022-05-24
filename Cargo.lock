@@ -3551,6 +3551,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-congestion"
+version = "0.3.0"
+dependencies = [
+ "thiserror",
+ "tor-error",
+ "tor-netdir",
+ "tor-units",
+]
+
+[[package]]
 name = "tor-consdiff"
 version = "0.3.1"
 dependencies = [
