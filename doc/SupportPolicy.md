@@ -71,8 +71,8 @@ Our top priorities are the following operating systems:
 
 We only support modern versions of these operating systems.  If the
 upstream providers of the operating system no longer provides security
-patches for it, it is **unsupported**.  Sufficiently old versions may
-also be **maintained** or **community-supported**, depending on their
+patches for it, it is usually **unsupported**.  Some old versions may
+be **maintained** or **community-supported**, depending on their
 age and the difficulty of working with them.
 
 We currently have automated tests on Linux only.  On OSX and Windows, we
@@ -96,7 +96,7 @@ Only X86-64 is currently **tested**.
 
 Modern-enough 32-bit ARM is **maintained**.
 
-All other CPUs are **community-supported** or **unmaintained**.
+All other CPUs are **community-supported** or **unsupported**.
 
 ## Dependencies
 
