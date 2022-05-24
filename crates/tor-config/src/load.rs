@@ -378,8 +378,13 @@ fn ok_unquoted(s: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(unreachable_pub)] // impl_standard_builder wants to make pub fns
+#[allow(clippy::unwrap_used)] // OK in tests
 mod test {
     use super::*;
+    use crate::*;
+    use derive_builder::Builder;
+    use serde::{Deserialize, Serialize};
 
     fn parse_test_set(l: &[&str]) -> BTreeSet<IgnoredKey> {
         l.iter()
@@ -454,5 +459,56 @@ mod test {
         chk(r#"foo.bar"#, &[me("foo"), me("bar")]);
         chk(r#"foo[10]"#, &[me("foo"), AI(10)]);
         chk(r#"[10].bar"#, &[AI(10), me("bar")]); // weird
+    }
+
+    #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+    #[builder(build_fn(error = "ConfigBuildError"))]
+    #[builder(derive(Debug, Serialize, Deserialize))]
+    struct TestConfigA {
+        #[builder(default)]
+        a: String,
+    }
+    impl_standard_builder! { TestConfigA }
+    impl TopLevel for TestConfigA {
+        type Builder = TestConfigABuilder;
+    }
+
+    #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+    #[builder(build_fn(error = "ConfigBuildError"))]
+    #[builder(derive(Debug, Serialize, Deserialize))]
+    struct TestConfigB {
+        #[builder(default)]
+        b: String,
+    }
+    impl_standard_builder! { TestConfigB }
+    impl TopLevel for TestConfigB {
+        type Builder = TestConfigBBuilder;
+    }
+
+    #[test]
+    fn test_resolve() {
+        let test_data = r#"
+            wombat = 42
+            a = "hi"
+        "#;
+        let source = config::File::from_str(test_data, config::FileFormat::Toml);
+
+        let cfg = config::Config::builder()
+            .add_source(source)
+            .build()
+            .unwrap();
+
+        let _: (TestConfigA, TestConfigB) = resolve_without_ignored(cfg.clone()).unwrap();
+
+        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_and_ignored(cfg).unwrap();
+
+        let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
+
+        assert_eq! { &a, &TestConfigA { a: "hi".into() } };
+        assert_eq! { &b, &TestConfigB { b: "".into() } };
+        assert_eq! { ign, &["wombat"] };
+
+        let _ = TestConfigA::builder();
+        let _ = TestConfigB::builder();
     }
 }

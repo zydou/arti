@@ -168,22 +168,18 @@ mod test {
             .unwrap();
 
         // This tests that the example settings do not *contradict* the defaults.
-        // But it does not prove that the example template file does not contain misspelled
-        // (and therefore ignored) items - which might even contradict the defaults if
-        // their spelling was changed.
-        //
-        // Really we should test that too, but that's dependent on a fix for
-        //  https://gitlab.torproject.org/tpo/core/arti/-/issues/417
-        // which is blocked on serde-ignored not handling serde(flatten).
         //
         // Also we should ideally test that every setting from the config appears here in
         // the file.  Possibly that could be done with some kind of stunt Deserializer,
         // but it's not trivial.
-        let parsed: ArtiCombinedConfig = tor_config::resolve(cfg).unwrap();
+        let (parsed, ignored): (ArtiCombinedConfig, _) =
+            tor_config::resolve_and_ignored(cfg).unwrap();
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
         assert_eq!(&parsed, &default);
         assert_eq!(&parsed, &empty_config);
+
+        assert_eq!(ignored, &[]);
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
