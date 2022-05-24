@@ -13,6 +13,7 @@
 
 use derive_builder::Builder;
 use derive_more::AsRef;
+use fs_mistrust::{Mistrust, MistrustBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -106,6 +107,26 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
     Duration::new(10, 0)
 }
 
+/// Extension trait for `MistrustBuilder` to convert the error type on
+/// build.
+trait BuilderExt {
+    /// Type that this builder provides.
+    type Built;
+    /// Run this builder and convert its error type (if any)
+    fn build_for_arti(&self) -> Result<Self::Built, ConfigBuildError>;
+}
+
+impl BuilderExt for MistrustBuilder {
+    type Built = Mistrust;
+
+    fn build_for_arti(&self) -> Result<Self::Built, ConfigBuildError> {
+        self.build().map_err(|e| ConfigBuildError::Invalid {
+            field: "permissions".to_string(),
+            problem: e.to_string(),
+        })
+    }
+}
+
 /// Configuration for where information should be stored on disk.
 ///
 /// By default, cache information will be stored in `${ARTI_CACHE}`, and
@@ -124,6 +145,7 @@ fn default_dns_resolve_ptr_timeout() -> Duration {
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
 pub struct StorageConfig {
     /// Location on disk for cached directory information.
     #[builder(setter(into), default = "default_cache_dir()")]
@@ -131,6 +153,10 @@ pub struct StorageConfig {
     /// Location on disk for less-sensitive persistent state information.
     #[builder(setter(into), default = "default_state_dir()")]
     state_dir: CfgPath,
+    /// Filesystem state to
+    #[builder(sub_builder(fn_name = "build_for_arti"))]
+    #[builder_field_attr(serde(default))]
+    permissions: Mistrust,
 }
 impl_standard_builder! { StorageConfig }
 
@@ -163,6 +189,10 @@ impl StorageConfig {
                 problem: e.to_string(),
             })
     }
+    /// Return the FS permissions to use for state and cache directories.
+    pub(crate) fn permissions(&self) -> &Mistrust {
+        &self.permissions
+    }
 }
 
 /// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
@@ -194,6 +224,7 @@ impl StorageConfig {
 #[derive(Clone, Builder, Debug, Eq, PartialEq, AsRef)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Serialize, Deserialize, Debug))]
+#[non_exhaustive]
 pub struct TorClientConfig {
     /// Information about the Tor network we want to connect to.
     #[builder(sub_builder)]
@@ -289,7 +320,25 @@ impl TorClientConfig {
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
         })
+    }
 
+    /// Return a reference to the [`fs_mistrust::Mistrust`] object that we'll
+    /// use to check permissions on files and directories by default.
+    ///
+    /// # Usage notes
+    ///
+    /// In the future, specific files or directories may have stricter or looser
+    /// permissions checks applied to them than this default.  Callers shouldn't
+    /// use this [`Mistrust`] to predict what Arti will accept for a specific
+    /// file or directory.  Rather, you should use this if you have some file or
+    /// directory of your own on which you'd like to enforce the same rules as
+    /// Arti uses.
+    //
+    // NOTE: The presence of this accessor is _NOT_ in any form a commitment to
+    // expose every field from the configuration as an accessor.  We explicitly
+    // reject that slippery slope argument.
+    pub fn fs_mistrust(&self) -> &Mistrust {
+        self.storage.permissions()
     }
 }
 
@@ -311,24 +360,19 @@ impl TorClientConfigBuilder {
     }
 }
 
-/// Return a default value for our fs_mistrust configuration.
-///
-/// This is based on the environment rather on the configuration, since we may
-/// want to use it to determine whether configuration files are safe to read.
-//
-// TODO: This function should probably go away and become part of our storage
-// configuration code, once we have made Mistrust configurable via Deserialize.
-pub(crate) fn default_fs_mistrust() -> fs_mistrust::Mistrust {
-    let mut mistrust = fs_mistrust::Mistrust::new();
-    if std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some() {
-        mistrust.dangerously_trust_everyone();
-    }
-    mistrust
-}
-
 /// Return a filename for the default user configuration file.
 pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
     CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
+}
+
+/// Return true if the environment has been set up to disable FS permissions
+/// checking.
+///
+/// This function is exposed so that other tools can use the same checking rules
+/// as `arti-client`.  For more information, see
+/// [`TorClientBuilder`](crate::TorClientBuilder).
+pub fn fs_permissions_checks_disabled_via_env() -> bool {
+    std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some()
 }
 
 #[cfg(test)]

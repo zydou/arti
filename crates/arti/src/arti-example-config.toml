@@ -65,6 +65,30 @@
 #cache_dir = "${ARTI_CACHE}"
 #state_dir = "${ARTI_LOCAL_DATA}"
 
+# Describe how to enforce permissions on the filesystem when accessing the cache
+# and state directories.  (This does not apply to configuration files) 
+[storage.permissions]
+# If set to true, we ignore all filesystem permissions.
+#dangerously_trust_everyone = false
+
+# What user (if any) is trusted to own files and directories?  ":current" means
+# to trust the current user.
+#trust_user = ":current"
+
+# What group (if any) is trusted to have read/write access to files and
+# directories?  ":selfnamed" means to trust the group with the same name as the
+# current user, if that user is a member.
+#trust_group = ":username"
+
+# If set, gives a path prefix that will always be trusted.  For example, if this
+# option is set to "/home/", and we are checking "/home/username/.cache", then
+# we always accept the permissions on "/" and "/home", but we check the
+# permissions on "/home/username" and "/home/username/.cache".
+# 
+# (This is not the default.)
+#
+#     ignore_prefix = "/home/"
+
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.

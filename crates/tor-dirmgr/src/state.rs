@@ -1254,7 +1254,7 @@ mod test {
 
         let store = crate::storage::SqliteStore::from_path_and_mistrust(
             tempdir.path(),
-            fs_mistrust::Mistrust::new().dangerously_trust_everyone(),
+            &fs_mistrust::Mistrust::new_dangerously_trust_everyone(),
             false,
         )
         .unwrap();

@@ -1,7 +1,14 @@
 //! Code to inspect user db information on unix.
 
+#[cfg(feature = "serde")]
+mod serde_support;
+
+use crate::Error;
 use once_cell::sync::Lazy;
-use std::{ffi::OsString, sync::Mutex};
+use std::{
+    ffi::{OsStr, OsString},
+    sync::Mutex,
+};
 
 /// Cached values of user db entries we've looked up.
 ///
@@ -9,15 +16,6 @@ use std::{ffi::OsString, sync::Mutex};
 ///
 /// Though this type has interior mutability, it isn't Sync, so we need to add a mutex.
 static CACHE: Lazy<Mutex<users::UsersCache>> = Lazy::new(|| Mutex::new(users::UsersCache::new()));
-
-/// Look for a group with the same name as our username.
-///
-/// If there is one, and we belong to it, return its gid.  Otherwise
-/// return None.
-pub(crate) fn get_self_named_gid() -> Option<u32> {
-    let cache = CACHE.lock().expect("Poisoned lock");
-    get_self_named_gid_impl(&*cache)
-}
 
 /// Like get_self_named_gid(), but use a provided user database.
 fn get_self_named_gid_impl<U: users::Groups + users::Users>(userdb: &U) -> Option<u32> {
@@ -82,6 +80,170 @@ fn cur_groups() -> Vec<u32> {
         buf.resize(n_groups2 as usize, 0);
     }
     buf
+}
+
+/// A user that we can be configured to trust.
+///
+/// # Serde support
+///
+/// If this crate is build with the `serde1` feature enabled, you can serialize
+/// and deserialize this type from any of the following:
+///
+///  * `false` and the string `":none"` correspond to `TrustedUser::None`.
+///  * The string `":current"` and the map `{ special = ":current" }` correspond
+///    to `TrustedUser::Current`.
+///  * A numeric value (e.g., `413`) and the map `{ id = 413 }` correspond to
+///    `TrustedUser::Id(413)`.
+///  * A string not starting with `:` (e.g., "jane") and the map `{ name = "jane" }`
+///    correspond to `TrustedUser::Name("jane".into())`.
+#[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[educe(Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "serde_support::Serde", into = "serde_support::Serde")
+)]
+#[non_exhaustive]
+pub enum TrustedUser {
+    /// We won't treat any user as trusted.
+    None,
+    /// Treat the current user as trusted.
+    #[educe(Default)]
+    Current,
+    /// Treat the user with a particular UID as trusted.
+    Id(u32),
+    /// Treat a user with a particular name as trusted.
+    ///
+    /// If there is no such user, we'll report an error.
+    Name(OsString),
+}
+
+impl From<u32> for TrustedUser {
+    fn from(val: u32) -> Self {
+        TrustedUser::Id(val)
+    }
+}
+impl From<OsString> for TrustedUser {
+    fn from(val: OsString) -> Self {
+        TrustedUser::Name(val)
+    }
+}
+impl From<&OsStr> for TrustedUser {
+    fn from(val: &OsStr) -> Self {
+        val.to_owned().into()
+    }
+}
+impl From<String> for TrustedUser {
+    fn from(val: String) -> Self {
+        OsString::from(val).into()
+    }
+}
+impl From<&str> for TrustedUser {
+    fn from(val: &str) -> Self {
+        val.to_owned().into()
+    }
+}
+
+impl TrustedUser {
+    /// Try to convert this `User` into an optional UID.
+    pub(crate) fn get_uid(&self) -> Result<Option<u32>, Error> {
+        let userdb = CACHE.lock().expect("poisoned lock");
+        self.get_uid_impl(&*userdb)
+    }
+    /// As `get_uid`, but take a userdb.
+    fn get_uid_impl<U: users::Users>(&self, userdb: &U) -> Result<Option<u32>, Error> {
+        match self {
+            TrustedUser::None => Ok(None),
+            TrustedUser::Current => Ok(Some(userdb.get_current_uid())),
+            TrustedUser::Id(id) => Ok(Some(*id)),
+            TrustedUser::Name(name) => userdb
+                .get_user_by_name(&name)
+                .map(|u| Some(u.uid()))
+                .ok_or_else(|| Error::NoSuchUser(name.to_string_lossy().into_owned())),
+        }
+    }
+}
+
+/// A group that we can be configured to trust.
+///
+/// # Serde support
+///
+/// See the `serde support` section in [`TrustedUser`].  Additionally,
+/// you can represent `TrustedGroup::SelfNamed` with the string `":username"`
+/// or the map `{ special = ":username" }`.
+#[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
+#[educe(Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "serde_support::Serde", into = "serde_support::Serde")
+)]
+#[non_exhaustive]
+pub enum TrustedGroup {
+    /// We won't treat any group as trusted
+    None,
+    /// We'll treat any group with same name as the current user as trusted.
+    ///
+    /// If there is no such group, we trust no group.
+    ///
+    /// (This is the default.)
+    #[educe(Default)]
+    SelfNamed,
+    /// We'll treat a specific group ID as trusted.
+    Id(u32),
+    /// We'll treat a group with a specific name as trusted.
+    ///
+    /// If there is no such group, we'll report an error.
+    Name(OsString),
+}
+
+impl From<u32> for TrustedGroup {
+    fn from(val: u32) -> Self {
+        TrustedGroup::Id(val)
+    }
+}
+impl From<OsString> for TrustedGroup {
+    fn from(val: OsString) -> TrustedGroup {
+        TrustedGroup::Name(val)
+    }
+}
+impl From<&OsStr> for TrustedGroup {
+    fn from(val: &OsStr) -> TrustedGroup {
+        val.to_owned().into()
+    }
+}
+impl From<String> for TrustedGroup {
+    fn from(val: String) -> TrustedGroup {
+        OsString::from(val).into()
+    }
+}
+impl From<&str> for TrustedGroup {
+    fn from(val: &str) -> TrustedGroup {
+        val.to_owned().into()
+    }
+}
+
+impl TrustedGroup {
+    /// Try to convert this `Group` into an optional GID.
+    pub(crate) fn get_gid(&self) -> Result<Option<u32>, Error> {
+        let userdb = CACHE.lock().expect("poisoned lock");
+        self.get_gid_impl(&*userdb)
+    }
+    /// Like `get_gid`, but take a user db as an argument.
+    fn get_gid_impl<U: users::Users + users::Groups>(
+        &self,
+        userdb: &U,
+    ) -> Result<Option<u32>, Error> {
+        match self {
+            TrustedGroup::None => Ok(None),
+            TrustedGroup::SelfNamed => Ok(get_self_named_gid_impl(userdb)),
+            TrustedGroup::Id(id) => Ok(Some(*id)),
+            TrustedGroup::Name(name) => userdb
+                .get_group_by_name(&name)
+                .map(|u| Some(u.gid()))
+                .ok_or_else(|| Error::NoSuchGroup(name.to_string_lossy().into_owned())),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -203,5 +365,33 @@ mod test {
         db.add_group(Group::new(cur_groups[0], "aranea"));
         let found = get_self_named_gid_impl(&db);
         assert_eq!(found, Some(cur_groups[0]));
+    }
+
+    #[test]
+    fn lookup_id() {
+        let mut db = MockUsers::with_current_uid(413);
+        db.add_user(User::new(413, "aranea", 413413));
+        db.add_group(Group::new(33, "nepeta"));
+
+        assert_eq!(TrustedUser::None.get_uid_impl(&db).unwrap(), None);
+        assert_eq!(TrustedUser::Current.get_uid_impl(&db).unwrap(), Some(413));
+        assert_eq!(TrustedUser::Id(413).get_uid_impl(&db).unwrap(), Some(413));
+        assert_eq!(
+            TrustedUser::Name("aranea".into())
+                .get_uid_impl(&db)
+                .unwrap(),
+            Some(413)
+        );
+        assert!(TrustedUser::Name("ac".into()).get_uid_impl(&db).is_err());
+
+        assert_eq!(TrustedGroup::None.get_gid_impl(&db).unwrap(), None);
+        assert_eq!(TrustedGroup::Id(33).get_gid_impl(&db).unwrap(), Some(33));
+        assert_eq!(
+            TrustedGroup::Name("nepeta".into())
+                .get_gid_impl(&db)
+                .unwrap(),
+            Some(33)
+        );
+        assert!(TrustedGroup::Name("ac".into()).get_gid_impl(&db).is_err());
     }
 }

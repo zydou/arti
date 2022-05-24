@@ -363,8 +363,7 @@ fn main() -> Result<()> {
 
     // TODO really we ought to get this from the arti configuration, or something.
     // But this is OK for now since we are a benchmarking tool.
-    let mut mistrust = fs_mistrust::Mistrust::new();
-    mistrust.dangerously_trust_everyone();
+    let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
     config_sources.set_mistrust(mistrust);
 
     let cfg = config_sources.load()?;

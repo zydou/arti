@@ -130,7 +130,7 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
-use arti_client::config::default_config_file;
+use arti_client::config::{default_config_file, fs_permissions_checks_disabled_via_env};
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
 use tor_config::ConfigurationSources;
@@ -199,8 +199,6 @@ pub async fn run<R: Runtime>(
         .bootstrap_behavior(OnDemand);
     if fs_mistrust_disabled {
         client_builder = client_builder.disable_fs_permission_checks();
-    } else {
-        client_builder = client_builder.enable_fs_permission_checks();
     }
     let client = client_builder.create_unbootstrapped()?;
     if arti_config.application().watch_configuration {
@@ -245,15 +243,6 @@ pub async fn run<R: Runtime>(
         }.fuse()
             => r.context("bootstrap"),
     )
-}
-
-/// Return true if the environment has been set up to disable FS mistrust.
-//
-// TODO(nickm): This is duplicate logic from arti_client config. When we make
-// fs_mistrust configurable via deserialize, as a real part of our configuration
-// logic, we should unify all this code.
-fn fs_mistrust_disabled_via_env() -> bool {
-    std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some()
 }
 
 /// Inner function to allow convenient error handling
@@ -360,18 +349,15 @@ pub fn main_main() -> Result<()> {
             .setting(AppSettings::SubcommandRequiredElseHelp)
             .get_matches();
 
-    let fs_mistrust_disabled =
-        fs_mistrust_disabled_via_env() | matches.is_present("disable-fs-permission-checks");
+    let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
+        | matches.is_present("disable-fs-permission-checks");
 
-    let mistrust = {
-        // TODO: This is duplicate code from arti_client::config.  When we make
-        // fs_mistrust configurable via deserialize, as a real part of our configuration
-        // logic, we should unify this check.
-        let mut mistrust = fs_mistrust::Mistrust::new();
-        if fs_mistrust_disabled {
-            mistrust.dangerously_trust_everyone();
-        }
-        mistrust
+    // A Mistrust object to use for loading our configuration.  Elsewhere, we
+    // use the value _from_ the configuration.
+    let cfg_mistrust = if fs_mistrust_disabled {
+        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+    } else {
+        fs_mistrust::Mistrust::new()
     };
 
     let cfg_sources = {
@@ -380,7 +366,7 @@ pub fn main_main() -> Result<()> {
             matches.values_of_os("config-files").unwrap_or_default(),
             matches.values_of("option").unwrap_or_default(),
         );
-        cfg_sources.set_mistrust(mistrust);
+        cfg_sources.set_mistrust(cfg_mistrust);
         cfg_sources
     };
 
@@ -388,7 +374,16 @@ pub fn main_main() -> Result<()> {
 
     let config: ArtiConfig = cfg.try_into().context("read configuration")?;
 
-    let _log_guards = logging::setup_logging(config.logging(), matches.value_of("loglevel"))?;
+    let log_mistrust = if fs_mistrust_disabled {
+        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+    } else {
+        config.tor.fs_mistrust().clone()
+    };
+    let _log_guards = logging::setup_logging(
+        config.logging(),
+        &log_mistrust,
+        matches.value_of("loglevel"),
+    )?;
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (

@@ -353,10 +353,11 @@ impl<R: Runtime> TorClient<R> {
         runtime: R,
         config: TorClientConfig,
         autobootstrap: BootstrapBehavior,
-        mistrust: fs_mistrust::Mistrust,
+        mistrust: Option<fs_mistrust::Mistrust>,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
+        let mistrust = mistrust.unwrap_or_else(|| config.storage.permissions().clone());
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config(mistrust.clone())?;
             c.extensions = dirmgr_extensions;

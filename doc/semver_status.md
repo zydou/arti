@@ -39,6 +39,7 @@ DEPRECATION: arti-config is to be abolished.  Currently it is merely an empty to
 ### fs-mistrust
 
 MODIFIED: New APIs for CachedDir, Error.
+BREAKING: New builder API.
 
 ### tor-dirclient
 
