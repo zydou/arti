@@ -231,54 +231,51 @@ mod test {
             .push("127.0.0.7:7".parse().unwrap());
 
         let mut bld = ArtiConfig::builder();
+
         bld.proxy().socks_port(Some(9999));
         bld.logging().console("warn");
-        bld.tor().tor_network().set_authorities(vec![auth]);
-        bld.tor().tor_network().set_fallback_caches(vec![fallback]);
-        bld.tor()
+
+        let bld_tor = bld.tor();
+        bld_tor.tor_network().set_authorities(vec![auth]);
+        bld_tor.tor_network().set_fallback_caches(vec![fallback]);
+        bld_tor
             .storage()
             .cache_dir(CfgPath::new("/var/tmp/foo".to_owned()))
             .state_dir(CfgPath::new("/var/tmp/bar".to_owned()));
-        bld.tor().download_schedule().retry_certs().attempts(10);
-        bld.tor()
-            .download_schedule()
-            .retry_certs()
-            .initial_delay(sec);
-        bld.tor().download_schedule().retry_certs().parallelism(3);
-        bld.tor()
-            .download_schedule()
-            .retry_microdescs()
-            .attempts(30);
-        bld.tor()
+        bld_tor.download_schedule().retry_certs().attempts(10);
+        bld_tor.download_schedule().retry_certs().initial_delay(sec);
+        bld_tor.download_schedule().retry_certs().parallelism(3);
+        bld_tor.download_schedule().retry_microdescs().attempts(30);
+        bld_tor
             .download_schedule()
             .retry_microdescs()
             .initial_delay(10 * sec);
-        bld.tor()
+        bld_tor
             .download_schedule()
             .retry_microdescs()
             .parallelism(9);
-        bld.tor()
+        bld_tor
             .override_net_params()
             .insert("wombats-per-quokka".to_owned(), 7);
-        bld.tor()
+        bld_tor
             .path_rules()
             .ipv4_subnet_family_prefix(20)
             .ipv6_subnet_family_prefix(48);
-        bld.tor().preemptive_circuits().disable_at_threshold(12);
-        bld.tor()
+        bld_tor.preemptive_circuits().disable_at_threshold(12);
+        bld_tor
             .preemptive_circuits()
             .set_initial_predicted_ports(vec![80, 443]);
-        bld.tor()
+        bld_tor
             .preemptive_circuits()
             .prediction_lifetime(Duration::from_secs(3600))
             .min_exit_circs_for_port(2);
-        bld.tor()
+        bld_tor
             .circuit_timing()
             .max_dirtiness(90 * sec)
             .request_timeout(10 * sec)
             .request_max_retries(22)
             .request_loyalty(3600 * sec);
-        bld.tor().address_filter().allow_local_addrs(true);
+        bld_tor.address_filter().allow_local_addrs(true);
 
         let val = bld.build().unwrap();
 
