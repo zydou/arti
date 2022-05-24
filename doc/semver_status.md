@@ -21,6 +21,7 @@ We can delete older sections here after we bump the releases.
 ### arti
 
 ADDED: ARTI_EXAMPLE_CONFIG introduced
+BREAKING: ArtiConfig no longer contains a TorClientConfig
 
 ### arti-client
 
@@ -66,3 +67,8 @@ MODIFIED: channel() method on ClientCirc.
 ### tor-rtcompat
 
 BREAKING: Runtime now requires the Debug trait to be implemented.
+
+### tor-config
+
+BREAKING: impl_standard_builder macro now tries to impl new Builder trait by default
+ADDED: New load module containing Resolvable, and tor_config::resolve, etc.
