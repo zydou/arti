@@ -3426,6 +3426,7 @@ dependencies = [
 name = "tor-config"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
  "config",
  "derive_builder_fork_arti",
  "directories",

@@ -1,4 +1,50 @@
 //! Processing a config::Config into a validated configuration
+//!
+//! # Example
+//!
+//! ```
+//! # fn main() -> Result<(), anyhow::Error> {
+//! use derive_builder::Builder;
+//! use tor_config::{impl_standard_builder, resolve, ConfigBuildError, ConfigurationSources};
+//! use tor_config::load::TopLevel;
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+//! #[builder(build_fn(error = "ConfigBuildError"))]
+//! #[builder(derive(Debug, Serialize, Deserialize))]
+//! struct EmbedderConfig {
+//!     // ....
+//! }
+//! impl_standard_builder! { EmbedderConfig }
+//! impl TopLevel for EmbedderConfig {
+//!     type Builder = EmbedderConfigBuilder;
+//! }
+//! #
+//! # #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+//! # #[builder(build_fn(error = "ConfigBuildError"))]
+//! # #[builder(derive(Debug, Serialize, Deserialize))]
+//! # struct TorClientConfig { }
+//! # impl_standard_builder! { TorClientConfig }
+//! # impl TopLevel for TorClientConfig { type Builder = TorClientConfigBuilder; }
+//! #
+//! # #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+//! # #[builder(build_fn(error = "ConfigBuildError"))]
+//! # #[builder(derive(Debug, Serialize, Deserialize))]
+//! # struct ArtiConfig { }
+//! # impl_standard_builder! { ArtiConfig }
+//! # impl TopLevel for ArtiConfig { type Builder = ArtiConfigBuilder; }
+//!
+//! let cfg_sources = ConfigurationSources::new_empty(); // In real program, use from_cmdline
+//! let cfg = cfg_sources.load()?;
+//!
+//! let (tcc, arti_config, embedder_config) =
+//!      tor_config::resolve::<(TorClientConfig, ArtiConfig, EmbedderConfig)>(cfg)?;
+//!
+//! let _: EmbedderConfig = embedder_config; // etc.
+//!
+//! # Ok(())
+//! # }
+//! ```
 
 use std::collections::BTreeSet;
 use std::fmt::{self, Display};
