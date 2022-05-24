@@ -182,6 +182,14 @@ impl<'a> super::Verifier<'a> {
         if uid != 0 && Some(uid) != self.mistrust.trust_user {
             errors.push(Error::BadOwner(path.into(), uid));
         }
+
+        // On Unix-like platforms, symlink permissions are ignored (and usually
+        // not settable). Theoretically, the symlink owner shouldn't matter, but
+        // it's less confusing to consistently require the right owner.
+        if path_type == PathType::Symlink {
+            return;
+        }
+
         let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
             // If this is the target object, and it must not be readable, then
             // we forbid it to be group-rwx and all-rwx.
