@@ -280,3 +280,83 @@ fn ok_unquoted(s: &str) -> bool {
         false
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn parse_test_set(l: &[&str]) -> BTreeSet<IgnoredKey> {
+        l.iter()
+            .map(|s| IgnoredKey {
+                path: s
+                    .split('.')
+                    .map(|s| PathEntry::MapEntry(s.into()))
+                    .collect_vec(),
+            })
+            .collect()
+    }
+
+    #[test]
+    #[rustfmt::skip] // preserve the layout so we can match vertically by eye
+    fn test_intersect_ignored_list() {
+        let chk = |a, b, exp| {
+            let got = intersect_ignored_lists(parse_test_set(a), parse_test_set(b));
+            let exp = parse_test_set(exp);
+            assert_eq! { got, exp };
+        };
+
+        chk(&[ "a", "b",     ],
+            &[ "a",      "c" ],
+            &[ "a" ]);
+
+        chk(&[ "a", "b",      "d" ],
+            &[ "a",      "c", "d" ],
+            &[ "a",           "d" ]);
+
+        chk(&[ "x.a", "x.b",     ],
+            &[ "x.a",      "x.c" ],
+            &[ "x.a" ]);
+
+        chk(&[ "t", "u", "v",          "w"     ],
+            &[ "t",      "v.a", "v.b",     "x" ],
+            &[ "t",      "v.a", "v.b",         ]);
+
+        chk(&[ "t",      "v",              "x" ],
+            &[ "t", "u", "v.a", "v.b", "w"     ],
+            &[ "t",      "v.a", "v.b",         ]);
+    }
+
+    #[test]
+    #[allow(clippy::bool_assert_comparison)] // much clearer this way IMO
+    fn test_ok_unquoted() {
+        assert_eq! { false, ok_unquoted("") };
+        assert_eq! { false, ok_unquoted("_") };
+        assert_eq! { false, ok_unquoted(".") };
+        assert_eq! { false, ok_unquoted("-") };
+        assert_eq! { false, ok_unquoted("_a") };
+        assert_eq! { false, ok_unquoted(".a") };
+        assert_eq! { false, ok_unquoted("-a") };
+        assert_eq! { false, ok_unquoted("a.") };
+        assert_eq! { true, ok_unquoted("a") };
+        assert_eq! { true, ok_unquoted("1") };
+        assert_eq! { true, ok_unquoted("z") };
+        assert_eq! { true, ok_unquoted("aa09_-") };
+    }
+
+    #[test]
+    fn test_display_key() {
+        let chk = |exp, path: &[PathEntry]| {
+            assert_eq! { IgnoredKey { path: path.into() }.to_string(), exp };
+        };
+        let me = |s: &str| PathEntry::MapEntry(s.into());
+        use PathEntry::ArrayIndex as AI;
+
+        chk(r#""""#, &[]);
+        chk(r#""@""#, &[me("@")]);
+        chk(r#""\\""#, &[me(r#"\"#)]);
+        chk(r#"foo"#, &[me("foo")]);
+        chk(r#"foo.bar"#, &[me("foo"), me("bar")]);
+        chk(r#"foo[10]"#, &[me("foo"), AI(10)]);
+        chk(r#"[10].bar"#, &[AI(10), me("bar")]); // weird
+    }
+}
