@@ -18,7 +18,7 @@ use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, Restrict
 use crate::Result;
 
 /// An exit policy, as supported by the last hop of a circuit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ExitPolicy {
     /// Permitted IPv4 ports.
     v4: Arc<PortPolicy>,

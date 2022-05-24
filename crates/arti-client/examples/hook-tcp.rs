@@ -78,7 +78,7 @@ struct CustomTcpStream<T> {
 }
 
 /// An enum representing states a TCP stream can be in.
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 enum TcpState {
     /// Stream is open.
     Open,

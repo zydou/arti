@@ -49,7 +49,7 @@ where
 /// Internal: how should we find the base bandwidth of each relay?  This
 /// value is global over a whole directory, and depends on the bandwidth
 /// weights in the consensus.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum BandwidthFn {
     /// There are no weights at all in the consensus: weight every
     /// relay as 1.

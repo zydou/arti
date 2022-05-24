@@ -30,7 +30,7 @@ pub struct SocksHandshake {
 /// Possible state for a Socks connection.
 ///
 /// Each completed message advances the state.
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 enum State {
     /// Starting state: no messages have been handled yet.
     Initial,

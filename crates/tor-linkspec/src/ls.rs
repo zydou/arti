@@ -11,7 +11,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A piece of information about a relay and how to connect to it.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinkSpec {
     /// The TCP address of an OR Port for a relay
     OrPort(IpAddr, u16),

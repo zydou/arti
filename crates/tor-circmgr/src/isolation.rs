@@ -462,7 +462,7 @@ pub(crate) mod test {
         }
     }
 
-    #[derive(PartialEq, Clone, Copy, Debug)]
+    #[derive(PartialEq, Clone, Copy, Debug, Eq)]
     struct OtherIsolation(usize);
 
     impl IsolationHelper for OtherIsolation {
