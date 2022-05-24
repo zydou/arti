@@ -33,7 +33,7 @@ switch to using a separate changelog for each crate.
   [#465], [!468],
   [!483], [!504], [!515])
 - Arti now tolerates a much wider array of broken networks and
-  installations when trying to boostrap a working connection to the Tor
+  installations when trying to bootstrap a working connection to the Tor
   network. This includes improved handling for skewed clocks,
   untimely documents, and invalid consensus documents.  ([#412], [#466],
   [#467], [!500], [!501], [!511])

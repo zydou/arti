@@ -101,7 +101,7 @@ where
     /// using utilities (often "futures combinators") such as this one.
     ///
     // Personal note from @Diziet:
-    // IMO it is generally accepted in the Rust communit that
+    // IMO it is generally accepted in the Rust community that
     // it is not good practice to write principal code at the manual futues level.
     // However, I have not been able to find very clear support for this proposition.
     // There are endless articles explaining how futures work internally,
@@ -331,7 +331,7 @@ where
                 // Deliberately don't fuse by `take`ing output.  If we did that, we would expose
                 // our caller to an additional panic risk.  There is no harm in polling the output
                 // sink again: although `Sink` documents that a sink that returns errors will
-                // probalby continue to do so, it is not forbidden to try it and see.  This is in
+                // probably continue to do so, it is not forbidden to try it and see.  This is in
                 // any case better than definitely crashing if the `SinkPrepareSendFuture` is
                 // polled after it gave Ready.
                 return Poll::Ready(Err(e));
@@ -403,7 +403,7 @@ where
     ///
     /// (However, the existence of the `SinkSendable` demonstrates that
     /// the sink reported itself ready for sending,
-    /// so this call is synchronous, avoding cancellation hazards.)
+    /// so this call is synchronous, avoiding cancellation hazards.)
     pub fn send(self, item: OM) -> Result<(), OS::Error> {
         dprintln!("send ...");
         let r = self.output.start_send(item);
@@ -437,7 +437,7 @@ mod test {
         // So we use mpsc channels, which (perhaps with buffering) are quite controllable.
 
         // The eprintln!("FOR ...") calls correspond go the dprintln1() calls in the impl,
-        // and can check that each code path in the impementation is used,
+        // and can check that each code path in the implementation is used,
         // by turning on the dbug and using `--nocapture`.
         {
             eprintln!("-- disconnected ---");
