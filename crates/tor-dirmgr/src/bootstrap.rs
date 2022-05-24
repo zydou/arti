@@ -312,6 +312,7 @@ async fn fetch_multiple<R: Runtime>(
 async fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
+    changed: &mut bool,
 ) -> Result<()> {
     let missing = state.missing_docs();
     let outcome: Result<()> = if missing.is_empty() {
@@ -328,7 +329,7 @@ async fn load_once<R: Runtime>(
             load_documents_from_store(&missing, store.deref())?
         };
 
-        state.add_from_cache(documents)
+        state.add_from_cache(documents, changed)
     };
 
     // We have to update the status here regardless of the outcome: even if
@@ -350,16 +351,16 @@ pub(crate) async fn load<R: Runtime>(
     let mut safety_counter = 0_usize;
     loop {
         trace!(state=%state.describe(), "Loading from cache");
-        let outcome = load_once(&dirmgr, &mut state).await;
+        let mut changed = false;
+        let outcome = load_once(&dirmgr, &mut state, &mut changed).await;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
         }
 
-        let mut no_change = false;
         if let Err(e) = outcome {
             if matches!(e, Error::NoChange(_)) {
-                no_change = true;
+                debug_assert!(!changed);
             }
             match e.bootstrap_action() {
                 BootstrapAction::Nonfatal => {
@@ -375,7 +376,7 @@ pub(crate) async fn load<R: Runtime>(
             state = state.advance();
             safety_counter = 0;
         } else {
-            if no_change {
+            if !changed {
                 // TODO: Are there more nonfatal errors that mean we should
                 // break?
                 break;
@@ -421,8 +422,18 @@ async fn download_attempt<R: Runtime>(
                 let doc_source = DocSource::DirServer {
                     source: source.clone(),
                 };
-                let outcome =
-                    state.add_from_download(&text, &client_req, doc_source, Some(&dirmgr.store));
+                let mut changed = false;
+                let outcome = state.add_from_download(
+                    &text,
+                    &client_req,
+                    doc_source,
+                    Some(&dirmgr.store),
+                    &mut changed,
+                );
+
+                if !changed {
+                    debug_assert!(outcome.is_err());
+                }
 
                 if let Some(source) = source {
                     if let Err(e) = &outcome {
@@ -477,7 +488,8 @@ pub(crate) async fn download<R: Runtime>(
         // state must never grow, then we'll need to move it inside.
         let mut now = {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
-            let load_result = load_once(&dirmgr, state).await;
+            let mut changed = false;
+            let load_result = load_once(&dirmgr, state, &mut changed).await;
             if let Err(e) = &load_result {
                 // If the load failed but the error can be blamed on a directory
                 // cache, do so.
@@ -718,7 +730,11 @@ mod test {
                 })
                 .collect()
         }
-        fn add_from_cache(&mut self, docs: HashMap<DocId, DocumentText>) -> Result<()> {
+        fn add_from_cache(
+            &mut self,
+            docs: HashMap<DocId, DocumentText>,
+            changed_out: &mut bool,
+        ) -> Result<()> {
             let mut changed = false;
             for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
@@ -729,6 +745,7 @@ mod test {
                 }
             }
             if changed {
+                *changed_out = true;
                 Ok(())
             } else {
                 Err(Error::NoChange(DocSource::LocalCache))
@@ -740,6 +757,7 @@ mod test {
             _request: &ClientRequest,
             _source: DocSource,
             _storage: Option<&Mutex<DynStore>>,
+            changed_out: &mut bool,
         ) -> Result<()> {
             let mut changed = false;
             for token in text.split_ascii_whitespace() {
@@ -753,6 +771,7 @@ mod test {
                 }
             }
             if changed {
+                *changed_out = true;
                 Ok(())
             } else {
                 Err(Error::NoChange(DocSource::LocalCache))
