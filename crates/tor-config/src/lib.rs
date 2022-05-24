@@ -178,6 +178,7 @@ macro_rules! impl_standard_builder {
         }
 
         #[test]
+        #[allow(non_snake_case)]
         fn [< test_impl_Default_for_ $Config >] () {
             #[allow(unused_variables)]
             let def = $Config::default();
