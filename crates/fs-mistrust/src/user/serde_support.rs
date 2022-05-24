@@ -1,11 +1,8 @@
 //! Serde support for [`TrustedUser`] and [`TrustedGroup`].
 
 use super::{TrustedGroup, TrustedUser};
-use serde::{de::Error as _, Deserialize, Serialize};
-use std::{
-    convert::{TryFrom, TryInto},
-    ffi::OsString,
-};
+use serde::{Deserialize, Serialize};
+use std::{convert::TryFrom, ffi::OsString};
 
 /// Helper type: when encoding or decoding a group or user, we do so as one of
 /// these.
@@ -14,7 +11,7 @@ use std::{
 /// by type or by keywords.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum Serde {
+pub(super) enum Serde {
     /// A boolean value.
     ///
     /// "false" means "no user", and is the same as "none".
@@ -131,28 +128,7 @@ macro_rules! implement_serde {
             })
         }
     }
-
-
-    impl Serialize for $struct {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            Serde::from(self.clone())
-                .serialize(serializer)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for $struct {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>
-        {
-            Serde::deserialize(deserializer)?
-                .try_into()
-                .map_err(|e: crate::Error| D::Error::custom(e.to_string()))
-        }
-    }}}
+}}
 
 implement_serde! { TrustedUser {
     None => ":none",

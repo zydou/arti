@@ -98,6 +98,11 @@ fn cur_groups() -> Vec<u32> {
 ///    correspond to `TrustedUser::Name("jane".into())`.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
 #[educe(Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "serde_support::Serde", into = "serde_support::Serde")
+)]
 #[non_exhaustive]
 pub enum TrustedUser {
     /// We won't treat any user as trusted.
@@ -168,6 +173,11 @@ impl TrustedUser {
 /// or the map `{ special = ":username" }`.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
 #[educe(Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(try_from = "serde_support::Serde", into = "serde_support::Serde")
+)]
 #[non_exhaustive]
 pub enum TrustedGroup {
     /// We won't treat any group as trusted
