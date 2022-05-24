@@ -116,7 +116,7 @@ impl Reconfigure {
 ///
 /// #[derive(Debug, Builder, Clone, Eq, PartialEq)]
 /// struct UnusualStruct { }
-/// impl_standard_builder! { UnusualStruct: !Deserialize }
+/// impl_standard_builder! { UnusualStruct: !Deserialize + !Builder }
 /// ```
 ///
 /// # Requirements
@@ -133,9 +133,13 @@ impl Reconfigure {
 ///    This should not be done for structs which are part of Arti's configuration,
 ///    but can be appropriate for other types that use [`derive_builder`].
 ///
+///  * `!Builder` suppresses the impl of the [`tor_config::load::Builder`](load::Builder) trait
+///    This will be necessary if the error from the builder is not [`ConfigBuildError`].
+///
 /// # Generates
 ///
 ///  * `impl Default for $Config`
+///  * `impl Builder for $ConfigBuilder`
 ///  * a self-test that the `Default` impl actually works
 ///  * a test that the `Builder` can be deserialized from an empty [`config::Config`],
 ///    and then built, and that the result is the same as the ordinary default.
@@ -149,19 +153,32 @@ macro_rules! impl_standard_builder {
         $Config:ty $(: $($options:tt)* )?
     } => { $crate::impl_standard_builder!{
         // ^Being processed format:
-        @ ( try_deserialize            ) $Config    :                 $( $( $options    )* )?
+        @ ( Builder                    )
+          ( try_deserialize            ) $Config    :                 $( $( $options    )* )?
         //  ~~~~~~~~~~~~~~~              ^^^^^^^    ^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // present iff not !Builder
         // present iff not !Deserialize  type      always present    options yet to be parsed
     } };
     // If !Deserialize is the next option, implement it by making $try_deserialize absent
     {
-        @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)? !Deserialize $( $options:tt )*
+        @ ( $($Builder        :ident)? )
+          ( $($try_deserialize:ident)? ) $Config:ty : $(+)? !Deserialize $( $options:tt )*
     } => {  $crate::impl_standard_builder!{
-        @ (                            ) $Config    :                    $( $options    )*
+        @ ( $($Builder              )? )
+          (                            ) $Config    :                    $( $options    )*
+    } };
+    // If !Builder is the next option, implement it by making $Builder absent
+    {
+        @ ( $($Builder        :ident)? )
+          ( $($try_deserialize:ident)? ) $Config:ty : $(+)? !Builder     $( $options:tt )*
+    } => {  $crate::impl_standard_builder!{
+        @ (                            )
+          ( $($try_deserialize      )? ) $Config    :                    $( $options    )*
     } };
     // Having parsed all options, produce output:
     {
-        @ ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
+        @ ( $($Builder        :ident)? )
+          ( $($try_deserialize:ident)? ) $Config:ty : $(+)?
     } => { $crate::paste!{
         impl $Config {
             /// Returns a fresh, default, builder
@@ -176,6 +193,15 @@ macro_rules! impl_standard_builder {
                 [< $Config Builder >]::default().build().unwrap()
             }
         }
+
+        $( // expands iff there was $Builder, which is always Builder
+            impl $crate::load::$Builder for [< $Config Builder >] {
+                type Built = $Config;
+                fn build(&self) -> Result<$Config, $crate::ConfigBuildError> {
+                    [< $Config Builder >]::build(self)
+                }
+            }
+        )?
 
         #[test]
         #[allow(non_snake_case)]
