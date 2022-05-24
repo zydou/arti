@@ -1,7 +1,5 @@
 //! Processing a config::Config into a validated configuration
 
-#![allow(dead_code)] // Will go away in a moment
-
 use std::collections::BTreeSet;
 use std::fmt::{self, Display};
 use std::iter;
@@ -9,6 +7,7 @@ use std::iter;
 use itertools::{chain, izip, Itertools};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
+use tracing::warn;
 
 use crate::ConfigBuildError;
 
@@ -97,7 +96,17 @@ define_for_tuples! { A - B C D E }
 ///
 /// This is public only because it appears in the [`Resolvable`] trait.
 /// You don't want to try to obtain one.
-pub struct ResolveContext(config::Config);
+pub struct ResolveContext {
+    ///
+    input: config::Config,
+
+    /// Paths ignored by all deserializations
+    ///
+    /// None means we haven't deserialized anything yet, ie means the universal set.
+    ///
+    /// Empty is used to disable this feature.
+    ignored: Option<BTreeSet<IgnoredKey>>,
+}
 
 /// Key in config file(s) ignored by all Resolvables we obtained
 ///
@@ -117,13 +126,65 @@ enum PathEntry {
     MapEntry(String),
 }
 
+///
+fn resolve_inner<T>(
+    input: config::Config,
+    want_ignored: bool,
+) -> Result<(T, Vec<IgnoredKey>), ConfigResolveError>
+where
+    T: Resolvable,
+{
+    let mut lc = ResolveContext {
+        input,
+        ignored: if want_ignored {
+            None
+        } else {
+            Some(BTreeSet::new())
+        },
+    };
+    let val = Resolvable::resolve(&mut lc)?;
+    let ign = lc
+        .ignored
+        .expect("all ignored, as if we had processed nothing")
+        .into_iter()
+        .filter(|ip| !ip.path.is_empty())
+        .collect_vec();
+    Ok((val, ign))
+}
+
 /// Deserialize and build overall configuration from config sources
+///
+/// Ignored config keys are reported as log warning messages.
+///
+/// Resolve the whole configuration in one go, using the `Resolvable` impl on `(A,B)`
+/// if necessary, so that ignored config key processing works correctly.
 pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
-    let mut lc = ResolveContext(input);
-    Resolvable::resolve(&mut lc)
+    let (val, ign) = resolve_inner(input, true)?;
+    for ign in ign {
+        warn!("ignored configuration key: {}", &ign);
+    }
+    Ok(val)
+}
+
+/// Deserialize and build overall configuration, reporting ignored keys in the return value
+pub fn resolve_and_ignored<T>(
+    input: config::Config,
+) -> Result<(T, Vec<IgnoredKey>), ConfigResolveError>
+where
+    T: Resolvable,
+{
+    resolve_inner(input, true)
+}
+
+/// Deserialize and build overall configuration, silently ignoring ignored config keys
+pub fn resolve_without_ignored<T>(input: config::Config) -> Result<T, ConfigResolveError>
+where
+    T: Resolvable,
+{
+    Ok(resolve_inner(input, false)?.0)
 }
 
 impl<T> Resolvable for T
@@ -132,7 +193,42 @@ where
     T::Builder: Builder<Built = Self>,
 {
     fn resolve(input: &mut ResolveContext) -> Result<T, ConfigResolveError> {
-        let builder: T::Builder = input.0.clone().try_deserialize()?;
+        let deser = input.input.clone();
+        let builder: T::Builder = {
+            // Recall that input.ignored == None
+            // conceptually means "all keys have been ignored, up to now".
+            // If input.ignored == Some(default()) then we don't bother tracking the
+            // ignored keys since we would intersect with the empty set.
+            // That is how this tracking is disabled when we want it to be.
+            let want_ignored = if let Some(oign) = &input.ignored {
+                !oign.is_empty()
+            } else {
+                true
+            };
+            let ret = if !want_ignored {
+                deser.try_deserialize()
+            } else {
+                let mut nign = BTreeSet::new();
+                let mut recorder = |path: serde_ignored::Path<'_>| {
+                    nign.insert(copy_path(&path));
+                };
+                let deser = serde_ignored::Deserializer::new(deser, &mut recorder);
+                let ret = serde::Deserialize::deserialize(deser);
+                if ret.is_err() {
+                    // If we got an error, tbe config might only have been partially processed,
+                    // so we might get false positives.  Disable the ignored tracking.
+                    nign = BTreeSet::new();
+                }
+                input.ignored = Some(if let Some(oign) = input.ignored.take() {
+                    intersect_ignored_lists(oign, nign)
+                } else {
+                    // input.ignored = universal set, so the intersection is nign
+                    nign
+                });
+                ret
+            };
+            ret?
+        };
         let built = (&builder).build()?;
         Ok(built)
     }
