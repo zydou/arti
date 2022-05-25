@@ -173,7 +173,7 @@ mod test {
         // the file.  Possibly that could be done with some kind of stunt Deserializer,
         // but it's not trivial.
         let (parsed, unrecognized): (ArtiCombinedConfig, _) =
-            tor_config::resolve_and_unrecognized(cfg).unwrap();
+            tor_config::resolve_return_unrecognized(cfg).unwrap();
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
         assert_eq!(&parsed, &default);

@@ -216,7 +216,7 @@ where
 }
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
-pub fn resolve_and_unrecognized<T>(
+pub fn resolve_return_unrecognized<T>(
     input: config::Config,
 ) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
 where
@@ -226,7 +226,7 @@ where
 }
 
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_without_unrecognized<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_unrecognized<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -544,9 +544,9 @@ mod test {
             .build()
             .unwrap();
 
-        let _: (TestConfigA, TestConfigB) = resolve_without_unrecognized(cfg.clone()).unwrap();
+        let _: (TestConfigA, TestConfigB) = resolve_ignore_unrecognized(cfg.clone()).unwrap();
 
-        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_and_unrecognized(cfg).unwrap();
+        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_return_unrecognized(cfg).unwrap();
 
         let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
 
