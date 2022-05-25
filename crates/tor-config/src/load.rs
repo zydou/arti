@@ -170,6 +170,8 @@ macro_rules! define_for_tuples {
 
     };
 }
+// We could avoid recursion by writing out A B C... several times (in a "triangle") but this
+// would make it tiresome and error-prone to extend the impl to longer tuples.
 define_for_tuples! { A - B C D E }
 
 /// Config resolution context, not used outside `tor_config::load`
