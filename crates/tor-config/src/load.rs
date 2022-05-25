@@ -211,7 +211,7 @@ define_for_tuples! { A - B C D E }
 /// This is public only because it appears in the [`Resolvable`] trait.
 /// You don't want to try to obtain one.
 pub struct ResolveContext {
-    ///
+    /// The input
     input: config::Config,
 
     /// Paths unrecognized by all deserializations
@@ -270,13 +270,18 @@ pub struct UnrecognizedKey {
 /// Element of an UnrecognizedKey
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 enum PathEntry {
+    /// Array index
     ///
     ArrayIndex(usize),
+    /// Map entry
+    ///
     /// string value is unquoted, needs quoting for display
     MapEntry(String),
 }
 
+/// Deserialize and build overall configuration from config sources
 ///
+/// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
     input: config::Config,
     want_unrecognized: bool,
