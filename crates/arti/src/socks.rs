@@ -18,6 +18,32 @@ use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
 use anyhow::{anyhow, Context, Result};
 
+/// Paylod to return when an HTTP connection arrive on a Socks port
+const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>This is a SOCKS Proxy, Not An HTTP Proxy</title>
+</head>
+<body>
+<h1>This is a SOCKs proxy, not an HTTP proxy.</h1>
+<p>
+It appears you have configured your web browser to use this Tor port as
+an HTTP proxy.
+</p><p>
+This is not correct: This port is configured as a SOCKS proxy, not
+an HTTP proxy. If you need an HTTP proxy tunnel, wait for Arti to
+add support for it in place of, or in addition to, socks_port.
+Please configure your client accordingly.
+</p>
+<p>
+See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-when-arti-get-a-user-documentation">https://gitlab.torproject.org/tpo/core/arti</a> for more information.
+</p>
+</body>
+</html>"#;
+
 /// Find out which kind of address family we can/should use for a
 /// given `SocksRequest`.
 pub fn stream_preference(req: &SocksRequest, addr: &str) -> StreamPrefs {
@@ -105,33 +131,11 @@ where
                     // To do so, check the first byte of the connection, which happen to be placed
                     // where SOCKs version field is.
                     if [b'C', b'D', b'G', b'H', b'O', b'P', b'T'].contains(&version) {
-                        let payload = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
-Content-Type: text/html; charset=utf-8
-
-<!DOCTYPE html>
-<html>
-<head>
-<title>This is a SOCKS Proxy, Not An HTTP Proxy</title>
-</head>
-<body>
-<h1>This is a SOCKs proxy, not an HTTP proxy.</h1>
-<p>
-It appears you have configured your web browser to use this Tor port as
-an HTTP proxy.
-</p><p>
-This is not correct: This port is configured as a SOCKS proxy, not
-an HTTP proxy. If you need an HTTP proxy tunnel, wait for Arti to
-add support for it in place of, or in addition to, socks_port.
-Please configure your client accordingly.
-</p>
-<p>
-See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-when-arti-get-a-user-documentation">https://gitlab.torproject.org/tpo/core/arti</a> for more information.
-</p>
-</body>
-</html>"#;
-                        socks_w.write_all(payload).await?;
+                        write_all_and_close(&mut socks_w, WRONG_PROTOCOL_PAYLOAD).await?;
                     }
                 }
+                // if there is an handshake error, don't reply with a Socks error, remote does not
+                // seems to speak Socks.
                 return Err(e.into());
             }
             Ok(Ok(action)) => action,
@@ -187,24 +191,10 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
                 .await;
             let tor_stream = match tor_stream {
                 Ok(s) => s,
-                // In the case of a stream timeout, send the right SOCKS reply.
-                Err(e) => {
-                    // The connect attempt has failed.  We need to
-                    // send an error.  See what kind it is.
-                    //
-                    let reply = match e.kind() {
-                        ErrorKind::RemoteNetworkTimeout => {
-                            request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
-                        }
-                        _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
-                    };
-                    write_all_and_close(&mut socks_w, &reply[..]).await?;
-                    return Err(anyhow!(e));
-                }
+                Err(e) => return reply_error(&mut socks_w, &request, e).await,
             };
             // Okay, great! We have a connection over the Tor network.
             info!("Got a stream for {}:{}", sensitive(&addr), port);
-            // TODO: Should send a SOCKS reply if something fails. See #258.
 
             // Send back a SOCKS response, telling the client that it
             // successfully connected.
@@ -221,13 +211,16 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
         SocksCmd::RESOLVE => {
             // We've been asked to perform a regular hostname lookup.
             // (This is a tor-specific SOCKS extension.)
-            let addrs = tor_client.resolve_with_prefs(&addr, &prefs).await?;
+            let addrs = match tor_client.resolve_with_prefs(&addr, &prefs).await {
+                Ok(addrs) => addrs,
+                Err(e) => return reply_error(&mut socks_w, &request, e).await,
+            };
             if let Some(addr) = addrs.first() {
                 let reply = request.reply(
                     tor_socksproto::SocksStatus::SUCCEEDED,
                     Some(&SocksAddr::Ip(*addr)),
                 );
-                write_all_and_flush(&mut socks_w, &reply[..]).await?;
+                write_all_and_close(&mut socks_w, &reply[..]).await?;
             }
         }
         SocksCmd::RESOLVE_PTR => {
@@ -242,13 +235,16 @@ See <a href="https://gitlab.torproject.org/tpo/core/arti/#todo-need-to-change-wh
                     return Err(anyhow!(e));
                 }
             };
-            let hosts = tor_client.resolve_ptr_with_prefs(addr, &prefs).await?;
+            let hosts = match tor_client.resolve_ptr_with_prefs(addr, &prefs).await {
+                Ok(hosts) => hosts,
+                Err(e) => return reply_error(&mut socks_w, &request, e).await,
+            };
             if let Some(host) = hosts.into_iter().next() {
-                let reply = request.reply(
-                    tor_socksproto::SocksStatus::SUCCEEDED,
-                    Some(&SocksAddr::Hostname(host.try_into()?)),
-                );
-                write_all_and_flush(&mut socks_w, &reply[..]).await?;
+                // this conversion should never fail, legal DNS names len must be <= 253 but Socks
+                // names can be up to 255 chars.
+                let hostname = SocksAddr::Hostname(host.try_into()?);
+                let reply = request.reply(tor_socksproto::SocksStatus::SUCCEEDED, Some(&hostname));
+                write_all_and_close(&mut socks_w, &reply[..]).await?;
             }
         }
         _ => {
@@ -293,6 +289,29 @@ where
         .close()
         .await
         .context("Error while closing SOCKS stream")
+}
+
+/// Reply a Socks error based on an arti-client Error and close the stream.
+/// Returns the error provided in parameter
+async fn reply_error<W>(
+    writer: &mut W,
+    request: &SocksRequest,
+    error: arti_client::Error,
+) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    // We need to send an error. See what kind it is.
+    let reply = match error.kind() {
+        ErrorKind::RemoteNetworkTimeout => {
+            request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
+        }
+        _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
+    };
+    // if writing back the error fail, still return the original error
+    let _ = write_all_and_close(writer, &reply[..]).await;
+
+    Err(anyhow!(error))
 }
 
 /// Copy all the data from `reader` into `writer` until we encounter an EOF or
