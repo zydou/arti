@@ -159,7 +159,12 @@ where
     for (path, must_read) in files {
         let required = must_read == &MustRead::MustRead;
 
-        match mistrust.verifier().require_file().check(&path) {
+        match mistrust
+            .verifier()
+            .permit_readable()
+            .require_file()
+            .check(&path)
+        {
             Ok(()) => {}
             Err(fs_mistrust::Error::NotFound(_)) if !required => {}
             Err(e) => return Err(ConfigError::Foreign(e.into())),
