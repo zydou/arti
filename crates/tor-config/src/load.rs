@@ -94,7 +94,7 @@ pub trait Builder {
 /// Multiple config collections can be resolved from the same configuartion,
 /// via the implementation of `Resolvable` on tuples of `Resolvable`s.
 /// Use this rather than `#[serde(flatten)]`; the latter prevents useful introspection
-/// (necessary for reporting ignored configuration keys, and testing).
+/// (necessary for reporting unrecognized configuration keys, and testing).
 ///
 /// (The `resolve` method will be called only from within the `tor_config::load` module.)
 pub trait Resolvable: Sized {
@@ -146,24 +146,24 @@ pub struct ResolveContext {
     ///
     input: config::Config,
 
-    /// Paths ignored by all deserializations
+    /// Paths unrecognized by all deserializations
     ///
     /// None means we haven't deserialized anything yet, ie means the universal set.
     ///
     /// Empty is used to disable this feature.
-    ignored: Option<BTreeSet<IgnoredKey>>,
+    unrecognized: Option<BTreeSet<UnrecognizedKey>>,
 }
 
-/// Key in config file(s) ignored by all Resolvables we obtained
+/// Key in config file(s) unrecognized by all Resolvables we obtained
 ///
 /// `Display`s in an approximation to TOML format.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct IgnoredKey {
+pub struct UnrecognizedKey {
     /// Can be empty only before returned from this module
     path: Vec<PathEntry>,
 }
 
-/// Element of an IgnoredKey
+/// Element of an UnrecognizedKey
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 enum PathEntry {
     ///
@@ -175,14 +175,14 @@ enum PathEntry {
 ///
 fn resolve_inner<T>(
     input: config::Config,
-    want_ignored: bool,
-) -> Result<(T, Vec<IgnoredKey>), ConfigResolveError>
+    want_unrecognized: bool,
+) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
 where
     T: Resolvable,
 {
     let mut lc = ResolveContext {
         input,
-        ignored: if want_ignored {
+        unrecognized: if want_unrecognized {
             None
         } else {
             Some(BTreeSet::new())
@@ -190,8 +190,8 @@ where
     };
     let val = Resolvable::resolve(&mut lc)?;
     let ign = lc
-        .ignored
-        .expect("all ignored, as if we had processed nothing")
+        .unrecognized
+        .expect("all unrecognized, as if we had processed nothing")
         .into_iter()
         .filter(|ip| !ip.path.is_empty())
         .collect_vec();
@@ -200,33 +200,33 @@ where
 
 /// Deserialize and build overall configuration from config sources
 ///
-/// Ignored config keys are reported as log warning messages.
+/// Unrecognized config keys are reported as log warning messages.
 ///
 /// Resolve the whole configuration in one go, using the `Resolvable` impl on `(A,B)`
-/// if necessary, so that ignored config key processing works correctly.
+/// if necessary, so that unrecognized config key processing works correctly.
 pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
     let (val, ign) = resolve_inner(input, true)?;
     for ign in ign {
-        warn!("ignored configuration key: {}", &ign);
+        warn!("unrecognized configuration key: {}", &ign);
     }
     Ok(val)
 }
 
-/// Deserialize and build overall configuration, reporting ignored keys in the return value
-pub fn resolve_and_ignored<T>(
+/// Deserialize and build overall configuration, reporting unrecognized keys in the return value
+pub fn resolve_and_unrecognized<T>(
     input: config::Config,
-) -> Result<(T, Vec<IgnoredKey>), ConfigResolveError>
+) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
 where
     T: Resolvable,
 {
     resolve_inner(input, true)
 }
 
-/// Deserialize and build overall configuration, silently ignoring ignored config keys
-pub fn resolve_without_ignored<T>(input: config::Config) -> Result<T, ConfigResolveError>
+/// Deserialize and build overall configuration, silently ignoring unrecognized config keys
+pub fn resolve_without_unrecognized<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -241,17 +241,17 @@ where
     fn resolve(input: &mut ResolveContext) -> Result<T, ConfigResolveError> {
         let deser = input.input.clone();
         let builder: T::Builder = {
-            // Recall that input.ignored == None
-            // conceptually means "all keys have been ignored, up to now".
-            // If input.ignored == Some(default()) then we don't bother tracking the
-            // ignored keys since we would intersect with the empty set.
+            // Recall that input.unrecognized == None
+            // conceptually means "all keys have been unrecognized, up to now".
+            // If input.unrecognized == Some(default()) then we don't bother tracking the
+            // unrecognized keys since we would intersect with the empty set.
             // That is how this tracking is disabled when we want it to be.
-            let want_ignored = if let Some(oign) = &input.ignored {
+            let want_unrecognized = if let Some(oign) = &input.unrecognized {
                 !oign.is_empty()
             } else {
                 true
             };
-            let ret = if !want_ignored {
+            let ret = if !want_unrecognized {
                 deser.try_deserialize()
             } else {
                 let mut nign = BTreeSet::new();
@@ -262,13 +262,13 @@ where
                 let ret = serde::Deserialize::deserialize(deser);
                 if ret.is_err() {
                     // If we got an error, tbe config might only have been partially processed,
-                    // so we might get false positives.  Disable the ignored tracking.
+                    // so we might get false positives.  Disable the unrecognized tracking.
                     nign = BTreeSet::new();
                 }
-                input.ignored = Some(if let Some(oign) = input.ignored.take() {
-                    intersect_ignored_lists(oign, nign)
+                input.unrecognized = Some(if let Some(oign) = input.unrecognized.take() {
+                    intersect_unrecognized_lists(oign, nign)
                 } else {
-                    // input.ignored = universal set, so the intersection is nign
+                    // input.unrecognized = universal set, so the intersection is nign
                     nign
                 });
                 ret
@@ -280,8 +280,8 @@ where
     }
 }
 
-/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `IgnoredKey`
-fn copy_path(mut path: &serde_ignored::Path) -> IgnoredKey {
+/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `UnrecognizedKey`
+fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
     use serde_ignored::Path as SiP;
     use PathEntry as PE;
 
@@ -299,17 +299,17 @@ fn copy_path(mut path: &serde_ignored::Path) -> IgnoredKey {
         descend.extend(ent);
     }
     descend.reverse();
-    IgnoredKey { path: descend }
+    UnrecognizedKey { path: descend }
 }
 
 /// Computes the intersection, resolving ignorances at different depths
 ///
 /// Eg if `a` contains `application.wombat` and `b` contains `application`,
 /// we need to return `application.wombat`.
-fn intersect_ignored_lists(
-    al: BTreeSet<IgnoredKey>,
-    bl: BTreeSet<IgnoredKey>,
-) -> BTreeSet<IgnoredKey> {
+fn intersect_unrecognized_lists(
+    al: BTreeSet<UnrecognizedKey>,
+    bl: BTreeSet<UnrecognizedKey>,
+) -> BTreeSet<UnrecognizedKey> {
     //eprintln!("INTERSECT:");
     //for ai in &al { eprintln!("A: {}", ai); }
     //for bi in &bl { eprintln!("B: {}", bi); }
@@ -386,7 +386,7 @@ fn intersect_ignored_lists(
     output
 }
 
-impl Display for IgnoredKey {
+impl Display for UnrecognizedKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use PathEntry as PE;
         if self.path.is_empty() {
@@ -432,9 +432,9 @@ mod test {
     use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
-    fn parse_test_set(l: &[&str]) -> BTreeSet<IgnoredKey> {
+    fn parse_test_set(l: &[&str]) -> BTreeSet<UnrecognizedKey> {
         l.iter()
-            .map(|s| IgnoredKey {
+            .map(|s| UnrecognizedKey {
                 path: s
                     .split('.')
                     .map(|s| PathEntry::MapEntry(s.into()))
@@ -445,9 +445,9 @@ mod test {
 
     #[test]
     #[rustfmt::skip] // preserve the layout so we can match vertically by eye
-    fn test_intersect_ignored_list() {
+    fn test_intersect_unrecognized_list() {
         let chk = |a, b, exp| {
-            let got = intersect_ignored_lists(parse_test_set(a), parse_test_set(b));
+            let got = intersect_unrecognized_lists(parse_test_set(a), parse_test_set(b));
             let exp = parse_test_set(exp);
             assert_eq! { got, exp };
         };
@@ -493,7 +493,7 @@ mod test {
     #[test]
     fn test_display_key() {
         let chk = |exp, path: &[PathEntry]| {
-            assert_eq! { IgnoredKey { path: path.into() }.to_string(), exp };
+            assert_eq! { UnrecognizedKey { path: path.into() }.to_string(), exp };
         };
         let me = |s: &str| PathEntry::MapEntry(s.into());
         use PathEntry::ArrayIndex as AI;
@@ -544,9 +544,9 @@ mod test {
             .build()
             .unwrap();
 
-        let _: (TestConfigA, TestConfigB) = resolve_without_ignored(cfg.clone()).unwrap();
+        let _: (TestConfigA, TestConfigB) = resolve_without_unrecognized(cfg.clone()).unwrap();
 
-        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_and_ignored(cfg).unwrap();
+        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_and_unrecognized(cfg).unwrap();
 
         let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
 

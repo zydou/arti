@@ -58,7 +58,7 @@ pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
-pub use load::{resolve, resolve_and_ignored, resolve_without_ignored};
+pub use load::{resolve, resolve_and_unrecognized, resolve_without_unrecognized};
 pub use mut_cfg::MutCfg;
 pub use paste::paste;
 pub use path::{CfgPath, CfgPathError};
