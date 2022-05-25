@@ -124,6 +124,22 @@ pub trait Builder {
 /// (The `resolve` method will be called only from within the `tor_config::load` module.)
 pub trait Resolvable: Sized {
     /// Deserialize and build from a configuration
+    //
+    // Implementations must do the following:
+    //
+    //  1. Deserializes the input (cloning it to be able to do this)
+    //     into the `Builder`.
+    //
+    //  2. Having used `serde_ignored` to detect unrecognized keys,
+    //     intersects those with the unrecognized keys recorded in the context.
+    //
+    //  3. Calls `build` on the `Builder` to get `Self`.
+    //
+    // We provide impls for TopLevels, and tuples of Resolvable.
+    //
+    // Cannot be implemented outside this module (except eg as a wrapper or something),
+    // because that would somehow involve creating `Self` from `ResolveContext`
+    // but `ResolveContext` is completely opaque outside this module.
     fn resolve(input: &mut ResolveContext) -> Result<Self, ConfigResolveError>;
 }
 
@@ -146,9 +162,9 @@ pub trait TopLevel {
 }
 
 /// `impl Resolvable for (A,B..) where A: Resolvable, B: Resolvable ...`
-/// 
+///
 /// The implementation simply calls `Resolvable::resolve` for each output tuple member.
-/// 
+///
 /// `define_for_tuples!{ A B - C D.. }`
 ///
 /// expands to
