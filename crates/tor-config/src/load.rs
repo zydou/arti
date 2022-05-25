@@ -73,7 +73,7 @@ pub enum ConfigResolveError {
 
 /// A type that can be built from a builder via a build method
 pub trait Builder {
-    ///
+    /// The type that this builder constructs
     type Built;
     /// Build into a `Built`
     ///
@@ -84,7 +84,7 @@ pub trait Builder {
 /// Collection of configuration settings that can be deserialized and then built
 ///
 /// *Do not implement directly.*
-/// Instead, implement [`TopLevel`]: this engages the blanket impl
+/// Instead, implement [`TopLevel`]: doing so engages the blanket impl
 /// for (loosely) `TopLevel + Builder`.
 ///
 /// Each `Resolvable` corresponds to one or more configuration consumers.
