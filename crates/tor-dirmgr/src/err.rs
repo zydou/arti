@@ -99,10 +99,6 @@ pub enum Error {
     /// A problem with file permissions on our cache directory.
     #[error("Bad permissions in cache directory")]
     CachePermissions(#[from] fs_mistrust::Error),
-    /// Applying a set of documents from a directory produced no change in our
-    /// state.
-    #[error("Documents from {0} produced no change in directory state")]
-    NoChange(DocSource),
     /// Unable to spawn task
     #[error("unable to spawn {spawning}")]
     Spawn {
@@ -189,8 +185,7 @@ impl Error {
             | Error::SignatureError(_)
             | Error::IOError(_)
             | Error::ConsensusInvalid { .. }
-            | Error::UntimelyObject(_)
-            | Error::NoChange(_) => true,
+            | Error::UntimelyObject(_) => true,
 
             // These errors cannot come from a directory cache.
             Error::NoDownloadSupport
@@ -258,8 +253,7 @@ impl Error {
             | Error::DirClientError(_)
             | Error::SignatureError(_)
             | Error::IOError(_)
-            | Error::NetDocError { .. }
-            | Error::NoChange(_) => BootstrapAction::Nonfatal,
+            | Error::NetDocError { .. } => BootstrapAction::Nonfatal,
 
             Error::ConsensusInvalid { .. } | Error::CantAdvanceState => BootstrapAction::Reset,
 
@@ -328,10 +322,6 @@ impl HasKind for Error {
                 DocSource::DirServer { .. } => EK::TorProtocolViolation,
             },
             E::ConsensusInvalid { source, .. } => match source {
-                DocSource::LocalCache => EK::CacheCorrupted,
-                DocSource::DirServer { .. } => EK::TorProtocolViolation,
-            },
-            E::NoChange(source) => match source {
                 DocSource::LocalCache => EK::CacheCorrupted,
                 DocSource::DirServer { .. } => EK::TorProtocolViolation,
             },

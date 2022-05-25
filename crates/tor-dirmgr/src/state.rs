@@ -281,7 +281,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         changed: &mut bool,
     ) -> Result<()> {
         let text = match docs.into_iter().next() {
-            None => return Err(Error::NoChange(DocSource::LocalCache)),
+            None => return Ok(()),
             Some((
                 DocId::LatestConsensus {
                     flavor: ConsensusFlavor::Microdesc,
@@ -580,9 +580,8 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     fn add_from_cache(
         &mut self,
         docs: HashMap<DocId, DocumentText>,
-        changed_out: &mut bool,
+        changed: &mut bool,
     ) -> Result<()> {
-        let mut changed = false;
         // Here we iterate over the documents we want, taking them from
         // our input and remembering them.
         let source = DocSource::LocalCache;
@@ -595,7 +594,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     Ok((cert, _text)) => {
                         self.missing_certs.remove(cert.key_ids());
                         self.certs.push(cert);
-                        changed = true;
+                        *changed = true;
                     }
                     Err(e) => {
                         nonfatal_error.get_or_insert(e);
@@ -603,13 +602,10 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                 }
             }
         }
-        if changed {
-            *changed_out = true;
+        if *changed {
             self.try_checking_sigs()?;
-            opt_err_to_result(nonfatal_error)
-        } else {
-            Err(Error::NoChange(DocSource::LocalCache))
         }
+        opt_err_to_result(nonfatal_error)
     }
     fn add_from_download(
         &mut self,
@@ -617,7 +613,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         request: &ClientRequest,
         source: DocSource,
         storage: Option<&Mutex<DynStore>>,
-        changed_out: &mut bool,
+        changed: &mut bool,
     ) -> Result<()> {
         let asked_for: HashSet<_> = match request {
             ClientRequest::AuthCert(a) => a.keys().collect(),
@@ -651,7 +647,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         // We want to exit early if we aren't saving any certificates.
         if newcerts.is_empty() {
-            return Err(nonfatal_error.unwrap_or(Error::NoChange(source)));
+            return opt_err_to_result(nonfatal_error);
         }
 
         if let Some(store) = storage {
@@ -666,23 +662,19 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
         // Remember the certificates in this state, and remove them
         // from our list of missing certs.
-        let mut changed = false;
         for (cert, _) in newcerts {
             let ids = cert.key_ids();
             if self.missing_certs.contains(ids) {
                 self.missing_certs.remove(ids);
                 self.certs.push(cert);
-                changed = true;
+                *changed = true;
             }
         }
 
-        if changed {
-            *changed_out = true;
+        if *changed {
             self.try_checking_sigs()?;
-            opt_err_to_result(nonfatal_error)
-        } else {
-            Err(nonfatal_error.unwrap_or(Error::NoChange(source)))
         }
+        opt_err_to_result(nonfatal_error)
     }
 
     fn advance(self: Box<Self>) -> Box<dyn DirState> {
@@ -924,12 +916,7 @@ impl<R: Runtime> GetMicrodescsState<R> {
     }
 
     /// Add a bunch of microdescriptors to the in-progress netdir.
-    fn register_microdescs<I>(
-        &mut self,
-        mds: I,
-        source: &DocSource,
-        changed_out: &mut bool,
-    ) -> Result<()>
+    fn register_microdescs<I>(&mut self, mds: I, _source: &DocSource, changed: &mut bool)
     where
         I: IntoIterator<Item = Microdesc>,
     {
@@ -939,21 +926,14 @@ impl<R: Runtime> GetMicrodescsState<R> {
             .filter_map(|m| self.filter.filter_md(m).ok())
             .collect();
         let is_partial = matches!(self.partial, PendingNetDir::Partial(..));
-        let mut changed = false;
         for md in mds {
             if is_partial {
                 self.newly_listed.push(*md.digest());
             }
             self.partial.add_microdesc(md);
-            changed = true;
+            *changed = true;
         }
         self.partial.upgrade_if_necessary();
-        if changed {
-            *changed_out = true;
-            Ok(())
-        } else {
-            Err(Error::NoChange(source.clone()))
-        }
     }
 }
 
@@ -1035,7 +1015,8 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             }
         }
 
-        self.register_microdescs(microdescs, &DocSource::LocalCache, changed)
+        self.register_microdescs(microdescs, &DocSource::LocalCache, changed);
+        Ok(())
     }
 
     fn add_from_download(
@@ -1099,11 +1080,8 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
             }
         }
 
-        if let Err(reg_err) =
-            self.register_microdescs(new_mds.into_iter().map(|(_, md)| md), &source, changed)
-        {
-            nonfatal_err.get_or_insert(reg_err);
-        }
+        self.register_microdescs(new_mds.into_iter().map(|(_, md)| md), &source, changed);
+
         opt_err_to_result(nonfatal_err)
     }
     fn advance(self: Box<Self>) -> Box<dyn DirState> {

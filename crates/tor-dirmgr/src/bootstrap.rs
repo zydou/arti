@@ -317,7 +317,7 @@ async fn load_once<R: Runtime>(
     let missing = state.missing_docs();
     let outcome: Result<()> = if missing.is_empty() {
         trace!("Found no missing documents; can't advance current state");
-        Err(Error::NoChange(DocSource::LocalCache))
+        Ok(())
     } else {
         trace!(
             "Found {} missing documents; trying to load them",
@@ -359,9 +359,6 @@ pub(crate) async fn load<R: Runtime>(
         }
 
         if let Err(e) = outcome {
-            if matches!(e, Error::NoChange(_)) {
-                debug_assert!(!changed);
-            }
             match e.bootstrap_action() {
                 BootstrapAction::Nonfatal => {
                     debug!("Recoverable error loading from cache: {}", e);
@@ -733,23 +730,17 @@ mod test {
         fn add_from_cache(
             &mut self,
             docs: HashMap<DocId, DocumentText>,
-            changed_out: &mut bool,
+            changed: &mut bool,
         ) -> Result<()> {
-            let mut changed = false;
             for id in docs.keys() {
                 if let DocId::Microdesc(id) = id {
                     if self.got_items.get(id) == Some(&false) {
                         self.got_items.insert(*id, true);
-                        changed = true;
+                        *changed = true;
                     }
                 }
             }
-            if changed {
-                *changed_out = true;
-                Ok(())
-            } else {
-                Err(Error::NoChange(DocSource::LocalCache))
-            }
+            Ok(())
         }
         fn add_from_download(
             &mut self,
@@ -757,25 +748,19 @@ mod test {
             _request: &ClientRequest,
             _source: DocSource,
             _storage: Option<&Mutex<DynStore>>,
-            changed_out: &mut bool,
+            changed: &mut bool,
         ) -> Result<()> {
-            let mut changed = false;
             for token in text.split_ascii_whitespace() {
                 if let Ok(v) = hex::decode(token) {
                     if let Ok(id) = v.try_into() {
                         if self.got_items.get(&id) == Some(&false) {
                             self.got_items.insert(id, true);
-                            changed = true;
+                            *changed = true;
                         }
                     }
                 }
             }
-            if changed {
-                *changed_out = true;
-                Ok(())
-            } else {
-                Err(Error::NoChange(DocSource::LocalCache))
-            }
+            Ok(())
         }
         fn dl_config(&self) -> DownloadSchedule {
             DownloadSchedule::default()
