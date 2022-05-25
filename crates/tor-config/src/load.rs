@@ -388,7 +388,7 @@ fn intersect_unrecognized_lists(
             .map(|item| &item.path[0..shorter_len])
             .all_equal()
         {
-            // They both have the same prefix.   earlier_i is the shorter one.
+            // One is a prefix of the other.   earlier_i is the shorter one.
             let shorter_item = items[earlier_i];
             let prefix = shorter_item.path.clone(); // borrowck can't prove disjointness
 
