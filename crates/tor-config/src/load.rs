@@ -49,6 +49,7 @@
 use std::collections::BTreeSet;
 use std::fmt::{self, Display};
 use std::iter;
+use std::mem;
 
 use itertools::{chain, izip, Itertools};
 use serde::de::DeserializeOwned;
@@ -151,7 +152,43 @@ pub struct ResolveContext {
     /// None means we haven't deserialized anything yet, ie means the universal set.
     ///
     /// Empty is used to disable this feature.
-    unrecognized: Option<BTreeSet<UnrecognizedKey>>,
+    unrecognized: UnrecognizedKeys,
+}
+
+/// Keys we have *not* recognized so far
+///
+/// Initially `AllKeys`, since we haven't recognized any.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum UnrecognizedKeys {
+    /// No keys have yet been recognized, so everything in the config is unrecognized
+    AllKeys,
+
+    /// The keys which remain unrecognized by any consumer
+    ///
+    /// If this is empty, we do not (need to) do any further tracking.
+    These(BTreeSet<UnrecognizedKey>),
+}
+use UnrecognizedKeys as UK;
+
+impl UnrecognizedKeys {
+    /// Does it represent the empty set
+    fn is_empty(&self) -> bool {
+        match self {
+            UK::AllKeys => false,
+            UK::These(ign) => ign.is_empty(),
+        }
+    }
+
+    /// Update in place, intersecting with `other`
+    fn intersect_with(&mut self, other: BTreeSet<UnrecognizedKey>) {
+        match self {
+            UK::AllKeys => *self = UK::These(other),
+            UK::These(self_) => {
+                let tign = mem::replace(self_, BTreeSet::default());
+                *self_ = intersect_unrecognized_lists(tign, other);
+            }
+        }
+    }
 }
 
 /// Key in config file(s) unrecognized by all Resolvables we obtained
@@ -183,18 +220,21 @@ where
     let mut lc = ResolveContext {
         input,
         unrecognized: if want_unrecognized {
-            None
+            UK::AllKeys
         } else {
-            Some(BTreeSet::new())
+            UK::These(BTreeSet::new())
         },
     };
     let val = Resolvable::resolve(&mut lc)?;
-    let ign = lc
-        .unrecognized
-        .expect("all unrecognized, as if we had processed nothing")
-        .into_iter()
-        .filter(|ip| !ip.path.is_empty())
-        .collect_vec();
+
+    let ign = match lc.unrecognized {
+        UK::AllKeys => panic!("all unrecognized, as if we had processed nothing"),
+        UK::These(ign) => ign,
+    }
+    .into_iter()
+    .filter(|ip| !ip.path.is_empty())
+    .collect_vec();
+
     Ok((val, ign))
 }
 
@@ -241,16 +281,10 @@ where
     fn resolve(input: &mut ResolveContext) -> Result<T, ConfigResolveError> {
         let deser = input.input.clone();
         let builder: T::Builder = {
-            // Recall that input.unrecognized == None
-            // conceptually means "all keys have been unrecognized, up to now".
-            // If input.unrecognized == Some(default()) then we don't bother tracking the
+            // If input.unrecognized.is_empty() then we don't bother tracking the
             // unrecognized keys since we would intersect with the empty set.
             // That is how this tracking is disabled when we want it to be.
-            let want_unrecognized = if let Some(oign) = &input.unrecognized {
-                !oign.is_empty()
-            } else {
-                true
-            };
+            let want_unrecognized = !input.unrecognized.is_empty();
             let ret = if !want_unrecognized {
                 deser.try_deserialize()
             } else {
@@ -265,12 +299,7 @@ where
                     // so we might get false positives.  Disable the unrecognized tracking.
                     nign = BTreeSet::new();
                 }
-                input.unrecognized = Some(if let Some(oign) = input.unrecognized.take() {
-                    intersect_unrecognized_lists(oign, nign)
-                } else {
-                    // input.unrecognized = universal set, so the intersection is nign
-                    nign
-                });
+                input.unrecognized.intersect_with(nign);
                 ret
             };
             ret?
