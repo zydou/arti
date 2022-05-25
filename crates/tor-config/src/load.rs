@@ -335,6 +335,19 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
 ///
 /// Eg if `a` contains `application.wombat` and `b` contains `application`,
 /// we need to return `application.wombat`.
+///
+/// # Formally
+///
+/// A configuration key (henceforth "key") is a sequence of `PathEntry`,
+/// interpreted as denoting a place in a tree-like hierarchy.
+///
+/// Each input `BTreeSet` denotes a subset of the configuration key space.
+/// Any key in the set denotes itself, but also all possible keys which have it as a prefix.
+/// We say a s set is "minimal" if it doesn't have entries made redundant by this rule.
+///
+/// This function computes a minimal intersection of two minimal inputs.
+/// If the inputs are not minimal, the output may not be either
+/// (although `serde_ignored` gives us minimal sets, so that case is not important).
 fn intersect_unrecognized_lists(
     al: BTreeSet<UnrecognizedKey>,
     bl: BTreeSet<UnrecognizedKey>,
@@ -351,15 +364,42 @@ fn intersect_unrecognized_lists(
     let mut inputs: [_; 2] = [al, bl].map(|input| input.into_iter().peekable());
     let mut output = BTreeSet::new();
 
-    // The BTreeSets produce items in sort order.  Peek one from each, while we can.
+    // The BTreeSets produce items in sort order.
+    //
+    // We maintain the following invariants (valid at the top of the loop):
+    //
+    //   For every possible key *strictly earlier* than those remaining in either input,
+    //   the output contains the key iff it was in the intersection.
+    //
+    //   No other keys appear in the output.
+    //
+    // We peek at the next two items.  The possible cases are:
+    //
+    //   0. One or both inputs is used up.  In that case none of any remaining input
+    //      can be in the intersection and we are done.
+    //
+    //   1. The two inputs have the same next item.  In that case the item is in the
+    //      intersection.  If the inputs are minimal, no children of that item can appear
+    //      in either input, so we can make our own output minimal without thinking any
+    //      more about this item from the point of view of either list.
+    //
+    //   2. One of the inputs is a prefix of the other.  In this case the longer item is
+    //      in the intersection - as are all subsequent items from the same input which
+    //      also share that prefix.  Then, we must discard the shorter item (which denotes
+    //      the whole subspace of which only part is in the intersection).
+    //
+    //   3. Otherwise, the earlier item is definitely in the intersection and
+    //      we can munch it.
+
+    // Peek one from each, while we can.
     while let Ok(items) = {
         // Ideally we would use array::try_map but it's nightly-only
         <[_; 2]>::try_from(
             inputs
                 .iter_mut()
                 .map(|input: &'_ mut _| input.peek())
-                .flatten()
-                .collect::<Vec<_>>(),
+                .flatten() // peek gave us Option, so this deletes the Nones
+                .collect::<Vec<_>>(), // if we had 2 Somes we can make a [_; 2] from this
         )
     } {
         let shorter_len = items.iter().map(|i| i.path.len()).min().expect("wrong #");
@@ -372,6 +412,8 @@ fn intersect_unrecognized_lists(
         let later_i = 1 - earlier_i;
 
         if items.iter().all_equal() {
+            // Case 0. above.
+            //
             // Take the identical items off the front of both iters,
             // and put one into the output (the last will do nicely).
             //dbg!(items);
@@ -387,7 +429,7 @@ fn intersect_unrecognized_lists(
             .map(|item| &item.path[0..shorter_len])
             .all_equal()
         {
-            // One is a prefix of the other.   earlier_i is the shorter one.
+            // Case 2.  One is a prefix of the other.   earlier_i is the shorter one.
             let shorter_item = items[earlier_i];
             let prefix = shorter_item.path.clone(); // borrowck can't prove disjointness
 
@@ -404,11 +446,12 @@ fn intersect_unrecognized_lists(
             // We've "used up" the shorter item.
             let _ = inputs[earlier_i].next().expect("but peeked");
         } else {
-            // The items are just different.  Eat the earlier one.
+            // Case 3.  The items are just different.  Eat the earlier one.
             //dbg!(items, earlier_i);
             let _ = inputs[earlier_i].next().expect("but peeked");
         }
     }
+    // Case 0.  At least one of the lists is empty, giving Err() from the array
 
     //for oi in &ol { eprintln!("O: {}", oi); }
     output
