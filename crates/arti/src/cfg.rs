@@ -117,7 +117,9 @@ impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
 }
 
-/// Convenience alias
+/// Convenience alias for the config for a whole `arti` program
+///
+/// Used primarily as a type parameter on calls to [`tor_config::resolve`]
 pub type ArtiCombinedConfig = (ArtiConfig, TorClientConfig);
 
 impl ArtiConfig {
