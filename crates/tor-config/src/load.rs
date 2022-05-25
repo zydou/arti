@@ -600,6 +600,9 @@ mod test {
             let got = intersect_unrecognized_lists(parse_test_set(a), parse_test_set(b));
             let exp = parse_test_set(exp);
             assert_eq! { got, exp };
+
+            let got = intersect_unrecognized_lists(parse_test_set(b), parse_test_set(a));
+            assert_eq! { got, exp };
         };
 
         chk(&[ "a", "b",     ],
