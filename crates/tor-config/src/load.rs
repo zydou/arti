@@ -546,7 +546,8 @@ mod test {
 
         let _: (TestConfigA, TestConfigB) = resolve_ignore_unrecognized(cfg.clone()).unwrap();
 
-        let ((a, b), ign): ((TestConfigA, TestConfigB), _) = resolve_return_unrecognized(cfg).unwrap();
+        let ((a, b), ign): ((TestConfigA, TestConfigB), _) =
+            resolve_return_unrecognized(cfg).unwrap();
 
         let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
 
