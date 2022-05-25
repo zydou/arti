@@ -10,6 +10,20 @@
 //! This is step 3 of the overall config processing,
 //! as described in the [crate-level documentation](crate).
 //!
+//! # Starting points
+//!
+//! To use this, you will need to:
+//!
+//!   * `#[derive(Builder)]` and [`impl_standard_builder`]
+//!     for all of your configuration structures,
+//!     using `#[sub_builder]` etc. sa appropriate,
+//!     and making your builders [`Deserialize`](serde::Deserialize).
+//!
+//!   * [`impl TopLevel`](TopLevel) for your *top level* structures (only).
+//!
+//!   * Call [`resolve`] (or one of its variants) with a `config::Config`,
+//!     to obtain your top-level configuration(s).
+//!
 //! # Example
 //!
 //! ```
@@ -119,6 +133,11 @@ pub trait Resolvable: Sized {
 ///
 /// Implementing this trait only for top-level configurations,
 /// which are to be parsed at the root level of a (TOML) config file taxonomy.
+///
+/// This trait exists to:
+///
+///  * Mark the toplevel configuration structures as suitable for use with [`resolve`]
+///  * Provide the type of the `Builder` for use by Rust generic code
 pub trait TopLevel {
     /// The `Builder` which can be used to make a `Self`
     ///
@@ -126,6 +145,10 @@ pub trait TopLevel {
     type Builder: DeserializeOwned;
 }
 
+/// `impl Resolvable for (A,B..) where A: Resolvable, B: Resolvable ...`
+/// 
+/// The implementation simply calls `Resolvable::resolve` for each output tuple member.
+/// 
 /// `define_for_tuples!{ A B - C D.. }`
 ///
 /// expands to
