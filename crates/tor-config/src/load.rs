@@ -316,8 +316,7 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
 
     let mut descend = vec![];
     loop {
-        let ent;
-        (path, ent) = match path {
+        let (new_path, ent) = match path {
             SiP::Root => break,
             SiP::Seq { parent, index } => (parent, Some(PE::ArrayIndex(*index))),
             SiP::Map { parent, key } => (parent, Some(PE::MapEntry(key.clone()))),
@@ -326,6 +325,7 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
             | SiP::NewtypeVariant { parent } => (parent, None),
         };
         descend.extend(ent);
+        path = new_path;
     }
     descend.reverse();
     UnrecognizedKey { path: descend }
