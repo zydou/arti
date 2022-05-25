@@ -58,7 +58,7 @@ use tracing::warn;
 
 use crate::ConfigBuildError;
 
-/// Error resolveing a configuration (during deserialize, or build)
+/// Error resolving a configuration (during deserialize, or build)
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ConfigResolveError {
@@ -81,7 +81,7 @@ pub trait Builder {
     fn build(&self) -> Result<Self::Built, ConfigBuildError>;
 }
 
-/// Collection of configuration settings that can be deseriealized and then built
+/// Collection of configuration settings that can be deserialized and then built
 ///
 /// *Do not implement directly.*
 /// Instead, implement [`TopLevel`]: this engages the blanket impl
@@ -139,7 +139,7 @@ macro_rules! define_for_tuples {
 }
 define_for_tuples! { A - B C D E }
 
-/// Config resolultion context, not used outside `tor_config::load`
+/// Config resolution context, not used outside `tor_config::load`
 ///
 /// This is public only because it appears in the [`Resolvable`] trait.
 /// You don't want to try to obtain one.
@@ -378,7 +378,7 @@ fn intersect_unrecognized_lists(
             //dbg!(items);
             let item = inputs
                 .iter_mut()
-                .map(|input| input.next().expect("but peekedr"))
+                .map(|input| input.next().expect("but peeked"))
                 .last()
                 .expect("wrong #");
             output.insert(item);
