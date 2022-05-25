@@ -150,5 +150,17 @@ mod test {
         let removable_later = files_to_delete(dir.path(), now + CUTOFF * 2);
         assert_eq!(removable_later.len(), 1);
         assert_eq!(removable_later[0].file_stem().unwrap(), "quokka");
+
+        // Make sure we tolerate files written "in the future"
+        let removable_earlier = files_to_delete(dir.path(), now - CUTOFF * 2);
+        assert!(removable_earlier.is_empty());
+    }
+
+    #[test]
+    fn absent() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let dir2 = dir.path().join("subdir_that_doesnt_exist");
+        let r = files_to_delete(&dir2, SystemTime::now());
+        assert!(r.is_empty());
     }
 }
