@@ -114,13 +114,12 @@ You can adjust the [`Mistrust`] object to change what it permits:
 ```rust
 use fs_mistrust::Mistrust;
 
-let mut my_mistrust = Mistrust::new();
-
-// Assume that our home directory and its parents are all well-configured.
-my_mistrust.ignore_prefix("/home/doze/")?;
-
-// Assume that a given group will only contain trusted users.
-my_mistrust.trust_group_id(413);
+let my_mistrust = Mistrust::builder()
+    // Assume that our home directory and its parents are all well-configured.
+    .ignore_prefix("/home/doze/")
+    // Assume that a given group will only contain trusted users.
+    .trust_group(413)
+    .build()?;
 ```
 
 See [`Mistrust`] for more options.
@@ -192,6 +191,17 @@ systems, but we don't actually look at the details of any of these:
    * Windows security (ACLs, SecurityDescriptors, etc)
    * SELinux capabilities
    * POSIX (and other) ACLs.
+
+We use a somewhat inaccurate heuristic when we're checking the permissions
+of items _inside_ a target directory (using [`Verifier::check_content`] or
+[`CheckedDir`]): we continue to forbid untrusted-writeable directories and
+files, but we still allow readable ones, even if we insisted that the target
+directory itself was required to to be unreadable.  This is too permissive
+in the case of readable objects with hard links: if there is a hard link to
+the file somewhere else, then an untrusted user can read it.  It is also too
+restrictive in the case of writeable objects _without_ hard links: if
+untrusted users have no path to those objects, they can't actually write
+them.
 
 On Windows, we accept all file permissions and owners.
 
