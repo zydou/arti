@@ -239,15 +239,19 @@ mod test {
     fn os_string() {
         // Try round-tripping a username that isn't UTF8.
         use std::os::unix::ffi::OsStringExt as _;
-        let not_utf8 = OsString::from_vec(vec![1, 0, 0, 1]);
+        let not_utf8 = OsString::from_vec(vec![255, 254, 253, 252]);
+        assert!(not_utf8.to_str().is_none());
         let chum = Chum {
             handle: TrustedUser::Name(not_utf8.clone()),
             team: TrustedGroup::Name(not_utf8),
         };
 
-        let s = toml::to_string(&chum).unwrap();
-        let toml_obj: Chum = toml::from_str(&s).unwrap();
-        assert_eq!(&toml_obj, &chum);
+        // Alas, we cannot serialize an OsString in Toml. serde thinks that an
+        // OsString should be represented using `serialize_newtype_variant`, and
+        // the toml crate doesn't support that method.
+        //
+        //let toml_result = toml::to_string(&chum);
+        //assert!(toml_result.is_err());
 
         let s = serde_json::to_string(&chum).unwrap();
         let toml_obj: Chum = serde_json::from_str(&s).unwrap();

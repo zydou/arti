@@ -96,6 +96,11 @@ fn cur_groups() -> Vec<u32> {
 ///    `TrustedUser::Id(413)`.
 ///  * A string not starting with `:` (e.g., "jane") and the map `{ name = "jane" }`
 ///    correspond to `TrustedUser::Name("jane".into())`.
+///
+/// ## Limitations
+///
+/// Non-UTF8 usernames cannot currently be represented in all serde formats.
+/// Notably, toml doesn't support them.
 #[derive(Clone, Debug, educe::Educe, Eq, PartialEq)]
 #[educe(Default)]
 #[cfg_attr(
