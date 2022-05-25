@@ -358,7 +358,6 @@ fn intersect_unrecognized_lists(
             inputs
                 .iter_mut()
                 .map(|input: &'_ mut _| input.peek())
-                .into_iter()
                 .flatten()
                 .collect::<Vec<_>>(),
         )
