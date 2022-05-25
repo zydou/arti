@@ -363,7 +363,7 @@ fn intersect_unrecognized_lists(
                 .collect::<Vec<_>>(),
         )
     } {
-        let prefix_len = items.iter().map(|i| i.path.len()).min().expect("wrong #");
+        let shorter_len = items.iter().map(|i| i.path.len()).min().expect("wrong #");
         let earlier_i = items
             .iter()
             .enumerate()
@@ -385,7 +385,7 @@ fn intersect_unrecognized_lists(
             continue;
         } else if items
             .iter()
-            .map(|item| &item.path[0..prefix_len])
+            .map(|item| &item.path[0..shorter_len])
             .all_equal()
         {
             // They both have the same prefix.   earlier_i is the shorter one.
