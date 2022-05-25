@@ -1,5 +1,15 @@
 //! Processing a config::Config into a validated configuration
 //!
+//! This module, and particularly [`resolve`], takes care of:
+//!
+//!   * Deserializing a [`config::Config`] into various `FooConfigBuilder`
+//!   * Calling the `build()` methods to get various `FooConfig`.
+//!   * Reporting unrecognised configuration keys
+//!     (eg to help the user detect misspellings).
+//!
+//! This is step 3 of the overall config processing,
+//! as described in the [crate-level documentation](crate).
+//!
 //! # Example
 //!
 //! ```
@@ -244,6 +254,12 @@ where
 ///
 /// Resolve the whole configuration in one go, using the `Resolvable` impl on `(A,B)`
 /// if necessary, so that unrecognized config key processing works correctly.
+///
+/// This performs step 3 of the overall config processing,
+/// as described in the [`tor_config` crate-level documentation](crate).
+///
+/// For an example, see the
+/// [`tor_config::load` module-level documentation](self).
 pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
