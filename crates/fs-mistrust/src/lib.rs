@@ -694,7 +694,7 @@ impl<'a> Verifier<'a> {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use testing::Dir;
+    use testing::{Dir, LinkType};
 
     #[test]
     fn simple_cases() {
@@ -706,6 +706,7 @@ mod test {
         d.chmod("a/b/c", 0o700);
         d.chmod("e", 0o755);
         d.chmod("e/f", 0o777);
+        d.link_rel(LinkType::Dir, "a/b/c", "d");
 
         let m = Mistrust::builder()
             .trust_no_group_id()
@@ -719,6 +720,8 @@ mod test {
         let e = m.check_directory(d.path("e/f/g")).unwrap_err();
         assert!(matches!(e, Error::BadPermission(_, 0o022)));
         assert_eq!(e.path().unwrap(), d.path("e/f").canonicalize().unwrap());
+
+        m.check_directory(d.path("d")).unwrap();
     }
 
     #[cfg(target_family = "unix")]

@@ -7,6 +7,13 @@ stages:
 variables:
   # We don't need Husky to install the Git hooks for CI.
   CARGO_HUSKY_DONT_INSTALL_HOOKS: "true"
+  # fs-mistrust doesn't like umask 0
+  FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
+
+default:
+  before_script:
+    # gitlab fetch strategy doesn't reset permissions
+    - (while [ "$PWD" != / ]; do chmod go-w . && cd ..; done)
 
 check-editorconfig:
   stage: check
@@ -134,9 +141,6 @@ build-repro:
 integration:
   stage: test
   image: debian:stable-slim
-  variables:
-    # The build environment here runs as root and seems to have umask 000.
-    ARTI_FS_DISABLE_PERMISSION_CHECKS: "true"
   script:
     - apt update
     - apt install -y tor git python3 curl dnsutils
@@ -157,9 +161,6 @@ coverage-aggregated:
   stage: test
   image: rust:latest
   needs: []
-  variables:
-    # The build environment here runs as root and seems to have umask 000.
-    ARTI_FS_DISABLE_PERMISSION_CHECKS: "true"
   script:
     - apt update && apt install -y tor python3 python3-pip python3-setuptools curl
     # install deps for report generation
