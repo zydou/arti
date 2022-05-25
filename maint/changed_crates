@@ -1,8 +1,10 @@
-#!/bin/sh
+#!/bin/bash
+
+set -euo pipefail
 
 TOP=$(dirname "$0")/..
 
-TAG="$1"
+TAG="${1:-}"
 
 if [ -z "$TAG" ]; then
     echo "You need to give a git revision as an argument."

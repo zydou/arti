@@ -1,4 +1,6 @@
-#!/bin/bash -xe
+#!/bin/bash 
+
+set -xeuo pipefail
 
 curl http://example.com -vs --socks5-hostname 127.0.0.1:9150 -o /dev/null
 

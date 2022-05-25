@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 #
 # binary_size: Build arti with a given set of options, and
 # dump the binary size in a json format.
 
-set -eu
+set -euo pipefail
 
 ORIGDIR=$(pwd)
 TMPDIR=$(mktemp -d -t arti_binsize.XXXXXX)

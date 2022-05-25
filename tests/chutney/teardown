@@ -1,9 +1,9 @@
 #!/bin/bash
-set -xe
+set -xeuo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-if [ -z "${CHUTNEY_PATH}" ]; then
+if [ -z "${CHUTNEY_PATH:-}" ]; then
     # Use the default chutney path we set up before.
     CHUTNEY_PATH="$(pwd)/chutney"
     export CHUTNEY_PATH

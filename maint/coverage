@@ -22,7 +22,7 @@ Notes:
 EOF
 }
 
-set -e
+set -euo pipefail
 
 TOPDIR=$(dirname "$0")/..
 cd "$TOPDIR"

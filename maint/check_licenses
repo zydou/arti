@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # A list of the licenses that we currently allow in our code.
 #
