@@ -145,6 +145,8 @@ impl PartialOrd for ClockSkew {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
 
     #[test]
@@ -174,5 +176,43 @@ mod test {
             Duration::from_secs(0),
         );
         assert_eq!(skew, ClockSkew::None);
+    }
+
+    #[test]
+    fn from_f64() {
+        use ClockSkew as CS;
+        use Duration as D;
+
+        assert_eq!(CS::from_secs_f64(0.0), Some(CS::None));
+        assert_eq!(CS::from_secs_f64(f64::MIN_POSITIVE / 2.0), Some(CS::None)); // subnormal
+        assert_eq!(CS::from_secs_f64(1.0), Some(CS::None));
+        assert_eq!(CS::from_secs_f64(-1.0), Some(CS::None));
+        assert_eq!(CS::from_secs_f64(3.0), Some(CS::Fast(D::from_secs(3))));
+        assert_eq!(CS::from_secs_f64(-3.0), Some(CS::Slow(D::from_secs(3))));
+
+        assert_eq!(CS::from_secs_f64(1.0e100), Some(CS::Fast(D::MAX)));
+        assert_eq!(CS::from_secs_f64(-1.0e100), Some(CS::Slow(D::MAX)));
+
+        assert_eq!(CS::from_secs_f64(f64::NAN), None);
+        assert_eq!(CS::from_secs_f64(f64::INFINITY), Some(CS::Fast(D::MAX)));
+        assert_eq!(CS::from_secs_f64(f64::NEG_INFINITY), Some(CS::Slow(D::MAX)));
+    }
+
+    #[test]
+    fn order() {
+        use rand::seq::SliceRandom as _;
+        use ClockSkew as CS;
+        let sorted: Vec<ClockSkew> = vec![-10.0, -5.0, 0.0, 0.0, 10.0, 20.0]
+            .into_iter()
+            .map(|n| CS::from_secs_f64(n).unwrap())
+            .collect();
+
+        let mut rng = rand::thread_rng();
+        let mut v = sorted.clone();
+        for _ in 0..100 {
+            v.shuffle(&mut rng);
+            v.sort();
+            assert_eq!(v, sorted);
+        }
     }
 }
