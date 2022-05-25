@@ -276,6 +276,7 @@ where
             UK::These(BTreeSet::new())
         },
     };
+
     let val = Resolvable::resolve(&mut lc)?;
 
     let ign = match lc.unrecognized {
