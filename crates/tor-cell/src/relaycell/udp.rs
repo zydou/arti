@@ -252,6 +252,7 @@ pub struct Datagram {
 }
 
 impl Datagram {
+    /// NOTE: Proposal 340, fragmented relay message, might change this value reality.
     /// The longest allowable body length for a single data cell.
     pub const MAXLEN: usize = CELL_DATA_LEN - 11;
 

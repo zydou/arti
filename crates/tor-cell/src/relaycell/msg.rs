@@ -57,7 +57,7 @@ pub enum RelayMsg {
     /// Successful response to a ConnectUdp message
     ConnectedUdp(ConnectedUdp),
     /// UDP stream data
-    //Datagram(Datagram),
+    Datagram(Datagram),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
@@ -102,7 +102,7 @@ impl RelayMsg {
             BeginDir => RelayCmd::BEGIN_DIR,
             ConnectUdp(_) => RelayCmd::CONNECT_UDP,
             ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
-            //Datagram(_) => RelayCmd::DATAGRAM,
+            Datagram(_) => RelayCmd::DATAGRAM,
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -126,7 +126,7 @@ impl RelayMsg {
             RelayCmd::BEGIN_DIR => RelayMsg::BeginDir,
             RelayCmd::CONNECT_UDP => RelayMsg::ConnectUdp(ConnectUdp::decode_from_reader(r)?),
             RelayCmd::CONNECTED_UDP => RelayMsg::ConnectedUdp(ConnectedUdp::decode_from_reader(r)?),
-            //RelayCmd::DATAGRAM => RelayMsg::Datagram(Datagram::decode_from_reader(r)?),
+            RelayCmd::DATAGRAM => RelayMsg::Datagram(Datagram::decode_from_reader(r)?),
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
@@ -151,7 +151,7 @@ impl RelayMsg {
             BeginDir => (),
             ConnectUdp(b) => b.encode_onto(w),
             ConnectedUdp(b) => b.encode_onto(w),
-            //Datagram(b) => b.encode_onto(w),
+            Datagram(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
     }
@@ -1358,6 +1358,68 @@ impl Body for ConnectedUdp {
     fn encode_onto(self, w: &mut Vec<u8>) {
         w.write(&self.our_address);
         w.write(&self.their_address);
+    }
+}
+
+/// A Datagram message represents data sent along a UDP stream.
+///
+/// Upon receiving a Datagram message for a live stream, the client or
+/// exit sends that data onto the associated UDP connection.
+///
+/// These messages hold between 1 and [Datagram::MAXLEN] bytes of data each.
+#[derive(Debug, Clone)]
+pub struct Datagram {
+    /// Contents of the cell, to be sent on a specific stream
+    body: Vec<u8>,
+}
+
+impl Datagram {
+    /// The longest allowable body length for a single data cell.
+    pub const MAXLEN: usize = CELL_DATA_LEN - 11;
+
+    /// Construct a new data cell.
+    ///
+    /// Returns an error if `inp` is longer than [`Data::MAXLEN`] bytes.
+    pub fn new(inp: &[u8]) -> crate::Result<Self> {
+        if inp.len() > Data::MAXLEN {
+            return Err(crate::Error::CantEncode);
+        }
+        Ok(Self::new_unchecked(inp.into()))
+    }
+
+    /// Construct a new cell from a provided vector of bytes.
+    ///
+    /// The vector _must_ have fewer than [`Data::MAXLEN`] bytes.
+    fn new_unchecked(body: Vec<u8>) -> Self {
+        Self { body }
+    }
+}
+
+impl From<Datagram> for Vec<u8> {
+    fn from(data: Datagram) -> Vec<u8> {
+        data.body
+    }
+}
+
+impl AsRef<[u8]> for Datagram {
+    fn as_ref(&self) -> &[u8] {
+        &self.body[..]
+    }
+}
+
+impl Body for Datagram {
+    fn into_message(self) -> RelayMsg {
+        RelayMsg::Datagram(self)
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(Datagram {
+            body: r.take(r.remaining())?.into(),
+        })
+    }
+
+    fn encode_onto(mut self, w: &mut Vec<u8>) {
+        w.append(&mut self.body);
     }
 }
 
