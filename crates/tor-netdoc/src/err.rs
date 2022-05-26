@@ -417,6 +417,11 @@ impl Error {
         self.source = Some(source.into());
         self
     }
+
+    /// Return the [`ParseErrorKind`] of this error.
+    pub fn parse_error_kind(&self) -> ParseErrorKind {
+        self.kind
+    }
 }
 
 impl fmt::Display for Error {
