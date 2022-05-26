@@ -226,7 +226,7 @@ pub struct ResolveContext {
 ///
 /// Initially `AllKeys`, since we haven't recognized any.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub enum UnrecognizedKeys {
+enum UnrecognizedKeys {
     /// No keys have yet been recognized, so everything in the config is unrecognized
     AllKeys,
 
