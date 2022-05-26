@@ -1,7 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This script runs as the top level of our reproducible build process.
 # It launches the actual build script inside a docker container.
+
+set -euo pipefail
 
 ## use a fixed image to not suffer from image retaging when newer rustc or
 ## alpine emerges. Increase shm size for the reasons described in
@@ -11,4 +13,4 @@
 ## the build-repro job in .gitlab-ci.yml
 exec docker run --rm -i -v "$(git rev-parse --show-toplevel)":/builds/arti \
 		-w /builds/arti --shm-size=512m rust:1.59.0-alpine3.15 \
-		./maint/reproducible_build "$@"
+		sh -c "apk add bash && ./maint/reproducible_build $*"

@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This script is run inside a docker container as part of our
 # reproducible build process.
 #
-set -xeu
+set -xeuo pipefail
 if [ ! -f /.dockerenv ]; then
     echo Not running inside Docker, build will probably not be reproducible
     echo Use docker_reproducible_build instead to get the right environment
@@ -102,6 +102,8 @@ EOF
 		cargo build -p arti --target x86_64-apple-darwin --release --features static
 	mv /arti/target/x86_64-apple-darwin/release/arti "$here"/arti-macos
 fi
+
+git config --global --add safe.directory /arti
 
 set +x
 echo "branch       :" "$(git rev-parse --abbrev-ref HEAD)"

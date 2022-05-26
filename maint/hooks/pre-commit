@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-set -e
+set -euo pipefail
 
 echo '+cargo fmt --all -- --check'
 cargo fmt --all -- --check

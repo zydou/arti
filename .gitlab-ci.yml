@@ -25,7 +25,7 @@ shellcheck:
   stage: check
   image: koalaman/shellcheck-alpine
   script:
-    - apk add git
+    - apk add git bash
     - ./maint/shellcheck_all
 
 rust-latest:
@@ -124,6 +124,7 @@ build-repro:
   # If you upgrade this image, also change the one in docker_reproducible_build
   image: rust:1.59.0-alpine3.15
   script:
+    - apk add bash
     - ./maint/reproducible_build linux windows macos
   artifacts:
     paths:
