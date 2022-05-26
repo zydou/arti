@@ -115,7 +115,6 @@ impl FsStateMgr {
     /// Requires that we hold the lock.
     fn clean(&self, now: SystemTime) {
         for fname in clean::files_to_delete(self.inner.statepath.as_path(), now) {
-            dbg!(&fname);
             info!("Deleting obsolete file {}", fname.display());
             if let Err(e) = std::fs::remove_file(&fname) {
                 warn!("Unable to delete {}: {}", fname.display(), e);
@@ -299,7 +298,7 @@ mod test {
 
         let h: Result<Option<HashMap<String, u32>>> = store.load("quoll");
         assert!(h.is_err());
-        assert!(matches!(dbg!(&h), Err(Error::IoError(_))));
+        assert!(matches!(h, Err(Error::IoError(_))));
 
         Ok(())
     }
