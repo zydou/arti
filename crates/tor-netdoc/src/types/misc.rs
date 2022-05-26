@@ -515,13 +515,13 @@ mod test {
         assert_eq!(k1, Ed25519Identity::from_bytes(&k2).unwrap());
 
         assert!("WVIPQ8oArAqLY4Xzk0!!!!8KsUJHBQhG8SC57qru"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qru"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qr"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         // right length, bad key:
         assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
