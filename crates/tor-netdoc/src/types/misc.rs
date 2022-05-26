@@ -279,6 +279,7 @@ mod edcert {
 
     /// An ed25519 certificate as parsed from a directory object, with
     /// signature not validated.
+    #[derive(Debug, Clone)]
     pub(crate) struct UnvalidatedEdCert(KeyUnknownCert, Pos);
 
     impl super::FromBytes for UnvalidatedEdCert {
@@ -582,7 +583,52 @@ mod test {
         assert!(failure.is_err());
     }
 
-    // TODO: tests for edcert parsing.
+    #[cfg(feature = "routerdesc")]
+    #[test]
+    fn ed_cert() {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+        // From a chutney network.
+        let mut cert_b64 = r#"
+        AQQABwRNAR6m3kq5h8i3wwac+Ti293opoOP8RKGP9MT0WD4Bbz7YAQAgBACGCdys
+        G7AwsoYMIKenDN6In6ReiGF8jaYoGqmWKDVBdGGMDIZyNIq+VdhgtAB1EyNFHJU1
+        jGM0ir9dackL+PIsHbzJH8s/P/8RfUsKIL6/ZHbn3nKMxLH/8kjtxp5ScAA=
+        "#
+        .to_string();
+        cert_b64.retain(|c| !c.is_ascii_whitespace());
+        let cert_bytes = base64::decode(cert_b64).unwrap();
+        // From the cert above.
+        let right_subject_key: Ed25519Identity = "HqbeSrmHyLfDBpz5OLb3eimg4/xEoY/0xPRYPgFvPtg"
+            .parse::<Ed25519Public>()
+            .unwrap()
+            .into();
+        // From `ed25519()` test above.
+        let wrong_subject_key: Ed25519Identity = "WVIPQ8oArAqLY4XzkcpIOI6U8KsUJHBQhG8SC57qru0"
+            .parse::<Ed25519Public>()
+            .unwrap()
+            .into();
+
+        // decode and check correct type and key
+        let cert = UnvalidatedEdCert::from_vec(cert_bytes, Pos::None)
+            .unwrap()
+            .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+            .unwrap()
+            .check_subject_key_is(&right_subject_key.try_into().unwrap())
+            .unwrap();
+        // check wrong type.
+        assert!(cert
+            .clone()
+            .check_cert_type(tor_cert::CertType::RSA_ID_X509)
+            .is_err());
+        // check wrong key.
+        assert!(cert
+            .check_subject_key_is(&wrong_subject_key.try_into().unwrap())
+            .is_err());
+
+        // Try an invalid object that isn't a certificate.
+        let failure = UnvalidatedEdCert::from_vec(vec![1, 2, 3], Pos::None);
+        assert!(failure.is_err());
+    }
 
     #[test]
     fn fingerprint() -> Result<()> {
