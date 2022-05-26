@@ -6,7 +6,13 @@ switch to using a separate changelog for each crate.
 
 # Arti 0.4.0 — 27 May 2022
 
-(XXXX This is up to date through ae08a023fb50af1fa64844a731ecdd48cb91105b)
+Arti 0.4.0 wraps up our changes to the configuration logic,
+detects several kinds of unsafe filesystem configuration, and has a
+refactored directory manager to help us tolerate far more kinds of broken
+networks and invalid documents.
+
+There are significant breaking changes in this release; please see
+below.
 
 ### Breaking changes
 
@@ -83,7 +89,6 @@ switch to using a separate changelog for each crate.
   implementation of Channel reactors. ([!514])
 - The SOCKS code now sends correct error messages under more
   circumstances. ([#258], [!531])
-
 
 
 ### Acknowledgments
