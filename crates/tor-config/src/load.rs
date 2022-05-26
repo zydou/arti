@@ -710,4 +710,65 @@ mod test {
         let _ = TestConfigA::builder();
         let _ = TestConfigB::builder();
     }
+
+    #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+    #[builder(build_fn(error = "ConfigBuildError"))]
+    #[builder(derive(Debug, Serialize, Deserialize))]
+    struct TestConfigC {
+        #[builder(default)]
+        c: u32,
+    }
+    impl_standard_builder! { TestConfigC }
+    impl TopLevel for TestConfigC {
+        type Builder = TestConfigCBuilder;
+    }
+
+    #[test]
+    fn build_error() {
+        // Make sure that errors are propagated correctly.
+        let test_data = r#"
+            # wombat is not a number.
+            c = "wombat"
+            # this _would_ be unrecognized, but for the errors.
+            persimmons = "sweet"
+        "#;
+        // suppress a dead-code warning.
+        let _b = TestConfigC::builder();
+
+        let source = config::File::from_str(test_data, config::FileFormat::Toml);
+        let cfg = config::Config::builder()
+            .add_source(source)
+            .build()
+            .unwrap();
+        {
+            // First try "A", then "C".
+            let res1: Result<((TestConfigA, TestConfigC), Vec<UnrecognizedKey>), _> =
+                resolve_return_unrecognized(cfg.clone());
+            assert!(res1.is_err());
+            assert!(matches!(res1, Err(ConfigResolveError::Deserialize(_))));
+        }
+        {
+            // Now the other order: first try "C", then "A".
+            let res2: Result<((TestConfigC, TestConfigA), Vec<UnrecognizedKey>), _> =
+                resolve_return_unrecognized(cfg.clone());
+            assert!(res2.is_err());
+            assert!(matches!(res2, Err(ConfigResolveError::Deserialize(_))));
+        }
+        // Try manually, to make sure unrecognized fields are removed.
+        let mut ctx = ResolveContext {
+            input: cfg,
+            unrecognized: UnrecognizedKeys::AllKeys,
+        };
+        let _res3 = TestConfigA::resolve(&mut ctx);
+        // After resolving A, some fields are unrecognized.
+        assert!(matches!(&ctx.unrecognized, UnrecognizedKeys::These(k) if !k.is_empty()));
+        {
+            let res4 = TestConfigC::resolve(&mut ctx);
+            assert!(matches!(res4, Err(ConfigResolveError::Deserialize(_))));
+        }
+        {
+            // After resolving C with an error, the unrecognized-field list is cleared.
+            assert!(matches!(&ctx.unrecognized, UnrecognizedKeys::These(k) if k.is_empty()));
+        }
+    }
 }

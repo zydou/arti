@@ -379,6 +379,8 @@ define_list_builder_helper! {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
     use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
@@ -423,5 +425,16 @@ mod test {
 
         *b.opt_list_mut() = None;
         assert_eq! { (&b).build().expect("build failed").list, ['a'] };
+    }
+
+    #[test]
+    fn vecbuilder() {
+        // Minimal test, since rustdoc tests seem not to be finding the documentation inside
+        // the declaration of VecBuilder.  (Or at least that's what the coverage says.)
+        let mut b = VecBuilder::<u32>::default();
+        b.access().push(1);
+        b.access().push(2);
+        b.access().push(3);
+        assert_eq!(b.build().unwrap(), vec![1, 2, 3]);
     }
 }

@@ -131,7 +131,7 @@ mod test {
         );
     }
 
-    #[derive(derive_builder::Builder, Debug)]
+    #[derive(derive_builder::Builder, Debug, Clone)]
     #[builder(build_fn(error = "ConfigBuildError"))]
     #[allow(dead_code)]
     struct Cephalopod {
@@ -153,6 +153,25 @@ mod test {
         assert_eq!(
             &octopus.unwrap_err().to_string(),
             "Field was not provided: tentacles"
+        );
+    }
+
+    #[derive(derive_builder::Builder, Debug)]
+    #[builder(build_fn(error = "ConfigBuildError"))]
+    #[allow(dead_code)]
+    struct Pet {
+        #[builder(sub_builder)]
+        best_friend: Cephalopod,
+    }
+
+    #[test]
+    fn build_subfield_err() {
+        let mut petb = PetBuilder::default();
+        petb.best_friend().tentacles(3);
+        let pet = petb.build();
+        assert_eq!(
+            pet.unwrap_err().to_string(),
+            "Field was not provided: best_friend.arms"
         );
     }
 }
