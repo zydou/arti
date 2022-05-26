@@ -4,9 +4,9 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
-# Arti 0.4.0 — ? ??? 2022
+# Arti 0.4.0 — 27 May 2022
 
-(XXXX This is up to date through b055cc27f1681cb3db2c42f230e5582e126cd2a2)
+(XXXX This is up to date through ae08a023fb50af1fa64844a731ecdd48cb91105b)
 
 ### Breaking changes
 
@@ -21,8 +21,13 @@ switch to using a separate changelog for each crate.
     divided among `arti`, `arti-client`, and `tor-config`. ([!508])
   - The [`TorConfig`] object no longer implements
     `TryInto<DirMgrConfig>`.
+  - The configuration logic now supports extensible configurations,
+    where applications can add their own sections and keys without
+    interfering with Arti, and unrecognized keys can still produce
+    warnings. ([#459], [#417])
 - The [`Runtime`] trait now also requires that `Debug` be implemented.
   ([!496])
+- (Other, smaller breaking changes in lower-level crates.)
 
 ### New features
 
@@ -53,10 +58,15 @@ switch to using a separate changelog for each crate.
 - We no longer include a dependency on [`cargo-husky`]: If you want to
   have [git hooks] in your local repository, you'll need to install your
   own. (See [CONTRIBUTING.md] for instructions.) ([!494])
+- Our shell scripts are more uniform in their behaiour. ([!533])
 
 ### Documentation and Examples
 
 - Better documentation for Cargo features. ([#445], [!496])
+- Better explanation of what platforms and dependencies we support,
+  and what "support" means anyway. ([#379], [!513])
+- An advanced example of using the stream isolation feature for
+  trickier behavior. ([#414], [!524])
 
 ### Cleanups, minor features, and minor bugfixes
 
@@ -72,6 +82,9 @@ switch to using a separate changelog for each crate.
   of a piece of directory information. ([ef2640acfaf9f873])
 - Used a new [`Sink::prepare_send_from`] helper to simplify the
   implementation of Channel reactors. ([!514])
+- The SOCKS code now sends correct error messages under more
+  circumstances. ([#258], [!531])
+
 
 
 ### Acknowledgments
