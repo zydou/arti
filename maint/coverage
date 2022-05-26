@@ -3,7 +3,7 @@
 function usage()
 {
     cat <<EOF
-${SCRIPT_NAME}: Generate coverage using grcov.
+$(basename "$0"): Generate coverage using grcov.
 
 Usage:
   coverage [opts] [suites...] : Run the provided test suites.
