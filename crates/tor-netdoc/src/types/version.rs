@@ -214,6 +214,7 @@ mod test {
             "0x2020",
             "1.2.3.marzipan",
             "0.1.2.5-alpha-deeev",
+            "0.1.2.5-alpha-dev-turducken",
         ] {
             assert!(s.parse::<TorVersion>().is_err());
         }
