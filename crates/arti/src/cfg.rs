@@ -152,7 +152,7 @@ mod test {
 
     fn uncomment_example_settings(template: &str) -> String {
         let re = Regex::new(r#"(?m)^\#([^ \n])"#).unwrap();
-        re.replace(template, |cap: &regex::Captures<'_>| -> _ {
+        re.replace_all(template, |cap: &regex::Captures<'_>| -> _ {
             cap.get(1).unwrap().as_str().to_string()
         })
         .into()
