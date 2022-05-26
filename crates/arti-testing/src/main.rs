@@ -84,7 +84,7 @@ mod dirfilter;
 mod rt;
 mod traces;
 
-use arti::ArtiConfig;
+use arti::ArtiCombinedConfig;
 use arti_client::TorClient;
 use futures::task::SpawnExt;
 use rt::badtcp::BrokenTcpProvider;
@@ -222,9 +222,9 @@ struct Job {
 impl Job {
     /// Make a new unbootstrapped client for this job.
     fn make_client<R: Runtime>(&self, runtime: R) -> Result<TorClient<R>> {
-        let config: ArtiConfig = self.config.load()?.try_into()?;
+        let (_arti, tcc) = tor_config::resolve::<ArtiCombinedConfig>(self.config.load()?)?;
         let client = TorClient::with_runtime(runtime)
-            .config(config.tor_client_config()?)
+            .config(tcc)
             .dirfilter(self.dir_filter.clone())
             .create_unbootstrapped()?;
         Ok(client)

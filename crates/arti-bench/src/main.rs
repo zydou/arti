@@ -36,7 +36,7 @@
 #![allow(clippy::unwrap_used)]
 
 use anyhow::{anyhow, Result};
-use arti::cfg::ArtiConfig;
+use arti::cfg::ArtiCombinedConfig;
 use arti_client::{IsolationToken, TorAddr, TorClient, TorClientConfig};
 use clap::{App, Arg};
 use futures::StreamExt;
@@ -367,8 +367,7 @@ fn main() -> Result<()> {
     config_sources.set_mistrust(mistrust);
 
     let cfg = config_sources.load()?;
-    let config: ArtiConfig = cfg.try_into()?;
-    let tcc = config.tor_client_config()?;
+    let (_config, tcc) = tor_config::resolve::<ArtiCombinedConfig>(cfg)?;
     info!("Binding local TCP listener...");
     let listener = TcpListener::bind("0.0.0.0:0")?;
     let local_addr = listener.local_addr()?;
