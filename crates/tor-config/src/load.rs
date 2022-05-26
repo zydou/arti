@@ -14,7 +14,7 @@
 //!
 //! To use this, you will need to:
 //!
-//!   * `#[derive(Builder)]` and [`impl_standard_builder`]
+//!   * `#[derive(Builder)]` and use [`impl_standard_builder!`](crate::impl_standard_builder)
 //!     for all of your configuration structures,
 //!     using `#[sub_builder]` etc. sa appropriate,
 //!     and making your builders [`Deserialize`](serde::Deserialize).
