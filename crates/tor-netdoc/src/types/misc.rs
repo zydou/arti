@@ -225,6 +225,7 @@ mod rsa {
 
     /// An RSA public key, as parsed from a base64-encoded object.
     #[allow(non_camel_case_types)]
+    #[derive(Clone, Debug)]
     pub(crate) struct RsaPublic(PublicKey, Pos);
 
     impl From<RsaPublic> for PublicKey {
@@ -454,7 +455,7 @@ mod nickname {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::Result;
+    use crate::{Pos, Result};
 
     #[test]
     fn base64() -> Result<()> {
@@ -546,7 +547,41 @@ mod test {
         Ok(())
     }
 
-    // TODO: tests for RSA public key parsing.
+    #[test]
+    fn rsa_public_key() {
+        // Taken from a chutney network.
+        let mut key_b64 = r#"
+        MIIBigKCAYEAsDkzTcKS4kAF56R2ijb9qCek53tKC1EwMdpWMk58bB28fY6kHc55
+        E7n1hB+LC5neZlx88GKuZ9k8P3g0MlO5ejalcfBdIIm28Nz86JXf/L23YnEpxnG/
+        IpxZEcmx/EYN+vwp72W3DGuzyntaoaut6lGJk+O/aRCLLcTm4MNznvN1ackK2H6b
+        Xm2ejRwtVRLoPKODJiPGl43snCfXXWsMH3IALFOgm0szPLv2fAJzBI8VWrUN81M/
+        lgwJhG6+xbr1CkrXI5fKs/TNr0B0ydC9BIZplmPrnXaeNklnw1cqUJ1oxDSgBrvx
+        rpDo7paObjSPV26opa68QKGa7Gu2MZQC3RzViNCbawka/108g6hSUkoM+Om2oivr
+        DvtMOs10MjsfibEBVnwEhqnlb/gj3hJkYoGRsCwAyMIaMObHcmAevMJRWAjGCc8T
+        GMS9dSmg1IZst+U+V2OCcIHXT6wZ1zPsBM0pYKVLCwtewaq1306k0n+ekriEo7eI
+        FS3Dd/Dx/a6jAgMBAAE=
+        "#
+        .to_string();
+        key_b64.retain(|c| !c.is_ascii_whitespace());
+        let key_bytes = base64::decode(key_b64).unwrap();
+        let rsa = RsaPublic::from_vec(key_bytes, Pos::None).unwrap();
+
+        let bits = tor_llcrypto::pk::rsa::PublicKey::from(rsa.clone()).bits();
+        assert_eq!(bits, 3072);
+
+        // tests on a valid key
+        assert!(rsa.clone().check_exponent(65537).is_ok());
+        assert!(rsa.clone().check_exponent(1337).is_err());
+        assert!(rsa.clone().check_len_eq(3072).is_ok());
+        assert!(rsa.clone().check_len(1024..=4096).is_ok());
+        assert!(rsa.clone().check_len(1024..=1024).is_err());
+        assert!(rsa.check_len(4096..).is_err());
+
+        // A string of bytes that is not an RSA key.
+        let failure = RsaPublic::from_vec(vec![1, 2, 3], Pos::None);
+        assert!(failure.is_err());
+    }
+
     // TODO: tests for edcert parsing.
 
     #[test]
