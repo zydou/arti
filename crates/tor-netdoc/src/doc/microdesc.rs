@@ -360,6 +360,10 @@ fn advance_to_next_microdesc(reader: &mut NetDocReader<'_, MicrodescKwd>, annota
             }
             Some(Err(_)) => {
                 // We skip over broken tokens here.
+                //
+                // (This case can't happen in practice, since if there had been
+                // any error tokens, they would have been handled as part of
+                // handling the previous microdesc.)
             }
             None => {
                 return;
@@ -529,12 +533,14 @@ mod test {
     fn test_recover() {
         let mut data = read_bad("wrong-start");
         data += TESTDATA;
+        data += &read_bad("wrong-id");
 
         let res: Vec<Result<_>> =
             MicrodescReader::new(&data, &AllowAnnotations::AnnotationsAllowed).collect();
 
-        assert_eq!(res.len(), 2);
+        assert_eq!(res.len(), 3);
         assert!(res[0].is_err());
         assert!(res[1].is_ok());
+        assert!(res[2].is_err());
     }
 }
