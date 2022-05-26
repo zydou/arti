@@ -467,7 +467,7 @@ fn intersect_unrecognized_lists(
     //      also share that prefix.  Then, we must discard the shorter item (which denotes
     //      the whole subspace of which only part is in the intersection).
     //
-    //   3. Otherwise, the earlier item is definitely in the intersection and
+    //   3. Otherwise, the earlier item is definitely not in the intersection and
     //      we can munch it.
 
     // Peek one from each, while we can.
