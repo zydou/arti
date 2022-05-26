@@ -251,7 +251,7 @@ impl UnrecognizedKeys {
         match self {
             UK::AllKeys => *self = UK::These(other),
             UK::These(self_) => {
-                let tign = mem::replace(self_, BTreeSet::default());
+                let tign = mem::take(self_);
                 *self_ = intersect_unrecognized_lists(tign, other);
             }
         }
@@ -476,8 +476,7 @@ fn intersect_unrecognized_lists(
         <[_; 2]>::try_from(
             inputs
                 .iter_mut()
-                .map(|input: &'_ mut _| input.peek())
-                .flatten() // peek gave us Option, so this deletes the Nones
+                .flat_map(|input: &'_ mut _| input.peek()) // keep the Somes
                 .collect::<Vec<_>>(), // if we had 2 Somes we can make a [_; 2] from this
         )
     } {
