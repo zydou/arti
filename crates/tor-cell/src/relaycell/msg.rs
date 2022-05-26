@@ -55,7 +55,7 @@ pub enum RelayMsg {
     /// Start a UDP stream.
     ConnectUdp(ConnectUdp),
     /// Successful response to a ConnectUdp message
-    //ConnectedUdp(ConnectedUdp),
+    ConnectedUdp(ConnectedUdp),
     /// UDP stream data
     //Datagram(Datagram),
 
@@ -101,7 +101,7 @@ impl RelayMsg {
             Resolved(_) => RelayCmd::RESOLVED,
             BeginDir => RelayCmd::BEGIN_DIR,
             ConnectUdp(_) => RelayCmd::CONNECT_UDP,
-            //ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
+            ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
             //Datagram(_) => RelayCmd::DATAGRAM,
             Unrecognized(u) => u.cmd(),
         }
@@ -125,7 +125,7 @@ impl RelayMsg {
             RelayCmd::RESOLVED => RelayMsg::Resolved(Resolved::decode_from_reader(r)?),
             RelayCmd::BEGIN_DIR => RelayMsg::BeginDir,
             RelayCmd::CONNECT_UDP => RelayMsg::ConnectUdp(ConnectUdp::decode_from_reader(r)?),
-            //RelayCmd::CONNECTED_UDP => RelayMsg::ConnectedUdp(ConnectedUdp::decode_from_reader(r)?),
+            RelayCmd::CONNECTED_UDP => RelayMsg::ConnectedUdp(ConnectedUdp::decode_from_reader(r)?),
             //RelayCmd::DATAGRAM => RelayMsg::Datagram(Datagram::decode_from_reader(r)?),
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
@@ -150,7 +150,7 @@ impl RelayMsg {
             Resolved(b) => b.encode_onto(w),
             BeginDir => (),
             ConnectUdp(b) => b.encode_onto(w),
-            //ConnectedUdp(b) => b.encode_onto(w),
+            ConnectedUdp(b) => b.encode_onto(w),
             //Datagram(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
@@ -1248,6 +1248,15 @@ impl FromStr for Address {
     }
 }
 
+impl From<IpAddr> for Address {
+    fn from(ip: IpAddr) -> Self {
+        match ip {
+            IpAddr::V4(ip) => Address::Ipv4(ip),
+            IpAddr::V6(ip) => Address::Ipv6(ip),
+        }
+    }
+}
+
 /// A ConnectUdp message creates a new UDP data stream.
 ///
 /// Upon receiving a ConnectUdp message, a relay tries to connect to the given address with the UDP
@@ -1268,7 +1277,7 @@ pub struct ConnectUdp {
 }
 
 impl ConnectUdp {
-    /// Construct a new Begin cell
+    /// Construct a new ConnectUdp cell
     pub fn new<F>(addr: &str, port: u16, flags: F) -> crate::Result<Self>
     where
         F: Into<BeginFlags>,
@@ -1302,6 +1311,53 @@ impl Body for ConnectUdp {
         w.write_u32(self.flags.bits());
         w.write(&self.addr);
         w.write_u16(self.port);
+    }
+}
+
+/// A ConnectedUdp cell sent in response to a ConnectUdp.
+#[derive(Debug, Clone)]
+pub struct ConnectedUdp {
+    /// The address that the relay has bound locally of a ConnectUdp. Note
+    /// that this might not be the relay address from the descriptor.
+    our_address: Address,
+    /// The address that the stream is connected to.
+    their_address: Address,
+}
+
+impl ConnectedUdp {
+    /// Construct a new ConnectedUdp cell.
+    pub fn new(our: IpAddr, their: IpAddr) -> Result<Self> {
+        Ok(Self {
+            our_address: our.into(),
+            their_address: their.into(),
+        })
+    }
+}
+
+impl Body for ConnectedUdp {
+    fn into_message(self) -> RelayMsg {
+        RelayMsg::ConnectedUdp(self)
+    }
+
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        let our_address: Address = r.extract()?;
+        if our_address.is_hostname() {
+            return Err(Error::BadMessage("Our address is a Hostname"));
+        }
+        let their_address: Address = r.extract()?;
+        if their_address.is_hostname() {
+            return Err(Error::BadMessage("Their address is a Hostname"));
+        }
+
+        Ok(Self {
+            our_address,
+            their_address,
+        })
+    }
+
+    fn encode_onto(self, w: &mut Vec<u8>) {
+        w.write(&self.our_address);
+        w.write(&self.their_address);
     }
 }
 
