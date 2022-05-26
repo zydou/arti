@@ -19,7 +19,7 @@ switch to using a separate changelog for each crate.
     API. ([!499], [!505], [!507])
   - The `arti-config` crate no longer exists: its functionality has been
     divided among `arti`, `arti-client`, and `tor-config`. ([!508])
-  - The [`TorConfig`] object no longer implements
+  - The [`TorClientConfig`] object no longer implements
     `TryInto<DirMgrConfig>`.
   - The configuration logic now supports extensible configurations,
     where applications can add their own sections and keys without
@@ -35,8 +35,7 @@ switch to using a separate changelog for each crate.
   configuration files, state files, and cache files if they can be modified
   by untrusted users. You can disable this feature with the
   `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable.  ([#315],
-  [#465], [!468],
-  [!483], [!504], [!515])
+  [#465], [!468], [!483], [!504], [!515])
 - Arti now tolerates a much wider array of broken networks and
   installations when trying to bootstrap a working connection to the Tor
   network. This includes improved handling for skewed clocks,
@@ -89,12 +88,59 @@ switch to using a separate changelog for each crate.
 
 ### Acknowledgments
 
+Thanks to everybody who has contributed to this release, including Thanks
+Alex Xu, Dimitris Apostolou, Jim Newsome, Michael Mccune, and Trinity
+Pointard.
 
-
-[Coverage reports]: https://tpo.pages.torproject.net/core/arti/coverage/
-
-
-
+[!405]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/405
+[!468]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/468
+[!483]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/483
+[!488]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/488
+[!489]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/489
+[!494]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/494
+[!495]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/495
+[!496]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/496
+[!498]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/498
+[!499]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/499
+[!500]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/500
+[!501]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/501
+[!504]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/504
+[!505]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/505
+[!507]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/507
+[!508]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/508
+[!511]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/511
+[!512]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/512
+[!513]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/513
+[!514]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/514
+[!515]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/515
+[!524]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/524
+[!531]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/531
+[!533]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/533
+[#258]: https://gitlab.torproject.org/tpo/core/arti/-/issues/258
+[#315]: https://gitlab.torproject.org/tpo/core/arti/-/issues/315
+[#379]: https://gitlab.torproject.org/tpo/core/arti/-/issues/379
+[#412]: https://gitlab.torproject.org/tpo/core/arti/-/issues/412
+[#414]: https://gitlab.torproject.org/tpo/core/arti/-/issues/414
+[#417]: https://gitlab.torproject.org/tpo/core/arti/-/issues/417
+[#439]: https://gitlab.torproject.org/tpo/core/arti/-/issues/439
+[#445]: https://gitlab.torproject.org/tpo/core/arti/-/issues/445
+[#455]: https://gitlab.torproject.org/tpo/core/arti/-/issues/455
+[#459]: https://gitlab.torproject.org/tpo/core/arti/-/issues/459
+[#465]: https://gitlab.torproject.org/tpo/core/arti/-/issues/465
+[#466]: https://gitlab.torproject.org/tpo/core/arti/-/issues/466
+[#467]: https://gitlab.torproject.org/tpo/core/arti/-/issues/467
+[ee9730cab4e4b21e]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ee9730cab4e4b21ec40d05becd4c9f54a92d7c29
+[ef2640acfaf9f873]: https://gitlab.torproject.org/tpo/core/arti/-/commit/ef2640acfaf9f873ca3de5253aae93b5032e659a
+[CONTRIBUTING.md]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/CONTRIBUTING.md
+[`DirMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/struct.DirMgr.html
+[`Runtime`]: https://tpo.pages.torproject.net/core/doc/rust/tor_rtcompat/trait.Runtime.html
+[`Sink::prepare_send_from`]: https://tpo.pages.torproject.net/core/doc/rust/tor_basic_utils/futures/trait.SinkExt.html#tymethod.prepare_send_from
+[`TorConfig`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/config/struct.TorClientConfig.html
+[`cargo-husky`]: https://github.com/rhysd/cargo-husky
+[`serde`]: https://serde.rs/
+[`tinystr`]: https://docs.rs/tinystr/latest/tinystr/
+[coverage reports]: https://tpo.pages.torproject.net/core/arti/coverage/
+[git hooks]: https://gitlab.torproject.org/tpo/core/arti/-/tree/main/maint
 
 
 
