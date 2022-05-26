@@ -273,4 +273,118 @@ mod test {
         let proxy = config.proxy();
         assert_eq!(&config.proxy, proxy);
     }
+
+    #[test]
+    fn exhaustive() {
+        use itertools::Itertools;
+        use serde_json::Value as JsValue;
+        use std::collections::BTreeSet;
+
+        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
+        let example: toml::Value = toml::from_str(&example).unwrap();
+        // dbg!(&example);
+        let example = serde_json::to_value(&example).unwrap();
+        // dbg!(&example);
+
+        // "Exhaustive" taxonomy of the recognised configuration keys
+        //
+        // We use the JSON serialization of the default builders, because Rust's toml
+        // implementation likes to omit more things, that we want to see.
+        //
+        // I'm not sure this is quite perfect but it is pretty good,
+        // and has found a number of un-exampled config keys.
+        let exhausts = [
+            serde_json::to_value(&TorClientConfig::builder()).unwrap(),
+            serde_json::to_value(&ArtiConfig::builder()).unwrap(),
+        ];
+
+        #[derive(Default, Debug)]
+        struct Walk {
+            current_path: Vec<String>,
+            problems: Vec<(String, String)>,
+        }
+
+        impl Walk {
+            /// Records a problem
+            fn bad(&mut self, m: &str) {
+                self.problems
+                    .push((self.current_path.join("."), m.to_string()));
+            }
+
+            /// Recurses, looking for problems
+            ///
+            /// Visited for every node in either or both of the starting `exhausts`.
+            ///
+            /// `E` is the number of elements in `exhausts`, ie the number of different
+            /// top-level config types that Arti uses.  Ie, 2.
+            fn walk<const E: usize>(
+                &mut self,
+                example: Option<&JsValue>,
+                exhausts: [Option<&JsValue>; E],
+            ) {
+                assert! { exhausts.into_iter().any(|e| e.is_some()) }
+
+                let example = if let Some(e) = example {
+                    e
+                } else {
+                    self.bad("missing from example");
+                    return;
+                };
+
+                let tables = exhausts.map(|e| e?.as_object());
+
+                // Union of the keys of both exhausts' tables (insofar as they *are* tables)
+                let table_keys = tables
+                    .iter()
+                    .flat_map(|t| t.map(|t| t.keys().cloned()).into_iter().flatten())
+                    .collect::<BTreeSet<String>>();
+
+                for key in table_keys {
+                    let example = if let Some(e) = example.as_object() {
+                        e
+                    } else {
+                        // At least one of the exhausts was a nonempty table,
+                        // but the corresponding example node isn't a table.
+                        self.bad("expected table in example");
+                        continue;
+                    };
+
+                    // Descend the same key in all the places.
+                    self.current_path.push(key.clone());
+                    self.walk(example.get(&key), tables.map(|t| t?.get(&key)));
+                    self.current_path.pop().unwrap();
+                }
+            }
+        }
+
+        let exhausts = exhausts.iter().map(Some).collect_vec().try_into().unwrap();
+
+        let mut walk = Walk::default();
+        walk.walk::<2>(Some(&example), exhausts);
+        let mut problems = walk.problems;
+
+        // When adding things here, check that `arti-example-config.toml`
+        // actually has something about these particular config keys.
+        let expect_missing = ["tor_network.authorities", "tor_network.fallback_caches"];
+
+        for exp in expect_missing {
+            let was = problems.len();
+            problems.retain(|(path, _)| path != exp);
+            if problems.len() == was {
+                problems.push((
+                    exp.into(),
+                    "expected to be missing but found in default".into(),
+                ));
+            }
+        }
+
+        let problems = problems
+            .into_iter()
+            .map(|(path, m)| format!("    config key {:?}: {}", path, m))
+            .collect_vec();
+
+        assert! { problems.is_empty(),
+        "example config exhaustiveness check failed:\n{}\n",
+        problems.join("\n")}
+    }
 }
