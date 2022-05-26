@@ -1,7 +1,7 @@
 #!/bin/bash
-set -xe
+set -xeuo pipefail
 
-if [ -z "$RUST_LOG" ]; then
+if [ -z "${RUST_LOG:-}" ]; then
     echo "Setting RUST_LOG=info for your convenience."
     export RUST_LOG=info
 fi
@@ -9,9 +9,17 @@ fi
 target="networks/basic"
 cd "$(git rev-parse --show-toplevel)"
 
+if [ -z "${CHUTNEY_PATH:-}" ]; then
+    # Use the default chutney path we set up before.
+    CHUTNEY_PATH="$(pwd)/chutney"
+    export CHUTNEY_PATH
+else
+    # CHUTNEY_PATH is set; tell the user about that.
+    echo "CHUTNEY_PATH is ${CHUTNEY_PATH}; using your local copy of chutney."
+fi
+
 ./tests/chutney/setup
 
 cargo run -p arti-bench --release -- -c "${CHUTNEY_PATH}/net/nodes/arti.toml" "$@"
 
 "${CHUTNEY_PATH}"/chutney stop "${CHUTNEY_PATH}/$target"
-
