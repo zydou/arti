@@ -19,15 +19,15 @@ default = []
 testing = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1"}
-tor-config = { path = "../tor-config", version = "0.4.0"}
-tor-error = { path = "../tor-error", version = "0.3.1"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-config = { path = "../tor-config", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
 tor-netdir = { path = "../tor-netdir", version = "0.3.0"}
 tor-linkspec = { path = "../tor-linkspec", version = "0.3.0"}
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-persist = { path = "../tor-persist", version = "0.4.0"}
-tor-proto = { path = "../tor-proto", version = "0.3.1"}
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0"}
+tor-persist = { path = "../tor-persist", version = "0.4.0" }
+tor-proto = { path = "../tor-proto", version = "0.3.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
 tor-units = { path = "../tor-units", version = "0.3.0"}
 
 base64 = "0.13.0"
@@ -48,9 +48,9 @@ tracing = "0.1.18"
 
 [dev-dependencies]
 tor-netdir = { path = "../tor-netdir", version = "0.3.0", features = ["testing"] }
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.0"}
+tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
 tor-persist = { path = "../tor-persist", version = "0.4.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.4.0"}
+tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
 
 float_eq = "0.7"

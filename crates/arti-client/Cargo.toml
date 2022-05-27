@@ -33,17 +33,17 @@ experimental-api = []
 [dependencies]
 fs-mistrust = { path = "../fs-mistrust", version = "0.2.0", features = ["serde"] }
 safelog = { path = "../safelog", version = "0.1.0" }
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1"}
-tor-circmgr = { path = "../tor-circmgr", version = "0.3.1"}
-tor-config = { path = "../tor-config", version = "0.4.0"}
-tor-chanmgr = { path = "../tor-chanmgr", version = "0.3.1"}
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.4.0"}
-tor-error = { path = "../tor-error", version = "0.3.1"}
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.3.1"}
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.0"}
-tor-persist = { path = "../tor-persist", version = "0.4.0"}
-tor-proto = { path = "../tor-proto", version = "0.3.1"}
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0"}
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.3.1" }
+tor-config = { path = "../tor-config", version = "0.4.0" }
+tor-chanmgr = { path = "../tor-chanmgr", version = "0.3.1" }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.3.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
+tor-persist = { path = "../tor-persist", version = "0.4.0" }
+tor-proto = { path = "../tor-proto", version = "0.3.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
 
 humantime-serde = "1.1.1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
