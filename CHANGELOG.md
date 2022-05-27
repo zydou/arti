@@ -33,7 +33,7 @@ below.
     warnings. ([#459], [#417])
 - The [`Runtime`] trait now also requires that `Debug` be implemented.
   ([!496])
-- (Other, smaller breaking changes in lower-level crates.)
+- (Various smaller breaking changes in lower-level crates.)
 
 ### New features
 
@@ -93,7 +93,7 @@ below.
 
 ### Acknowledgments
 
-Thanks to everybody who has contributed to this release, including Thanks
+Thanks to everybody who has contributed to this release, including
 Alex Xu, Dimitris Apostolou, Jim Newsome, Michael Mccune, and Trinity
 Pointard.
 
