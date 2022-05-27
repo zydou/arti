@@ -1,25 +1,47 @@
 # Semver tracking
 
-This is a helpful file that we use for checking which crates will have
-breaking or nonbreaking API changes in the next release of Arti.
+We no longer use this file for semver tracking.  Instead, we use one
+`semver.md` file per crate.
 
-For each crate, please write "BREAKING" if there is an API change that counts
-as breaking in semver, and "MODIFIED" if there is a backward-compatible API
-change.
+When you make a change to a crate that affects source compatibility,
+please append a paragraph to that crate's `semver.md`, creating it as
+necessary.
 
-You can change from MODIFIED to BREAKING, but never from BREAKING to
-MODIFIED.
+Every line should begin with one of the following:
+  * BREAKING
+  * MODIFIED
 
-You don't need to list details; this isn't the changelog.
+A "BREAKING" change is one that may break other crates that depend on
+this crate directly.
 
-Don't document other changes in this file.
+A "MODIFIED" change is one the introduces a new API, such that crates
+using the new API will not work with older versions of the crate.
 
-We can delete older sections here after we bump the releases.
+When we release a new version, we use these files to determine which
+crates need major-version, minor-version, or patch-level version bumps.
+We also use them to help write the "breaking changes" section of the
+changelog. They aren't user-facing, so they don't go into much detail.
 
-## Since Arti 0.4.0
+Here is an example `semver.md` file:
 
+>```
+>BREAKING: Removed the obsolete `detect_thylacine()` function.
+>
+>MODIFIED: New `Wombat::feed()` method.
+>
+>MODIFIED: `Numbat` now implements `Display`.
+>
+>BREAKING: The `Quokka` trait now inherits from Debug.
+>```
 
-DO NOT ADD ANYTHING HERE YET.  SEE:
+# What is a breaking change?
 
-    https://gitlab.torproject.org/tpo/core/arti/-/issues/471
+We will add guidance to this section as we come up with it. For now, see
+[SemVer compatibility] in the Cargo book.
+
+[SemVer Compatibility]: https://doc.rust-lang.org/cargo/reference/semver.html
+
+# DO NOT EDIT BELOW.
+
+(We used to append here, so I've added an explicit note not to do that.)
 
