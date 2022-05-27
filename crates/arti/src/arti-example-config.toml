@@ -44,10 +44,10 @@
 # rotation.
 #
 # For example (not the default):
-#     file = [
+#files = [
 #         {path = "~/logs/debug.log", filter="debug"},
 #         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
-#     ]
+#]
 
 # Locations to use for storing things on disk.
 #
