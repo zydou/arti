@@ -21,6 +21,7 @@
 /// assert_eq!(Location::from_str("start"), Location::START);
 /// assert_eq!(Location::from_str("stfff"), Location::UNRECOGNIZED);
 /// ```
+#[allow(unused_macro_rules)]
 macro_rules! decl_keyword {
     { $(#[$meta:meta])* $v:vis
       $name:ident { $( $($anno:ident)? $($s:literal)|+ => $i:ident),* $(,)? } } => {
