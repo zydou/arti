@@ -137,6 +137,42 @@ impl Reconfigure {
     }
 }
 
+/// Resolves an `Option<Option<T>>` (in a builder) into an `Option<T>`
+///
+///  * If the input is `None`, this indicates that the user did not specify a value,
+///    and we therefore use `def` to obtain the default value.
+///
+///  * If the input is `Some(None)`, or `Some(Some(Default::default()))`,
+///    the user has explicitly specified that this config item should be null/none/nothing,
+///    so we return `None`.
+///
+///  * Otherwise the user provided an actual value, and we return `Some` of it.
+///
+/// See https://gitlab.torproject.org/tpo/core/arti/-/issues/488
+///
+/// # ⚠ Stability Warning ⚠
+///
+/// We hope to significantly change this so that it is an method in an extension trait.
+//
+// This is an annoying AOI right now because you have to write things like
+//     #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
+//     pub(crate) dns_port: Option<u16>,
+// which recapitulates the field name.  That is very much a bug hazard (indeed, in an
+// early version of some of this code I perpetrated precisely that bug).
+// Fixing this involves a derive_builder feature.
+pub fn resolve_option<T, DF>(input: &Option<Option<T>>, def: DF) -> Option<T>
+where
+    T: Clone + Default + PartialEq,
+    DF: FnOnce() -> Option<T>,
+{
+    match input {
+        None => def(),
+        Some(None) => None,
+        Some(Some(v)) if v == &T::default() => None,
+        Some(Some(v)) => Some(v.clone()),
+    }
+}
+
 /// Defines standard impls for a struct with a `Builder`, incl `Default`
 ///
 /// **Use this.**  Do not `#[derive(Builder, Default)]`.  That latter approach would produce

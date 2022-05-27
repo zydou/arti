@@ -37,8 +37,8 @@
 #console = "debug"
 
 # As above, but specify filtering directives for sending trace messages to 
-# the journald logging system.  For example (not the default):
-#     journald = ""
+# the journald logging system.  Empty string means not to use journald.
+#journald = ""
 
 # You can also configure one or more log files, with different filters, and optional
 # rotation.
