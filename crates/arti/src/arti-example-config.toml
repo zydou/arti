@@ -171,6 +171,15 @@
 # predicted exit port?
 #min_exit_circs_for_port = 2
 
+# Configuration information about the Tor network itself
+[tor_network]
+# List of locations to look in when downloading directory information
+# we don't actually have a directory yet.
+#   fallback_caches = [ <default list is compiled-in > ]
+
+# List of directory authorities which we expect to sign consensus documents.
+#   authorities = [ <default list is compiled-in > ]
+
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
 [circuit_timing]
