@@ -31,18 +31,15 @@ pub struct ApplicationConfig {
 impl_standard_builder! { ApplicationConfig }
 
 /// Configuration for one or more proxy listeners.
-#[derive(Deserialize, Debug, Clone, Builder, Eq, PartialEq)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
-    #[serde(default = "default_socks_port")]
     #[builder(default = "default_socks_port()")]
     pub(crate) socks_port: Option<u16>,
     /// Port to lisen on (at localhost) for incoming DNS connections.
-    #[serde(default)]
     #[builder(default)]
     pub(crate) dns_port: Option<u16>,
 }
