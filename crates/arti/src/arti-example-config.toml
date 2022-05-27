@@ -49,6 +49,12 @@
 #         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
 #]
 
+# Whether to log sensitive information (such as target hostnames and ip addresses)
+#
+# If set to `false` (the default), such information is not logged in meessages of
+# level `info` or higher.
+#log_sensitive_information = false
+
 # Locations to use for storing things on disk.
 #
 # These paths can use ~ to indicate the user's home directory, or a set
@@ -109,16 +115,24 @@
 [download_schedule]
 
 # How to retry our initial bootstrapping when we're trying to start up.
-#retry_bootstrap = { attempts = 128, initial_delay = "1 sec" }
+#retry_bootstrap = { attempts = 128, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a single consensus download.
-#retry_consensus = { attempts = 3, initial_delay = "1 sec" }
+#retry_consensus = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a set of authority certificate downloads.
-#retry_certs = { attempts = 3, initial_delay = "1 sec" }
+#retry_certs = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a set of microdescriptor downloads.
 #retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
+
+# Configuration for how much clock skew to tolerate in our directory information
+[download_tolerance]
+# For how long before a directory document is valid should we accept it?
+#pre_valid_tolerance = "1 day"
+
+# For how long after a directory document is valid should we consider it usable?
+#post_valid_tolerance = "3 days"
 
 # Tells the circuit manager rule for constructing circuit paths
 [path_rules]
