@@ -1,5 +1,7 @@
 //! Declares macros to help implementing parsers.
 
+#![allow(unknown_lints)]
+
 /// Macro for declaring a keyword enumeration to help parse a document.
 ///
 /// A keyword enumeration implements the Keyword trait.
