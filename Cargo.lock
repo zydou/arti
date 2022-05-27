@@ -3281,7 +3281,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "arrayref",
  "bytes",
@@ -3297,7 +3297,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "arrayref",
  "bitflags",
@@ -3528,7 +3528,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -3575,7 +3575,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "hex-literal",
  "tor-bytes",
@@ -3585,7 +3585,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aes",
  "arrayref",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
@@ -3767,7 +3767,7 @@ dependencies = [
 
 [[package]]
 name = "tor-socksproto"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "caret",
  "hex-literal",
