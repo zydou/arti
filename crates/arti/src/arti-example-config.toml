@@ -97,6 +97,7 @@
 # (This is not the default.)
 #
 #     ignore_prefix = "/home/"
+#ignore_prefix = ""
 
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.

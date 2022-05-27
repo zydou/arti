@@ -358,6 +358,7 @@ pub struct Mistrust {
 #[allow(clippy::option_option)]
 fn canonicalize_opt_prefix(prefix: &Option<Option<PathBuf>>) -> Result<Option<PathBuf>> {
     match prefix {
+        Some(Some(path)) if path.as_os_str().is_empty() => Ok(None),
         Some(Some(path)) => Ok(Some(
             path.canonicalize()
                 .map_err(|e| Error::inspecting(e, path))?,
