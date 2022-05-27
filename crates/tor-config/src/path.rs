@@ -318,19 +318,23 @@ mod test_serde {
     }
 
     fn deser_json(json: &str) -> CfgPath {
+        dbg!(json);
         let TestConfigFile { p } = serde_json::from_str(json).expect("deser json failed");
         p
     }
     fn deser_toml(toml: &str) -> CfgPath {
+        dbg!(toml);
         let TestConfigFile { p } = toml::from_str(toml).expect("deser toml failed");
         p
     }
     fn deser_toml_cfg(toml: &str) -> CfgPath {
+        dbg!(toml);
         let cfg = config::File::from_str(toml, config::FileFormat::Toml);
         let cfg = config::Config::builder()
             .add_source(cfg)
             .build()
             .expect("parse toml failed");
+        dbg!(&cfg);
         let TestConfigFile { p } = cfg.try_deserialize().expect("deser cfg failed");
         p
     }
@@ -388,6 +392,7 @@ mod test_serde {
                 Err(e) if easy => panic!("ser failed {:?} e={:?}", &input, &e),
                 Err(_) => return,
             };
+            dbg!(&input, &s);
             let output = deser(&s).expect("deser failed");
             assert_eq!(&input, &output, "s={:?}", &s);
         };
