@@ -380,11 +380,10 @@ define_list_builder_helper! {
 #[cfg(test)]
 mod test {
     use derive_builder::Builder;
-    use serde::{Deserialize, Serialize};
 
     #[test]
     fn nonempty_default() {
-        #[derive(Eq, PartialEq, Builder, Serialize, Deserialize)]
+        #[derive(Eq, PartialEq, Builder)]
         struct Outer {
             #[builder(sub_builder, setter(custom))]
             list: List,
