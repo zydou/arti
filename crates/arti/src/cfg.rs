@@ -37,19 +37,13 @@ impl_standard_builder! { ApplicationConfig }
 pub struct ProxyConfig {
     /// Port to listen on (at localhost) for incoming SOCKS
     /// connections.
-    #[builder(default = "default_socks_port()")]
+    #[builder(field(build = r#"tor_config::resolve_option(&self.socks_port, || Some(9150))"#))]
     pub(crate) socks_port: Option<u16>,
     /// Port to lisen on (at localhost) for incoming DNS connections.
-    #[builder(default)]
+    #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
     pub(crate) dns_port: Option<u16>,
 }
 impl_standard_builder! { ProxyConfig }
-
-/// Return the default value for `socks_port`
-#[allow(clippy::unnecessary_wraps)]
-fn default_socks_port() -> Option<u16> {
-    Some(9150)
-}
 
 /// Configuration for system resources used by Tor.
 ///
