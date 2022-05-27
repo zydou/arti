@@ -79,6 +79,12 @@ fn cur_groups() -> Vec<u32> {
     if n_groups2 < n_groups {
         buf.resize(n_groups2 as usize, 0);
     }
+    // It's not guaranteed that our current GID is necessarily one of our
+    // current groups.  So, we add it.
+    let cur_gid = users::get_current_gid();
+    if !buf.contains(&cur_gid) {
+        buf.push(cur_gid);
+    }
     buf
 }
 
