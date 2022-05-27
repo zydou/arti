@@ -16,59 +16,10 @@ Don't document other changes in this file.
 
 We can delete older sections here after we bump the releases.
 
-## Since Arti 0.3.0
+## Since Arti 0.4.0
 
-### arti
 
-ADDED: ARTI_EXAMPLE_CONFIG introduced
-BREAKING: ArtiConfig no longer contains a TorClientConfig
+DO NOT ADD ANYTHING HERE YET.  SEE:
 
-### arti-client
+    https://gitlab.torproject.org/tpo/core/arti/-/issues/471
 
-MODIFIED: Code to configure fs-mistrust.
-BREAKING: TorConfig no longer implements TryInto<DirMgrConfig>
-
-### arti-config
-
-BREAKING: default_config_file moved to arti_client, and changed to return Result
-GREAKING: ConfigurationSource::new_empty renamed from ::new
-BREAKING: ConfigurationSource methods take Into<String> and Into<PathBuf> now
-BREAKING: ARTI_DEFAULTS removed, in favour of ARTI_EXAMPLE_CONFIG in the arti crate
-BREAKING: ConfigurationSource is now in the tor-config crate.
-DEPRECATION: arti-config is to be abolished.  Currently it is merely an empty tombstone.
-
-### fs-mistrust
-
-MODIFIED: New APIs for CachedDir, Error.
-BREAKING: New builder API.
-
-### tor-dirclient
-
-MODIFIED: new max_skew api
-
-### tor-dirmgr
-
-BREAKING: Added new cache_trust element to DirMgrConfig.
-BREAKING: Delete Error::BadNetworkConfig
-
-### tor-netdoc
-
-BREAKING: Routerstatus::nickname() now returns &str, not &String.
-MODIFIED: Lifetime has a valid_at() method.
-
-### tor-persist
-
-+BREAKING: Replaced from_path with from_path_and_mistrust
-
-### tor-proto
-
-MODIFIED: channel() method on ClientCirc.
-
-### tor-rtcompat
-
-BREAKING: Runtime now requires the Debug trait to be implemented.
-
-### tor-config
-
-BREAKING: impl_standard_builder macro now tries to impl new Builder trait by default
-ADDED: New load module containing Resolvable, and tor_config::resolve, etc.
