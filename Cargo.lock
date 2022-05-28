@@ -3598,6 +3598,7 @@ dependencies = [
  "getrandom 0.2.6",
  "hex",
  "hex-literal",
+ "openssl",
  "rand 0.8.5",
  "rand_core 0.5.1",
  "rand_core 0.6.3",
@@ -3611,6 +3612,7 @@ dependencies = [
  "simple_asn1",
  "subtle",
  "thiserror",
+ "typenum",
  "x25519-dalek",
  "zeroize",
 ]
