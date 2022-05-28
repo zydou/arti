@@ -23,30 +23,29 @@ static-native-tls = ["arti-client/static-native-tls", "native-tls"]
 journald = ["tracing-journald"]
 
 [dependencies]
-safelog = { path = "../safelog", version = "0.1.0" }
-fs-mistrust = { path = "../fs-mistrust", version = "0.2.0" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.4.0", default-features = false }
-tor-config = { path = "../tor-config", version = "0.4.0" }
-tor-error = { path = "../tor-error", version = "0.3.1", default-features = false }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", default-features = false }
-tor-socksproto = { path = "../tor-socksproto", version = "0.3.0"}
-
 anyhow = "1.0.23"
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.4.0", default-features = false }
 async-ctrlc = { version = "1.2.0", optional = true }
-config = { version = "0.13", default-features = false, features = ["toml"] }
 cfg-if = "1.0.0"
+clap = "2.33.0"
+config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.2.0" }
 futures = "0.3.14"
-tracing = "0.1.18"
 notify = "4.0"
 once_cell = { version = "1", optional = true }
 rlimit = "0.8.3"
+safelog = { path = "../safelog", version = "0.1.0" }
 serde = { version = "1.0.103", features = ["derive"] }
-tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
-clap = "2.33.0"
-tracing-journald = { version = "0.3.0", optional = true }
+tor-config = { path = "../tor-config", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.3.1", default-features = false }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", default-features = false }
+tor-socksproto = { path = "../tor-socksproto", version = "0.3.0" }
+tracing = "0.1.18"
 tracing-appender = "0.2.0"
+tracing-journald = { version = "0.3.0", optional = true }
+tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 trust-dns-proto = "0.21.1"
 
 [dev-dependencies]

@@ -1,0 +1,22 @@
+# cargo-sort configuration
+## https://github.com/DevinR528/cargo-sort
+
+# trailing comma in arrays
+always_trailing_comma = false
+# trailing comma when multi-line
+multiline_trailing_comma = true
+space_around_eq = true
+# remove all the spacing inside the array
+compact_arrays = false
+# remove all the spacing inside the object
+compact_inline_tables = false
+trailing_newline = true
+# is it ok to have blank lines inside of a table
+# this option needs to be true for the --grouped flag
+key_value_newlines = true
+allowed_blank_lines = 1
+# windows style line endings
+crlf = false
+# The user specified ordering of tables in a document.
+# All unspecified tables will come after these.
+table_order = []

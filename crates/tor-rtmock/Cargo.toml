@@ -16,9 +16,8 @@ async-trait = "0.1.2"
 futures = "0.3.14"
 pin-project = "1"
 thiserror = "1"
-tracing = "0.1.18"
-
 tor-rtcompat = { version = "0.4.0", path = "../tor-rtcompat" }
+tracing = "0.1.18"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"

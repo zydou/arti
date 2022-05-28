@@ -10,7 +10,6 @@ description = "Provides macros for types which are constrained within a range, e
 keywords = ["tor", "arti"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 categories = ["rust-patterns"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

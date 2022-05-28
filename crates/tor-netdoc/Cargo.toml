@@ -42,31 +42,29 @@ experimental-api = []
 dangerous-expose-struct-fields = ["visible", "visibility"]
 
 [dependencies]
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-bytes = { path = "../tor-bytes", version = "0.3.0"}
-tor-cert = { path = "../tor-cert", version = "0.3.0"}
-tor-protover = { path = "../tor-protover", version = "0.3.0"}
-tor-checkable = { path = "../tor-checkable", version = "0.3.0"}
-tor-error = { path = "../tor-error", version = "0.3.1" }
-
 base64 = "0.13.0"
 bitflags = "1"
-time = { version = "0.3", features = ["std", "parsing", "macros"] }
 derive_more = "0.99"
 digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
 once_cell = "1"
 phf = { version = "0.10.0", features = ["macros"] }
+rand = { version = "0.8", optional = true }
 serde = "1.0.103"
 signature = "1"
-tinystr = "0.6.0"
 thiserror = "1"
-visible = { version = "0.0.1", optional = true }
+time = { version = "0.3", features = ["std", "parsing", "macros"] }
+tinystr = "0.6.0"
+tor-bytes = { path = "../tor-bytes", version = "0.3.0" }
+tor-cert = { path = "../tor-cert", version = "0.3.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-protover = { path = "../tor-protover", version = "0.3.0" }
 visibility = { version = "0.0.1", optional = true }
+visible = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"
-
-rand = { version = "0.8", optional = true }
 
 [dev-dependencies]
 hex-literal = "0.3"

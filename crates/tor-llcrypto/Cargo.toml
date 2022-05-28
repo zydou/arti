@@ -24,29 +24,29 @@ hsv3-client = []
 aes = { version = "0.8" }
 arrayref = "0.3"
 base64 = "0.13.0"
-curve25519-dalek = "3.2"
 ctr = "0.9"
+curve25519-dalek = "3.2"
 digest = "0.10.0"
 ed25519-dalek = { version = "1", features = ["batch"] }
 hex = "0.4"
-rand_core = "0.6.2"
 old_rand_core = { package = "rand_core", version = "0.5.1" }
+rand_core = "0.6.2"
 rsa = "0.5.0"
+serde = "1.0.103"
 sha-1 = "0.10.0"
 sha2 = "0.10.0"
 sha3 = "0.10.0"
-serde = "1.0.103"
 signature = "1"
 simple_asn1 = "0.6"
 subtle = "2"
+thiserror = "1"
 x25519-dalek = "1.2"
 zeroize = "1"
-thiserror = "1"
 
 [dev-dependencies]
+cipher = "0.4.1"
 hex-literal = "0.3"
 rand = "0.8"
-cipher = "0.4.1"
 serde_test = "1.0.124"
 
 [target.wasm32-unknown-unknown.dependencies]

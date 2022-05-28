@@ -14,25 +14,24 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
-tor-error = { path = "../tor-error", version = "0.3.1" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
-tor-proto = { path = "../tor-proto", version = "0.3.1" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.3.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-
 async-trait = "0.1.2"
 derive_more = "0.99"
 educe = "0.4.6"
 futures = "0.3.14"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-tracing = "0.1.18"
 thiserror = "1"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-proto = { path = "../tor-proto", version = "0.3.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
+tracing = "0.1.18"
 
 [dev-dependencies]
 float_eq = "0.7"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
-tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }

@@ -17,9 +17,9 @@ default = []
 
 [dependencies]
 educe = "0.4.6"
-thiserror = "1"
 fluid-let = "1"
 serde = { version = "1.0.103", optional = true, features = ["derive"] }
+thiserror = "1"
 
 [dev-dependencies]
 serial_test = "0.6"

@@ -29,6 +29,9 @@ arti-client = { path = "../arti-client", version = "0.4.0" }
 educe = "0.4.6"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
+thiserror = "1"
+tls-api = { version = "0.8" }
+tls-api-native-tls = { version = "0.8.0" }
 tokio = { package = "tokio", version = "1.7", features = [
     "rt",
     "rt-multi-thread",
@@ -37,9 +40,6 @@ tokio = { package = "tokio", version = "1.7", features = [
     "time",
     "macros",
 ] }
-thiserror = "1"
-tls-api = { version = "0.8" }
-tls-api-native-tls = { version = "0.8.0" }
 tor-error = { path = "../tor-error", version = "0.3.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio"] }
 
