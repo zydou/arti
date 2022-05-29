@@ -258,4 +258,28 @@ mod test {
 
         assert_ne!(val, ArtiConfig::default());
     }
+
+    #[test]
+    fn articonfig_application() {
+        let config = ArtiConfig::default();
+
+        let application = config.application();
+        assert_eq!(&config.application, application);
+    }
+
+    #[test]
+    fn articonfig_logging() {
+        let config = ArtiConfig::default();
+
+        let logging = config.logging();
+        assert_eq!(&config.logging, logging);
+    }
+
+    #[test]
+    fn articonfig_proxy() {
+        let config = ArtiConfig::default();
+
+        let proxy = config.proxy();
+        assert_eq!(&config.proxy, proxy);
+    }
 }
