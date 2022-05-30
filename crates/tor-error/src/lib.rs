@@ -6,6 +6,7 @@
 //! There is also some other miscellany, supporting error handling in
 //! crates higher up the dependency stack.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
 #![warn(clippy::all)]
@@ -34,6 +35,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use derive_more::Display;
 

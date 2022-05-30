@@ -33,6 +33,7 @@
 //! [`arti-client`] will need to check its own list of supported
 //! protocols against the required list in the consensus.)
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![allow(non_upper_case_globals)]
 #![warn(noop_method_call)]
@@ -64,6 +65,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::upper_case_acronyms)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use caret::caret_int;
 

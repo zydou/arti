@@ -2,6 +2,7 @@
 //!
 //! See the [crate-level documentation](::arti).
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![warn(missing_docs)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -34,6 +35,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 fn main() {
     arti::main();

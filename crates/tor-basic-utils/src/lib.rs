@@ -9,6 +9,7 @@
 //! More substantial sets of functionality with particular themes
 //! are to be found in other `tor-*` crates.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -39,6 +40,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::let_unit_value)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use std::fmt;
 

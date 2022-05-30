@@ -34,6 +34,7 @@
 //!}
 //! ```
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -63,6 +64,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 use std::error::Error;
 use std::fmt::{Debug, Display, Error as FmtError, Formatter};

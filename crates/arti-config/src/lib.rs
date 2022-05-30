@@ -7,6 +7,7 @@
 //! The project continues, but this particular crate is now superseded.
 //! This empty crate is published as a tombstone.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -34,5 +35,6 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 // EOF

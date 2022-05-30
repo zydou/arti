@@ -81,6 +81,7 @@
 //! a command line program similar to `arti`.
 //! The API should not be considered stable.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![warn(missing_docs)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -113,6 +114,7 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod cfg;
 pub mod dns;

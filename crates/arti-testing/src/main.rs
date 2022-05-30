@@ -48,6 +48,7 @@
 //! - Make sure we can replicate all/most test situations from arti#329
 //! - Actually implement those tests.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![allow(dead_code)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
@@ -78,6 +79,7 @@
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::print_stderr)] // Allowed in this crate only.
 #![allow(clippy::print_stdout)] // Allowed in this crate only.
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod config;
 mod dirfilter;
