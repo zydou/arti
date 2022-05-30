@@ -179,6 +179,7 @@ pub mod scheduler;
 mod timer;
 mod traits;
 
+#[cfg(any(feature = "async-std", feature = "tokio"))]
 use std::io;
 pub use traits::{
     BlockOn, CertifiedConn, Runtime, SleepProvider, TcpListener, TcpProvider, TlsProvider,
