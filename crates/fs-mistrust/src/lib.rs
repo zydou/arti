@@ -718,7 +718,7 @@ mod test {
         m.check_directory(d.path("a/b/c")).unwrap();
         // /e/f/g should not.
         let e = m.check_directory(d.path("e/f/g")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, 0o022)));
+        assert!(matches!(e, Error::BadPermission(_, 0o777, 0o022)));
         assert_eq!(e.path().unwrap(), d.path("e/f").canonicalize().unwrap());
 
         m.check_directory(d.path("d")).unwrap();

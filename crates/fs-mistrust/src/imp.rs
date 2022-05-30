@@ -224,7 +224,11 @@ impl<'a> super::Verifier<'a> {
         }
         let bad_bits = meta.mode() & forbidden_bits;
         if bad_bits != 0 {
-            errors.push(Error::BadPermission(path.into(), bad_bits));
+            errors.push(Error::BadPermission(
+                path.into(),
+                meta.mode() & 0o777,
+                bad_bits,
+            ));
         }
     }
 }
