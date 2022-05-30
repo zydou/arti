@@ -25,28 +25,27 @@ experimental-api = []
 testing = ["hex", "hex-literal", "tor-netdoc/build_docs"]
 
 [dependencies]
-tor-checkable = { path = "../tor-checkable", version = "0.3.0"}
-tor-config = { path = "../tor-config", version = "0.4.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.3.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-protover = { path = "../tor-protover", version = "0.3.0"}
-tor-units = { path = "../tor-units", version = "0.3.0"}
-
 bitflags = "1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99"
+futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 hex-literal = { version = "0.3", optional = true }
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 thiserror = "1"
+tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
+tor-config = { path = "../tor-config", version = "0.4.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
+tor-protover = { path = "../tor-protover", version = "0.3.0" }
+tor-units = { path = "../tor-units", version = "0.3.0" }
 tracing = "0.1.18"
-futures = "0.3.14"
 
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.0", features = ["build_docs"] }
 rand_chacha = "0.3"
+tor-netdoc = { path = "../tor-netdoc", version = "0.4.0", features = ["build_docs"] }

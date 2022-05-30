@@ -16,12 +16,9 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
-tor-error = { path = "../tor-error", version = "0.3.1" }
-tor-basic-utils = { path="../tor-basic-utils", version = "0.3.1" }
-
-thiserror = "1"
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
+directories = { version = "4", optional = true }
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.2.0" }
 itertools = "0.10.1"
@@ -31,9 +28,11 @@ regex = { version = "1", default-features = false, features = ["std"] }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_ignored = "0.1.3"
 shellexpand = { version = "2.1", package = "shellexpand-fork", optional = true }
+thiserror = "1"
 toml = "0.5"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
 tracing = "0.1.18"
-directories = { version = "4", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.23"

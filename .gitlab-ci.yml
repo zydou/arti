@@ -42,10 +42,14 @@ rust-latest:
     - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
     - ./maint/cargo_audit
     - cp $CARGO_HOME/bin/cargo-audit .
+    - cp cargo-sort $CARGO_HOME/bin/ || cargo install cargo-sort
+    - ./maint/cargo_sort
+    - cp $CARGO_HOME/bin/cargo-sort .
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
   cache:
     paths:
       - cargo-audit
+      - cargo-sort
   artifacts:
     paths:
       - target/x86_64-unknown-linux-gnu/debug/arti

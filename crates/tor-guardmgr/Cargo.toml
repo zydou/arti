@@ -19,17 +19,6 @@ default = []
 testing = []
 
 [dependencies]
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
-tor-config = { path = "../tor-config", version = "0.4.0" }
-tor-error = { path = "../tor-error", version = "0.3.1" }
-tor-netdir = { path = "../tor-netdir", version = "0.3.0"}
-tor-linkspec = { path = "../tor-linkspec", version = "0.3.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-persist = { path = "../tor-persist", version = "0.4.0" }
-tor-proto = { path = "../tor-proto", version = "0.3.1" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
-tor-units = { path = "../tor-units", version = "0.3.0"}
-
 base64 = "0.13.0"
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive_more = "0.99"
@@ -41,16 +30,25 @@ itertools = "0.10.1"
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-serde = { version = "1.0.103", features = ["derive"] }
 retain_mut = "0.1.3"
+serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-config = { path = "../tor-config", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.3.1" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.3.0" }
+tor-persist = { path = "../tor-persist", version = "0.4.0" }
+tor-proto = { path = "../tor-proto", version = "0.3.1" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
+tor-units = { path = "../tor-units", version = "0.3.0" }
 tracing = "0.1.18"
 
 [dev-dependencies]
+float_eq = "0.7"
 tor-netdir = { path = "../tor-netdir", version = "0.3.0", features = ["testing"] }
 tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
 tor-persist = { path = "../tor-persist", version = "0.4.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
-
-float_eq = "0.7"

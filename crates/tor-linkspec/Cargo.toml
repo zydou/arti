@@ -12,9 +12,9 @@ categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-bytes = { path = "../tor-bytes", version = "0.3.0"}
-tor-protover = { path = "../tor-protover", version = "0.3.0"}
+tor-bytes = { path = "../tor-bytes", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-protover = { path = "../tor-protover", version = "0.3.0" }
 
 [dev-dependencies]
 hex-literal = "0.3"

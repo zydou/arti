@@ -12,13 +12,12 @@ categories = ["parser-implementations"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
-caret = { path = "../caret", version = "0.2.0"}
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0"}
-tor-bytes = { path = "../tor-bytes", version = "0.3.0"}
-tor-checkable = { path = "../tor-checkable", version = "0.3.0"}
-
+caret = { path = "../caret", version = "0.2.0" }
 digest = "0.10.0"
 signature = "1"
+tor-bytes = { path = "../tor-bytes", version = "0.3.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
 
 [dev-dependencies]
 base64 = "0.13.0"

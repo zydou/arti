@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# Run "cargo sort" with an appropriate set of flags.
+
+set -euo pipefail
+
+cargo sort --check --workspace
