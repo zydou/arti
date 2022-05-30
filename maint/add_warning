@@ -89,8 +89,14 @@ def filter_file(lints, inp, outp):
     for line in head:
         outp.write(line)
     outp.write("\n")
+    outp.write("// @@ begin lint list maintained by maint/add_warning @@\n")
     for line in warnings:
         outp.write(line)
+    # End delimiter is Rustdoc containing an HTML comment, because rustfmt
+    # *really really* hates comments that come after things.
+    # Finishing the automaintained block with just a blank line is too much of a hazard.
+    # It does end up in the output HTML from Rustdoc, but it is harmless there.
+    outp.write("//! <!-- @@ end lint list maintained by maint/add_warning @@ -->\n")
     outp.write("\n")
     for line in other:
         outp.write(line)
