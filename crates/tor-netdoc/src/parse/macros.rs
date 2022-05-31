@@ -1,6 +1,7 @@
 //! Declares macros to help implementing parsers.
 
-#![allow(unknown_lints)]
+// https://github.com/rust-lang/rust-clippy/issues/6860
+#![allow(renamed_and_removed_lints, clippy::unknown_clippy_lints)]
 
 /// Macro for declaring a keyword enumeration to help parse a document.
 ///
@@ -31,7 +32,8 @@ macro_rules! decl_keyword {
         #[allow(non_camel_case_types)]
         $(#[$meta])*
         #[allow(unknown_lints)]
-        #[allow(clippy::unknown_clippy_lints)]
+        // https://github.com/rust-lang/rust-clippy/issues/6860
+        #[allow(renamed_and_removed_lints, clippy::unknown_clippy_lints)]
         #[allow(clippy::upper_case_acronyms)]
         $v enum $name {
             $( $i , )*
