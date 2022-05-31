@@ -161,7 +161,7 @@ impl DownloadScheduleConfig {
     }
 }
 
-/// Configuration for how much
+/// Configuration for how much clock skew to tolerate in our directory information
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
@@ -171,7 +171,7 @@ pub struct DirSkewTolerance {
     /// Having a nonzero value here allows us to tolerate a little clock skew.
     ///
     /// Defaults to 1 day.
-    #[builder(default = "Duration::from_millis(24 * 60 * 60)")]
+    #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
     #[builder_field_attr(serde(with = "humantime_serde::option"))]
     pub(crate) pre_valid_tolerance: Duration,
 

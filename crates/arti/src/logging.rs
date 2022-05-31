@@ -33,7 +33,10 @@ pub struct LoggingConfig {
     /// Filtering directives for the journald logger.
     ///
     /// Only takes effect if Arti is built with the `journald` filter.
-    #[builder(default, setter(into, strip_option))]
+    #[builder(
+        setter(into, strip_option),
+        field(build = r#"tor_config::resolve_option(&self.journald, || None)"#)
+    )]
     journald: Option<String>,
 
     /// Configuration for one or more logfiles.

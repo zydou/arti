@@ -19,6 +19,9 @@
 # Note that only one process can listen on a given port at a time.
 #socks_port = 9150
 
+# Port to use to listen for DNS requests.  0 means disabled.
+#dns_port = 0
+
 # Configure logging
 [logging]
 
@@ -37,17 +40,23 @@
 #console = "debug"
 
 # As above, but specify filtering directives for sending trace messages to 
-# the journald logging system.  For example (not the default):
-#     journald = ""
+# the journald logging system.  Empty string means not to use journald.
+#journald = ""
 
 # You can also configure one or more log files, with different filters, and optional
 # rotation.
 #
 # For example (not the default):
-#     file = [
+#files = [
 #         {path = "~/logs/debug.log", filter="debug"},
 #         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
-#     ]
+#]
+
+# Whether to log sensitive information (such as target hostnames and ip addresses)
+#
+# If set to `false` (the default), such information is not logged in meessages of
+# level `info` or higher.
+#log_sensitive_information = false
 
 # Locations to use for storing things on disk.
 #
@@ -88,6 +97,7 @@
 # (This is not the default.)
 #
 #     ignore_prefix = "/home/"
+#ignore_prefix = ""
 
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
@@ -109,16 +119,24 @@
 [download_schedule]
 
 # How to retry our initial bootstrapping when we're trying to start up.
-#retry_bootstrap = { attempts = 128, initial_delay = "1 sec" }
+#retry_bootstrap = { attempts = 128, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a single consensus download.
-#retry_consensus = { attempts = 3, initial_delay = "1 sec" }
+#retry_consensus = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a set of authority certificate downloads.
-#retry_certs = { attempts = 3, initial_delay = "1 sec" }
+#retry_certs = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
 
 # How to retry a set of microdescriptor downloads.
 #retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
+
+# Configuration for how much clock skew to tolerate in our directory information
+[download_tolerance]
+# For how long before a directory document is valid should we accept it?
+#pre_valid_tolerance = "1 day"
+
+# For how long after a directory document is valid should we consider it usable?
+#post_valid_tolerance = "3 days"
 
 # Tells the circuit manager rule for constructing circuit paths
 [path_rules]
@@ -156,6 +174,15 @@
 # How many available circuits should we try to have, at minimum, for each
 # predicted exit port?
 #min_exit_circs_for_port = 2
+
+# Configuration information about the Tor network itself
+[tor_network]
+# List of locations to look in when downloading directory information
+# we don't actually have a directory yet.
+#   fallback_caches = [ <default list is compiled-in > ]
+
+# List of directory authorities which we expect to sign consensus documents.
+#   authorities = [ <default list is compiled-in > ]
 
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.

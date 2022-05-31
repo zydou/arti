@@ -382,11 +382,10 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use derive_builder::Builder;
-    use serde::{Deserialize, Serialize};
 
     #[test]
     fn nonempty_default() {
-        #[derive(Eq, PartialEq, Builder, Serialize, Deserialize)]
+        #[derive(Eq, PartialEq, Builder)]
         struct Outer {
             #[builder(sub_builder, setter(custom))]
             list: List,

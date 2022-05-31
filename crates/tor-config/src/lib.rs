@@ -137,6 +137,42 @@ impl Reconfigure {
     }
 }
 
+/// Resolves an `Option<Option<T>>` (in a builder) into an `Option<T>`
+///
+///  * If the input is `None`, this indicates that the user did not specify a value,
+///    and we therefore use `def` to obtain the default value.
+///
+///  * If the input is `Some(None)`, or `Some(Some(Default::default()))`,
+///    the user has explicitly specified that this config item should be null/none/nothing,
+///    so we return `None`.
+///
+///  * Otherwise the user provided an actual value, and we return `Some` of it.
+///
+/// See https://gitlab.torproject.org/tpo/core/arti/-/issues/488
+///
+/// # ⚠ Stability Warning ⚠
+///
+/// We hope to significantly change this so that it is an method in an extension trait.
+//
+// This is an annoying AOI right now because you have to write things like
+//     #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
+//     pub(crate) dns_port: Option<u16>,
+// which recapitulates the field name.  That is very much a bug hazard (indeed, in an
+// early version of some of this code I perpetrated precisely that bug).
+// Fixing this involves a derive_builder feature.
+pub fn resolve_option<T, DF>(input: &Option<Option<T>>, def: DF) -> Option<T>
+where
+    T: Clone + Default + PartialEq,
+    DF: FnOnce() -> Option<T>,
+{
+    match input {
+        None => def(),
+        Some(None) => None,
+        Some(Some(v)) if v == &T::default() => None,
+        Some(Some(v)) => Some(v.clone()),
+    }
+}
+
 /// Defines standard impls for a struct with a `Builder`, incl `Default`
 ///
 /// **Use this.**  Do not `#[derive(Builder, Default)]`.  That latter approach would produce
@@ -262,8 +298,13 @@ macro_rules! impl_standard_builder {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // why is this not the default in tests
 mod test {
     use super::*;
+    use crate as tor_config;
+    use derive_builder::Builder;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
     use tracing_test::traced_test;
 
     #[test]
@@ -280,5 +321,73 @@ mod test {
         let ok = how.cannot_change("stuff");
         assert!(ok.is_ok());
         assert!(logs_contain("Cannot change stuff on a running client."));
+    }
+
+    #[test]
+    #[rustfmt::skip] // autoformatting obscures the regular structure
+    fn resolve_option_test() {
+        #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+        #[builder(build_fn(error = "ConfigBuildError"))]
+        #[builder(derive(Debug, Serialize, Deserialize, Eq, PartialEq))]
+        struct TestConfig {
+            #[builder(field(build = r#"tor_config::resolve_option(&self.none, || None)"#))]
+            none: Option<u32>,
+
+            #[builder(field(build = r#"tor_config::resolve_option(&self.four, || Some(4))"#))]
+            four: Option<u32>,
+        }
+
+        // defaults
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { } }
+            ).unwrap();
+
+            let builder_from_methods = TestConfigBuilder::default();
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                        TestConfig { none: None, four: Some(4) });
+        }
+
+        // explicit positive values
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { "none": 123, "four": 456 } }
+            ).unwrap();
+
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(Some(123));
+            builder_from_methods.four(Some(456));
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: Some(123), four: Some(456) });
+        }
+
+        // explicit "null" values
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { "none": 0, "four": 0 } }
+            ).unwrap();
+
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(Some(0));
+            builder_from_methods.four(Some(0));
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: None, four: None });
+        }
+
+        // explicit None (API only, serde can't do this for Option)
+        {
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(None);
+            builder_from_methods.four(None);
+
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: None, four: None });
+        }
     }
 }
