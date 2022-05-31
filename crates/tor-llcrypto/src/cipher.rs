@@ -7,7 +7,7 @@
 ///
 /// These ciphers implement the `cipher::StreamCipher` trait, so use
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
-#[cfg(not(feature = "openssl"))]
+#[cfg(not(feature = "with-openssl"))]
 pub mod aes {
     // These implement StreamCipher.
     /// AES128 in counter mode as used by Tor.
@@ -21,7 +21,7 @@ pub mod aes {
 ///
 /// These ciphers implement the `cipher::StreamCipher` trait, so use
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
-#[cfg(feature = "openssl")]
+#[cfg(feature = "with-openssl")]
 pub mod aes {
     use cipher::generic_array::GenericArray;
     use cipher::inout::InOutBuf;
