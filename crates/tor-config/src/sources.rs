@@ -251,4 +251,32 @@ world = \"nonsense\"
         assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
         assert_eq!(c.get_string("other.var").unwrap(), "present".to_string());
     }
+
+    #[test]
+    fn from_cmdline() {
+        // Try one with specified files
+        let sources = ConfigurationSources::from_cmdline(
+            "/etc/loid.toml",
+            ["/family/yor.toml", "/family/anya.toml"],
+            ["decade=1960", "snack=peanuts"],
+        );
+        let files: Vec<_> = sources.files().map(|path| path.to_str().unwrap()).collect();
+        assert_eq!(files, vec!["/family/yor.toml", "/family/anya.toml"]);
+        assert_eq!(sources.files[0].1, MustRead::MustRead);
+        assert_eq!(
+            &sources.options,
+            &vec!["decade=1960".to_owned(), "snack=peanuts".to_owned()]
+        );
+
+        // Try once with default only.
+        let sources = ConfigurationSources::from_cmdline(
+            "/etc/loid.toml",
+            Vec::<PathBuf>::new(),
+            ["decade=1960", "snack=peanuts"],
+        );
+        assert_eq!(
+            &sources.files,
+            &vec![("/etc/loid.toml".into(), MustRead::TolerateAbsence)]
+        );
+    }
 }
