@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import argparse
 import sys
 import os
 import re
@@ -66,7 +67,7 @@ DECIDED_NOT = """
 
 PAT = re.compile(r'^#!\[(allow|deny|warn)')
 
-opt_check = False
+opts = None
 deferred_errors = []
 
 def filter_file(lints, inp, outp):
@@ -102,7 +103,7 @@ def process(lints, fn):
     filter_file(lints, inp, outp)
     inp.close()
     outp.close()
-    if opt_check:
+    if opts.check:
         if subprocess.run(['diff', '-u', '--', fn, tmp_name]).returncode != 0:
             deferred_errors.append(fn)
     else:
@@ -127,12 +128,9 @@ def main(lints,files):
         sys.exit(1)
 
 if __name__ == '__main__':
-    args = sys.argv[1:]
-    while len(args) > 0 and args[0].startswith('-'):
-        arg = args.pop(0)
-        if arg == '--check':
-            opt_check = True
-        else:
-            raise(Exception('unknown option '+arg))
+    parser = argparse.ArgumentParser('standardise Rust lint blocks')
+    parser.add_argument('--check')
+    parser.add_argument('file', nargs='+')
+    opts = parser.parse_args()
 
-    main(WANT_LINTS, args)
+    main(WANT_LINTS, opts.file)
