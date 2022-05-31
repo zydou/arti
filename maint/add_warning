@@ -123,6 +123,7 @@ def main(lints,files):
     if len(deferred_errors) > 0:
         print('\n' + sys.argv[0] + ': standard lint block mismatch in the following files:\n  '
               + ', '.join(deferred_errors), file=sys.stderr)
+        print('Run ' + sys.argv[0] + ' (possibly after editing it) to fix.')
         sys.exit(1)
 
 if __name__ == '__main__':
