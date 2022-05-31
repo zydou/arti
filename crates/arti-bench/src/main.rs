@@ -32,6 +32,7 @@
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 // This file uses `unwrap()` a fair deal, but this is fine in test/bench code
 // because it's OK if tests and benchmarks simply crash if things go wrong.
