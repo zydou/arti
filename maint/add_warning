@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import shutil
+import subprocess
 
 # ---------- actual list of lints to apply (or disapply) ----------
 
@@ -65,6 +66,9 @@ DECIDED_NOT = """
 
 PAT = re.compile(r'^#!\[(allow|deny|warn)')
 
+opt_check = False
+deferred_errors = []
+
 def filter_file(lints, inp, outp):
     in_lint_list = False
     found_lint_list = False
@@ -98,7 +102,11 @@ def process(lints, fn):
     filter_file(lints, inp, outp)
     inp.close()
     outp.close()
-    shutil.move(tmp_name, fn)
+    if opt_check:
+        if subprocess.run(['diff', '-u', '--', fn, tmp_name]).returncode != 0:
+            deferred_errors.append(fn)
+    else:
+        shutil.move(tmp_name, fn)
 
 def main(lints,files):
     if not os.path.exists("./crates/tor-proto/src/lib.rs"):
@@ -112,6 +120,18 @@ def main(lints,files):
     for fn in files:
         process(lints, fn)
 
+    if len(deferred_errors) > 0:
+        print('\n' + sys.argv[0] + ': standard lint block mismatch in the following files:\n  '
+              + ', '.join(deferred_errors), file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == '__main__':
-    main(WANT_LINTS, sys.argv[1:])
+    args = sys.argv[1:]
+    while len(args) > 0 and args[0].startswith('-'):
+        arg = args.pop(0)
+        if arg == '--check':
+            opt_check = True
+        else:
+            raise(Exception('unknown option '+arg))
+
+    main(WANT_LINTS, args)
