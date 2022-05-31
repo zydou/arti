@@ -82,7 +82,6 @@
 //! The API should not be considered stable.
 
 // @@ begin lint list maintained by maint/add_warning @@
-#![warn(missing_docs)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]

@@ -49,7 +49,6 @@
 //! - Actually implement those tests.
 
 // @@ begin lint list maintained by maint/add_warning @@
-#![allow(dead_code)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -70,6 +69,8 @@
 #![deny(clippy::missing_docs_in_private_items)]
 #![deny(clippy::missing_panics_doc)]
 #![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]

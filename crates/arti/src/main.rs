@@ -3,7 +3,6 @@
 //! See the [crate-level documentation](::arti).
 
 // @@ begin lint list maintained by maint/add_warning @@
-#![warn(missing_docs)]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -26,8 +25,6 @@
 #![warn(clippy::needless_borrow)]
 #![warn(clippy::needless_pass_by_value)]
 #![warn(clippy::option_option)]
-#![allow(clippy::print_stderr)] // Allowed in this crate only.
-#![allow(clippy::print_stdout)] // Allowed in this crate only.
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]

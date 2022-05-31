@@ -7,6 +7,7 @@
 //! crates higher up the dependency stack.
 
 // @@ begin lint list maintained by maint/add_warning @@
+#![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
 #![warn(clippy::all)]
