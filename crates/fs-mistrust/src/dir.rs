@@ -280,7 +280,7 @@ mod test {
         #[cfg(target_family = "unix")]
         {
             let e = sd.make_directory("d/sub2").unwrap_err();
-            assert!(matches!(e, Error::BadPermission(_, _)));
+            assert!(matches!(e, Error::BadPermission(..)));
         }
 
         // Try opening a file that exists.
@@ -289,9 +289,9 @@ mod test {
         #[cfg(target_family = "unix")]
         {
             let e = sd.open("c/f2", OpenOptions::new().read(true)).unwrap_err();
-            assert!(matches!(e, Error::BadPermission(_, _)));
+            assert!(matches!(e, Error::BadPermission(..)));
             let e = sd.open("d/f3", OpenOptions::new().read(true)).unwrap_err();
-            assert!(matches!(e, Error::BadPermission(_, _)));
+            assert!(matches!(e, Error::BadPermission(..)));
         }
 
         // Try creating a file.
@@ -306,7 +306,7 @@ mod test {
             let e = sd
                 .open("d/f-new", OpenOptions::new().write(true).create(true))
                 .unwrap_err();
-            assert!(matches!(e, Error::BadPermission(_, _)));
+            assert!(matches!(e, Error::BadPermission(..)));
         }
     }
 

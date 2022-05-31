@@ -134,7 +134,7 @@ impl Error {
         Some(
             match self {
                 Error::NotFound(pb) => pb,
-                Error::BadPermission(pb, _) => pb,
+                Error::BadPermission(pb, ..) => pb,
                 Error::BadOwner(pb, _) => pb,
                 Error::BadType(pb) => pb,
                 Error::CouldNotInspect(pb, _) => pb,
@@ -162,7 +162,7 @@ impl Error {
     /// us from looking at permissions in the first place)
     pub fn is_bad_permission(&self) -> bool {
         match self {
-            Error::BadPermission(_, _) | Error::BadOwner(_, _) | Error::BadType(_) => true,
+            Error::BadPermission(..) | Error::BadOwner(_, _) | Error::BadType(_) => true,
 
             Error::NotFound(_)
             | Error::CouldNotInspect(_, _)
