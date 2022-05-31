@@ -323,6 +323,7 @@ mod test {
     }
 
     #[test]
+    #[rustfmt::skip] // autoformatting obscures the regular structure
     fn resolve_option_test() {
         #[derive(Debug, Clone, Builder, Eq, PartialEq)]
         #[builder(build_fn(error = "ConfigBuildError"))]
