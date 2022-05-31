@@ -300,6 +300,10 @@ macro_rules! impl_standard_builder {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate as tor_config;
+    use derive_builder::Builder;
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
     use tracing_test::traced_test;
 
     #[test]
@@ -316,5 +320,72 @@ mod test {
         let ok = how.cannot_change("stuff");
         assert!(ok.is_ok());
         assert!(logs_contain("Cannot change stuff on a running client."));
+    }
+
+    #[test]
+    fn resolve_option_test() {
+        #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+        #[builder(build_fn(error = "ConfigBuildError"))]
+        #[builder(derive(Debug, Serialize, Deserialize, Eq, PartialEq))]
+        struct TestConfig {
+            #[builder(field(build = r#"tor_config::resolve_option(&self.none, || None)"#))]
+            none: Option<u32>,
+
+            #[builder(field(build = r#"tor_config::resolve_option(&self.four, || Some(4))"#))]
+            four: Option<u32>,
+        }
+
+        // defaults
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { } }
+            ).unwrap();
+
+            let builder_from_methods = TestConfigBuilder::default();
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                        TestConfig { none: None, four: Some(4) });
+        }
+
+        // explicit positive values
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { "none": 123, "four": 456 } }
+            ).unwrap();
+
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(Some(123));
+            builder_from_methods.four(Some(456));
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: Some(123), four: Some(456) });
+        }
+
+        // explicit "null" values
+        {
+            let builder_from_json: TestConfigBuilder = serde_json::from_value(
+                json!{ { "none": 0, "four": 0 } }
+            ).unwrap();
+
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(Some(0));
+            builder_from_methods.four(Some(0));
+
+            assert_eq!(builder_from_methods, builder_from_json);
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: None, four: None });
+        }
+
+        // explicit None (API only, serde can't do this for Option)
+        {
+            let mut builder_from_methods = TestConfigBuilder::default();
+            builder_from_methods.none(None);
+            builder_from_methods.four(None);
+
+            assert_eq!(builder_from_methods.build().unwrap(),
+                       TestConfig { none: None, four: None });
+        }
     }
 }
