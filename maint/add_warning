@@ -82,7 +82,8 @@ def filter_file(lints, inp, outp):
     for line in inp.readlines():
         lno += 1
         if line.startswith("// @@ begin lint list"):
-            assert not in_lint_list
+            if in_lint_list:
+                raise ImproperFile(lno, 'found "@@ begin lint list" but inside lint list')
             found_lint_list = True
             in_lint_list = True
         elif line.startswith("//! <!-- @@ end lint list"):
@@ -90,7 +91,8 @@ def filter_file(lints, inp, outp):
             # *really really* hates comments that come after things.
             # Finishing the automaintained block with just a blank line is too much of a hazard.
             # It does end up in the output HTML from Rustdoc, but it is harmless there.
-            assert in_lint_list
+            if not in_lint_list:
+                raise ImproperFile(lno, 'found "@@ end lint list" but not inside lint list')
             in_lint_list = False
             outp.write(WANT_LINTS.strip())
             outp.write("\n")
@@ -100,8 +102,10 @@ def filter_file(lints, inp, outp):
             # do not send to output
             continue
         outp.write(line)
-    assert not in_lint_list
-    assert found_lint_list
+    if in_lint_list:
+        raise ImproperFile(lno, 'missing "@@ lint list" delimiter, still in lint list at EOF')
+    if not found_lint_list:
+        raise ImproperFile(lno, 'standard lint list block seems to be missing (wrong delimiters?)')
 
 def process(lints, fn):
     print("{}...".format(fn))
