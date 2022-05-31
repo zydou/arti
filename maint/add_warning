@@ -92,13 +92,13 @@ def filter_file(lints, inp, outp):
 
 def process(lints, fn):
     print("{}...".format(fn))
-    bak_name = fn+".bak"
-    outp = open(bak_name,'w')
+    tmp_name = fn+".tmp~"
+    outp = open(tmp_name,'w')
     inp = open(fn,'r')
     filter_file(lints, inp, outp)
     inp.close()
     outp.close()
-    shutil.move(bak_name, fn)
+    shutil.move(tmp_name, fn)
 
 def main(lints,files):
     if not os.path.exists("./crates/tor-proto/src/lib.rs"):
