@@ -18,7 +18,23 @@ RECOGNIZED_LICENSES=(
 
 # List of packages that don't list a license.
 NO_LICENSE=(
-    fuchsia-cprng
+    # The license for "ring" is something like "ISC AND openssl AND
+    # ssleay AND MIT"; the openssl license is not up-to-date with
+    # modern openssl.  It includes an advertising clause. :P
+    #
+    # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
+    # our related ticket.
+    ring
+    # License appears to be "Apache-2.0 OR MIT" but not so specified
+    # in file.  (Its LICENSE file, as coped from the rest of icu4x, is
+    # more like "(Apache-2.0 OR MIT) AND Sort of (Unicode AND ICU) but
+    # only if we used that code."
+    #
+    # See https://github.com/unicode-org/icu4x/issues/1358 for their
+    # attempts to fix that.
+    tinystr
+    # License appears to be ISC.
+    webpki
 )
 
 containsElement () {
