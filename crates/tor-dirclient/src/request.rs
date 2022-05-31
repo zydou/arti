@@ -310,7 +310,9 @@ impl MicrodescRequest {
 
 impl Requestable for MicrodescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
-        // TODO: require that self.digests is nonempty.
+        if self.digests.is_empty() {
+            return Err(RequestError::MdSha256Empty);
+        }
         let mut digests = self.digests.clone();
         digests.sort_unstable();
 
@@ -393,7 +395,9 @@ impl Requestable for RouterDescRequest {
             uri.push_str("all");
         } else {
             uri.push_str("d/");
-            // TODO: require that self.digests is nonempty.
+            if self.digests.is_empty() {
+                return Err(RequestError::MdSha256Empty);
+            }
             let mut digests = self.digests.clone();
             digests.sort_unstable();
             let ids: Vec<String> = digests.iter().map(hex::encode).collect();
