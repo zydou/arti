@@ -60,46 +60,32 @@ DECIDED_NOT = """
 
 # ---------- code for autoprocessing Rust source files ----------
 
-WANT_LINTS = [ "%s\n" % w for w in WANT_LINTS.split() ]
 PAT = re.compile(r'^#!\[(allow|deny|warn)')
 
-PAT2 = re.compile(r'^#!\[(allow|deny|warn)\(((?:clippy::)?)([^\)]*)')
-def warning_key(w):
-    m = PAT2.match(w)
-    return (len(m.group(2)), m.group(3))
-
 def filter_file(lints, inp, outp):
-    head,warnings,other = list(),list(),list()
+    in_lint_list = False
+    found_lint_list = False
     for line in inp.readlines():
-        if line.startswith("//!"):
-            head.append(line)
-        elif PAT.match(line) :
-            warnings.append(line)
-        else:
-            other.append(line)
-
-    for add_lint in lints:
-        if add_lint not in warnings:
-            warnings.append(add_lint)
-    warnings.sort(key=warning_key)
-
-    while other[0] == '\n':
-        del other[0]
-
-    for line in head:
+        if line.startswith("// @@ begin lint list"):
+            assert not in_lint_list
+            found_lint_list = True
+            in_lint_list = True
+        elif line.startswith("//! <!-- @@ end lint list"):
+            # End delimiter is Rustdoc containing an HTML comment, because rustfmt
+            # *really really* hates comments that come after things.
+            # Finishing the automaintained block with just a blank line is too much of a hazard.
+            # It does end up in the output HTML from Rustdoc, but it is harmless there.
+            assert in_lint_list
+            in_lint_list = False
+            outp.write(WANT_LINTS.strip())
+            outp.write("\n")
+        elif in_lint_list:
+            assert PAT.match(line)
+            # do not send to output
+            continue
         outp.write(line)
-    outp.write("\n")
-    outp.write("// @@ begin lint list maintained by maint/add_warning @@\n")
-    for line in warnings:
-        outp.write(line)
-    # End delimiter is Rustdoc containing an HTML comment, because rustfmt
-    # *really really* hates comments that come after things.
-    # Finishing the automaintained block with just a blank line is too much of a hazard.
-    # It does end up in the output HTML from Rustdoc, but it is harmless there.
-    outp.write("//! <!-- @@ end lint list maintained by maint/add_warning @@ -->\n")
-    outp.write("\n")
-    for line in other:
-        outp.write(line)
+    assert not in_lint_list
+    assert found_lint_list
 
 def process(lints, fn):
     print("{}...".format(fn))
