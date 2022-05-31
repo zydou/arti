@@ -68,6 +68,7 @@
 //! Arti does _not_ label all private information as `Sensitive`: when
 //! information isn't _ever_ suitable for logging, we omit it entirely.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -97,6 +98,8 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 // TODO: Try making it not Deref and having expose+expose_mut instead; how bad is it?
 

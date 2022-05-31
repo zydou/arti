@@ -1,11 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import sys
 import os
 import re
 import shutil
+import subprocess
 
-PAT = re.compile(r'^#!\[(allow|deny|warn)')
+# ---------- actual list of lints to apply (or disapply) ----------
 
 WANT_LINTS = """
 #![deny(missing_docs)]
@@ -13,10 +14,10 @@ WANT_LINTS = """
 #![deny(unreachable_pub)]
 #![warn(clippy::all)]
 #![deny(clippy::await_holding_lock)]
+#![deny(clippy::cargo_common_metadata)]
 #![deny(clippy::cast_lossless)]
 #![deny(clippy::checked_conversions)]
 #![warn(clippy::cognitive_complexity)]
-#![deny(clippy::cargo_common_metadata)]
 #![deny(clippy::debug_assert_with_mut_call)]
 #![deny(clippy::exhaustive_enums)]
 #![deny(clippy::exhaustive_structs)]
@@ -28,6 +29,8 @@ WANT_LINTS = """
 #![deny(clippy::missing_docs_in_private_items)]
 #![deny(clippy::missing_panics_doc)]
 #![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]
@@ -35,8 +38,10 @@ WANT_LINTS = """
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
 """
-WANT_LINTS = [ "%s\n" % w for w in WANT_LINTS.split() ]
+
+# ---------- some notes about lints we might use - NOT USED by any code here ----------
 
 SOON="""
 """
@@ -57,48 +62,51 @@ DECIDED_NOT = """
 #![deny(clippy::pub_enum_variant_names)]
 """
 
+# ---------- code for autoprocessing Rust source files ----------
 
-PAT2 = re.compile(r'^#!\[(allow|deny|warn)\(((?:clippy::)?)([^\)]*)')
-def warning_key(w):
-    m = PAT2.match(w)
-    return (len(m.group(2)), m.group(3))
+PAT = re.compile(r'^#!\[(allow|deny|warn)')
+
+opt_check = False
+deferred_errors = []
 
 def filter_file(lints, inp, outp):
-    head,warnings,other = list(),list(),list()
+    in_lint_list = False
+    found_lint_list = False
     for line in inp.readlines():
-        if line.startswith("//!"):
-            head.append(line)
-        elif PAT.match(line) :
-            warnings.append(line)
-        else:
-            other.append(line)
-
-    for add_lint in lints:
-        if add_lint not in warnings:
-            warnings.append(add_lint)
-    warnings.sort(key=warning_key)
-
-    while other[0] == '\n':
-        del other[0]
-
-    for line in head:
+        if line.startswith("// @@ begin lint list"):
+            assert not in_lint_list
+            found_lint_list = True
+            in_lint_list = True
+        elif line.startswith("//! <!-- @@ end lint list"):
+            # End delimiter is Rustdoc containing an HTML comment, because rustfmt
+            # *really really* hates comments that come after things.
+            # Finishing the automaintained block with just a blank line is too much of a hazard.
+            # It does end up in the output HTML from Rustdoc, but it is harmless there.
+            assert in_lint_list
+            in_lint_list = False
+            outp.write(WANT_LINTS.strip())
+            outp.write("\n")
+        elif in_lint_list:
+            assert PAT.match(line)
+            # do not send to output
+            continue
         outp.write(line)
-    outp.write("\n")
-    for line in warnings:
-        outp.write(line)
-    outp.write("\n")
-    for line in other:
-        outp.write(line)
+    assert not in_lint_list
+    assert found_lint_list
 
 def process(lints, fn):
     print("{}...".format(fn))
-    bak_name = fn+".bak"
-    outp = open(bak_name,'w')
+    tmp_name = fn+".tmp~"
+    outp = open(tmp_name,'w')
     inp = open(fn,'r')
     filter_file(lints, inp, outp)
     inp.close()
     outp.close()
-    shutil.move(bak_name, fn)
+    if opt_check:
+        if subprocess.run(['diff', '-u', '--', fn, tmp_name]).returncode != 0:
+            deferred_errors.append(fn)
+    else:
+        shutil.move(tmp_name, fn)
 
 def main(lints,files):
     if not os.path.exists("./crates/tor-proto/src/lib.rs"):
@@ -112,6 +120,19 @@ def main(lints,files):
     for fn in files:
         process(lints, fn)
 
+    if len(deferred_errors) > 0:
+        print('\n' + sys.argv[0] + ': standard lint block mismatch in the following files:\n  '
+              + ', '.join(deferred_errors), file=sys.stderr)
+        print('Run ' + sys.argv[0] + ' (possibly after editing it) to fix.')
+        sys.exit(1)
 
 if __name__ == '__main__':
-    main(WANT_LINTS, sys.argv[1:])
+    args = sys.argv[1:]
+    while len(args) > 0 and args[0].startswith('-'):
+        arg = args.pop(0)
+        if arg == '--check':
+            opt_check = True
+        else:
+            raise(Exception('unknown option '+arg))
+
+    main(WANT_LINTS, args)

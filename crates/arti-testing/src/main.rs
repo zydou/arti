@@ -48,7 +48,7 @@
 //! - Make sure we can replicate all/most test situations from arti#329
 //! - Actually implement those tests.
 
-#![allow(dead_code)]
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -69,6 +69,8 @@
 #![deny(clippy::missing_docs_in_private_items)]
 #![deny(clippy::missing_panics_doc)]
 #![warn(clippy::needless_borrow)]
+#![warn(clippy::needless_pass_by_value)]
+#![warn(clippy::option_option)]
 #![warn(clippy::rc_buffer)]
 #![deny(clippy::ref_option_ref)]
 #![warn(clippy::semicolon_if_nothing_returned)]
@@ -76,6 +78,9 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
+
 #![allow(clippy::print_stderr)] // Allowed in this crate only.
 #![allow(clippy::print_stdout)] // Allowed in this crate only.
 

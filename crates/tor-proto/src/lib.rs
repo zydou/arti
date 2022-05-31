@@ -82,6 +82,7 @@
 //! all the ones I could find or think of, but it would be great to
 //! find a good way to eliminate every lock that we have.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -112,6 +113,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod channel;
 pub mod circuit;

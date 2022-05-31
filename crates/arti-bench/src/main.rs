@@ -3,6 +3,7 @@
 //! This works by establishing a simple TCP server, and having Arti connect back to it via
 //! a `chutney` network of Tor nodes, benchmarking the upload and download bandwidth while doing so.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -31,6 +32,9 @@
 #![warn(clippy::trait_duplication_in_bounds)]
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
+#![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 // This file uses `unwrap()` a fair deal, but this is fine in test/bench code
 // because it's OK if tests and benchmarks simply crash if things go wrong.
 #![allow(clippy::unwrap_used)]

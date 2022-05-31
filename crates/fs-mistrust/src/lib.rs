@@ -243,6 +243,7 @@
 // POSSIBLY TODO:
 //  - Cache information across runs.
 
+// @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -272,6 +273,8 @@
 #![deny(clippy::unnecessary_wraps)]
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
+#![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+//! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod dir;
 mod err;
