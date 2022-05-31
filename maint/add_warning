@@ -70,10 +70,17 @@ PAT = re.compile(r'^#!\[(allow|deny|warn)')
 opts = None
 deferred_errors = []
 
+class ImproperFile(Exception):
+    def __init__(self, lno, message):
+        self.lno = lno
+        self.message = message
+
 def filter_file(lints, inp, outp):
     in_lint_list = False
     found_lint_list = False
+    lno = 0
     for line in inp.readlines():
+        lno += 1
         if line.startswith("// @@ begin lint list"):
             assert not in_lint_list
             found_lint_list = True
@@ -88,7 +95,8 @@ def filter_file(lints, inp, outp):
             outp.write(WANT_LINTS.strip())
             outp.write("\n")
         elif in_lint_list:
-            assert PAT.match(line)
+            if not PAT.match(line):
+                raise ImproperFile(lno, 'entry in lint list does not look like a lint')
             # do not send to output
             continue
         outp.write(line)
@@ -100,9 +108,17 @@ def process(lints, fn):
     tmp_name = fn+".tmp~"
     outp = open(tmp_name,'w')
     inp = open(fn,'r')
-    filter_file(lints, inp, outp)
+    try:
+        filter_file(lints, inp, outp)
+    except ImproperFile as e:
+        print('%s:%d: %s' % (fn, e.lno, e.message), file=sys.stderr)
+        deferred_errors.append(fn)
+        os.remove(tmp_name) # this tmp file is probably partial
+        return
+
     inp.close()
     outp.close()
+
     if opts.check:
         if subprocess.run(['diff', '-u', '--', fn, tmp_name]).returncode != 0:
             deferred_errors.append(fn)
