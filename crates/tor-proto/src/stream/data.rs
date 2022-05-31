@@ -193,7 +193,10 @@ impl DataStream {
                 // This succeeds if the cell is CONNECTED, and fails otherwise.
                 imp.read_cell().await
             };
-            self.r.state = Some(DataReaderState::Ready(imp));
+            self.r.state = Some(match result {
+                Err(_) => DataReaderState::Closed,
+                Ok(_) => DataReaderState::Ready(imp),
+            });
             result
         } else {
             Err(Error::from(internal!(
