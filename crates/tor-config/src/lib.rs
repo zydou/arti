@@ -298,6 +298,7 @@ macro_rules! impl_standard_builder {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)] // why is this not the default in tests
 mod test {
     use super::*;
     use crate as tor_config;
