@@ -209,6 +209,13 @@ struct GuardMgrInner {
     /// use, along with their relative priorities and statuses.
     guards: GuardSets,
 
+    /// The current filter that we're using to decide which guards are
+    /// supported.
+    //
+    // TODO: This field is duplicated in the current active [`GuardSet`]; we
+    // should fix that.
+    filter: GuardFilter,
+
     /// Configuration values derived from the consensus parameters.
     ///
     /// This is updated whenever the consensus parameters change.
@@ -267,16 +274,38 @@ struct GuardMgrInner {
     netdir_provider: Option<Weak<dyn NetDirProvider>>,
 }
 
+/// A selector that tells us which [`GuardSet`] of several is currently in use.
+#[derive(Clone, Debug, Eq, PartialEq, Educe)]
+#[educe(Default)]
+enum GuardSetSelector {
+    /// The default guard set is currently in use: that's the one that we use
+    /// when we have no filter installed, or the filter permits most of the
+    /// guards on the network.
+    #[educe(Default)]
+    Default,
+    /// A "restrictive" guard set is currently in use: that's the one that we
+    /// use when we have a filter that excludes a large fraction of the guards
+    /// on the network.
+    Restricted,
+}
+
 /// Persistent state for a guard manager, as serialized to disk.
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct GuardSets {
+    /// Which set of guards is currently in use?
+    #[serde(skip)]
+    active_set: GuardSetSelector,
+
     /// The default set of guards to use.
     ///
-    /// Right now, this is the _only_ `GuardSet` for each `GuardMgr`, but we
-    /// expect that to change: our algorithm specifies that there can
-    /// be multiple named guard sets, and we can swap between them
-    /// depending on the user's selected [`GuardFilter`].
+    /// We use this one when there is no filter, or the filter permits most of the
+    /// guards on the network.
     default: GuardSet,
+
+    /// A guard set to use when we have a restrictive filter.
+    #[serde(default)]
+    restricted: GuardSet,
 
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
@@ -316,6 +345,7 @@ impl<R: Runtime> GuardMgr<R> {
 
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
+            filter: GuardFilter::unfiltered(),
             last_primary_retry_time: runtime.now(),
             params: GuardParams::default(),
             ctrl,
@@ -637,12 +667,18 @@ impl GuardSets {
     /// complex filter types, and for bridge relays. Those will use separate
     /// `GuardSet` instances, and this accessor will choose the right one.)
     fn active_guards(&self) -> &GuardSet {
-        &self.default
+        match self.active_set {
+            GuardSetSelector::Default => &self.default,
+            GuardSetSelector::Restricted => &self.restricted,
+        }
     }
 
     /// Return a mutable reference to the currently active set of guards.
     fn active_guards_mut(&mut self) -> &mut GuardSet {
-        &mut self.default
+        match self.active_set {
+            GuardSetSelector::Default => &mut self.default,
+            GuardSetSelector::Restricted => &mut self.restricted,
+        }
     }
 
     /// Update all non-persistent state for the guards in this object with the
@@ -701,6 +737,20 @@ impl GuardMgrInner {
                 Ok(params) => self.params = params,
                 Err(e) => warn!("Unusable guard parameters from consensus: {}", e),
             }
+
+            self.update_chosen_guard_set(netdir);
+        }
+
+        // Change the filter, if it doesn't match what the guards have.
+        //
+        // TODO(nickm): We could use a "dirty" flag or something to decide
+        // whether we need to call set_filter, if this comparison starts to show
+        // up in profiles.
+        if self.guards.active_guards().filter() != &self.filter {
+            let restrictive = self.guards.active_set == GuardSetSelector::Restricted;
+            self.guards
+                .active_guards_mut()
+                .set_filter(self.filter.clone(), restrictive);
         }
 
         // Then expire guards.  Do that early, in case we need more.
@@ -747,6 +797,43 @@ impl GuardMgrInner {
         self.update(now, None);
     }
 
+    /// Update which guard set is active based on the current filter and the
+    /// provided netdir.
+    fn update_chosen_guard_set(&mut self, netdir: &NetDir) {
+        let frac_permitted = self.filter.frac_bw_permitted(netdir);
+        // In general, we'd like to use the restricted set if we're under the
+        // threshold, and the default set if we're over the threshold.  But if
+        // we're sitting close to the threshold, we want to avoid flapping back
+        // and forth, so we only change when we're more than 5% "off" from
+        // whatever our current setting is.
+        let offset = match self.guards.active_set {
+            GuardSetSelector::Default => -0.05,
+            GuardSetSelector::Restricted => 0.05,
+        };
+        let threshold = self.params.filter_threshold + offset;
+        let new_choice = if frac_permitted < threshold {
+            GuardSetSelector::Restricted
+        } else {
+            GuardSetSelector::Default
+        };
+
+        if new_choice != self.guards.active_set {
+            info!(
+                "Guard selection changed; we are now using the {:?} guard set",
+                &new_choice
+            );
+
+            self.guards.active_set = new_choice;
+
+            if frac_permitted < self.params.extreme_threshold {
+                warn!(
+                      "The number of guards permitted is smaller than the recommended minimum of {:.0}%.",
+                      self.params.extreme_threshold * 100.0,
+                );
+            }
+        }
+    }
+
     /// Mark all of our primary guards as retriable, if we haven't done
     /// so since long enough before `now`.
     ///
@@ -771,29 +858,9 @@ impl GuardMgrInner {
     /// Replace the current GuardFilter with `filter`.
     fn set_filter(&mut self, filter: GuardFilter, netdir: Option<&NetDir>, now: SystemTime) {
         self.with_opt_netdir(netdir, |this, netdir| {
-            let frac_permitted = netdir.map(|nd| filter.frac_bw_permitted(nd)).unwrap_or(1.0);
-
-            let restrictive_filter = frac_permitted < this.params.filter_threshold;
-
-            // TODO: Once we support nontrivial filters, we might have to
-            // swap out "active_guards" depending on which set it is.
-
-            if frac_permitted < this.params.extreme_threshold {
-                warn!(
-                "The number of guards permitted is smaller than the guard param minimum of {}%.",
-                this.params.extreme_threshold * 100.0,
-            );
-            }
-
-            info!(
-                ?filter,
-                restrictive = restrictive_filter,
-                "Guard filter replaced."
-            );
-
-            this.guards
-                .active_guards_mut()
-                .set_filter(filter, restrictive_filter);
+            this.filter = filter;
+            // This call will invoke update_chosen_guard_set() if possible, and
+            // then call set_filter on the GuardSet.
             this.update_internal(now, netdir);
         });
     }
@@ -1196,8 +1263,6 @@ struct GuardParams {
     internet_down_timeout: Duration,
     /// What fraction of the guards can be can be filtered out before we
     /// decide that our filter is "very restrictive"?
-    ///
-    /// (Not fully implemented yet.)
     filter_threshold: f64,
     /// What fraction of the guards determine that our filter is "very
     /// restrictive"?

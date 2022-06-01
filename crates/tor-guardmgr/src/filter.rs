@@ -18,7 +18,7 @@ use tor_netdoc::types::policy::AddrPortPattern;
 /// Right now, only the `Unrestricted` filter is implemented or available.
 /// This enumeration is just a place-holder, however, to make sure we're
 /// checking our filter in the right places.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct GuardFilter {
     /// A list of filters to apply to guard or fallback selection.  Each filter
     /// restricts which guards may be used, and possibly how those guards may be
@@ -30,7 +30,7 @@ pub struct GuardFilter {
 }
 
 /// A single restriction places upon usable guards.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum SingleFilter {
     /// A set of allowable addresses that we are willing to try to connect to.
     ///
