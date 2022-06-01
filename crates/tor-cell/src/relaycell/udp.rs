@@ -35,7 +35,7 @@ const MAX_HOSTNAME_LEN: usize = (u8::MAX - 1) as usize;
 
 impl Address {
     /// Return true iff this is a Hostname.
-    fn is_hostname(&self) -> bool {
+    pub fn is_hostname(&self) -> bool {
         matches!(self, Address::Hostname(_))
     }
 

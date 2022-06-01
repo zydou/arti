@@ -11,6 +11,13 @@ keywords = ["tor", "arti", "protocol"]
 categories = ["parser-implementations", "network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = []
+# Enable experimental UDP support.
+experimental-udp = []
+# Enable testing only API
+testing = [ "experimental-udp" ]
+
 [dependencies]
 arrayref = "0.3"
 bitflags = "1"

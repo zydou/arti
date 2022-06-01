@@ -1,12 +1,15 @@
 // Tests for encoding/decoding relay messages into relay cell bodies.
 
+use tor_bytes::Error;
+use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
+
+#[cfg(feature = "experimental-udp")]
 use std::{
     net::{Ipv4Addr, Ipv6Addr},
     str::FromStr,
 };
-
-use tor_bytes::Error;
-use tor_cell::relaycell::{msg, msg::Address, msg::RelayMsg, RelayCell, RelayCmd, StreamId};
+#[cfg(feature = "experimental-udp")]
+use tor_cell::relaycell::udp::Address;
 
 const CELL_BODY_LEN: usize = 509;
 
@@ -120,6 +123,7 @@ fn test_streamid() {
     assert!(!RelayCmd::EXTEND2.accepts_streamid_val(two));
 }
 
+#[cfg(feature = "experimental-udp")]
 #[test]
 fn test_address() {
     // IPv4

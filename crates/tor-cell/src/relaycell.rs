@@ -10,6 +10,8 @@ use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
 pub mod msg;
+#[cfg(feature = "experimental-udp")]
+pub mod udp;
 
 caret_int! {
     /// A command that identifies the type of a relay cell
@@ -44,6 +46,8 @@ caret_int! {
         EXTEND2 = 14,
         /// Reply to an EXTEND2 cell.
         EXTENDED2 = 15,
+
+        /// NOTE: UDP command are reserved but only used with experimental-udp feature
 
         /// UDP: Start of a stream
         CONNECT_UDP = 16,
@@ -99,10 +103,11 @@ impl RelayCmd {
             | RelayCmd::CONNECTED
             | RelayCmd::RESOLVE
             | RelayCmd::RESOLVED
-            | RelayCmd::BEGIN_DIR
-            | RelayCmd::CONNECT_UDP
-            | RelayCmd::CONNECTED_UDP
-            | RelayCmd::DATAGRAM => StreamIdReq::WantNonZero,
+            | RelayCmd::BEGIN_DIR => StreamIdReq::WantNonZero,
+            #[cfg(feature = "experimental-udp")]
+            RelayCmd::CONNECT_UDP | RelayCmd::CONNECTED_UDP | RelayCmd::DATAGRAM => {
+                StreamIdReq::WantNonZero
+            }
             RelayCmd::EXTEND
             | RelayCmd::EXTENDED
             | RelayCmd::TRUNCATE
