@@ -1478,19 +1478,25 @@ mod test {
     #[test]
     fn filtering_basics() {
         test_with_all_runtimes!(|rt| async move {
+            use tor_linkspec::ChanTarget;
+
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             guardmgr.update_network(&netdir);
             let filter = {
                 let mut f = GuardFilter::default();
-                f.push_key_limit();
+                // All the addresses in the test network are {0,1,2,3,4}.0.0.3:9001.
+                // Limit to only {2,3}.0.0.0
+                f.push_reachable_addresses(vec!["2.0.0.0/7:9001".parse().unwrap()]);
                 f
             };
             guardmgr.set_filter(filter, &netdir);
-
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
-            assert_eq!(guard.id().as_ref().rsa.as_bytes()[0] % 4, 0);
+            let addr = guard.addrs()[0];
+            assert!(
+                addr == "2.0.0.3:9001".parse().unwrap() || addr == "3.0.0.3:9001".parse().unwrap()
+            );
         });
     }
 

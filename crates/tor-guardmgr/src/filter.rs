@@ -37,13 +37,6 @@ enum SingleFilter {
     /// This list of patterns has "or" semantics: a guard is permitted by this filter
     /// if ANY pattern in this list permits one of the guard's addresses.
     ReachableAddrs(Vec<AddrPortPattern>),
-
-    /// Testing only: checks whether the first byte of the rsa key is 0 modulo 4.
-    ///
-    /// TODO: remove this once real filters are implemented.
-    #[cfg(test)]
-    #[allow(dead_code)]
-    TestingLimitKeys,
 }
 
 impl GuardFilter {
@@ -69,15 +62,6 @@ impl GuardFilter {
     pub(crate) fn is_unfiltered(&self) -> bool {
         self.filters.is_empty()
     }
-
-    /// Add a restriction to this filter that keys must have their final two
-    /// bits of their first byte are set to 0.
-    ///
-    /// TODO: this testing-only, and is getting killed off once we have real filter
-    #[cfg(test)]
-    pub(crate) fn push_key_limit(&mut self) {
-        self.filters.push(SingleFilter::TestingLimitKeys);
-    }
 }
 
 impl SingleFilter {
@@ -87,8 +71,6 @@ impl SingleFilter {
             SingleFilter::ReachableAddrs(patterns) => patterns
                 .iter()
                 .any(|pat| target.addrs().iter().any(|addr| pat.matches_sockaddr(addr))),
-            #[cfg(test)]
-            SingleFilter::TestingLimitKeys => target.rsa_identity().as_bytes()[0] & 3 == 0,
         }
     }
 }
