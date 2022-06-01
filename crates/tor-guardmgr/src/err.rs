@@ -3,7 +3,7 @@
 use futures::task::SpawnError;
 use std::sync::Arc;
 use std::time::Instant;
-use tor_error::{ErrorKind, HasKind};
+use tor_error::{Bug, ErrorKind, HasKind};
 
 /// A error caused by a failure to pick a guard.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -32,6 +32,10 @@ pub enum PickGuardError {
     /// Tried to select guards or fallbacks from an empty list.
     #[error("Tried to pick from an empty list")]
     NoCandidatesAvailable,
+
+    /// An internal programming error occurred.
+    #[error("Internal error")]
+    Internal(#[from] Bug),
 }
 
 impl tor_error::HasKind for PickGuardError {
@@ -41,6 +45,7 @@ impl tor_error::HasKind for PickGuardError {
         match self {
             E::AllFallbacksDown { .. } | E::AllGuardsDown { .. } => EK::TorAccessFailed,
             E::NoGuardsUsable | E::NoCandidatesAvailable => EK::NoPath,
+            E::Internal(_) => EK::Internal,
         }
     }
 }
@@ -66,6 +71,9 @@ impl tor_error::HasRetryTime for PickGuardError {
             // our current universe; that's not going to be come viable down the
             // line.
             E::NoGuardsUsable | E::NoCandidatesAvailable => RT::Never,
+
+            // Don't try to recover from internal errors.
+            E::Internal(_) => RT::Never,
         }
     }
 }

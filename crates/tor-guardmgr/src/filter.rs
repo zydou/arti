@@ -58,6 +58,23 @@ impl GuardFilter {
         self.filters.iter().all(|filt| filt.permits(target))
     }
 
+    /// Modify `first_hop` so that it contains no elements not permitted by this
+    /// filter.
+    ///
+    /// (For example, if we are restricted only to use certain addresses, then
+    /// `permits` will return true for a guard that has multiple addresses even
+    /// if _some_ of those addresses are not permitted.  In that scenario, this
+    /// method will remove disallowed addresses from `first_hop`.)
+    pub(crate) fn modify_hop(
+        &self,
+        mut first_hop: crate::FirstHop,
+    ) -> Result<crate::FirstHop, crate::PickGuardError> {
+        for filt in &self.filters {
+            first_hop = filt.modify_hop(first_hop)?;
+        }
+        Ok(first_hop)
+    }
+
     /// Return true if this filter excludes no guards at all.
     pub(crate) fn is_unfiltered(&self) -> bool {
         self.filters.is_empty()
@@ -72,5 +89,26 @@ impl SingleFilter {
                 .iter()
                 .any(|pat| target.addrs().iter().any(|addr| pat.matches_sockaddr(addr))),
         }
+    }
+
+    /// Modify `first_hop` so that it contains no elements not permitted by this filter.
+    fn modify_hop(
+        &self,
+        mut first_hop: crate::FirstHop,
+    ) -> Result<crate::FirstHop, crate::PickGuardError> {
+        match self {
+            SingleFilter::ReachableAddrs(patterns) => {
+                first_hop
+                    .orports
+                    .retain(|addr| patterns.iter().any(|pat| pat.matches_sockaddr(addr)));
+                if first_hop.orports.is_empty() {
+                    return Err(tor_error::internal!(
+                        "Tried to apply an address filter to an unsupported guard"
+                    )
+                    .into());
+                }
+            }
+        }
+        Ok(first_hop)
     }
 }

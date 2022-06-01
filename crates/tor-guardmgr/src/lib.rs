@@ -498,7 +498,7 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Select a guard for a given [`GuardUsage`].
     ///
-    /// On success, we return a [`FirstHopId`] object to identify which
+    /// On success, we return a [`FirstHop`] object to identify which
     /// guard we have picked, a [`GuardMonitor`] object that the
     /// caller can use to report whether its attempt to use the guard
     /// succeeded or failed, and a [`GuardUsable`] future that the
@@ -1142,6 +1142,7 @@ impl GuardMgrInner {
             .get(&id)
             .expect("Selected guard that wasn't in our sample!?")
             .get_external_rep();
+        let guard = self.guards.active_guards().filter().modify_hop(guard)?;
 
         Ok((source, guard))
     }

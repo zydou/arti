@@ -181,6 +181,11 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
+    /// Return the current filter for this `GuardSet`.
+    pub(crate) fn filter(&self) -> &GuardFilter {
+        &self.active_filter
+    }
+
     /// Copy non-persistent status from every guard shared with `other`.
     pub(crate) fn copy_status_from(&mut self, mut other: GuardSet) {
         let mut old_guards = HashMap::new();
