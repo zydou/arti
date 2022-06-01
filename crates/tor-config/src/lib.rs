@@ -151,7 +151,7 @@ impl Reconfigure {
 ///
 ///  * Otherwise the user provided an actual value, and we return `Some` of it.
 ///
-/// See https://gitlab.torproject.org/tpo/core/arti/-/issues/488
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/488>
 ///
 /// # ⚠ Stability Warning ⚠
 ///
