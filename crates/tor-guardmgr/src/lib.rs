@@ -1481,7 +1481,12 @@ mod test {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             guardmgr.update_network(&netdir);
-            guardmgr.set_filter(GuardFilter::TestingLimitKeys, &netdir);
+            let filter = {
+                let mut f = GuardFilter::default();
+                f.push_key_limit();
+                f
+            };
+            guardmgr.set_filter(filter, &netdir);
 
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
