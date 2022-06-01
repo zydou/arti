@@ -1,0 +1,1 @@
+MODIFIED: AddrPortPattern and friends now impl Eq and PartialEq.

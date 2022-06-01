@@ -130,7 +130,7 @@ impl Display for AddrPolicyRule {
 /// assert!(pat.matches(&localhost, 22));
 /// assert!(! pat.matches(&not_localhost, 22));
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AddrPortPattern {
     /// A pattern to match somewhere between zero and all IP addresses.
     pattern: IpPattern,
@@ -176,7 +176,7 @@ impl FromStr for AddrPortPattern {
 }
 
 /// A pattern that matches one or more IP addresses.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum IpPattern {
     /// Match all addresses.
     Star,
