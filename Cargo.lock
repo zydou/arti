@@ -3617,6 +3617,7 @@ dependencies = [
  "simple_asn1",
  "subtle",
  "thiserror",
+ "tor-basic-utils",
  "x25519-dalek",
  "zeroize",
 ]
@@ -3636,6 +3637,7 @@ dependencies = [
  "serde",
  "signature",
  "thiserror",
+ "tor-basic-utils",
  "tor-checkable",
  "tor-config",
  "tor-linkspec",
@@ -3767,6 +3769,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "thiserror",
+ "tor-basic-utils",
  "tor-rtcompat",
  "tracing",
 ]

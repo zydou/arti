@@ -404,6 +404,7 @@ mod test {
     use netstatus::RelayWeight as RW;
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_netdoc::doc::netstatus::{Lifetime, RelayFlags, RouterStatusBuilder};
 
     #[test]
@@ -621,7 +622,7 @@ mod test {
         use rand::Rng;
         let now = SystemTime::now();
         let one_hour = Duration::new(3600, 0);
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let mut bld = MdConsensus::builder();
         bld.consensus_method(34)
             .lifetime(Lifetime::new(now, now + one_hour, now + 2 * one_hour).unwrap())

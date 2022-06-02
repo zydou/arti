@@ -1,4 +1,6 @@
 //! Testing-only functionality, used elsewhere in this crate.
+//!
+//! TODO: Combine this logic with the logic for testing_rng in tor-basic-utils.
 
 pub(crate) use imp::*;
 

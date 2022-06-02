@@ -242,6 +242,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use futures::channel::{mpsc, oneshot};
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn circmap_basics() {
@@ -249,7 +250,7 @@ mod test {
         let mut map_high = CircMap::new(CircIdRange::High);
         let mut ids_low: Vec<CircId> = Vec::new();
         let mut ids_high: Vec<CircId> = Vec::new();
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
 
         assert!(map_low.get_mut(CircId::from(77)).is_none());
 

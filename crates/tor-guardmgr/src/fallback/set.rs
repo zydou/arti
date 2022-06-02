@@ -231,6 +231,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::FirstHopId;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// Construct a `FallbackDir` with random identity keys and addresses.
     ///
@@ -238,7 +239,7 @@ mod test {
     /// negligible.
     fn rand_fb() -> FallbackDir {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let ed: [u8; 32] = rng.gen();
         let rsa: [u8; 20] = rng.gen();
         let ip: u32 = rng.gen();
@@ -282,7 +283,7 @@ mod test {
         let mut redundant_fbs = fbs.clone();
         redundant_fbs.extend(fbs.clone());
         redundant_fbs.extend(fbs[0..2].iter().map(Clone::clone));
-        redundant_fbs[..].shuffle(&mut rand::thread_rng());
+        redundant_fbs[..].shuffle(&mut testing_rng());
         let list2 = redundant_fbs.into();
         assert_ne!(&list, &list2);
         let set2: FallbackState = list2.into();
@@ -303,7 +304,7 @@ mod test {
         let mut set: FallbackState = list.into();
 
         let mut counts = [0_usize; 4];
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let now = Instant::now();
 
         fn lookup_idx(set: &FallbackState, id: &FirstHopId) -> Option<usize> {

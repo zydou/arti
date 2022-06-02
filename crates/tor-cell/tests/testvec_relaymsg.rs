@@ -1,3 +1,4 @@
+use tor_basic_utils::test_rng::testing_rng;
 use tor_bytes::Error as BytesError;
 /// Example relay messages to encode and decode.
 ///
@@ -465,7 +466,7 @@ fn test_data() {
     // Try creating a data cell from too much data.
     use rand::RngCore;
     let mut b = vec![0_u8; 3000];
-    rand::thread_rng().fill_bytes(&mut b[..]);
+    testing_rng().fill_bytes(&mut b[..]);
     let d = msg::Data::new(&b[..]);
     assert!(d.is_err());
 
