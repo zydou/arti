@@ -230,7 +230,7 @@ impl<R: Runtime> CircMgr<R> {
         state_mgr: FsStateMgr,
     ) -> Result<Vec<TaskHandle>>
     where
-        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+        D: NetDirProvider + 'static + ?Sized,
     {
         let mut ret = vec![];
 
@@ -546,7 +546,7 @@ impl<R: Runtime> CircMgr<R> {
         circmgr: Weak<Self>,
         dirmgr: Weak<D>,
     ) where
-        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+        D: NetDirProvider + 'static + ?Sized,
     {
         use DirEvent::*;
         while let Some(event) = events.next().await {
@@ -594,7 +594,7 @@ impl<R: Runtime> CircMgr<R> {
         circmgr: Weak<Self>,
         dirmgr: Weak<D>,
     ) where
-        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+        D: NetDirProvider + 'static + ?Sized,
     {
         while sched.next().await.is_some() {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
@@ -694,7 +694,7 @@ impl<R: Runtime> CircMgr<R> {
         circmgr: Weak<Self>,
         dirmgr: Weak<D>,
     ) where
-        D: NetDirProvider + Send + Sync + 'static + ?Sized,
+        D: NetDirProvider + 'static + ?Sized,
     {
         let base_delay = Duration::from_secs(10);
         let mut retry = RetryDelay::from_duration(base_delay);
