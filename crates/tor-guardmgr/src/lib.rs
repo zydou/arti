@@ -141,6 +141,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
+use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
@@ -333,6 +334,33 @@ impl<R: Runtime> GuardMgr<R> {
                 .map_err(|e| GuardMgrError::from_spawn("periodic guard updater", e))?;
         }
         Ok(GuardMgr { runtime, inner })
+    }
+
+    /// Install a [`NetDirProvider`] for use by this guard manager.
+    ///
+    /// It will be used to keep the guards up-to-date with changes from the
+    /// network directory, and to find new guards when no NetDir is provided to
+    /// select_guard().
+    ///
+    /// TODO: The second part is not implemented yet.
+    ///
+    /// TODO: we should eventually return some kind of a task handle from this
+    /// task, even though it is not strictly speaking periodic.
+    pub fn install_netdir_provider(
+        &self,
+        provider: &Arc<dyn NetDirProvider>,
+    ) -> Result<(), GuardMgrError> {
+        let weak_provider = Arc::downgrade(provider);
+        let weak_inner = Arc::downgrade(&self.inner);
+        let rt_clone = self.runtime.clone();
+        self.runtime
+            .spawn(daemon::keep_netdir_updated(
+                rt_clone,
+                weak_inner,
+                weak_provider,
+            ))
+            .map_err(|e| GuardMgrError::from_spawn("periodic guard netdir updater", e))?;
+        Ok(())
     }
 
     /// Flush our current guard state to the state manager, if there

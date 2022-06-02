@@ -469,13 +469,6 @@ impl<R: Runtime> TorClient<R> {
 
         self.dirmgr.bootstrap().await?;
 
-        self.circmgr.update_network_parameters(
-            self.dirmgr
-                .latest_netdir()
-                .ok_or(ErrorDetail::DirMgr(tor_dirmgr::Error::DirectoryNotPresent))?
-                .params(),
-        );
-
         // Since we succeeded, disarm the unlock guard.
         unlock_guard.disarm();
 
