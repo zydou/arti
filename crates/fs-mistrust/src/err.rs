@@ -17,10 +17,11 @@ pub enum Error {
     ///
     /// Only generated on unix-like systems.
     ///
-    /// The provided integer contains the `st_mode` bits which were incorrectly
-    /// set.
-    #[error("Incorrect permissions on file or directory {0}:  {}", format_access_bits(* .1))]
-    BadPermission(PathBuf, u32),
+    /// The first integer contains the current permission bits, and the second
+    /// contains the permission bits which were incorrectly set.
+    #[error("Incorrect permissions: {0} is {}; must be {}",
+            format_access_bits(* .1, '='), format_access_bits(* .2, '-'))]
+    BadPermission(PathBuf, u32, u32),
 
     /// A target  (or one of its ancestors) had an untrusted owner.
     ///
@@ -134,7 +135,7 @@ impl Error {
         Some(
             match self {
                 Error::NotFound(pb) => pb,
-                Error::BadPermission(pb, _) => pb,
+                Error::BadPermission(pb, ..) => pb,
                 Error::BadOwner(pb, _) => pb,
                 Error::BadType(pb) => pb,
                 Error::CouldNotInspect(pb, _) => pb,
@@ -162,7 +163,7 @@ impl Error {
     /// us from looking at permissions in the first place)
     pub fn is_bad_permission(&self) -> bool {
         match self {
-            Error::BadPermission(_, _) | Error::BadOwner(_, _) | Error::BadType(_) => true,
+            Error::BadPermission(..) | Error::BadOwner(_, _) | Error::BadType(_) => true,
 
             Error::NotFound(_)
             | Error::CouldNotInspect(_, _)
@@ -219,21 +220,22 @@ impl std::iter::FromIterator<Error> for Option<Error> {
 }
 
 /// Convert the low 9 bits of `bits` into a unix-style string describing its
-/// access permission.
+/// access permission. Insert `c` between the ugo and perm.
 ///
-/// For example, 0o022 becomes 'g+w o+w'.
+/// For example, 0o022, '+' becomes 'g+w,o+w'.
 ///
 /// Used for generating error messages.
-fn format_access_bits(bits: u32) -> String {
+fn format_access_bits(bits: u32, c: char) -> String {
     let mut s = String::new();
 
-    for (shift, prefix) in [(6, "u="), (3, "g="), (0, "o=")] {
+    for (shift, prefix) in [(6, 'u'), (3, 'g'), (0, 'o')] {
         let b = (bits >> shift) & 7;
         if b != 0 {
             if !s.is_empty() {
-                s.push(' ');
+                s.push(',');
             }
-            s.push_str(prefix);
+            s.push(prefix);
+            s.push(c);
             for (bit, ch) in [(4, 'r'), (2, 'w'), (1, 'x')] {
                 if b & bit != 0 {
                     s.push(ch);
@@ -251,10 +253,18 @@ mod test {
 
     #[test]
     fn bits() {
-        assert_eq!(format_access_bits(0o777), "u=rwx g=rwx o=rwx");
-        assert_eq!(format_access_bits(0o022), "g=w o=w");
-        assert_eq!(format_access_bits(0o022), "g=w o=w");
-        assert_eq!(format_access_bits(0o020), "g=w");
-        assert_eq!(format_access_bits(0), "");
+        assert_eq!(format_access_bits(0o777, '='), "u=rwx,g=rwx,o=rwx");
+        assert_eq!(format_access_bits(0o022, '='), "g=w,o=w");
+        assert_eq!(format_access_bits(0o022, '-'), "g-w,o-w");
+        assert_eq!(format_access_bits(0o020, '-'), "g-w");
+        assert_eq!(format_access_bits(0, ' '), "");
+    }
+
+    #[test]
+    fn bad_perms() {
+        assert_eq!(
+            Error::BadPermission(PathBuf::from("/path"), 0o777, 0o022).to_string(),
+            "Incorrect permissions: /path is u=rwx,g=rwx,o=rwx; must be g-w,o-w"
+        );
     }
 }

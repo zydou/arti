@@ -722,7 +722,7 @@ mod test {
         m.check_directory(d.path("a/b/c")).unwrap();
         // /e/f/g should not.
         let e = m.check_directory(d.path("e/f/g")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, 0o022)));
+        assert!(matches!(e, Error::BadPermission(_, 0o777, 0o022)));
         assert_eq!(e.path().unwrap(), d.path("e/f").canonicalize().unwrap());
 
         m.check_directory(d.path("d")).unwrap();
@@ -813,10 +813,10 @@ mod test {
 
         // These will fail, since the file or directory is readable.
         let e = m.verifier().check(d.path("a/b")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert!(matches!(e, Error::BadPermission(..)));
         assert_eq!(e.path().unwrap(), d.path("a/b").canonicalize().unwrap());
         let e = m.verifier().check(d.path("a/b/c")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert!(matches!(e, Error::BadPermission(..)));
         assert_eq!(e.path().unwrap(), d.path("a/b/c").canonicalize().unwrap());
 
         // Now allow readable targets.
@@ -859,7 +859,7 @@ mod test {
         assert!(matches!(e, Error::Multiple(_)));
         let errs: Vec<_> = e.errors().collect();
         assert_eq!(2, errs.len());
-        assert!(matches!(&errs[0], Error::BadPermission(_, _)));
+        assert!(matches!(&errs[0], Error::BadPermission(..)));
         assert!(matches!(&errs[1], Error::NotFound(_)));
     }
 
@@ -910,7 +910,7 @@ mod test {
         // By default, we shouldn't be accept this directory, since it is
         // group-writable.
         let e = m.check_directory(d.path("a/b")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert!(matches!(e, Error::BadPermission(..)));
 
         // But we can make the group trusted, which will make it okay for the
         // directory to be group-writable.
@@ -931,7 +931,7 @@ mod test {
             .unwrap();
 
         let e = m.check_directory(d.path("a/b")).unwrap_err();
-        assert!(matches!(e, Error::BadPermission(_, _)));
+        assert!(matches!(e, Error::BadPermission(..)));
     }
 
     #[test]
@@ -949,7 +949,7 @@ mod test {
             // Try once with bad permissions.
             d.chmod("a", 0o777);
             let e = m.make_directory(d.path("a/b/c/d")).unwrap_err();
-            assert!(matches!(e, Error::BadPermission(_, _)));
+            assert!(matches!(e, Error::BadPermission(..)));
 
             // Now make the permissions correct.
             d.chmod("a", 0o0700);
