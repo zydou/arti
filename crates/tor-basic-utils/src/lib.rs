@@ -46,6 +46,7 @@ use std::fmt;
 
 pub mod futures;
 pub mod retry;
+pub mod test_rng;
 
 // ----------------------------------------------------------------------
 

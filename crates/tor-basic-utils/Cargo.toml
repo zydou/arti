@@ -14,8 +14,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
 futures = "0.3.14"
+hex = "0.4"
 pin-project = "1"
 rand = "0.8"
+rand_chacha = "0.3"
+thiserror = "1"
 
 [dev-dependencies]
 derive_more = "0.99"
