@@ -162,8 +162,8 @@ fn test_address() {
     assert!(addr.is_hostname());
     assert_eq!(addr, Address::Hostname(hostname.to_string().into_bytes()));
 
-    // Too long hostname. Following is 255 bytes which is off by one too many.
-    let hostname = "a".repeat(255);
+    // Too long hostname.
+    let hostname = "a".repeat(256);
     let addr = Address::from_str(hostname.as_str());
     assert!(addr.is_err());
     assert_eq!(addr.err(), Some(Error::BadMessage("Hostname too long")));

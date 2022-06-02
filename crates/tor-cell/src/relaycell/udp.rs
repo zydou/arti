@@ -30,8 +30,8 @@ const T_IPV4: u8 = 0x04;
 /// Indicates the payload is an IPv6.
 const T_IPV6: u8 = 0x06;
 
-/// Maximum length of an Address::Hostname. It must fit in a u8 minus the nul term byte.
-const MAX_HOSTNAME_LEN: usize = (u8::MAX - 1) as usize;
+/// Maximum length of an Address::Hostname.
+const MAX_HOSTNAME_LEN: usize = u8::MAX as usize;
 
 impl Address {
     /// Return true iff this is a Hostname.
@@ -48,12 +48,11 @@ impl Address {
         }
     }
 
-    /// Return the cell wire format address length. Note that the Hostname has an extra byte added
-    /// to its length due to the nulterm character needed for encoding.
+    /// Return the cell wire format address length.
     fn wire_addr_len(&self) -> u8 {
         match self {
-            // Add nulterm byte to length. Length can't be above MAX_HOSTNAME_LEN.
-            Address::Hostname(h) => (h.len() + 1).try_into().expect("Address hostname too long"),
+            // Length can't be above MAX_HOSTNAME_LEN.
+            Address::Hostname(h) => h.len().try_into().expect("Address hostname too long"),
             Address::Ipv4(_) => 4,
             Address::Ipv6(_) => 16,
         }
@@ -65,20 +64,22 @@ impl Readable for Address {
         let addr_type = r.take_u8()?;
         let addr_len = r.take_u8()? as usize;
 
-        Ok(match addr_type {
+        // No point in continuing, empty length is wrong.
+        if addr_len == 0 {
+            return Err(Error::BadMessage("Invalid address length"));
+        }
+
+        let addr = match addr_type {
             T_HOSTNAME => {
-                let h = r.take_until(0)?;
-                if h.len() != (addr_len - 1) {
-                    return Err(Error::BadMessage(
-                        "Address length doesn't match nulterm hostname",
-                    ));
-                }
+                let h = r.take(addr_len)?;
                 Self::Hostname(h.into())
             }
             T_IPV4 => Self::Ipv4(r.extract()?),
             T_IPV6 => Self::Ipv6(r.extract()?),
-            _ => return Err(Error::BadMessage("Unknown address type")),
-        })
+            _ => return Err(Error::BadMessage("Invalid address type")),
+        };
+
+        Ok(addr)
     }
 }
 
@@ -92,7 +93,6 @@ impl Writeable for Address {
         match self {
             Address::Hostname(h) => {
                 w.write_all(&h[..]);
-                w.write_zeros(1); // Nul terminating byte.
             }
             Address::Ipv4(ip) => w.write(ip),
             Address::Ipv6(ip) => w.write(ip),
