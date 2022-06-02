@@ -39,6 +39,8 @@ rust-latest:
     - rustup show
     - cargo clippy --all-features --all-targets -- -D warnings
     - cargo fmt -- --check
+    - cp cargo-license $CARGO_HOME/bin/ || cargo install cargo-license
+    - ./maint/check_licenses
     - cp cargo-audit $CARGO_HOME/bin/ || cargo install cargo-audit
     - ./maint/cargo_audit
     - cp $CARGO_HOME/bin/cargo-audit .
@@ -51,6 +53,7 @@ rust-latest:
     paths:
       - cargo-audit
       - cargo-sort
+      - cargo-license
   artifacts:
     paths:
       - target/x86_64-unknown-linux-gnu/debug/arti
