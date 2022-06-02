@@ -3629,6 +3629,7 @@ dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
  "derive_more",
+ "float_eq",
  "futures",
  "hex",
  "hex-literal",

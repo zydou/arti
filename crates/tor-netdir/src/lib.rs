@@ -57,8 +57,6 @@
 
 mod err;
 pub mod params;
-#[cfg(test)]
-mod testing;
 mod weight;
 
 #[cfg(any(test, feature = "testing"))]
@@ -1072,8 +1070,10 @@ mod test {
     #![allow(clippy::cognitive_complexity)]
     use super::*;
     use crate::testnet::*;
+    use float_eq::assert_float_eq;
     use std::collections::HashSet;
     use std::time::Duration;
+    use tor_basic_utils::test_rng;
 
     // Basic functionality for a partial netdir: Add microdescriptors,
     // then you have a netdir.
@@ -1217,10 +1217,25 @@ mod test {
         assert!(dir.unwrap_if_sufficient().is_err());
     }
 
+    /// Return a 3-tuple for use by `test_pick_*()` of an Rng, a number of
+    /// iterations, and a tolerance.
+    ///
+    /// If the Rng is deterministic (the default), we can use a faster setup,
+    /// with a higher tolerance and fewer iterations.  But if you've explicitly
+    /// opted into randomization (or are replaying a seed from an earlier
+    /// randomized test), we give you more iterations and a tighter tolerance.
+    fn testing_rng_with_tolerances() -> (impl rand::Rng, usize, f64) {
+        // Use a deterministic RNG if none is specified, since this is slow otherwise.
+        let config = test_rng::Config::from_env().unwrap_or(test_rng::Config::Deterministic);
+        let (iters, tolerance) = match config {
+            test_rng::Config::Deterministic => (5000, 0.02),
+            _ => (50000, 0.01),
+        };
+        (config.into_rng(), iters, tolerance)
+    }
+
     #[test]
     fn test_pick() {
-        use crate::testing::*; // for stochastic testing
-
         let (consensus, microdescs) = construct_network().unwrap();
         let mut dir = PartialNetDir::new(consensus, None);
         for md in microdescs.into_iter() {
@@ -1229,10 +1244,10 @@ mod test {
         }
         let dir = dir.unwrap_if_sufficient().unwrap();
 
-        let total = get_iters() as isize;
+        let (mut rng, total, tolerance) = testing_rng_with_tolerances();
+
         let mut picked = [0_isize; 40];
-        let mut rng = get_rng();
-        for _ in 0..get_iters() {
+        for _ in 0..total {
             let r = dir.pick_relay(&mut rng, WeightRole::Middle, |r| {
                 r.supports_exit_port_ipv4(80)
             });
@@ -1244,11 +1259,13 @@ mod test {
         picked[0..10].iter().for_each(|x| assert_eq!(*x, 0));
         picked[20..30].iter().for_each(|x| assert_eq!(*x, 0));
 
+        let picked_f: Vec<_> = picked.iter().map(|x| *x as f64 / total as f64).collect();
+
         // We didn't we any non-default weights, so the other relays get
         // weighted proportional to their bandwidth.
-        check_close(picked[19], (total * 10) / 110);
-        check_close(picked[38], (total * 9) / 110);
-        check_close(picked[39], (total * 10) / 110);
+        assert_float_eq!(picked_f[19], (10.0 / 110.0), abs <= tolerance);
+        assert_float_eq!(picked_f[38], (9.0 / 110.0), abs <= tolerance);
+        assert_float_eq!(picked_f[39], (10.0 / 110.0), abs <= tolerance);
     }
 
     #[test]
@@ -1256,14 +1273,12 @@ mod test {
         // This is mostly a copy of test_pick, except that it uses
         // pick_n_relays to pick several relays at once.
 
-        use crate::testing::*; // for stochastic testing
-
         let dir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
 
-        let total = get_iters() as isize;
+        let (mut rng, total, tolerance) = testing_rng_with_tolerances();
+
         let mut picked = [0_isize; 40];
-        let mut rng = get_rng();
-        for _ in 0..get_iters() / 4 {
+        for _ in 0..total / 4 {
             let relays = dir.pick_n_relays(&mut rng, 4, WeightRole::Middle, |r| {
                 r.supports_exit_port_ipv4(80)
             });
@@ -1277,11 +1292,13 @@ mod test {
         picked[0..10].iter().for_each(|x| assert_eq!(*x, 0));
         picked[20..30].iter().for_each(|x| assert_eq!(*x, 0));
 
+        let picked_f: Vec<_> = picked.iter().map(|x| *x as f64 / total as f64).collect();
+
         // We didn't we any non-default weights, so the other relays get
         // weighted proportional to their bandwidth.
-        check_close(picked[19], (total * 10) / 110);
-        check_close(picked[36], (total * 7) / 110);
-        check_close(picked[39], (total * 10) / 110);
+        assert_float_eq!(picked_f[19], (10.0 / 110.0), abs <= tolerance);
+        assert_float_eq!(picked_f[36], (7.0 / 110.0), abs <= tolerance);
+        assert_float_eq!(picked_f[39], (10.0 / 110.0), abs <= tolerance);
     }
 
     #[test]
