@@ -71,8 +71,6 @@ where
 {
     let mut answers = Vec::new();
 
-    // TODO there is no public function to get the inner tor_proto::Error, so we can't tell whether
-    // it's a transient error or not
     let err_conv = |error: Error| {
         if tor_error::ErrorKind::RemoteHostNotFound == error.kind() {
             // NoError without any body is considered to be NODATA as per rfc2308 section-2.2

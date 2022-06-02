@@ -442,7 +442,7 @@ impl tor_error::HasKind for EndReason {
         use EndReason as E;
         match *self {
             E::MISC => EK::RemoteStreamError,
-            E::RESOLVEFAILED => EK::RemoteHostNotFound,
+            E::RESOLVEFAILED => EK::RemoteHostResolutionFailed,
             E::CONNECTREFUSED => EK::RemoteConnectionRefused,
             E::EXITPOLICY => EK::ExitPolicyRejected,
             E::DESTROY => EK::CircuitCollapse,
@@ -995,6 +995,7 @@ pub enum ResolvedVal {
     /// A DNS lookup response that we didn't recognize
     Unrecognized(u8, Vec<u8>),
 }
+
 /// Indicates a hostname response
 const RES_HOSTNAME: u8 = 0;
 /// Indicates an IPv4 response

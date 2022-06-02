@@ -121,7 +121,7 @@ mod crypto;
 pub mod stream;
 mod util;
 
-pub use util::err::Error;
+pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
 /// A vector of bytes that gets cleared when it's dropped.

@@ -436,8 +436,15 @@ pub enum ErrorKind {
     ///
     /// Trying at another exit might succeed, or the address might truly be
     /// unresolvable.
-    #[display(fmt = "remote hostname lookup failure")]
+    #[display(fmt = "remote hostname not found")]
     RemoteHostNotFound,
+
+    /// An resolve operation finished with an error.
+    ///
+    /// Contrary to [`RemoteHostNotFound`], this can't mean "this is not a hostname".
+    /// This error should be retried.
+    #[display(fmt = "remote hostname lookup failure")]
+    RemoteHostResolutionFailed,
 
     /// Trouble involving a protocol we're using with a peer on the far side of the Tor network
     ///

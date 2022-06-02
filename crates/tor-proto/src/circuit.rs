@@ -55,7 +55,7 @@ use crate::circuit::reactor::{
 pub use crate::circuit::unique_id::UniqId;
 use crate::crypto::cell::{HopNum, InboundClientCrypt, OutboundClientCrypt};
 use crate::stream::{DataStream, ResolveStream, StreamParameters, StreamReader};
-use crate::{Error, Result};
+use crate::{Error, ResolveError, Result};
 use tor_cell::{
     chancell::{self, msg::ChanMsg, CircId},
     relaycell::msg::{Begin, RelayMsg, Resolve, Resolved, ResolvedVal},
@@ -653,12 +653,9 @@ impl StreamTarget {
 /// it represents an error.
 fn resolvedval_to_result(val: ResolvedVal) -> Result<ResolvedVal> {
     match val {
-        ResolvedVal::TransientError => Err(Error::ResolveError(
-            "Received retriable transient error".into(),
-        )),
-        ResolvedVal::NontransientError => {
-            Err(Error::ResolveError("Received not retriable error.".into()))
-        }
+        ResolvedVal::TransientError => Err(Error::ResolveError(ResolveError::Transient)),
+        ResolvedVal::NontransientError => Err(Error::ResolveError(ResolveError::Nontransient)),
+        ResolvedVal::Unrecognized(_, _) => Err(Error::ResolveError(ResolveError::Unrecognized)),
         _ => Ok(val),
     }
 }
