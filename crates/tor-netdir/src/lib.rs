@@ -279,7 +279,7 @@ pub enum DirEvent {
 
 /// An object that can provide [`NetDir`]s, as well as inform consumers when
 /// they might have changed.
-pub trait NetDirProvider: UpcastArcNetDirProvider {
+pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return a handle to our latest directory, if we have one.
     fn latest_netdir(&self) -> Option<Arc<NetDir>>;
 
