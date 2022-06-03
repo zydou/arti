@@ -458,6 +458,13 @@ mod test {
     use super::*;
     use crate::{Pos, Result};
 
+    /// Decode s as a multi-line base64 string, ignoring ascii whitespace.
+    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64::DecodeError> {
+        let mut s = s.to_string();
+        s.retain(|c| !c.is_ascii_whitespace());
+        base64::decode(s)
+    }
+
     #[test]
     fn base64() -> Result<()> {
         assert_eq!("Mi43MTgyOA".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
@@ -551,7 +558,7 @@ mod test {
     #[test]
     fn rsa_public_key() {
         // Taken from a chutney network.
-        let mut key_b64 = r#"
+        let key_b64 = r#"
         MIIBigKCAYEAsDkzTcKS4kAF56R2ijb9qCek53tKC1EwMdpWMk58bB28fY6kHc55
         E7n1hB+LC5neZlx88GKuZ9k8P3g0MlO5ejalcfBdIIm28Nz86JXf/L23YnEpxnG/
         IpxZEcmx/EYN+vwp72W3DGuzyntaoaut6lGJk+O/aRCLLcTm4MNznvN1ackK2H6b
@@ -561,10 +568,8 @@ mod test {
         DvtMOs10MjsfibEBVnwEhqnlb/gj3hJkYoGRsCwAyMIaMObHcmAevMJRWAjGCc8T
         GMS9dSmg1IZst+U+V2OCcIHXT6wZ1zPsBM0pYKVLCwtewaq1306k0n+ekriEo7eI
         FS3Dd/Dx/a6jAgMBAAE=
-        "#
-        .to_string();
-        key_b64.retain(|c| !c.is_ascii_whitespace());
-        let key_bytes = base64::decode(key_b64).unwrap();
+        "#;
+        let key_bytes = base64_decode_ignore_ws(key_b64).unwrap();
         let rsa = RsaPublic::from_vec(key_bytes, Pos::None).unwrap();
 
         let bits = tor_llcrypto::pk::rsa::PublicKey::from(rsa.clone()).bits();
@@ -589,14 +594,12 @@ mod test {
         use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
         // From a chutney network.
-        let mut cert_b64 = r#"
+        let cert_b64 = r#"
         AQQABwRNAR6m3kq5h8i3wwac+Ti293opoOP8RKGP9MT0WD4Bbz7YAQAgBACGCdys
         G7AwsoYMIKenDN6In6ReiGF8jaYoGqmWKDVBdGGMDIZyNIq+VdhgtAB1EyNFHJU1
         jGM0ir9dackL+PIsHbzJH8s/P/8RfUsKIL6/ZHbn3nKMxLH/8kjtxp5ScAA=
-        "#
-        .to_string();
-        cert_b64.retain(|c| !c.is_ascii_whitespace());
-        let cert_bytes = base64::decode(cert_b64).unwrap();
+        "#;
+        let cert_bytes = base64_decode_ignore_ws(cert_b64).unwrap();
         // From the cert above.
         let right_subject_key: Ed25519Identity = "HqbeSrmHyLfDBpz5OLb3eimg4/xEoY/0xPRYPgFvPtg"
             .parse::<Ed25519Public>()
