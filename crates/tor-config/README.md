@@ -36,7 +36,7 @@ works as follows:
     (For `arti`, that's `TorClientConfigBuilder` and `ArtiBuilder`).
     This mapping is done using the `Deserialize` implementations on the `Builder`s.
     `resolve` then calls the `build()` method on each of these parts of the configuration
-    which applies defaults and validates the resulting configuation.
+    which applies defaults and validates the resulting configuration.
 
     It is important to call `resolve` *once* for *all* the configuration consumers,
     so that it sees a unified view of which config settings in the input

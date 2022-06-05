@@ -34,7 +34,7 @@
 //!     (For `arti`, that's `TorClientConfigBuilder` and `ArtiBuilder`).
 //!     This mapping is done using the `Deserialize` implementations on the `Builder`s.
 //!     `resolve` then calls the `build()` method on each of these parts of the configuration
-//!     which applies defaults and validates the resulting configuation.
+//!     which applies defaults and validates the resulting configuration.
 //!
 //!     It is important to call `resolve` *once* for *all* the configuration consumers,
 //!     so that it sees a unified view of which config settings in the input
@@ -225,7 +225,7 @@ where
 ///  * a test that the `Builder` can be deserialized from an empty [`config::Config`],
 ///    and then built, and that the result is the same as the ordinary default.
 //
-// The implementation munches fake "trait bounds" (`: !Deserialie + !Wombat ...`) off the RHS.
+// The implementation munches fake "trait bounds" (`: !Deserialize + !Wombat ...`) off the RHS.
 // We're going to add at least one more option.
 #[macro_export]
 macro_rules! impl_standard_builder {

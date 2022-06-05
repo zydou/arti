@@ -132,7 +132,7 @@ pub trait Builder {
 /// Ultimately, one `Resolvable` for all the configuration consumers in an entire
 /// program will be resolved from a single configuration tree (usually parsed from TOML).
 ///
-/// Multiple config collections can be resolved from the same configuartion,
+/// Multiple config collections can be resolved from the same configuration,
 /// via the implementation of `Resolvable` on tuples of `Resolvable`s.
 /// Use this rather than `#[serde(flatten)]`; the latter prevents useful introspection
 /// (necessary for reporting unrecognized configuration keys, and testing).
@@ -185,7 +185,7 @@ pub trait TopLevel {
 ///
 /// expands to
 ///  1. `define_for_tuples!{ A B - }`: defines for tuple `(A,B,)`
-///  2. `define_for_tuples!{ A B C - D.. }`: recurses to geenrate longer tuples
+///  2. `define_for_tuples!{ A B C - D.. }`: recurses to generate longer tuples
 macro_rules! define_for_tuples {
     { $( $A:ident )* - $B:ident $( $C:ident )* } => {
         define_for_tuples!{ $($A)* - }
@@ -374,7 +374,7 @@ where
                 let deser = serde_ignored::Deserializer::new(deser, &mut recorder);
                 let ret = serde::Deserialize::deserialize(deser);
                 if ret.is_err() {
-                    // If we got an error, tbe config might only have been partially processed,
+                    // If we got an error, the config might only have been partially processed,
                     // so we might get false positives.  Disable the unrecognized tracking.
                     nign = BTreeSet::new();
                 }
