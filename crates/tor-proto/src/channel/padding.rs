@@ -2,8 +2,6 @@
 //!
 //! Tor spec `padding-spec.txt` section 2.
 
-#![allow(dead_code)]
-
 use std::pin::Pin;
 // TODO, coaursetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
 use std::time::{Duration, Instant};
