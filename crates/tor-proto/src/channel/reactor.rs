@@ -13,6 +13,7 @@ use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
+use tor_rtcompat::SleepProvider;
 
 use futures::channel::{mpsc, oneshot};
 
@@ -74,7 +75,7 @@ pub(super) enum CtrlMsg {
 /// This type is returned when you finish a channel; you need to spawn a
 /// new task that calls `run()` on it.
 #[must_use = "If you don't call run() on a reactor, the channel won't work."]
-pub struct Reactor {
+pub struct Reactor<S: SleepProvider> {
     /// A receiver for control messages from `Channel` objects.
     pub(super) control: mpsc::UnboundedReceiver<CtrlMsg>,
     /// A receiver for cells to be sent on this reactor's sink.
@@ -98,19 +99,22 @@ pub struct Reactor {
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
+    /// Sleep Provider (dummy for now, this is going to be in the padding timer)
+    #[allow(dead_code)]
+    pub(super) sleep_prov: S,
 }
 
 /// Allows us to just say debug!("{}: Reactor did a thing", &self, ...)
 ///
 /// There is no risk of confusion because no-one would try to print a
 /// Reactor for some other reason.
-impl fmt::Display for Reactor {
+impl<S: SleepProvider> fmt::Display for Reactor<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&self.details.unique_id, f)
     }
 }
 
-impl Reactor {
+impl<S: SleepProvider> Reactor<S> {
     /// Launch the reactor, and run until the channel closes or we
     /// encounter an error.
     ///
@@ -367,12 +371,15 @@ pub(crate) mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
     use tor_linkspec::OwnedChanTarget;
+    use tor_rtcompat::Runtime;
 
     type CodecResult = std::result::Result<ChanCell, CodecError>;
 
-    pub(crate) fn new_reactor() -> (
+    pub(crate) fn new_reactor<R: Runtime>(
+        runtime: R,
+    ) -> (
         crate::channel::Channel,
-        Reactor,
+        Reactor<R>,
         mpsc::Receiver<ChanCell>,
         mpsc::Sender<CodecResult>,
     ) {
@@ -392,6 +399,7 @@ pub(crate) mod test {
             unique_id,
             dummy_target,
             crate::ClockSkew::None,
+            runtime,
         );
         (chan, reactor, recv1, send2)
     }
@@ -399,8 +407,8 @@ pub(crate) mod test {
     // Try shutdown from inside run_once..
     #[test]
     fn shutdown() {
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
-            let (chan, mut reactor, _output, _input) = new_reactor();
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
+            let (chan, mut reactor, _output, _input) = new_reactor(rt);
 
             chan.terminate();
             let r = reactor.run_once().await;
@@ -411,13 +419,13 @@ pub(crate) mod test {
     // Try shutdown while reactor is running.
     #[test]
     fn shutdown2() {
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             // TODO: Ask a rust person if this is how to do this.
 
             use futures::future::FutureExt;
             use futures::join;
 
-            let (chan, reactor, _output, _input) = new_reactor();
+            let (chan, reactor, _output, _input) = new_reactor(rt);
             // Let's get the reactor running...
             let run_reactor = reactor.run().map(|x| x.is_ok()).shared();
 
@@ -439,7 +447,7 @@ pub(crate) mod test {
     #[test]
     fn new_circ_closed() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let (chan, mut reactor, mut output, _input) = new_reactor();
+            let (chan, mut reactor, mut output, _input) = new_reactor(rt.clone());
             assert!(chan.duration_unused().is_some()); // unused yet
 
             let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
@@ -479,7 +487,7 @@ pub(crate) mod test {
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use tor_cell::chancell::msg;
-            let (chan, mut reactor, mut output, mut input) = new_reactor();
+            let (chan, mut reactor, mut output, mut input) = new_reactor(rt.clone());
 
             let (ret, reac) = futures::join!(chan.new_circ(), reactor.run_once());
             let (pending, circr) = ret.unwrap();
@@ -527,9 +535,9 @@ pub(crate) mod test {
     // Try incoming cells that shouldn't arrive on channels.
     #[test]
     fn bad_cells() {
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use tor_cell::chancell::msg;
-            let (_chan, mut reactor, _output, mut input) = new_reactor();
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
             // We shouldn't get create cells, ever.
             let create_cell = msg::Create2::new(4, *b"hihi").into();
@@ -597,12 +605,12 @@ pub(crate) mod test {
 
     #[test]
     fn deliver_relay() {
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::ClientCircChanMsg;
             use futures::channel::oneshot;
             use tor_cell::chancell::msg;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor();
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
             let (_circ_stream_7, mut circ_stream_13) = {
                 let (snd1, _rcv1) = oneshot::channel();
@@ -680,12 +688,12 @@ pub(crate) mod test {
 
     #[test]
     fn deliver_destroy() {
-        tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+        tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             use crate::circuit::celltypes::*;
             use futures::channel::oneshot;
             use tor_cell::chancell::msg;
 
-            let (_chan, mut reactor, _output, mut input) = new_reactor();
+            let (_chan, mut reactor, _output, mut input) = new_reactor(rt);
 
             let (circ_oneshot_7, mut circ_stream_13) = {
                 let (snd1, rcv1) = oneshot::channel();

@@ -75,6 +75,7 @@ use tor_error::internal;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_rtcompat::SleepProvider;
 
 use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
@@ -225,11 +226,12 @@ impl ChannelBuilder {
     /// authentication info from the relay: call `check()` on the result
     /// to check that.  Finally, to finish the handshake, call `finish()`
     /// on the result of _that_.
-    pub fn launch<T>(self, tls: T) -> OutboundClientHandshake<T>
+    pub fn launch<T, S>(self, tls: T, sleep_prov: S) -> OutboundClientHandshake<T, S>
     where
         T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        S: SleepProvider,
     {
-        handshake::OutboundClientHandshake::new(tls, self.target)
+        handshake::OutboundClientHandshake::new(tls, self.target, sleep_prov)
     }
 }
 
@@ -239,14 +241,18 @@ impl Channel {
     /// Internal method, called to finalize the channel when we've
     /// sent our netinfo cell, received the peer's netinfo cell, and
     /// we're finally ready to create circuits.
-    fn new(
+    fn new<S>(
         link_protocol: u16,
         sink: BoxedChannelSink,
         stream: BoxedChannelStream,
         unique_id: UniqId,
         peer_id: OwnedChanTarget,
         clock_skew: ClockSkew,
-    ) -> (Self, reactor::Reactor) {
+        sleep_prov: S,
+    ) -> (Self, reactor::Reactor<S>)
+    where
+        S: SleepProvider,
+    {
         use circmap::{CircIdRange, CircMap};
         let circmap = CircMap::new(CircIdRange::High);
 
@@ -281,6 +287,7 @@ impl Channel {
             circ_unique_id_ctx: CircUniqIdContext::new(),
             link_protocol,
             details,
+            sleep_prov,
         };
 
         (channel, reactor)
@@ -461,6 +468,7 @@ pub(crate) mod test {
     use crate::channel::codec::test::MsgBuf;
     pub(crate) use crate::channel::reactor::test::new_reactor;
     use tor_cell::chancell::{msg, ChanCell};
+    use tor_rtcompat::PreferredRuntime;
 
     /// Make a new fake reactor-less channel.  For testing only, obviously.
     pub(crate) fn fake_channel(details: Arc<ChannelDetails>) -> Channel {
@@ -513,10 +521,11 @@ pub(crate) mod test {
 
     #[test]
     fn chanbuilder() {
+        let rt = PreferredRuntime::create().unwrap();
         let mut builder = ChannelBuilder::default();
         builder.set_declared_addr("127.0.0.1:9001".parse().unwrap());
         let tls = MsgBuf::new(&b""[..]);
-        let _outbound = builder.launch(tls);
+        let _outbound = builder.launch(tls, rt);
     }
 
     #[test]
