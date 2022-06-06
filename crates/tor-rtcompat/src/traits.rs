@@ -79,7 +79,7 @@ impl<T> Runtime for T where
 /// Every `SleepProvider` also implements
 /// [`SleepProviderExt`](crate::SleepProviderExt); see that trait
 /// for other useful functions.
-pub trait SleepProvider {
+pub trait SleepProvider: Clone + Send + Sync + 'static {
     /// A future returned by [`SleepProvider::sleep()`]
     type SleepFuture: Future<Output = ()> + Send + 'static;
     /// Return a future that will be ready after `duration` has
@@ -128,7 +128,7 @@ pub trait SleepProvider {
 }
 
 /// Trait for a runtime that can block on a future.
-pub trait BlockOn {
+pub trait BlockOn: Clone + Send + Sync + 'static {
     /// Run `future` until it is ready, and return its output.
     fn block_on<F: Future>(&self, future: F) -> F::Output;
 }
@@ -142,7 +142,7 @@ pub trait BlockOn {
 // TODO: Use of async_trait is not ideal, since we have to box with every
 // call.  Still, async_io basically makes that necessary :/
 #[async_trait]
-pub trait TcpProvider {
+pub trait TcpProvider: Clone + Send + Sync + 'static {
     /// The type for the TCP connections returned by [`Self::connect()`].
     type TcpStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static;
     /// The type for the TCP listeners returned by [`Self::listen()`].
@@ -187,7 +187,7 @@ pub trait TcpListener {
 
 /// Trait for a runtime that can send and receive UDP datagrams.
 #[async_trait]
-pub trait UdpProvider {
+pub trait UdpProvider: Clone + Send + Sync + 'static {
     /// The type of Udp Socket returned by [`Self::bind()`]
     type UdpSocket: UdpSocket + Send + Sync + Unpin + 'static;
 
@@ -270,7 +270,7 @@ pub trait TlsConnector<S> {
 /// See the [`TlsConnector`] documentation for a discussion of the Tor-specific
 /// limitations of this trait: If you are implementing something other than Tor,
 /// this is **not** the functionality you want.
-pub trait TlsProvider<S> {
+pub trait TlsProvider<S>: Clone + Send + Sync + 'static {
     /// The Connector object that this provider can return.
     type Connector: TlsConnector<S, Conn = Self::TlsStream> + Send + Sync + Unpin;
 
