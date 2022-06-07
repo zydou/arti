@@ -1,5 +1,6 @@
 //! Internal: Declare the Writer type for tor-bytes
 
+use crate::Result;
 use crate::Writeable;
 use crate::WriteableOnce;
 
