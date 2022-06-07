@@ -30,8 +30,8 @@ educe = "0.4.6"
 hyper = { version = "0.14", features = ["http1", "client", "runtime"] }
 pin-project = "1"
 thiserror = "1"
-tls-api = { version = "0.8" }
-tls-api-native-tls = { version = "0.8.0" }
+tls-api = "0.9.0"
+tls-api-native-tls = "0.9.0"
 tokio = { package = "tokio", version = "1.7", features = [
     "rt",
     "rt-multi-thread",
