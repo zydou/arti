@@ -648,6 +648,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::timeouts::TimeoutEstimator;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// Return an action to build a 3-hop circuit.
     fn b3() -> Action {
@@ -915,7 +916,7 @@ mod test {
 
         use rand::Rng;
         let mut est = ParetoTimeoutEstimator::default();
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         for _ in 0..1000 {
             let d = Duration::from_millis(rng.gen_range(10..3_000));
             est.note_hop_completed(2, d, true);

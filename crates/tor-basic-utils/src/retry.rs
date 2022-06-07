@@ -119,6 +119,7 @@ impl Default for RetryDelay {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::test_rng::testing_rng;
 
     #[test]
     fn init() {
@@ -152,7 +153,7 @@ mod test {
         let mut rd = RetryDelay::from_msec(50);
         let real_low_bound = std::cmp::max(50, MIN_LOW_BOUND);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         for _ in 1..100 {
             let (b_lo, b_hi) = rd.delay_bounds();
             assert!(b_lo == real_low_bound);

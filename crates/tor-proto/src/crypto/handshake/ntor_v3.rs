@@ -561,10 +561,11 @@ impl super::ClientHandshake for NtorV3Client {
 mod test {
     use super::*;
     use hex_literal::hex;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn test_ntor3_roundtrip() {
-        let b = curve25519::StaticSecret::new(rand::thread_rng().rng_compat());
+        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
         let mut rng = rand::thread_rng();
         let id = b"not identifier---but correct len";
 

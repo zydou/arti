@@ -71,8 +71,9 @@ fn batch_verify() {
     use ll::util::rand_compat::RngCompatExt;
     use rand_core::RngCore;
     use signature::Signer;
+    use tor_basic_utils::test_rng::testing_rng;
 
-    let mut rng = rand::thread_rng().rng_compat();
+    let mut rng = testing_rng().rng_compat();
     let mut sigs = Vec::new();
     for _ in 0..3 {
         let kp = Keypair::generate(&mut rng);

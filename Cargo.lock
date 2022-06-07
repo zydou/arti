@@ -1157,6 +1157,12 @@ checksum = "8ce81f49ae8a0482e4c55ea62ebbd7e5a686af544c00b9d090bba3ff9be97b3d"
 
 [[package]]
 name = "float_eq"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1d53499e94f9a7828e63c574adf62bcade7f358c3738f9ea70d7c2edb61023d"
+
+[[package]]
+name = "float_eq"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b59b6469c35ab601d6487d28879bccfbe8c896c33a3fe699c4d29817e552cc58"
@@ -3345,7 +3351,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "educe",
- "float_eq",
+ "float_eq 1.0.0",
  "futures",
  "futures-await-test",
  "hex-literal",
@@ -3486,7 +3492,7 @@ dependencies = [
  "digest 0.10.3",
  "educe",
  "event-listener",
- "float_eq",
+ "float_eq 1.0.0",
  "fs-mistrust",
  "fslock",
  "futures",
@@ -3555,7 +3561,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
- "float_eq",
+ "float_eq 1.0.0",
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
@@ -3620,6 +3626,7 @@ dependencies = [
  "simple_asn1",
  "subtle",
  "thiserror",
+ "tor-basic-utils",
  "typenum",
  "x25519-dalek",
  "zeroize",
@@ -3632,6 +3639,7 @@ dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
  "derive_more",
+ "float_eq 0.7.0",
  "futures",
  "hex",
  "hex-literal",
@@ -3640,6 +3648,7 @@ dependencies = [
  "serde",
  "signature",
  "thiserror",
+ "tor-basic-utils",
  "tor-checkable",
  "tor-config",
  "tor-linkspec",
@@ -3771,6 +3780,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "thiserror",
+ "tor-basic-utils",
  "tor-rtcompat",
  "tracing",
 ]

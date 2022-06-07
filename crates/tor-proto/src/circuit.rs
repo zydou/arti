@@ -677,8 +677,8 @@ mod test {
     use futures::stream::StreamExt;
     use futures::task::SpawnExt;
     use hex_literal::hex;
-    use rand::thread_rng;
     use std::time::Duration;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, ChanCell};
     use tor_cell::relaycell::{msg as relaymsg, RelayCell, StreamId};
     use tor_llcrypto::pk;
@@ -690,7 +690,7 @@ mod test {
         ID: Into<StreamId>,
     {
         let body: RelayCellBody = RelayCell::new(id.into(), msg)
-            .encode(&mut thread_rng())
+            .encode(&mut testing_rng())
             .unwrap()
             .into();
         let chanmsg = chanmsg::Relay::from_raw(body.into());
@@ -777,7 +777,7 @@ mod test {
 
         // Future to pretend to be a relay on the other end of the circuit.
         let simulate_relay_fut = async move {
-            let mut rng = rand::thread_rng();
+            let mut rng = testing_rng();
             let create_cell = rx.next().await.unwrap();
             assert_eq!(create_cell.circid(), 128.into());
             let reply = if fast {
@@ -1053,7 +1053,7 @@ mod test {
                     RelayMsg::Extend2(e2) => e2,
                     _ => panic!(),
                 };
-                let mut rng = thread_rng();
+                let mut rng = testing_rng();
                 let (_, reply) =
                     NtorServer::server(&mut rng, &[example_ntor_key()], e2.handshake()).unwrap();
                 let extended2 = relaymsg::Extended2::new(reply).into();

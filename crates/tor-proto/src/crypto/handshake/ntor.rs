@@ -314,11 +314,12 @@ mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::crypto::testing::FakePRNG;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn simple() -> Result<()> {
         use crate::crypto::handshake::{ClientHandshake, ServerHandshake};
-        let mut rng = rand::thread_rng().rng_compat();
+        let mut rng = testing_rng().rng_compat();
         let relay_secret = StaticSecret::new(&mut rng);
         let relay_public = PublicKey::from(&relay_secret);
         let relay_identity = RsaIdentity::from_bytes(&[12; 20]).unwrap();
@@ -400,7 +401,7 @@ mod tests {
     #[test]
     fn failing_handshakes() {
         use crate::crypto::handshake::{ClientHandshake, ServerHandshake};
-        let mut rng = rand::thread_rng().rng_compat();
+        let mut rng = testing_rng().rng_compat();
 
         // Set up keys.
         let relay_secret = StaticSecret::new(&mut rng);

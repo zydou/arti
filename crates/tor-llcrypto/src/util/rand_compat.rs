@@ -124,6 +124,7 @@ fn err_to_old(e: &Error) -> OldError {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// OR every byte of src into dest.
     ///
@@ -147,7 +148,7 @@ mod test {
 
     #[test]
     fn test_wrapper_as_old() {
-        let mut wrapped = rand::thread_rng().rng_compat();
+        let mut wrapped = testing_rng().rng_compat();
 
         let mut z64 = 0xffffffffffffffff_u64;
         let mut z32 = 0xffffffff_u32;
@@ -190,7 +191,7 @@ mod test {
 
     #[test]
     fn test_wrapper_as_new() {
-        let mut wrapped = rand::thread_rng().rng_compat();
+        let mut wrapped = testing_rng().rng_compat();
 
         let mut z64 = 0xffffffffffffffff_u64;
         let mut z32 = 0xffffffff_u32;

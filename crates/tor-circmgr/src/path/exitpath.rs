@@ -237,6 +237,7 @@ mod test {
     use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
@@ -262,7 +263,7 @@ mod test {
 
     #[test]
     fn by_ports() {
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let netdir = testnet::construct_netdir()
             .unwrap()
             .unwrap_if_sufficient()
@@ -309,7 +310,7 @@ mod test {
 
     #[test]
     fn any_exit() {
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let netdir = testnet::construct_netdir()
             .unwrap()
             .unwrap_if_sufficient()
@@ -359,7 +360,7 @@ mod test {
         .unwrap()
         .unwrap_if_sufficient()
         .unwrap();
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
         let config = PathConfig::default();
@@ -392,7 +393,7 @@ mod test {
                 .unwrap()
                 .unwrap_if_sufficient()
                 .unwrap();
-            let mut rng = rand::thread_rng();
+            let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
             let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();

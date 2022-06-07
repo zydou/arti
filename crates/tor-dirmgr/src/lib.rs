@@ -998,6 +998,7 @@ mod test {
     use crate::docmeta::{AuthCertMeta, ConsensusMeta};
     use std::time::Duration;
     use tempfile::TempDir;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_netdoc::doc::netstatus::ConsensusFlavor;
     use tor_netdoc::doc::{authcert::AuthCertKeyIds, netstatus::Lifetime};
     use tor_rtcompat::SleepProvider;
@@ -1218,7 +1219,7 @@ mod test {
                 id_fingerprint: [99; 20].into(),
                 sk_fingerprint: [100; 20].into(),
             };
-            let mut rng = rand::thread_rng();
+            let mut rng = testing_rng();
             #[cfg(feature = "routerdesc")]
             let rd_ids: Vec<DocId> = (0..1000).map(|_| DocId::RouterDesc(rng.gen())).collect();
             let md_ids: Vec<DocId> = (0..1000).map(|_| DocId::Microdesc(rng.gen())).collect();

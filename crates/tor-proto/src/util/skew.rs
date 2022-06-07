@@ -148,6 +148,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn make_skew() {
@@ -207,7 +208,7 @@ mod test {
             .map(|n| CS::from_secs_f64(n).unwrap())
             .collect();
 
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let mut v = sorted.clone();
         for _ in 0..100 {
             v.shuffle(&mut rng);

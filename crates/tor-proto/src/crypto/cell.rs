@@ -395,6 +395,7 @@ mod test {
     use super::*;
     use crate::SecretBytes;
     use rand::RngCore;
+    use tor_basic_utils::test_rng::testing_rng;
 
     fn add_layers(
         cc_out: &mut OutboundClientCrypt,
@@ -436,7 +437,7 @@ mod test {
         let mut r2 = Tor1RelayCrypto::construct(KGen::new(seed2)).unwrap();
         let mut r3 = Tor1RelayCrypto::construct(KGen::new(seed3)).unwrap();
 
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         for _ in 1..300 {
             // outbound cell
             let mut cell = [0_u8; 509];

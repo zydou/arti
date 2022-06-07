@@ -285,6 +285,7 @@ where
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn doctype() {
@@ -356,7 +357,7 @@ mod test {
         use rand::Rng;
 
         // Construct a big query.
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let ids: HashSet<MdDigest> = (0..3400).into_iter().map(|_| rng.gen()).collect();
 
         // Test microdescs.

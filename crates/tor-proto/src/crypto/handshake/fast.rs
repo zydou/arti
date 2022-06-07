@@ -94,10 +94,11 @@ mod test {
     use super::*;
     use crate::crypto::handshake::{ClientHandshake, KeyGenerator, ServerHandshake};
     use hex_literal::hex;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn roundtrip() {
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
 
         let (state, cmsg) = CreateFastClient::client1(&mut rng, &()).unwrap();
         let (s_kg, smsg) = CreateFastServer::server(&mut rng, &[()], cmsg).unwrap();
@@ -111,7 +112,7 @@ mod test {
 
     #[test]
     fn failure() {
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
 
         // badly formatted client message.
         let cmsg = [6_u8; 19];

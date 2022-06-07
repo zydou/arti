@@ -499,12 +499,13 @@ fn get_rendezvous1_key_material(
 mod test {
     use super::*;
     use hex_literal::hex;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     /// Basic HS Ntor test that does the handshake between client and service
     /// and makes sure that the resulting keys and KDF is legit.
     fn hs_ntor() -> Result<()> {
-        let mut rng = rand::thread_rng().rng_compat();
+        let mut rng = testing_rng().rng_compat();
 
         // Let's initialize keys for the client (and the intro point)
         let intro_b_privkey = curve25519::StaticSecret::new(&mut rng);

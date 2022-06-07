@@ -86,6 +86,7 @@ mod test {
     use crate::path::assert_same_path_when_owned;
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
+    use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::fallback::{FallbackDir, FallbackList};
     use tor_linkspec::ChanTarget;
     use tor_netdir::testnet;
@@ -96,7 +97,7 @@ mod test {
             .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
 
@@ -136,7 +137,7 @@ mod test {
         ];
         let fb: FallbackList = fb_owned.clone().into();
         let dirinfo = (&fb).into();
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let guards: OptDummyGuardMgr<'_> = None;
 
         for _ in 0..10 {
@@ -158,7 +159,7 @@ mod test {
     fn dirpath_no_fallbacks() {
         let fb = FallbackList::from([]);
         let dirinfo = DirInfo::Fallbacks(&fb);
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
         let guards: OptDummyGuardMgr<'_> = None;
 
         let err = DirPathBuilder::default().pick_path(&mut rng, dirinfo, guards);
@@ -178,7 +179,7 @@ mod test {
                 .unwrap()
                 .unwrap_if_sufficient()
                 .unwrap();
-            let mut rng = rand::thread_rng();
+            let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
             let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();

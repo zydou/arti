@@ -125,13 +125,14 @@ impl DownloadSchedule {
 #[cfg(test)]
 mod test {
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn config() {
         // default configuration is 3 tries, 1000 msec initial delay
         let cfg = DownloadSchedule::default();
         let one_sec = Duration::from_secs(1);
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
 
         assert_eq!(cfg.n_attempts(), 3);
         let v: Vec<_> = cfg.attempts().collect();

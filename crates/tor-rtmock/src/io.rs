@@ -187,14 +187,14 @@ mod test {
 
     use futures::io::{AsyncReadExt, AsyncWriteExt};
     use futures_await_test::async_test;
-    use rand::thread_rng;
     use rand::Rng;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[async_test]
     async fn basic_rw() {
         let (mut s1, mut s2) = stream_pair();
         let mut text1 = vec![0_u8; 9999];
-        thread_rng().fill(&mut text1[..]);
+        testing_rng().fill(&mut text1[..]);
 
         let (v1, v2): (IoResult<()>, IoResult<()>) = futures::join!(
             async {

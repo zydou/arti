@@ -63,13 +63,14 @@ fn round_time(when: SystemTime, d: u32) -> SystemTime {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_basic_utils::test_rng::testing_rng;
 
     #[test]
     fn test_randomize_time() {
         let now = SystemTime::now();
         let one_hour = Duration::from_secs(3600);
         let ten_sec = Duration::from_secs(10);
-        let mut rng = rand::thread_rng();
+        let mut rng = testing_rng();
 
         for _ in 0..1000 {
             let t = randomize_time(&mut rng, now, one_hour);

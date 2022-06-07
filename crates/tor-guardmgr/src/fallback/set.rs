@@ -231,14 +231,14 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::FirstHopId;
+    use rand::Rng;
+    use tor_basic_utils::test_rng::testing_rng;
 
     /// Construct a `FallbackDir` with random identity keys and addresses.
     ///
     /// Since there are 416 bits of random id here, the risk of collision is
     /// negligible.
-    fn rand_fb() -> FallbackDir {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+    fn rand_fb<R: Rng>(rng: &mut R) -> FallbackDir {
         let ed: [u8; 32] = rng.gen();
         let rsa: [u8; 20] = rng.gen();
         let ip: u32 = rng.gen();
@@ -255,8 +255,14 @@ mod test {
         use rand::seq::SliceRandom;
 
         // fabricate some fallbacks.
-        let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
-        let fb_other = rand_fb();
+        let mut rng = testing_rng();
+        let fbs = vec![
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+        ];
+        let fb_other = rand_fb(&mut rng);
         let id_other = FallbackId::from_chan_target(&fb_other);
 
         // basic case: construct a set
@@ -282,7 +288,7 @@ mod test {
         let mut redundant_fbs = fbs.clone();
         redundant_fbs.extend(fbs.clone());
         redundant_fbs.extend(fbs[0..2].iter().map(Clone::clone));
-        redundant_fbs[..].shuffle(&mut rand::thread_rng());
+        redundant_fbs[..].shuffle(&mut testing_rng());
         let list2 = redundant_fbs.into();
         assert_ne!(&list, &list2);
         let set2: FallbackState = list2.into();
@@ -298,14 +304,21 @@ mod test {
 
     #[test]
     fn set_choose() {
-        let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
+        dbg!("X");
+
+        let mut rng = testing_rng();
+        let fbs = vec![
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+        ];
         let list: FallbackList = fbs.into();
         let mut set: FallbackState = list.into();
 
         let mut counts = [0_usize; 4];
-        let mut rng = rand::thread_rng();
         let now = Instant::now();
-
+        dbg!("A");
         fn lookup_idx(set: &FallbackState, id: &FirstHopId) -> Option<usize> {
             if let FirstHopId(crate::ids::FirstHopIdInner::Fallback(id)) = id {
                 set.fallbacks.binary_search_by(|ent| ent.id().cmp(id)).ok()
@@ -319,6 +332,7 @@ mod test {
             let idx = lookup_idx(&set, fb.id()).unwrap();
             counts[idx] += 1;
         }
+        dbg!("B");
         assert!(counts.iter().all(|v| *v > 0));
 
         // Mark somebody down and make sure they don't get chosen.
@@ -354,7 +368,13 @@ mod test {
 
     #[test]
     fn test_status() {
-        let fbs = vec![rand_fb(), rand_fb(), rand_fb(), rand_fb()];
+        let mut rng = testing_rng();
+        let fbs = vec![
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+            rand_fb(&mut rng),
+        ];
         let list: FallbackList = fbs.clone().into();
         let mut set: FallbackState = list.into();
         let ids: Vec<_> = set.fallbacks.iter().map(|fb| fb.id().clone()).collect();
@@ -398,7 +418,7 @@ mod test {
             .filter(|fb| FallbackId::from_chan_target(fb) != ids[2])
             .collect();
         // add 2 new ones.
-        let fbs_new = [rand_fb(), rand_fb(), rand_fb()];
+        let fbs_new = vec![rand_fb(&mut rng), rand_fb(&mut rng), rand_fb(&mut rng)];
         fbs2.extend(fbs_new.clone());
 
         let mut set2 = FallbackState::from(FallbackList::from(fbs2.clone()));
