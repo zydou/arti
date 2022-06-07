@@ -326,8 +326,23 @@ lemon
         assert_eq!(sec.maybe(GUAVA).parse_arg::<u32>(2).unwrap(), Some(7));
         assert!(sec.maybe(GUAVA).parse_arg::<u32>(1).is_err());
 
+        // Try the `obj` accessor.
         assert_eq!(sec.get(GUAVA).unwrap().obj("GUAVA MANIFESTO").unwrap(),
                    &b"The guava emoji is not currently supported in unicode 13.0. Let's fight against anti-guava bias."[..]);
+        assert!(matches!(
+            sec.get(ORANGE)
+                .unwrap()
+                .obj("ORANGE MANIFESTO")
+                .unwrap_err()
+                .parse_error_kind(),
+            EK::MissingObject // orange you glad there isn't a manifesto?
+        ));
+
+        // Try `maybe_item` a bit.
+        let maybe_banana = sec.maybe(BANANA);
+        assert!(maybe_banana.parse_arg::<u32>(3).unwrap().is_none()); // yes! we have none.
+        let maybe_guava = sec.maybe(GUAVA);
+        assert_eq!(maybe_guava.parse_arg::<u32>(2).unwrap(), Some(7));
 
         assert_eq!(
             sec.get(ANN_TASTY).unwrap() as *const Item<'_, _>,
@@ -392,6 +407,12 @@ lemon
             &EK::MissingObject
                 .with_msg("lemon")
                 .at_pos(Pos::from_line(2, 1)),
+        );
+
+        // oranges don't take an object.
+        check(
+            "@tasty yes\norange no\n-----BEGIN ORANGE-----\naaa\n-----END ORANGE-----\n",
+            &EK::UnexpectedObject.with_msg("orange"),
         );
     }
 }

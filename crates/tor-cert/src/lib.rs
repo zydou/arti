@@ -169,6 +169,7 @@ caret_int! {
 
 /// Structure for an Ed25519-signed certificate as described in Tor's
 /// cert-spec.txt.
+#[derive(Debug, Clone)]
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
     exp_hours: u32,
@@ -187,6 +188,7 @@ pub struct Ed25519Cert {
 }
 
 /// One of the data types that can be certified by an Ed25519Cert.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum CertifiedKey {
     /// An Ed25519 public key, signed directly.
@@ -200,6 +202,7 @@ pub enum CertifiedKey {
 }
 
 /// A key whose type we didn't recognize.
+#[derive(Debug, Clone)]
 pub struct UnrecognizedKey {
     /// Actual type of the key.
     key_type: KeyType,
@@ -252,6 +255,7 @@ impl CertifiedKey {
 }
 
 /// An extension in a Tor certificate.
+#[derive(Debug, Clone)]
 enum CertExt {
     /// Indicates which Ed25519 public key signed this cert.
     SignedWithEd25519(SignedWithEd25519Ext),
@@ -260,6 +264,7 @@ enum CertExt {
 }
 
 /// Any unrecognized extension on a Tor certificate.
+#[derive(Debug, Clone)]
 #[allow(unused)]
 struct UnrecognizedExt {
     /// True iff this extension must be understand in order to validate the
@@ -293,6 +298,7 @@ impl Writeable for CertExt {
  */
 
 /// Extension indicating that a key that signed a given certificate.
+#[derive(Debug, Clone)]
 struct SignedWithEd25519Ext {
     /// The key that signed the certificate including this extension.
     pk: ed25519::PublicKey,
@@ -492,6 +498,7 @@ impl Ed25519Cert {
 
 /// A parsed Ed25519 certificate. Maybe it includes its signing key;
 /// maybe it doesn't.
+#[derive(Clone, Debug)]
 pub struct KeyUnknownCert {
     /// The certificate whose signing key might not be known.
     cert: UncheckedCert,
@@ -532,6 +539,7 @@ impl KeyUnknownCert {
 
 /// A certificate that has been parsed, but whose signature and
 /// timeliness have not been checked.
+#[derive(Debug, Clone)]
 pub struct UncheckedCert {
     /// The parsed certificate, possibly modified by inserting an externally
     /// supplied key as its signing key.

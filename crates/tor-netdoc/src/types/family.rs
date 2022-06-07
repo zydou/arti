@@ -130,4 +130,13 @@ mod test {
         );
         Ok(())
     }
+
+    #[test]
+    fn mutable() {
+        let mut family = RelayFamily::default();
+        let key = RsaIdentity::from_hex("ffffffffffffffffffffffffffffffffffffffff").unwrap();
+        assert!(!family.contains(&key));
+        family.push(key);
+        assert!(family.contains(&key));
+    }
 }

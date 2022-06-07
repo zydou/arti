@@ -433,10 +433,20 @@ mod test {
     #[test]
     fn parse_one() -> Result<()> {
         use tor_checkable::{SelfSigned, Timebound};
-        let _rd = AuthCert::parse(TESTDATA)?
+        let cert = AuthCert::parse(TESTDATA)?
             .check_signature()
             .unwrap()
             .dangerously_assume_timely();
+
+        // Taken from TESTDATA
+        assert_eq!(
+            cert.id_fingerprint().to_string(),
+            "$ed03bb616eb2f60bec80151114bb25cef515b226"
+        );
+        assert_eq!(
+            cert.sk_fingerprint().to_string(),
+            "$c4f720e2c59f9ddd4867fff465ca04031e35648f"
+        );
 
         Ok(())
     }

@@ -619,18 +619,6 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     {
         PauseAt::from_peekable(&mut self.tokens, f)
     }
-    /// Return a PauseAt wrapper around the peekable iterator in this
-    /// NetDocReader that returns all items.
-    #[allow(unused)]
-    pub(crate) fn pauseable(
-        &mut self,
-    ) -> PauseAt<
-        '_,
-        impl Iterator<Item = Result<Item<'a, K>>>,
-        impl FnMut(&Result<Item<'a, K>>) -> bool,
-    > {
-        self.pause_at(|_| false)
-    }
 
     /// Return true if there are no more items in this NetDocReader.
     // The implementation sadly needs to mutate the inner state, even if it's not *semantically*

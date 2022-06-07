@@ -225,6 +225,7 @@ mod rsa {
 
     /// An RSA public key, as parsed from a base64-encoded object.
     #[allow(non_camel_case_types)]
+    #[derive(Clone, Debug)]
     pub(crate) struct RsaPublic(PublicKey, Pos);
 
     impl From<RsaPublic> for PublicKey {
@@ -278,6 +279,7 @@ mod edcert {
 
     /// An ed25519 certificate as parsed from a directory object, with
     /// signature not validated.
+    #[derive(Debug, Clone)]
     pub(crate) struct UnvalidatedEdCert(KeyUnknownCert, Pos);
 
     impl super::FromBytes for UnvalidatedEdCert {
@@ -454,7 +456,14 @@ mod nickname {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::Result;
+    use crate::{Pos, Result};
+
+    /// Decode s as a multi-line base64 string, ignoring ascii whitespace.
+    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64::DecodeError> {
+        let mut s = s.to_string();
+        s.retain(|c| !c.is_ascii_whitespace());
+        base64::decode(s)
+    }
 
     #[test]
     fn base64() -> Result<()> {
@@ -515,13 +524,13 @@ mod test {
         assert_eq!(k1, Ed25519Identity::from_bytes(&k2).unwrap());
 
         assert!("WVIPQ8oArAqLY4Xzk0!!!!8KsUJHBQhG8SC57qru"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qru"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         assert!("WVIPQ8oArAqLY4XzkcpIU8KsUJHBQhG8SC57qr"
-            .parse::<Curve25519Public>()
+            .parse::<Ed25519Public>()
             .is_err());
         // right length, bad key:
         assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
@@ -546,8 +555,83 @@ mod test {
         Ok(())
     }
 
-    // TODO: tests for RSA public key parsing.
-    // TODO: tests for edcert parsing.
+    #[test]
+    fn rsa_public_key() {
+        // Taken from a chutney network.
+        let key_b64 = r#"
+        MIIBigKCAYEAsDkzTcKS4kAF56R2ijb9qCek53tKC1EwMdpWMk58bB28fY6kHc55
+        E7n1hB+LC5neZlx88GKuZ9k8P3g0MlO5ejalcfBdIIm28Nz86JXf/L23YnEpxnG/
+        IpxZEcmx/EYN+vwp72W3DGuzyntaoaut6lGJk+O/aRCLLcTm4MNznvN1ackK2H6b
+        Xm2ejRwtVRLoPKODJiPGl43snCfXXWsMH3IALFOgm0szPLv2fAJzBI8VWrUN81M/
+        lgwJhG6+xbr1CkrXI5fKs/TNr0B0ydC9BIZplmPrnXaeNklnw1cqUJ1oxDSgBrvx
+        rpDo7paObjSPV26opa68QKGa7Gu2MZQC3RzViNCbawka/108g6hSUkoM+Om2oivr
+        DvtMOs10MjsfibEBVnwEhqnlb/gj3hJkYoGRsCwAyMIaMObHcmAevMJRWAjGCc8T
+        GMS9dSmg1IZst+U+V2OCcIHXT6wZ1zPsBM0pYKVLCwtewaq1306k0n+ekriEo7eI
+        FS3Dd/Dx/a6jAgMBAAE=
+        "#;
+        let key_bytes = base64_decode_ignore_ws(key_b64).unwrap();
+        let rsa = RsaPublic::from_vec(key_bytes, Pos::None).unwrap();
+
+        let bits = tor_llcrypto::pk::rsa::PublicKey::from(rsa.clone()).bits();
+        assert_eq!(bits, 3072);
+
+        // tests on a valid key
+        assert!(rsa.clone().check_exponent(65537).is_ok());
+        assert!(rsa.clone().check_exponent(1337).is_err());
+        assert!(rsa.clone().check_len_eq(3072).is_ok());
+        assert!(rsa.clone().check_len(1024..=4096).is_ok());
+        assert!(rsa.clone().check_len(1024..=1024).is_err());
+        assert!(rsa.check_len(4096..).is_err());
+
+        // A string of bytes that is not an RSA key.
+        let failure = RsaPublic::from_vec(vec![1, 2, 3], Pos::None);
+        assert!(failure.is_err());
+    }
+
+    #[cfg(feature = "routerdesc")]
+    #[test]
+    fn ed_cert() {
+        use tor_llcrypto::pk::ed25519::Ed25519Identity;
+
+        // From a chutney network.
+        let cert_b64 = r#"
+        AQQABwRNAR6m3kq5h8i3wwac+Ti293opoOP8RKGP9MT0WD4Bbz7YAQAgBACGCdys
+        G7AwsoYMIKenDN6In6ReiGF8jaYoGqmWKDVBdGGMDIZyNIq+VdhgtAB1EyNFHJU1
+        jGM0ir9dackL+PIsHbzJH8s/P/8RfUsKIL6/ZHbn3nKMxLH/8kjtxp5ScAA=
+        "#;
+        let cert_bytes = base64_decode_ignore_ws(cert_b64).unwrap();
+        // From the cert above.
+        let right_subject_key: Ed25519Identity = "HqbeSrmHyLfDBpz5OLb3eimg4/xEoY/0xPRYPgFvPtg"
+            .parse::<Ed25519Public>()
+            .unwrap()
+            .into();
+        // From `ed25519()` test above.
+        let wrong_subject_key: Ed25519Identity = "WVIPQ8oArAqLY4XzkcpIOI6U8KsUJHBQhG8SC57qru0"
+            .parse::<Ed25519Public>()
+            .unwrap()
+            .into();
+
+        // decode and check correct type and key
+        let cert = UnvalidatedEdCert::from_vec(cert_bytes, Pos::None)
+            .unwrap()
+            .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
+            .unwrap()
+            .check_subject_key_is(&right_subject_key.try_into().unwrap())
+            .unwrap();
+        // check wrong type.
+        assert!(cert
+            .clone()
+            .check_cert_type(tor_cert::CertType::RSA_ID_X509)
+            .is_err());
+        // check wrong key.
+        assert!(cert
+            .check_subject_key_is(&wrong_subject_key.try_into().unwrap())
+            .is_err());
+
+        // Try an invalid object that isn't a certificate.
+        let failure = UnvalidatedEdCert::from_vec(vec![1, 2, 3], Pos::None);
+        assert!(failure.is_err());
+    }
 
     #[test]
     fn fingerprint() -> Result<()> {

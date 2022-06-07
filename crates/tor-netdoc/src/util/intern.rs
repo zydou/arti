@@ -76,3 +76,36 @@ impl<T: Hash + Eq + ?Sized> InternCache<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn interning_by_value() {
+        // "intern" case.
+        let c: InternCache<String> = InternCache::new();
+
+        let s1 = c.intern("abc".to_string());
+        let s2 = c.intern("def".to_string());
+        let s3 = c.intern("abc".to_string());
+        assert!(Arc::ptr_eq(&s1, &s3));
+        assert!(!Arc::ptr_eq(&s1, &s2));
+        assert_eq!(s2.as_ref(), "def");
+        assert_eq!(s3.as_ref(), "abc");
+    }
+
+    #[test]
+    fn interning_by_ref() {
+        // "intern" case.
+        let c: InternCache<str> = InternCache::new();
+
+        let s1 = c.intern_ref("abc");
+        let s2 = c.intern_ref("def");
+        let s3 = c.intern_ref("abc");
+        assert!(Arc::ptr_eq(&s1, &s3));
+        assert!(!Arc::ptr_eq(&s1, &s2));
+        assert_eq!(&*s2, "def");
+        assert_eq!(&*s3, "abc");
+    }
+}
