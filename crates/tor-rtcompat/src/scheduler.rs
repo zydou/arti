@@ -85,6 +85,26 @@ impl<R: SleepProvider> TaskSchedule<R> {
         self.instant_fire = true;
         self.sleep = None;
     }
+
+    /// Wait until `Dur` has elapsed.
+    ///
+    /// This call is equivalent to [`SleepProvider::sleep`], except that the
+    /// resulting future will respect calls to the functions on this schedule's
+    /// associated [`TaskHandle`].
+    ///
+    /// Alternatively, you can view this function as equivalent to
+    /// `self.fire_in(dur); self.next().await;`, only  with the intent made more
+    /// explicit.
+    ///
+    /// If the associated [`TaskHandle`] for this schedule is suspended, then
+    /// this method will not return until the schedule is unsuspended _and_ the
+    /// timer elapses.  If the associated [`TaskHandle`] is cancelled, then this
+    /// method will not return at all, until the schedule is re-activated by
+    /// [`TaskHandle::fire`] or [`TaskHandle::fire_at`].
+    pub async fn sleep(&mut self, dur: Duration) {
+        self.fire_in(dur);
+        self.next().await;
+    }
 }
 
 impl TaskHandle {
