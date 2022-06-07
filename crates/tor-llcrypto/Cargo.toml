@@ -13,6 +13,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+with-openssl = ["openssl", "typenum", "cipher"]
 
 # Enable support for cryptography needed to be a Tor relay.
 relay = []
@@ -24,12 +25,14 @@ hsv3-client = []
 aes = { version = "0.8" }
 arrayref = "0.3"
 base64 = "0.13.0"
+cipher = { version = "0.4.3", optional = true }
 ctr = "0.9"
 curve25519-dalek = "3.2"
 digest = "0.10.0"
 ed25519-dalek = { version = "1", features = ["batch"] }
 hex = "0.4"
 old_rand_core = { package = "rand_core", version = "0.5.1" }
+openssl = { version = "0.10.30", optional = true }
 rand_core = "0.6.2"
 rsa = "0.5.0"
 serde = "1.0.103"
@@ -40,6 +43,7 @@ signature = "1"
 simple_asn1 = "0.6"
 subtle = "2"
 thiserror = "1"
+typenum = { version = "1.15.0", optional = true }
 x25519-dalek = "1.2"
 zeroize = "1"
 
