@@ -180,7 +180,7 @@ const MAX_SLEEP: Duration = Duration::from_secs(600);
 /// expect this to be the final delay.
 ///
 /// (This is a separate function for testing.)
-fn calc_next_delay(now: SystemTime, when: SystemTime) -> (bool, Duration) {
+pub(crate) fn calc_next_delay(now: SystemTime, when: SystemTime) -> (bool, Duration) {
     let remainder = when
         .duration_since(now)
         .unwrap_or_else(|_| Duration::from_secs(0));

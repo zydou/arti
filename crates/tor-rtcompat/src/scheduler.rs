@@ -7,7 +7,7 @@ use futures::{Stream, StreamExt};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use pin_project::pin_project;
 
@@ -104,6 +104,19 @@ impl<R: SleepProvider> TaskSchedule<R> {
     pub async fn sleep(&mut self, dur: Duration) {
         self.fire_in(dur);
         self.next().await;
+    }
+
+    /// As
+    /// [`sleep_until_wallclock`](crate::SleepProviderExt::sleep_until_wallclock),
+    /// but respect messages from this schedule's associated [`TaskHandle`].
+    pub async fn sleep_until_wallclock(&mut self, when: SystemTime) {
+        loop {
+            let (finished, delay) = crate::timer::calc_next_delay(self.rt.wallclock(), when);
+            self.sleep(delay).await;
+            if finished {
+                return;
+            }
+        }
     }
 }
 
