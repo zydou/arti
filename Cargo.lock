@@ -3300,6 +3300,7 @@ dependencies = [
  "arrayref",
  "bytes",
  "digest 0.10.3",
+ "educe",
  "generic-array",
  "getrandom 0.2.6",
  "hex-literal",
