@@ -17,6 +17,9 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use bitflags::bitflags;
 
+#[cfg(feature = "experimental-udp")]
+use super::udp;
+
 /// A single parsed relay message, sent or received along a circuit
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -51,6 +54,15 @@ pub enum RelayMsg {
     Resolved(Resolved),
     /// Start a directory stream
     BeginDir,
+    /// Start a UDP stream.
+    #[cfg(feature = "experimental-udp")]
+    ConnectUdp(udp::ConnectUdp),
+    /// Successful response to a ConnectUdp message
+    #[cfg(feature = "experimental-udp")]
+    ConnectedUdp(udp::ConnectedUdp),
+    /// UDP stream data
+    #[cfg(feature = "experimental-udp")]
+    Datagram(udp::Datagram),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
@@ -93,6 +105,12 @@ impl RelayMsg {
             Resolve(_) => RelayCmd::RESOLVE,
             Resolved(_) => RelayCmd::RESOLVED,
             BeginDir => RelayCmd::BEGIN_DIR,
+            #[cfg(feature = "experimental-udp")]
+            ConnectUdp(_) => RelayCmd::CONNECT_UDP,
+            #[cfg(feature = "experimental-udp")]
+            ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
+            #[cfg(feature = "experimental-udp")]
+            Datagram(_) => RelayCmd::DATAGRAM,
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -114,7 +132,14 @@ impl RelayMsg {
             RelayCmd::RESOLVE => RelayMsg::Resolve(Resolve::decode_from_reader(r)?),
             RelayCmd::RESOLVED => RelayMsg::Resolved(Resolved::decode_from_reader(r)?),
             RelayCmd::BEGIN_DIR => RelayMsg::BeginDir,
-
+            #[cfg(feature = "experimental-udp")]
+            RelayCmd::CONNECT_UDP => RelayMsg::ConnectUdp(udp::ConnectUdp::decode_from_reader(r)?),
+            #[cfg(feature = "experimental-udp")]
+            RelayCmd::CONNECTED_UDP => {
+                RelayMsg::ConnectedUdp(udp::ConnectedUdp::decode_from_reader(r)?)
+            }
+            #[cfg(feature = "experimental-udp")]
+            RelayCmd::DATAGRAM => RelayMsg::Datagram(udp::Datagram::decode_from_reader(r)?),
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
@@ -137,6 +162,12 @@ impl RelayMsg {
             Resolve(b) => b.encode_onto(w),
             Resolved(b) => b.encode_onto(w),
             BeginDir => (),
+            #[cfg(feature = "experimental-udp")]
+            ConnectUdp(b) => b.encode_onto(w),
+            #[cfg(feature = "experimental-udp")]
+            ConnectedUdp(b) => b.encode_onto(w),
+            #[cfg(feature = "experimental-udp")]
+            Datagram(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
     }
