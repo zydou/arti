@@ -30,7 +30,7 @@ const T_IPV4: u8 = 0x04;
 /// Indicates the payload is an IPv6.
 const T_IPV6: u8 = 0x06;
 
-/// Maximum length of an Address::Hostname.
+/// Maximum length of an Address::Hostname set at 255.
 const MAX_HOSTNAME_LEN: usize = u8::MAX as usize;
 
 impl Address {
@@ -64,9 +64,10 @@ impl Readable for Address {
         let addr_type = r.take_u8()?;
         let addr_len = r.take_u8()? as usize;
 
-        // No point in continuing, empty length is wrong.
-        if addr_len == 0 {
-            return Err(Error::BadMessage("Invalid address length"));
+        // If the length is wrong for an IPv(4|6), it can still succeed in parsing if the cell
+        // contains enough bytes. That is why we do this explicit check.
+        if (addr_type == T_IPV4 && addr_len != 4) || (addr_type == T_IPV6 && addr_len != 16) {
+            return Err(Error::BadMessage("Invalid IP length"));
         }
 
         let addr = match addr_type {
@@ -104,13 +105,6 @@ impl FromStr for Address {
     type Err = Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        if s.is_empty() {
-            return Err(Error::BadMessage("Empty address"));
-        }
-        if !s.is_ascii() {
-            return Err(Error::BadMessage("Non-ascii address"));
-        }
-
         if let Ok(ipv4) = Ipv4Addr::from_str(s) {
             Ok(Self::Ipv4(ipv4))
         } else if let Ok(ipv6) = Ipv6Addr::from_str(s) {
@@ -119,6 +113,10 @@ impl FromStr for Address {
             if s.len() > MAX_HOSTNAME_LEN {
                 return Err(Error::BadMessage("Hostname too long"));
             }
+            if s.contains('\0') {
+                return Err(Error::BadMessage("Nul byte not permitted"));
+            }
+
             let mut addr = s.to_string();
             addr.make_ascii_lowercase();
             Ok(Self::Hostname(addr.into_bytes()))

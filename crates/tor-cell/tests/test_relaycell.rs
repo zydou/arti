@@ -162,15 +162,30 @@ fn test_address() {
     assert!(addr.is_hostname());
     assert_eq!(addr, Address::Hostname(hostname.to_string().into_bytes()));
 
+    // Empty hostname
+    let hostname = "";
+    let addr = Address::from_str(hostname).expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    assert_eq!(addr, Address::Hostname(hostname.to_string().into_bytes()));
+
     // Too long hostname.
     let hostname = "a".repeat(256);
     let addr = Address::from_str(hostname.as_str());
     assert!(addr.is_err());
     assert_eq!(addr.err(), Some(Error::BadMessage("Hostname too long")));
 
-    // Some Unicode emojis (go Gen-Z!). Unfortunately, not allowed for a hostname.
+    // Some Unicode emojis (go Gen-Z!).
     let hostname = "👍️👍️👍️";
+    let addr = Address::from_str(hostname).expect("Unable to parse Address");
+    assert!(addr.is_hostname());
+    assert_eq!(addr, Address::Hostname(hostname.to_string().into_bytes()));
+
+    // Address with nul byte. Not allowed.
+    let hostname = "aaa\0aaa";
     let addr = Address::from_str(hostname);
     assert!(addr.is_err());
-    assert_eq!(addr.err(), Some(Error::BadMessage("Non-ascii address")));
+    assert_eq!(
+        addr.err(),
+        Some(Error::BadMessage("Nul byte not permitted"))
+    );
 }

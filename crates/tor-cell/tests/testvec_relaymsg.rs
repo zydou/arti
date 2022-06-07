@@ -503,21 +503,49 @@ fn test_connect_udp() {
             .into(),
     );
 
-    // Valid encoded message with IPv4
-    msg(
-        cmd,
-        "00000000 04 04
-         01020304 0050",
-        &udp::ConnectUdp::new("1.2.3.4", 80, 0).unwrap().into(),
-    );
+    let msg_ip_address = |ty: &str, h: &str, addr: &str, port: u16| {
+        let h_len = unhex(h).len();
 
-    // Valid encoded message with IPv6
-    msg(
-        cmd,
-        "00000000 06 10
-         26000001000200000000000000000004 0050",
-        &udp::ConnectUdp::new("2600:1:2::4", 80, 0).unwrap().into(),
-    );
+        // Valid encoded message with IP address
+        msg(
+            cmd,
+            &format!("00000000 {} {:02x} {} {:04x}", ty, h_len, h, port),
+            &udp::ConnectUdp::new(addr, port, 0).unwrap().into(),
+        );
+
+        // Empty address
+        msg_error(
+            cmd,
+            &format!("00000000 {} 00 {:04x}", ty, port),
+            BytesError::BadMessage("Invalid IP length"),
+        );
+
+        // Address one byte too short
+        msg_error(
+            cmd,
+            &format!(
+                "00000000 {} {:02x} {} {:04x}",
+                ty,
+                h_len - 1,
+                &h[2..], /* kludge */
+                port
+            ),
+            BytesError::BadMessage("Invalid IP length"),
+        );
+
+        // Address one byte too long
+        msg_error(
+            cmd,
+            &format!("00000000 {} {:02x} {} ff {:04x}", ty, h_len + 1, h, port),
+            BytesError::BadMessage("Invalid IP length"),
+        );
+    };
+
+    // Encoded message with IPv4
+    msg_ip_address("04", "01020304", "1.2.3.4", 80);
+
+    // Encoded message with IPv6
+    msg_ip_address("06", "26000001000200000000000000000004", "2600:1:2::4", 80);
 
     // This is a valid cell. Reason is that the hostname is 3 bytes plus the 2 bytes port and a tor
     // cell payload is for certain 498 bytes so we are just eating random bytes to create a cell.
@@ -535,15 +563,10 @@ fn test_connect_udp() {
     );
 
     // A zero length address with and without hostname payload.
-    msg_error(
+    msg(
         cmd,
         "00000000 01 00 01BB",
-        BytesError::BadMessage("Invalid address length"),
-    );
-    msg_error(
-        cmd,
-        "00000000 01 00 18167251 01BB",
-        BytesError::BadMessage("Invalid address length"),
+        &udp::ConnectUdp::new("", 443, 0).unwrap().into(),
     );
 }
 
