@@ -20,6 +20,12 @@ enum SchedulerCommand {
     FireAt(Instant),
     /// Cancel a pending execution, if there is one.
     Cancel,
+    /// Pause execution without cancelling any running timers.  (Those timers
+    /// will fire after we resume execution.)
+    Suspend,
+    /// Resume execution.  If there is a pending timer, start waiting for it again;
+    /// otherwise, fire immediately.
+    Resume,
 }
 
 /// A remotely-controllable trigger for recurring tasks.
@@ -39,6 +45,9 @@ pub struct TaskSchedule<R: SleepProvider> {
     /// This is used to avoid having to create a `SleepFuture` with zero duration,
     /// which is potentially a bit wasteful.
     instant_fire: bool,
+    /// Whether we are currently "suspended".  If we are suspended, we won't
+    /// start executing again till we're explicitly "resumed".
+    suspended: bool,
 }
 
 /// A handle used to control a [`TaskSchedule`].
@@ -59,6 +68,7 @@ impl<R: SleepProvider> TaskSchedule<R> {
                 rt,
                 // Start off ready.
                 instant_fire: true,
+                suspended: false,
             },
             TaskHandle { tx },
         )
@@ -98,6 +108,31 @@ impl TaskHandle {
     pub fn cancel(&self) -> bool {
         self.tx.unbounded_send(SchedulerCommand::Cancel).is_ok()
     }
+
+    /// Suspend execution of the corresponding schedule.
+    ///
+    /// If the schedule is ready now, it will become pending; it won't become
+    /// ready again until `resume()` is called. If the schedule is waiting for a
+    /// timer, the timer will keep counting, but the schedule won't become ready
+    /// until the timer has elapsed _and_ `resume()` has been called.
+    ///
+    /// Returns `true` if the schedule still exists, and `false` otherwise.
+    pub fn suspend(&self) -> bool {
+        self.tx.unbounded_send(SchedulerCommand::Suspend).is_ok()
+    }
+
+    /// Resume execution of the corresponding schedule.
+    ///
+    /// This method undoes the effect of a call to `suspend()`: the schedule
+    /// will fire again if it is ready (or when it becomes ready).
+    ///
+    /// This method won't cause the schedule to fire if it was already
+    /// cancelled. For that, use the `fire()` or fire_at()` methods.
+    ///
+    /// Returns `true` if the schedule still exists, and `false` otherwise.
+    pub fn resume(&self) -> bool {
+        self.tx.unbounded_send(SchedulerCommand::Resume).is_ok()
+    }
 }
 
 // NOTE(eta): implemented on the *pin projection*, not the original type, because we don't want
@@ -120,6 +155,12 @@ impl<R: SleepProvider> TaskScheduleP<'_, R> {
                 *self.instant_fire = false;
                 *self.sleep = None;
             }
+            SchedulerCommand::Suspend => {
+                *self.suspended = true;
+            }
+            SchedulerCommand::Resume => {
+                *self.suspended = false;
+            }
         }
     }
 }
@@ -137,6 +178,9 @@ impl<R: SleepProvider> Stream for TaskSchedule<R> {
                     return Poll::Ready(None);
                 }
             }
+        }
+        if *this.suspended {
+            return Poll::Pending;
         }
         if *this.instant_fire {
             *this.instant_fire = false;
@@ -281,6 +325,45 @@ mod test {
             rt.sleep(Duration::from_millis(150)).await;
 
             assert!(sch.next().now_or_never().is_none());
+        });
+    }
+
+    #[test]
+    fn suspend_and_resume_with_fire() {
+        test_with_all_runtimes!(|rt| async move {
+            let (mut sch, hdl) = TaskSchedule::new(rt.clone());
+            hdl.fire();
+            hdl.suspend();
+
+            assert!(sch.next().now_or_never().is_none());
+            hdl.resume();
+            assert!(sch.next().now_or_never().is_some());
+        });
+    }
+
+    #[test]
+    fn suspend_and_resume_with_sleep() {
+        test_with_all_runtimes!(|rt| async move {
+            let (mut sch, hdl) = TaskSchedule::new(rt.clone());
+            sch.fire_in(Duration::from_micros(100));
+            hdl.suspend();
+
+            assert!(sch.next().now_or_never().is_none());
+            hdl.resume();
+            assert!(sch.next().now_or_never().is_none());
+            assert!(sch.next().await.is_some());
+        });
+    }
+
+    #[test]
+    fn suspend_and_resume_with_nothing() {
+        test_with_all_runtimes!(|rt| async move {
+            let (mut sch, hdl) = TaskSchedule::new(rt.clone());
+            assert!(sch.next().now_or_never().is_some());
+            hdl.suspend();
+
+            assert!(sch.next().now_or_never().is_none());
+            hdl.resume();
         });
     }
 }
