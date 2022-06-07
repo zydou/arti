@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-/// Error type for decoding Tor objects from bytes.
+/// Error type for decoding and encoding Tor objects from and to bytes.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum Error {
@@ -16,6 +16,9 @@ pub enum Error {
     /// Called Reader::should_be_exhausted(), but found bytes anyway.
     #[error("extra bytes at end of object")]
     ExtraneousBytes,
+    /// Invalid length value (eg, overflow)
+    #[error("bad length value")]
+    BadLengthValue,
     /// An attempt to parse an object failed for some reason related to its
     /// contents.
     #[error("bad object: {0}")]
@@ -35,6 +38,7 @@ impl PartialEq for Error {
             (Truncated, Truncated) => true,
             (ExtraneousBytes, ExtraneousBytes) => true,
             (BadMessage(a), BadMessage(b)) => a == b,
+            (BadLengthValue, BadLengthValue) => true,
             // notably, this means that an internal error is equal to nothing, not even itself.
             (_, _) => false,
         }
