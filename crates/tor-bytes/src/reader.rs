@@ -232,6 +232,17 @@ impl<'a> Reader<'a> {
         self.advance(1)?;
         Ok(result)
     }
+    /// Consume and return all the remaining bytes, but do not consume the reader
+    ///
+    /// This can be useful if you need to possibly read either fixed-length data,
+    /// or variable length data eating the rest of the `Reader`.
+    ///
+    /// The `Reader` will be left devoid of further bytes.
+    /// Consider using `into_rest()` instead.
+    pub fn take_rest(&mut self) -> &'a [u8] {
+        self.take(self.remaining())
+            .expect("taking remaining failed")
+    }
     /// Try to decode and remove a Readable from this reader, using its
     /// take_from() method.
     ///
@@ -406,6 +417,14 @@ mod tests {
         assert_eq!(r.should_be_exhausted(), Err(Error::ExtraneousBytes));
         r.take(1).unwrap();
         assert_eq!(r.should_be_exhausted(), Ok(()));
+    }
+
+    #[test]
+    fn take_rest() {
+        let mut r = Reader::from_slice(b"si vales valeo");
+        assert_eq!(r.take(3).unwrap(), b"si ");
+        assert_eq!(r.take_rest(), b"vales valeo");
+        assert_eq!(r.take_rest(), b"");
     }
 
     #[test]
