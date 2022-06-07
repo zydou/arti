@@ -1157,9 +1157,9 @@ checksum = "8ce81f49ae8a0482e4c55ea62ebbd7e5a686af544c00b9d090bba3ff9be97b3d"
 
 [[package]]
 name = "float_eq"
-version = "0.7.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1d53499e94f9a7828e63c574adf62bcade7f358c3738f9ea70d7c2edb61023d"
+checksum = "b59b6469c35ab601d6487d28879bccfbe8c896c33a3fe699c4d29817e552cc58"
 
 [[package]]
 name = "fluid-let"
@@ -2808,20 +2808,21 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5bcc41d18f7a1d50525d080fd3e953be87c4f9f1a974f3c21798ca00d54ec15"
+checksum = "d19dbfb999a147cedbfe82f042eb9555f5b0fa4ef95ee4570b74349103d9c9f4"
 dependencies = [
  "lazy_static",
- "parking_lot 0.11.2",
+ "log",
+ "parking_lot 0.12.0",
  "serial_test_derive",
 ]
 
 [[package]]
 name = "serial_test_derive"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2881bccd7d60fb32dfa3d7b3136385312f8ad75e2674aab2852867a09790cae8"
+checksum = "cb9e2050b2be1d681f8f1c1a528bcfe4e00afa2d8995f713974f5333288659f2"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -3067,10 +3068,11 @@ dependencies = [
 
 [[package]]
 name = "test-cert-gen"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3707ef7be06a3bca379fed2e472e6f06bb4a3b3715d5eb4039eaee186a37e98a"
+checksum = "345f92b7cac59507cdaba298c5493f7c40e2063d31f6fc621105183344d5d50a"
 dependencies = [
+ "once_cell",
  "pem",
  "tempfile",
 ]
@@ -3158,9 +3160,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tls-api"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dadeb49014c6aa53335ea388f2661ec050774d63dbc264340c707c9bda5bd0f"
+checksum = "66d1b3dfb0a60da3e8a130c9f2432063d9979928a05c2b2cdcfc9fd05e4f53a3"
 dependencies = [
  "anyhow",
  "log",
@@ -3174,9 +3176,9 @@ dependencies = [
 
 [[package]]
 name = "tls-api-native-tls"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "457be0f7a4699e91449a7d2dae0cbfe0ef799acc5bdbbb4a5316c4beed904f70"
+checksum = "7b935bda2458120a5d2cea542013796fcf13937566580027f6a08f42a52206f7"
 dependencies = [
  "anyhow",
  "native-tls",
@@ -3188,9 +3190,9 @@ dependencies = [
 
 [[package]]
 name = "tls-api-test"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3f040610fa42a1214aff0b7d8f5c903c5eb390e81fff56992d4d85e62e46bdf"
+checksum = "9df107843d725428d76bb159040fbae6d1524dcf25d5b24c56daa6b37ce9dbb5"
 dependencies = [
  "anyhow",
  "env_logger",
