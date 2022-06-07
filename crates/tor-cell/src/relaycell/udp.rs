@@ -84,38 +84,24 @@ impl Address {
             Address::Ipv6(_) => T_IPV6,
         }
     }
-
-    /// Return the cell wire format address length.
-    fn wire_addr_len(&self) -> u8 {
-        match self {
-            // Length can't be above MAX_HOSTNAME_LEN.
-            Address::Hostname(h) => h.len().try_into().expect("Address hostname too long"),
-            Address::Ipv4(_) => 4,
-            Address::Ipv6(_) => 16,
-        }
-    }
 }
 
 impl Readable for Address {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let addr_type = r.take_u8()?;
-        let addr_len = r.take_u8()? as usize;
-
-        // If the length is wrong for an IPv(4|6), it can still succeed in parsing if the cell
-        // contains enough bytes. That is why we do this explicit check.
-        if (addr_type == T_IPV4 && addr_len != 4) || (addr_type == T_IPV6 && addr_len != 16) {
-            return Err(Error::BadMessage("Invalid IP length"));
-        }
+        let mut r = r.read_nested_u8len()?;
 
         let addr = match addr_type {
             T_HOSTNAME => {
-                let h = r.take(addr_len)?;
+                let h = r.take_rest();
                 Self::Hostname(h.into())
             }
             T_IPV4 => Self::Ipv4(r.extract()?),
             T_IPV6 => Self::Ipv6(r.extract()?),
             _ => return Err(Error::BadMessage("Invalid address type")),
         };
+
+        r.should_be_exhausted()?;
 
         Ok(addr)
     }
@@ -125,8 +111,8 @@ impl Writeable for Address {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
         // Address type.
         w.write_u8(self.wire_addr_type());
-        // Address length.
-        w.write_u8(self.wire_addr_len());
+        // Address length and data.
+        let mut w = w.write_nested_u8len();
 
         match self {
             Address::Hostname(h) => {
@@ -135,6 +121,8 @@ impl Writeable for Address {
             Address::Ipv4(ip) => w.write(ip),
             Address::Ipv6(ip) => w.write(ip),
         }
+
+        w.finish().expect("address did not fit!");
     }
 }
 
