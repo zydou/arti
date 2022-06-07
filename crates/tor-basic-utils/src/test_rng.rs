@@ -3,7 +3,7 @@
 //! Often in testing we want to test a random scenario, but we want to be sure
 //! of our ability to reproduce the scenario if the test fails.
 //!
-//! To achieve this,  just have your test use [`testing_prng()`] in place of
+//! To achieve this,  just have your test use [`testing_rng()`] in place of
 //! [`rand::thread_rng()`].  Then the test will (by default) choose a new random
 //! seed for every run, and print that seed to standard output.  If the test
 //! fails, the seed will be displayed as part of the failure message, and you
