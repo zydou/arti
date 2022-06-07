@@ -21,7 +21,8 @@ use futures::channel::oneshot;
 use futures::FutureExt;
 use futures::StreamExt;
 use tor_dirclient::DirResponse;
-use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_rtcompat::scheduler::TaskSchedule;
+use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
 use crate::storage::Store;
@@ -472,6 +473,7 @@ async fn download_attempt<R: Runtime>(
 pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
+    schedule: &mut TaskSchedule<R>,
     on_usable: &mut Option<oneshot::Sender<()>>,
 ) -> Result<()> {
     let runtime = upgrade_weak_ref(&dirmgr)?.runtime.clone();
@@ -515,7 +517,6 @@ pub(crate) async fn download<R: Runtime>(
         }
 
         let reset_time = no_more_than_a_week_from(runtime.wallclock(), state.reset_time());
-        let mut reset_timeout_future = runtime.sleep_until_wallclock(reset_time).fuse();
 
         let mut retry = retry_config.schedule();
         let mut delay = None;
@@ -530,14 +531,19 @@ pub(crate) async fn download<R: Runtime>(
             let next_delay = retry.next_delay(&mut rand::thread_rng());
             if let Some(delay) = delay.replace(next_delay) {
                 debug!("Waiting {:?} for next download attempt...", delay);
-                futures::select_biased! {
-                    _ = reset_timeout_future => {
-                        info!("Download attempt timed out completely; resetting download state.");
-                        reset(state);
-                        continue 'next_state;
-                    }
-                    _ = FutureExt::fuse(runtime.sleep(delay)) => {}
+                let time_until_reset = {
+                    reset_time
+                        .duration_since(now)
+                        .unwrap_or(Duration::from_secs(0))
                 };
+                schedule.sleep(delay.min(time_until_reset)).await;
+
+                now = upgrade_weak_ref(&dirmgr)?.runtime.wallclock();
+                if now >= reset_time {
+                    info!("Download attempt timed out completely; resetting download state.");
+                    reset(state);
+                    continue 'next_state;
+                }
             }
 
             info!("{}: {}", attempt + 1, state.describe());
@@ -553,7 +559,7 @@ pub(crate) async fn download<R: Runtime>(
                             continue 'next_attempt;
                         }
                     }
-                    _ = runtime.sleep_until_wallclock(reset_time).fuse() => {
+                    _ = schedule.sleep_until_wallclock(reset_time).fuse() => {
                         // We need to reset. This can happen if (for
                         // example) we're downloading the last few
                         // microdescriptors on a consensus that now
@@ -785,7 +791,8 @@ mod test {
         // Let's try bootstrapping when everything is in the cache.
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let now = rt.wallclock();
-            let (_tempdir, mgr) = new_mgr(rt);
+            let (_tempdir, mgr) = new_mgr(rt.clone());
+            let (mut schedule, _handle) = TaskSchedule::new(rt);
 
             {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
@@ -804,9 +811,14 @@ mod test {
             let mut state: Box<dyn DirState> = Box::new(DemoState::new1());
 
             let mut on_usable = None;
-            super::download(Arc::downgrade(&mgr), &mut state, &mut on_usable)
-                .await
-                .unwrap();
+            super::download(
+                Arc::downgrade(&mgr),
+                &mut state,
+                &mut schedule,
+                &mut on_usable,
+            )
+            .await
+            .unwrap();
             assert!(state.is_ready(Readiness::Complete));
         });
     }
@@ -817,7 +829,8 @@ mod test {
         // phase 2 in cache.
         tor_rtcompat::test_with_one_runtime!(|rt| async {
             let now = rt.wallclock();
-            let (_tempdir, mgr) = new_mgr(rt);
+            let (_tempdir, mgr) = new_mgr(rt.clone());
+            let (mut schedule, _handle) = TaskSchedule::new(rt);
 
             {
                 let mut store = mgr.store_if_rw().unwrap().lock().unwrap();
@@ -838,9 +851,14 @@ mod test {
             let mut on_usable = None;
 
             let mut state: Box<dyn DirState> = Box::new(DemoState::new1());
-            super::download(Arc::downgrade(&mgr), &mut state, &mut on_usable)
-                .await
-                .unwrap();
+            super::download(
+                Arc::downgrade(&mgr),
+                &mut state,
+                &mut schedule,
+                &mut on_usable,
+            )
+            .await
+            .unwrap();
             assert!(state.is_ready(Readiness::Complete));
         });
     }

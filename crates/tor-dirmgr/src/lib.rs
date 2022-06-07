@@ -88,7 +88,8 @@ use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
-use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_rtcompat::scheduler::TaskSchedule;
+use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
 use std::ops::Deref;
@@ -383,6 +384,8 @@ impl<R: Runtime> DirMgr<R> {
             ordering: Ordering::SeqCst,
         };
 
+        let (mut schedule, _handle) = TaskSchedule::new(self.runtime.clone());
+
         // Try to load from the cache.
         let have_directory = self.load_directory().await?;
 
@@ -404,12 +407,16 @@ impl<R: Runtime> DirMgr<R> {
 
                 // Don't warn when these are Error::ManagerDropped: that
                 // means that the DirMgr has been shut down.
-                if let Err(e) = Self::reload_until_owner(&dirmgr_weak, &mut sender).await {
+                if let Err(e) =
+                    Self::reload_until_owner(&dirmgr_weak, &mut schedule, &mut sender).await
+                {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
                     }
-                } else if let Err(e) = Self::download_forever(dirmgr_weak, sender).await {
+                } else if let Err(e) =
+                    Self::download_forever(dirmgr_weak, &mut schedule, sender).await
+                {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while downloading: {}", e),
@@ -462,14 +469,13 @@ impl<R: Runtime> DirMgr<R> {
     /// If we eventually become the owner, return Ok().
     async fn reload_until_owner(
         weak: &Weak<Self>,
+        schedule: &mut TaskSchedule<R>,
         on_complete: &mut Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut logged = false;
         let mut bootstrapped;
-        let runtime;
         {
             let dirmgr = upgrade_weak_ref(weak)?;
-            runtime = dirmgr.runtime.clone();
             bootstrapped = dirmgr.netdir.get().is_some();
         }
 
@@ -504,7 +510,7 @@ impl<R: Runtime> DirMgr<R> {
             } else {
                 std::time::Duration::new(5, 0)
             };
-            runtime.sleep(pause).await;
+            schedule.sleep(pause).await;
             // TODO: instead of loading the whole thing we should have a
             // database entry that says when the last update was, or use
             // our state functions.
@@ -531,6 +537,7 @@ impl<R: Runtime> DirMgr<R> {
     /// message using `on_complete`.
     async fn download_forever(
         weak: Weak<Self>,
+        schedule: &mut TaskSchedule<R>,
         mut on_complete: Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut state: Box<dyn DirState> = {
@@ -548,11 +555,6 @@ impl<R: Runtime> DirMgr<R> {
             ))
         };
 
-        let runtime = {
-            let dirmgr = upgrade_weak_ref(&weak)?;
-            dirmgr.runtime.clone()
-        };
-
         loop {
             let mut usable = false;
 
@@ -567,7 +569,8 @@ impl<R: Runtime> DirMgr<R> {
 
             'retry_attempt: for _ in retry_config.attempts() {
                 let outcome =
-                    bootstrap::download(Weak::clone(&weak), &mut state, &mut on_complete).await;
+                    bootstrap::download(Weak::clone(&weak), &mut state, schedule, &mut on_complete)
+                        .await;
 
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
@@ -592,7 +595,7 @@ impl<R: Runtime> DirMgr<R> {
                         "Unable to download a usable directory: {}.  We will restart in {:?}.",
                         err, delay
                     );
-                    runtime.sleep(delay).await;
+                    schedule.sleep(delay).await;
                     state = state.reset();
                 } else {
                     info!("Directory is complete.");
@@ -617,7 +620,7 @@ impl<R: Runtime> DirMgr<R> {
 
             let reset_at = state.reset_time();
             match reset_at {
-                Some(t) => runtime.sleep_until_wallclock(t).await,
+                Some(t) => schedule.sleep_until_wallclock(t).await,
                 None => return Ok(()),
             }
             state = state.reset();
