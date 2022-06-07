@@ -10,8 +10,55 @@ use std::str::FromStr;
 use tor_bytes::{Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 
+/// Indicates the payload is a hostname.
+const T_HOSTNAME: u8 = 0x01;
+/// Indicates the payload is an IPv4.
+const T_IPV4: u8 = 0x04;
+/// Indicates the payload is an IPv6.
+const T_IPV6: u8 = 0x06;
+
+/// Maximum length of an Address::Hostname set at 255.
+const MAX_HOSTNAME_LEN: usize = u8::MAX as usize;
+
 /// Address contained in a ConnectUdp and ConnectedUdp cell which can
-/// represent a hostname, IPv4 or IPv6.
+/// represent a hostname, IPv4 or IPv6 along a port number.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AddressPort {
+    /// Address.
+    addr: Address,
+    /// Port.
+    port: u16,
+}
+
+impl Readable for AddressPort {
+    fn take_from(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(Self {
+            addr: r.extract()?,
+            port: r.take_u16()?,
+        })
+    }
+}
+
+impl Writeable for AddressPort {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
+        w.write(&self.addr);
+        w.write_u16(self.port);
+    }
+}
+
+impl TryFrom<(&str, u16)> for AddressPort {
+    type Error = Error;
+
+    fn try_from(value: (&str, u16)) -> Result<Self> {
+        let addr = Address::from_str(value.0)?;
+        Ok(Self {
+            addr,
+            port: value.1,
+        })
+    }
+}
+
+/// Address representing either a hostname, IPv4 or IPv6.
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Address {
@@ -22,16 +69,6 @@ pub enum Address {
     /// IP version 6 address
     Ipv6(Ipv6Addr),
 }
-
-/// Indicates the payload is a hostname.
-const T_HOSTNAME: u8 = 0x01;
-/// Indicates the payload is an IPv4.
-const T_IPV4: u8 = 0x04;
-/// Indicates the payload is an IPv6.
-const T_IPV6: u8 = 0x06;
-
-/// Maximum length of an Address::Hostname set at 255.
-const MAX_HOSTNAME_LEN: usize = u8::MAX as usize;
 
 impl Address {
     /// Return true iff this is a Hostname.
@@ -147,9 +184,7 @@ pub struct ConnectUdp {
     /// Same as Begin flags.
     flags: msg::BeginFlags,
     /// Address to connect to. Can be Hostname, IPv4 or IPv6.
-    addr: Address,
-    /// Target port
-    port: u16,
+    addr: AddressPort,
 }
 
 impl ConnectUdp {
@@ -159,8 +194,7 @@ impl ConnectUdp {
         F: Into<msg::BeginFlags>,
     {
         Ok(Self {
-            addr: Address::from_str(addr)?,
-            port,
+            addr: (addr, port).try_into()?,
             flags: flags.into(),
         })
     }
@@ -174,19 +208,16 @@ impl msg::Body for ConnectUdp {
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let flags = r.take_u32()?;
         let addr = r.extract()?;
-        let port = r.take_u16()?;
 
         Ok(Self {
             flags: flags.into(),
             addr,
-            port,
         })
     }
 
     fn encode_onto(self, w: &mut Vec<u8>) {
         w.write_u32(self.flags.bits());
         w.write(&self.addr);
-        w.write_u16(self.port);
     }
 }
 
@@ -195,17 +226,17 @@ impl msg::Body for ConnectUdp {
 pub struct ConnectedUdp {
     /// The address that the relay has bound locally of a ConnectUdp. Note
     /// that this might not be the relay address from the descriptor.
-    our_address: Address,
+    our_address: AddressPort,
     /// The address that the stream is connected to.
-    their_address: Address,
+    their_address: AddressPort,
 }
 
 impl ConnectedUdp {
     /// Construct a new ConnectedUdp cell.
-    pub fn new(our: IpAddr, their: IpAddr) -> Result<Self> {
+    pub fn new(our_address: AddressPort, their_address: AddressPort) -> Result<Self> {
         Ok(Self {
-            our_address: our.into(),
-            their_address: their.into(),
+            our_address,
+            their_address,
         })
     }
 }
@@ -216,12 +247,12 @@ impl msg::Body for ConnectedUdp {
     }
 
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let our_address: Address = r.extract()?;
-        if our_address.is_hostname() {
+        let our_address: AddressPort = r.extract()?;
+        if our_address.addr.is_hostname() {
             return Err(Error::BadMessage("Our address is a Hostname"));
         }
-        let their_address: Address = r.extract()?;
-        if their_address.is_hostname() {
+        let their_address: AddressPort = r.extract()?;
+        if their_address.addr.is_hostname() {
             return Err(Error::BadMessage("Their address is a Hostname"));
         }
 
