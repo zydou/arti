@@ -56,7 +56,7 @@ pub struct TorClient<R: Runtime> {
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
-    dirmgr: Arc<dyn tor_dirmgr::DirProvider + Send + Sync>,
+    dirmgr: Arc<dyn tor_dirmgr::DirProvider>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -469,13 +469,6 @@ impl<R: Runtime> TorClient<R> {
 
         self.dirmgr.bootstrap().await?;
 
-        self.circmgr.update_network_parameters(
-            self.dirmgr
-                .latest_netdir()
-                .ok_or(ErrorDetail::DirMgr(tor_dirmgr::Error::DirectoryNotPresent))?
-                .params(),
-        );
-
         // Since we succeeded, disarm the unlock guard.
         unlock_guard.disarm();
 
@@ -788,7 +781,7 @@ impl<R: Runtime> TorClient<R> {
     /// This function is unstable. It is only enabled if the crate was
     /// built with the `experimental-api` feature.
     #[cfg(feature = "experimental-api")]
-    pub fn dirmgr(&self) -> &Arc<dyn tor_dirmgr::DirProvider + Send + Sync> {
+    pub fn dirmgr(&self) -> &Arc<dyn tor_dirmgr::DirProvider> {
         &self.dirmgr
     }
 

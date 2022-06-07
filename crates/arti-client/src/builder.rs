@@ -19,7 +19,7 @@ pub trait DirProviderBuilder<R: Runtime> {
         runtime: R,
         circmgr: Arc<tor_circmgr::CircMgr<R>>,
         config: DirMgrConfig,
-    ) -> Result<Arc<dyn tor_dirmgr::DirProvider + Send + Sync + 'static>>;
+    ) -> Result<Arc<dyn tor_dirmgr::DirProvider + 'static>>;
 }
 
 /// A DirProviderBuilder that constructs a regular DirMgr.
@@ -32,7 +32,7 @@ impl<R: Runtime> DirProviderBuilder<R> for DirMgrBuilder {
         runtime: R,
         circmgr: Arc<tor_circmgr::CircMgr<R>>,
         config: DirMgrConfig,
-    ) -> Result<Arc<dyn tor_dirmgr::DirProvider + Send + Sync + 'static>> {
+    ) -> Result<Arc<dyn tor_dirmgr::DirProvider + 'static>> {
         let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(config, runtime, circmgr)
             .map_err(ErrorDetail::from)?;
         Ok(Arc::new(dirmgr))

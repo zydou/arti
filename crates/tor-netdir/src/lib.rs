@@ -279,7 +279,7 @@ pub enum DirEvent {
 
 /// An object that can provide [`NetDir`]s, as well as inform consumers when
 /// they might have changed.
-pub trait NetDirProvider {
+pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return a handle to our latest directory, if we have one.
     fn latest_netdir(&self) -> Option<Arc<NetDir>>;
 
@@ -302,6 +302,32 @@ where
 
     fn events(&self) -> BoxStream<'static, DirEvent> {
         self.deref().events()
+    }
+}
+
+/// Helper trait: allows any `Arc<X>` to be upcast to a `Arc<dyn
+/// NetDirProvider>` if X is an implementation or supertrait of NetDirProvider.
+///
+/// This trait exists to work around a limitation in rust: when trait upcasting
+/// coercion is stable, this will be unnecessary.
+///
+/// The Rust tracking issue is <https://github.com/rust-lang/rust/issues/65991>.
+pub trait UpcastArcNetDirProvider {
+    /// Return a view of this object as an `Arc<dyn NetDirProvider>`
+    fn upcast_arc<'a>(self: Arc<Self>) -> Arc<dyn NetDirProvider + 'a>
+    where
+        Self: 'a;
+}
+
+impl<T> UpcastArcNetDirProvider for T
+where
+    T: NetDirProvider + Sized,
+{
+    fn upcast_arc<'a>(self: Arc<Self>) -> Arc<dyn NetDirProvider + 'a>
+    where
+        Self: 'a,
+    {
+        self
     }
 }
 

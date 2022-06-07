@@ -139,8 +139,9 @@ use futures::task::SpawnExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
+use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
@@ -257,6 +258,13 @@ struct GuardMgrInner {
     /// A receiver object to hand out to observers who want to know about
     /// changes in our estimated clock skew.
     recv_skew: events::ClockSkewEvents,
+
+    /// A netdir provider that we can use for adding new guards when
+    /// insufficient guards are available.
+    ///
+    /// This has to be an Option so it can be initialized from None: at the
+    /// time a GuardMgr is created, there is no NetDirProvider for it to use.
+    netdir_provider: Option<Weak<dyn NetDirProvider>>,
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
@@ -317,6 +325,7 @@ impl<R: Runtime> GuardMgr<R> {
             storage,
             send_skew,
             recv_skew,
+            netdir_provider: None,
         }));
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -333,6 +342,35 @@ impl<R: Runtime> GuardMgr<R> {
                 .map_err(|e| GuardMgrError::from_spawn("periodic guard updater", e))?;
         }
         Ok(GuardMgr { runtime, inner })
+    }
+
+    /// Install a [`NetDirProvider`] for use by this guard manager.
+    ///
+    /// It will be used to keep the guards up-to-date with changes from the
+    /// network directory, and to find new guards when no NetDir is provided to
+    /// select_guard().
+    ///
+    /// TODO: we should eventually return some kind of a task handle from this
+    /// task, even though it is not strictly speaking periodic.
+    pub fn install_netdir_provider(
+        &self,
+        provider: &Arc<dyn NetDirProvider>,
+    ) -> Result<(), GuardMgrError> {
+        let weak_provider = Arc::downgrade(provider);
+        {
+            let mut inner = self.inner.lock().expect("Poisoned lock");
+            inner.netdir_provider = Some(weak_provider.clone());
+        }
+        let weak_inner = Arc::downgrade(&self.inner);
+        let rt_clone = self.runtime.clone();
+        self.runtime
+            .spawn(daemon::keep_netdir_updated(
+                rt_clone,
+                weak_inner,
+                weak_provider,
+            ))
+            .map_err(|e| GuardMgrError::from_spawn("periodic guard netdir updater", e))?;
+        Ok(())
     }
 
     /// Flush our current guard state to the state manager, if there
@@ -389,11 +427,12 @@ impl<R: Runtime> GuardMgr<R> {
     /// Update the state of this [`GuardMgr`] based on a new or modified
     /// [`NetDir`] object.
     ///
-    /// This method can add new guards, or notice that existing guards
-    /// have become unusable.  It needs a `NetDir` so it can identify
-    /// potential candidate guards.
+    /// This method can add new guards, or notice that existing guards have
+    /// become unusable.  It needs a `NetDir` so it can identify potential
+    /// candidate guards.
     ///
-    /// Call this method whenever the `NetDir` changes.
+    /// Call this method whenever the `NetDir` changes, unless you have used
+    /// `install_netdir_provider`.
     pub fn update_network(&self, netdir: &NetDir) {
         trace!("Updating guard state from network directory");
         let now = self.runtime.wallclock();
@@ -474,7 +513,8 @@ impl<R: Runtime> GuardMgr<R> {
     /// # Limitations
     ///
     /// This function will never return a guard that isn't listed in
-    /// the [`NetDir`] most recently passed to [`GuardMgr::update_network`].
+    /// the most recent [`NetDir`].
+    ///
     /// That's _usually_ what you'd want, but when we're trying to
     /// bootstrap we might want to use _all_ guards as possible
     /// directory caches.  That's not implemented yet. (See ticket
@@ -650,12 +690,48 @@ impl GuardSets {
 }
 
 impl GuardMgrInner {
-    /// Update the status of all guards in the active set, based on
-    /// the passage of time and (optionally) a network directory.
+    /// Look up the latest [`NetDir`] (if there is one) from our
+    /// [`NetDirProvider`] (if we have one).
+    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
+        self.netdir_provider
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .and_then(|np| np.latest_netdir())
+    }
+
+    /// Run a function that takes `&mut self` and an optional NetDir.
     ///
-    /// We can expire guards based on the time alone; we can only
-    /// add guards or change their status with a NetDir.
+    /// If a NetDir is provided, use that.  Otherwise, try to use the netdir
+    /// from our [`NetDirProvider`] (if we have one).
+    //
+    // This function exists to handle the lifetime mess where sometimes the
+    // resulting NetDir will borrow from `netdir`, and sometimes it will borrow
+    // from an Arc returned by `self.latest_netdir()`.
+    fn with_opt_netdir<F, T>(&mut self, netdir: Option<&NetDir>, func: F) -> T
+    where
+        F: FnOnce(&mut Self, Option<&NetDir>) -> T,
+    {
+        if let Some(nd) = netdir {
+            func(self, Some(nd))
+        } else if let Some(nd) = self.latest_netdir() {
+            func(self, Some(nd.as_ref()))
+        } else {
+            func(self, None)
+        }
+    }
+
+    /// Update the status of all guards in the active set, based on the passage
+    /// of time and (optionally) a network directory. If no directory is
+    /// provided, we try to find one from the installed provider.
+    ///
+    /// We can expire guards based on the time alone; we can only add guards or
+    /// change their status with a NetDir.
     fn update(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
+        self.with_opt_netdir(netdir, |this, netdir| this.update_internal(now, netdir));
+    }
+
+    /// As `update`, but do not try to look up a [`NetDir`] if none is given.
+    fn update_internal(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
         // Set the parameters.
         if let Some(netdir) = netdir {
             match GuardParams::try_from(netdir.params()) {
@@ -1015,24 +1091,29 @@ impl GuardMgrInner {
         };
 
         // That didn't work. If we have a netdir, expand the sample and try again.
-        if let Some(dir) = netdir {
+        let res = self.with_opt_netdir(netdir, |this, dir| {
+            let dir = dir?;
             trace!("No guards available, trying to extend the sample.");
-            self.update(wallclock, Some(dir));
-            if self
+            this.update_internal(wallclock, Some(dir));
+            if this
                 .guards
                 .active_guards_mut()
-                .extend_sample_as_needed(wallclock, &self.params, dir)
+                .extend_sample_as_needed(wallclock, &this.params, dir)
             {
-                self.guards
+                this.guards
                     .active_guards_mut()
-                    .select_primary_guards(&self.params);
-                match self.select_guard_once(usage, now) {
-                    Ok(res) => return Ok(res),
+                    .select_primary_guards(&this.params);
+                match this.select_guard_once(usage, now) {
+                    Ok(res) => return Some(res),
                     Err(e) => {
                         trace!("Couldn't select guard after expanding sample: {}", e);
                     }
                 }
             }
+            None
+        });
+        if let Some(res) = res {
+            return Ok(res);
         }
 
         // Okay, that didn't work either.  If we were asked for a directory
