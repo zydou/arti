@@ -453,47 +453,10 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// (Since there is only one kind of filter right now, there's no
     /// real reason to call this function, but at least it should work.
-    pub fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
-        // First we have to see how much of the possible guard space
-        // this new filter allows.  (We don't use this info yet, but we will
-        // one we have nontrivial filters.)
-        let n_guards = netdir.relays().filter(|r| r.is_flagged_guard()).count();
-        let n_permitted = netdir
-            .relays()
-            .filter(|r| r.is_flagged_guard() && filter.permits(r))
-            .count();
-        let frac_permitted = if n_guards > 0 {
-            n_permitted as f64 / (n_guards as f64)
-        } else {
-            1.0
-        };
-
+    pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-
-        let restrictive_filter = frac_permitted < inner.params.filter_threshold;
-
-        // TODO: Once we support nontrivial filters, we might have to
-        // swap out "active_guards" depending on which set it is.
-
-        if frac_permitted < inner.params.extreme_threshold {
-            warn!(
-                "The number of guards permitted is smaller than the guard param minimum of {}%.",
-                inner.params.extreme_threshold * 100.0,
-            );
-        }
-
-        info!(
-            ?filter,
-            restrictive = restrictive_filter,
-            "Guard filter replaced."
-        );
-
-        inner
-            .guards
-            .active_guards_mut()
-            .set_filter(filter, restrictive_filter);
-        inner.update(now, Some(netdir));
+        inner.set_filter(filter, netdir, now);
     }
 
     /// Select a guard for a given [`GuardUsage`].
@@ -803,6 +766,36 @@ impl GuardMgrInner {
                 .mark_primary_guards_retriable();
             self.last_primary_retry_time = now;
         }
+    }
+
+    /// Replace the current GuardFilter with `filter`.
+    fn set_filter(&mut self, filter: GuardFilter, netdir: Option<&NetDir>, now: SystemTime) {
+        self.with_opt_netdir(netdir, |this, netdir| {
+            let frac_permitted = netdir.map(|nd| filter.frac_bw_permitted(nd)).unwrap_or(1.0);
+
+            let restrictive_filter = frac_permitted < this.params.filter_threshold;
+
+            // TODO: Once we support nontrivial filters, we might have to
+            // swap out "active_guards" depending on which set it is.
+
+            if frac_permitted < this.params.extreme_threshold {
+                warn!(
+                "The number of guards permitted is smaller than the guard param minimum of {}%.",
+                this.params.extreme_threshold * 100.0,
+            );
+            }
+
+            info!(
+                ?filter,
+                restrictive = restrictive_filter,
+                "Guard filter replaced."
+            );
+
+            this.guards
+                .active_guards_mut()
+                .set_filter(filter, restrictive_filter);
+            this.update_internal(now, netdir);
+        });
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
@@ -1494,7 +1487,7 @@ mod test {
                 f.push_reachable_addresses(vec!["2.0.0.0/7:9001".parse().unwrap()]);
                 f
             };
-            guardmgr.set_filter(filter, &netdir);
+            guardmgr.set_filter(filter, Some(&netdir));
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
             let addr = guard.addrs()[0];

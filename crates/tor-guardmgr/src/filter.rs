@@ -82,7 +82,6 @@ impl GuardFilter {
 
     /// Return a fraction between 0.0 and 1.0 describing what fraction of the
     /// guard bandwidth this filter permits.
-    #[allow(dead_code)]
     pub(crate) fn frac_bw_permitted(&self, netdir: &tor_netdir::NetDir) -> f64 {
         use tor_netdir::{RelayWeight, WeightRole};
         let mut guard_bw: RelayWeight = 0.into();
