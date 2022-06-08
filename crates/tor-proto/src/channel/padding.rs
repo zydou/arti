@@ -300,6 +300,8 @@ mod test {
     use super::*;
     use futures::future::ready;
     use futures::select_biased;
+    use itertools::{izip, Itertools};
+    use statrs::distribution::ContinuousCDF;
     use tokio::pin;
     use tokio_crate as tokio;
     use tor_rtcompat::*;
@@ -399,5 +401,126 @@ mod test {
             dbg!(timer.as_mut().project().trigger_at);
             assert_eq! { false, timer.is_enabled() }
         });
+    }
+
+    #[test]
+    fn timeout_distribution() {
+        // Test that the distribution of padding intervals is as we expect.  This is not so
+        // straightforward.  We need to deal with true randomness (since we can't plumb a
+        // testing RNG into the padding timer, and perhaps don't even *want* to make that a
+        // mockable interface).  Measuring a distribution of random variables involves some
+        // statistics.
+
+        // The overall approach is:
+        //    Use a fixed (but nontrivial) low to high range
+        //    Sample N times into n equal sized buckes
+        //    Calculate the expected number of samples in each bucket
+        //    Do a chi^2 test.  If it doesn't spot a potential difference, declare OK.
+        //    If the chi^2 test does definitely declare a difference, declare failure.
+        //    Otherwise increase N and go round again.
+        //
+        // This allows most runs to be fast without having an appreciable possibility of a
+        // false test failure and while being able to detect even quite small deviations.
+
+        // Notation from
+        // https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test#Calculating_the_test-statistic
+        // I haven't done a formal power calculation but empirically
+        // this detects the following most of the time:
+        //  deviation of the CDF power from B^2 to B^1.98
+        //  wrong minimum value by 25ms out of 12s, low_ms = min + 25
+        //  wrong maximum value by 10ms out of 12s, high_ms = max -1 - 10
+
+        #[allow(non_snake_case)]
+        let mut N = 100_0000;
+
+        #[allow(non_upper_case_globals)]
+        const n: usize = 100;
+
+        const P_GOOD: f64 = 0.05; // Investigate further 5% of times (if all is actually well)
+        const P_BAD: f64 = 1e-12;
+
+        loop {
+            eprintln!("padding distribution test, n={} N={}", n, N);
+
+            let min = 5000;
+            let max = 17000; // Exclusive
+            assert_eq!(0, (max - min) % (n as u32)); // buckets must match up to integer boundaries
+
+            let cdf = (0..=n)
+                .into_iter()
+                .map(|bi| {
+                    let b = (bi as f64) / (n as f64);
+                    // expected distribution:
+                    // with B = bi / n
+                    //   P(X) < B == B
+                    //   P(max(X1,X1)) < B = B^2
+                    b.powi(2)
+                })
+                .collect_vec();
+
+            let pdf = cdf
+                .iter()
+                .cloned()
+                .tuple_windows()
+                .map(|(p, q)| q - p)
+                .collect_vec();
+            let exp = pdf.iter().cloned().map(|p| p * f64::from(N)).collect_vec();
+
+            // chi-squared test only valid if every cell expects at lesat 5
+            assert!(exp.iter().cloned().all(|ei| ei >= 5.));
+
+            let mut obs = [0_u32; n];
+
+            let params = Parameters {
+                low_ms: min,
+                high_ms: max - 1, // convert exclusive to inclusive
+            }
+            .prepare();
+
+            for _ in 0..N {
+                let xx = params.select_timeout();
+                let ms = xx.as_millis();
+                let ms = u32::try_from(ms).unwrap();
+                assert!(ms >= min);
+                assert!(ms < max);
+                // Integer arithmetic ensures that we classify exactly
+                let bi = ((ms - min) * (n as u32)) / (max - min);
+                obs[bi as usize] += 1;
+            }
+
+            let chi2 = izip!(&obs, &exp)
+                .map(|(&oi, &ei)| (f64::from(oi) - ei).powi(2) / ei)
+                .sum::<f64>();
+
+            // n degrees of freedom, one-tailed test
+            // (since distro parameters are all fixed, not estimated from the sample)
+            let chi2_distr = statrs::distribution::ChiSquared::new(n as _).unwrap();
+
+            // probability of good code generating a result at least this bad
+            let p = 1. - chi2_distr.cdf(chi2);
+
+            eprintln!(
+                "padding distribution test, n={} N={} chi2={} p={}",
+                n, N, chi2, p
+            );
+
+            if p >= P_GOOD {
+                break;
+            }
+
+            for (i, (&oi, &ei)) in izip!(&obs, &exp).enumerate() {
+                eprintln!("bi={:4} OI={:4} EI={}", i, oi, ei);
+            }
+
+            if p < P_BAD {
+                panic!("distribution is wrong (p < {:e})", P_BAD);
+            }
+
+            // This is statistically rather cheaty: we keep trying until we get a definite
+            // answer!  But we radically increase the power of the test each time.
+            // If the distribution is really wrong, this test ought to find it soon enough,
+            // especially since we run this repeatedly in CI.
+            N *= 10;
+        }
     }
 }
