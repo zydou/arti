@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
 
 /// A custom TCP provider that relies on an existing TCP provider (`inner`), but modifies its
 /// behavior.
+#[derive(Clone)]
 struct CustomTcpProvider<T> {
     /// The underlying TCP provider.
     inner: T,

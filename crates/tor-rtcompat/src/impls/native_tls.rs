@@ -13,7 +13,7 @@ use std::{
 /// A [`TlsProvider`] that uses `native_tls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[non_exhaustive]
 pub struct NativeTlsProvider {}
 

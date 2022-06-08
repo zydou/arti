@@ -182,7 +182,10 @@ impl<R: Runtime> ChanBuilder<R> {
         let mut builder = ChannelBuilder::new();
         builder.set_declared_addr(addr);
         let chan = builder
-            .launch(tls)
+            .launch(
+                tls,
+                self.runtime.clone(), /* TODO provide ZST SleepProvider instead */
+            )
             .connect(|| self.runtime.wallclock())
             .await
             .map_err(Error::from_proto_no_skew)?;

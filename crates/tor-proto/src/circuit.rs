@@ -747,7 +747,7 @@ mod test {
         Receiver<ChanCell>,
         Sender<std::result::Result<ChanCell, CodecError>>,
     ) {
-        let (channel, chan_reactor, rx, tx) = new_reactor();
+        let (channel, chan_reactor, rx, tx) = new_reactor(rt.clone());
         rt.spawn(async {
             let _ignore = chan_reactor.run().await;
         })

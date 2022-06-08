@@ -72,6 +72,10 @@ where
 impl<SpawnR, SleepR, TcpR, TlsR, UdpR> BlockOn for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     SpawnR: BlockOn,
+    SleepR: Clone + Send + Sync + 'static,
+    TcpR: Clone + Send + Sync + 'static,
+    TlsR: Clone + Send + Sync + 'static,
+    UdpR: Clone + Send + Sync + 'static,
 {
     #[inline]
     fn block_on<F: futures::Future>(&self, future: F) -> F::Output {
@@ -83,6 +87,10 @@ impl<SpawnR, SleepR, TcpR, TlsR, UdpR> SleepProvider
     for CompoundRuntime<SpawnR, SleepR, TcpR, TlsR, UdpR>
 where
     SleepR: SleepProvider,
+    SpawnR: Clone + Send + Sync + 'static,
+    TcpR: Clone + Send + Sync + 'static,
+    TlsR: Clone + Send + Sync + 'static,
+    UdpR: Clone + Send + Sync + 'static,
 {
     type SleepFuture = SleepR::SleepFuture;
 
@@ -133,6 +141,9 @@ impl<SpawnR, SleepR, TcpR, TlsR, UdpR, S> TlsProvider<S>
 where
     TcpR: TcpProvider,
     TlsR: TlsProvider<S>,
+    SleepR: Clone + Send + Sync + 'static,
+    SpawnR: Clone + Send + Sync + 'static,
+    UdpR: Clone + Send + Sync + 'static,
 {
     type Connector = TlsR::Connector;
     type TlsStream = TlsR::TlsStream;

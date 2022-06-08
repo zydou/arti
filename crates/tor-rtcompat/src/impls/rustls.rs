@@ -15,6 +15,7 @@ use std::{
 /// A [`TlsProvider`] that uses `rustls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct RustlsProvider {
     /// Inner `ClientConfig` logic used to create connectors.
