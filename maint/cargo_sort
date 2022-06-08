@@ -1,7 +1,30 @@
 #!/bin/bash
 #
-# Run "cargo sort" with an appropriate set of flags.
+# Run "cargo sort" to check that the Cargo.tomls are sorted
 
 set -euo pipefail
 
-cargo sort --check --workspace
+# We want to exclude the toplevel Cargo.toml, because that needs to be in
+# topological order.  But cargo sort doesn't support that.
+#  https://github.com/DevinR528/cargo-sort/issues/38
+
+# So instead, we sed its output.  Urgh.
+
+(TERM=dumb cargo sort --check --workspace || test $? = 1) 2>&1 | perl -ne '
+    next if m{^\Qerror: Dependencies for arti are not sorted\E$};
+    $n_arti += !!m{^\QChecking arti...}; # printed for toplevel too
+    next if m{^Checking \S+\Q...\E$};
+    $n_bad++;
+    print STDERR;
+    END {
+        flush STDOUT;
+        eval {
+            die "expected \"Checking arti\" twice, got $n_arti times\n" unless $n_arti==2;
+            die "unexpected output ($n_bad line(s)) from cargo-sort\n" if $n_bad;
+        };
+        if ($@) {
+            print STDERR $@;
+            exit 12;
+        }
+    }
+'
