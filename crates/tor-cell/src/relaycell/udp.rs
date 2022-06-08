@@ -297,7 +297,7 @@ impl Datagram {
 
     /// Construct a new cell from a provided vector of bytes.
     ///
-    /// The vector _must_ have fewer than [`Data::MAXLEN`] bytes.
+    /// The vector _must_ have fewer than [`Datagram::MAXLEN`] bytes.
     fn new_unchecked(body: Vec<u8>) -> Self {
         Self { body }
     }
