@@ -79,6 +79,26 @@ impl GuardFilter {
     pub(crate) fn is_unfiltered(&self) -> bool {
         self.filters.is_empty()
     }
+
+    /// Return a fraction between 0.0 and 1.0 describing what fraction of the
+    /// guard bandwidth this filter permits.
+    #[allow(dead_code)]
+    pub(crate) fn frac_bw_permitted(&self, netdir: &tor_netdir::NetDir) -> f64 {
+        use tor_netdir::{RelayWeight, WeightRole};
+        let mut guard_bw: RelayWeight = 0.into();
+        let mut permitted_bw: RelayWeight = 0.into();
+        for relay in netdir.relays() {
+            if relay.is_flagged_guard() {
+                let w = netdir.relay_weight(&relay, WeightRole::Guard);
+                guard_bw += w;
+                if self.permits(&relay) {
+                    permitted_bw += w;
+                }
+            }
+        }
+
+        permitted_bw.checked_div(guard_bw).unwrap_or(1.0)
+    }
 }
 
 impl SingleFilter {
@@ -110,5 +130,35 @@ impl SingleFilter {
             }
         }
         Ok(first_hop)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use float_eq::assert_float_eq;
+    use tor_netdir::testnet;
+
+    #[test]
+    fn permissiveness() {
+        let nd = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
+        const TOL: f64 = 0.01;
+
+        let non_filter = GuardFilter::default();
+        assert_float_eq!(non_filter.frac_bw_permitted(&nd), 1.0, abs <= TOL);
+
+        let forbid_all = {
+            let mut f = GuardFilter::default();
+            f.push_reachable_addresses(vec!["*:1".parse().unwrap()]);
+            f
+        };
+        assert_float_eq!(forbid_all.frac_bw_permitted(&nd), 0.0, abs <= TOL);
+        let net_1_only = {
+            let mut f = GuardFilter::default();
+            f.push_reachable_addresses(vec!["1.0.0.0/8:*".parse().unwrap()]);
+            f
+        };
+        assert_float_eq!(net_1_only.frac_bw_permitted(&nd), 54.0 / 330.0, abs <= TOL);
     }
 }
