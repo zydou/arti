@@ -184,7 +184,8 @@ impl HasKind for Error {
             E::StreamProto(_) => EK::TorProtocolViolation,
             E::ChanMismatch(_) => EK::RelayIdMismatch,
             E::ResolveError(ResolveError::Nontransient) => EK::RemoteHostNotFound,
-            E::ResolveError(_) => EK::RemoteHostResolutionFailed,
+            E::ResolveError(ResolveError::Transient) => EK::RemoteHostResolutionFailed,
+            E::ResolveError(ResolveError::Unrecognized) => EK::RemoteHostResolutionFailed,
             E::Bug(e) => e.kind(),
         }
     }
