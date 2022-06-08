@@ -287,7 +287,7 @@ impl Datagram {
 
     /// Construct a new data cell.
     ///
-    /// Returns an error if `inp` is longer than [`Data::MAXLEN`] bytes.
+    /// Returns an error if `inp` is longer than [`Datagram::MAXLEN`] bytes.
     pub fn new(inp: &[u8]) -> crate::Result<Self> {
         if inp.len() > msg::Data::MAXLEN {
             return Err(crate::Error::CantEncode);
