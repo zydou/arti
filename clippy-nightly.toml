@@ -1,0 +1,6 @@
+# Config options appended to clippy.toml when we run Nightly clippy
+#
+# We must edit the tree, this way, sadly:
+#   https://github.com/rust-lang/rust-clippy/issues/8973
+
+allow-dbg-in-tests = true

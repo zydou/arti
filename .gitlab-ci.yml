@@ -97,6 +97,7 @@ rust-nightly:
     # The --cfg allows us to write #![cfg_attr(ci_arti_nightly, allow(clippy::needless_borrow))]
     # and similar, for when nightly clippy has false positives.  (There is no builtin
     # cfg flag for nightly, and a cargo "feature" would be bad with --all-features.)
+    - (echo; cat clippy-nightly.toml) >>clippy.toml
     - cargo clippy --all-features --tests -- --cfg ci_arti_nightly -D clippy::dbg_macro -D clippy::print_stdout -D clippy::print_stderr
     - RUSTDOCFLAGS="-Dwarnings" cargo doc --all-features --document-private-items --no-deps
   tags:
