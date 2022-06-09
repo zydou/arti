@@ -283,7 +283,7 @@ impl<'a> Reader<'a> {
     /// and subsequent manual length checks.
     /// Using this facility eliminates the need to separately keep track of the lengths.
     ///
-    /// On success, consume a length field, and then immediately also consumes that
+    /// On success, consume a length field, and then immediately also consume that
     /// many bytes from `self`.
     ///
     /// Returns a new `Reader` which refers to the bytes taken.
@@ -291,7 +291,7 @@ impl<'a> Reader<'a> {
     /// The caller should read whatever is inside the nested structure
     /// from the returned nested reader,
     /// and  **must then call `should_be_exhausted`**
-    /// so that any garbage after the inner structure is detected and properloy rejected.
+    /// so that any garbage after the inner structure is detected and properly rejected.
     ///
     /// On failure, the amount consumed is not specified.
     pub fn read_nested_u8len(&mut self) -> Result<Reader> {
