@@ -556,6 +556,14 @@ mod test {
         assert_eq!(req,
                    format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", encodings(), when));
 
+        // Empty request
+        //
+        // TODO is this right?  It seems weird.
+        let req = ConsensusRequest::default();
+        let req = crate::util::encode_request(&req.make_request()?);
+        assert_eq!(req,
+                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
+
         Ok(())
     }
 
