@@ -3,7 +3,7 @@
 //! Tor spec `padding-spec.txt` section 2.
 
 use std::pin::Pin;
-// TODO, coaursetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
+// TODO, coarsetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
 use std::time::{Duration, Instant};
 
 use educe::Educe;
@@ -61,7 +61,7 @@ pub(crate) struct Timer<R: SleepProvider> {
     /// descheduling, and adjusting, a wakeup time.
     ///
     /// The wakeup time here may well be earlier than `trigger_at` -- even in the past.
-    /// When we wake up and discover this situation., we reschedule a new waker.
+    /// When we wake up and discover this situation, we reschedule a new waker.
     ///
     /// The time at which this waker will trigger here is never *later* than `trigger_at`.
     #[pin]
@@ -144,7 +144,7 @@ impl<R: SleepProvider> Timer<R> {
         }
     }
 
-    /// Eqnuire whether this `Timer` is currently enabled
+    /// Enquire whether this `Timer` is currently enabled
     pub(crate) fn is_enabled(&self) -> bool {
         self.selected_timeout.is_some()
     }
