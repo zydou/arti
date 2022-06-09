@@ -40,6 +40,10 @@ pub(crate) struct Timer<R: SleepProvider> {
     ///
     /// `None` if the timer is disabled.
     /// (This can be done explicitly, but also occurs on time calculation overflow.)
+    ///
+    /// Invariants: this field may be `Some` or `None` regardless of the values
+    /// of other fields.  If this field is `None` then the values in `trigger_at`
+    /// and `waker` are unspecified.
     selected_timeout: Option<Duration>,
 
     /// Absolute time at which we should send padding
@@ -51,6 +55,14 @@ pub(crate) struct Timer<R: SleepProvider> {
     /// `Some` means our `next` has been demanded recently.
     /// Then `trigger_at` records the absolute timeout at which we should send padding,
     /// which was calculated the first time we were polled (after data).
+    ///
+    /// Invariants: the value in this field is meaningful only if `selected_timeout`
+    /// is `Some`.
+    ///
+    /// If `selected_timeout` is `Some`, and `trigger_at` is therefore valid,
+    /// it is (obviously) no later than `selected_timeout` from now.
+    ///
+    /// See also `waker`.
     trigger_at: Option<Instant>,
 
     /// Actual waker from the `SleepProvider`
@@ -60,10 +72,20 @@ pub(crate) struct Timer<R: SleepProvider> {
     /// Lazy updating means that with intermittent data traffic, we do not keep scheduling,
     /// descheduling, and adjusting, a wakeup time.
     ///
-    /// The wakeup time here may well be earlier than `trigger_at` -- even in the past.
+    /// Invariants:
+    ///
+    /// If `selected_timeout` is `Some`,
+    /// the time at which this waker will trigger here is never *later* than `trigger_at`,
+    /// and never *later* than `selected_timeout` from now.
+    ///
+    /// The wakeup time here may well be earlier than `trigger_at`,
+    /// and sooner than `selected_timeout` from now.  It may even be in the past.
     /// When we wake up and discover this situation, we reschedule a new waker.
     ///
-    /// The time at which this waker will trigger here is never *later* than `trigger_at`.
+    /// If `selected_timeout` is `None`, the value is unspecified.
+    /// We may retain a `Some` in this case so that if `SleepProvider` is enhanced to
+    /// support rescheduling, we can do that without making a new `SleepFuture`
+    /// (and without completely reorganising this the `Timer` state structure.)
     #[pin]
     waker: Option<R::SleepFuture>,
 }
