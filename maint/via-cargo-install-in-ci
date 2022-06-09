@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -euo pipefail
+
+for cmd in "$@"; do
+    if cp "$cmd" "$CARGO_HOME"/bin/; then continue; fi
+
+    cargo install "$cmd"
+    cp -v "$CARGO_HOME/bin/$cmd" .
+done
