@@ -11,6 +11,7 @@ use tor_guardmgr::fallback::FallbackList;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use tor_netdoc::types::policy::AddrPortPattern;
 
 use std::time::Duration;
 
@@ -40,8 +41,35 @@ pub struct PathConfig {
     /// IPv6 addresses share at least this many initial bits.
     #[builder(default = "ipv6_prefix_default()")]
     ipv6_subnet_family_prefix: u8,
+
+    /// The set of addresses to which we're willing to make direct connections.
+    #[builder(sub_builder, setter(custom))]
+    reachable_addrs: ReachableAddrs,
 }
 impl_standard_builder! { PathConfig }
+
+/// Type alias for a list of reachable addresses.
+type ReachableAddrs = Vec<AddrPortPattern>;
+
+/// Return the default list of reachable addresses (namely, "*:*")
+fn default_reachable_addrs() -> ReachableAddrs {
+    vec![AddrPortPattern::new_all()]
+}
+
+define_list_builder_helper! {
+    struct ReachableAddrsBuilder {
+        pub(crate) patterns: [AddrPortPattern],
+    }
+    built: ReachableAddrs = patterns;
+    default = default_reachable_addrs();
+    item_build: |pat| Ok(pat.clone());
+}
+
+define_list_builder_accessors! {
+    struct PathConfigBuilder {
+        pub reachable_addrs: [AddrPortPattern],
+    }
+}
 
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
