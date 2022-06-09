@@ -8,6 +8,7 @@ use tor_basic_utils::define_accessor_trait;
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackList;
+use tor_guardmgr::GuardFilter;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -44,7 +45,7 @@ pub struct PathConfig {
 
     /// The set of addresses to which we're willing to make direct connections.
     #[builder(sub_builder, setter(custom))]
-    reachable_addrs: ReachableAddrs,
+    pub(crate) reachable_addrs: ReachableAddrs,
 }
 impl_standard_builder! { PathConfig }
 
@@ -93,9 +94,21 @@ impl PathConfig {
     ///
     /// In other words, in other words, return true if every circuit permitted
     /// by `other` would also be permitted by this configuration.
+    ///
+    /// We use this function to decide when circuits must be discarded.
+    /// Therefore, it is okay to return "false" inaccurately, but we should
+    /// never return "true" inaccurately.
     pub(crate) fn at_least_as_permissive_as(&self, other: &Self) -> bool {
         self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
             && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
+            && self.reachable_addrs == other.reachable_addrs
+    }
+
+    /// Return a new [`GuardFilter`] reflecting the rules in this configuration.
+    pub(crate) fn build_guard_filter(&self) -> GuardFilter {
+        let mut filt = GuardFilter::default();
+        filt.push_reachable_addresses(self.reachable_addrs.clone());
+        filt
     }
 }
 
