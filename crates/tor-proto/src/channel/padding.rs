@@ -154,7 +154,7 @@ impl<R: SleepProvider> Timer<R> {
         let mut self_ = self.project();
         let timeout = self_.parameters.select_timeout();
         *self_.selected_timeout = Some(timeout);
-        // This is no longer invalide; recalculate it on next poll
+        // This is no longer valid; recalculate it on next poll
         *self_.trigger_at = None;
         // Timeout might be earlier, so we will need a new waker too.
         // (Technically this is not possible in a bad way right now, since any stale waker
