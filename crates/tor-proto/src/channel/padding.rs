@@ -57,7 +57,7 @@ pub(crate) struct Timer<R: SleepProvider> {
     ///
     /// This is created and updated lazily, because we suspect that with some runtimes
     /// setting timeouts may be slow.
-    /// Laxy updating means that with intermittent data traffic, we do not keep scheduling,
+    /// Lazy updating means that with intermittent data traffic, we do not keep scheduling,
     /// descheduling, and adjusting, a wakeup time.
     ///
     /// The wakeup time here may well be earlier than `trigger_at` -- even in the past.
@@ -159,7 +159,7 @@ impl<R: SleepProvider> Timer<R> {
         // Timeout might be earlier, so we will need a new waker too.
         // (Technically this is not possible in a bad way right now, since any stale waker
         // must be older, and so earlier, albeit from a previous random timeout.
-        // However in the future we may want to be able to adjust the timeout at runtime
+        // However in the future we may want to be able to adjust the parameters at runtime
         // and then a stale waker might be harmfully too late.)
         self_.waker.set(None);
         timeout
@@ -308,7 +308,7 @@ mod test {
 
     async fn assert_not_ready<R: Runtime>(timer: &mut Pin<&mut Timer<R>>) {
         select_biased! {
-            _ = timer.as_mut().next() => panic!("unexpedtedly ready"),
+            _ = timer.as_mut().next() => panic!("unexpectedly ready"),
             _ = ready(()) => { },
         };
     }
@@ -335,7 +335,7 @@ mod test {
             pin!(timer);
             assert_eq! { true, timer.is_enabled() }
 
-            // expiry time not yet caqlculated
+            // expiry time not yet calculated
             assert_eq! { timer.as_mut().trigger_at, None };
 
             // ---------- timeout value ----------
@@ -413,7 +413,7 @@ mod test {
 
         // The overall approach is:
         //    Use a fixed (but nontrivial) low to high range
-        //    Sample N times into n equal sized buckes
+        //    Sample N times into n equal sized buckets
         //    Calculate the expected number of samples in each bucket
         //    Do a chi^2 test.  If it doesn't spot a potential difference, declare OK.
         //    If the chi^2 test does definitely declare a difference, declare failure.
@@ -466,7 +466,7 @@ mod test {
                 .collect_vec();
             let exp = pdf.iter().cloned().map(|p| p * f64::from(N)).collect_vec();
 
-            // chi-squared test only valid if every cell expects at lesat 5
+            // chi-squared test only valid if every cell expects at least 5
             assert!(exp.iter().cloned().all(|ei| ei >= 5.));
 
             let mut obs = [0_u32; n];
