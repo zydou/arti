@@ -232,6 +232,17 @@ impl<'a> Reader<'a> {
         self.advance(1)?;
         Ok(result)
     }
+    /// Consume and return all the remaining bytes, but do not consume the reader
+    ///
+    /// This can be useful if you need to possibly read either fixed-length data,
+    /// or variable length data eating the rest of the `Reader`.
+    ///
+    /// The `Reader` will be left devoid of further bytes.
+    /// Consider using `into_rest()` instead.
+    pub fn take_rest(&mut self) -> &'a [u8] {
+        self.take(self.remaining())
+            .expect("taking remaining failed")
+    }
     /// Try to decode and remove a Readable from this reader, using its
     /// take_from() method.
     ///
@@ -265,6 +276,48 @@ impl<'a> Reader<'a> {
         }
         Ok(result)
     }
+
+    /// Start decoding something with a u8 length field
+    ///
+    /// Prefer to use this function, rather than ad-hoc `take_u8`,
+    /// and subsequent manual length checks.
+    /// Using this facility eliminates the need to separately keep track of the lengths.
+    ///
+    /// On success, consume a length field, and then immediately also consume that
+    /// many bytes from `self`.
+    ///
+    /// Returns a new `Reader` which refers to the bytes taken.
+    ///
+    /// The caller should read whatever is inside the nested structure
+    /// from the returned nested reader,
+    /// and  **must then call `should_be_exhausted`**
+    /// so that any garbage after the inner structure is detected and properly rejected.
+    ///
+    /// On failure, the amount consumed is not specified.
+    pub fn read_nested_u8len(&mut self) -> Result<Reader> {
+        read_nested_generic::<u8>(self)
+    }
+
+    /// Start decoding something with a u16 length field
+    pub fn read_nested_u16len(&mut self) -> Result<Reader> {
+        read_nested_generic::<u16>(self)
+    }
+
+    /// Start decoding something with a u32 length field
+    pub fn read_nested_u32len(&mut self) -> Result<Reader> {
+        read_nested_generic::<u32>(self)
+    }
+}
+
+/// Implementation of `read_nested_*` -- generic
+fn read_nested_generic<'a, L>(r: &'a mut Reader) -> Result<Reader<'a>>
+where
+    L: Readable + Copy + Sized + TryInto<usize>,
+{
+    let length: L = r.extract()?;
+    let length: usize = length.try_into().map_err(|_| Error::BadLengthValue)?;
+    let slice = r.take(length)?;
+    Ok(Reader::from_slice(slice))
 }
 
 #[cfg(test)]
@@ -409,6 +462,14 @@ mod tests {
     }
 
     #[test]
+    fn take_rest() {
+        let mut r = Reader::from_slice(b"si vales valeo");
+        assert_eq!(r.take(3).unwrap(), b"si ");
+        assert_eq!(r.take_rest(), b"vales valeo");
+        assert_eq!(r.take_rest(), b"");
+    }
+
+    #[test]
     fn take_until() {
         let mut r = Reader::from_slice(&b"si vales valeo"[..]);
         assert_eq!(r.take_until(b' ').unwrap(), &b"si"[..]);
@@ -422,6 +483,33 @@ mod tests {
         r.truncate(1000);
         assert_eq!(r.total_len(), 7);
         assert_eq!(r.remaining(), 7);
+    }
+
+    #[test]
+    fn nested_good() {
+        let mut r = Reader::from_slice(b"abc\0\0\x04defghijkl");
+        assert_eq!(r.take(3).unwrap(), b"abc");
+
+        let s = r.read_nested_u16len().unwrap();
+        assert!(s.should_be_exhausted().is_ok());
+
+        let mut s = r.read_nested_u8len().unwrap();
+        assert_eq!(s.take(4).unwrap(), b"defg");
+        assert!(s.should_be_exhausted().is_ok());
+
+        assert_eq!(r.take(2).unwrap(), b"hi");
+    }
+
+    #[test]
+    fn nested_bad() {
+        let mut r = Reader::from_slice(b"................");
+        assert_eq!(
+            read_nested_generic::<u128>(&mut r).err().unwrap(),
+            Error::BadLengthValue
+        );
+
+        let mut r = Reader::from_slice(b"................");
+        assert_eq!(r.read_nested_u32len().err().unwrap(), Error::Truncated);
     }
 
     #[test]

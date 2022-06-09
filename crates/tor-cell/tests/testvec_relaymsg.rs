@@ -516,7 +516,7 @@ fn test_connect_udp() {
         msg_error(
             cmd,
             &format!("00000000 {} 00 {:04x}", ty, port),
-            BytesError::BadMessage("Invalid IP length"),
+            BytesError::Truncated,
         );
 
         // Address one byte too short
@@ -529,14 +529,14 @@ fn test_connect_udp() {
                 &h[2..], /* kludge */
                 port
             ),
-            BytesError::BadMessage("Invalid IP length"),
+            BytesError::Truncated,
         );
 
         // Address one byte too long
         msg_error(
             cmd,
             &format!("00000000 {} {:02x} {} ff {:04x}", ty, h_len + 1, h, port),
-            BytesError::BadMessage("Invalid IP length"),
+            BytesError::ExtraneousBytes,
         );
     };
 
