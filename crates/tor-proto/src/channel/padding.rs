@@ -252,6 +252,13 @@ impl<R: SleepProvider> Timer<R> {
     /// Wait until we should next send padding, and then return the padding message
     ///
     /// Should be used as a low-priority branch within `select_biased!`.
+    ///
+    /// (`next()` has to be selected on, along with other possible events, in the
+    /// main loop, so that the padding timer runs concurrently with other processing;
+    /// and it should be in a low-priority branch of `select_biased!` as an optimisation:
+    /// that avoids calculating timeouts etc. until necessary,
+    /// i.e. it calculates them only when the main loop would otherwise block.)
+    ///
     /// The returned future is async-cancel-safe,
     /// but once it yields, the padding must actually be sent.
     pub(crate) fn next(self: Pin<&mut Self>) -> impl FusedFuture<Output = Padding> + '_ {
