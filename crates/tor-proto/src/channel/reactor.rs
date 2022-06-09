@@ -148,7 +148,7 @@ impl<S: SleepProvider> Reactor<S> {
                 select_biased! {
                     n = self.cells.next() => {
                         // Note transmission on *input* to the reactor, not ultimate
-                        // transmission.  Ideallhy we would tap into the TCP stream at the far
+                        // transmission.  Ideally we would tap into the TCP stream at the far
                         // end of our TLS or perhaps during encoding on entry to the TLS, but
                         // both of those would involve quite some plumbing.  Doing it here in
                         // the reactor avoids additional inter-task communication, mutexes,
