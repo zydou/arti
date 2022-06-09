@@ -92,7 +92,22 @@ pub enum Error {
     Bug(#[from] tor_error::Bug),
     /// Remote DNS lookup failed.
     #[error("remote resolve failed: {0}")]
-    ResolveError(String),
+    ResolveError(ResolveError),
+}
+
+/// Details about an error received while resolving a domain
+#[derive(Error, Debug, Clone)]
+#[non_exhaustive]
+pub enum ResolveError {
+    /// A transient error which can be retried
+    #[error("received retriable transient error")]
+    Transient,
+    /// A non transient error, which shouldn't be retried
+    #[error("received not retriable error")]
+    Nontransient,
+    /// Could not parse the response properly
+    #[error("received unrecognized result")]
+    Unrecognized,
 }
 
 impl From<tor_cell::Error> for Error {
@@ -168,7 +183,9 @@ impl HasKind for Error {
             E::NotConnected => EK::BadApiUsage,
             E::StreamProto(_) => EK::TorProtocolViolation,
             E::ChanMismatch(_) => EK::RelayIdMismatch,
-            E::ResolveError(_) => EK::RemoteHostNotFound,
+            E::ResolveError(ResolveError::Nontransient) => EK::RemoteHostNotFound,
+            E::ResolveError(ResolveError::Transient) => EK::RemoteHostResolutionFailed,
+            E::ResolveError(ResolveError::Unrecognized) => EK::RemoteHostResolutionFailed,
             E::Bug(e) => e.kind(),
         }
     }

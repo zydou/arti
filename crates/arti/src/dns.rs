@@ -16,7 +16,7 @@ use trust_dns_proto::op::{
 use trust_dns_proto::rr::{DNSClass, Name, RData, Record, RecordType};
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
-use arti_client::{StreamPrefs, TorClient};
+use arti_client::{Error, HasKind, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
@@ -71,6 +71,14 @@ where
 {
     let mut answers = Vec::new();
 
+    let err_conv = |error: Error| {
+        if tor_error::ErrorKind::RemoteHostNotFound == error.kind() {
+            // NoError without any body is considered to be NODATA as per rfc2308 section-2.2
+            ResponseCode::NoError
+        } else {
+            ResponseCode::ServFail
+        }
+    };
     for query in queries {
         let mut a = Vec::new();
         let mut ptr = Vec::new();
@@ -87,7 +95,7 @@ where
                         let res = tor_client
                             .resolve_with_prefs(&name.to_utf8(), prefs)
                             .await
-                            .map_err(|_| ResponseCode::ServFail)?;
+                            .map_err(err_conv)?;
                         for ip in res {
                             a.push((query.name().clone(), ip, typ));
                         }
@@ -101,7 +109,7 @@ where
                         let res = tor_client
                             .resolve_ptr_with_prefs(addr, prefs)
                             .await
-                            .map_err(|_| ResponseCode::ServFail)?;
+                            .map_err(err_conv)?;
                         for domain in res {
                             let domain =
                                 Name::from_utf8(domain).map_err(|_| ResponseCode::ServFail)?;
