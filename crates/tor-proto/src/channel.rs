@@ -59,6 +59,7 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 mod circmap;
 mod codec;
 mod handshake;
+mod padding;
 mod reactor;
 mod unique_id;
 
@@ -278,6 +279,19 @@ impl Channel {
             details: Arc::clone(&details),
         };
 
+        let mut padding_timer = Box::pin(padding::Timer::new_disabled(
+            sleep_prov,
+            padding::Parameters {
+                // From padding-spec.txt s2.2
+                // TODO support reduced padding
+                low_ms: 1500,
+                high_ms: 9500,
+            },
+        ));
+        if std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != "" {
+            padding_timer.as_mut().enable();
+        }
+
         let reactor = Reactor {
             control: control_rx,
             cells: cell_rx,
@@ -287,7 +301,7 @@ impl Channel {
             circ_unique_id_ctx: CircUniqIdContext::new(),
             link_protocol,
             details,
-            sleep_prov,
+            padding_timer,
         };
 
         (channel, reactor)

@@ -17,19 +17,19 @@ use tor_rtcompat::SleepProvider;
 
 use futures::channel::{mpsc, oneshot};
 
-use futures::select;
 use futures::sink::SinkExt;
 use futures::stream::Stream;
 use futures::Sink;
 use futures::StreamExt as _;
+use futures::{select, select_biased};
 use tor_error::internal;
 
 use std::fmt;
-//use std::pin::Pin;
+use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, padding, unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
@@ -90,6 +90,8 @@ pub struct Reactor<S: SleepProvider> {
     ///
     /// This should also be backed by a TLS connection if you want it to be secure.
     pub(super) output: BoxedChannelSink,
+    /// Timer tracking when to generate channel padding
+    pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
     /// A map from circuit ID to Sinks on which we can deliver cells.
     pub(super) circs: CircMap,
     /// Information shared with the frontend
@@ -99,9 +101,6 @@ pub struct Reactor<S: SleepProvider> {
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
-    /// Sleep Provider (dummy for now, this is going to be in the padding timer)
-    #[allow(dead_code)]
-    pub(super) sleep_prov: S,
 }
 
 /// Allows us to just say debug!("{}: Reactor did a thing", &self, ...)
@@ -144,10 +143,32 @@ impl<S: SleepProvider> Reactor<S> {
 
             // See if the output sink can have cells written to it yet.
             // If so, see if we have to-be-transmitted cells.
-            ret = self.output.prepare_send_from(
+            ret = self.output.prepare_send_from(async {
                 // This runs if we will be able to write, so do the read:
-                self.cells.next()
-            ) => {
+                select_biased! {
+                    n = self.cells.next() => {
+                        // Note transmission on *input* to the reactor, not ultimate
+                        // transmission.  Ideally we would tap into the TCP stream at the far
+                        // end of our TLS or perhaps during encoding on entry to the TLS, but
+                        // both of those would involve quite some plumbing.  Doing it here in
+                        // the reactor avoids additional inter-task communication, mutexes,
+                        // etc.  (And there is no real difference between doing it here on
+                        // input, to just below, on enquieing into the `sendable`.)
+                        //
+                        // Padding is sent when the output channel is idle, and the effect of
+                        // buffering is just that we might sent it a little early because we
+                        // measure idleness when we last put something into the output layers.
+                        //
+                        // We can revisit this if measurement shows it to be bad in practice.
+                        //
+                        // (We in any case need padding that we generate when idle to make it
+                        // through to the output promptly, or it will be late and ineffective.)
+                        self.padding_timer.as_mut().note_cell_sent();
+                        n
+                    },
+                    p = self.padding_timer.as_mut().next() => Some(p.into()),
+                }
+            }) => {
                 let (msg, sendable) = ret.map_err(codec_err_to_chan)?;
                 let msg = msg.ok_or(ReactorError::Shutdown)?;
                 sendable.send(msg).map_err(codec_err_to_chan)?;

@@ -29,6 +29,7 @@ futures = "0.3.14"
 generic-array = "0.14.3"
 hkdf = "0.12.0"
 hmac = "0.12.0"
+pin-project = "1"
 rand = "0.8"
 rand_core = "0.6.2"
 subtle = "2"
@@ -45,6 +46,7 @@ tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
+tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
 tracing = "0.1.18"
 typenum = "1.12"
 zeroize = "1"
@@ -52,4 +54,7 @@ zeroize = "1"
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
+itertools = "0.10.1"
+statrs = "0.15.0"
+tokio-crate = { package = "tokio", version = "1.7", features = ["full"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio", "native-tls"] }
