@@ -12,8 +12,11 @@ use tor_proto::circuit::ClientCirc;
 /// Alias for a result with a `RequestError`.
 type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
+use std::borrow::Cow;
 use std::iter::FromIterator;
 use std::time::{Duration, SystemTime};
+
+use itertools::Itertools;
 
 use crate::err::RequestError;
 
@@ -149,6 +152,33 @@ impl ConsensusRequest {
     }
 }
 
+/// Convert a list of digests in some format to a string, for use in a request
+///
+/// The digests `DL` will be sorted, converted to strings with `EF`,
+/// separated with `sep`, and returned as an fresh `String`.
+///
+/// If the digests list is empty, returns None instead.
+//
+// In principle this ought to be doable with much less allocating,
+// starting with hex::encode etc.
+fn digest_list_stringify<'d, D, DL, EF>(digests: DL, encode: EF, sep: &str) -> Option<String>
+where
+    DL: IntoIterator<Item = &'d D> + 'd,
+    D: PartialOrd + Ord + 'd,
+    EF: Fn(&'d D) -> String,
+{
+    let mut digests = digests.into_iter().collect_vec();
+    if digests.is_empty() {
+        return None;
+    }
+    digests.sort_unstable();
+    let ids = digests.into_iter().map(encode).map(Cow::Owned);
+    // name collision with unstable Iterator::intersperse
+    // https://github.com/rust-lang/rust/issues/48919
+    let ids = Itertools::intersperse(ids, Cow::Borrowed(sep)).collect::<String>();
+    Some(ids)
+}
+
 impl Default for ConsensusRequest {
     fn default() -> Self {
         Self::new(ConsensusFlavor::Microdesc)
@@ -166,13 +196,13 @@ impl Requestable for ConsensusRequest {
                 uri.push_str(flav.name());
             }
         }
-        if !self.authority_ids.is_empty() {
-            let mut ids = self.authority_ids.clone();
-            ids.sort_unstable();
+        let d_encode_hex = |id: &RsaIdentity| hex::encode(id.as_bytes());
+        if let Some(ids) = digest_list_stringify(&self.authority_ids, d_encode_hex, "+") {
+            // With authorities, "../consensus/<F1>+<F2>+<F3>.z"
             uri.push('/');
-            let ids: Vec<String> = ids.iter().map(|id| hex::encode(id.as_bytes())).collect();
-            uri.push_str(&ids.join("+"));
+            uri.push_str(&ids);
         }
+        // Without authorities, "../consensus-microdesc.z"
         uri.push_str(".z");
 
         let mut req = http::Request::builder().method("GET").uri(uri);
@@ -187,11 +217,8 @@ impl Requestable for ConsensusRequest {
         }
 
         // Possibly, add an X-Or-Diff-From-Consensus header.
-        if !self.last_consensus_sha3_256.is_empty() {
-            let mut digests = self.last_consensus_sha3_256.clone();
-            digests.sort_unstable();
-            let digests: Vec<String> = digests.iter().map(hex::encode).collect();
-            req = req.header("X-Or-Diff-From-Consensus", &digests.join(", "));
+        if let Some(ids) = digest_list_stringify(&self.last_consensus_sha3_256, hex::encode, ", ") {
+            req = req.header("X-Or-Diff-From-Consensus", &ids);
         }
 
         Ok(req.body(())?)
@@ -310,17 +337,10 @@ impl MicrodescRequest {
 
 impl Requestable for MicrodescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
-        if self.digests.is_empty() {
-            return Err(RequestError::MdSha256Empty);
-        }
-        let mut digests = self.digests.clone();
-        digests.sort_unstable();
-
-        let ids: Vec<String> = digests
-            .iter()
-            .map(|d| base64::encode_config(d, base64::STANDARD_NO_PAD))
-            .collect();
-        let uri = format!("/tor/micro/d/{}.z", &ids.join("-"));
+        let d_encode_b64 = |d| base64::encode_config(d, base64::STANDARD_NO_PAD);
+        let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
+            .ok_or(RequestError::MdSha256Empty)?;
+        let uri = format!("/tor/micro/d/{}.z", &ids);
         let req = http::Request::builder().method("GET").uri(uri);
 
         let req = add_common_headers(req);
@@ -395,13 +415,9 @@ impl Requestable for RouterDescRequest {
             uri.push_str("all");
         } else {
             uri.push_str("d/");
-            if self.digests.is_empty() {
-                return Err(RequestError::MdSha256Empty);
-            }
-            let mut digests = self.digests.clone();
-            digests.sort_unstable();
-            let ids: Vec<String> = digests.iter().map(hex::encode).collect();
-            uri.push_str(&ids.join("+"));
+            let ids = digest_list_stringify(&self.digests, hex::encode, "+")
+                .ok_or(RequestError::MdSha256Empty)?;
+            uri.push_str(&ids);
         }
         uri.push_str(".z");
 
@@ -555,6 +571,12 @@ mod test {
 
         assert_eq!(req,
                    format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", encodings(), when));
+
+        // Request without authorities
+        let req = ConsensusRequest::default();
+        let req = crate::util::encode_request(&req.make_request()?);
+        assert_eq!(req,
+                   format!("GET /tor/status-vote/current/consensus-microdesc.z HTTP/1.0\r\naccept-encoding: {}\r\n\r\n", encodings()));
 
         Ok(())
     }
