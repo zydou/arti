@@ -17,7 +17,7 @@ pub mod aes {
     pub type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 }
 
-/// Compatiblity layer between OpenSSL and `cipher::StreamCipher`.
+/// Compatibility layer between OpenSSL and `cipher::StreamCipher`.
 ///
 /// These ciphers implement the `cipher::StreamCipher` trait, so use
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
@@ -69,7 +69,7 @@ pub mod aes {
     impl InnerIvInit for Aes128Ctr {
         fn inner_iv_init(inner: Self::Inner, iv: &GenericArray<u8, Self::IvSize>) -> Self {
             let crypter = Crypter::new(Cipher::aes_128_ctr(), Mode::Encrypt, &inner.0, Some(iv))
-                .expect("openssl error while initializeing Aes128Ctr");
+                .expect("openssl error while initializing Aes128Ctr");
             Aes128Ctr(crypter)
         }
     }
@@ -114,7 +114,7 @@ pub mod aes {
     impl InnerIvInit for Aes256Ctr {
         fn inner_iv_init(inner: Self::Inner, iv: &GenericArray<u8, Self::IvSize>) -> Self {
             let crypter = Crypter::new(Cipher::aes_256_ctr(), Mode::Encrypt, &inner.0, Some(iv))
-                .expect("openssl error while initializeing Aes256Ctr");
+                .expect("openssl error while initializing Aes256Ctr");
             Aes256Ctr(crypter)
         }
     }
