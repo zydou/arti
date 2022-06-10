@@ -34,7 +34,7 @@ pub struct LoggingConfig {
     ///
     /// Only takes effect if Arti is built with the `journald` filter.
     #[builder(
-        setter(into, strip_option),
+        setter(into),
         field(build = r#"tor_config::resolve_option(&self.journald, || None)"#)
     )]
     journald: Option<String>,

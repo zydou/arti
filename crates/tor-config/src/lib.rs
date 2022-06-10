@@ -153,6 +153,9 @@ impl Reconfigure {
 ///
 /// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/488>
 ///
+/// For consistency with other APIs in Arti, when using this,
+/// do not pass `setter(strip_option)` to derive_builder.
+///
 /// # ⚠ Stability Warning ⚠
 ///
 /// We hope to significantly change this so that it is an method in an extension trait.
