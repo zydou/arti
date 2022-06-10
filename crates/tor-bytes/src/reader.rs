@@ -295,24 +295,27 @@ impl<'a> Reader<'a> {
     /// It may well want to use `take_rest`, to consume all of the counted bytes.
     ///
     /// On failure, the amount consumed is not specified.
-    pub fn read_nested_u8len<F,T>(&mut self, f: F) -> Result<T>
-    where F: FnOnce(&mut Reader) -> Result<T>
+    pub fn read_nested_u8len<F, T>(&mut self, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut Reader) -> Result<T>,
     {
-        read_nested_generic::<u8,_,_>(self,f)
+        read_nested_generic::<u8, _, _>(self, f)
     }
 
     /// Start decoding something with a u16 length field
-    pub fn read_nested_u16len<F,T>(&mut self, f: F) -> Result<T>
-    where F: FnOnce(&mut Reader) -> Result<T>
+    pub fn read_nested_u16len<F, T>(&mut self, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut Reader) -> Result<T>,
     {
-        read_nested_generic::<u16,_,_>(self,f)
+        read_nested_generic::<u16, _, _>(self, f)
     }
 
     /// Start decoding something with a u32 length field
-    pub fn read_nested_u32len<F,T>(&mut self, f: F) -> Result<T>
-    where F: FnOnce(&mut Reader) -> Result<T>
+    pub fn read_nested_u32len<F, T>(&mut self, f: F) -> Result<T>
+    where
+        F: FnOnce(&mut Reader) -> Result<T>,
     {
-        read_nested_generic::<u32,_,_>(self,f)
+        read_nested_generic::<u32, _, _>(self, f)
     }
 }
 
@@ -504,13 +507,15 @@ mod tests {
         r.read_nested_u16len(|s| {
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
-        }).unwrap();
+        })
+        .unwrap();
 
         r.read_nested_u8len(|s| {
             assert_eq!(s.take(4).unwrap(), b"defg");
             assert!(s.should_be_exhausted().is_ok());
             Ok(())
-        }).unwrap();
+        })
+        .unwrap();
 
         assert_eq!(r.take(2).unwrap(), b"hi");
     }
@@ -519,12 +524,17 @@ mod tests {
     fn nested_bad() {
         let mut r = Reader::from_slice(b"................");
         assert_eq!(
-            read_nested_generic::<u128,_,()>(&mut r, |_| panic!()).err().unwrap(),
+            read_nested_generic::<u128, _, ()>(&mut r, |_| panic!())
+                .err()
+                .unwrap(),
             Error::BadLengthValue
         );
 
         let mut r = Reader::from_slice(b"................");
-        assert_eq!(r.read_nested_u32len::<_,()>(|_| panic!()).err().unwrap(), Error::Truncated);
+        assert_eq!(
+            r.read_nested_u32len::<_, ()>(|_| panic!()).err().unwrap(),
+            Error::Truncated
+        );
     }
 
     #[test]
