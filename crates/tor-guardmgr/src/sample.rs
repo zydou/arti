@@ -37,12 +37,6 @@ use tracing::{debug, info};
 /// guards come first in preference order.  Then come the non-primary
 /// confirmed guards, in their confirmed order.  Finally come the
 /// non-primary, non-confirmed guards, in their sampled order.
-///
-/// # Limitations
-///
-/// Our current guard implementation in arti only uses
-/// `GuardSet` at time, but eventually we may want to allow several to
-/// exist, of which only one is "active".
 #[derive(Default, Debug, Clone, Deserialize)]
 #[serde(from = "GuardSample")]
 pub(crate) struct GuardSet {

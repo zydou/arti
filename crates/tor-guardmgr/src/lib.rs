@@ -75,9 +75,6 @@
 //!
 //! # Limitations
 //!
-//! * Only one guard selection is currently supported: we don't allow a
-//!   "filtered" or a "bridges" selection.
-//!
 //! * Our circuit blocking algorithm is simplified from the one that Tor uses.
 //!   See comments in `GuardSet::circ_usability_status` for more information.
 //!   See also [proposal 337](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/337-simpler-guard-usability.md).
@@ -480,9 +477,6 @@ impl<R: Runtime> GuardMgr<R> {
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
-    ///
-    /// (Since there is only one kind of filter right now, there's no
-    /// real reason to call this function, but at least it should work.
     pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");

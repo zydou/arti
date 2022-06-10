@@ -12,12 +12,6 @@ use tor_netdoc::types::policy::AddrPortPattern;
 /// tagged with the `Guard` flag.  But clients may narrow the eligible set
 /// even further—for example, to those supporting only a given set of ports,
 /// or to those in a given country.
-///
-/// # Limitations
-///
-/// Right now, only the `Unrestricted` filter is implemented or available.
-/// This enumeration is just a place-holder, however, to make sure we're
-/// checking our filter in the right places.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct GuardFilter {
     /// A list of filters to apply to guard or fallback selection.  Each filter

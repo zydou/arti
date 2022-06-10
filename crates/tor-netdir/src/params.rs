@@ -191,7 +191,7 @@ pub struct NetParameters {
 
     /// If we have excluded so many possible guards that the
     /// available fraction is below this threshold, we should use a different
-    /// guard sample. (TODO: not actually implemented)
+    /// guard sample.
     pub guard_meaningful_restriction: Percentage<BoundedInt32<1,100>> = (20)
         from "guard-meaningful-restriction-percent",
 
