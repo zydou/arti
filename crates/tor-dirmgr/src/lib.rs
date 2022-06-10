@@ -88,7 +88,7 @@ use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
-use tor_rtcompat::scheduler::TaskSchedule;
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
@@ -135,6 +135,11 @@ pub trait DirProvider: NetDirProvider {
     /// Note that this stream can be lossy: the caller will not necessarily
     /// observe every event on the stream
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus>;
+
+    /// Return a [`TaskHandle`] that can be used to manage the download process.
+    fn download_task_handle(&self) -> Option<TaskHandle> {
+        None
+    }
 }
 
 // NOTE(eta): We can't implement this for Arc<DirMgr<R>> due to trait coherence rules, so instead
@@ -165,6 +170,10 @@ impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
 
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus> {
         Box::pin(DirMgr::bootstrap_events(self))
+    }
+
+    fn download_task_handle(&self) -> Option<TaskHandle> {
+        Some(self.task_handle.clone())
     }
 }
 
@@ -232,6 +241,13 @@ pub struct DirMgr<R: Runtime> {
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
     filter: crate::filter::FilterConfig,
+
+    /// A task schedule that can be used if we're bootstrapping.  If this is
+    /// None, then there's currently a scheduled task in progress.
+    task_schedule: Mutex<Option<TaskSchedule<R>>>,
+
+    /// A task handle that we return to anybody who needs to manage our download process.
+    task_handle: TaskHandle,
 }
 
 /// RAII guard to reset an AtomicBool on drop.
@@ -384,7 +400,14 @@ impl<R: Runtime> DirMgr<R> {
             ordering: Ordering::SeqCst,
         };
 
-        let (mut schedule, _handle) = TaskSchedule::new(self.runtime.clone());
+        // TODO: put this back if the boostrap process exits!
+        let mut schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
+            Some(sched) => sched,
+            None => {
+                debug!("Attempted to bootstrap twice; ignoring.");
+                return Ok(());
+            }
+        };
 
         // Try to load from the cache.
         let have_directory = self.load_directory().await?;
@@ -746,6 +769,10 @@ impl<R: Runtime> DirMgr<R> {
         #[cfg(feature = "dirfilter")]
         let filter = config.extensions.filter.clone();
 
+        // We create these early so the client code can access task_handle before bootstrap() returns.
+        let (task_schedule, task_handle) = TaskSchedule::new(runtime.clone());
+        let task_schedule = Mutex::new(Some(task_schedule));
+
         Ok(DirMgr {
             config: config.into(),
             store,
@@ -759,6 +786,8 @@ impl<R: Runtime> DirMgr<R> {
             bootstrap_started: AtomicBool::new(false),
             #[cfg(feature = "dirfilter")]
             filter,
+            task_schedule,
+            task_handle,
         })
     }
 
