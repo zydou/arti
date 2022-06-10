@@ -441,7 +441,8 @@ pub enum ErrorKind {
 
     /// An resolve operation finished with an error.
     ///
-    /// Contrary to [`RemoteHostNotFound`], this can't mean "this is not a hostname".
+    /// Contrary to [`RemoteHostNotFound`](ErrorKind::RemoteHostNotFound),
+    /// this can't mean "this is not a hostname".
     /// This error should be retried.
     #[display(fmt = "remote hostname lookup failure")]
     RemoteHostResolutionFailed,
