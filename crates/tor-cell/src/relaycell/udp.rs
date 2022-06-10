@@ -89,21 +89,17 @@ impl Address {
 impl Readable for Address {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let addr_type = r.take_u8()?;
-        let mut r = r.read_nested_u8len()?;
-
-        let addr = match addr_type {
-            T_HOSTNAME => {
-                let h = r.take_rest();
-                Self::Hostname(h.into())
-            }
-            T_IPV4 => Self::Ipv4(r.extract()?),
-            T_IPV6 => Self::Ipv6(r.extract()?),
-            _ => return Err(Error::BadMessage("Invalid address type")),
-        };
-
-        r.should_be_exhausted()?;
-
-        Ok(addr)
+        r.read_nested_u8len(|r| {
+            Ok(match addr_type {
+                T_HOSTNAME => {
+                    let h = r.take_rest();
+                    Self::Hostname(h.into())
+                }
+                T_IPV4 => Self::Ipv4(r.extract()?),
+                T_IPV6 => Self::Ipv6(r.extract()?),
+                _ => return Err(Error::BadMessage("Invalid address type")),
+            })
+        })
     }
 }
 
