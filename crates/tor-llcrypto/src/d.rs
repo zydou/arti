@@ -22,7 +22,7 @@ mod openssl_compat {
 
     use digest::{FixedOutput, HashMarker, Output, OutputSizeUser, Update};
 
-    /// Wrapper arround OpenSSL Sha1 to make it compatible with `digest`
+    /// Wrapper around OpenSSL Sha1 to make it compatible with `digest`
     #[derive(Default, Clone)]
     pub struct Sha1(OpenSslSha1);
 
