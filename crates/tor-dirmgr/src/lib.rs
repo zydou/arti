@@ -400,7 +400,6 @@ impl<R: Runtime> DirMgr<R> {
             ordering: Ordering::SeqCst,
         };
 
-        // TODO: put this back if the boostrap process exits!
         let mut schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
             Some(sched) => sched,
             None => {
@@ -438,12 +437,20 @@ impl<R: Runtime> DirMgr<R> {
                         _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
                     }
                 } else if let Err(e) =
-                    Self::download_forever(dirmgr_weak, &mut schedule, sender).await
+                    Self::download_forever(dirmgr_weak.clone(), &mut schedule, sender).await
                 {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while downloading: {}", e),
                     }
+                }
+                // Now we put the task manager back, so that somebody else can
+                // launch a download process if they like.
+                //
+                // TODO(nick): This isn't actually possible if the task exits _after_ we've
+                // bootstrapped for the first time, because of how bootstrap_started works.
+                if let Some(dm) = Weak::upgrade(&dirmgr_weak) {
+                    *dm.task_schedule.lock().expect("poisoned lock") = Some(schedule);
                 }
             })
             .map_err(|e| Error::from_spawn("directory updater task", e))?;
