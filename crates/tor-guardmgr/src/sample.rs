@@ -274,21 +274,29 @@ impl GuardSet {
     /// Guards always start out un-confirmed.
     ///
     /// Return true if any guards were added.
-    ///
-    /// # Complications
-    ///
-    /// For spec conformance, we only consider our filter when
-    /// selecting new guards if the filter is "very restrictive".
-    /// That makes it possible that this will add fewer
-    /// filter-permitted guards than we had wanted.  Because of that,
-    /// it's advisable to run this function in a loop until it returns
-    /// false.
     pub(crate) fn extend_sample_as_needed(
         &mut self,
         now: SystemTime,
         params: &GuardParams,
         dir: &NetDir,
     ) -> bool {
+        let mut any_added = false;
+        while self.extend_sample_inner(now, params, dir) {
+            any_added = true;
+        }
+        any_added
+    }
+
+    /// Implementation helper for extend_sample_as_needed.
+    ///
+    /// # Complications
+    ///
+    /// For spec conformance, we only consider our filter when selecting new
+    /// guards if the filter is "very restrictive". That makes it possible that
+    /// this function will add fewer filter-permitted guards than we had wanted.
+    /// Because of that, this is a separate function, and
+    /// extend_sample_as_needed runs it in a loop until it returns false.
+    fn extend_sample_inner(&mut self, now: SystemTime, params: &GuardParams, dir: &NetDir) -> bool {
         self.assert_consistency();
         let n_filtered_usable = self
             .guards

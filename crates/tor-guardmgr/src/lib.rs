@@ -766,16 +766,9 @@ impl GuardMgrInner {
             self.guards
                 .active_guards_mut()
                 .update_status_from_netdir(netdir);
-            loop {
-                let added_any = self.guards.active_guards_mut().extend_sample_as_needed(
-                    now,
-                    &self.params,
-                    netdir,
-                );
-                if !added_any {
-                    break;
-                }
-            }
+            self.guards
+                .active_guards_mut()
+                .extend_sample_as_needed(now, &self.params, netdir);
         }
 
         self.guards
