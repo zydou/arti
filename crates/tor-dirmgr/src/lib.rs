@@ -81,6 +81,7 @@ pub use crate::shared_ref::SharedMutArc;
 use crate::storage::{DynStore, Store};
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
+use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
 use tor_error::into_internal;
@@ -250,29 +251,6 @@ pub struct DirMgr<R: Runtime> {
     task_handle: TaskHandle,
 }
 
-/// RAII guard to reset an AtomicBool on drop.
-struct BoolResetter<'a> {
-    /// The bool to reset.
-    inner: &'a AtomicBool,
-    /// What value to store.
-    reset_to: bool,
-    /// What atomic ordering to use.
-    ordering: Ordering,
-}
-
-impl<'a> Drop for BoolResetter<'a> {
-    fn drop(&mut self) {
-        self.inner.store(self.reset_to, self.ordering);
-    }
-}
-
-impl<'a> BoolResetter<'a> {
-    /// Disarm the guard, consuming it to make it not reset any more.
-    fn disarm(self) {
-        std::mem::forget(self);
-    }
-}
-
 /// The possible origins of a document.
 ///
 /// Used (for example) to report where we got a document from if it fails to
@@ -394,13 +372,11 @@ impl<R: Runtime> DirMgr<R> {
 
         // Use a RAII guard to reset `bootstrap_started` to `false` if we return early without
         // completing bootstrap.
-        let resetter = BoolResetter {
-            inner: &self.bootstrap_started,
-            reset_to: false,
-            ordering: Ordering::SeqCst,
-        };
+        let reset_bootstrap_started = scopeguard::guard(&self.bootstrap_started, |v| {
+            v.store(false, Ordering::SeqCst);
+        });
 
-        let mut schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
+        let schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
             Some(sched) => sched,
             None => {
                 debug!("Attempted to bootstrap twice; ignoring.");
@@ -424,8 +400,17 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr_weak = Arc::downgrade(self);
         self.runtime
             .spawn(async move {
-                // NOTE: This is a daemon task.  It should eventually get
-                // treated as one.
+                // Use an RAII guard to make sure that when this task exits, the
+                // TaskSchedule object is put back.
+                //
+                // TODO(nick): Putting the schedule back isn't actually useful
+                // if the task exits _after_ we've bootstrapped for the first
+                // time, because of how bootstrap_started works.
+                let mut schedule = scopeguard::guard(schedule, |schedule| {
+                    if let Some(dm) = Weak::upgrade(&dirmgr_weak) {
+                        *dm.task_schedule.lock().expect("poisoned lock") = Some(schedule);
+                    }
+                });
 
                 // Don't warn when these are Error::ManagerDropped: that
                 // means that the DirMgr has been shut down.
@@ -444,14 +429,6 @@ impl<R: Runtime> DirMgr<R> {
                         _ => warn!("Unrecovered error while downloading: {}", e),
                     }
                 }
-                // Now we put the task manager back, so that somebody else can
-                // launch a download process if they like.
-                //
-                // TODO(nick): This isn't actually possible if the task exits _after_ we've
-                // bootstrapped for the first time, because of how bootstrap_started works.
-                if let Some(dm) = Weak::upgrade(&dirmgr_weak) {
-                    *dm.task_schedule.lock().expect("poisoned lock") = Some(schedule);
-                }
             })
             .map_err(|e| Error::from_spawn("directory updater task", e))?;
 
@@ -459,8 +436,8 @@ impl<R: Runtime> DirMgr<R> {
             match receiver.await {
                 Ok(()) => {
                     info!("We have enough information to build circuits.");
-                    // Disarm the RAII guard, since we succeeded.
-                    resetter.disarm();
+                    // Disarm the RAII guard, since we succeeded.  Now bootstrap_started will remain true.
+                    let _ = ScopeGuard::into_inner(reset_bootstrap_started);
                 }
                 Err(_) => {
                     warn!("Bootstrapping task exited before finishing.");
@@ -1402,32 +1379,5 @@ replacement line
             let expanded = mgr.expand_response_text(&r[0], diff);
             assert!(expanded.is_err());
         });
-    }
-
-    #[test]
-    #[allow(clippy::bool_assert_comparison)]
-    fn bool_resetter_works() {
-        let bool = AtomicBool::new(false);
-        fn example(bool: &AtomicBool) {
-            bool.store(true, Ordering::SeqCst);
-            let _resetter = BoolResetter {
-                inner: bool,
-                reset_to: false,
-                ordering: Ordering::SeqCst,
-            };
-        }
-        fn example_disarm(bool: &AtomicBool) {
-            bool.store(true, Ordering::SeqCst);
-            let resetter = BoolResetter {
-                inner: bool,
-                reset_to: false,
-                ordering: Ordering::SeqCst,
-            };
-            resetter.disarm();
-        }
-        example(&bool);
-        assert_eq!(bool.load(Ordering::SeqCst), false);
-        example_disarm(&bool);
-        assert_eq!(bool.load(Ordering::SeqCst), true);
     }
 }
