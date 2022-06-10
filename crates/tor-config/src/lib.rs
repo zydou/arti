@@ -159,6 +159,8 @@ impl Reconfigure {
 /// # ⚠ Stability Warning ⚠
 ///
 /// We hope to significantly change this so that it is an method in an extension trait.
+/// We may also make it able to support settings where the special "no such thing" value is
+/// not `T::Default`.
 //
 // This is an annoying AOI right now because you have to write things like
 //     #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
