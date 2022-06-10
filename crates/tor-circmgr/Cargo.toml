@@ -12,10 +12,12 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
+
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
+experimental = ["experimental-api"]
 experimental-api = []
 
 [dependencies]

@@ -13,10 +13,11 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
+experimental = ["experimental-udp"]
 # Enable experimental UDP support.
 experimental-udp = []
 # Enable testing only API
-testing = [ "experimental-udp" ]
+testing = ["experimental-udp"]
 
 [dependencies]
 arrayref = "0.3"
