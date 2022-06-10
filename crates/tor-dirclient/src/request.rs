@@ -198,11 +198,11 @@ impl Requestable for ConsensusRequest {
         }
         let d_encode_hex = |id: &RsaIdentity| hex::encode(id.as_bytes());
         if let Some(ids) = digest_list_stringify(&self.authority_ids, d_encode_hex, "+") {
+            // With authorities, "../consensus/<F1>+<F2>+<F3>.z"
             uri.push('/');
             uri.push_str(&ids);
         }
-        // TODO: This seems weird.  Does it do the right thing with an empty list?
-        // See test case in test_consensus_request which demonstrates the weirdness.
+        // Without authorities, "../consensus-microdesc.z"
         uri.push_str(".z");
 
         let mut req = http::Request::builder().method("GET").uri(uri);
@@ -572,9 +572,7 @@ mod test {
         assert_eq!(req,
                    format!("GET /tor/status-vote/current/consensus-microdesc/03479e93ebf3ff2c58c1c9dbf2de9de9c2801b3e.z HTTP/1.0\r\naccept-encoding: {}\r\nif-modified-since: {}\r\nx-or-diff-from-consensus: 626c616820626c616820626c616820313220626c616820626c616820626c6168\r\n\r\n", encodings(), when));
 
-        // Empty request
-        //
-        // TODO is this right?  It seems weird.
+        // Request without authorities
         let req = ConsensusRequest::default();
         let req = crate::util::encode_request(&req.make_request()?);
         assert_eq!(req,
