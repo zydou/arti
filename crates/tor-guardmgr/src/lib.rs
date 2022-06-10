@@ -1446,9 +1446,20 @@ mod test {
         assert!(have_lock.held());
         let guardmgr = GuardMgr::new(rt, statemgr.clone(), [].into()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
-        let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"
-            .parse()
-            .unwrap();
+        let param_overrides = vec![
+            // We make the sample size smaller than usual to compensate for the
+            // small testing network.  (Otherwise, we'd sample the whole network,
+            // and not be able to observe guards in the tests.)
+            "guard-min-filtered-sample-size=5",
+            // We choose only two primary guards, to make the tests easier to write.
+            "guard-n-primary-guards=2",
+            // We define any restriction that allows 75% or fewer of relays as "meaningful",
+            // so that we can test the "restrictive" guard sample behavior, and to avoid
+            "guard-meaningful-restriction-percent=75",
+        ];
+        let param_overrides: String =
+            itertools::Itertools::intersperse(param_overrides.into_iter(), " ").collect();
+        let override_p = param_overrides.parse().unwrap();
         let mut netdir = PartialNetDir::new(con, Some(&override_p));
         for md in mds {
             netdir.add_microdesc(md);
@@ -1544,21 +1555,19 @@ mod test {
 
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir);
             let filter = {
                 let mut f = GuardFilter::default();
                 // All the addresses in the test network are {0,1,2,3,4}.0.0.3:9001.
-                // Limit to only {2,3}.0.0.0
-                f.push_reachable_addresses(vec!["2.0.0.0/7:9001".parse().unwrap()]);
+                // Limit to only 2.0.0.0/8
+                f.push_reachable_addresses(vec!["2.0.0.0/8:9001".parse().unwrap()]);
                 f
             };
             guardmgr.set_filter(filter, Some(&netdir));
+            guardmgr.update_network(&netdir);
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
             let addr = guard.addrs()[0];
-            assert!(
-                addr == "2.0.0.3:9001".parse().unwrap() || addr == "3.0.0.3:9001".parse().unwrap()
-            );
+            assert_eq!(addr, "2.0.0.3:9001".parse().unwrap());
         });
     }
 
