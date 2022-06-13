@@ -8,18 +8,24 @@ use crate::{Error, Result};
 use std::collections::{hash_map, HashMap};
 use tor_error::internal;
 
-/// A map from channel id to channel state.
+/// A map from channel id to channel state, plus necessary auxiliary state
 ///
 /// We make this a separate type instead of just using
 /// `Mutex<HashMap<...>>` to limit the amount of code that can see and
 /// lock the Mutex here.  (We're using a blocking mutex close to async
 /// code, so we need to be careful.)
 pub(crate) struct ChannelMap<C: AbstractChannel> {
+    /// The data, within a lock
+    inner: std::sync::Mutex<Inner<C>>,
+}
+
+/// A map from channel id to channel state, plus necessary auxiliary state - inside lock
+struct Inner<C: AbstractChannel> {
     /// A map from identity to channel, or to pending channel status.
     ///
     /// (Danger: this uses a blocking mutex close to async code.  This mutex
     /// must never be held while an await is happening.)
-    channels: std::sync::Mutex<HashMap<C::Ident, ChannelState<C>>>,
+    channels: HashMap<C::Ident, ChannelState<C>>,
 }
 
 /// Structure that can only be constructed from within this module.
@@ -126,15 +132,21 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
     pub(crate) fn new() -> Self {
         ChannelMap {
-            channels: std::sync::Mutex::new(HashMap::new()),
+            inner: std::sync::Mutex::new(Inner {
+                channels: HashMap::new(),
+            }),
         }
     }
 
     /// Return the channel state for the given identity, if any.
     #[cfg(test)]
     pub(crate) fn get(&self, ident: &C::Ident) -> Result<Option<ChannelState<C>>> {
-        let map = self.channels.lock()?;
-        map.get(ident).map(ChannelState::clone_ref).transpose()
+        let inner = self.inner.lock()?;
+        inner
+            .channels
+            .get(ident)
+            .map(ChannelState::clone_ref)
+            .transpose()
     }
 
     /// Replace the channel state for `ident` with `newval`, and return the
@@ -145,21 +157,21 @@ impl<C: AbstractChannel> ChannelMap<C> {
         newval: ChannelState<C>,
     ) -> Result<Option<ChannelState<C>>> {
         newval.check_ident(&ident)?;
-        let mut map = self.channels.lock()?;
-        Ok(map.insert(ident, newval))
+        let mut inner = self.inner.lock()?;
+        Ok(inner.channels.insert(ident, newval))
     }
 
     /// Remove and return the state for `ident`, if any.
     pub(crate) fn remove(&self, ident: &C::Ident) -> Result<Option<ChannelState<C>>> {
-        let mut map = self.channels.lock()?;
-        Ok(map.remove(ident))
+        let mut inner = self.inner.lock()?;
+        Ok(inner.channels.remove(ident))
     }
 
     /// Remove every unusable state from the map.
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
-        let mut map = self.channels.lock()?;
-        map.retain(|_, state| match state {
+        let mut inner = self.inner.lock()?;
+        inner.channels.retain(|_, state| match state {
             ChannelState::Poisoned(_) => false,
             ChannelState::Open(ent) => ent.channel.is_usable(),
             ChannelState::Building(_) => true,
@@ -186,8 +198,8 @@ impl<C: AbstractChannel> ChannelMap<C> {
         F: FnOnce(Option<ChannelState<C>>) -> (Option<ChannelState<C>>, V),
     {
         use hash_map::Entry::*;
-        let mut map = self.channels.lock()?;
-        let entry = map.entry(ident.clone());
+        let mut inner = self.inner.lock()?;
+        let entry = inner.channels.entry(ident.clone());
         match entry {
             Occupied(mut occupied) => {
                 // Temporarily replace the entry for this identity with
@@ -223,9 +235,10 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// a channel _could_ expire.
     pub(crate) fn expire_channels(&self) -> Duration {
         let mut ret = Duration::from_secs(180);
-        self.channels
+        self.inner
             .lock()
             .expect("Poisoned lock")
+            .channels
             .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
         ret
     }
