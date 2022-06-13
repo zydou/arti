@@ -23,6 +23,8 @@ use tor_basic_utils::skip_fmt;
 use tor_netdir::DirEvent;
 use tor_netdoc::doc::netstatus;
 
+use crate::bootstrap::AttemptId;
+
 /// A trait to indicate something that can be published with [`FlagPublisher`].
 ///
 /// Since the implementation of `FlagPublisher` requires that its events be
@@ -228,8 +230,13 @@ impl<F: FlagEvent> Stream for FlagListener<F> {
 /// new information.
 #[derive(Clone, Debug, Default)]
 pub struct DirBootstrapStatus {
+    /// Identifier for the current attempt (if any).
+    current_id: Option<AttemptId>,
     /// The status for the current directory that we're using right now.
     pub(crate) current: DirStatus,
+
+    /// Identifier for the next attempt (if any).
+    next_id: Option<AttemptId>,
     /// The status for a directory that we're downloading to replace the current
     /// directory.
     ///
@@ -256,6 +263,7 @@ pub(crate) enum DirProgress {
     NoConsensus {
         /// If present, we are fetching a consensus whose valid-after time
         /// postdates this time.
+        #[allow(dead_code)]
         after: Option<SystemTime>,
     },
     /// We've downloaded a consensus, but we haven't validated it yet.
@@ -366,29 +374,48 @@ impl DirBootstrapStatus {
         self.current.progress.usable() && self.current.okay_to_use_at(now)
     }
 
+    /// Return the appropriate DirStatus for `AttemptId`, constructing it if
+    /// necessary.
+    ///
+    /// Return None if all relevant attempts are more recent than this Id.
+    fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
+        match (self.current_id, self.next_id, attempt_id) {
+            (None, _, _) => {
+                self.current_id = Some(attempt_id);
+                self.current = DirStatus::default();
+                Some(&mut self.current)
+            }
+            (Some(cur), _, a) if a < cur => None,
+            (Some(cur), _, a) if a == cur => Some(&mut self.current),
+            (_, Some(next), a) if a < next => None,
+            (_, Some(next), a) if a == next => self.next.as_mut(),
+            (_, _, _) => {
+                self.next_id = Some(attempt_id);
+                self.next = Some(DirStatus::default());
+                self.next.as_mut()
+            }
+        }
+    }
+
+    /// If the "next" status is usable, replace the current status with it.
+    fn advance_status(&mut self) {
+        if self.next.as_ref().map(|st| st.progress.usable()) == Some(true) {
+            self.current_id = self.next_id;
+            self.current = self
+                .next
+                .take()
+                .expect("The next status was there a moment ago.");
+            self.next_id = None;
+            self.next = None;
+        }
+    }
+
     /// Update this status by replacing the `DirProgress` in its current status (or its next status)
     /// with `new_status`, as appropriate.
-    pub(crate) fn update_progress(&mut self, new_progress: DirProgress) {
-        if new_progress.usable() {
-            // This is a usable directory, but it might be a stale one still
-            // getting updated.  Make sure that it is at least as new as the one
-            // in `current` before we set `current`.
-            if new_progress.at_least_as_new_as(&self.current.progress) {
-                // This one will be `current`. Should we clear `next`? Only if
-                // this one is at least as recent as `next` too.
-                if let Some(ref next) = self.next {
-                    if new_progress.at_least_as_new_as(&next.progress) {
-                        self.current = self.next.take().unwrap_or_default();
-                    }
-                }
-                self.current.progress = new_progress;
-            }
-        } else if !self.current.progress.usable() {
-            // Not a usable directory, but we don't _have_ a usable directory. This is therefore current.
-            self.current.progress = new_progress;
-        } else {
-            // This is _not_ a usable directory, so it can only be `next`.
-            self.next.get_or_insert_with(Default::default).progress = new_progress;
+    pub(crate) fn update_progress(&mut self, attempt_id: AttemptId, new_progress: DirProgress) {
+        if let Some(status) = self.mut_status_for(attempt_id) {
+            status.progress = new_progress;
+            self.advance_status();
         }
     }
 }
@@ -469,46 +496,12 @@ impl DirStatus {
             DirProgress::Validated { usable: true, .. } => 1.0,
         }
     }
-
-    /// Return true if the consensus in this DirStatus (if any) is at least as
-    /// new as the one in `other`.
-    ///
-    /// Only tests need this; it's likely to go away in the future.
-    #[cfg(test)]
-    fn at_least_as_new_as(&self, other: &DirStatus) -> bool {
-        self.progress.at_least_as_new_as(&other.progress)
-    }
 }
 
 impl DirProgress {
     /// Return true if this progress indicates a usable directory.
     fn usable(&self) -> bool {
         matches!(self, DirProgress::Validated { usable: true, .. })
-    }
-
-    /// Return true if the consensus in this DirProgress (if any) is at least as
-    /// new as the one in `other`.
-    fn at_least_as_new_as(&self, other: &DirProgress) -> bool {
-        /// return a candidate "valid after" time for a DirStatus, for comparison purposes.
-        fn start_time(st: &DirProgress) -> Option<SystemTime> {
-            match &st {
-                DirProgress::NoConsensus { after: Some(t) } => {
-                    Some(*t + std::time::Duration::new(1, 0)) // Make sure this sorts _after_ t.
-                }
-                DirProgress::FetchingCerts { lifetime, .. } => Some(lifetime.valid_after()),
-                DirProgress::Validated { lifetime, .. } => Some(lifetime.valid_after()),
-                _ => None,
-            }
-        }
-
-        match (start_time(self), start_time(other)) {
-            // If both have a lifetime, compare their valid_after times.
-            (Some(l1), Some(l2)) => l1 >= l2,
-            // Any consensus is newer than none.
-            (Some(_), None) => true,
-            // No consensus is never newer than anything.
-            (None, _) => false,
-        }
     }
 }
 
@@ -703,14 +696,6 @@ mod test {
             now + hour * 3
         );
 
-        // at_least_as_new_as()
-        assert!(!nothing.at_least_as_new_as(&nothing));
-        assert!(unval.at_least_as_new_as(&nothing));
-        assert!(unval.at_least_as_new_as(&unval));
-        assert!(!unval.at_least_as_new_as(&with_c));
-        assert!(with_c.at_least_as_new_as(&unval));
-        assert!(with_c.at_least_as_new_as(&with_c));
-
         // frac() (It's okay if we change the actual numbers here later; the
         // current ones are more or less arbitrary.)
         const TOL: f32 = 0.00001;
@@ -794,11 +779,15 @@ mod test {
             n_mds: (5, 40),
             usable: false,
         };
+        let attempt1 = AttemptId::next();
+        let attempt2 = AttemptId::next();
 
         let bs = DirBootstrapStatus {
+            current_id: Some(attempt1),
             current: DirStatus {
                 progress: dp1.clone(),
             },
+            next_id: Some(attempt2),
             next: Some(DirStatus {
                 progress: dp2.clone(),
             }),
@@ -827,7 +816,7 @@ mod test {
             usable: false,
         };
 
-        bs.update_progress(dp3);
+        bs.update_progress(attempt2, dp3);
         assert!(matches!(
             bs.next.as_ref().unwrap().progress,
             DirProgress::Validated {
@@ -845,7 +834,7 @@ mod test {
                 usable: true,
             },
         };
-        bs.update_progress(ds4.progress);
+        bs.update_progress(attempt2, ds4.progress);
         assert!(bs.next.as_ref().is_none());
         assert_eq!(
             bs.current.usable_lifetime().unwrap().valid_after(),
@@ -853,7 +842,7 @@ mod test {
         );
 
         // Case 3: The new directory is usable but older. Nothing will happen.
-        bs.update_progress(dp1);
+        bs.update_progress(attempt1, dp1);
         assert!(bs.next.as_ref().is_none());
         assert_ne!(
             bs.current.usable_lifetime().unwrap().valid_after(),
@@ -864,7 +853,7 @@ mod test {
         let mut bs = DirBootstrapStatus::default();
         assert!(!dp2.usable());
         assert!(bs.current.usable_lifetime().is_none());
-        bs.update_progress(dp2);
+        bs.update_progress(attempt2, dp2);
         assert!(bs.current.usable_lifetime().is_some());
     }
 }
