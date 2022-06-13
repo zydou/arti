@@ -166,6 +166,7 @@ dependencies = [
  "tor-dirmgr",
  "tor-error",
  "tor-guardmgr",
+ "tor-llcrypto",
  "tor-netdoc",
  "tor-persist",
  "tor-proto",
