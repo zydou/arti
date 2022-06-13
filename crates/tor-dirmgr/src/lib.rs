@@ -79,6 +79,7 @@ use crate::shared_ref::SharedMutArc;
 #[cfg(feature = "experimental-api")]
 pub use crate::shared_ref::SharedMutArc;
 use crate::storage::{DynStore, Store};
+use event::DirProgress;
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use scopeguard::ScopeGuard;
@@ -692,14 +693,14 @@ impl<R: Runtime> DirMgr<R> {
         self.receive_status.clone()
     }
 
-    /// Replace the latest status with `new_status` and broadcast to anybody
+    /// Replace the latest status with `progress` and broadcast to anybody
     /// watching via a [`DirBootstrapEvents`] stream.
-    fn update_status(&self, new_status: DirStatus) {
+    fn update_progress(&self, progress: DirProgress) {
         // TODO(nickm): can I kill off this lock by having something else own the sender?
         let mut sender = self.send_status.lock().expect("poisoned lock");
         let mut status = sender.borrow_mut();
 
-        status.update(new_status);
+        status.update_progress(progress);
     }
 
     /// Try to make this a directory manager with read-write access to its

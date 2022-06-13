@@ -238,7 +238,8 @@ pub struct DirBootstrapStatus {
 }
 
 /// The status for a single directory.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, derive_more::Display)]
+#[display(fmt = "{progress}")]
 pub struct DirStatus {
     /// How much of the directory do we currently have?
     progress: DirProgress,
@@ -287,13 +288,7 @@ pub(crate) enum DirProgress {
     },
 }
 
-impl From<DirProgress> for DirStatus {
-    fn from(inner: DirProgress) -> DirStatus {
-        DirStatus { progress: inner }
-    }
-}
-
-impl fmt::Display for DirStatus {
+impl fmt::Display for DirProgress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         /// Format this time in a format useful for displaying
         /// lifetime boundaries.
@@ -313,7 +308,7 @@ impl fmt::Display for DirStatus {
                 .unwrap_or_else(|_| "(could not format)".into())
         }
 
-        match &self.progress {
+        match &self {
             DirProgress::NoConsensus { .. } => write!(f, "fetching a consensus"),
             DirProgress::FetchingCerts { n_certs, .. } => write!(
                 f,
@@ -368,35 +363,32 @@ impl DirBootstrapStatus {
     /// Return true if this status indicates that we have a current usable
     /// directory.
     pub fn usable_at(&self, now: SystemTime) -> bool {
-        self.current.usable() && self.current.okay_to_use_at(now)
+        self.current.progress.usable() && self.current.okay_to_use_at(now)
     }
 
-    /// Update this status by replacing its current status (or its next status)
+    /// Update this status by replacing the `DirProgress` in its current status (or its next status)
     /// with `new_status`, as appropriate.
-    pub(crate) fn update(&mut self, new_status: DirStatus) {
-        if new_status.usable() {
+    pub(crate) fn update_progress(&mut self, new_progress: DirProgress) {
+        if new_progress.usable() {
             // This is a usable directory, but it might be a stale one still
             // getting updated.  Make sure that it is at least as new as the one
             // in `current` before we set `current`.
-            if new_status
-                .progress
-                .at_least_as_new_as(&self.current.progress)
-            {
+            if new_progress.at_least_as_new_as(&self.current.progress) {
                 // This one will be `current`. Should we clear `next`? Only if
                 // this one is at least as recent as `next` too.
                 if let Some(ref next) = self.next {
-                    if new_status.progress.at_least_as_new_as(&next.progress) {
-                        self.next = None;
+                    if new_progress.at_least_as_new_as(&next.progress) {
+                        self.current = self.next.take().unwrap_or_default();
                     }
                 }
-                self.current = new_status;
+                self.current.progress = new_progress;
             }
-        } else if !self.current.usable() {
+        } else if !self.current.progress.usable() {
             // Not a usable directory, but we don't _have_ a usable directory. This is therefore current.
-            self.current = new_status;
+            self.current.progress = new_progress;
         } else {
             // This is _not_ a usable directory, so it can only be `next`.
-            self.next = Some(new_status);
+            self.next.get_or_insert_with(Default::default).progress = new_progress;
         }
     }
 }
@@ -451,11 +443,6 @@ impl DirStatus {
         }
     }
 
-    /// Return true if this status indicates a usable directory.
-    fn usable(&self) -> bool {
-        matches!(self.progress, DirProgress::Validated { usable: true, .. })
-    }
-
     /// Return the fraction of completion for directory download, in a form
     /// suitable for a progress bar.
     ///
@@ -494,6 +481,11 @@ impl DirStatus {
 }
 
 impl DirProgress {
+    /// Return true if this progress indicates a usable directory.
+    fn usable(&self) -> bool {
+        matches!(self, DirProgress::Validated { usable: true, .. })
+    }
+
     /// Return true if the consensus in this DirProgress (if any) is at least as
     /// new as the one in `other`.
     fn at_least_as_new_as(&self, other: &DirProgress) -> bool {
@@ -790,24 +782,26 @@ mod test {
         let lifetime = netstatus::Lifetime::new(t1, t1 + hour, t1 + hour * 3).unwrap();
         let lifetime2 = netstatus::Lifetime::new(t1 + hour, t1 + hour * 2, t1 + hour * 4).unwrap();
 
-        let ds1: DirStatus = DirProgress::Validated {
+        let dp1 = DirProgress::Validated {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime.clone(),
             n_mds: (3, 40),
             usable: true,
-        }
-        .into();
-        let ds2: DirStatus = DirProgress::Validated {
+        };
+        let dp2 = DirProgress::Validated {
             lifetime: lifetime2.clone(),
             usable_lifetime: lifetime2.clone(),
             n_mds: (5, 40),
             usable: false,
-        }
-        .into();
+        };
 
         let bs = DirBootstrapStatus {
-            current: ds1.clone(),
-            next: Some(ds2.clone()),
+            current: DirStatus {
+                progress: dp1.clone(),
+            },
+            next: Some(DirStatus {
+                progress: dp2.clone(),
+            }),
         };
 
         assert_eq!(bs.to_string(),
@@ -826,15 +820,14 @@ mod test {
 
         // Case 1: we have a usable directory and the updated status isn't usable.
         let mut bs = bs;
-        let ds3 = DirStatus {
-            progress: DirProgress::Validated {
-                lifetime: lifetime2.clone(),
-                usable_lifetime: lifetime2.clone(),
-                n_mds: (10, 40),
-                usable: false,
-            },
+        let dp3 = DirProgress::Validated {
+            lifetime: lifetime2.clone(),
+            usable_lifetime: lifetime2.clone(),
+            n_mds: (10, 40),
+            usable: false,
         };
-        bs.update(ds3);
+
+        bs.update_progress(dp3);
         assert!(matches!(
             bs.next.as_ref().unwrap().progress,
             DirProgress::Validated {
@@ -852,7 +845,7 @@ mod test {
                 usable: true,
             },
         };
-        bs.update(ds4);
+        bs.update_progress(ds4.progress);
         assert!(bs.next.as_ref().is_none());
         assert_eq!(
             bs.current.usable_lifetime().unwrap().valid_after(),
@@ -860,7 +853,7 @@ mod test {
         );
 
         // Case 3: The new directory is usable but older. Nothing will happen.
-        bs.update(ds1);
+        bs.update_progress(dp1);
         assert!(bs.next.as_ref().is_none());
         assert_ne!(
             bs.current.usable_lifetime().unwrap().valid_after(),
@@ -869,9 +862,9 @@ mod test {
 
         // Case 4: starting with an unusable directory, we always replace.
         let mut bs = DirBootstrapStatus::default();
-        assert!(!ds2.usable());
+        assert!(!dp2.usable());
         assert!(bs.current.usable_lifetime().is_none());
-        bs.update(ds2);
+        bs.update_progress(dp2);
         assert!(bs.current.usable_lifetime().is_some());
     }
 }

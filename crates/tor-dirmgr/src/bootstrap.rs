@@ -336,7 +336,7 @@ async fn load_once<R: Runtime>(
     // We have to update the status here regardless of the outcome: even if
     // there was an error, we might have received partial information that
     // changed our status.
-    dirmgr.update_status(state.bootstrap_status());
+    dirmgr.update_progress(state.bootstrap_progress());
 
     outcome
 }
@@ -456,7 +456,7 @@ async fn download_attempt<R: Runtime>(
         }
     }
 
-    dirmgr.update_status(state.bootstrap_status());
+    dirmgr.update_progress(state.bootstrap_progress());
 
     Ok(())
 }
@@ -704,8 +704,8 @@ mod test {
         fn describe(&self) -> String {
             format!("{:?}", &self)
         }
-        fn bootstrap_status(&self) -> crate::event::DirStatus {
-            crate::event::DirStatus::default()
+        fn bootstrap_progress(&self) -> crate::event::DirProgress {
+            crate::event::DirProgress::default()
         }
         fn is_ready(&self, ready: Readiness) -> bool {
             match (ready, self.second_time_around) {
