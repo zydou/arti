@@ -2103,7 +2103,6 @@ mod test {
         // FIXME(eta): the below is copypasta; would be nice to have a better way of
         //             constructing ExitPolicy objects for testing maybe
         let network = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
 

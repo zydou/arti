@@ -1003,7 +1003,6 @@ mod test {
     fn netdir_integration() {
         use tor_netdir::testnet;
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         let params = GuardParams::default();
@@ -1040,7 +1039,6 @@ mod test {
     fn update_from_netdir() {
         use tor_netdir::testnet;
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         // Same as above but omit [22]

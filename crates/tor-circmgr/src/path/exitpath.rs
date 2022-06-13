@@ -265,7 +265,6 @@ mod test {
     fn by_ports() {
         let mut rng = testing_rng();
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         let ports = vec![TargetPort::ipv4(443), TargetPort::ipv4(1119)];
@@ -312,7 +311,6 @@ mod test {
     fn any_exit() {
         let mut rng = testing_rng();
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         let dirinfo = (&netdir).into();
@@ -390,7 +388,6 @@ mod test {
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let netdir = testnet::construct_netdir()
-                .unwrap()
                 .unwrap_if_sufficient()
                 .unwrap();
             let mut rng = testing_rng();

@@ -48,8 +48,8 @@ pub struct NodeBuilders {
 fn simple_net_func(_idx: usize, _nb: &mut NodeBuilders) {}
 
 /// As [`construct_network()`], but return a [`PartialNetDir`].
-pub fn construct_netdir() -> BuildResult<PartialNetDir> {
-    construct_custom_netdir(simple_net_func)
+pub fn construct_netdir() -> PartialNetDir {
+    construct_custom_netdir(simple_net_func).expect("failed to build default testing netdir")
 }
 
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].

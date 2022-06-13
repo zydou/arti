@@ -663,7 +663,6 @@ pub(crate) mod test {
         use crate::mgr::AbstractSpec;
         let mut rng = testing_rng();
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         let di = (&netdir).into();

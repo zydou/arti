@@ -94,7 +94,6 @@ mod test {
     #[test]
     fn dirpath_relay() {
         let netdir = testnet::construct_netdir()
-            .unwrap()
             .unwrap_if_sufficient()
             .unwrap();
         let mut rng = testing_rng();
@@ -176,7 +175,6 @@ mod test {
     fn dirpath_with_guards() {
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
             let netdir = testnet::construct_netdir()
-                .unwrap()
                 .unwrap_if_sufficient()
                 .unwrap();
             let mut rng = testing_rng();
