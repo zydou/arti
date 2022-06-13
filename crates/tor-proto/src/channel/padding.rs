@@ -442,6 +442,18 @@ mod test {
             dbg!(timer.as_mut().project().trigger_at);
             assert_eq! { false, timer.is_enabled() }
         });
+
+        let () = runtime.block_on(async {
+            let timer = Timer::new_disabled(runtime.clone(), parameters);
+            pin!(timer);
+            assert_not_ready(&mut timer).await;
+            runtime.advance(Duration::from_millis(3000)).await;
+            assert_not_ready(&mut timer).await;
+            timer.as_mut().enable();
+            assert_not_ready(&mut timer).await;
+            runtime.advance(Duration::from_millis(3000)).await;
+            assert_is_ready(&mut timer).await;
+        });
     }
 
     #[test]
