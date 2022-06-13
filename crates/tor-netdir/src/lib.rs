@@ -1302,7 +1302,7 @@ mod test {
         // This is mostly a copy of test_pick, except that it uses
         // pick_n_relays to pick several relays at once.
 
-        let dir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
+        let dir = construct_netdir().unwrap_if_sufficient().unwrap();
 
         let (mut rng, total, tolerance) = testing_rng_with_tolerances();
 
@@ -1489,7 +1489,7 @@ mod test {
     #[cfg(feature = "experimental-api")]
     #[test]
     fn test_accessors() {
-        let netdir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
+        let netdir = construct_netdir().unwrap_if_sufficient().unwrap();
 
         let r4 = netdir.by_id(&[4; 32].into()).unwrap();
         let r16 = netdir.by_id(&[16; 32].into()).unwrap();
@@ -1572,7 +1572,7 @@ mod test {
     #[test]
     fn weight_accessors() {
         // Make a netdir that omits the microdescriptor for 0xDDDDDD...
-        let netdir = construct_netdir().unwrap().unwrap_if_sufficient().unwrap();
+        let netdir = construct_netdir().unwrap_if_sufficient().unwrap();
 
         let g_total = netdir.total_weight(WeightRole::Guard, |r| r.is_flagged_guard());
         // This is just the total guard weight, since all our Wxy = 1.

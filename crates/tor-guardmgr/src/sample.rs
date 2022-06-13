@@ -850,10 +850,7 @@ mod test {
 
     fn netdir() -> NetDir {
         use tor_netdir::testnet;
-        testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap()
+        testnet::construct_netdir().unwrap_if_sufficient().unwrap()
     }
 
     #[test]

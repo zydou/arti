@@ -2102,10 +2102,7 @@ mod test {
     fn get_exit_policies() -> (ExitPolicy, ExitPolicy, ExitPolicy) {
         // FIXME(eta): the below is copypasta; would be nice to have a better way of
         //             constructing ExitPolicy objects for testing maybe
-        let network = testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let network = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
 
         // Nodes with ID 0x0a through 0x13 and 0x1e through 0x27 are
         // exits.  Odd-numbered ones allow only ports 80 and 443;
