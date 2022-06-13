@@ -378,11 +378,14 @@ impl DirBootstrapStatus {
             // This is a usable directory, but it might be a stale one still
             // getting updated.  Make sure that it is at least as new as the one
             // in `current` before we set `current`.
-            if new_status.at_least_as_new_as(&self.current) {
+            if new_status
+                .progress
+                .at_least_as_new_as(&self.current.progress)
+            {
                 // This one will be `current`. Should we clear `next`? Only if
                 // this one is at least as recent as `next` too.
                 if let Some(ref next) = self.next {
-                    if new_status.at_least_as_new_as(next) {
+                    if new_status.progress.at_least_as_new_as(&next.progress) {
                         self.next = None;
                     }
                 }
@@ -482,10 +485,21 @@ impl DirStatus {
 
     /// Return true if the consensus in this DirStatus (if any) is at least as
     /// new as the one in `other`.
+    ///
+    /// Only tests need this; it's likely to go away in the future.
+    #[cfg(test)]
     fn at_least_as_new_as(&self, other: &DirStatus) -> bool {
+        self.progress.at_least_as_new_as(&other.progress)
+    }
+}
+
+impl DirProgress {
+    /// Return true if the consensus in this DirProgress (if any) is at least as
+    /// new as the one in `other`.
+    fn at_least_as_new_as(&self, other: &DirProgress) -> bool {
         /// return a candidate "valid after" time for a DirStatus, for comparison purposes.
-        fn start_time(st: &DirStatus) -> Option<SystemTime> {
-            match &st.progress {
+        fn start_time(st: &DirProgress) -> Option<SystemTime> {
+            match &st {
                 DirProgress::NoConsensus { after: Some(t) } => {
                     Some(*t + std::time::Duration::new(1, 0)) // Make sure this sorts _after_ t.
                 }
