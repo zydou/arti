@@ -23,7 +23,7 @@ use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
-use crate::event::{DirStatus, DirStatusInner};
+use crate::event::{DirProgress, DirStatus};
 
 use crate::storage::DynStore;
 use crate::{
@@ -269,7 +269,7 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
         if let Some(next) = &self.next {
             next.bootstrap_status()
         } else {
-            DirStatusInner::NoConsensus { after: self.after }.into()
+            DirProgress::NoConsensus { after: self.after }.into()
         }
     }
     fn dl_config(&self) -> DownloadSchedule {
@@ -563,7 +563,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
         let n_certs = self.certs.len();
         let n_missing_certs = self.missing_certs.len();
         let total_certs = n_missing_certs + n_certs;
-        DirStatusInner::FetchingCerts {
+        DirProgress::FetchingCerts {
             lifetime: self.consensus_meta.lifetime().clone(),
             usable_lifetime: self
                 .config
@@ -986,7 +986,7 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
     }
     fn bootstrap_status(&self) -> DirStatus {
         let n_present = self.n_microdescs - self.partial.n_missing();
-        DirStatusInner::Validated {
+        DirProgress::Validated {
             lifetime: self.meta.lifetime().clone(),
             usable_lifetime: self.config.tolerance.extend_lifetime(self.meta.lifetime()),
             n_mds: (n_present as u32, self.n_microdescs as u32),

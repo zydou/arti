@@ -239,14 +239,14 @@ pub struct DirBootstrapStatus {
 
 /// The status for a single directory.
 #[derive(Clone, Debug, Default)]
-pub struct DirStatus(DirStatusInner);
+pub struct DirStatus(DirProgress);
 
 /// The contents of a single DirStatus.
 ///
 /// This is a separate type so that we don't make the variants public.
 #[derive(Clone, Debug, Educe)]
 #[educe(Default)]
-pub(crate) enum DirStatusInner {
+pub(crate) enum DirProgress {
     /// We don't have any information yet.
     #[educe(Default)]
     NoConsensus {
@@ -284,8 +284,8 @@ pub(crate) enum DirStatusInner {
     },
 }
 
-impl From<DirStatusInner> for DirStatus {
-    fn from(inner: DirStatusInner) -> DirStatus {
+impl From<DirProgress> for DirStatus {
+    fn from(inner: DirProgress) -> DirStatus {
         DirStatus(inner)
     }
 }
@@ -311,18 +311,18 @@ impl fmt::Display for DirStatus {
         }
 
         match &self.0 {
-            DirStatusInner::NoConsensus { .. } => write!(f, "fetching a consensus"),
-            DirStatusInner::FetchingCerts { n_certs, .. } => write!(
+            DirProgress::NoConsensus { .. } => write!(f, "fetching a consensus"),
+            DirProgress::FetchingCerts { n_certs, .. } => write!(
                 f,
                 "fetching authority certificates ({}/{})",
                 n_certs.0, n_certs.1
             ),
-            DirStatusInner::Validated {
+            DirProgress::Validated {
                 usable: false,
                 n_mds,
                 ..
             } => write!(f, "fetching microdescriptors ({}/{})", n_mds.0, n_mds.1),
-            DirStatusInner::Validated {
+            DirProgress::Validated {
                 usable: true,
                 lifetime,
                 ..
@@ -399,9 +399,9 @@ impl DirStatus {
     /// Return the declared consensus lifetime for this directory, if we have one.
     fn declared_lifetime(&self) -> Option<&netstatus::Lifetime> {
         match &self.0 {
-            DirStatusInner::NoConsensus { .. } => None,
-            DirStatusInner::FetchingCerts { lifetime, .. } => Some(lifetime),
-            DirStatusInner::Validated { lifetime, .. } => Some(lifetime),
+            DirProgress::NoConsensus { .. } => None,
+            DirProgress::FetchingCerts { lifetime, .. } => Some(lifetime),
+            DirProgress::Validated { lifetime, .. } => Some(lifetime),
         }
     }
 
@@ -409,11 +409,11 @@ impl DirStatus {
     /// modified by our skew-tolerance settings.
     fn usable_lifetime(&self) -> Option<&netstatus::Lifetime> {
         match &self.0 {
-            DirStatusInner::NoConsensus { .. } => None,
-            DirStatusInner::FetchingCerts {
+            DirProgress::NoConsensus { .. } => None,
+            DirProgress::FetchingCerts {
                 usable_lifetime, ..
             } => Some(usable_lifetime),
-            DirStatusInner::Validated {
+            DirProgress::Validated {
                 usable_lifetime, ..
             } => Some(usable_lifetime),
         }
@@ -447,7 +447,7 @@ impl DirStatus {
 
     /// Return true if this status indicates a usable directory.
     fn usable(&self) -> bool {
-        matches!(self.0, DirStatusInner::Validated { usable: true, .. })
+        matches!(self.0, DirProgress::Validated { usable: true, .. })
     }
 
     /// Return the fraction of completion for directory download, in a form
@@ -464,16 +464,16 @@ impl DirStatus {
         // the microdescriptors until we become usable.  We may want to re-tune that in the future, but
         // the documentation of this function should allow us to do so.
         match &self.0 {
-            DirStatusInner::NoConsensus { .. } => 0.0,
-            DirStatusInner::FetchingCerts { n_certs, .. } => {
+            DirProgress::NoConsensus { .. } => 0.0,
+            DirProgress::FetchingCerts { n_certs, .. } => {
                 0.25 + f32::from(n_certs.0) / f32::from(n_certs.1) * 0.10
             }
-            DirStatusInner::Validated {
+            DirProgress::Validated {
                 usable: false,
                 n_mds,
                 ..
             } => 0.35 + (n_mds.0 as f32) / (n_mds.1 as f32) * 0.65,
-            DirStatusInner::Validated { usable: true, .. } => 1.0,
+            DirProgress::Validated { usable: true, .. } => 1.0,
         }
     }
 
@@ -483,11 +483,11 @@ impl DirStatus {
         /// return a candidate "valid after" time for a DirStatus, for comparison purposes.
         fn start_time(st: &DirStatus) -> Option<SystemTime> {
             match &st.0 {
-                DirStatusInner::NoConsensus { after: Some(t) } => {
+                DirProgress::NoConsensus { after: Some(t) } => {
                     Some(*t + std::time::Duration::new(1, 0)) // Make sure this sorts _after_ t.
                 }
-                DirStatusInner::FetchingCerts { lifetime, .. } => Some(lifetime.valid_after()),
-                DirStatusInner::Validated { lifetime, .. } => Some(lifetime.valid_after()),
+                DirProgress::FetchingCerts { lifetime, .. } => Some(lifetime.valid_after()),
+                DirProgress::Validated { lifetime, .. } => Some(lifetime.valid_after()),
                 _ => None,
             }
         }
@@ -664,16 +664,16 @@ mod test {
         let now = SystemTime::now();
         let hour = Duration::new(3600, 0);
 
-        let nothing = DirStatus(DirStatusInner::NoConsensus { after: None });
+        let nothing = DirStatus(DirProgress::NoConsensus { after: None });
         let lifetime = netstatus::Lifetime::new(now, now + hour, now + hour * 2).unwrap();
-        let unval = DirStatus(DirStatusInner::FetchingCerts {
+        let unval = DirStatus(DirProgress::FetchingCerts {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime,
             n_certs: (3, 5),
         });
         let lifetime =
             netstatus::Lifetime::new(now + hour, now + hour * 2, now + hour * 3).unwrap();
-        let with_c = DirStatus(DirStatusInner::Validated {
+        let with_c = DirStatus(DirProgress::Validated {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime,
             n_mds: (30, 40),
@@ -721,17 +721,17 @@ mod test {
         let hour = Duration::new(3600, 0);
         let lifetime = netstatus::Lifetime::new(t1, t1 + hour, t1 + hour * 3).unwrap();
 
-        let ds = DirStatus(DirStatusInner::NoConsensus { after: None });
+        let ds = DirStatus(DirProgress::NoConsensus { after: None });
         assert_eq!(ds.to_string(), "fetching a consensus");
 
-        let ds = DirStatus(DirStatusInner::FetchingCerts {
+        let ds = DirStatus(DirProgress::FetchingCerts {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime.clone(),
             n_certs: (3, 5),
         });
         assert_eq!(ds.to_string(), "fetching authority certificates (3/5)");
 
-        let ds = DirStatus(DirStatusInner::Validated {
+        let ds = DirStatus(DirProgress::Validated {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime.clone(),
             n_mds: (30, 40),
@@ -739,7 +739,7 @@ mod test {
         });
         assert_eq!(ds.to_string(), "fetching microdescriptors (30/40)");
 
-        let ds = DirStatus(DirStatusInner::Validated {
+        let ds = DirStatus(DirProgress::Validated {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime,
             n_mds: (30, 40),
@@ -759,14 +759,14 @@ mod test {
         let lifetime = netstatus::Lifetime::new(t1, t1 + hour, t1 + hour * 3).unwrap();
         let lifetime2 = netstatus::Lifetime::new(t1 + hour, t1 + hour * 2, t1 + hour * 4).unwrap();
 
-        let ds1: DirStatus = DirStatusInner::Validated {
+        let ds1: DirStatus = DirProgress::Validated {
             lifetime: lifetime.clone(),
             usable_lifetime: lifetime.clone(),
             n_mds: (3, 40),
             usable: true,
         }
         .into();
-        let ds2: DirStatus = DirStatusInner::Validated {
+        let ds2: DirStatus = DirProgress::Validated {
             lifetime: lifetime2.clone(),
             usable_lifetime: lifetime2.clone(),
             n_mds: (5, 40),
@@ -795,7 +795,7 @@ mod test {
 
         // Case 1: we have a usable directory and the updated status isn't usable.
         let mut bs = bs;
-        let ds3 = DirStatus(DirStatusInner::Validated {
+        let ds3 = DirStatus(DirProgress::Validated {
             lifetime: lifetime2.clone(),
             usable_lifetime: lifetime2.clone(),
             n_mds: (10, 40),
@@ -804,14 +804,14 @@ mod test {
         bs.update(ds3);
         assert!(matches!(
             bs.next.as_ref().unwrap().0,
-            DirStatusInner::Validated {
+            DirProgress::Validated {
                 n_mds: (10, 40),
                 ..
             }
         ));
 
         // Case 2: The new directory _is_ usable and newer.  It will replace the old one.
-        let ds4 = DirStatus(DirStatusInner::Validated {
+        let ds4 = DirStatus(DirProgress::Validated {
             lifetime: lifetime2.clone(),
             usable_lifetime: lifetime2.clone(),
             n_mds: (20, 40),
