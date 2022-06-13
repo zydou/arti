@@ -436,6 +436,7 @@ async fn download_attempt<R: Runtime>(
 ) -> Result<()> {
     let missing = state.missing_docs();
     let fetched = fetch_multiple(Arc::clone(dirmgr), &missing, parallelism).await?;
+    let mut n_errors = 0;
     for (client_req, dir_response) in fetched {
         let source = dir_response.source().map(Clone::clone);
         let text = match String::from_utf8(dir_response.into_output())
@@ -444,6 +445,7 @@ async fn download_attempt<R: Runtime>(
             Ok(t) => t,
             Err(e) => {
                 if let Some(source) = source {
+                    n_errors += 1;
                     note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
                 continue;
@@ -469,6 +471,7 @@ async fn download_attempt<R: Runtime>(
 
                 if let Some(source) = source {
                     if let Err(e) = &outcome {
+                        n_errors += 1;
                         note_cache_error(dirmgr.circmgr()?.deref(), &source, e);
                     } else {
                         note_cache_success(dirmgr.circmgr()?.deref(), &source);
@@ -476,6 +479,7 @@ async fn download_attempt<R: Runtime>(
                 }
 
                 if let Err(e) = &outcome {
+                    dirmgr.note_errors(attempt_id, 1);
                     warn!("error while adding directory info: {}", e);
                 }
                 propagate_fatal_errors!(outcome);
@@ -483,13 +487,16 @@ async fn download_attempt<R: Runtime>(
             Err(e) => {
                 warn!("Error when expanding directory text: {}", e);
                 if let Some(source) = source {
+                    n_errors += 1;
                     note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
                 propagate_fatal_errors!(Err(e));
             }
         }
     }
-
+    if n_errors != 0 {
+        dirmgr.note_errors(attempt_id, n_errors);
+    }
     dirmgr.update_progress(attempt_id, state.bootstrap_progress());
 
     Ok(())
@@ -528,6 +535,7 @@ pub(crate) async fn download<R: Runtime>(
                 // If the load failed but the error can be blamed on a directory
                 // cache, do so.
                 if let Some(source) = e.responsible_cache() {
+                    dirmgr.note_errors(attempt_id, 1);
                     note_cache_error(dirmgr.circmgr()?.deref(), source, e);
                 }
             }

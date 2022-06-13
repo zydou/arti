@@ -614,6 +614,10 @@ impl<R: Runtime> DirMgr<R> {
                         "Unable to download a usable directory: {}.  We will restart in {:?}.",
                         err, delay
                     );
+                    {
+                        let dirmgr = upgrade_weak_ref(&weak)?;
+                        dirmgr.note_reset(attempt_id);
+                    }
                     schedule.sleep(delay).await;
                     state = state.reset();
                 } else {
@@ -713,6 +717,26 @@ impl<R: Runtime> DirMgr<R> {
         let mut status = sender.borrow_mut();
 
         status.update_progress(attempt_id, progress);
+    }
+
+    /// Update our status tracker to note that some number of errors has
+    /// occurred.
+    fn note_errors(&self, attempt_id: AttemptId, n_errors: usize) {
+        if n_errors == 0 {
+            return;
+        }
+        let mut sender = self.send_status.lock().expect("poisoned lock");
+        let mut status = sender.borrow_mut();
+
+        status.note_errors(attempt_id, n_errors);
+    }
+
+    /// Update our status tracker to note that we've needed to reset our download attempt.
+    fn note_reset(&self, attempt_id: AttemptId) {
+        let mut sender = self.send_status.lock().expect("poisoned lock");
+        let mut status = sender.borrow_mut();
+
+        status.note_reset(attempt_id);
     }
 
     /// Try to make this a directory manager with read-write access to its

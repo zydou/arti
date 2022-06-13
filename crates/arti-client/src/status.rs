@@ -195,6 +195,7 @@ pub(crate) async fn report_status(
     skew_status: ClockSkewEvents,
 ) {
     /// Internal enumeration to combine incoming status changes.
+    #[allow(clippy::large_enum_variant)]
     enum Event {
         /// A connection status change
         Conn(ConnStatus),

@@ -250,6 +250,14 @@ pub struct DirBootstrapStatus {
 pub struct DirStatus {
     /// How much of the directory do we currently have?
     progress: DirProgress,
+    /// How many resets have been forced while fetching this directory?
+    n_resets: usize,
+    /// How many errors have we encountered since last we advanced the
+    /// 'progress' on this directory?
+    n_errors: usize,
+    /// How many times has an `update_progress` call not actually moved us
+    /// forward since we last advanced the 'progress' on this directory?
+    n_stalls: usize,
 }
 
 /// How much progress have we made in downloading a given directory?
@@ -410,12 +418,39 @@ impl DirBootstrapStatus {
         }
     }
 
-    /// Update this status by replacing the `DirProgress` in its current status (or its next status)
-    /// with `new_status`, as appropriate.
+    /// Update this status by replacing the `DirProgress` in its current status
+    /// (or its next status) with `new_status`, as appropriate.
     pub(crate) fn update_progress(&mut self, attempt_id: AttemptId, new_progress: DirProgress) {
         if let Some(status) = self.mut_status_for(attempt_id) {
+            let old_frac = status.frac();
             status.progress = new_progress;
+            let new_frac = status.frac();
+            if new_frac > old_frac {
+                // This download has made progress: clear our count of errors
+                // and stalls.
+                status.n_errors = 0;
+                status.n_stalls = 0;
+            } else {
+                // This download didn't make progress; increment the stall
+                // count.
+                status.n_stalls += 1;
+            }
             self.advance_status();
+        }
+    }
+
+    /// Update this status by noting that some errors have occurred in a given
+    /// download attempt.
+    pub(crate) fn note_errors(&mut self, attempt_id: AttemptId, n_errors: usize) {
+        if let Some(status) = self.mut_status_for(attempt_id) {
+            status.n_errors += n_errors;
+        }
+    }
+
+    /// Update this status by noting that we had to reset a given download attempt;
+    pub(crate) fn note_reset(&mut self, attempt_id: AttemptId) {
+        if let Some(status) = self.mut_status_for(attempt_id) {
+            status.n_resets += 1;
         }
     }
 }
@@ -668,6 +703,7 @@ mod test {
 
         let nothing = DirStatus {
             progress: DirProgress::NoConsensus { after: None },
+            ..Default::default()
         };
         let lifetime = netstatus::Lifetime::new(now, now + hour, now + hour * 2).unwrap();
         let unval = DirStatus {
@@ -676,6 +712,7 @@ mod test {
                 usable_lifetime: lifetime,
                 n_certs: (3, 5),
             },
+            ..Default::default()
         };
         let lifetime =
             netstatus::Lifetime::new(now + hour, now + hour * 2, now + hour * 3).unwrap();
@@ -686,6 +723,7 @@ mod test {
                 n_mds: (30, 40),
                 usable: false,
             },
+            ..Default::default()
         };
 
         // lifetime()
@@ -723,6 +761,7 @@ mod test {
 
         let ds = DirStatus {
             progress: DirProgress::NoConsensus { after: None },
+            ..Default::default()
         };
         assert_eq!(ds.to_string(), "fetching a consensus");
 
@@ -732,6 +771,7 @@ mod test {
                 usable_lifetime: lifetime.clone(),
                 n_certs: (3, 5),
             },
+            ..Default::default()
         };
         assert_eq!(ds.to_string(), "fetching authority certificates (3/5)");
 
@@ -742,6 +782,7 @@ mod test {
                 n_mds: (30, 40),
                 usable: false,
             },
+            ..Default::default()
         };
         assert_eq!(ds.to_string(), "fetching microdescriptors (30/40)");
 
@@ -752,6 +793,7 @@ mod test {
                 n_mds: (30, 40),
                 usable: true,
             },
+            ..Default::default()
         };
         assert_eq!(
             ds.to_string(),
@@ -786,10 +828,12 @@ mod test {
             current_id: Some(attempt1),
             current: DirStatus {
                 progress: dp1.clone(),
+                ..Default::default()
             },
             next_id: Some(attempt2),
             next: Some(DirStatus {
                 progress: dp2.clone(),
+                ..Default::default()
             }),
         };
 
@@ -833,6 +877,7 @@ mod test {
                 n_mds: (20, 40),
                 usable: true,
             },
+            ..Default::default()
         };
         bs.update_progress(attempt2, ds4.progress);
         assert!(bs.next.as_ref().is_none());
