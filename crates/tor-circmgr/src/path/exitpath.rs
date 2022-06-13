@@ -264,9 +264,7 @@ mod test {
     #[test]
     fn by_ports() {
         let mut rng = testing_rng();
-        let netdir = testnet::construct_netdir()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let ports = vec![TargetPort::ipv4(443), TargetPort::ipv4(1119)];
         let dirinfo = (&netdir).into();
         let config = PathConfig::default();
@@ -310,9 +308,7 @@ mod test {
     #[test]
     fn any_exit() {
         let mut rng = testing_rng();
-        let netdir = testnet::construct_netdir()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let dirinfo = (&netdir).into();
         let guards: OptDummyGuardMgr<'_> = None;
         let now = SystemTime::now();
@@ -387,9 +383,7 @@ mod test {
         use tor_guardmgr::GuardStatus;
 
         tor_rtcompat::test_with_all_runtimes!(|rt| async move {
-            let netdir = testnet::construct_netdir()
-                .unwrap_if_sufficient()
-                .unwrap();
+            let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
             let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
