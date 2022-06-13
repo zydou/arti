@@ -81,6 +81,7 @@ pub use crate::shared_ref::SharedMutArc;
 use crate::storage::{DynStore, Store};
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
+use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
 use tor_error::into_internal;
@@ -88,7 +89,8 @@ use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
 use futures::{channel::oneshot, stream::BoxStream, task::SpawnExt};
-use tor_rtcompat::{Runtime, SleepProviderExt};
+use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
+use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
 use std::ops::Deref;
@@ -134,6 +136,11 @@ pub trait DirProvider: NetDirProvider {
     /// Note that this stream can be lossy: the caller will not necessarily
     /// observe every event on the stream
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus>;
+
+    /// Return a [`TaskHandle`] that can be used to manage the download process.
+    fn download_task_handle(&self) -> Option<TaskHandle> {
+        None
+    }
 }
 
 // NOTE(eta): We can't implement this for Arc<DirMgr<R>> due to trait coherence rules, so instead
@@ -164,6 +171,10 @@ impl<R: Runtime> DirProvider for Arc<DirMgr<R>> {
 
     fn bootstrap_events(&self) -> BoxStream<'static, DirBootstrapStatus> {
         Box::pin(DirMgr::bootstrap_events(self))
+    }
+
+    fn download_task_handle(&self) -> Option<TaskHandle> {
+        Some(self.task_handle.clone())
     }
 }
 
@@ -231,29 +242,13 @@ pub struct DirMgr<R: Runtime> {
     /// A filter that gets applied to directory objects before we use them.
     #[cfg(feature = "dirfilter")]
     filter: crate::filter::FilterConfig,
-}
 
-/// RAII guard to reset an AtomicBool on drop.
-struct BoolResetter<'a> {
-    /// The bool to reset.
-    inner: &'a AtomicBool,
-    /// What value to store.
-    reset_to: bool,
-    /// What atomic ordering to use.
-    ordering: Ordering,
-}
+    /// A task schedule that can be used if we're bootstrapping.  If this is
+    /// None, then there's currently a scheduled task in progress.
+    task_schedule: Mutex<Option<TaskSchedule<R>>>,
 
-impl<'a> Drop for BoolResetter<'a> {
-    fn drop(&mut self) {
-        self.inner.store(self.reset_to, self.ordering);
-    }
-}
-
-impl<'a> BoolResetter<'a> {
-    /// Disarm the guard, consuming it to make it not reset any more.
-    fn disarm(self) {
-        std::mem::forget(self);
-    }
+    /// A task handle that we return to anybody who needs to manage our download process.
+    task_handle: TaskHandle,
 }
 
 /// The possible origins of a document.
@@ -377,10 +372,16 @@ impl<R: Runtime> DirMgr<R> {
 
         // Use a RAII guard to reset `bootstrap_started` to `false` if we return early without
         // completing bootstrap.
-        let resetter = BoolResetter {
-            inner: &self.bootstrap_started,
-            reset_to: false,
-            ordering: Ordering::SeqCst,
+        let reset_bootstrap_started = scopeguard::guard(&self.bootstrap_started, |v| {
+            v.store(false, Ordering::SeqCst);
+        });
+
+        let schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
+            Some(sched) => sched,
+            None => {
+                debug!("Attempted to bootstrap twice; ignoring.");
+                return Ok(());
+            }
         };
 
         // Try to load from the cache.
@@ -399,17 +400,30 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr_weak = Arc::downgrade(self);
         self.runtime
             .spawn(async move {
-                // NOTE: This is a daemon task.  It should eventually get
-                // treated as one.
+                // Use an RAII guard to make sure that when this task exits, the
+                // TaskSchedule object is put back.
+                //
+                // TODO(nick): Putting the schedule back isn't actually useful
+                // if the task exits _after_ we've bootstrapped for the first
+                // time, because of how bootstrap_started works.
+                let mut schedule = scopeguard::guard(schedule, |schedule| {
+                    if let Some(dm) = Weak::upgrade(&dirmgr_weak) {
+                        *dm.task_schedule.lock().expect("poisoned lock") = Some(schedule);
+                    }
+                });
 
                 // Don't warn when these are Error::ManagerDropped: that
                 // means that the DirMgr has been shut down.
-                if let Err(e) = Self::reload_until_owner(&dirmgr_weak, &mut sender).await {
+                if let Err(e) =
+                    Self::reload_until_owner(&dirmgr_weak, &mut schedule, &mut sender).await
+                {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
                     }
-                } else if let Err(e) = Self::download_forever(dirmgr_weak, sender).await {
+                } else if let Err(e) =
+                    Self::download_forever(dirmgr_weak.clone(), &mut schedule, sender).await
+                {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while downloading: {}", e),
@@ -422,8 +436,8 @@ impl<R: Runtime> DirMgr<R> {
             match receiver.await {
                 Ok(()) => {
                     info!("We have enough information to build circuits.");
-                    // Disarm the RAII guard, since we succeeded.
-                    resetter.disarm();
+                    // Disarm the RAII guard, since we succeeded.  Now bootstrap_started will remain true.
+                    let _ = ScopeGuard::into_inner(reset_bootstrap_started);
                 }
                 Err(_) => {
                     warn!("Bootstrapping task exited before finishing.");
@@ -462,14 +476,13 @@ impl<R: Runtime> DirMgr<R> {
     /// If we eventually become the owner, return Ok().
     async fn reload_until_owner(
         weak: &Weak<Self>,
+        schedule: &mut TaskSchedule<R>,
         on_complete: &mut Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut logged = false;
         let mut bootstrapped;
-        let runtime;
         {
             let dirmgr = upgrade_weak_ref(weak)?;
-            runtime = dirmgr.runtime.clone();
             bootstrapped = dirmgr.netdir.get().is_some();
         }
 
@@ -504,7 +517,7 @@ impl<R: Runtime> DirMgr<R> {
             } else {
                 std::time::Duration::new(5, 0)
             };
-            runtime.sleep(pause).await;
+            schedule.sleep(pause).await;
             // TODO: instead of loading the whole thing we should have a
             // database entry that says when the last update was, or use
             // our state functions.
@@ -531,6 +544,7 @@ impl<R: Runtime> DirMgr<R> {
     /// message using `on_complete`.
     async fn download_forever(
         weak: Weak<Self>,
+        schedule: &mut TaskSchedule<R>,
         mut on_complete: Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut state: Box<dyn DirState> = {
@@ -548,11 +562,6 @@ impl<R: Runtime> DirMgr<R> {
             ))
         };
 
-        let runtime = {
-            let dirmgr = upgrade_weak_ref(&weak)?;
-            dirmgr.runtime.clone()
-        };
-
         loop {
             let mut usable = false;
 
@@ -567,7 +576,8 @@ impl<R: Runtime> DirMgr<R> {
 
             'retry_attempt: for _ in retry_config.attempts() {
                 let outcome =
-                    bootstrap::download(Weak::clone(&weak), &mut state, &mut on_complete).await;
+                    bootstrap::download(Weak::clone(&weak), &mut state, schedule, &mut on_complete)
+                        .await;
 
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
@@ -592,7 +602,7 @@ impl<R: Runtime> DirMgr<R> {
                         "Unable to download a usable directory: {}.  We will restart in {:?}.",
                         err, delay
                     );
-                    runtime.sleep(delay).await;
+                    schedule.sleep(delay).await;
                     state = state.reset();
                 } else {
                     info!("Directory is complete.");
@@ -617,7 +627,7 @@ impl<R: Runtime> DirMgr<R> {
 
             let reset_at = state.reset_time();
             match reset_at {
-                Some(t) => runtime.sleep_until_wallclock(t).await,
+                Some(t) => schedule.sleep_until_wallclock(t).await,
                 None => return Ok(()),
             }
             state = state.reset();
@@ -743,6 +753,10 @@ impl<R: Runtime> DirMgr<R> {
         #[cfg(feature = "dirfilter")]
         let filter = config.extensions.filter.clone();
 
+        // We create these early so the client code can access task_handle before bootstrap() returns.
+        let (task_schedule, task_handle) = TaskSchedule::new(runtime.clone());
+        let task_schedule = Mutex::new(Some(task_schedule));
+
         Ok(DirMgr {
             config: config.into(),
             store,
@@ -756,6 +770,8 @@ impl<R: Runtime> DirMgr<R> {
             bootstrap_started: AtomicBool::new(false),
             #[cfg(feature = "dirfilter")]
             filter,
+            task_schedule,
+            task_handle,
         })
     }
 
@@ -1364,32 +1380,5 @@ replacement line
             let expanded = mgr.expand_response_text(&r[0], diff);
             assert!(expanded.is_err());
         });
-    }
-
-    #[test]
-    #[allow(clippy::bool_assert_comparison)]
-    fn bool_resetter_works() {
-        let bool = AtomicBool::new(false);
-        fn example(bool: &AtomicBool) {
-            bool.store(true, Ordering::SeqCst);
-            let _resetter = BoolResetter {
-                inner: bool,
-                reset_to: false,
-                ordering: Ordering::SeqCst,
-            };
-        }
-        fn example_disarm(bool: &AtomicBool) {
-            bool.store(true, Ordering::SeqCst);
-            let resetter = BoolResetter {
-                inner: bool,
-                reset_to: false,
-                ordering: Ordering::SeqCst,
-            };
-            resetter.disarm();
-        }
-        example(&bool);
-        assert_eq!(bool.load(Ordering::SeqCst), false);
-        example_disarm(&bool);
-        assert_eq!(bool.load(Ordering::SeqCst), true);
     }
 }

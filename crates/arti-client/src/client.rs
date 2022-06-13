@@ -384,6 +384,7 @@ impl<R: Runtime> TorClient<R> {
         let mut periodic_task_handles = circmgr
             .launch_background_tasks(&runtime, &dirmgr, statemgr.clone())
             .map_err(ErrorDetail::CircMgrSetup)?;
+        periodic_task_handles.extend(dirmgr.download_task_handle());
 
         periodic_task_handles.extend(
             chanmgr
