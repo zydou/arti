@@ -281,12 +281,12 @@ impl Channel {
 
         let mut padding_timer = Box::pin(padding::Timer::new_disabled(
             sleep_prov,
-            padding::Parameters {
+            Some(padding::Parameters {
                 // From padding-spec.txt s2.2
                 // TODO support reduced padding
                 low_ms: 1500,
                 high_ms: 9500,
-            },
+            }),
         ));
         if std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != "" {
             padding_timer.as_mut().enable();

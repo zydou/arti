@@ -32,7 +32,9 @@ pub(crate) struct Timer<R: SleepProvider> {
     sleep_prov: R,
 
     /// Parameters controlling distribution of padding time intervals
-    parameters: PreparedParameters,
+    ///
+    /// Can be `None` to mean the timing parameters are set to infinity.
+    parameters: Option<PreparedParameters>,
 
     /// Gap that we intend to leave between last sent cell, and the padding
     ///
@@ -140,18 +142,23 @@ impl<R: SleepProvider> Timer<R> {
     /// Create a new `Timer`
     #[allow(dead_code)]
     pub(crate) fn new(sleep_prov: R, parameters: Parameters) -> Self {
-        let mut self_ = Self::new_disabled(sleep_prov, parameters);
-        // We would like to call select_fresh_timeout but we don't have
-        // (and can't have) Pin<&mut self>
-        self_.selected_timeout = Some(self_.parameters.select_timeout());
-        self_
+        let parameters = parameters.prepare();
+        let selected_timeout = parameters.select_timeout();
+        // Too different to new_disabled to share its code, sadly.
+        Timer {
+            sleep_prov,
+            parameters: Some(parameters),
+            selected_timeout: Some(selected_timeout),
+            trigger_at: None,
+            waker: None,
+        }
     }
 
     /// Create a new `Timer` which starts out disabled
-    pub(crate) fn new_disabled(sleep_prov: R, parameters: Parameters) -> Self {
+    pub(crate) fn new_disabled(sleep_prov: R, parameters: Option<Parameters>) -> Self {
         Timer {
             sleep_prov,
-            parameters: parameters.prepare(),
+            parameters: parameters.map(|p| p.prepare()),
             selected_timeout: None,
             trigger_at: None,
             waker: None,
@@ -182,11 +189,11 @@ impl<R: SleepProvider> Timer<R> {
         self.selected_timeout.is_some()
     }
 
-    /// Select a fresh timeout (and enable)
-    fn select_fresh_timeout(self: Pin<&mut Self>) -> Duration {
+    /// Select a fresh timeout (and enable, if possible)
+    fn select_fresh_timeout(self: Pin<&mut Self>) {
         let mut self_ = self.project();
-        let timeout = self_.parameters.select_timeout();
-        *self_.selected_timeout = Some(timeout);
+        let timeout = self_.parameters.as_ref().map(|p| p.select_timeout());
+        *self_.selected_timeout = timeout;
         // This is no longer valid; recalculate it on next poll
         *self_.trigger_at = None;
         // Timeout might be earlier, so we will need a new waker too.
@@ -195,7 +202,6 @@ impl<R: SleepProvider> Timer<R> {
         // However in the future we may want to be able to adjust the parameters at runtime
         // and then a stale waker might be harmfully too late.)
         self_.waker.set(None);
-        timeout
     }
 
     /// Note that data has been sent (ie, reset the timeout, delaying the next padding)
@@ -444,7 +450,17 @@ mod test {
         });
 
         let () = runtime.block_on(async {
-            let timer = Timer::new_disabled(runtime.clone(), parameters);
+            let timer = Timer::new_disabled(runtime.clone(), None);
+            assert! { timer.parameters.is_none() };
+            pin!(timer);
+            assert_not_ready(&mut timer).await;
+            assert! { timer.as_mut().selected_timeout.is_none() };
+            assert! { timer.as_mut().trigger_at.is_none() };
+        });
+
+        let () = runtime.block_on(async {
+            let timer = Timer::new_disabled(runtime.clone(), Some(parameters));
+            assert! { timer.parameters.is_some() };
             pin!(timer);
             assert_not_ready(&mut timer).await;
             runtime.advance(Duration::from_millis(3000)).await;
