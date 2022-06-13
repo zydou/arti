@@ -6,6 +6,7 @@ use std::pin::Pin;
 // TODO, coarsetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
 use std::time::{Duration, Instant};
 
+use derive_builder::Builder;
 use educe::Educe;
 use futures::future::{self, FusedFuture};
 use futures::FutureExt;
@@ -91,12 +92,22 @@ pub(crate) struct Timer<R: SleepProvider> {
 }
 
 /// Timing parameters, as described in `padding-spec.txt`
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub(crate) struct Parameters {
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Builder)]
+pub struct Parameters {
     /// Low end of the distribution of `X`
+    #[builder(default = "1500")]
     pub(crate) low_ms: u32,
     /// High end of the distribution of `X` (inclusive)
+    #[builder(default = "9500")]
     pub(crate) high_ms: u32,
+}
+
+impl Default for Parameters {
+    fn default() -> Self {
+        ParametersBuilder::default()
+            .build()
+            .expect("could not build default channel padding Parameters")
+    }
 }
 
 /// Timing parameters, "compiled" into a form which can be sampled more efficiently
