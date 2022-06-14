@@ -388,7 +388,7 @@ impl<R: Runtime> TorClient<R> {
 
         periodic_task_handles.extend(
             chanmgr
-                .launch_background_tasks(&runtime)
+                .launch_background_tasks(&runtime, dirmgr.clone().upcast_arc())
                 .map_err(ErrorDetail::ChanMgrSetup)?
                 .into_iter(),
         );

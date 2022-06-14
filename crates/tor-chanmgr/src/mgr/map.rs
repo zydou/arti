@@ -6,7 +6,9 @@ use super::{AbstractChannel, Pending};
 use crate::{Error, Result};
 
 use std::collections::{hash_map, HashMap};
+use std::sync::Arc;
 use tor_error::internal;
+use tor_proto::ChannelsConfig;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
@@ -26,6 +28,15 @@ struct Inner<C: AbstractChannel> {
     /// (Danger: this uses a blocking mutex close to async code.  This mutex
     /// must never be held while an await is happening.)
     channels: HashMap<C::Ident, ChannelState<C>>,
+
+    /// Configuration for channels that we create, and that all existing channels are using
+    ///
+    /// Will be updated by a background task, which also notifies all existing
+    /// `Open` channels via `channels.`
+    ///
+    /// (Must be protected by the same lock as `channels`, or a channel might be
+    /// created using being-replaced configuration, but not get an update.)
+    channels_config: ChannelsConfig,
 }
 
 /// Structure that can only be constructed from within this module.
@@ -131,9 +142,11 @@ impl<C: AbstractChannel> ChannelState<C> {
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
     pub(crate) fn new() -> Self {
+        let channels_config = ChannelsConfig::default();
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
+                channels_config,
             }),
         }
     }
@@ -151,6 +164,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
     /// Replace the channel state for `ident` with `newval`, and return the
     /// previous value if any.
+    #[cfg(test)]
     pub(crate) fn replace(
         &self,
         ident: C::Ident,
@@ -158,6 +172,27 @@ impl<C: AbstractChannel> ChannelMap<C> {
     ) -> Result<Option<ChannelState<C>>> {
         newval.check_ident(&ident)?;
         let mut inner = self.inner.lock()?;
+        Ok(inner.channels.insert(ident, newval))
+    }
+
+    /// Replace the channel state for `ident` with the return value from `func`,
+    /// and return the previous value if any.
+    ///
+    /// Passes a snapshot of the current global channels configuration to `func`.
+    /// If that configuration is copied by `func` into an [`AbstractChannel`]
+    /// `func` must ensure that that `BastractChannel` is returned,
+    /// so that it will be properly registered and receive config updates.
+    pub(crate) fn replace_with_config<F>(
+        &self,
+        ident: C::Ident,
+        func: F,
+    ) -> Result<Option<ChannelState<C>>>
+    where
+        F: FnOnce(&ChannelsConfig) -> Result<ChannelState<C>>,
+    {
+        let mut inner = self.inner.lock()?;
+        let newval = func(&inner.channels_config)?;
+        newval.check_ident(&ident)?;
         Ok(inner.channels.insert(ident, newval))
     }
 
@@ -229,6 +264,44 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
+    /// Handle a `NetDir` update (by reconfiguring channels as needed)
+    pub(crate) fn process_updated_netdir(&self, netdir: Arc<tor_netdir::NetDir>) -> Result<()> {
+        use ChannelState as CS;
+
+        let padding_parameters = {
+            // TODO use the netdir instead
+            let p = tor_proto::channel::padding::Parameters::default();
+
+            // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
+            // before we take the channel map lock.
+            drop(netdir);
+            p
+        };
+
+        let mut inner = self.inner.lock()?;
+        let update = inner
+            .channels_config
+            .start_update()
+            .padding_parameters(padding_parameters)
+            .finish();
+        let update = if let Some(u) = update {
+            u
+        } else {
+            return Ok(());
+        };
+        let update = Arc::new(update);
+
+        for channel in inner.channels.values_mut() {
+            let channel = match channel {
+                CS::Open(OpenEntry { channel, .. }) => channel,
+                CS::Building(_) | CS::Poisoned(_) => continue,
+            };
+            // Ignore error (which simply means the channel is closed or gone)
+            let _ = channel.reconfigure(update.clone());
+        }
+        Ok(())
+    }
+
     /// Expire all channels that have been unused for too long.
     ///
     /// Return a Duration until the next time at which
@@ -248,6 +321,9 @@ impl<C: AbstractChannel> ChannelMap<C> {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use std::result::Result as StdResult;
+    use std::sync::Arc;
+    use tor_proto::channel::config::ChannelsConfigUpdates;
     #[derive(Eq, PartialEq, Clone, Debug)]
     struct FakeChannel {
         ident: &'static str,
@@ -264,6 +340,9 @@ mod test {
         }
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
+        }
+        fn reconfigure(&mut self, _updates: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
+            Ok(())
         }
     }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {

@@ -3514,6 +3514,7 @@ dependencies = [
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
+ "tor-netdir",
  "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
