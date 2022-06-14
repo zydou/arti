@@ -110,7 +110,7 @@ pub use config::{
 };
 pub use docid::DocId;
 pub use err::Error;
-pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus, DirStatus};
+pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
 pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
 

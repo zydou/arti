@@ -252,9 +252,7 @@ pub struct DirBootstrapStatus {
 /// The status for a single directory.
 #[derive(Clone, Debug, Default, derive_more::Display)]
 #[display(fmt = "{progress}")]
-// TODO(nickm): This does not have to be public, and probably shouldn't be: we'd
-// like to have DirBootstrapStatus be the only public item here.
-pub struct DirStatus {
+pub(crate) struct DirStatus {
     /// How much of the directory do we currently have?
     progress: DirProgress,
     /// How many resets have been forced while fetching this directory?
