@@ -194,7 +194,6 @@ impl<R: SleepProvider> Timer<R> {
     /// longer than either of the configured values.)
     ///
     /// Idempotent.
-    #[allow(dead_code)]
     pub(crate) fn reconfigure(self: &mut Pin<&mut Self>, parameters: &Parameters) {
         *self.as_mut().project().parameters = Some(parameters.prepare());
     }

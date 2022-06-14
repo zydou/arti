@@ -58,11 +58,13 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
 mod circmap;
 mod codec;
+pub mod config;
 mod handshake;
 pub mod padding;
 mod reactor;
 mod unique_id;
 
+pub use crate::channel::config::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit::celltypes::CreateResponse;
@@ -70,6 +72,7 @@ use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
+use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
@@ -288,7 +291,7 @@ impl Channel {
                 high_ms: 9500,
             }),
         ));
-        if std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != "" {
+        if interim_enable_by_env_var() {
             padding_timer.as_mut().enable();
         }
 
@@ -337,6 +340,18 @@ impl Channel {
     /// claimed that we had when we negotiated the connection.
     pub fn clock_skew(&self) -> ClockSkew {
         self.details.clock_skew
+    }
+
+    /// Reconfigure
+    ///
+    /// Returns `Err` if the channel was closed earlier
+    pub fn reconfigure(
+        &mut self,
+        updates: Arc<ChannelsConfigUpdates>,
+    ) -> StdResult<(), mpsc::SendError> {
+        self.control
+            .unbounded_send(CtrlMsg::ConfigUpdate(updates))
+            .map_err(|e| e.into_send_error())
     }
 
     /// Return an error if this channel is somehow mismatched with the
