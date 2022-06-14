@@ -311,6 +311,52 @@ pub(crate) enum DirProgress {
     },
 }
 
+/// A reported diagnostic for what kind of trouble we've seen while trying to
+/// bootstap a directory.
+///
+/// These blockages types are not yet terribly specific: if you encounter one,
+/// it's probably a good idea to check the logs to see what's really going on.
+///
+/// If you encounter connection blockage _and_ directory blockage at the same
+/// time, the connection blockage is almost certainly the real problem.
+//
+// TODO(nickm): At present these diagnostics aren't very helpful; they say too
+// much about _how we know_ that the process has gone wrong, but not so much
+// about _what the problem is_.  In the future, we may wish to look more closely
+// at what _kind_ of errors or resets we've seen, so we can report better
+// information. Probably, however, we should only do that after we get some
+// experience with which problems people encounter in practice, and what
+// diagnostics would be useful for them.
+#[derive(Clone, Debug, derive_more::Display)]
+#[non_exhaustive]
+pub enum DirBlockage {
+    /// We've been downloading information without error, but we haven't
+    /// actually been getting anything that we want.
+    ///
+    /// This might indicate that there's a problem with information propagating
+    /// through the Tor network, or it might indicate that a bogus consensus or
+    /// a bad clock has tricked us into asking for something that nobody has.
+    #[display(fmt = "Can't make progress.")]
+    Stalled,
+    /// We've gotten a lot of errors without making forward progress on our
+    /// bootstrap attempt.
+    ///
+    /// This might indicate that something's wrong with the Tor network, or that
+    /// there's something buggy with our ability to handle directory responses.
+    /// It might also indicate a malfunction on our directory guards, or a bug
+    /// on our retry logic.
+    #[display(fmt = "Too many errors without making progress.")]
+    TooManyErrors,
+    /// We've reset our bootstrap attempt a lot of times.
+    ///
+    /// This either indicates that we have been failing a lot for one of the
+    /// other reasons above, or that we keep getting served a consensus which
+    /// turns out, upon trying to fetch certificates, not to be usable.  It can
+    /// also indicate a bug in our retry logic.
+    #[display(fmt = "Had to reset bootstrapping too many times.")]
+    TooManyResets,
+}
+
 impl fmt::Display for DirProgress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         /// Format this time in a format useful for displaying
@@ -387,6 +433,23 @@ impl DirBootstrapStatus {
     /// directory.
     pub fn usable_at(&self, now: SystemTime) -> bool {
         self.current.progress.usable() && self.current.okay_to_use_at(now)
+    }
+
+    /// If there is a problem with our attempts to bootstrap, return a
+    /// corresponding DirBlockage.  
+    pub fn blockage(&self, now: SystemTime) -> Option<DirBlockage> {
+        if self.current.progress.usable() && self.current.declared_live_at(now) {
+            // The current directory is sufficient, and not even a little bit
+            // expired. There is no problem.
+            None
+        } else if let Some(cur_blockage) = self.current.blockage() {
+            // Any blockage in the "current" directory, if it exists, is more
+            // serious. Return that if we have it.
+            Some(cur_blockage)
+        } else {
+            // Return the blockage from the "next" directory, if any.
+            self.next.as_ref().and_then(DirStatus::blockage)
+        }
     }
 
     /// Return the appropriate DirStatus for `AttemptId`, constructing it if
@@ -494,6 +557,14 @@ impl DirStatus {
             .unwrap_or(false)
     }
 
+    /// Return true if the directory is valid at the given time, _unmodified_ by our
+    /// clock skew settings.
+    fn declared_live_at(&self, when: SystemTime) -> bool {
+        self.declared_lifetime()
+            .map(|lt| lt.valid_at(when))
+            .unwrap_or(false)
+    }
+
     /// As `frac`, but return None if this consensus is not valid at the given time,
     /// and down-rate expired consensuses that we're still willing to use.
     fn frac_at(&self, when: SystemTime) -> Option<f32> {
@@ -536,6 +607,31 @@ impl DirStatus {
                 ..
             } => 0.35 + (n_mds.0 as f32) / (n_mds.1 as f32) * 0.65,
             DirProgress::Validated { usable: true, .. } => 1.0,
+        }
+    }
+
+    /// If we think there is a problem with our bootstrapping process, return a
+    /// [`DirBlockage`] to describe it.
+    ///
+    /// The caller may want to also check `usable_at` to avoid reporting trouble
+    /// if the directory is currently usable.
+    fn blockage(&self) -> Option<DirBlockage> {
+        /// How many resets are sufficient for us to report a blockage?
+        const RESET_THRESHOLD: usize = 2;
+        /// How many errors are sufficient for us to report a blockage?
+        const ERROR_THRESHOLD: usize = 6;
+        /// How many no-progress download attempts are sufficient for us to
+        /// report a blockage?
+        const STALL_THRESHOLD: usize = 8;
+
+        if self.n_resets >= RESET_THRESHOLD {
+            Some(DirBlockage::TooManyResets)
+        } else if self.n_errors >= ERROR_THRESHOLD {
+            Some(DirBlockage::TooManyErrors)
+        } else if self.n_stalls >= STALL_THRESHOLD {
+            Some(DirBlockage::Stalled)
+        } else {
+            None
         }
     }
 }
