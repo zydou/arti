@@ -251,7 +251,7 @@ pub struct DirBootstrapStatus {
 
 /// The status for a single directory.
 #[derive(Clone, Debug, Default, derive_more::Display)]
-#[display(fmt = "{progress}")]
+#[display(fmt = "{0}", progress)]
 pub(crate) struct DirStatus {
     /// How much of the directory do we currently have?
     progress: DirProgress,
