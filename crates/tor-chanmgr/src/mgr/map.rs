@@ -70,9 +70,9 @@ impl<C: Clone> ChannelState<C> {
     /// For testing: either give the Open channel inside this state,
     /// or panic if there is none.
     #[cfg(test)]
-    fn unwrap_open(&self) -> C {
+    fn unwrap_open(&mut self) -> &mut C {
         match self {
-            ChannelState::Open(ent) => ent.clone().channel,
+            ChannelState::Open(ent) => &mut ent.channel,
             _ => panic!("Not an open channel"),
         }
     }
