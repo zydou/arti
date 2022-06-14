@@ -7,8 +7,11 @@ use crate::{Error, Result};
 
 use std::collections::{hash_map, HashMap};
 use std::sync::Arc;
-use tor_error::internal;
+use tor_error::{internal, into_internal};
+use tor_netdir::NetDir;
+use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::ChannelsConfig;
+use tracing::info;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
@@ -268,9 +271,22 @@ impl<C: AbstractChannel> ChannelMap<C> {
     pub(crate) fn process_updated_netdir(&self, netdir: Arc<tor_netdir::NetDir>) -> Result<()> {
         use ChannelState as CS;
 
+        // TODO support dormant mode
+        // TODO when entering/leaving dormant mode, send CELL_PADDING_NEGOTIATE to peers
+
+        // TODO when we support operation as a relay, inter-relay channels ought
+        // not to get padding.
         let padding_parameters = {
-            // TODO use the netdir instead
-            let p = tor_proto::channel::padding::Parameters::default();
+            let mut p = PaddingParametersBuilder::default();
+            update_padding_parameters_from_netdir(&mut p, &netdir).unwrap_or_else(|e| {
+                info!(
+                    "consensus channel padding parameters wrong, using defaults: {}",
+                    &e,
+                );
+            });
+            let p = p
+                .build()
+                .map_err(into_internal!("failed to build padding parameters"))?;
 
             // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
             // before we take the channel map lock.
@@ -315,6 +331,34 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
         ret
     }
+}
+
+/// Given a `NetDir`, update a `PaddingParametersBuilder` with channel padding parameters
+fn update_padding_parameters_from_netdir(
+    p: &mut PaddingParametersBuilder,
+    netdir: &NetDir,
+) -> StdResult<(), &'static str> {
+    let params = netdir.params();
+    // TODO support reduced padding via global client config,
+    // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
+    let (low, high) = (&params.nf_ito_low, &params.nf_ito_high);
+
+    let low: u32 = low
+        .get()
+        .try_into()
+        .map_err(|_| "low value out of range?!")?;
+    let high: u32 = high
+        .get()
+        .try_into()
+        .map_err(|_| "high value out of range?!")?;
+
+    if high > low {
+        return Err("high > low");
+    }
+
+    p.low_ms(low);
+    p.high_ms(high);
+    Ok(())
 }
 
 #[cfg(test)]
