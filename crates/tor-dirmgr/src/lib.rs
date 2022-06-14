@@ -376,11 +376,14 @@ impl<R: Runtime> DirMgr<R> {
             v.store(false, Ordering::SeqCst);
         });
 
-        let schedule = match self.task_schedule.lock().expect("poisoned lock").take() {
-            Some(sched) => sched,
-            None => {
-                debug!("Attempted to bootstrap twice; ignoring.");
-                return Ok(());
+        let schedule = {
+            let sched = self.task_schedule.lock().expect("poisoned lock").take();
+            match sched {
+                Some(sched) => sched,
+                None => {
+                    debug!("Attempted to bootstrap twice; ignoring.");
+                    return Ok(());
+                }
             }
         };
 
