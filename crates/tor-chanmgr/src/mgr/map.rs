@@ -6,6 +6,7 @@ use super::{AbstractChannel, Pending};
 use crate::{Error, Result};
 
 use std::collections::{hash_map, HashMap};
+use std::result::Result as StdResult;
 use std::sync::Arc;
 use tor_error::{internal, into_internal};
 use tor_netdir::NetDir;
@@ -373,6 +374,7 @@ mod test {
         ident: &'static str,
         usable: bool,
         unused_duration: Option<u64>,
+        config_update: Option<Arc<ChannelsConfigUpdates>>,
     }
     impl AbstractChannel for FakeChannel {
         type Ident = u8;
@@ -385,7 +387,8 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reconfigure(&mut self, _updates: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
+        fn reconfigure(&mut self, update: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
+            self.config_update = Some(update);
             Ok(())
         }
     }
@@ -394,6 +397,7 @@ mod test {
             ident,
             usable: true,
             unused_duration: None,
+            config_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -409,6 +413,7 @@ mod test {
             ident,
             usable: true,
             unused_duration,
+            config_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -420,6 +425,7 @@ mod test {
             ident,
             usable: false,
             unused_duration: None,
+            config_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
