@@ -34,6 +34,6 @@ tracing = "0.1.18"
 float_eq = "1.0.0"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
+tor-netdir = { path = "../tor-netdir", version = "0.3.0", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
-

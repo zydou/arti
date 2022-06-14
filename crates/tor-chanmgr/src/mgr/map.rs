@@ -533,6 +533,55 @@ mod test {
     }
 
     #[test]
+    fn reconfigure_via_netdir() {
+        let map = ChannelMap::new();
+
+        // Set some non-default parameters so that we can tell when an update happens
+        let _ = map
+            .inner
+            .lock()
+            .unwrap()
+            .channels_config
+            .start_update()
+            .padding_parameters(
+                PaddingParametersBuilder::default()
+                    .low_ms(1234)
+                    .build()
+                    .unwrap(),
+            )
+            .finish();
+
+        assert!(map.replace(b't', ch("track")).unwrap().is_none());
+
+        let netdir = tor_netdir::testnet::construct_netdir()
+            .unwrap_if_sufficient()
+            .unwrap();
+        let netdir = Arc::new(netdir);
+
+        let with_ch = |f: &dyn Fn(&mut FakeChannel)| {
+            let mut inner = map.inner.lock().unwrap();
+            let ch = inner.channels.get_mut(&b't').unwrap().unwrap_open();
+            f(ch);
+        };
+
+        eprintln!("-- process a default netdir, which should send an update --");
+        map.process_updated_netdir(netdir.clone()).unwrap();
+        with_ch(&|ch| {
+            assert_eq!(
+                format!("{:?}", ch.config_update.take().unwrap()),
+                // evade field visibility by (ab)using Debug impl
+                "ChannelsConfigUpdates { padding_enable: None, \
+                        padding_parameters: Some(Parameters { low_ms: 1500, high_ms: 9500 }) }"
+            );
+        });
+        eprintln!();
+
+        eprintln!("-- process a default netdir again, which should *not* send an update --");
+        map.process_updated_netdir(netdir.clone()).unwrap();
+        with_ch(&|ch| assert_eq!(ch.config_update, None));
+    }
+
+    #[test]
     fn expire_channels() {
         let map = ChannelMap::new();
 
