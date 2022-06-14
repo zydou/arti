@@ -345,9 +345,10 @@ async fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     attempt_id: AttemptId,
-    changed: &mut bool,
+    changed_out: &mut bool,
 ) -> Result<()> {
     let missing = state.missing_docs();
+    let mut changed = false;
     let outcome: Result<()> = if missing.is_empty() {
         trace!("Found no missing documents; can't advance current state");
         Ok(())
@@ -362,13 +363,16 @@ async fn load_once<R: Runtime>(
             load_documents_from_store(&missing, store.deref())?
         };
 
-        state.add_from_cache(documents, changed)
+        state.add_from_cache(documents, &mut changed)
     };
 
-    // We have to update the status here regardless of the outcome: even if
-    // there was an error, we might have received partial information that
-    // changed our status.
-    dirmgr.update_progress(attempt_id, state.bootstrap_progress());
+    // We have to update the status here regardless of the outcome, if we got
+    // any information: even if there was an error, we might have received
+    // partial information that changed our status.
+    if changed {
+        dirmgr.update_progress(attempt_id, state.bootstrap_progress());
+        *changed_out = true;
+    }
 
     outcome
 }
