@@ -281,6 +281,9 @@ impl Store for SqliteStore {
     }
     fn expire_all(&mut self, expiration: &ExpirationConfig) -> Result<()> {
         let tx = self.conn.transaction()?;
+        // This works around a false positive; see
+        //   https://github.com/rust-lang/rust-clippy/issues/8114
+        #[allow(clippy::let_and_return)]
         let expired_blobs: Vec<String> = {
             let mut stmt = tx.prepare(FIND_EXPIRED_EXTDOCS)?;
             let names = stmt
