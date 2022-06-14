@@ -184,6 +184,21 @@ impl<R: SleepProvider> Timer<R> {
         }
     }
 
+    /// Set this `Timer`'s parameters
+    ///
+    /// Will not enable or disable the timer; that must be done separately if desired.
+    ///
+    /// The effect may not be immediate: if we are already in a gap between cells,
+    /// that existing gap may not be adjusted.
+    /// (We don't *restart* the timer since that would very likely result in a gap
+    /// longer than either of the configured values.)
+    ///
+    /// Idempotent.
+    #[allow(dead_code)]
+    pub(crate) fn reconfigure(self: &mut Pin<&mut Self>, parameters: &Parameters) {
+        *self.as_mut().project().parameters = Some(parameters.prepare());
+    }
+
     /// Enquire whether this `Timer` is currently enabled
     pub(crate) fn is_enabled(&self) -> bool {
         self.selected_timeout.is_some()
@@ -197,10 +212,6 @@ impl<R: SleepProvider> Timer<R> {
         // This is no longer valid; recalculate it on next poll
         *self_.trigger_at = None;
         // Timeout might be earlier, so we will need a new waker too.
-        // (Technically this is not possible in a bad way right now, since any stale waker
-        // must be older, and so earlier, albeit from a previous random timeout.
-        // However in the future we may want to be able to adjust the parameters at runtime
-        // and then a stale waker might be harmfully too late.)
         self_.waker.set(None);
     }
 
