@@ -1179,19 +1179,9 @@ impl GuardMgrInner {
         usage: &GuardUsage,
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
-        let (source, id) = self
-            .guards
+        self.guards
             .active_guards()
-            .pick_guard(usage, &self.params, now)?;
-        let guard = self
-            .guards
-            .active_guards()
-            .get(&id)
-            .expect("Selected guard that wasn't in our sample!?")
-            .get_external_rep();
-        let guard = self.guards.active_guards().filter().modify_hop(guard)?;
-
-        Ok((source, guard))
+            .pick_guard_ext(usage, &self.params, now)
     }
 
     /// Helper: Select a fallback directory.

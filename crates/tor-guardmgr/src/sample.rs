@@ -4,6 +4,7 @@
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::skew::SkewObservation;
+use crate::FirstHop;
 use crate::{
     ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
 };
@@ -749,8 +750,28 @@ impl GuardSet {
 
     /// Try to select a guard for a given `usage`.
     ///
+    /// On success, returns the kind of guard that we got, and its filtered
+    /// representation in a form suitable for use as a first hop.
+    pub(crate) fn pick_guard_ext(
+        &self,
+        usage: &GuardUsage,
+        params: &GuardParams,
+        now: Instant,
+    ) -> Result<(ListKind, FirstHop), PickGuardError> {
+        let (list_kind, id) = self.pick_guard(usage, params, now)?;
+        let first_hop = self
+            .get(&id)
+            .expect("Somehow selected a guard we don't know!")
+            .get_external_rep();
+        let first_hop = self.active_filter.modify_hop(first_hop)?;
+
+        Ok((list_kind, first_hop))
+    }
+
+    /// Try to select a guard for a given `usage`.
+    ///
     /// On success, returns the kind of guard that we got, and its identity.
-    pub(crate) fn pick_guard(
+    fn pick_guard(
         &self,
         usage: &GuardUsage,
         params: &GuardParams,

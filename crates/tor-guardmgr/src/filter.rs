@@ -104,7 +104,11 @@ impl SingleFilter {
         }
     }
 
-    /// Modify `first_hop` so that it contains no elements not permitted by this filter.
+    /// Modify `first_hop` so that it contains no elements not permitted by this
+    /// filter.
+    ///
+    /// It is an internal error to call this function on a guard not already
+    /// passed by `self.permits()`.
     fn modify_hop(
         &self,
         mut first_hop: crate::FirstHop,
@@ -115,6 +119,18 @@ impl SingleFilter {
                     .orports
                     .retain(|addr| patterns.iter().any(|pat| pat.matches_sockaddr(addr)));
                 if first_hop.orports.is_empty() {
+                    // TODO(nickm): The fact that this check needs to be checked
+                    // happen indicates a likely problem in our code design.
+                    // Right now, we have `modify_hop` and `permits` as separate
+                    // methods because our GuardSet logic needs a way to check
+                    // whether a guard will be permitted by a filter without
+                    // actually altering that guard (since another filter might
+                    // be used in the future that would allow the same guard).
+                    //
+                    // To mitigate the risk of hitting this error, we try to
+                    // make sure that modify_hop is always called right after
+                    // (or at least soon after) the filter is checked, with the
+                    // same filter object.
                     return Err(tor_error::internal!(
                         "Tried to apply an address filter to an unsupported guard"
                     )
