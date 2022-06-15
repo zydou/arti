@@ -172,14 +172,17 @@
 //!   [native-tls](https://github.com/sfackler/rust-native-tls) crate for TLS
 //!   support
 //! * `async-std` -- build with [async-std](https://async.rs/) support
-//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
-//!   crate for TLS support
 //!
 //! * `full` -- Build with all features above, along with all stable additive
 //!   features from other arti crates.  (This does not include experimental
 //!   features. It also does not include features that select a particular
 //!   implementation to the exclusion of another, or those that set a build
 //!   flag.)
+//!
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
+//!   crate for TLS support.  This is not included in `full`, since it uses the
+//!   `ring` crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
+//!   introduce licensing compatibility issues.
 //!
 //! Note that flags `tokio`, `native-tls`, `async-std`, `rustls` and `static`
 //! will enable the flags of the same name on the [`tor_rtcompat`] crate.
