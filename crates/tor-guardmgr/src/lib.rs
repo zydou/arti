@@ -732,7 +732,7 @@ impl GuardMgrInner {
                 Err(e) => warn!("Unusable guard parameters from consensus: {}", e),
             }
 
-            self.update_chosen_guard_set(netdir);
+            self.select_guard_set(netdir);
         }
 
         // Change the filter, if it doesn't match what the guards have.
@@ -786,13 +786,18 @@ impl GuardMgrInner {
 
     /// Update which guard set is active based on the current filter and the
     /// provided netdir.
-    fn update_chosen_guard_set(&mut self, netdir: &NetDir) {
+    ///
+    /// After calling this function, the new guard set's filter may be
+    /// out-of-date: be sure to call `set_filter` as appropriate.
+    fn select_guard_set(&mut self, netdir: &NetDir) {
         let frac_permitted = self.filter.frac_bw_permitted(netdir);
         // In general, we'd like to use the restricted set if we're under the
         // threshold, and the default set if we're over the threshold.  But if
         // we're sitting close to the threshold, we want to avoid flapping back
         // and forth, so we only change when we're more than 5% "off" from
         // whatever our current setting is.
+        //
+        // (See guard-spec section 2 for more information.)
         let offset = match self.guards.active_set {
             GuardSetSelector::Default => -0.05,
             GuardSetSelector::Restricted => 0.05,
