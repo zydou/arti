@@ -1181,7 +1181,7 @@ impl GuardMgrInner {
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         self.guards
             .active_guards()
-            .pick_guard_ext(usage, &self.params, now)
+            .pick_guard(usage, &self.params, now)
     }
 
     /// Helper: Select a fallback directory.
