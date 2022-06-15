@@ -591,8 +591,8 @@ impl<R: Runtime> GuardMgr<R> {
     ) {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-
-        for id in inner.lookup_ids(ed_identity, rsa_identity) {
+        let ids = inner.lookup_ids(ed_identity, rsa_identity);
+        for id in ids {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
                     inner.guards.active_guards_mut().record_failure(

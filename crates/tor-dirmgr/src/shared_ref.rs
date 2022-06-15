@@ -79,12 +79,12 @@ impl<T> SharedMutArc<T> {
         F: FnOnce(&mut T) -> Result<U>,
         T: Clone,
     {
-        match self
+        let mut writeable = self
             .dir
             .write()
-            .expect("Poisoned lock for directory reference")
-            .as_mut()
-        {
+            .expect("Poisoned lock for directory reference");
+        let dir = writeable.as_mut();
+        match dir {
             None => Err(Error::DirectoryNotPresent), // Kinda bogus.
             Some(arc) => func(Arc::make_mut(arc)),
         }
