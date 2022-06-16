@@ -13,7 +13,7 @@ use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
 use crate::Result;
 use tor_checkable::timed::TimerangeBound;
-use tor_config::{define_list_builder_accessors, ConfigBuildError};
+use tor_config::{define_list_builder_accessors, impl_standard_builder, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackDirBuilder;
 use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus::{self, Lifetime};
@@ -191,20 +191,9 @@ pub struct DirSkewTolerance {
     pub(crate) post_valid_tolerance: Duration,
 }
 
-impl Default for DirSkewTolerance {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default builder setting didn't work")
-    }
-}
+impl_standard_builder! { DirSkewTolerance }
 
 impl DirSkewTolerance {
-    /// Return a new builder to make a [`DirSkewTolerance`]
-    pub fn builder() -> DirSkewToleranceBuilder {
-        DirSkewToleranceBuilder::default()
-    }
-
     /// Return a new [`TimerangeBound`] that extends the validity interval of
     /// `timebound` according to this configuration.
     pub(crate) fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {
