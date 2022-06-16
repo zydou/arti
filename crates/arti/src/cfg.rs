@@ -170,7 +170,6 @@ mod test {
             let (parsed, unrecognized): (ArtiCombinedConfig, _) =
                 tor_config::resolve_return_unrecognized(cfg).unwrap();
 
-            let default = (ArtiConfig::default(), TorClientConfig::default());
             assert_eq!(&parsed, &default);
             assert_eq!(&parsed, &empty_config);
 
