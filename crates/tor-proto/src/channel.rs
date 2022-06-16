@@ -339,10 +339,10 @@ impl Channel {
     pub fn reconfigure(
         &mut self,
         updates: Arc<ChannelsConfigUpdates>,
-    ) -> StdResult<(), mpsc::SendError> {
+    ) -> StdResult<(), ChannelClosed> {
         self.control
             .unbounded_send(CtrlMsg::ConfigUpdate(updates))
-            .map_err(|e| e.into_send_error())
+            .map_err(|_| ChannelClosed)
     }
 
     /// Return an error if this channel is somehow mismatched with the
