@@ -9,7 +9,7 @@ use std::time::Duration;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use tor_basic_utils::retry::RetryDelay;
-use tor_config::ConfigBuildError;
+use tor_config::{impl_standard_builder, ConfigBuildError};
 
 /// Configuration for how many times to retry a download, with what
 /// frequency.
@@ -45,6 +45,8 @@ pub struct DownloadSchedule {
     parallelism: NonZeroU8,
 }
 
+impl_standard_builder! { DownloadSchedule }
+
 impl DownloadScheduleBuilder {
     /// Default value for retry_bootstrap in DownloadScheduleConfig.
     pub(crate) fn build_retry_bootstrap(&self) -> Result<DownloadSchedule, ConfigBuildError> {
@@ -66,14 +68,6 @@ impl DownloadScheduleBuilder {
     }
 }
 
-impl Default for DownloadSchedule {
-    fn default() -> Self {
-        DownloadSchedule::builder()
-            .build()
-            .expect("build default DownloadSchedule")
-    }
-}
-
 /// Helper for building a NonZero* field
 fn build_nonzero<NZ, I>(
     spec: Option<I>,
@@ -91,11 +85,6 @@ where
 }
 
 impl DownloadSchedule {
-    /// Return a new [`DownloadScheduleBuilder`]
-    pub fn builder() -> DownloadScheduleBuilder {
-        DownloadScheduleBuilder::default()
-    }
-
     /// Return an iterator to use over all the supported attempts for
     /// this configuration.
     pub fn attempts(&self) -> impl Iterator<Item = u32> {
