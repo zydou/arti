@@ -13,6 +13,9 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["tokio", "native-tls"]
+
+full = ["async-std", "tokio", "native-tls", "journald", "arti-client/full"]
+
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
@@ -21,6 +24,10 @@ static = ["static-sqlite", "static-native-tls"]
 static-sqlite = ["arti-client/static-sqlite"]
 static-native-tls = ["arti-client/static-native-tls", "native-tls"]
 journald = ["tracing-journald"]
+
+# This feature flag enables experimental features that are not supported. Turning it on may
+# void your API.
+experimental = ["arti-client/experimental"]
 
 [dependencies]
 anyhow = "1.0.23"

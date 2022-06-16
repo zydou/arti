@@ -15,18 +15,17 @@
 //!
 //! Note that Arti is a work in progress; although we've tried to write all the
 //! critical security components, you probably shouldn't use Arti in production
-//! until it's a bit more mature.  (That said, now is a _great_ time to try
-//! our Arti on an experimental basis, so you can tell us what we need
-//! to fix between now and the 1.0.0 release.)
+//! until it's a bit more mature.  (That said, now is a _great_ time to try our
+//! Arti on an experimental basis, so you can tell us what we need to fix
+//! between now and the 1.0.0 release.)
 //!
-//! Also note that the APIs for this crate are not all yet
-//! completely stable.  We'll try not to break things without good
-//! reason, and we'll follow semantic versioning when we do, but
-//! please expect a certain amount of breakage between now and 1.0.0.
+//! Also note that the APIs for this crate are not all yet completely stable.
+//! We'll try not to break things without good reason, and we'll follow semantic
+//! versioning when we do, but please expect a certain amount of breakage
+//! between now and 1.0.0.
 //!
-//! The APIs exposed by lower-level crates in Arti are _even more
-//! unstable_; they will break more often than those from
-//! `arti-client`, for less reason.
+//! The APIs exposed by lower-level crates in Arti are _even more unstable_;
+//! they will break more often than those from `arti-client`, for less reason.
 //!
 //! # Using `arti-client`
 //!
@@ -35,13 +34,13 @@
 //!
 //! ## Connecting to Tor
 //!
-//! Calling [`TorClient::create_bootstrapped`] establishes a connection to the Tor
-//! network, pulling in necessary state about network consensus as required.
+//! Calling [`TorClient::create_bootstrapped`] establishes a connection to the
+//! Tor network, pulling in necessary state about network consensus as required.
 //! This state gets persisted to the locations specified in the
 //! [`TorClientConfig`].
 //!
-//! (This method requires you to initialize the client in an `async fn`. Consider
-//! using the builder method, below, if that doesn't work for you.)
+//! (This method requires you to initialize the client in an `async fn`.
+//! Consider using the builder method, below, if that doesn't work for you.)
 //!
 //! ```no_run
 //! # use anyhow::Result;
@@ -63,12 +62,13 @@
 //!
 //! ## Creating a client and connecting later
 //!
-//! You might wish to create a Tor client immediately, without waiting for it to bootstrap (or
-//! having to use an `await`). This can be done by making a [`TorClientBuilder`] with
-//! [`TorClient::builder`], and calling [`TorClientBuilder::create_unbootstrapped`].
+//! You might wish to create a Tor client immediately, without waiting for it to
+//! bootstrap (or having to use an `await`). This can be done by making a
+//! [`TorClientBuilder`] with [`TorClient::builder`], and calling
+//! [`TorClientBuilder::create_unbootstrapped`].
 //!
-//! The returned client can be made to bootstrap when it is first used (the default), or not;
-//! see [`BootstrapBehavior`] for more details.
+//! The returned client can be made to bootstrap when it is first used (the
+//! default), or not; see [`BootstrapBehavior`] for more details.
 //!
 //! ```no_run
 //! # use anyhow::Result;
@@ -155,35 +155,62 @@
 //! runtimes; currently, both [Tokio](https://tokio.rs) and
 //! [async-std](https://async.rs) are supported.
 //!
-//! The backend Arti uses for TCP connections ([`tor_rtcompat::TcpProvider`]) and for
-//! creating TLS sessions ([`tor_rtcompat::TlsProvider`]) is also configurable using
-//! this crate. This can be used to embed Arti in custom environments where you want
-//! lots of control over how it uses the network.
+//! The backend Arti uses for TCP connections ([`tor_rtcompat::TcpProvider`])
+//! and for creating TLS sessions ([`tor_rtcompat::TlsProvider`]) is also
+//! configurable using this crate. This can be used to embed Arti in custom
+//! environments where you want lots of control over how it uses the network.
 //!
-//! [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more about these features.
+//! [**View the `tor_rtcompat` crate documentation**](tor_rtcompat) for more
+//! about these features.
 //!
 //! # Feature flags
 //!
-//! * `tokio` (default) -- build with [Tokio](https://tokio.rs/) support
-//! * `native-tls` (default) -- build with the [native-tls](https://github.com/sfackler/rust-native-tls)
-//!   crate for TLS support
-//! * `async-std` -- build with [async-std](https://async.rs/) support
-//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
-//! * `static` -- link with static versions of Arti's system dependencies, like SQLite and
-//!   OpenSSL (⚠ Warning ⚠: this feature will include a dependency on native-tls, even if you weren't
-//!   planning to use native-tls.  If you only want to build with a static sqlite library, enable the
-//!   `static-sqlite` feature.  We'll look for better solutions here in the future.)
-//! * `static-sqlite` -- link with a static version of sqlite.
-//! * `static-native-tls` -- link with a static version of `native-tls`. Enables `native-tls`.
-//! * `experimental-api` -- build with experimental, unstable API support. Note
-//!   that these APIs are NOT covered by semantic versioning guarantees: we might
-//!   break them or remove them between patch versions.
-//! * `error_detail` -- expose the `arti_client::Error` inner error type. Note
-//!   that this API is NOT covered by semantic versioning guarantees: we might
-//!   break it between patch versions.
+//! ## Additive features
 //!
-//! Note that flags `tokio`, `native-tls`, `async-std`, `rustls` and `static` will enable
-//! the flags of the same name on the [`tor_rtcompat`] crate.
+//! * `tokio` (default) -- build with [Tokio](https://tokio.rs/) support
+//! * `native-tls` (default) -- build with the
+//!   [native-tls](https://github.com/sfackler/rust-native-tls) crate for TLS
+//!   support
+//! * `async-std` -- build with [async-std](https://async.rs/) support
+//!
+//! * `full` -- Build with all features above, along with all stable additive
+//!   features from other arti crates.  (This does not include experimental
+//!   features. It also does not include features that select a particular
+//!   implementation to the exclusion of another, or those that set a build
+//!   flag.)
+//!
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
+//!   crate for TLS support.  This is not included in `full`, since it uses the
+//!   `ring` crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
+//!   introduce licensing compatibility issues.
+//!
+//! Note that flags `tokio`, `native-tls`, `async-std`, `rustls` and `static`
+//! will enable the flags of the same name on the [`tor_rtcompat`] crate.
+//!
+//! ## Build-flag related features
+//!
+//! * `static` -- link with static versions of Arti's system dependencies, like
+//!   SQLite and OpenSSL (⚠ Warning ⚠: this feature will include a dependency on
+//!   native-tls, even if you weren't planning to use native-tls.  If you only
+//!   want to build with a static sqlite library, enable the `static-sqlite`
+//!   feature.  We'll look for better solutions here in the future.)
+//! * `static-sqlite` -- link with a static version of sqlite.
+//! * `static-native-tls` -- link with a static version of `native-tls`. Enables
+//!   `native-tls`.
+//!
+//! ## Experimental and unstable features
+//!
+//!  Note that the APIs enabled by these features are NOT covered by semantic
+//!  versioning guarantees: we might break them or remove them between patch
+//!  versions.
+//!
+//! * `experimental-api` -- build with experimental, unstable API support.
+//! * `error_detail` -- expose the `arti_client::Error` inner error type.
+//! * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
+//!   directory before it is used.
+//!
+//! * `experimental` -- Build with all experimental features above, along with
+//!   all experimental features from other arti crates.
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![deny(missing_docs)]

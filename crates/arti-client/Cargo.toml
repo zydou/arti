@@ -13,22 +13,31 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = ["tokio", "native-tls"]
+# "full" is a top-level selector that turns on every feature, _EXCEPT FOR_:
+#   * Features that are experimental or unstable
+#   * Features that are testing-only
+#   * Features which are select a particular implementation or build flag and
+#     which therefore are not strictly additive.
+#   * Features which may introduce unnecessary licensing restrictions.
+full = ["tokio", "async-std", "native-tls", "tor-rtcompat/full", "tor-proto/full", "tor-netdoc/full", "tor-dirmgr/full"]
+
 async-std = ["tor-rtcompat/async-std"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 rustls = ["tor-rtcompat/rustls"]
+
 static = ["static-sqlite", "static-native-tls"]
 static-sqlite = ["tor-dirmgr/static"]
 static-native-tls = ["tor-rtcompat/static", "native-tls"]
-
-dirfilter = ["tor-dirmgr/dirfilter"]
-error_detail = []
 
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
+experimental = ["dirfilter", "experimental-api", "error_detail", "tor-proto/experimental", "tor-cell/experimental", "tor-checkable/experimental", "tor-netdoc/experimental", "tor-dirmgr/experimental", "tor-circmgr/experimental"]
 experimental-api = []
+dirfilter = ["tor-dirmgr/dirfilter"]
+error_detail = []
 
 [dependencies]
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
@@ -44,7 +53,9 @@ safelog = { path = "../safelog", version = "0.1.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.1" }
+tor-cell = { path = "../tor-cell", version = "0.3.1" }
 tor-chanmgr = { path = "../tor-chanmgr", version = "0.3.1" }
+tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.3.1" }
 tor-config = { path = "../tor-config", version = "0.4.0" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.4.0" }
