@@ -9,10 +9,10 @@ use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use tor_error::{internal, into_internal};
-use tor_netdir::NetDir;
+use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::ChannelsConfig;
-use tor_units::IntegerMilliseconds;
+use tor_units::BoundedInt32;
 use tracing::info;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
@@ -345,16 +345,14 @@ fn update_padding_parameters_from_netdir(
     // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
     let (low, high) = (&params.nf_ito_low, &params.nf_ito_high);
 
-    let low = IntegerMilliseconds::<u32>::new(
-        low.get()
-            .try_into()
-            .map_err(|_| "low value out of range?!")?,
-    );
-    let high = IntegerMilliseconds::<u32>::new(
-        high.get()
-            .try_into()
-            .map_err(|_| "high value out of range?!")?,
-    );
+    let conv_timing_param =
+        |bounded: BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>| bounded.get().try_into();
+    let low = low
+        .try_map(conv_timing_param)
+        .map_err(|_| "low value out of range?!")?;
+    let high = high
+        .try_map(conv_timing_param)
+        .map_err(|_| "high value out of range?!")?;
 
     if high > low {
         return Err("high > low");
