@@ -30,11 +30,24 @@ static = ["static-sqlite", "static-native-tls"]
 static-sqlite = ["tor-dirmgr/static"]
 static-native-tls = ["tor-rtcompat/static", "native-tls"]
 
+accel-sha1-asm = ["tor-llcrypto/with-sha1-asm"]
+accel-openssl = ["tor-llcrypto/with-openssl"]
+
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["dirfilter", "experimental-api", "error_detail", "tor-proto/experimental", "tor-cell/experimental", "tor-checkable/experimental", "tor-netdoc/experimental", "tor-dirmgr/experimental", "tor-circmgr/experimental"]
+experimental = [
+    "dirfilter",
+    "experimental-api",
+    "error_detail",
+    "tor-proto/experimental",
+    "tor-cell/experimental",
+    "tor-checkable/experimental",
+    "tor-netdoc/experimental",
+    "tor-dirmgr/experimental",
+    "tor-circmgr/experimental",
+]
 experimental-api = []
 dirfilter = ["tor-dirmgr/dirfilter"]
 error_detail = []
@@ -61,6 +74,7 @@ tor-config = { path = "../tor-config", version = "0.4.0" }
 tor-dirmgr = { path = "../tor-dirmgr", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.3.1" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.3.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.1" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.4.0" }
 tor-persist = { path = "../tor-persist", version = "0.4.0" }
 tor-proto = { path = "../tor-proto", version = "0.3.1" }

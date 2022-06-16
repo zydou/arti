@@ -14,6 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 with-openssl = ["openssl", "typenum", "cipher"]
+with-sha1-asm = ["sha-1/asm"]
 
 # Enable support for cryptography needed to be a Tor relay.
 relay = []

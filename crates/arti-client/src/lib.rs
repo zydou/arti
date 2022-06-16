@@ -198,6 +198,15 @@
 //! * `static-native-tls` -- link with a static version of `native-tls`. Enables
 //!   `native-tls`.
 //!
+//! ## Cryptographic acceleration features
+//!
+//! Libraries should not enable these by default, since they replace one
+//! implementation with another.
+//!
+//! * `accel-sha1-asm` -- Accelerate cryptography by using an assembly
+//!   implementation of SHA1, if one is available.
+//! * `accel-openssl` -- Accelerate cryptography by using openssl as a backend.
+//!
 //! ## Experimental and unstable features
 //!
 //!  Note that the APIs enabled by these features are NOT covered by semantic
