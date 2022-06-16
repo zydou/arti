@@ -24,6 +24,7 @@
 /// assert_eq!(Location::from_str("start"), Location::START);
 /// assert_eq!(Location::from_str("stfff"), Location::UNRECOGNIZED);
 /// ```
+#[allow(unknown_lints)] // We can remove once MSRV >= 1.63
 #[allow(unused_macro_rules)]
 macro_rules! decl_keyword {
     { $(#[$meta:meta])* $v:vis

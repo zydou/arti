@@ -18,16 +18,8 @@ default = ["tokio", "native-tls"]
 #   * Features that are testing-only
 #   * Features which are select a particular implementation or build flag and
 #     which therefore are not strictly additive.
-full = [
-    "tokio",
-    "async-std",
-    "native-tls",
-    "rustls",
-    "tor-rtcompat/full",
-    "tor-proto/full",
-    "tor-netdoc/full",
-    "tor-dirmgr/full",
-]
+#   * Features which may introduce unnecessary licensing restrictions.
+full = ["tokio", "async-std", "native-tls", "tor-rtcompat/full", "tor-proto/full", "tor-netdoc/full", "tor-dirmgr/full"]
 
 async-std = ["tor-rtcompat/async-std"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]

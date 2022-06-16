@@ -433,6 +433,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::print_stderr)]
     fn timeout_distribution() {
         // Test that the distribution of padding intervals is as we expect.  This is not so
         // straightforward.  We need to deal with true randomness (since we can't plumb a

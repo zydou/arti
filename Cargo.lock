@@ -3630,6 +3630,7 @@ dependencies = [
  "rand 0.8.5",
  "retry-error",
  "rusqlite",
+ "scopeguard",
  "serde",
  "signature",
  "tempfile",

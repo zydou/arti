@@ -96,7 +96,8 @@ impl StateMgr for TestingStateMgr {
     {
         let inner = self.inner.lock().expect("Lock poisoned.");
         let storage = inner.storage.lock().expect("Lock poisoned.");
-        match storage.entries.get(key) {
+        let content = storage.entries.get(key);
+        match content {
             Some(value) => Ok(Some(serde_json::from_str(value).map_err(load_error)?)),
             None => Ok(None),
         }

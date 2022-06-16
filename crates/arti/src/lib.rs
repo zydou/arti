@@ -50,7 +50,6 @@
 //!   disable tokio.
 //! * `native-tls` -- Build with support for the `native_tls` TLS backend.
 //!   (default)
-//! * `rustls` -- Build with support for the `rustls` TLS backend.
 //! * `journald` -- Build with support for logging to the `journald` logging
 //!   backend (available as part of systemd.)
 //!
@@ -59,6 +58,11 @@
 //!   features. It also does not include features that select a particular
 //!   implementation to the exclusion of another, or those that set a build
 //!   flag.)
+//!
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls)
+//!   TLS backend.  This is not included in `full`, since it uses the
+//!   `ring` crate, which uses the old (3BSD/SSLEay) OpenSSL license, which may
+//!   introduce licensing compatibility issues.
 //!
 //! ## Build-flag related features
 //!

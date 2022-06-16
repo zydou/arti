@@ -662,10 +662,7 @@ pub(crate) mod test {
     fn buildpath() {
         use crate::mgr::AbstractSpec;
         let mut rng = testing_rng();
-        let netdir = testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let di = (&netdir).into();
         let config = crate::PathConfig::default();
         let guards: OptDummyGuardMgr<'_> = None;

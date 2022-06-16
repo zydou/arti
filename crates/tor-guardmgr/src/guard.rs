@@ -1002,10 +1002,7 @@ mod test {
     #[test]
     fn netdir_integration() {
         use tor_netdir::testnet;
-        let netdir = testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         let params = GuardParams::default();
         let now = SystemTime::now();
 
@@ -1039,10 +1036,7 @@ mod test {
     #[test]
     fn update_from_netdir() {
         use tor_netdir::testnet;
-        let netdir = testnet::construct_netdir()
-            .unwrap()
-            .unwrap_if_sufficient()
-            .unwrap();
+        let netdir = testnet::construct_netdir().unwrap_if_sufficient().unwrap();
         // Same as above but omit [22]
         let netdir2 = testnet::construct_custom_netdir(|idx, mut node| {
             if idx == 22 {

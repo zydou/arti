@@ -153,9 +153,14 @@ impl Reconfigure {
 ///
 /// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/488>
 ///
+/// For consistency with other APIs in Arti, when using this,
+/// do not pass `setter(strip_option)` to derive_builder.
+///
 /// # ⚠ Stability Warning ⚠
 ///
 /// We hope to significantly change this so that it is an method in an extension trait.
+/// We may also make it able to support settings where the special "no such thing" value is
+/// not `T::Default`.
 //
 // This is an annoying AOI right now because you have to write things like
 //     #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
