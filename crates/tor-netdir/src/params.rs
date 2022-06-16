@@ -32,7 +32,7 @@ use tor_units::{
 ///   <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/586#note_2813638>
 /// pending an update to the specifications
 ///   <https://gitlab.torproject.org/tpo/core/torspec/-/issues/120>
-const CHANNEL_PADDING_TIMEOUT_UPPER_BOUND: i32 = 60_000;
+pub const CHANNEL_PADDING_TIMEOUT_UPPER_BOUND: i32 = 60_000;
 
 /// An object that can be constructed from an i32, with saturating semantics.
 pub trait FromInt32Saturating {
