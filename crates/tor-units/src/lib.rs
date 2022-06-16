@@ -318,6 +318,14 @@ impl<T: TryInto<u64>> IntegerMilliseconds<T> {
     pub fn new(value: T) -> Self {
         IntegerMilliseconds { value }
     }
+
+    /// Deconstructor
+    ///
+    /// Use only in contexts where it's no longer possible to
+    /// use the Rust type system to ensure secs vs ms vs us correctness.
+    pub fn as_millis(self) -> T {
+        self.value
+    }
 }
 
 impl<T: TryInto<u64>> TryFrom<IntegerMilliseconds<T>> for Duration {
@@ -350,6 +358,14 @@ impl<T: TryInto<u64>> IntegerSeconds<T> {
     pub fn new(value: T) -> Self {
         IntegerSeconds { value }
     }
+
+    /// Deconstructor
+    ///
+    /// Use only in contexts where it's no longer possible to
+    /// use the Rust type system to ensure secs vs ms vs us correctness.
+    pub fn as_secs(self) -> T {
+        self.value
+    }
 }
 
 impl<T: TryInto<u64>> TryFrom<IntegerSeconds<T>> for Duration {
@@ -379,6 +395,14 @@ impl<T> IntegerDays<T> {
     /// Public Constructor
     pub fn new(value: T) -> Self {
         IntegerDays { value }
+    }
+
+    /// Deconstructor
+    ///
+    /// Use only in contexts where it's no longer possible to
+    /// use the Rust type system to ensure secs vs ms vs us correctness.
+    pub fn as_days(self) -> T {
+        self.value
     }
 }
 
