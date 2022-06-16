@@ -172,7 +172,7 @@ pub struct DirSkewTolerance {
     ///
     /// Defaults to 1 day.
     #[builder(default = "Duration::from_secs(24 * 60 * 60)")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) pre_valid_tolerance: Duration,
 
     /// For how long after a directory document is valid should we consider it
@@ -187,7 +187,7 @@ pub struct DirSkewTolerance {
     /// [prop212]:
     ///     https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/212-using-old-consensus.txt
     #[builder(default = "Duration::from_secs(3 * 24 * 60 * 60)")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     pub(crate) post_valid_tolerance: Duration,
 }
 
