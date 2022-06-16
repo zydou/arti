@@ -1169,12 +1169,6 @@ checksum = "8ce81f49ae8a0482e4c55ea62ebbd7e5a686af544c00b9d090bba3ff9be97b3d"
 
 [[package]]
 name = "float_eq"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1d53499e94f9a7828e63c574adf62bcade7f358c3738f9ea70d7c2edb61023d"
-
-[[package]]
-name = "float_eq"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b59b6469c35ab601d6487d28879bccfbe8c896c33a3fe699c4d29817e552cc58"
@@ -3473,7 +3467,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "educe",
- "float_eq 1.0.0",
+ "float_eq",
  "futures",
  "futures-await-test",
  "hex-literal",
@@ -3615,7 +3609,7 @@ dependencies = [
  "digest 0.10.3",
  "educe",
  "event-listener",
- "float_eq 1.0.0",
+ "float_eq",
  "fs-mistrust",
  "fslock",
  "futures",
@@ -3685,7 +3679,7 @@ dependencies = [
  "derive_builder_fork_arti",
  "derive_more",
  "educe",
- "float_eq 1.0.0",
+ "float_eq",
  "futures",
  "humantime 2.1.0",
  "humantime-serde",
@@ -3763,7 +3757,7 @@ dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
  "derive_more",
- "float_eq 0.7.0",
+ "float_eq",
  "futures",
  "hex",
  "hex-literal",
