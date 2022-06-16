@@ -43,16 +43,18 @@ rust-checks:
   script:
     - rustup show
     - rustup component add rustfmt
-    - ./maint/via-cargo-install-in-ci cargo-audit cargo-sort cargo-license
+    - ./maint/via-cargo-install-in-ci cargo-audit cargo-sort cargo-license cargo-tree
     - cargo fmt -- --check
     - ./maint/check_licenses
     - ./maint/cargo_audit
     - ./maint/cargo_sort
+    - ./maint/check_tree
   cache:
     paths:
       - cargo-audit
       - cargo-sort
       - cargo-license
+      - cargo-tree
 
 rust-latest:
   stage: build

@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# Use cargo-tree to check our dependencies for crates which we must
+# not depend on unconditionally.
+
+
+forbid () {
+    local our_crate="$1"
+    local feature="$2"
+    local forbidden="$3"
+    if cargo tree -i "$forbidden" -p "$our_crate" --features "$feature" 2>/dev/null ; then
+        echo "Uh-oh: $forbidden has shown up in $our_crate/$feature."
+	exit 1
+    else
+        echo "Didn't find $forbidden in $our_crate/$feature.  Good."
+    fi
+}
+
+# We can't use these crates in arti/full, since they expose us to the old
+# OpenSSL (3BSD + SSLeay) license.
+forbid arti full ring
+forbid arti full webpki
+
+echo "Everything looks fine."
