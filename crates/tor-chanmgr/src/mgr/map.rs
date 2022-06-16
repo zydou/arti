@@ -577,7 +577,7 @@ mod test {
         eprintln!();
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
-        map.process_updated_netdir(netdir.clone()).unwrap();
+        map.process_updated_netdir(netdir).unwrap();
         with_ch(&|ch| assert_eq!(ch.config_update, None));
     }
 
