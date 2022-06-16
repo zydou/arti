@@ -155,7 +155,7 @@ build-repro:
     paths:
       - osxcross/target
   tags:
-    - TPA
+    - tpa
     - amd64
 
 integration:
