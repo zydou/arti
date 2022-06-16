@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use derive_builder::Builder;
+use educe::Educe;
 use fs_mistrust::Mistrust;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -95,8 +96,11 @@ pub struct LogfileConfig {
     filter: String,
 }
 
+impl_standard_builder! { LogfileConfig: !Default }
+
 /// How often to rotate a log file
-#[derive(Debug, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Educe, Serialize, Deserialize, Copy, Eq, PartialEq)]
+#[educe(Default)]
 #[non_exhaustive]
 #[serde(rename_all = "lowercase")]
 pub enum LogRotation {
@@ -105,20 +109,8 @@ pub enum LogRotation {
     /// Rotate logs hourly
     Hourly,
     /// Never rotate the log
+    #[educe(Default)]
     Never,
-}
-
-impl Default for LogRotation {
-    fn default() -> Self {
-        Self::Never
-    }
-}
-
-impl LogfileConfig {
-    /// Return a new [`LogfileConfigBuilder`]
-    pub fn builder() -> LogfileConfigBuilder {
-        LogfileConfigBuilder::default()
-    }
 }
 
 /// As [`Targets::from_str`], but wrapped in an [`anyhow::Result`].

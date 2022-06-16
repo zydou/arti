@@ -40,6 +40,7 @@ cfg-if = "1.0.0"
 clap = "2.33.0"
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
+educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.2.0" }
 futures = "0.3.14"
 notify = "4.0"

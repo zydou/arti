@@ -5,7 +5,7 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use tor_config::{define_list_builder_helper, ConfigBuildError};
+use tor_config::{define_list_builder_helper, impl_standard_builder, ConfigBuildError};
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
 /// A single authority that signs a consensus directory.
@@ -31,15 +31,7 @@ pub struct Authority {
     pub v3ident: RsaIdentity,
 }
 
-impl Authority {
-    /// Return a new builder for constructing an [`Authority`].
-    ///
-    /// You only need this if you're using a non-default Tor network
-    /// with its own set of directory authorities.
-    pub fn builder() -> AuthorityBuilder {
-        AuthorityBuilder::default()
-    }
-}
+impl_standard_builder! { Authority: !Default }
 
 /// Authority list, built
 pub(crate) type AuthorityList = Vec<Authority>;

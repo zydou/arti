@@ -13,9 +13,8 @@ use crate::retry::{DownloadSchedule, DownloadScheduleBuilder};
 use crate::storage::DynStore;
 use crate::Result;
 use tor_checkable::timed::TimerangeBound;
-use tor_config::{define_list_builder_accessors, ConfigBuildError};
+use tor_config::{define_list_builder_accessors, impl_standard_builder, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackDirBuilder;
-use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus::{self, Lifetime};
 
 use derive_builder::Builder;
@@ -63,6 +62,8 @@ pub struct NetworkConfig {
     pub(crate) authorities: AuthorityList,
 }
 
+impl_standard_builder! { NetworkConfig }
+
 define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
@@ -70,25 +71,7 @@ define_list_builder_accessors! {
     }
 }
 
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        NetworkConfig {
-            fallback_caches: FallbackListBuilder::default()
-                .build()
-                .expect("build default fallbacks"),
-            authorities: AuthorityListBuilder::default()
-                .build()
-                .expect("unable to construct built-in authorities!?"),
-        }
-    }
-}
-
 impl NetworkConfig {
-    /// Return a new builder to construct a NetworkConfig.
-    pub fn builder() -> NetworkConfigBuilder {
-        NetworkConfigBuilder::default()
-    }
-
     /// Return the list of fallback directory caches from this configuration.
     pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
         &self.fallback_caches
@@ -146,20 +129,7 @@ pub struct DownloadScheduleConfig {
     pub(crate) retry_microdescs: DownloadSchedule,
 }
 
-impl Default for DownloadScheduleConfig {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default builder setting didn't work")
-    }
-}
-
-impl DownloadScheduleConfig {
-    /// Return a new builder to make a [`DownloadScheduleConfig`]
-    pub fn builder() -> DownloadScheduleConfigBuilder {
-        DownloadScheduleConfigBuilder::default()
-    }
-}
+impl_standard_builder! { DownloadScheduleConfig }
 
 /// Configuration for how much clock skew to tolerate in our directory information
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
@@ -191,20 +161,9 @@ pub struct DirSkewTolerance {
     pub(crate) post_valid_tolerance: Duration,
 }
 
-impl Default for DirSkewTolerance {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default builder setting didn't work")
-    }
-}
+impl_standard_builder! { DirSkewTolerance }
 
 impl DirSkewTolerance {
-    /// Return a new builder to make a [`DirSkewTolerance`]
-    pub fn builder() -> DirSkewToleranceBuilder {
-        DirSkewToleranceBuilder::default()
-    }
-
     /// Return a new [`TimerangeBound`] that extends the validity interval of
     /// `timebound` according to this configuration.
     pub(crate) fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {

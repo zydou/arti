@@ -15,7 +15,7 @@ mod set;
 use crate::ids::FallbackId;
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
-use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
+use tor_config::{define_list_builder_accessors, impl_standard_builder, list_builder::VecBuilder};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -46,6 +46,8 @@ pub struct FallbackDir {
     orports: Vec<SocketAddr>,
 }
 
+impl_standard_builder! { FallbackDir: !Default }
+
 define_list_builder_accessors! {
     struct FallbackDirBuilder {
         pub orports: [SocketAddr],
@@ -53,11 +55,6 @@ define_list_builder_accessors! {
 }
 
 impl FallbackDir {
-    /// Return a builder that can be used to make a `FallbackDir`.
-    pub fn builder() -> FallbackDirBuilder {
-        FallbackDirBuilder::default()
-    }
-
     /// Return a copy of this FallbackDir as a [`FirstHop`](crate::FirstHop)
     pub fn as_guard(&self) -> crate::FirstHop {
         crate::FirstHop {

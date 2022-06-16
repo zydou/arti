@@ -325,6 +325,7 @@ impl PreparedParameters {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 #[allow(clippy::bool_assert_comparison)]
+#[allow(clippy::print_stderr)]
 mod test {
     use super::*;
     use futures::future::ready;
