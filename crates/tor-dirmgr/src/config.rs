@@ -129,20 +129,7 @@ pub struct DownloadScheduleConfig {
     pub(crate) retry_microdescs: DownloadSchedule,
 }
 
-impl Default for DownloadScheduleConfig {
-    fn default() -> Self {
-        Self::builder()
-            .build()
-            .expect("default builder setting didn't work")
-    }
-}
-
-impl DownloadScheduleConfig {
-    /// Return a new builder to make a [`DownloadScheduleConfig`]
-    pub fn builder() -> DownloadScheduleConfigBuilder {
-        DownloadScheduleConfigBuilder::default()
-    }
-}
+impl_standard_builder! { DownloadScheduleConfig }
 
 /// Configuration for how much clock skew to tolerate in our directory information
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
