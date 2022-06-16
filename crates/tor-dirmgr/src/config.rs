@@ -15,7 +15,6 @@ use crate::Result;
 use tor_checkable::timed::TimerangeBound;
 use tor_config::{define_list_builder_accessors, impl_standard_builder, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackDirBuilder;
-use tor_guardmgr::fallback::FallbackListBuilder;
 use tor_netdoc::doc::netstatus::{self, Lifetime};
 
 use derive_builder::Builder;
@@ -63,6 +62,8 @@ pub struct NetworkConfig {
     pub(crate) authorities: AuthorityList,
 }
 
+impl_standard_builder! { NetworkConfig }
+
 define_list_builder_accessors! {
     struct NetworkConfigBuilder {
         pub fallback_caches: [FallbackDirBuilder],
@@ -70,25 +71,7 @@ define_list_builder_accessors! {
     }
 }
 
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        NetworkConfig {
-            fallback_caches: FallbackListBuilder::default()
-                .build()
-                .expect("build default fallbacks"),
-            authorities: AuthorityListBuilder::default()
-                .build()
-                .expect("unable to construct built-in authorities!?"),
-        }
-    }
-}
-
 impl NetworkConfig {
-    /// Return a new builder to construct a NetworkConfig.
-    pub fn builder() -> NetworkConfigBuilder {
-        NetworkConfigBuilder::default()
-    }
-
     /// Return the list of fallback directory caches from this configuration.
     pub fn fallback_caches(&self) -> &tor_guardmgr::fallback::FallbackList {
         &self.fallback_caches
