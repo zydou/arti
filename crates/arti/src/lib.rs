@@ -356,7 +356,21 @@ pub fn main_main() -> Result<()> {
     // logging messages from config parsing etc.  We can't set the global default subscriber
     // because we can only set it once.  The other ways involve a closure.  So we have a
     // closure for all the startup code which runs *before* we up set the logging properly.
-    let pre_config_logging_ret = (|| {
+    //
+    // There is no cooked way to print our program name, so we do it like this.  This
+    // closure is called to "make" a "Writer" for each message, so it runs at the right time:
+    // before each message.
+    let pre_config_logging_writer = || {
+        // Weirdly, with .without_time(), tracing produces messages with a leading space.
+        eprint!("arti:");
+        std::io::stderr()
+    };
+    let pre_config_logging = tracing_subscriber::fmt()
+        .without_time()
+        .with_writer(pre_config_logging_writer)
+        .finish();
+    let pre_config_logging = tracing::Dispatch::new(pre_config_logging);
+    let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
         let matches = clap_app.get_matches();
 
         let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
@@ -398,7 +412,7 @@ pub fn main_main() -> Result<()> {
             fs_mistrust_disabled,
             log_mistrust,
         ))
-    })()?;
+    })?;
     // Sadly I don't seem to be able to persuade rustfmt to format the two lists of
     // variable names identically.
     let (matches, cfg_sources, config, client_config, fs_mistrust_disabled, log_mistrust) =
