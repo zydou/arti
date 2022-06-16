@@ -140,7 +140,7 @@ use safelog::with_safe_logging_suppressed;
 use tor_config::ConfigurationSources;
 use tor_rtcompat::{BlockOn, Runtime};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::{info, warn};
 
@@ -281,7 +281,7 @@ pub fn main_main() -> Result<()> {
         }
     );
 
-    let matches =
+    let clap_app =
         App::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
             .long_version(&long_version as &str)
@@ -350,39 +350,60 @@ pub fn main_main() -> Result<()> {
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")
                     )
             )
-            .setting(AppSettings::SubcommandRequiredElseHelp)
-            .get_matches();
+            .setting(AppSettings::SubcommandRequiredElseHelp);
 
-    let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
-        | matches.is_present("disable-fs-permission-checks");
+    // Tracing doesn't log anything when there is no subscriber set.  But we want to see
+    // logging messages from config parsing etc.  We can't set the global default subscriber
+    // because we can only set it once.  The other ways involve a closure.  So we have a
+    // closure for all the startup code which runs *before* we up set the logging properly.
+    let pre_config_logging_ret = (|| {
+        let matches = clap_app.get_matches();
 
-    // A Mistrust object to use for loading our configuration.  Elsewhere, we
-    // use the value _from_ the configuration.
-    let cfg_mistrust = if fs_mistrust_disabled {
-        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
-    } else {
-        fs_mistrust::Mistrust::new()
-    };
+        let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
+            | matches.is_present("disable-fs-permission-checks");
 
-    let cfg_sources = {
-        let mut cfg_sources = ConfigurationSources::from_cmdline(
-            default_config_file()?,
-            matches.values_of_os("config-files").unwrap_or_default(),
-            matches.values_of("option").unwrap_or_default(),
-        );
-        cfg_sources.set_mistrust(cfg_mistrust);
-        cfg_sources
-    };
+        // A Mistrust object to use for loading our configuration.  Elsewhere, we
+        // use the value _from_ the configuration.
+        let cfg_mistrust = if fs_mistrust_disabled {
+            fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+        } else {
+            fs_mistrust::Mistrust::new()
+        };
 
-    let cfg = cfg_sources.load()?;
-    let (config, client_config) =
-        tor_config::resolve::<ArtiCombinedConfig>(cfg).context("read configuration")?;
+        let cfg_sources = {
+            let mut cfg_sources = ConfigurationSources::from_cmdline(
+                default_config_file()?,
+                matches.values_of_os("config-files").unwrap_or_default(),
+                matches.values_of("option").unwrap_or_default(),
+            );
+            cfg_sources.set_mistrust(cfg_mistrust);
+            cfg_sources
+        };
 
-    let log_mistrust = if fs_mistrust_disabled {
-        fs_mistrust::Mistrust::new_dangerously_trust_everyone()
-    } else {
-        client_config.fs_mistrust().clone()
-    };
+        let cfg = cfg_sources.load()?;
+        let (config, client_config) =
+            tor_config::resolve::<ArtiCombinedConfig>(cfg).context("read configuration")?;
+
+        let log_mistrust = if fs_mistrust_disabled {
+            fs_mistrust::Mistrust::new_dangerously_trust_everyone()
+        } else {
+            client_config.fs_mistrust().clone()
+        };
+
+        Ok::<_, Error>((
+            matches,
+            cfg_sources,
+            config,
+            client_config,
+            fs_mistrust_disabled,
+            log_mistrust,
+        ))
+    })()?;
+    // Sadly I don't seem to be able to persuade rustfmt to format the two lists of
+    // variable names identically.
+    let (matches, cfg_sources, config, client_config, fs_mistrust_disabled, log_mistrust) =
+        pre_config_logging_ret;
+
     let _log_guards = logging::setup_logging(
         config.logging(),
         &log_mistrust,
