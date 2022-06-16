@@ -3518,6 +3518,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
 ]
 
@@ -3899,6 +3900,7 @@ dependencies = [
  "tor-protover",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
  "typenum",
  "zeroize",

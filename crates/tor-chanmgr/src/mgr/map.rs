@@ -12,6 +12,7 @@ use tor_error::{internal, into_internal};
 use tor_netdir::NetDir;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::ChannelsConfig;
+use tor_units::IntegerMilliseconds;
 use tracing::info;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
@@ -344,14 +345,16 @@ fn update_padding_parameters_from_netdir(
     // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
     let (low, high) = (&params.nf_ito_low, &params.nf_ito_high);
 
-    let low: u32 = low
-        .get()
-        .try_into()
-        .map_err(|_| "low value out of range?!")?;
-    let high: u32 = high
-        .get()
-        .try_into()
-        .map_err(|_| "high value out of range?!")?;
+    let low = IntegerMilliseconds::<u32>::new(
+        low.get()
+            .try_into()
+            .map_err(|_| "low value out of range?!")?,
+    );
+    let high = IntegerMilliseconds::<u32>::new(
+        high.get()
+            .try_into()
+            .map_err(|_| "high value out of range?!")?,
+    );
 
     if high > low {
         return Err("high > low");
@@ -545,7 +548,7 @@ mod test {
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()
-                    .low_ms(1234)
+                    .low_ms(1234.into())
                     .build()
                     .unwrap(),
             )
@@ -571,7 +574,9 @@ mod test {
                 format!("{:?}", ch.config_update.take().unwrap()),
                 // evade field visibility by (ab)using Debug impl
                 "ChannelsConfigUpdates { padding_enable: None, \
-                        padding_parameters: Some(Parameters { low_ms: 1500, high_ms: 9500 }) }"
+                    padding_parameters: Some(Parameters { \
+                        low_ms: IntegerMilliseconds { value: 1500 }, \
+                        high_ms: IntegerMilliseconds { value: 9500 } }) }"
             );
         });
         eprintln!();

@@ -16,6 +16,7 @@ use tracing::error;
 
 use tor_cell::chancell::msg::Padding;
 use tor_rtcompat::SleepProvider;
+use tor_units::IntegerMilliseconds;
 
 /// Timer that organises wakeups when channel padding should be sent
 ///
@@ -97,11 +98,11 @@ pub(crate) struct Timer<R: SleepProvider> {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Builder)]
 pub struct Parameters {
     /// Low end of the distribution of `X`
-    #[builder(default = "1500")]
-    pub(crate) low_ms: u32,
+    #[builder(default = "1500.into()")]
+    pub(crate) low_ms: IntegerMilliseconds<u32>,
     /// High end of the distribution of `X` (inclusive)
-    #[builder(default = "9500")]
-    pub(crate) high_ms: u32,
+    #[builder(default = "9500.into()")]
+    pub(crate) high_ms: IntegerMilliseconds<u32>,
 }
 
 impl Default for Parameters {
@@ -330,8 +331,8 @@ impl Parameters {
     fn prepare(self) -> PreparedParameters {
         PreparedParameters {
             x_distribution_ms: rand::distributions::Uniform::new_inclusive(
-                self.low_ms,
-                self.high_ms,
+                self.low_ms.as_millis(),
+                self.high_ms.as_millis(),
             ),
         }
     }
@@ -383,8 +384,8 @@ mod test {
         let runtime = tor_rtmock::MockSleepRuntime::new(runtime);
 
         let parameters = Parameters {
-            low_ms: 1000,
-            high_ms: 1000,
+            low_ms: 1000.into(),
+            high_ms: 1000.into(),
         };
 
         let () = runtime.block_on(async {
@@ -552,8 +553,8 @@ mod test {
             let mut obs = [0_u32; n];
 
             let params = Parameters {
-                low_ms: min,
-                high_ms: max - 1, // convert exclusive to inclusive
+                low_ms: min.into(),
+                high_ms: (max - 1).into(), // convert exclusive to inclusive
             }
             .prepare();
 
