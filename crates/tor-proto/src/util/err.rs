@@ -59,8 +59,8 @@ pub enum Error {
     #[error("circuit protocol violation: {0}")]
     CircProto(String),
     /// Channel is closed.
-    #[error("channel closed")]
-    ChannelClosed,
+    #[error("{0}")]
+    ChannelClosed(#[from] ChannelClosed),
     /// Circuit is closed.
     #[error("circuit closed")]
     CircuitClosed,
@@ -93,6 +93,17 @@ pub enum Error {
     /// Remote DNS lookup failed.
     #[error("remote resolve failed: {0}")]
     ResolveError(ResolveError),
+}
+
+/// Error which indicates that the channel was closed
+#[derive(Error, Debug, Clone)]
+#[error("channel closed")]
+pub struct ChannelClosed;
+
+impl HasKind for ChannelClosed {
+    fn kind(&self) -> ErrorKind {
+        ErrorKind::CircuitCollapse
+    }
 }
 
 /// Details about an error received while resolving a domain
@@ -135,7 +146,7 @@ impl From<Error> for std::io::Error {
 
             EndReceived(end_reason) => end_reason.into(),
 
-            ChannelClosed | CircuitClosed => ErrorKind::ConnectionReset,
+            CircuitClosed => ErrorKind::ConnectionReset,
 
             BytesErr(_)
             | BadCellAuth
@@ -143,6 +154,7 @@ impl From<Error> for std::io::Error {
             | HandshakeProto(_)
             | ChanProto(_)
             | HandshakeCertsExpired { .. }
+            | ChannelClosed(_)
             | CircProto(_)
             | CellErr(_)
             | ChanMismatch(_)
@@ -175,7 +187,8 @@ impl HasKind for Error {
             E::HandshakeCertsExpired { .. } => EK::ClockSkew,
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::CircProto(_) => EK::TorProtocolViolation,
-            E::ChannelClosed | E::CircuitClosed => EK::CircuitCollapse,
+            E::ChannelClosed(e) => e.kind(),
+            E::CircuitClosed => EK::CircuitCollapse,
             E::IdRangeFull => EK::BadApiUsage,
             E::CircRefused(_) => EK::CircuitRefused,
             E::BadStreamAddress => EK::BadApiUsage,
@@ -203,6 +216,11 @@ pub(crate) enum ReactorError {
 impl From<Error> for ReactorError {
     fn from(e: Error) -> ReactorError {
         ReactorError::Err(e)
+    }
+}
+impl From<ChannelClosed> for ReactorError {
+    fn from(e: ChannelClosed) -> ReactorError {
+        ReactorError::Err(e.into())
     }
 }
 #[cfg(test)]

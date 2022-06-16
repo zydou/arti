@@ -9,7 +9,7 @@ use crate::crypto::cell::{
     ClientLayer, CryptInit, HopNum, InboundClientCrypt, InboundClientLayer, OutboundClientCrypt,
     OutboundClientLayer, RelayCellBody, Tor1RelayCrypto,
 };
-use crate::util::err::ReactorError;
+use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use std::collections::VecDeque;
 use std::marker::PhantomData;
@@ -633,7 +633,7 @@ impl Reactor {
 
             let _ = Pin::new(&mut self.channel)
                 .poll_flush(cx)
-                .map_err(|_| Error::ChannelClosed)?;
+                .map_err(|_| ChannelClosed)?;
             if create_message.is_some() {
                 Poll::Ready(Ok(create_message))
             } else if did_things {
@@ -673,7 +673,7 @@ impl Reactor {
             futures::future::poll_fn(|cx| -> Poll<Result<()>> {
                 let _ = Pin::new(&mut self.channel)
                     .poll_flush(cx)
-                    .map_err(|_| Error::ChannelClosed)?;
+                    .map_err(|_| ChannelClosed)?;
                 Poll::Ready(Ok(()))
             })
             .await?;

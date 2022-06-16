@@ -8,7 +8,7 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::circuit::halfcirc::HalfCirc;
-use crate::util::err::ReactorError;
+use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
@@ -130,7 +130,7 @@ impl<S: SleepProvider> Reactor<S> {
     /// used again.
     pub async fn run(mut self) -> Result<()> {
         if self.details.closed.load(Ordering::SeqCst) {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
         debug!("{}: Running reactor", &self);
         let result: Result<()> = loop {

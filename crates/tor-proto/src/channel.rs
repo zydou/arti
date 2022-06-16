@@ -68,6 +68,7 @@ pub use crate::channel::config::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit::celltypes::CreateResponse;
+use crate::util::err::ChannelClosed;
 use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
@@ -155,13 +156,13 @@ impl Sink<ChanCell> for Channel {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_ready(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn start_send(self: Pin<&mut Self>, cell: ChanCell) -> Result<()> {
         let this = self.get_mut();
         if this.details.closed.load(Ordering::SeqCst) {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
         this.check_cell(&cell)?;
         {
@@ -179,21 +180,21 @@ impl Sink<ChanCell> for Channel {
 
         Pin::new(&mut this.cell_tx)
             .start_send(cell)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_flush(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_close(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 }
 
@@ -428,7 +429,7 @@ impl Channel {
         &self,
     ) -> Result<(circuit::PendingClientCirc, circuit::reactor::Reactor)> {
         if self.is_closing() {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
 
         // TODO: blocking is risky, but so is unbounded.
@@ -442,8 +443,8 @@ impl Channel {
                 sender,
                 tx,
             })
-            .map_err(|_| Error::ChannelClosed)?;
-        let (id, circ_unique_id) = rx.await.map_err(|_| Error::ChannelClosed)??;
+            .map_err(|_| ChannelClosed)?;
+        let (id, circ_unique_id) = rx.await.map_err(|_| ChannelClosed)??;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
@@ -473,7 +474,7 @@ impl Channel {
     pub fn close_circuit(&self, circid: CircId) -> Result<()> {
         self.control
             .unbounded_send(CtrlMsg::CloseCircuit(circid))
-            .map_err(|_| Error::ChannelClosed)?;
+            .map_err(|_| ChannelClosed)?;
         Ok(())
     }
 }
