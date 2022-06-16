@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 
 default = []
-full = ["async-std", "tokio", "native-tls", "rustls"]
+full = ["async-std", "tokio", "native-tls"]
 
 async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
 tokio = ["tokio-crate", "tokio-util", "async_executors/tokio_tp"]
