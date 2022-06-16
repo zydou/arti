@@ -96,6 +96,8 @@ pub struct LogfileConfig {
     filter: String,
 }
 
+impl_standard_builder! { LogfileConfig: !Default }
+
 /// How often to rotate a log file
 #[derive(Debug, Clone, Educe, Serialize, Deserialize, Copy, Eq, PartialEq)]
 #[educe(Default)]
@@ -109,13 +111,6 @@ pub enum LogRotation {
     /// Never rotate the log
     #[educe(Default)]
     Never,
-}
-
-impl LogfileConfig {
-    /// Return a new [`LogfileConfigBuilder`]
-    pub fn builder() -> LogfileConfigBuilder {
-        LogfileConfigBuilder::default()
-    }
 }
 
 /// As [`Targets::from_str`], but wrapped in an [`anyhow::Result`].
