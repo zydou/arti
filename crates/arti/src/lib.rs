@@ -355,7 +355,7 @@ pub fn main_main() -> Result<()> {
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
     // because we can only set it once.  The other ways involve a closure.  So we have a
-    // closure for all the startup code which runs *before* we up set the logging properly.
+    // closure for all the startup code which runs *before* we set the logging properly.
     //
     // There is no cooked way to print our program name, so we do it like this.  This
     // closure is called to "make" a "Writer" for each message, so it runs at the right time:
