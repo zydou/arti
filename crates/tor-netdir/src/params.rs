@@ -27,7 +27,12 @@ use tor_units::{
 /// This is just a safety catch which might help prevent integer overflow,
 /// and also might prevent a client getting permantently stuck in a state
 /// where it ought to send padding but never does.
-const CHANNEL_PADDING_TIMEOUT_UPPER_BOUND: i32 = 86400 * 1000;
+///
+/// The actual value is stolen from C Tor as per
+///   <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/586#note_2813638>
+/// pending an update to the specifications
+///   <https://gitlab.torproject.org/tpo/core/torspec/-/issues/120>
+const CHANNEL_PADDING_TIMEOUT_UPPER_BOUND: i32 = 60_000;
 
 /// An object that can be constructed from an i32, with saturating semantics.
 pub trait FromInt32Saturating {
