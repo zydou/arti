@@ -70,14 +70,11 @@ pub(super) enum CtrlMsg {
     },
     /// Enable/disable/reconfigure channel padding
     ///
-    /// `bool` is whether to send padding.
-    /// `padding::Parameters` is an optional update to the timing parameters;
-    /// if not present, previously stored parameters should be used.
-    ///
     /// The sender of these messages is responsible for the optimisation of
     /// ensuring that "no-change" messages are elided.
+    /// (This is implemented in `ChannelsConfigUpdatesBuilder`.)
     ///
-    /// This is done via a control message to avoid adding additional branches to the
+    /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
     ConfigUpdate(Arc<ChannelsConfigUpdates>),
 }
