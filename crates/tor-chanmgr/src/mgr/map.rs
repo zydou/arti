@@ -36,7 +36,7 @@ struct Inner<C: AbstractChannel> {
     /// Configuration for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
-    /// `Open` channels via `channels.`
+    /// `Open` channels via `channels`.
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced configuration, but not get an update.)
@@ -184,7 +184,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     ///
     /// Passes a snapshot of the current global channels configuration to `func`.
     /// If that configuration is copied by `func` into an [`AbstractChannel`]
-    /// `func` must ensure that that `BastractChannel` is returned,
+    /// `func` must ensure that that `AbstractChannel` is returned,
     /// so that it will be properly registered and receive config updates.
     pub(crate) fn replace_with_config<F>(
         &self,

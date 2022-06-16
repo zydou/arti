@@ -35,7 +35,7 @@ macro_rules! define_channels_config_and_automatic_impls { { $(
     /// This is used both to generate the initial configuration,
     /// and to handle updates:
     /// when used for handling updates,
-    /// it contains the last configuration that has bee implemented.
+    /// it contains the last configuration that has been implemented.
     ///
     /// Central code managing all channels will contain a `ChannelsConfig`,
     /// and use `ChannelsConfigUpdatesBuilder` to both update that config
