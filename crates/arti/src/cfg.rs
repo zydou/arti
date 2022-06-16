@@ -154,25 +154,33 @@ mod test {
         let empty_config = config::Config::builder().build().unwrap();
         let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
 
-        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
-        let cfg = config::Config::builder()
-            .add_source(config::File::from_str(&example, config::FileFormat::Toml))
-            .build()
-            .unwrap();
-
-        // This tests that the example settings do not *contradict* the defaults.
-        //
-        // Also we should ideally test that every setting from the config appears here in
-        // the file.  Possibly that could be done with some kind of stunt Deserializer,
-        // but it's not trivial.
-        let (parsed, unrecognized): (ArtiCombinedConfig, _) =
-            tor_config::resolve_return_unrecognized(cfg).unwrap();
-
         let default = (ArtiConfig::default(), TorClientConfig::default());
-        assert_eq!(&parsed, &default);
-        assert_eq!(&parsed, &empty_config);
 
-        assert_eq!(unrecognized, &[]);
+        let parses_to_defaults = |example: &str| {
+            let cfg = config::Config::builder()
+                .add_source(config::File::from_str(example, config::FileFormat::Toml))
+                .build()
+                .unwrap();
+
+            // This tests that the example settings do not *contradict* the defaults.
+            //
+            // Also we should ideally test that every setting from the config appears here in
+            // the file.  Possibly that could be done with some kind of stunt Deserializer,
+            // but it's not trivial.
+            let (parsed, unrecognized): (ArtiCombinedConfig, _) =
+                tor_config::resolve_return_unrecognized(cfg).unwrap();
+
+            assert_eq!(&parsed, &default);
+            assert_eq!(&parsed, &empty_config);
+
+            assert_eq!(unrecognized, &[]);
+            parsed
+        };
+
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);
+
+        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
+        let parsed = parses_to_defaults(&example);
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),

@@ -30,7 +30,7 @@ pub struct DownloadSchedule {
     /// The amount of time to delay after the first failure, and a
     /// lower-bound for future delays.
     #[builder(default = "Duration::from_millis(1000)")]
-    #[builder_field_attr(serde(with = "humantime_serde::option"))]
+    #[builder_field_attr(serde(default, with = "humantime_serde::option"))]
     initial_delay: Duration,
 
     /// When we want to download a bunch of these at a time, how many
