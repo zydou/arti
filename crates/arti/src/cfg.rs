@@ -177,7 +177,7 @@ mod test {
             parsed
         };
 
-        let _ = parses_to_defaults(&ARTI_EXAMPLE_CONFIG);
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);
 
         let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
         let parsed = parses_to_defaults(&example);
