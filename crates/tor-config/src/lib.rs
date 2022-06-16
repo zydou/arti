@@ -283,7 +283,7 @@ macro_rules! impl_standard_builder {
         $( // expands iff there was $Builder, which is always Builder
             impl $crate::load::$Builder for [< $Config Builder >] {
                 type Built = $Config;
-                fn build(&self) -> Result<$Config, $crate::ConfigBuildError> {
+                fn build(&self) -> std::result::Result<$Config, $crate::ConfigBuildError> {
                     [< $Config Builder >]::build(self)
                 }
             }
