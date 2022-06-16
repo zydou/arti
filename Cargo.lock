@@ -89,6 +89,7 @@ dependencies = [
  "clap",
  "config",
  "derive_builder_fork_arti",
+ "educe",
  "fs-mistrust",
  "futures",
  "itertools",
