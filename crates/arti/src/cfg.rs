@@ -16,6 +16,13 @@ use crate::{LoggingConfig, LoggingConfigBuilder};
 /// the actual defaults are done via builder attributes in all the Rust config structs.
 pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-config.toml"),);
 
+/// Test case file for the oldest version of the config we still support.
+///
+/// (When updating, copy `arti-example-config.toml` from the earliest version we want to
+/// be compatible with.)
+#[cfg(test)]
+const OLDEST_SUPPORTED_CONFIG: &str = concat!(include_str!("./oldest-supported-config.toml"),);
+
 /// Structure to hold our application configuration options
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
@@ -193,15 +200,17 @@ mod test {
         };
 
         let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);
+        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG);
 
-        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
-        let parsed = parses_to_defaults(&example);
+        let parsed = parses_to_defaults(&uncomment_example_settings(ARTI_EXAMPLE_CONFIG));
+        let parsed_old = parses_to_defaults(&uncomment_example_settings(OLDEST_SUPPORTED_CONFIG));
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
             TorClientConfigBuilder::default().build().unwrap(),
         );
         assert_eq!(&parsed, &built_default);
+        assert_eq!(&parsed_old, &built_default);
         assert_eq!(&default, &built_default);
     }
 
@@ -297,13 +306,12 @@ mod test {
         assert_eq!(&config.proxy, proxy);
     }
 
-    #[test]
-    fn exhaustive() {
+    fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
         use itertools::Itertools;
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
 
-        let example = uncomment_example_settings(ARTI_EXAMPLE_CONFIG);
+        let example = uncomment_example_settings(example_file);
         let example: toml::Value = toml::from_str(&example).unwrap();
         // dbg!(&example);
         let example = serde_json::to_value(&example).unwrap();
@@ -388,7 +396,12 @@ mod test {
 
         // When adding things here, check that `arti-example-config.toml`
         // actually has something about these particular config keys.
-        let expect_missing = ["tor_network.authorities", "tor_network.fallback_caches"];
+        dbg!(&expect_missing);
+        let expect_missing: Vec<&str> = ["tor_network.authorities", "tor_network.fallback_caches"]
+            .into_iter()
+            .chain(expect_missing.iter().cloned())
+            .collect_vec();
+        dbg!(&expect_missing);
 
         for exp in expect_missing {
             let was = problems.len();
@@ -407,7 +420,22 @@ mod test {
             .collect_vec();
 
         assert! { problems.is_empty(),
-        "example config exhaustiveness check failed:\n{}\n",
-        problems.join("\n")}
+        "example config exhaustiveness check failed for {:?}:\n{}\n",
+        example_file, problems.join("\n")}
+    }
+
+    #[test]
+    fn exhaustive() {
+        exhaustive_1(
+            ARTI_EXAMPLE_CONFIG,
+            // add *old*, obsoleted settings here
+            &[],
+        );
+
+        exhaustive_1(
+            OLDEST_SUPPORTED_CONFIG,
+            // add *new*, not present in old file, settings here
+            &[],
+        );
     }
 }

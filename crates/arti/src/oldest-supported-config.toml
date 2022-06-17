@@ -1,0 +1,274 @@
+# (Built-in defaults for the arti configuration format.)
+# (This is an example file you can use as a template or as documentation.)
+
+# Rules about how arti should behave as an application
+[application]
+# If true, we should watch our configuration files for changes.
+#
+# (Note that this feature may misbehave if you change symlinks in the
+# paths to the directory holding the configuration files, if you
+# remove and recreate those directories, or if those directories
+# change for some other reason.)
+#watch_configuration = false
+
+# If true, we should allow other processes run by the same user to inspect this
+# process's memory.
+#
+# (By default, assuming arti has been built with the `harden` feature flag, we
+# take what step we can, including disabling core dumps, to keep its memory and
+# state secret from other processes.)
+#
+#permit_debugging = false
+
+# Set up the Arti program to run as a proxy.
+[proxy]
+# Default port to use when listening to SOCKS connections.  We always
+# listen on localhost.
+#
+# Note that only one process can listen on a given port at a time.
+#socks_port = 9150
+
+# Port to use to listen for DNS requests.  0 means disabled.
+#dns_port = 0
+
+# Configure logging
+[logging]
+
+# Specify filtering directives for sending trace messages to the console
+# (via standard output).
+#
+# It can be as simple as a single loglevel, or as complicated as a
+# list with per-module settings.
+#
+# You can override this setting with the -l, --log-level command-line option.
+#
+# Example:
+#     trace_filter = "info,tor_proto::channel=trace"
+#
+# For more information, see https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html
+#console = "debug"
+
+# As above, but specify filtering directives for sending trace messages to 
+# the journald logging system.  Empty string means not to use journald.
+#journald = ""
+
+# You can also configure one or more log files, with different filters, and optional
+# rotation.
+#
+# For example (not the default):
+#files = [
+#         {path = "~/logs/debug.log", filter="debug"},
+#         {path = "~/logs/trace.log", filter="trace", rotate="daily"},
+#]
+
+# Whether to log sensitive information (such as target hostnames and ip addresses)
+#
+# If set to `false` (the default), such information is not logged in meessages of
+# level `info` or higher.
+#log_sensitive_information = false
+
+# Locations to use for storing things on disk.
+#
+# These paths can use ~ to indicate the user's home directory, or a set
+# of shell-style variables to indicate platform-specific paths.
+#
+# Supported variables are ARTI_CACHE, ARTI_CONFIG, ARTI_SHARED_DATA,
+# ARTI_LOCAL_DATA, and USER_HOME.
+#
+# Multiple processes can share the same cache_dir.  If they do, one of them
+# will download directory information for all of the others.
+#
+# The state directory is not yet used.
+[storage]
+#cache_dir = "${ARTI_CACHE}"
+#state_dir = "${ARTI_LOCAL_DATA}"
+
+# Describe how to enforce permissions on the filesystem when accessing the cache
+# and state directories.  (This does not apply to configuration files) 
+[storage.permissions]
+# If set to true, we ignore all filesystem permissions.
+#dangerously_trust_everyone = false
+
+# What user (if any) is trusted to own files and directories?  ":current" means
+# to trust the current user.
+#trust_user = ":current"
+
+# What group (if any) is trusted to have read/write access to files and
+# directories?  ":selfnamed" means to trust the group with the same name as the
+# current user, if that user is a member.
+#trust_group = ":username"
+
+# If set, gives a path prefix that will always be trusted.  For example, if this
+# option is set to "/home/", and we are checking "/home/username/.cache", then
+# we always accept the permissions on "/" and "/home", but we check the
+# permissions on "/home/username" and "/home/username/.cache".
+# 
+# (This is not the default.)
+#
+#     ignore_prefix = "/home/"
+#ignore_prefix = ""
+
+# Replacement values for consensus parameters.  This is an advanced option
+# and you probably should leave it alone. Not all parameters are supported.
+# These are case-sensitive.
+#
+[override_net_params]
+# For example (not the eefaults):
+#     circwindow = 1000
+#     min_paths_for_circs_pct = 60
+
+# Configuration for timing when and how often we should download directory
+# information.
+#
+# We use a randomized algorithm for determining when to retry. With
+# the various retry_* options, "num" is the number of downloads to
+# attempt, and "initial_delay" is a parameter determining both our
+# _first_ delay before we reattempt, and our _minimum_ delay for
+# subsequent attempts.
+[download_schedule]
+
+# How to retry our initial bootstrapping when we're trying to start up.
+#retry_bootstrap = { attempts = 128, initial_delay = "1 sec", parallelism = 1 }
+
+# How to retry a single consensus download.
+#retry_consensus = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
+
+# How to retry a set of authority certificate downloads.
+#retry_certs = { attempts = 3, initial_delay = "1 sec", parallelism = 1 }
+
+# How to retry a set of microdescriptor downloads.
+#retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
+
+# Information about how premature or expired our directories are allowed to be.
+#
+# These options help us tolerate clock skew, and help survive the case where the
+# directory authorities are unable to reach consensus for a while.
+[directory_tolerance]
+# For how long before a directory document is valid should we accept it?
+#pre_valid_tolerance = "1 day"
+
+# For how long after a directory document is valid should we consider it usable?
+#post_valid_tolerance = "3 days"
+
+# Tells the circuit manager rule for constructing circuit paths
+[path_rules]
+
+# How far apart do relays need to be in IP-space before they can be
+# used in the same circuit?  For example, "ipv4_subnet_family_prefix=16"
+# means that two relays cannot appear in the same circuit if their
+# IPv4 addresses begin with the same 16 bits.
+#ipv4_subnet_family_prefix = 16
+#ipv6_subnet_family_prefix = 32
+
+# Which addresses are we willing to contact directly?
+#
+# This option can be used to specify a set of addresses or ports that are
+# permitted: typically, because a local firewall blocks everything else.  For
+# example, [ "*:80", "*:443"] would only try to connect to relays on the network
+# that support port 80 or port 443. You can use prefix lengths and port ranges,
+# too: "198.51.100.0/24:1-1024" is a valid pattern.
+#
+# By default, all addresses and ports are permitted.
+#reachable_addrs = [ "*:*" ]
+
+# Configure preemptive circuit construction.
+#
+# Preemptive circuits are built ahead of time, to anticipate client need. This
+# section configures the way in which this demand is anticipated and in which
+# these circuits are constructed.
+[preemptive_circuits]
+# If we have at least this many available circuits, we suspend
+# construction of preemptive circuits. whether our available circuits
+# support our predicted exit ports or not.
+#disable_at_threshold = 12
+
+# At startup, which exit ports should we expect that the client will want?
+#
+# (Over time, new ports are added to this list in response to what the client
+# has actually requested.)
+#initial_predicted_ports = [80, 443]
+
+# After we see the client request a connection to a new port, how long should we
+# predict that the client will still want to have circuitsw available for that
+# port?
+#prediction_lifetime = "1 hour"
+
+# How many available circuits should we try to have, at minimum, for each
+# predicted exit port?
+#min_exit_circs_for_port = 2
+
+# Configuration information about the Tor network itself
+[tor_network]
+# List of locations to look in when downloading directory information
+# we don't actually have a directory yet.
+#   fallback_caches = [ <default list is compiled-in > ]
+
+# List of directory authorities which we expect to sign consensus documents.
+#   authorities = [ <default list is compiled-in > ]
+
+# Channels and their behaviour
+[channel]
+
+# Should we use reduced channel padding?  (This roughly halves the padding
+# cell frequency, and makes the padding unidrecteional, increasing the
+# traceability of the client connections.)
+# Or disable it entirely?
+#
+#padding = "normal"
+#   padding = "reduced"
+#   padding = "none"
+
+# Full manual control of the precise padding timing parameters is available
+# by setting `override_net_params.nf_ito_low` et al.
+# (See torpsec/padding-spec.txt section 3.4.)
+
+# Rules for how long circuits should survive, and how long pending
+# requests should wait for a circuit.
+[circuit_timing]
+
+# Once a circuit has been used for a request, we stop giving it out for
+# other requests after this time.
+#max_dirtiness = "10 minutes"
+
+# When a circuit is requested, we keep trying to build circuits for up
+# to this long before the request gives up.
+#request_timeout = "60 sec"
+
+# When a circuit is requested, we make up to this many attempts to build
+# circuits for it before the request gives up.
+#request_max_retries = 16
+
+# If a circuit is finished that would satisfy a pending request, but the
+# request is still waiting for its own circuits to complete, the request
+# will wait this long before using the unexpectedly available circuit.
+#request_loyalty = "50 msec"
+
+# Rules for which addresses a client is willing to try to connect to over
+# the tor network.
+[address_filter]
+
+# Should we allow attempts to make Tor connections to local addresses?
+#allow_local_addrs = false
+
+# Rules for how long streams should wait when connecting to host or performing a
+# DNS lookup.
+#
+# These timeouts measure the permitted time between sending a request on an
+# established circuit, and getting a response from the exit node.
+[stream_timeouts]
+
+# How long should we wait before timing out a stream when connecting to a host?
+#connect_timeout = "10 sec"
+
+# How long should we wait before timing out when resolving a DNS record?
+#resolve_timeout = "10 sec"
+
+# How long should we wait before timing out when resolving a DNS PTR record?
+#resolve_ptr_timeout = "10 sec"
+
+# Configuration for the system resources used by Arti.
+[system]
+
+# What is the maximum number of file descriptors which should be available
+# to Arti when we launch?
+#max_files = 16384
