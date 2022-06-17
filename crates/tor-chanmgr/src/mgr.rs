@@ -211,9 +211,9 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         // others, and return it.
                         self.channels
                             .replace_with_config(ident.clone(), |channels_config| {
-                                // This isn't great.  We switch to the newly-created channel
-                                // just to tell it how and whether to do padding.  Ideally we
-                                // would pass the config at some suitable point during
+                                // This isn't great.  We context switch to the newly-created
+                                // channel just to tell it how and whether to do padding.  Ideally
+                                // we would pass the config at some suitable point during
                                 // building.  However, that would involve the channel taking a
                                 // copy of the config, and that must happen in the same channel
                                 // manager lock acquisition span as the one where we insert the
