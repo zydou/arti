@@ -96,7 +96,9 @@
 //!   crate for TLS support
 //! * `static` -- link the native TLS library statically (enables the `vendored` feature of the
 //!   `native-tls` crate).
-//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support
+//! * `rustls` -- build with the [rustls](https://github.com/rustls/rustls) crate for TLS support.  Note that `rustls` uses the `ring` crate, which uses
+//!    the old (3BSD/SSLEay) OpenSSL license, which may introduce licensing
+//!    compatibility issues.
 //!
 //! By default, *this* crate doesn't enable any features. However, you're almost certainly
 //! using this as part of the `arti-client` crate, which will enable `tokio` and `native-tls` in

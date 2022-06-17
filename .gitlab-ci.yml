@@ -48,6 +48,7 @@ rust-checks:
     - ./maint/check_licenses
     - ./maint/cargo_audit
     - ./maint/cargo_sort
+    - ./maint/check_tree
   cache:
     paths:
       - cargo-audit

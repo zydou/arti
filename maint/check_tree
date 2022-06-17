@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+# Use cargo-tree to check our dependencies for crates which we must
+# not depend on unconditionally.
+
+set -eu
+
+forbid () {
+    local our_crate="$1"
+    local feature="$2"
+    local forbidden="$3"
+
+    set +e
+    cargo tree --prefix=none -p "$our_crate" --features "$feature" \
+	  --format="    {p}" | grep "^    $forbidden "
+    # Note that the space in the grep pattern above is necessary to
+    # make sure we don't match prefixes.  (The cargo tree output will be
+    # something like "    cratename v1.2.3".)
+
+    local result="${PIPESTATUS[*]}"
+    set -e
+
+    case "$result" in
+	"0 0")
+	    # cargo-tree succeeded, and so did grep: we found the
+	    # forbidden package.
+            echo "Uh-oh: $forbidden has shown up in $our_crate/$feature."
+    	    exit 1
+	    ;;
+	"0 1")
+	    # cargo-tree succeeded, and grep failed: we didn't find the
+	    # forbidden package.
+	    echo "Didn't find $forbidden in $our_crate/$feature.  Good."
+	    ;;
+	*)
+	    # cargo-tree failed (or maybe grep is gruesomely nonstandard)
+	    echo "cargo tree failed unexpectedly when checking for $forbidden in $our_crate/$feature" >&2
+	    exit 1
+	    ;;
+    esac
+}
+
+# We can't use these crates in arti/full, since they expose us to the old
+# OpenSSL (3BSD + SSLeay) license.
+forbid arti full ring
+forbid arti full webpki
+
+echo "Everything looks fine."
