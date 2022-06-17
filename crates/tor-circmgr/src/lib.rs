@@ -198,6 +198,7 @@ impl<R: Runtime> CircMgr<R> {
             storage.clone(),
             config.fallbacks().clone(),
         )?;
+        guardmgr.set_filter(config.path_rules().build_guard_filter(), None);
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -309,6 +310,12 @@ impl<R: Runtime> CircMgr<R> {
             .peek_builder()
             .guardmgr()
             .replace_fallback_list(new_config.fallbacks().clone());
+
+        let new_reachable = &new_config.path_rules().reachable_addrs;
+        if new_reachable != &old_path_rules.reachable_addrs {
+            let filter = new_config.path_rules().build_guard_filter();
+            self.mgr.peek_builder().guardmgr().set_filter(filter, None);
+        }
 
         let discard_circuits = !new_config
             .path_rules()

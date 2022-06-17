@@ -129,6 +129,7 @@ impl FallbackState {
         &self,
         rng: &mut R,
         now: Instant,
+        filter: &crate::GuardFilter,
     ) -> Result<&crate::FirstHop, PickGuardError> {
         if self.fallbacks.is_empty() {
             return Err(PickGuardError::NoCandidatesAvailable);
@@ -136,7 +137,7 @@ impl FallbackState {
 
         self.fallbacks
             .iter()
-            .filter(|ent| ent.status.usable_at(now))
+            .filter(|ent| ent.status.usable_at(now) && filter.permits(&ent.fallback))
             .choose(rng)
             .map(|ent| &ent.fallback)
             .ok_or_else(|| PickGuardError::AllFallbacksDown {
@@ -315,6 +316,7 @@ mod test {
         ];
         let list: FallbackList = fbs.into();
         let mut set: FallbackState = list.into();
+        let filter = crate::GuardFilter::unfiltered();
 
         let mut counts = [0_usize; 4];
         let now = Instant::now();
@@ -328,7 +330,7 @@ mod test {
         }
         // Basic case: everybody is up.
         for _ in 0..100 {
-            let fb = set.choose(&mut rng, now).unwrap();
+            let fb = set.choose(&mut rng, now, &filter).unwrap();
             let idx = lookup_idx(&set, fb.id()).unwrap();
             counts[idx] += 1;
         }
@@ -340,7 +342,7 @@ mod test {
         set.note_failure(&ids[2], now);
         counts = [0; 4];
         for _ in 0..100 {
-            let fb = set.choose(&mut rng, now).unwrap();
+            let fb = set.choose(&mut rng, now, &filter).unwrap();
             let idx = lookup_idx(&set, fb.id()).unwrap();
             counts[idx] += 1;
         }
@@ -352,14 +354,14 @@ mod test {
             set.note_failure(id, now);
         }
         assert!(matches!(
-            set.choose(&mut rng, now),
+            set.choose(&mut rng, now, &filter),
             Err(PickGuardError::AllFallbacksDown { .. })
         ));
 
         // Construct an empty set; make sure we get the right error.
         let empty_set = FallbackState::from(FallbackList::from(vec![]));
         assert!(matches!(
-            empty_set.choose(&mut rng, now),
+            empty_set.choose(&mut rng, now, &filter),
             Err(PickGuardError::NoCandidatesAvailable)
         ));
 

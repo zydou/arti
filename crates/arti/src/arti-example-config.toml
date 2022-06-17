@@ -148,6 +148,16 @@
 #ipv4_subnet_family_prefix = 16
 #ipv6_subnet_family_prefix = 32
 
+# Which addresses are we willing to contact directly?
+#
+# This option can be used to specify a set of addresses or ports that are
+# permitted: typically, because a local firewall blocks everything else.  For
+# example, [ "*:80", "*:443"] would only try to connect to relays on the network
+# that support port 80 or port 443. You can use prefix lengths and port ranges,
+# too: "198.51.100.0/24:1-1024" is a valid pattern.
+#
+# By default, all addresses and ports are permitted.
+#reachable_addrs = [ "*:*" ]
 
 # Configure preemptive circuit construction.
 #

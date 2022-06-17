@@ -130,7 +130,9 @@ impl Display for AddrPolicyRule {
 /// assert!(pat.matches(&localhost, 22));
 /// assert!(! pat.matches(&not_localhost, 22));
 /// ```
-#[derive(Clone, Debug)]
+#[derive(
+    Clone, Debug, Eq, PartialEq, serde_with::SerializeDisplay, serde_with::DeserializeFromStr,
+)]
 pub struct AddrPortPattern {
     /// A pattern to match somewhere between zero and all IP addresses.
     pattern: IpPattern,
@@ -139,6 +141,14 @@ pub struct AddrPortPattern {
 }
 
 impl AddrPortPattern {
+    /// Return an AddrPortPattern matching all targets.
+    pub fn new_all() -> Self {
+        Self {
+            pattern: IpPattern::Star,
+            ports: PortRange::new_all(),
+        }
+    }
+
     /// Return true iff this pattern matches a given address and port.
     pub fn matches(&self, addr: &IpAddr, port: u16) -> bool {
         self.pattern.matches(addr) && self.ports.contains(port)
@@ -176,7 +186,12 @@ impl FromStr for AddrPortPattern {
 }
 
 /// A pattern that matches one or more IP addresses.
-#[derive(Clone, Debug)]
+//
+// TODO(nickm): At present there is no way for Display or FromStr to distinguish
+// V4Star, V6Star, and Star.  If we decide it's important to have a syntax for
+// "all IPv4 addresses" that isn't "0.0.0.0/0", we'll need to revisit that.
+// At present, C tor allows '*', '*4', and '*6'.
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum IpPattern {
     /// Match all addresses.
     Star,
@@ -378,5 +393,26 @@ mod test {
             None
         );
         Ok(())
+    }
+
+    #[test]
+    fn serde() {
+        #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+        struct X {
+            p1: AddrPortPattern,
+            p2: AddrPortPattern,
+        }
+
+        let x = X {
+            p1: "127.0.0.1/8:9-10".parse().unwrap(),
+            p2: "*:80".parse().unwrap(),
+        };
+
+        let encoded = serde_json::to_string(&x).unwrap();
+        let expected = r#"{"p1":"127.0.0.1/8:9-10","p2":"*:80"}"#;
+        let x2: X = serde_json::from_str(&encoded).unwrap();
+        let x3: X = serde_json::from_str(expected).unwrap();
+        assert_eq!(&x2, &x3);
+        assert_eq!(&x2, &x);
     }
 }

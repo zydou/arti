@@ -75,9 +75,6 @@
 //!
 //! # Limitations
 //!
-//! * Only one guard selection is currently supported: we don't allow a
-//!   "filtered" or a "bridges" selection.
-//!
 //! * Our circuit blocking algorithm is simplified from the one that Tor uses.
 //!   See comments in `GuardSet::circ_usability_status` for more information.
 //!   See also [proposal 337](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/337-simpler-guard-usability.md).
@@ -209,6 +206,13 @@ struct GuardMgrInner {
     /// use, along with their relative priorities and statuses.
     guards: GuardSets,
 
+    /// The current filter that we're using to decide which guards are
+    /// supported.
+    //
+    // TODO: This field is duplicated in the current active [`GuardSet`]; we
+    // should fix that.
+    filter: GuardFilter,
+
     /// Configuration values derived from the consensus parameters.
     ///
     /// This is updated whenever the consensus parameters change.
@@ -267,16 +271,38 @@ struct GuardMgrInner {
     netdir_provider: Option<Weak<dyn NetDirProvider>>,
 }
 
+/// A selector that tells us which [`GuardSet`] of several is currently in use.
+#[derive(Clone, Debug, Eq, PartialEq, Educe)]
+#[educe(Default)]
+enum GuardSetSelector {
+    /// The default guard set is currently in use: that's the one that we use
+    /// when we have no filter installed, or the filter permits most of the
+    /// guards on the network.
+    #[educe(Default)]
+    Default,
+    /// A "restrictive" guard set is currently in use: that's the one that we
+    /// use when we have a filter that excludes a large fraction of the guards
+    /// on the network.
+    Restricted,
+}
+
 /// Persistent state for a guard manager, as serialized to disk.
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct GuardSets {
+    /// Which set of guards is currently in use?
+    #[serde(skip)]
+    active_set: GuardSetSelector,
+
     /// The default set of guards to use.
     ///
-    /// Right now, this is the _only_ `GuardSet` for each `GuardMgr`, but we
-    /// expect that to change: our algorithm specifies that there can
-    /// be multiple named guard sets, and we can swap between them
-    /// depending on the user's selected [`GuardFilter`].
+    /// We use this one when there is no filter, or the filter permits most of the
+    /// guards on the network.
     default: GuardSet,
+
+    /// A guard set to use when we have a restrictive filter.
+    #[serde(default)]
+    restricted: GuardSet,
 
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
@@ -316,6 +342,7 @@ impl<R: Runtime> GuardMgr<R> {
 
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
+            filter: GuardFilter::unfiltered(),
             last_primary_retry_time: runtime.now(),
             params: GuardParams::default(),
             ctrl,
@@ -450,55 +477,15 @@ impl<R: Runtime> GuardMgr<R> {
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
-    ///
-    /// (Since there is only one kind of filter right now, there's no
-    /// real reason to call this function, but at least it should work.
-    pub fn set_filter(&self, filter: GuardFilter, netdir: &NetDir) {
-        // First we have to see how much of the possible guard space
-        // this new filter allows.  (We don't use this info yet, but we will
-        // one we have nontrivial filters.)
-        let n_guards = netdir.relays().filter(|r| r.is_flagged_guard()).count();
-        let n_permitted = netdir
-            .relays()
-            .filter(|r| r.is_flagged_guard() && filter.permits(r))
-            .count();
-        let frac_permitted = if n_guards > 0 {
-            n_permitted as f64 / (n_guards as f64)
-        } else {
-            1.0
-        };
-
+    pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-
-        let restrictive_filter = frac_permitted < inner.params.filter_threshold;
-
-        // TODO: Once we support nontrivial filters, we might have to
-        // swap out "active_guards" depending on which set it is.
-
-        if frac_permitted < inner.params.extreme_threshold {
-            warn!(
-                "The number of guards permitted is smaller than the guard param minimum of {}%.",
-                inner.params.extreme_threshold * 100.0,
-            );
-        }
-
-        info!(
-            ?filter,
-            restrictive = restrictive_filter,
-            "Guard filter replaced."
-        );
-
-        inner
-            .guards
-            .active_guards_mut()
-            .set_filter(filter, restrictive_filter);
-        inner.update(now, Some(netdir));
+        inner.set_filter(filter, netdir, now);
     }
 
     /// Select a guard for a given [`GuardUsage`].
     ///
-    /// On success, we return a [`FirstHopId`] object to identify which
+    /// On success, we return a [`FirstHop`] object to identify which
     /// guard we have picked, a [`GuardMonitor`] object that the
     /// caller can use to report whether its attempt to use the guard
     /// succeeded or failed, and a [`GuardUsable`] future that the
@@ -674,12 +661,18 @@ impl GuardSets {
     /// complex filter types, and for bridge relays. Those will use separate
     /// `GuardSet` instances, and this accessor will choose the right one.)
     fn active_guards(&self) -> &GuardSet {
-        &self.default
+        match self.active_set {
+            GuardSetSelector::Default => &self.default,
+            GuardSetSelector::Restricted => &self.restricted,
+        }
     }
 
     /// Return a mutable reference to the currently active set of guards.
     fn active_guards_mut(&mut self) -> &mut GuardSet {
-        &mut self.default
+        match self.active_set {
+            GuardSetSelector::Default => &mut self.default,
+            GuardSetSelector::Restricted => &mut self.restricted,
+        }
     }
 
     /// Update all non-persistent state for the guards in this object with the
@@ -738,6 +731,20 @@ impl GuardMgrInner {
                 Ok(params) => self.params = params,
                 Err(e) => warn!("Unusable guard parameters from consensus: {}", e),
             }
+
+            self.select_guard_set(netdir);
+        }
+
+        // Change the filter, if it doesn't match what the guards have.
+        //
+        // TODO(nickm): We could use a "dirty" flag or something to decide
+        // whether we need to call set_filter, if this comparison starts to show
+        // up in profiles.
+        if self.guards.active_guards().filter() != &self.filter {
+            let restrictive = self.guards.active_set == GuardSetSelector::Restricted;
+            self.guards
+                .active_guards_mut()
+                .set_filter(self.filter.clone(), restrictive);
         }
 
         // Then expire guards.  Do that early, in case we need more.
@@ -759,16 +766,9 @@ impl GuardMgrInner {
             self.guards
                 .active_guards_mut()
                 .update_status_from_netdir(netdir);
-            loop {
-                let added_any = self.guards.active_guards_mut().extend_sample_as_needed(
-                    now,
-                    &self.params,
-                    netdir,
-                );
-                if !added_any {
-                    break;
-                }
-            }
+            self.guards
+                .active_guards_mut()
+                .extend_sample_as_needed(now, &self.params, netdir);
         }
 
         self.guards
@@ -782,6 +782,48 @@ impl GuardMgrInner {
         std::mem::swap(&mut self.guards, &mut new_guards);
         self.guards.copy_status_from(new_guards);
         self.update(now, None);
+    }
+
+    /// Update which guard set is active based on the current filter and the
+    /// provided netdir.
+    ///
+    /// After calling this function, the new guard set's filter may be
+    /// out-of-date: be sure to call `set_filter` as appropriate.
+    fn select_guard_set(&mut self, netdir: &NetDir) {
+        let frac_permitted = self.filter.frac_bw_permitted(netdir);
+        // In general, we'd like to use the restricted set if we're under the
+        // threshold, and the default set if we're over the threshold.  But if
+        // we're sitting close to the threshold, we want to avoid flapping back
+        // and forth, so we only change when we're more than 5% "off" from
+        // whatever our current setting is.
+        //
+        // (See guard-spec section 2 for more information.)
+        let offset = match self.guards.active_set {
+            GuardSetSelector::Default => -0.05,
+            GuardSetSelector::Restricted => 0.05,
+        };
+        let threshold = self.params.filter_threshold + offset;
+        let new_choice = if frac_permitted < threshold {
+            GuardSetSelector::Restricted
+        } else {
+            GuardSetSelector::Default
+        };
+
+        if new_choice != self.guards.active_set {
+            info!(
+                "Guard selection changed; we are now using the {:?} guard set",
+                &new_choice
+            );
+
+            self.guards.active_set = new_choice;
+
+            if frac_permitted < self.params.extreme_threshold {
+                warn!(
+                      "The number of guards permitted is smaller than the recommended minimum of {:.0}%.",
+                      self.params.extreme_threshold * 100.0,
+                );
+            }
+        }
     }
 
     /// Mark all of our primary guards as retriable, if we haven't done
@@ -803,6 +845,16 @@ impl GuardMgrInner {
                 .mark_primary_guards_retriable();
             self.last_primary_retry_time = now;
         }
+    }
+
+    /// Replace the current GuardFilter with `filter`.
+    fn set_filter(&mut self, filter: GuardFilter, netdir: Option<&NetDir>, now: SystemTime) {
+        self.with_opt_netdir(netdir, |this, netdir| {
+            this.filter = filter;
+            // This call will invoke update_chosen_guard_set() if possible, and
+            // then call set_filter on the GuardSet.
+            this.update_internal(now, netdir);
+        });
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
@@ -1132,18 +1184,9 @@ impl GuardMgrInner {
         usage: &GuardUsage,
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
-        let (source, id) = self
-            .guards
+        self.guards
             .active_guards()
-            .pick_guard(usage, &self.params, now)?;
-        let guard = self
-            .guards
-            .active_guards()
-            .get(&id)
-            .expect("Selected guard that wasn't in our sample!?")
-            .get_external_rep();
-
-        Ok((source, guard))
+            .pick_guard(usage, &self.params, now)
     }
 
     /// Helper: Select a fallback directory.
@@ -1154,8 +1197,11 @@ impl GuardMgrInner {
         &self,
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
-        let fallback = self.fallbacks.choose(&mut rand::thread_rng(), now)?;
-        Ok((sample::ListKind::Fallback, fallback.clone()))
+        let filt = self.guards.active_guards().filter();
+
+        let fallback = self.fallbacks.choose(&mut rand::thread_rng(), now, filt)?;
+        let fallback = filt.modify_hop(fallback.clone())?;
+        Ok((sample::ListKind::Fallback, fallback))
     }
 }
 
@@ -1199,8 +1245,6 @@ struct GuardParams {
     internet_down_timeout: Duration,
     /// What fraction of the guards can be can be filtered out before we
     /// decide that our filter is "very restrictive"?
-    ///
-    /// (Not fully implemented yet.)
     filter_threshold: f64,
     /// What fraction of the guards determine that our filter is "very
     /// restrictive"?
@@ -1384,9 +1428,20 @@ mod test {
         assert!(have_lock.held());
         let guardmgr = GuardMgr::new(rt, statemgr.clone(), [].into()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
-        let override_p = "guard-min-filtered-sample-size=5 guard-n-primary-guards=2"
-            .parse()
-            .unwrap();
+        let param_overrides = vec![
+            // We make the sample size smaller than usual to compensate for the
+            // small testing network.  (Otherwise, we'd sample the whole network,
+            // and not be able to observe guards in the tests.)
+            "guard-min-filtered-sample-size=5",
+            // We choose only two primary guards, to make the tests easier to write.
+            "guard-n-primary-guards=2",
+            // We define any restriction that allows 75% or fewer of relays as "meaningful",
+            // so that we can test the "restrictive" guard sample behavior, and to avoid
+            "guard-meaningful-restriction-percent=75",
+        ];
+        let param_overrides: String =
+            itertools::Itertools::intersperse(param_overrides.into_iter(), " ").collect();
+        let override_p = param_overrides.parse().unwrap();
         let mut netdir = PartialNetDir::new(con, Some(&override_p));
         for md in mds {
             netdir.add_microdesc(md);
@@ -1478,14 +1533,23 @@ mod test {
     #[test]
     fn filtering_basics() {
         test_with_all_runtimes!(|rt| async move {
+            use tor_linkspec::ChanTarget;
+
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
+            let filter = {
+                let mut f = GuardFilter::default();
+                // All the addresses in the test network are {0,1,2,3,4}.0.0.3:9001.
+                // Limit to only 2.0.0.0/8
+                f.push_reachable_addresses(vec!["2.0.0.0/8:9001".parse().unwrap()]);
+                f
+            };
+            guardmgr.set_filter(filter, Some(&netdir));
             guardmgr.update_network(&netdir);
-            guardmgr.set_filter(GuardFilter::TestingLimitKeys, &netdir);
-
             let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
             // Make sure that the filter worked.
-            assert_eq!(guard.id().as_ref().rsa.as_bytes()[0] % 4, 0);
+            let addr = guard.addrs()[0];
+            assert_eq!(addr, "2.0.0.3:9001".parse().unwrap());
         });
     }
 

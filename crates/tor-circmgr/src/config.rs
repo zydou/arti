@@ -8,9 +8,11 @@ use tor_basic_utils::define_accessor_trait;
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
 use tor_guardmgr::fallback::FallbackList;
+use tor_guardmgr::GuardFilter;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use tor_netdoc::types::policy::AddrPortPattern;
 
 use std::time::Duration;
 
@@ -40,8 +42,35 @@ pub struct PathConfig {
     /// IPv6 addresses share at least this many initial bits.
     #[builder(default = "ipv6_prefix_default()")]
     ipv6_subnet_family_prefix: u8,
+
+    /// The set of addresses to which we're willing to make direct connections.
+    #[builder(sub_builder, setter(custom))]
+    pub(crate) reachable_addrs: ReachableAddrs,
 }
 impl_standard_builder! { PathConfig }
+
+/// Type alias for a list of reachable addresses.
+type ReachableAddrs = Vec<AddrPortPattern>;
+
+/// Return the default list of reachable addresses (namely, "*:*")
+fn default_reachable_addrs() -> ReachableAddrs {
+    vec![AddrPortPattern::new_all()]
+}
+
+define_list_builder_helper! {
+    struct ReachableAddrsBuilder {
+        pub(crate) patterns: [AddrPortPattern],
+    }
+    built: ReachableAddrs = patterns;
+    default = default_reachable_addrs();
+    item_build: |pat| Ok(pat.clone());
+}
+
+define_list_builder_accessors! {
+    struct PathConfigBuilder {
+        pub reachable_addrs: [AddrPortPattern],
+    }
+}
 
 /// Default value for ipv4_subnet_family_prefix.
 fn ipv4_prefix_default() -> u8 {
@@ -65,9 +94,21 @@ impl PathConfig {
     ///
     /// In other words, in other words, return true if every circuit permitted
     /// by `other` would also be permitted by this configuration.
+    ///
+    /// We use this function to decide when circuits must be discarded.
+    /// Therefore, it is okay to return "false" inaccurately, but we should
+    /// never return "true" inaccurately.
     pub(crate) fn at_least_as_permissive_as(&self, other: &Self) -> bool {
         self.ipv4_subnet_family_prefix >= other.ipv4_subnet_family_prefix
             && self.ipv6_subnet_family_prefix >= other.ipv6_subnet_family_prefix
+            && self.reachable_addrs == other.reachable_addrs
+    }
+
+    /// Return a new [`GuardFilter`] reflecting the rules in this configuration.
+    pub(crate) fn build_guard_filter(&self) -> GuardFilter {
+        let mut filt = GuardFilter::default();
+        filt.push_reachable_addresses(self.reachable_addrs.clone());
+        filt
     }
 }
 
