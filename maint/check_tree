@@ -12,7 +12,11 @@ forbid () {
 
     set +e
     cargo tree --prefix=none -p "$our_crate" --features "$feature" \
-	  --format="    {p}" | grep "^    $forbidden"
+	  --format="    {p}" | grep "^    $forbidden "
+    # Note that the space in the grep pattern above is necessary to
+    # make sure we don't match prefixes.  (The cargo tree output will be
+    # something like "    cratename v1.2.3".)
+
     local result="${PIPESTATUS[*]}"
     set -e
 
