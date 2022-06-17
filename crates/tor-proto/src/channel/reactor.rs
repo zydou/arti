@@ -29,7 +29,7 @@ use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, params::*, padding, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
