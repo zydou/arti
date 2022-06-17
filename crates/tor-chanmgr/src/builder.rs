@@ -11,7 +11,7 @@ use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_llcrypto::pk;
-use tor_proto::channel::config::ChannelsConfigUpdates;
+use tor_proto::channel::params::ChannelsParamsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
 
 use async_trait::async_trait;
@@ -238,8 +238,8 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn duration_unused(&self) -> Option<Duration> {
         self.duration_unused()
     }
-    fn reconfigure(&mut self, updates: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
-        self.reconfigure(updates).map_err(|_| ())
+    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+        self.reparameterize(updates).map_err(|_| ())
     }
 }
 

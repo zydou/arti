@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tor_error::{internal, into_internal};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
-use tor_proto::ChannelsConfig;
+use tor_proto::ChannelsParams;
 use tor_units::BoundedInt32;
 use tracing::info;
 
@@ -34,14 +34,14 @@ struct Inner<C: AbstractChannel> {
     /// must never be held while an await is happening.)
     channels: HashMap<C::Ident, ChannelState<C>>,
 
-    /// Configuration for channels that we create, and that all existing channels are using
+    /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
     /// `Open` channels via `channels`.
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
-    /// created using being-replaced configuration, but not get an update.)
-    channels_config: ChannelsConfig,
+    /// created using being-replaced parameters, but not get an update.)
+    channels_params: ChannelsParams,
 }
 
 /// Structure that can only be constructed from within this module.
@@ -147,11 +147,11 @@ impl<C: AbstractChannel> ChannelState<C> {
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
     pub(crate) fn new() -> Self {
-        let channels_config = ChannelsConfig::default();
+        let channels_params = ChannelsParams::default();
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
-                channels_config,
+                channels_params,
             }),
         }
     }
@@ -183,20 +183,20 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// Replace the channel state for `ident` with the return value from `func`,
     /// and return the previous value if any.
     ///
-    /// Passes a snapshot of the current global channels configuration to `func`.
-    /// If that configuration is copied by `func` into an [`AbstractChannel`]
+    /// Passes a snapshot of the current global channels parameters to `func`.
+    /// If those parameters are copied by `func` into an [`AbstractChannel`]
     /// `func` must ensure that that `AbstractChannel` is returned,
-    /// so that it will be properly registered and receive config updates.
-    pub(crate) fn replace_with_config<F>(
+    /// so that it will be properly registered and receive params updates.
+    pub(crate) fn replace_with_params<F>(
         &self,
         ident: C::Ident,
         func: F,
     ) -> Result<Option<ChannelState<C>>>
     where
-        F: FnOnce(&ChannelsConfig) -> Result<ChannelState<C>>,
+        F: FnOnce(&ChannelsParams) -> Result<ChannelState<C>>,
     {
         let mut inner = self.inner.lock()?;
-        let newval = func(&inner.channels_config)?;
+        let newval = func(&inner.channels_params)?;
         newval.check_ident(&ident)?;
         Ok(inner.channels.insert(ident, newval))
     }
@@ -269,7 +269,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
-    /// Handle a `NetDir` update (by reconfiguring channels as needed)
+    /// Handle a `NetDir` update (by reparameterising channels as needed)
     pub(crate) fn process_updated_netdir(&self, netdir: Arc<tor_netdir::NetDir>) -> Result<()> {
         use ChannelState as CS;
 
@@ -298,7 +298,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
         let mut inner = self.inner.lock()?;
         let update = inner
-            .channels_config
+            .channels_params
             .start_update()
             .padding_parameters(padding_parameters)
             .finish();
@@ -315,7 +315,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
                 CS::Building(_) | CS::Poisoned(_) => continue,
             };
             // Ignore error (which simply means the channel is closed or gone)
-            let _ = channel.reconfigure(update.clone());
+            let _ = channel.reparameterize(update.clone());
         }
         Ok(())
     }
@@ -369,13 +369,13 @@ mod test {
     use super::*;
     use std::result::Result as StdResult;
     use std::sync::Arc;
-    use tor_proto::channel::config::ChannelsConfigUpdates;
+    use tor_proto::channel::params::ChannelsParamsUpdates;
     #[derive(Eq, PartialEq, Clone, Debug)]
     struct FakeChannel {
         ident: &'static str,
         usable: bool,
         unused_duration: Option<u64>,
-        config_update: Option<Arc<ChannelsConfigUpdates>>,
+        params_update: Option<Arc<ChannelsParamsUpdates>>,
     }
     impl AbstractChannel for FakeChannel {
         type Ident = u8;
@@ -388,8 +388,8 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reconfigure(&mut self, update: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
-            self.config_update = Some(update);
+        fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+            self.params_update = Some(update);
             Ok(())
         }
     }
@@ -398,7 +398,7 @@ mod test {
             ident,
             usable: true,
             unused_duration: None,
-            config_update: None,
+            params_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -414,7 +414,7 @@ mod test {
             ident,
             usable: true,
             unused_duration,
-            config_update: None,
+            params_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -426,7 +426,7 @@ mod test {
             ident,
             usable: false,
             unused_duration: None,
-            config_update: None,
+            params_update: None,
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -534,7 +534,7 @@ mod test {
     }
 
     #[test]
-    fn reconfigure_via_netdir() {
+    fn reparameterise_via_netdir() {
         let map = ChannelMap::new();
 
         // Set some non-default parameters so that we can tell when an update happens
@@ -542,7 +542,7 @@ mod test {
             .inner
             .lock()
             .unwrap()
-            .channels_config
+            .channels_params
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()
@@ -569,9 +569,9 @@ mod test {
         map.process_updated_netdir(netdir.clone()).unwrap();
         with_ch(&|ch| {
             assert_eq!(
-                format!("{:?}", ch.config_update.take().unwrap()),
+                format!("{:?}", ch.params_update.take().unwrap()),
                 // evade field visibility by (ab)using Debug impl
-                "ChannelsConfigUpdates { padding_enable: None, \
+                "ChannelsParamsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
                         low_ms: IntegerMilliseconds { value: 1500 }, \
                         high_ms: IntegerMilliseconds { value: 9500 } }) }"
@@ -581,7 +581,7 @@ mod test {
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
         map.process_updated_netdir(netdir).unwrap();
-        with_ch(&|ch| assert_eq!(ch.config_update, None));
+        with_ch(&|ch| assert_eq!(ch.params_update, None));
     }
 
     #[test]

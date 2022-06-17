@@ -58,13 +58,13 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 
 mod circmap;
 mod codec;
-pub mod config;
+pub mod params;
 mod handshake;
 pub mod padding;
 mod reactor;
 mod unique_id;
 
-pub use crate::channel::config::*;
+pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit::celltypes::CreateResponse;
@@ -333,12 +333,12 @@ impl Channel {
         self.details.clock_skew
     }
 
-    /// Reconfigure
+    /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reconfigure(
+    pub fn reparameterize(
         &mut self,
-        updates: Arc<ChannelsConfigUpdates>,
+        updates: Arc<ChannelsParamsUpdates>,
     ) -> StdResult<(), ChannelClosed> {
         self.control
             .unbounded_send(CtrlMsg::ConfigUpdate(updates))

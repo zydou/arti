@@ -12,7 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
-use tor_proto::channel::config::ChannelsConfigUpdates;
+use tor_proto::channel::params::ChannelsParamsUpdates;
 
 mod map;
 
@@ -34,13 +34,13 @@ pub(crate) trait AbstractChannel: Clone {
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
 
-    /// Reconfigure this channel according to the provided `ChannelsConfigUpdates`
+    /// Reparameterise this channel according to the provided `ChannelsParamsUpdates`
     ///
-    /// The changed configuration may not be implemented "immediately",
+    /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
     ///
     /// Returns `Err` (only) if the channel was closed earlier.
-    fn reconfigure(&mut self, updates: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()>;
+    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()>;
 }
 
 /// Trait to describe how channels are created.
@@ -210,16 +210,16 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                         // The channel got built: remember it, tell the
                         // others, and return it.
                         self.channels
-                            .replace_with_config(ident.clone(), |channels_config| {
+                            .replace_with_params(ident.clone(), |channels_params| {
                                 // This isn't great.  We context switch to the newly-created
                                 // channel just to tell it how and whether to do padding.  Ideally
-                                // we would pass the config at some suitable point during
+                                // we would pass the params at some suitable point during
                                 // building.  However, that would involve the channel taking a
-                                // copy of the config, and that must happen in the same channel
+                                // copy of the params, and that must happen in the same channel
                                 // manager lock acquisition span as the one where we insert the
                                 // channel into the table so it will receive updates.  I.e.,
                                 // here.
-                                chan.reconfigure(channels_config.total_update().into())
+                                chan.reparameterize(channels_params.total_update().into())
                                     .map_err(|()| internal!("new channel already closed"))?;
                                 Ok(Open(OpenEntry {
                                     channel: chan.clone(),
@@ -318,7 +318,7 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reconfigure(&mut self, _updates: Arc<ChannelsConfigUpdates>) -> StdResult<(), ()> {
+        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
             Ok(())
         }
     }

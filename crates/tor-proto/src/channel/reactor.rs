@@ -29,7 +29,7 @@ use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, config::*, padding, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, params::*, padding, unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
@@ -72,11 +72,11 @@ pub(super) enum CtrlMsg {
     ///
     /// The sender of these messages is responsible for the optimisation of
     /// ensuring that "no-change" messages are elided.
-    /// (This is implemented in `ChannelsConfigUpdatesBuilder`.)
+    /// (This is implemented in `ChannelsParamsUpdatesBuilder`.)
     ///
     /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
-    ConfigUpdate(Arc<ChannelsConfigUpdates>),
+    ConfigUpdate(Arc<ChannelsParamsUpdates>),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -225,7 +225,7 @@ impl<S: SleepProvider> Reactor<S> {
                 self.update_disused_since();
             }
             CtrlMsg::ConfigUpdate(updates) => {
-                let ChannelsConfigUpdates {
+                let ChannelsParamsUpdates {
                     // List all the fields explicitly; that way the compiler will warn us
                     // if one is added and we fail to handle it here.
                     padding_enable,
