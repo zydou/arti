@@ -231,22 +231,49 @@ impl<F: FlagEvent> Stream for FlagListener<F> {
 //
 // TODO(nickm): This type has gotten a bit large for being the type we send over
 // a `postage::watch`: perhaps we'd be better off having this information stored
-// in the guardmgr, and having only a sumary of it sent over the
+// in the guardmgr, and having only a summary of it sent over the
 // `postage::watch`.  But for now, let's not, unless it shows up in profiles.
 #[derive(Clone, Debug, Default)]
-pub struct DirBootstrapStatus {
-    /// Identifier for the current attempt (if any).
-    current_id: Option<AttemptId>,
-    /// The status for the current directory that we're using right now.
-    pub(crate) current: DirStatus,
+pub struct DirBootstrapStatus(StatusEnum);
 
-    /// Identifier for the next attempt (if any).
-    next_id: Option<AttemptId>,
-    /// The status for a directory that we're downloading to replace the current
-    /// directory.
+/// The contents of a DirBootstrapStatus.
+///
+/// This is a separate type since we don't want to make these variables public.
+#[derive(Clone, Debug, educe::Educe)]
+#[educe(Default)]
+enum StatusEnum {
+    /// There is no active attempt to load or fetch a directory.
+    #[educe(Default)]
+    NoActivity,
+    /// We have only one attempt to fetch a directory.
+    Single {
+        /// The currently active directory attempt.
+        ///
+        /// We're either using this directory now, or we plan to use it as soon
+        /// as it's complete enough.
+        current: StatusEntry,
+    },
+    /// We have an existing directory attempt, but it's stale, and we're
+    /// fetching a new one to replace it.
     ///
-    /// This is "None" if we haven't started fetching the next consensus yet.
-    pub(crate) next: Option<DirStatus>,
+    /// Invariant: `current.id < next.id`
+    Replacing {
+        /// The previous attempt's status.  It may still be trying to fetch
+        /// information if it has descriptors left to download.
+        current: StatusEntry,
+        /// The current attempt's status.  We are not yet using this directory
+        /// for our activity, since it does not (yet) have enough information.
+        next: StatusEntry,
+    },
+}
+
+/// The status and identifier of a single attempt to download a full directory.
+#[derive(Clone, Debug)]
+struct StatusEntry {
+    /// The identifier for this attempt.
+    id: AttemptId,
+    /// The latest status.
+    status: DirStatus,
 }
 
 /// The status for a single directory.
@@ -403,15 +430,43 @@ impl fmt::Display for DirProgress {
 
 impl fmt::Display for DirBootstrapStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "directory is {}", self.current)?;
-        if let Some(ref next) = self.next {
-            write!(f, "; next directory is {}", next)?;
+        match &self.0 {
+            StatusEnum::NoActivity => write!(f, "not downloading")?,
+            StatusEnum::Single { current } => write!(f, "directory is {}", current.status)?,
+            StatusEnum::Replacing { current, next } => write!(
+                f,
+                "directory is {}; next directory is {}",
+                current.status, next.status
+            )?,
         }
         Ok(())
     }
 }
 
 impl DirBootstrapStatus {
+    /// Return the current DirStatus.
+    ///
+    /// This is the _most complete_ status.  If we have any usable status, it is
+    /// this one.
+    fn current(&self) -> Option<&DirStatus> {
+        match &self.0 {
+            StatusEnum::NoActivity => None,
+            StatusEnum::Single { current } => Some(&current.status),
+            StatusEnum::Replacing { current, .. } => Some(&current.status),
+        }
+    }
+
+    /// Return the next DirStatus, if there is one.
+    ///
+    /// Testing-only.
+    #[cfg(test)]
+    fn next(&self) -> Option<&DirStatus> {
+        match &self.0 {
+            StatusEnum::Replacing { next, .. } => Some(&next.status),
+            _ => None,
+        }
+    }
+
     /// Return the fraction of completion for directory download, in a form
     /// suitable for a progress bar at some particular time.
     ///
@@ -421,32 +476,48 @@ impl DirBootstrapStatus {
     /// Callers _should not_ depend on the specific meaning of any particular
     /// fraction; we may change these fractions in the future.
     pub fn frac_at(&self, when: SystemTime) -> f32 {
-        self.current
-            .frac_at(when)
-            .or_else(|| self.next.as_ref().and_then(|next| next.frac_at(when)))
-            .unwrap_or(0.0)
+        match &self.0 {
+            StatusEnum::NoActivity => 0.0,
+            StatusEnum::Single { current } => current.status.frac_at(when).unwrap_or(0.0),
+            StatusEnum::Replacing { current, next } => current
+                .status
+                .frac_at(when)
+                .or_else(|| next.status.frac_at(when))
+                .unwrap_or(0.0),
+        }
     }
 
     /// Return true if this status indicates that we have a current usable
     /// directory.
     pub fn usable_at(&self, now: SystemTime) -> bool {
-        self.current.progress.usable() && self.current.okay_to_use_at(now)
+        if let Some(current) = self.current() {
+            current.progress.usable() && current.okay_to_use_at(now)
+        } else {
+            false
+        }
     }
 
     /// If there is a problem with our attempts to bootstrap, return a
     /// corresponding DirBlockage.  
     pub fn blockage(&self, now: SystemTime) -> Option<DirBlockage> {
-        if self.current.progress.usable() && self.current.declared_live_at(now) {
-            // The current directory is sufficient, and not even a little bit
-            // expired. There is no problem.
-            None
-        } else if let Some(cur_blockage) = self.current.blockage() {
-            // Any blockage in the "current" directory, if it exists, is more
-            // serious. Return that if we have it.
-            Some(cur_blockage)
-        } else {
-            // Return the blockage from the "next" directory, if any.
-            self.next.as_ref().and_then(DirStatus::blockage)
+        if let Some(current) = self.current() {
+            if current.progress.usable() && current.declared_live_at(now) {
+                // The current directory is sufficient, and not even a little bit
+                // expired. There is no problem.
+                return None;
+            }
+        }
+
+        match &self.0 {
+            // We're not trying to fetch anything, so it can't be blocked.
+            StatusEnum::NoActivity => None,
+            // We have only one attempt: its blockage is the only relevant one.
+            StatusEnum::Single { current } => current.status.blockage(),
+            // We know about two attempts: any blockage in "current" is more
+            // serious.
+            StatusEnum::Replacing { current, next } => {
+                current.status.blockage().or_else(|| next.status.blockage())
+            }
         }
     }
 
@@ -455,35 +526,50 @@ impl DirBootstrapStatus {
     ///
     /// Return None if all relevant attempts are more recent than this Id.
     fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
-        match (self.current_id, self.next_id, attempt_id) {
-            (None, _, _) => {
-                self.current_id = Some(attempt_id);
-                self.current = DirStatus::default();
-                Some(&mut self.current)
+        // First, we add a status for this attempt_id if appropriate.
+        //
+        // TODO: should make sure that the compiler is smart enough to optimize
+        // this mem::take() and replacement away, and turn it into a conditional
+        // replacement?
+        self.0 = match std::mem::take(&mut self.0) {
+            StatusEnum::NoActivity => StatusEnum::Single {
+                current: StatusEntry::new(attempt_id),
+            },
+            StatusEnum::Single { current } if current.id < attempt_id => StatusEnum::Replacing {
+                current,
+                next: StatusEntry::new(attempt_id),
+            },
+            StatusEnum::Replacing { current, next } if next.id < attempt_id => {
+                StatusEnum::Replacing {
+                    current,
+                    next: StatusEntry::new(attempt_id),
+                }
             }
-            (Some(cur), _, a) if a < cur => None,
-            (Some(cur), _, a) if a == cur => Some(&mut self.current),
-            (_, Some(next), a) if a < next => None,
-            (_, Some(next), a) if a == next => self.next.as_mut(),
-            (_, _, _) => {
-                self.next_id = Some(attempt_id);
-                self.next = Some(DirStatus::default());
-                self.next.as_mut()
+            other => other,
+        };
+
+        // Now return the correct status.
+        match &mut self.0 {
+            StatusEnum::Single { current } if current.id == attempt_id => Some(&mut current.status),
+            StatusEnum::Replacing { current, .. } if current.id == attempt_id => {
+                Some(&mut current.status)
             }
+            StatusEnum::Replacing { next, .. } if next.id == attempt_id => Some(&mut next.status),
+            _ => None,
         }
     }
 
     /// If the "next" status is usable, replace the current status with it.
     fn advance_status(&mut self) {
-        if self.next.as_ref().map(|st| st.progress.usable()) == Some(true) {
-            self.current_id = self.next_id;
-            self.current = self
-                .next
-                .take()
-                .expect("The next status was there a moment ago.");
-            self.next_id = None;
-            self.next = None;
-        }
+        // TODO: should make sure that the compiler is smart enough to optimize
+        // this mem::take() and replacement away, and turn it into a conditional
+        // replacement?
+        self.0 = match std::mem::take(&mut self.0) {
+            StatusEnum::Replacing { next, .. } if next.status.progress.usable() => {
+                StatusEnum::Single { current: next }
+            }
+            other => other,
+        };
     }
 
     /// Update this status by replacing the `DirProgress` in its current status
@@ -519,6 +605,17 @@ impl DirBootstrapStatus {
     pub(crate) fn note_reset(&mut self, attempt_id: AttemptId) {
         if let Some(status) = self.mut_status_for(attempt_id) {
             status.n_resets += 1;
+        }
+    }
+}
+
+impl StatusEntry {
+    /// Construct a new StatusEntry with a given attempt id, and no progress
+    /// reported.
+    fn new(id: AttemptId) -> Self {
+        Self {
+            id,
+            status: DirStatus::default(),
         }
     }
 }
@@ -925,18 +1022,22 @@ mod test {
         let attempt1 = AttemptId::next();
         let attempt2 = AttemptId::next();
 
-        let bs = DirBootstrapStatus {
-            current_id: Some(attempt1),
-            current: DirStatus {
-                progress: dp1.clone(),
-                ..Default::default()
+        let bs = DirBootstrapStatus(StatusEnum::Replacing {
+            current: StatusEntry {
+                id: attempt1,
+                status: DirStatus {
+                    progress: dp1.clone(),
+                    ..Default::default()
+                },
             },
-            next_id: Some(attempt2),
-            next: Some(DirStatus {
-                progress: dp2.clone(),
-                ..Default::default()
-            }),
-        };
+            next: StatusEntry {
+                id: attempt2,
+                status: DirStatus {
+                    progress: dp2.clone(),
+                    ..Default::default()
+                },
+            },
+        });
 
         assert_eq!(bs.to_string(),
             "directory is usable, fresh until 2022-01-17 12:00:00 UTC, and valid until 2022-01-17 14:00:00 UTC; next directory is fetching microdescriptors (5/40)"
@@ -963,9 +1064,12 @@ mod test {
 
         bs.update_progress(attempt2, dp3);
         assert!(matches!(
-            bs.next.as_ref().unwrap().progress,
-            DirProgress::Validated {
-                n_mds: (10, 40),
+            bs.next().unwrap(),
+            DirStatus {
+                progress: DirProgress::Validated {
+                    n_mds: (10, 40),
+                    ..
+                },
                 ..
             }
         ));
@@ -981,25 +1085,33 @@ mod test {
             ..Default::default()
         };
         bs.update_progress(attempt2, ds4.progress);
-        assert!(bs.next.as_ref().is_none());
+        assert!(bs.next().is_none());
         assert_eq!(
-            bs.current.usable_lifetime().unwrap().valid_after(),
+            bs.current()
+                .unwrap()
+                .usable_lifetime()
+                .unwrap()
+                .valid_after(),
             lifetime2.valid_after()
         );
 
         // Case 3: The new directory is usable but older. Nothing will happen.
         bs.update_progress(attempt1, dp1);
-        assert!(bs.next.as_ref().is_none());
+        assert!(bs.next().as_ref().is_none());
         assert_ne!(
-            bs.current.usable_lifetime().unwrap().valid_after(),
+            bs.current()
+                .unwrap()
+                .usable_lifetime()
+                .unwrap()
+                .valid_after(),
             lifetime.valid_after()
         );
 
         // Case 4: starting with an unusable directory, we always replace.
         let mut bs = DirBootstrapStatus::default();
         assert!(!dp2.usable());
-        assert!(bs.current.usable_lifetime().is_none());
+        assert!(bs.current().is_none());
         bs.update_progress(attempt2, dp2);
-        assert!(bs.current.usable_lifetime().is_some());
+        assert!(bs.current().unwrap().usable_lifetime().is_some());
     }
 }
