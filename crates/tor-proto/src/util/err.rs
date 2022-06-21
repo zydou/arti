@@ -14,17 +14,17 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    #[error("parsing error: {0}")]
+    #[error("parsing error")]
     BytesErr(#[from] tor_bytes::Error),
     /// An error that occurred from the io system when using a
     /// channel.
-    #[error("io error on channel: {0}")]
+    #[error("io error on channel")]
     ChanIoErr(#[source] Arc<std::io::Error>),
     /// An error from the io system that occurred when trying to connect a channel.
-    #[error("io error in handshake: {0}")]
+    #[error("io error in handshake")]
     HandshakeIoErr(#[source] Arc<std::io::Error>),
     /// An error occurred in the cell-handling layer.
-    #[error("cell encoding error: {0}")]
+    #[error("cell encoding error")]
     CellErr(#[source] tor_cell::Error),
     /// We tried to produce too much output for some function.
     #[error("couldn't produce that much output")]
@@ -88,11 +88,11 @@ pub enum Error {
     #[error("channel mismatch: {0}")]
     ChanMismatch(String),
     /// There was a programming error somewhere in our code, or the calling code.
-    #[error("Programming error: {0}")]
+    #[error("Programming error")]
     Bug(#[from] tor_error::Bug),
     /// Remote DNS lookup failed.
-    #[error("remote resolve failed: {0}")]
-    ResolveError(ResolveError),
+    #[error("remote resolve failed")]
+    ResolveError(#[source] ResolveError),
 }
 
 /// Error which indicates that the channel was closed

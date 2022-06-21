@@ -517,17 +517,18 @@ pub(crate) mod test {
     #[test]
     fn send_bad() {
         tor_rtcompat::test_with_all_runtimes!(|_rt| async move {
+            use std::error::Error;
             let chan = fake_channel(fake_channel_details());
 
             let cell = ChanCell::new(7.into(), msg::Created2::new(&b"hihi"[..]).into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
-            assert!(format!("{}", e.unwrap_err())
+            assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CREATED2 cell on client channel"));
             let cell = ChanCell::new(0.into(), msg::Certs::new_empty().into());
             let e = chan.check_cell(&cell);
             assert!(e.is_err());
-            assert!(format!("{}", e.unwrap_err())
+            assert!(format!("{}", e.unwrap_err().source().unwrap())
                 .contains("Can't send CERTS cell after handshake is done"));
 
             let cell = ChanCell::new(5.into(), msg::Create2::new(2, &b"abc"[..]).into());

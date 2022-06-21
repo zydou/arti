@@ -29,7 +29,7 @@ pub enum Error {
 
     /// We were waiting on a pending circuits, but it failed.
     #[error("Pending circuit failed.")]
-    PendingFailed(Box<Error>),
+    PendingFailed(#[source] Box<Error>),
 
     /// We were told that we could use a given circuit, but before we got a
     /// chance to try it, its usage changed so that we had no longer find
@@ -79,11 +79,11 @@ pub enum Error {
     NoExit(String),
 
     /// Problem creating or updating a guard manager.
-    #[error("Problem creating or updating guards list: {0}")]
+    #[error("Problem creating or updating guards list")]
     GuardMgr(#[source] tor_guardmgr::GuardMgrError),
 
     /// Problem selecting a guard relay.
-    #[error("Unable to select a guard relay: {0}")]
+    #[error("Unable to select a guard relay")]
     Guard(#[from] tor_guardmgr::PickGuardError),
 
     /// Unable to get or build a circuit, despite retrying.
@@ -128,12 +128,12 @@ pub enum Error {
     },
 
     /// Problem loading or storing persistent state.
-    #[error("Problem loading or storing state: {0}")]
+    #[error("Problem loading or storing state")]
     State(#[from] tor_persist::Error),
 
     /// An error caused by a programming issue . or a failure in another
     /// library that we can't work around.
-    #[error("Programming issue: {0}")]
+    #[error("Programming error")]
     Bug(#[from] Bug),
 }
 
