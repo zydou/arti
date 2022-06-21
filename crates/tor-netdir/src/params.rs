@@ -22,6 +22,18 @@ use tor_units::{
     BoundedInt32, IntegerDays, IntegerMilliseconds, IntegerSeconds, Percentage, SendMeVersion,
 };
 
+/// Upper limit for channel padding timeouts
+///
+/// This is just a safety catch which might help prevent integer overflow,
+/// and also might prevent a client getting permantently stuck in a state
+/// where it ought to send padding but never does.
+///
+/// The actual value is stolen from C Tor as per
+///   <https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/586#note_2813638>
+/// pending an update to the specifications
+///   <https://gitlab.torproject.org/tpo/core/torspec/-/issues/120>
+pub const CHANNEL_PADDING_TIMEOUT_UPPER_BOUND: i32 = 60_000;
+
 /// An object that can be constructed from an i32, with saturating semantics.
 pub trait FromInt32Saturating {
     /// Construct an instance of this object from `val`.
@@ -263,6 +275,19 @@ pub struct NetParameters {
     pub min_circuit_path_threshold: Percentage<BoundedInt32<25, 95>> = (60)
         from "min_paths_for_circs_pct",
 
+    /// Channel padding, low end of random padding interval, milliseconds
+    pub nf_ito_low: IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>> = (1500)
+        from "nf_ito_low",
+    /// Channel padding, high end of random padding interval, milliseconds
+    pub nf_ito_high: IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>> = (9500)
+        from "nf_ito_high",
+    /// Channel padding, low end of random padding interval (reduced padding) milliseconds
+    pub nf_ito_low_reduced: IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>> = (9000)
+        from "nf_ito_low_reduced",
+    /// Channel padding, high end of random padding interval (reduced padding) , milliseconds
+    pub nf_ito_high_reduced: IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>> = (14000)
+        from "nf_ito_high_reduced",
+
     /// The minimum sendme version to accept.
     pub sendme_accept_min_version: SendMeVersion = (0)
         from "sendme_accept_min_version",
@@ -483,6 +508,10 @@ mod test {
             ("ExtendByEd25519ID", 0),
             ("min_paths_for_circs_pct", 51),
             ("nf_conntimeout_clients", 606),
+            ("nf_ito_low", 1_000),
+            ("nf_ito_high", 20_000),
+            ("nf_ito_low_reduced", 3_000),
+            ("nf_ito_high_reduced", 40_000),
             ("sendme_accept_min_version", 31),
             ("sendme_emit_min_version", 32),
         ];
@@ -497,6 +526,10 @@ mod test {
         assert_eq!(p.cbt_min_circs_for_estimate.get(), 5);
         assert_eq!(p.cbt_timeout_quantile.as_percent().get(), 61);
         assert_eq!(p.cbt_abandon_quantile.as_percent().get(), 15);
+        assert_eq!(p.nf_ito_low.as_millis().get(), 1_000);
+        assert_eq!(p.nf_ito_high.as_millis().get(), 20_000);
+        assert_eq!(p.nf_ito_low_reduced.as_millis().get(), 3_000);
+        assert_eq!(p.nf_ito_high_reduced.as_millis().get(), 40_000);
         assert_eq!(
             Duration::try_from(p.unused_client_circ_timeout_while_learning_cbt).unwrap(),
             Duration::from_secs(1900)

@@ -59,17 +59,21 @@ pub const CHANNEL_BUFFER_SIZE: usize = 128;
 mod circmap;
 mod codec;
 mod handshake;
-mod padding;
+pub mod padding;
+pub mod params;
 mod reactor;
 mod unique_id;
 
+pub use crate::channel::params::*;
 use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
 pub use crate::channel::unique_id::UniqId;
 use crate::circuit::celltypes::CreateResponse;
+use crate::util::err::ChannelClosed;
 use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
+use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
@@ -152,13 +156,13 @@ impl Sink<ChanCell> for Channel {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_ready(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn start_send(self: Pin<&mut Self>, cell: ChanCell) -> Result<()> {
         let this = self.get_mut();
         if this.details.closed.load(Ordering::SeqCst) {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
         this.check_cell(&cell)?;
         {
@@ -176,21 +180,21 @@ impl Sink<ChanCell> for Channel {
 
         Pin::new(&mut this.cell_tx)
             .start_send(cell)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_flush(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.get_mut();
         Pin::new(&mut this.cell_tx)
             .poll_close(cx)
-            .map_err(|_| Error::ChannelClosed)
+            .map_err(|_| ChannelClosed.into())
     }
 }
 
@@ -279,18 +283,8 @@ impl Channel {
             details: Arc::clone(&details),
         };
 
-        let mut padding_timer = Box::pin(padding::Timer::new_disabled(
-            sleep_prov,
-            padding::Parameters {
-                // From padding-spec.txt s2.2
-                // TODO support reduced padding
-                low_ms: 1500,
-                high_ms: 9500,
-            },
-        ));
-        if std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != "" {
-            padding_timer.as_mut().enable();
-        }
+        // We start disabled; the channel manager will `reconfigure` us soon after creation.
+        let padding_timer = Box::pin(padding::Timer::new_disabled(sleep_prov, None));
 
         let reactor = Reactor {
             control: control_rx,
@@ -337,6 +331,18 @@ impl Channel {
     /// claimed that we had when we negotiated the connection.
     pub fn clock_skew(&self) -> ClockSkew {
         self.details.clock_skew
+    }
+
+    /// Reparameterise (update parameters; reconfigure)
+    ///
+    /// Returns `Err` if the channel was closed earlier
+    pub fn reparameterize(
+        &mut self,
+        updates: Arc<ChannelsParamsUpdates>,
+    ) -> StdResult<(), ChannelClosed> {
+        self.control
+            .unbounded_send(CtrlMsg::ConfigUpdate(updates))
+            .map_err(|_| ChannelClosed)
     }
 
     /// Return an error if this channel is somehow mismatched with the
@@ -423,7 +429,7 @@ impl Channel {
         &self,
     ) -> Result<(circuit::PendingClientCirc, circuit::reactor::Reactor)> {
         if self.is_closing() {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
 
         // TODO: blocking is risky, but so is unbounded.
@@ -437,8 +443,8 @@ impl Channel {
                 sender,
                 tx,
             })
-            .map_err(|_| Error::ChannelClosed)?;
-        let (id, circ_unique_id) = rx.await.map_err(|_| Error::ChannelClosed)??;
+            .map_err(|_| ChannelClosed)?;
+        let (id, circ_unique_id) = rx.await.map_err(|_| ChannelClosed)??;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
 
@@ -468,7 +474,7 @@ impl Channel {
     pub fn close_circuit(&self, circid: CircId) -> Result<()> {
         self.control
             .unbounded_send(CtrlMsg::CloseCircuit(circid))
-            .map_err(|_| Error::ChannelClosed)?;
+            .map_err(|_| ChannelClosed)?;
         Ok(())
     }
 }

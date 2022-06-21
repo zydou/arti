@@ -55,12 +55,16 @@ mod mgr;
 #[cfg(test)]
 mod testing;
 
+use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_netdir::NetDirProvider;
 use tor_proto::channel::Channel;
+use tracing::{debug, error};
+use void::{ResultVoidErrExt, Void};
 
 pub use err::Error;
 
@@ -112,10 +116,22 @@ impl<R: Runtime> ChanMgr<R> {
         }
     }
 
-    /// Launch the periodic daemon task required by the manager to function properly.
+    /// Launch the periodic daemon tasks required by the manager to function properly.
     ///
-    /// Returns a [`TaskHandle`] that can be used to manage the daemon task.
-    pub fn launch_background_tasks(self: &Arc<Self>, runtime: &R) -> Result<Vec<TaskHandle>> {
+    /// Returns a [`TaskHandle`] that can be used to manage
+    /// those daemon tasks that poll periodically.
+    pub fn launch_background_tasks(
+        self: &Arc<Self>,
+        runtime: &R,
+        netdir: Arc<dyn NetDirProvider>,
+    ) -> Result<Vec<TaskHandle>> {
+        runtime
+            .spawn(Self::continually_update_channels_config(
+                Arc::downgrade(self),
+                netdir,
+            ))
+            .map_err(|e| Error::from_spawn("channels config task", e))?;
+
         let (sched, handle) = TaskSchedule::new(runtime.clone());
         runtime
             .spawn(Self::continually_expire_channels(
@@ -161,6 +177,49 @@ impl<R: Runtime> ChanMgr<R> {
     /// Return the duration from now until next channel expires.
     pub fn expire_channels(&self) -> Duration {
         self.mgr.expire_channels()
+    }
+
+    /// Watch for things that ought to change the configuration of all channels in the client
+    ///
+    /// Currently this handles enabling and disabling channel padding.
+    ///
+    /// This is a daemon task that runs indefinitely in the background,
+    /// and exits when we find that `chanmgr` is dropped.
+    async fn continually_update_channels_config(
+        self_: Weak<Self>,
+        netdir: Arc<dyn NetDirProvider>,
+    ) {
+        use tor_netdir::DirEvent as DE;
+        let mut netdir_stream = netdir.events().fuse();
+        let netdir = {
+            let weak = Arc::downgrade(&netdir);
+            drop(netdir);
+            weak
+        };
+        let termination_reason: std::result::Result<Void, &str> = async move {
+            loop {
+                select_biased! {
+                    direvent = netdir_stream.next() => {
+                        let direvent = direvent.ok_or("EOF on netdir provider event stream")?;
+                        if ! matches!(direvent, DE::NewConsensus) { continue };
+                        let self_ = self_.upgrade().ok_or("channel manager gone away")?;
+                        let netdir = netdir.upgrade().ok_or("netdir gone away")?;
+                        let netdir = netdir.latest_netdir();
+                        let netdir = if let Some(nd) = netdir { nd } else { continue };
+                        self_.mgr.channels.process_updated_netdir(netdir).map_err(|e| {
+                            error!("continually_update_channels_config: failed to process! {} {:?}",
+                                   &e, &e);
+                            "error processing netdir"
+                        })?;
+                    }
+                }
+            }
+        }
+        .await;
+        debug!(
+            "continually_update_channels_config: shutting down: {}",
+            termination_reason.void_unwrap_err()
+        );
     }
 
     /// Periodically expire any channels that have been unused beyond

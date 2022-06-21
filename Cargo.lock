@@ -3514,10 +3514,13 @@ dependencies = [
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
+ "tor-netdir",
  "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
+ "void",
 ]
 
 [[package]]
@@ -3869,6 +3872,7 @@ dependencies = [
  "bytes",
  "cipher",
  "coarsetime",
+ "derive_builder_fork_arti",
  "digest 0.10.3",
  "educe",
  "futures",
@@ -3897,6 +3901,7 @@ dependencies = [
  "tor-protover",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-units",
  "tracing",
  "typenum",
  "zeroize",

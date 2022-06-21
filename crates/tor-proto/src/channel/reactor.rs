@@ -8,7 +8,7 @@
 
 use super::circmap::{CircEnt, CircMap};
 use crate::circuit::halfcirc::HalfCirc;
-use crate::util::err::ReactorError;
+use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
 use tor_cell::chancell::msg::{Destroy, DestroyReason};
@@ -29,7 +29,7 @@ use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use crate::channel::{codec::CodecError, padding, unique_id, ChannelDetails};
+use crate::channel::{codec::CodecError, padding, params::*, unique_id, ChannelDetails};
 use crate::circuit::celltypes::{ClientCircChanMsg, CreateResponse};
 use tracing::{debug, trace};
 
@@ -68,6 +68,15 @@ pub(super) enum CtrlMsg {
         /// Oneshot channel to send the new circuit's identifiers down.
         tx: ReactorResultChannel<(CircId, crate::circuit::UniqId)>,
     },
+    /// Enable/disable/reconfigure channel padding
+    ///
+    /// The sender of these messages is responsible for the optimisation of
+    /// ensuring that "no-change" messages are elided.
+    /// (This is implemented in `ChannelsParamsUpdatesBuilder`.)
+    ///
+    /// These updates are done via a control message to avoid adding additional branches to the
+    /// main reactor `select!`.
+    ConfigUpdate(Arc<ChannelsParamsUpdates>),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -121,7 +130,7 @@ impl<S: SleepProvider> Reactor<S> {
     /// used again.
     pub async fn run(mut self) -> Result<()> {
         if self.details.closed.load(Ordering::SeqCst) {
-            return Err(Error::ChannelClosed);
+            return Err(ChannelClosed.into());
         }
         debug!("{}: Running reactor", &self);
         let result: Result<()> = loop {
@@ -214,6 +223,24 @@ impl<S: SleepProvider> Reactor<S> {
                     .map(|id| (id, circ_unique_id));
                 let _ = tx.send(ret); // don't care about other side going away
                 self.update_disused_since();
+            }
+            CtrlMsg::ConfigUpdate(updates) => {
+                let ChannelsParamsUpdates {
+                    // List all the fields explicitly; that way the compiler will warn us
+                    // if one is added and we fail to handle it here.
+                    padding_enable,
+                    padding_parameters,
+                } = &*updates;
+                if let Some(parameters) = padding_parameters {
+                    self.padding_timer.as_mut().reconfigure(parameters);
+                }
+                if let Some(enable) = padding_enable {
+                    if *enable {
+                        self.padding_timer.as_mut().enable();
+                    } else {
+                        self.padding_timer.as_mut().disable();
+                    }
+                }
             }
         }
         Ok(())

@@ -124,6 +124,8 @@ mod util;
 pub use util::err::{Error, ResolveError};
 pub use util::skew::ClockSkew;
 
+pub use channel::params::ChannelsParams;
+
 /// A vector of bytes that gets cleared when it's dropped.
 type SecretBytes = zeroize::Zeroizing<Vec<u8>>;
 

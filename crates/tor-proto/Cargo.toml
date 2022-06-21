@@ -25,6 +25,7 @@ asynchronous-codec = "0.6.0"
 bytes = "1"
 cipher = "0.4.1"
 coarsetime = "0.1.20"
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 digest = "0.10.0"
 educe = "0.4.6"
 futures = "0.3.14"
@@ -49,6 +50,7 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.4.0" }
 tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
+tor-units = { path = "../tor-units", version = "0.3.0" }
 tracing = "0.1.18"
 typenum = "1.12"
 zeroize = "1"

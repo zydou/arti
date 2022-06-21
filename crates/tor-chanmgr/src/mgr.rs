@@ -8,8 +8,11 @@ use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
 use rand::Rng;
 use std::hash::Hash;
+use std::result::Result as StdResult;
+use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
+use tor_proto::channel::params::ChannelsParamsUpdates;
 
 mod map;
 
@@ -30,6 +33,14 @@ pub(crate) trait AbstractChannel: Clone {
     /// Return the amount of time a channel has not been in use.
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
+
+    /// Reparameterise this channel according to the provided `ChannelsParamsUpdates`
+    ///
+    /// The changed parameters may not be implemented "immediately",
+    /// but this will be done "reasonably soon".
+    ///
+    /// Returns `Err` (only) if the channel was closed earlier.
+    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()>;
 }
 
 /// Trait to describe how channels are created.
@@ -63,7 +74,7 @@ pub(crate) struct AbstractChanMgr<CF: ChannelFactory> {
     connector: CF,
 
     /// A map from ed25519 identity to channel, or to pending channel status.
-    channels: map::ChannelMap<CF::Channel>,
+    pub(crate) channels: map::ChannelMap<CF::Channel>,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -195,18 +206,28 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                 },
                 // We need to launch a channel.
                 Action::Launch(send) => match self.connector.build_channel(&target).await {
-                    Ok(chan) => {
+                    Ok(mut chan) => {
                         // The channel got built: remember it, tell the
                         // others, and return it.
-                        self.channels.replace(
-                            ident.clone(),
-                            Open(OpenEntry {
-                                channel: chan.clone(),
-                                max_unused_duration: Duration::from_secs(
-                                    rand::thread_rng().gen_range(180..270),
-                                ),
-                            }),
-                        )?;
+                        self.channels
+                            .replace_with_params(ident.clone(), |channels_params| {
+                                // This isn't great.  We context switch to the newly-created
+                                // channel just to tell it how and whether to do padding.  Ideally
+                                // we would pass the params at some suitable point during
+                                // building.  However, that would involve the channel taking a
+                                // copy of the params, and that must happen in the same channel
+                                // manager lock acquisition span as the one where we insert the
+                                // channel into the table so it will receive updates.  I.e.,
+                                // here.
+                                chan.reparameterize(channels_params.total_update().into())
+                                    .map_err(|()| internal!("new channel already closed"))?;
+                                Ok(Open(OpenEntry {
+                                    channel: chan.clone(),
+                                    max_unused_duration: Duration::from_secs(
+                                        rand::thread_rng().gen_range(180..270),
+                                    ),
+                                }))
+                            })?;
                         // It's okay if all the receivers went away:
                         // that means that nobody was waiting for this channel.
                         let _ignore_err = send.send(Ok(chan.clone()));
@@ -296,6 +317,9 @@ mod test {
         }
         fn duration_unused(&self) -> Option<Duration> {
             None
+        }
+        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+            Ok(())
         }
     }
 
