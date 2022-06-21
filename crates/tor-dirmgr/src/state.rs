@@ -23,7 +23,7 @@ use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
 use tracing::{info, warn};
 
-use crate::event::{DirStatus, DirStatusInner};
+use crate::event::DirProgress;
 
 use crate::storage::DynStore;
 use crate::{
@@ -138,8 +138,8 @@ pub(crate) trait DirState: Send {
         storage: Option<&Mutex<DynStore>>,
         changed: &mut bool,
     ) -> Result<()>;
-    /// Return a summary of this state as a [`DirStatus`].
-    fn bootstrap_status(&self) -> event::DirStatus;
+    /// Return a summary of this state as a [`DirProgress`].
+    fn bootstrap_progress(&self) -> event::DirProgress;
     /// Return a configuration for attempting downloads.
     fn dl_config(&self) -> DownloadSchedule;
     /// If possible, advance to the next state.
@@ -265,11 +265,11 @@ impl<R: Runtime> DirState for GetConsensusState<R> {
     fn can_advance(&self) -> bool {
         self.next.is_some()
     }
-    fn bootstrap_status(&self) -> DirStatus {
+    fn bootstrap_progress(&self) -> DirProgress {
         if let Some(next) = &self.next {
-            next.bootstrap_status()
+            next.bootstrap_progress()
         } else {
-            DirStatusInner::NoConsensus { after: self.after }.into()
+            DirProgress::NoConsensus { after: self.after }
         }
     }
     fn dl_config(&self) -> DownloadSchedule {
@@ -559,11 +559,11 @@ impl<R: Runtime> DirState for GetCertsState<R> {
     fn can_advance(&self) -> bool {
         matches!(self.consensus, GetCertsConsensus::Validated(_))
     }
-    fn bootstrap_status(&self) -> DirStatus {
+    fn bootstrap_progress(&self) -> DirProgress {
         let n_certs = self.certs.len();
         let n_missing_certs = self.missing_certs.len();
         let total_certs = n_missing_certs + n_certs;
-        DirStatusInner::FetchingCerts {
+        DirProgress::FetchingCerts {
             lifetime: self.consensus_meta.lifetime().clone(),
             usable_lifetime: self
                 .config
@@ -572,7 +572,6 @@ impl<R: Runtime> DirState for GetCertsState<R> {
 
             n_certs: (n_certs as u16, total_certs as u16),
         }
-        .into()
     }
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_certs
@@ -984,15 +983,14 @@ impl<R: Runtime> DirState for GetMicrodescsState<R> {
     fn can_advance(&self) -> bool {
         false
     }
-    fn bootstrap_status(&self) -> DirStatus {
+    fn bootstrap_progress(&self) -> DirProgress {
         let n_present = self.n_microdescs - self.partial.n_missing();
-        DirStatusInner::Validated {
+        DirProgress::Validated {
             lifetime: self.meta.lifetime().clone(),
             usable_lifetime: self.config.tolerance.extend_lifetime(self.meta.lifetime()),
             n_mds: (n_present as u32, self.n_microdescs as u32),
             usable: self.is_ready(Readiness::Usable),
         }
-        .into()
     }
     fn dl_config(&self) -> DownloadSchedule {
         self.config.schedule.retry_microdescs
@@ -1218,7 +1216,7 @@ impl DirState for PoisonedState {
     ) -> Result<()> {
         unimplemented!()
     }
-    fn bootstrap_status(&self) -> event::DirStatus {
+    fn bootstrap_progress(&self) -> event::DirProgress {
         unimplemented!()
     }
     fn dl_config(&self) -> DownloadSchedule {
@@ -1392,7 +1390,10 @@ mod test {
             assert!(state.reset_time().is_none());
 
             // Its starting DirStatus is "fetching a consensus".
-            assert_eq!(state.bootstrap_status().to_string(), "fetching a consensus");
+            assert_eq!(
+                state.bootstrap_progress().to_string(),
+                "fetching a consensus"
+            );
 
             // Download configuration is simple: only 1 request can be done in
             // parallel.  It uses a consensus retry schedule.
@@ -1551,7 +1552,7 @@ mod test {
 
             // Bootstrap status okay?
             assert_eq!(
-                state.bootstrap_status().to_string(),
+                state.bootstrap_progress().to_string(),
                 "fetching authority certificates (0/2)"
             );
 
@@ -1578,7 +1579,7 @@ mod test {
             assert_eq!(missing.len(), 1); // Now we're only missing one!
             assert!(missing.contains(&DocId::AuthCert(authcert_id_5a23())));
             assert_eq!(
-                state.bootstrap_status().to_string(),
+                state.bootstrap_progress().to_string(),
                 "fetching authority certificates (1/2)"
             );
 
@@ -1693,7 +1694,7 @@ mod test {
             let retry = state.dl_config();
             assert_eq!(retry, DownloadScheduleConfig::default().retry_microdescs);
             assert_eq!(
-                state.bootstrap_status().to_string(),
+                state.bootstrap_progress().to_string(),
                 "fetching microdescriptors (0/4)"
             );
 
@@ -1730,7 +1731,7 @@ mod test {
             assert_eq!(missing.len(), 3);
             assert!(!missing.contains(&DocId::Microdesc(md1)));
             assert_eq!(
-                state.bootstrap_status().to_string(),
+                state.bootstrap_progress().to_string(),
                 "fetching microdescriptors (1/4)"
             );
 

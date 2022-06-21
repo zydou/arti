@@ -79,6 +79,8 @@ use crate::shared_ref::SharedMutArc;
 #[cfg(feature = "experimental-api")]
 pub use crate::shared_ref::SharedMutArc;
 use crate::storage::{DynStore, Store};
+use bootstrap::AttemptId;
+use event::DirProgress;
 use postage::watch;
 pub use retry::{DownloadSchedule, DownloadScheduleBuilder};
 use scopeguard::ScopeGuard;
@@ -108,7 +110,7 @@ pub use config::{
 };
 pub use docid::DocId;
 pub use err::Error;
-pub use event::{DirBootstrapEvents, DirBootstrapStatus, DirStatus};
+pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
 pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
 
@@ -291,7 +293,7 @@ impl<R: Runtime> DirMgr<R> {
         let dirmgr = Arc::new(Self::from_config(config, runtime, None, true)?);
 
         // TODO: add some way to return a directory that isn't up-to-date
-        let _success = dirmgr.load_directory().await?;
+        let _success = dirmgr.load_directory(AttemptId::next()).await?;
 
         dirmgr.opt_netdir().ok_or(Error::DirectoryNotPresent)
     }
@@ -388,7 +390,8 @@ impl<R: Runtime> DirMgr<R> {
         };
 
         // Try to load from the cache.
-        let have_directory = self.load_directory().await?;
+        let attempt_id = AttemptId::next();
+        let have_directory = self.load_directory(attempt_id).await?;
 
         let (mut sender, receiver) = if have_directory {
             info!("Loaded a good directory from cache.");
@@ -418,14 +421,16 @@ impl<R: Runtime> DirMgr<R> {
                 // Don't warn when these are Error::ManagerDropped: that
                 // means that the DirMgr has been shut down.
                 if let Err(e) =
-                    Self::reload_until_owner(&dirmgr_weak, &mut schedule, &mut sender).await
+                    Self::reload_until_owner(&dirmgr_weak, &mut schedule, attempt_id, &mut sender)
+                        .await
                 {
                     match e {
                         Error::ManagerDropped => {}
                         _ => warn!("Unrecovered error while waiting for bootstrap: {}", e),
                     }
                 } else if let Err(e) =
-                    Self::download_forever(dirmgr_weak.clone(), &mut schedule, sender).await
+                    Self::download_forever(dirmgr_weak.clone(), &mut schedule, attempt_id, sender)
+                        .await
                 {
                     match e {
                         Error::ManagerDropped => {}
@@ -480,6 +485,7 @@ impl<R: Runtime> DirMgr<R> {
     async fn reload_until_owner(
         weak: &Weak<Self>,
         schedule: &mut TaskSchedule<R>,
+        attempt_id: AttemptId,
         on_complete: &mut Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut logged = false;
@@ -527,7 +533,7 @@ impl<R: Runtime> DirMgr<R> {
             {
                 let dirmgr = upgrade_weak_ref(weak)?;
                 trace!("Trying to load from the directory cache");
-                if dirmgr.load_directory().await? {
+                if dirmgr.load_directory(attempt_id).await? {
                     // Successfully loaded a bootstrapped directory.
                     if let Some(send_done) = on_complete.take() {
                         let _ = send_done.send(());
@@ -548,6 +554,7 @@ impl<R: Runtime> DirMgr<R> {
     async fn download_forever(
         weak: Weak<Self>,
         schedule: &mut TaskSchedule<R>,
+        mut attempt_id: AttemptId,
         mut on_complete: Option<oneshot::Sender<()>>,
     ) -> Result<()> {
         let mut state: Box<dyn DirState> = {
@@ -578,9 +585,14 @@ impl<R: Runtime> DirMgr<R> {
             let mut retry_delay = retry_config.schedule();
 
             'retry_attempt: for _ in retry_config.attempts() {
-                let outcome =
-                    bootstrap::download(Weak::clone(&weak), &mut state, schedule, &mut on_complete)
-                        .await;
+                let outcome = bootstrap::download(
+                    Weak::clone(&weak),
+                    &mut state,
+                    schedule,
+                    attempt_id,
+                    &mut on_complete,
+                )
+                .await;
 
                 if let Err(err) = outcome {
                     if state.is_ready(Readiness::Usable) {
@@ -605,6 +617,10 @@ impl<R: Runtime> DirMgr<R> {
                         "Unable to download a usable directory: {}.  We will restart in {:?}.",
                         err, delay
                     );
+                    {
+                        let dirmgr = upgrade_weak_ref(&weak)?;
+                        dirmgr.note_reset(attempt_id);
+                    }
                     schedule.sleep(delay).await;
                     state = state.reset();
                 } else {
@@ -633,6 +649,7 @@ impl<R: Runtime> DirMgr<R> {
                 Some(t) => schedule.sleep_until_wallclock(t).await,
                 None => return Ok(()),
             }
+            attempt_id = bootstrap::AttemptId::next();
             state = state.reset();
         }
     }
@@ -695,14 +712,34 @@ impl<R: Runtime> DirMgr<R> {
         self.receive_status.clone()
     }
 
-    /// Replace the latest status with `new_status` and broadcast to anybody
+    /// Replace the latest status with `progress` and broadcast to anybody
     /// watching via a [`DirBootstrapEvents`] stream.
-    fn update_status(&self, new_status: DirStatus) {
+    fn update_progress(&self, attempt_id: AttemptId, progress: DirProgress) {
         // TODO(nickm): can I kill off this lock by having something else own the sender?
         let mut sender = self.send_status.lock().expect("poisoned lock");
         let mut status = sender.borrow_mut();
 
-        status.update(new_status);
+        status.update_progress(attempt_id, progress);
+    }
+
+    /// Update our status tracker to note that some number of errors has
+    /// occurred.
+    fn note_errors(&self, attempt_id: AttemptId, n_errors: usize) {
+        if n_errors == 0 {
+            return;
+        }
+        let mut sender = self.send_status.lock().expect("poisoned lock");
+        let mut status = sender.borrow_mut();
+
+        status.note_errors(attempt_id, n_errors);
+    }
+
+    /// Update our status tracker to note that we've needed to reset our download attempt.
+    fn note_reset(&self, attempt_id: AttemptId) {
+        let mut sender = self.send_status.lock().expect("poisoned lock");
+        let mut status = sender.borrow_mut();
+
+        status.note_reset(attempt_id);
     }
 
     /// Try to make this a directory manager with read-write access to its
@@ -782,7 +819,7 @@ impl<R: Runtime> DirMgr<R> {
     /// cache, if it is newer than the one we have.
     ///
     /// Return false if there is no such consensus.
-    async fn load_directory(self: &Arc<Self>) -> Result<bool> {
+    async fn load_directory(self: &Arc<Self>, attempt_id: AttemptId) -> Result<bool> {
         let state = state::GetConsensusState::new(
             self.runtime.clone(),
             self.config.get(),
@@ -793,7 +830,7 @@ impl<R: Runtime> DirMgr<R> {
                 .clone()
                 .unwrap_or_else(|| Arc::new(crate::filter::NilFilter)),
         );
-        let _ = bootstrap::load(Arc::clone(self), Box::new(state)).await?;
+        let _ = bootstrap::load(Arc::clone(self), Box::new(state), attempt_id).await?;
 
         Ok(self.netdir.get().is_some())
     }

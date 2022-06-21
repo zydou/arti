@@ -9,7 +9,7 @@ use futures::{Stream, StreamExt};
 use tor_basic_utils::skip_fmt;
 use tor_chanmgr::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_circmgr::{ClockSkewEvents, SkewEstimate};
-use tor_dirmgr::DirBootstrapStatus;
+use tor_dirmgr::{DirBlockage, DirBootstrapStatus};
 use tracing::debug;
 
 /// Information about how ready a [`crate::TorClient`] is to handle requests.
@@ -85,6 +85,10 @@ impl BootstrapStatus {
             } else {
                 Some(Blockage { kind, message })
             }
+        } else if let Some(b) = self.dir_status.blockage(SystemTime::now()) {
+            let message = b.to_string().into();
+            let kind = b.into();
+            Some(Blockage { kind, message })
         } else {
             None
         }
@@ -140,6 +144,11 @@ pub enum BlockageKind {
     /// successfully with relays and/or from finding a directory that we trust.
     #[display(fmt = "Clock is skewed.")]
     ClockSkewed,
+    /// We've encounted some kind of problem downloading directory
+    /// information, and it doesn't seem to be caused by any particular
+    /// connection problem.
+    #[display(fmt = "Can't bootstrap a Tor directory.")]
+    CantBootstrap,
 }
 
 impl From<ConnBlockage> for BlockageKind {
@@ -150,6 +159,12 @@ impl From<ConnBlockage> for BlockageKind {
             ConnBlockage::CertsExpired => BlockageKind::ClockSkewed,
             _ => BlockageKind::CantReachTor,
         }
+    }
+}
+
+impl From<DirBlockage> for BlockageKind {
+    fn from(_: DirBlockage) -> Self {
+        BlockageKind::CantBootstrap
     }
 }
 
@@ -195,6 +210,7 @@ pub(crate) async fn report_status(
     skew_status: ClockSkewEvents,
 ) {
     /// Internal enumeration to combine incoming status changes.
+    #[allow(clippy::large_enum_variant)]
     enum Event {
         /// A connection status change
         Conn(ConnStatus),

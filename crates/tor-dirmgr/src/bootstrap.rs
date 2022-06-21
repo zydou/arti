@@ -1,6 +1,7 @@
 //! Functions to download or load directory objects, using the
 //! state machines in the `states` module.
 
+use std::num::NonZeroUsize;
 use std::ops::{Deref, DerefMut};
 use std::{
     collections::HashMap,
@@ -46,6 +47,36 @@ macro_rules! propagate_fatal_errors {
             }
         }
     };
+}
+
+/// Identifier for an attempt to bootstrap a directory.
+///
+/// Every time that we decide to download a new directory, _despite already
+/// having one_, counts as a new attempt.
+///
+/// These are used to track the progress of each attempt independently.
+#[derive(Copy, Clone, Debug, derive_more::Display, Eq, PartialEq, Ord, PartialOrd)]
+#[display(fmt = "{0}", id)]
+pub(crate) struct AttemptId {
+    /// Which attempt at downloading a directory is this?
+    id: NonZeroUsize,
+}
+
+impl AttemptId {
+    /// Return a new unused AtomicUsize that will be greater than any previous
+    /// one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if we have exhausted the possible space of AtomicIds.
+    pub(crate) fn next() -> Self {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        /// atomic used to generate the next attempt.
+        static NEXT: AtomicUsize = AtomicUsize::new(1);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        let id = id.try_into().expect("Allocated too many AttemptIds");
+        Self { id }
+    }
 }
 
 /// If there were errors from a peer in `outcome`, record those errors by
@@ -313,9 +344,11 @@ async fn fetch_multiple<R: Runtime>(
 async fn load_once<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
-    changed: &mut bool,
+    attempt_id: AttemptId,
+    changed_out: &mut bool,
 ) -> Result<()> {
     let missing = state.missing_docs();
+    let mut changed = false;
     let outcome: Result<()> = if missing.is_empty() {
         trace!("Found no missing documents; can't advance current state");
         Ok(())
@@ -330,13 +363,16 @@ async fn load_once<R: Runtime>(
             load_documents_from_store(&missing, store.deref())?
         };
 
-        state.add_from_cache(documents, changed)
+        state.add_from_cache(documents, &mut changed)
     };
 
-    // We have to update the status here regardless of the outcome: even if
-    // there was an error, we might have received partial information that
-    // changed our status.
-    dirmgr.update_status(state.bootstrap_status());
+    // We have to update the status here regardless of the outcome, if we got
+    // any information: even if there was an error, we might have received
+    // partial information that changed our status.
+    if changed {
+        dirmgr.update_progress(attempt_id, state.bootstrap_progress());
+        *changed_out = true;
+    }
 
     outcome
 }
@@ -348,12 +384,13 @@ async fn load_once<R: Runtime>(
 pub(crate) async fn load<R: Runtime>(
     dirmgr: Arc<DirMgr<R>>,
     mut state: Box<dyn DirState>,
+    attempt_id: AttemptId,
 ) -> Result<Box<dyn DirState>> {
     let mut safety_counter = 0_usize;
     loop {
         trace!(state=%state.describe(), "Loading from cache");
         let mut changed = false;
-        let outcome = load_once(&dirmgr, &mut state, &mut changed).await;
+        let outcome = load_once(&dirmgr, &mut state, attempt_id, &mut changed).await;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
             dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
@@ -399,9 +436,11 @@ async fn download_attempt<R: Runtime>(
     dirmgr: &Arc<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     parallelism: usize,
+    attempt_id: AttemptId,
 ) -> Result<()> {
     let missing = state.missing_docs();
     let fetched = fetch_multiple(Arc::clone(dirmgr), &missing, parallelism).await?;
+    let mut n_errors = 0;
     for (client_req, dir_response) in fetched {
         let source = dir_response.source().map(Clone::clone);
         let text = match String::from_utf8(dir_response.into_output())
@@ -410,6 +449,7 @@ async fn download_attempt<R: Runtime>(
             Ok(t) => t,
             Err(e) => {
                 if let Some(source) = source {
+                    n_errors += 1;
                     note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
                 continue;
@@ -435,6 +475,7 @@ async fn download_attempt<R: Runtime>(
 
                 if let Some(source) = source {
                     if let Err(e) = &outcome {
+                        n_errors += 1;
                         note_cache_error(dirmgr.circmgr()?.deref(), &source, e);
                     } else {
                         note_cache_success(dirmgr.circmgr()?.deref(), &source);
@@ -442,6 +483,7 @@ async fn download_attempt<R: Runtime>(
                 }
 
                 if let Err(e) = &outcome {
+                    dirmgr.note_errors(attempt_id, 1);
                     warn!("error while adding directory info: {}", e);
                 }
                 propagate_fatal_errors!(outcome);
@@ -449,14 +491,17 @@ async fn download_attempt<R: Runtime>(
             Err(e) => {
                 warn!("Error when expanding directory text: {}", e);
                 if let Some(source) = source {
+                    n_errors += 1;
                     note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
                 }
                 propagate_fatal_errors!(Err(e));
             }
         }
     }
-
-    dirmgr.update_status(state.bootstrap_status());
+    if n_errors != 0 {
+        dirmgr.note_errors(attempt_id, n_errors);
+    }
+    dirmgr.update_progress(attempt_id, state.bootstrap_progress());
 
     Ok(())
 }
@@ -474,6 +519,7 @@ pub(crate) async fn download<R: Runtime>(
     dirmgr: Weak<DirMgr<R>>,
     state: &mut Box<dyn DirState>,
     schedule: &mut TaskSchedule<R>,
+    attempt_id: AttemptId,
     on_usable: &mut Option<oneshot::Sender<()>>,
 ) -> Result<()> {
     let runtime = upgrade_weak_ref(&dirmgr)?.runtime.clone();
@@ -488,11 +534,12 @@ pub(crate) async fn download<R: Runtime>(
         let mut now = {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut changed = false;
-            let load_result = load_once(&dirmgr, state, &mut changed).await;
+            let load_result = load_once(&dirmgr, state, attempt_id, &mut changed).await;
             if let Err(e) = &load_result {
                 // If the load failed but the error can be blamed on a directory
                 // cache, do so.
                 if let Some(source) = e.responsible_cache() {
+                    dirmgr.note_errors(attempt_id, 1);
                     note_cache_error(dirmgr.circmgr()?.deref(), source, e);
                 }
             }
@@ -552,7 +599,7 @@ pub(crate) async fn download<R: Runtime>(
             now = {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 futures::select_biased! {
-                    outcome = download_attempt(&dirmgr,  state, parallelism.into()).fuse() => {
+                    outcome = download_attempt(&dirmgr, state, parallelism.into(), attempt_id).fuse() => {
                         if let Err(e) = outcome {
                             warn!("Error while downloading: {}", e);
                             propagate_fatal_errors!(Err(e));
@@ -704,8 +751,8 @@ mod test {
         fn describe(&self) -> String {
             format!("{:?}", &self)
         }
-        fn bootstrap_status(&self) -> crate::event::DirStatus {
-            crate::event::DirStatus::default()
+        fn bootstrap_progress(&self) -> crate::event::DirProgress {
+            crate::event::DirProgress::default()
         }
         fn is_ready(&self, ready: Readiness) -> bool {
             match (ready, self.second_time_around) {
@@ -801,10 +848,13 @@ mod test {
                 }
             }
             let mgr = Arc::new(mgr);
+            let attempt_id = AttemptId::next();
 
             // Try just a load.
             let state = Box::new(DemoState::new1());
-            let result = super::load(Arc::clone(&mgr), state).await.unwrap();
+            let result = super::load(Arc::clone(&mgr), state, attempt_id)
+                .await
+                .unwrap();
             assert!(result.is_ready(Readiness::Complete));
 
             // Try a bootstrap that could (but won't!) download.
@@ -815,6 +865,7 @@ mod test {
                 Arc::downgrade(&mgr),
                 &mut state,
                 &mut schedule,
+                attempt_id,
                 &mut on_usable,
             )
             .await
@@ -849,12 +900,14 @@ mod test {
             }
             let mgr = Arc::new(mgr);
             let mut on_usable = None;
+            let attempt_id = AttemptId::next();
 
             let mut state: Box<dyn DirState> = Box::new(DemoState::new1());
             super::download(
                 Arc::downgrade(&mgr),
                 &mut state,
                 &mut schedule,
+                attempt_id,
                 &mut on_usable,
             )
             .await
