@@ -471,7 +471,6 @@ impl DirBootstrapStatus {
     }
 
     /// Return the contained `StatusEntry`s mutably, in order: `current`, then `next`
-    #[allow(dead_code)]
     fn entries_mut(&mut self) -> impl Iterator<Item = &mut StatusEntry> + DoubleEndedIterator {
         let (current, next) = match &mut self.0 {
             StatusEnum::NoActivity => (None, None),
@@ -526,33 +525,32 @@ impl DirBootstrapStatus {
     ///
     /// Return None if all relevant attempts are more recent than this Id.
     fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
-        // First, we add a status for this attempt_id if appropriate.
-        self.0 = match std::mem::take(&mut self.0) {
-            StatusEnum::NoActivity => StatusEnum::Single {
-                current: StatusEntry::new(attempt_id),
-            },
-            StatusEnum::Single { current } if current.id < attempt_id => StatusEnum::Replacing {
-                current,
-                next: StatusEntry::new(attempt_id),
-            },
-            StatusEnum::Replacing { current, next } if next.id < attempt_id => {
-                StatusEnum::Replacing {
-                    current,
-                    next: StatusEntry::new(attempt_id),
-                }
-            }
-            other => other,
-        };
-
-        // Now return the correct status.
-        match &mut self.0 {
-            StatusEnum::Single { current } if current.id == attempt_id => Some(&mut current.status),
-            StatusEnum::Replacing { current, .. } if current.id == attempt_id => {
-                Some(&mut current.status)
-            }
-            StatusEnum::Replacing { next, .. } if next.id == attempt_id => Some(&mut next.status),
-            _ => None,
+        // First, ensure that we have a *recent enough* attempt
+        // Look for the latest attempt, and see if it's new enough; if not, start a new one.
+        if !self
+            .entries_mut()
+            .rev()
+            .take(1)
+            .any(|entry| entry.id >= attempt_id)
+        {
+            let current = match std::mem::take(&mut self.0) {
+                StatusEnum::NoActivity => None,
+                StatusEnum::Single { current } => Some(current),
+                StatusEnum::Replacing { current, .. } => Some(current),
+            };
+            // If we have a `current` already, we keep it, and restart `next`.
+            let next = StatusEntry::new(attempt_id);
+            self.0 = match current {
+                None => StatusEnum::Single { current: next },
+                Some(current) => StatusEnum::Replacing { current, next },
+            };
         }
+
+        // Find the entry with `attempt_id` and return it.
+        // (Despite the above, there might not be one: maybe `attempt_id` is old.)
+        self.entries_mut()
+            .find(|entry| entry.id == attempt_id)
+            .map(|entry| &mut entry.status)
     }
 
     /// If the "next" status is usable, replace the current status with it.
