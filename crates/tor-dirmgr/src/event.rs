@@ -527,10 +527,6 @@ impl DirBootstrapStatus {
     /// Return None if all relevant attempts are more recent than this Id.
     fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
         // First, we add a status for this attempt_id if appropriate.
-        //
-        // TODO: should make sure that the compiler is smart enough to optimize
-        // this mem::take() and replacement away, and turn it into a conditional
-        // replacement?
         self.0 = match std::mem::take(&mut self.0) {
             StatusEnum::NoActivity => StatusEnum::Single {
                 current: StatusEntry::new(attempt_id),
