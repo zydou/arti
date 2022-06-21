@@ -104,7 +104,9 @@ impl CheckedDir {
             options.custom_flags(libc::O_NOFOLLOW);
         }
 
-        let file = options.open(&path).map_err(|e| Error::io(e, &path))?;
+        let file = options
+            .open(&path)
+            .map_err(|e| Error::io(e, &path, "open file"))?;
         let meta = file.metadata().map_err(|e| Error::inspecting(e, &path))?;
 
         if let Some(error) = self
@@ -150,7 +152,7 @@ impl CheckedDir {
         let mut file = self.open(path, OpenOptions::new().read(true))?;
         let mut result = String::new();
         file.read_to_string(&mut result)
-            .map_err(|e| Error::io(e, path))?;
+            .map_err(|e| Error::io(e, path, "read file"))?;
         Ok(result)
     }
 
@@ -165,7 +167,7 @@ impl CheckedDir {
         let mut file = self.open(path, OpenOptions::new().read(true))?;
         let mut result = Vec::new();
         file.read_to_end(&mut result)
-            .map_err(|e| Error::io(e, path))?;
+            .map_err(|e| Error::io(e, path, "read file"))?;
         Ok(result)
     }
 
@@ -202,13 +204,13 @@ impl CheckedDir {
         // Write the data.
         tmp_file
             .write_all(contents.as_ref())
-            .map_err(|e| Error::io(e, &tmp_name))?;
+            .map_err(|e| Error::io(e, &tmp_name, "write to file"))?;
         // Flush and close.
         drop(tmp_file);
 
         // Replace the old file.
         std::fs::rename(self.location.join(tmp_name), self.location.join(path))
-            .map_err(|e| Error::io(e, path))?;
+            .map_err(|e| Error::io(e, path, "replace file"))?;
         Ok(())
     }
 

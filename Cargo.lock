@@ -1240,6 +1240,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
+ "derive_more",
  "educe",
  "libc",
  "once_cell",
