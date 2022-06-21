@@ -18,6 +18,7 @@ use std::{
 
 use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
+use itertools::chain;
 use time::OffsetDateTime;
 use tor_basic_utils::skip_fmt;
 use tor_netdir::DirEvent;
@@ -457,14 +458,28 @@ impl DirBootstrapStatus {
     }
 
     /// Return the next DirStatus, if there is one.
-    ///
-    /// Testing-only.
-    #[cfg(test)]
     fn next(&self) -> Option<&DirStatus> {
         match &self.0 {
             StatusEnum::Replacing { next, .. } => Some(&next.status),
             _ => None,
         }
+    }
+
+    /// Return the contained `DirStatus`es, in order: `current`, then `next`
+    #[allow(dead_code)]
+    fn statuses(&self) -> impl Iterator<Item = &DirStatus> + DoubleEndedIterator {
+        chain!(self.current(), self.next(),)
+    }
+
+    /// Return the contained `StatusEntry`s mutably, in order: `current`, then `next`
+    #[allow(dead_code)]
+    fn entries_mut(&mut self) -> impl Iterator<Item = &mut StatusEntry> + DoubleEndedIterator {
+        let (current, next) = match &mut self.0 {
+            StatusEnum::NoActivity => (None, None),
+            StatusEnum::Single { current } => (Some(current), None),
+            StatusEnum::Replacing { current, next } => (Some(current), Some(next)),
+        };
+        chain!(current, next,)
     }
 
     /// Return the fraction of completion for directory download, in a form
