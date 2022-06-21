@@ -58,13 +58,13 @@ mod testing;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
-use std::convert::Infallible;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::NetDirProvider;
 use tor_proto::channel::Channel;
 use tracing::{debug, error};
+use void::{ResultVoidErrExt, Void};
 
 pub use err::Error;
 
@@ -196,7 +196,7 @@ impl<R: Runtime> ChanMgr<R> {
             drop(netdir);
             weak
         };
-        let termination_reason = match async move {
+        let termination_reason: std::result::Result<Void, &str> = async move {
             loop {
                 select_biased! {
                     direvent = netdir_stream.next() => {
@@ -215,14 +215,10 @@ impl<R: Runtime> ChanMgr<R> {
                 }
             }
         }
-        .await
-        {
-            Ok::<Infallible, &str>(x) => match x {},
-            Err(m) => m,
-        };
+        .await;
         debug!(
             "continually_update_channels_config: shutting down: {}",
-            termination_reason
+            termination_reason.void_unwrap_err()
         );
     }
 
