@@ -12,13 +12,13 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    #[error("parsing error: {0}")]
+    #[error("parsing error")]
     BytesErr(#[from] tor_bytes::Error),
     /// There was a programming error somewhere in the code.
-    #[error("Internal programming error: {0}")]
+    #[error("Internal programming error")]
     Internal(tor_error::Bug),
     /// Protocol violation at the channel level
-    #[error("channel protocol violation: {0}")]
+    #[error("channel protocol violation")]
     ChanProto(String),
     /// Tried to make or use a stream to an invalid destination address.
     #[error("invalid stream target address")]

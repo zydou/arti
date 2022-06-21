@@ -14,7 +14,7 @@ use tor_proto::ClockSkew;
 #[non_exhaustive]
 pub enum Error {
     /// A ChanTarget was given for which no channel could be built.
-    #[error("Target was unusable: {0}")]
+    #[error("Bug: Target was unusable")]
     UnusableTarget(#[source] tor_error::Bug),
 
     /// We were waiting on a pending channel, but it didn't succeed.
@@ -68,7 +68,7 @@ pub enum Error {
         cause: Arc<SpawnError>,
     },
     /// An internal error of some kind that should never occur.
-    #[error("Internal error: {0}")]
+    #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
 }
 

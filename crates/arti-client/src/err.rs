@@ -109,11 +109,11 @@ pub_if_error_detail! {
 #[non_exhaustive]
 enum ErrorDetail {
     /// Error setting up the channel manager
-    #[error("Error setting up the channel manager {0}")]
+    #[error("Error setting up the channel manager")]
     ChanMgrSetup(#[source] tor_chanmgr::Error), // TODO should this be its own type?
 
     /// Error setting up the circuit manager
-    #[error("Error setting up the circuit manager {0}")]
+    #[error("Error setting up the circuit manager")]
     CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
 
     /// Failed to obtain exit circuit
@@ -128,15 +128,15 @@ enum ErrorDetail {
     },
 
     /// Error while getting a circuit
-    #[error("Directory state error {0}")]
+    #[error("Directory state error")]
     DirMgr(#[from] tor_dirmgr::Error),
 
     /// A protocol error while launching a stream
-    #[error("Protocol error while launching a stream: {0}")]
+    #[error("Protocol error while launching a stream")]
     Proto(#[from] tor_proto::Error),
 
     /// An error while interfacing with the persistent data layer.
-    #[error("Error from state manager: {0}")]
+    #[error("Error from state manager")]
     Persist(#[from] tor_persist::Error),
 
     /// We asked an exit to do something, and waited too long for an answer..
@@ -148,7 +148,7 @@ enum ErrorDetail {
     OnionAddressNotSupported,
 
     /// Unusable target address.
-    #[error("Could not parse target address: {0}")]
+    #[error("Could not parse target address")]
     Address(#[from] crate::address::TorAddrError),
 
     /// Hostname not valid.
@@ -160,11 +160,11 @@ enum ErrorDetail {
     LocalAddress,
 
     /// Building configuration for the client failed.
-    #[error("Configuration failed: {0}")]
+    #[error("Configuration failed")]
     Configuration(#[from] tor_config::ConfigBuildError),
 
     /// Unable to change configuration.
-    #[error("Reconfiguration failed: {0}")]
+    #[error("Reconfiguration failed")]
     Reconfigure(#[from] tor_config::ReconfigureError),
 
     /// Unable to spawn task

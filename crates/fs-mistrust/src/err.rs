@@ -99,7 +99,7 @@ pub enum Error {
 
     /// A field was missing when we tried to construct a
     /// [`Mistrust`](crate::Mistrust).
-    #[error("Missing field: {0}")]
+    #[error("Missing field when constructing Mistrust")]
     MissingField(#[from] derive_builder::UninitializedFieldError),
 
     /// A  group that we were configured to trust could not be found.

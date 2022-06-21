@@ -14,7 +14,7 @@ use crate::SourceInfo;
 #[non_exhaustive]
 pub enum Error {
     /// Error while getting a circuit
-    #[error("Error while getting a circuit {0}")]
+    #[error("Error while getting a circuit")]
     CircMgr(#[from] tor_circmgr::Error),
 
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
@@ -50,11 +50,11 @@ pub enum RequestError {
     Utf8Encoding(#[from] std::string::FromUtf8Error),
 
     /// Io error while reading on connection
-    #[error("IO error: {0}")]
+    #[error("IO error")]
     IoError(#[source] Arc<std::io::Error>),
 
     /// A protocol error while launching a stream
-    #[error("Protocol error while launching a stream: {0}")]
+    #[error("Protocol error while launching a stream")]
     Proto(#[from] tor_proto::Error),
 
     /// Error when parsing http

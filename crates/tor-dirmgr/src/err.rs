@@ -25,7 +25,7 @@ pub enum Error {
     #[error("corrupt cache: {0}")]
     CacheCorruption(&'static str),
     /// rusqlite gave us an error.
-    #[error("sqlite error: {0}")]
+    #[error("sqlite error")]
     SqliteError(#[source] Arc<rusqlite::Error>),
     /// A schema version that says we can't read it.
     #[error("unrecognized data storage schema")]
@@ -48,7 +48,7 @@ pub enum Error {
     #[error("storage error: {0}")]
     StorageError(String),
     /// An error given by the consensus diff crate.
-    #[error("consdiff error: {0}")]
+    #[error("consdiff error")]
     ConsensusDiffError(#[from] tor_consdiff::Error),
     /// Invalid UTF8 in directory response.
     #[error("invalid utf-8 from directory server")]
@@ -85,13 +85,13 @@ pub enum Error {
     #[error("object expired or not yet valid.")]
     UntimelyObject(#[from] tor_checkable::TimeValidityError),
     /// An error given by dirclient
-    #[error("dirclient error: {0}")]
+    #[error("dirclient error")]
     DirClientError(#[from] tor_dirclient::Error),
     /// An error given by the checkable crate.
-    #[error("checkable error: {0}")]
+    #[error("checkable error")]
     SignatureError(#[source] Arc<signature::Error>),
     /// An IO error occurred while manipulating storage on disk.
-    #[error("IO error: {0}")]
+    #[error("IO error")]
     IOError(#[source] Arc<std::io::Error>),
     /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
     #[error("cannot bootstrap offline DirMgr")]
@@ -121,7 +121,7 @@ pub enum Error {
     },
 
     /// A programming problem, either in our code or the code calling it.
-    #[error("programming problem: {0}")]
+    #[error("programming problem")]
     Bug(#[from] tor_error::Bug),
 }
 
