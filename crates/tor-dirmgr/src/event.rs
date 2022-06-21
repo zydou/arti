@@ -466,7 +466,6 @@ impl DirBootstrapStatus {
     }
 
     /// Return the contained `DirStatus`es, in order: `current`, then `next`
-    #[allow(dead_code)]
     fn statuses(&self) -> impl Iterator<Item = &DirStatus> + DoubleEndedIterator {
         chain!(self.current(), self.next(),)
     }
@@ -491,15 +490,10 @@ impl DirBootstrapStatus {
     /// Callers _should not_ depend on the specific meaning of any particular
     /// fraction; we may change these fractions in the future.
     pub fn frac_at(&self, when: SystemTime) -> f32 {
-        match &self.0 {
-            StatusEnum::NoActivity => 0.0,
-            StatusEnum::Single { current } => current.status.frac_at(when).unwrap_or(0.0),
-            StatusEnum::Replacing { current, next } => current
-                .status
-                .frac_at(when)
-                .or_else(|| next.status.frac_at(when))
-                .unwrap_or(0.0),
-        }
+        self.statuses()
+            .filter_map(|st| st.frac_at(when))
+            .next()
+            .unwrap_or(0.0)
     }
 
     /// Return true if this status indicates that we have a current usable
@@ -523,17 +517,8 @@ impl DirBootstrapStatus {
             }
         }
 
-        match &self.0 {
-            // We're not trying to fetch anything, so it can't be blocked.
-            StatusEnum::NoActivity => None,
-            // We have only one attempt: its blockage is the only relevant one.
-            StatusEnum::Single { current } => current.status.blockage(),
-            // We know about two attempts: any blockage in "current" is more
-            // serious.
-            StatusEnum::Replacing { current, next } => {
-                current.status.blockage().or_else(|| next.status.blockage())
-            }
-        }
+        // Any blockage in "current" is more serious, so return that if there is one
+        self.statuses().filter_map(|st| st.blockage()).next()
     }
 
     /// Return the appropriate DirStatus for `AttemptId`, constructing it if
