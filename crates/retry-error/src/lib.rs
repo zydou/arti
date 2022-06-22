@@ -241,7 +241,7 @@ impl<E: Display> Display for RetryError<E> {
             n => {
                 write!(
                     f,
-                    "Tried to {} {} times, but all attempts failed.",
+                    "Tried to {} {} times, but all attempts failed",
                     self.doing, n
                 )?;
 
@@ -274,7 +274,7 @@ mod test {
         assert_eq!(
             disp,
             "\
-Tried to convert some things 3 times, but all attempts failed.
+Tried to convert some things 3 times, but all attempts failed
 Attempt 1: provided string was not `true` or `false`
 Attempt 2: invalid digit found in string
 Attempt 3: invalid IP address syntax"
@@ -330,7 +330,7 @@ Attempt 3: invalid IP address syntax"
         assert_eq!(
             disp,
             "\
-Tried to parse some integers 3 times, but all attempts failed.
+Tried to parse some integers 3 times, but all attempts failed
 Attempts 1..3: invalid digit found in string"
         );
     }
