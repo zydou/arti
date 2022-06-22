@@ -60,22 +60,22 @@ struct LiteralPath {
 #[non_exhaustive]
 pub enum CfgPathError {
     /// The path contained a variable we didn't recognize.
-    #[error("unrecognized variable {0}")]
+    #[error("Unrecognized variable {0} in path")]
     UnknownVar(String),
     /// We couldn't construct a ProjectDirs object.
-    #[error("can't construct project directories")]
+    #[error("Can't construct project directories to resolve a path element")]
     NoProjectDirs,
     /// We couldn't construct a BaseDirs object.
-    #[error("can't construct base directories")]
+    #[error("Can't construct base directories to resolve a path element")]
     NoBaseDirs,
     /// We couldn't convert a variable to UTF-8.
     ///
     /// (This is due to a limitation in the shellexpand crate, which should
     /// be fixed in the future.)
-    #[error("can't convert value of {0} to UTF-8")]
+    #[error("Can't convert value of {0} to UTF-8 in path")]
     BadUtf8(String),
     /// We couldn't convert a string to a valid path on the OS.
-    #[error("invalid path string: {0:?}")]
+    #[error("Invalid path string: {0:?}")]
     InvalidString(String),
 }
 
@@ -290,7 +290,7 @@ mod test {
         assert!(matches!(p.path(), Err(CfgPathError::UnknownVar(_))));
         assert_eq!(
             &p.path().unwrap_err().to_string(),
-            "unrecognized variable ARTI_WOMBAT"
+            "Unrecognized variable ARTI_WOMBAT in path"
         );
     }
 
