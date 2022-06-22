@@ -274,13 +274,13 @@ impl Protocols {
 #[non_exhaustive]
 pub enum ParseError {
     /// A protocol version was not in the range 0..=63.
-    #[error("protocol version out of range")]
+    #[error("Protocol version out of range")]
     OutOfRange,
     /// Some subprotocol or protocol version appeared more than once.
-    #[error("duplicate protocol entry")]
+    #[error("Duplicate protocol entry")]
     Duplicate,
     /// The list of protocol versions was malformed in some other way.
-    #[error("malformed protocol entry")]
+    #[error("Malformed protocol entry")]
     Malformed,
 }
 
