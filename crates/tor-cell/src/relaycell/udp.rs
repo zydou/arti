@@ -178,7 +178,9 @@ impl ConnectUdp {
         F: Into<msg::BeginFlags>,
     {
         Ok(Self {
-            addr: (addr, port).try_into()?,
+            addr: (addr, port)
+                .try_into()
+                .map_err(|_| crate::Error::BadStreamAddress)?,
             flags: flags.into(),
         })
     }
@@ -274,7 +276,7 @@ impl Datagram {
     /// Returns an error if `inp` is longer than [`Datagram::MAXLEN`] bytes.
     pub fn new(inp: &[u8]) -> crate::Result<Self> {
         if inp.len() > msg::Data::MAXLEN {
-            return Err(crate::Error::CantEncode);
+            return Err(crate::Error::CantEncode("Datagram too long"));
         }
         Ok(Self::new_unchecked(inp.into()))
     }
