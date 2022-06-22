@@ -486,11 +486,23 @@ mod test {
 
     #[test]
     fn base64() -> Result<()> {
+        // Test parsing succeess:
+        // Unpadded:
         assert_eq!("Mi43MTgyOA".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
+        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..8).is_ok());
+        assert_eq!("Mg".parse::<B64>()?.as_bytes(), &b"2"[..]);
+        assert!("Mg".parse::<B64>()?.check_len(1..2).is_ok());
+        // Padded:
         assert_eq!("Mi43MTgyOA==".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
+        assert!("Mi43MTgyOA==".parse::<B64>()?.check_len(7..8).is_ok());
+        assert_eq!("Mg==".parse::<B64>()?.as_bytes(), &b"2"[..]);
+        assert!("Mg==".parse::<B64>()?.check_len(1..2).is_ok());
+        // Test parsing failures:
+        // Invalid character.
         assert!("Mi43!!!!!!".parse::<B64>().is_err());
+        // Invalid last character.
         assert!("Mi".parse::<B64>().is_err());
-        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..=8).is_ok());
+        // Invalid length.
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
         Ok(())
     }
