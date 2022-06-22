@@ -83,7 +83,10 @@ impl ChannelCodec {
     pub fn decode_cell(&mut self, src: &mut BytesMut) -> crate::Result<Option<ChanCell>> {
         /// Wrap `be` as an appropriate type.
         fn wrap_err(be: tor_bytes::Error) -> crate::Error {
-            crate::Error::BytesErr(be, "channel cell")
+            crate::Error::BytesErr {
+                err: be,
+                parsed: "channel cell",
+            }
         }
 
         if src.len() < 7 {

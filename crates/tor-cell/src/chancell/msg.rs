@@ -919,8 +919,10 @@ impl Certs {
             .cert_body(tp)
             .ok_or_else(|| crate::Error::ChanProto(format!("Missing {} certificate", tp)))?;
 
-        let cert = tor_cert::Ed25519Cert::decode(body)
-            .map_err(|be| crate::Error::BytesErr(be, "ed25519 certificate"))?;
+        let cert = tor_cert::Ed25519Cert::decode(body).map_err(|be| crate::Error::BytesErr {
+            err: be,
+            parsed: "ed25519 certificate",
+        })?;
         if cert.peek_cert_type() != tp {
             return Err(crate::Error::ChanProto(format!(
                 "Found a {} certificate labeled as {}",
