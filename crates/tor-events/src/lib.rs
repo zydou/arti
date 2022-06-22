@@ -147,10 +147,10 @@ impl EventReactor {
 #[non_exhaustive]
 pub enum ReceiverError {
     /// The receiver isn't subscribed to anything, so wouldn't ever return any events.
-    #[error("no event subscriptions")]
+    #[error("No event subscriptions")]
     NoSubscriptions,
     /// The internal broadcast channel was closed, which shouldn't ever happen.
-    #[error("internal event broadcast channel closed")]
+    #[error("Internal event broadcast channel closed")]
     ChannelClosed,
 }
 
