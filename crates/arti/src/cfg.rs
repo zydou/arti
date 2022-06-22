@@ -232,8 +232,9 @@ mod test {
 
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
-    use itertools::Itertools;
+    use itertools::{chain, Itertools};
     use regex::Regex;
+    use std::iter;
     use std::time::Duration;
     use tor_config::load::ResolutionResults;
 
@@ -381,6 +382,120 @@ mod test {
 
         let proxy = config.proxy();
         assert_eq!(&config.proxy, proxy);
+    }
+
+    /// Comprehensive tests for the various `socks_port` and `dns_port`
+    ///
+    /// The "this isn't set at all, just use the default" cases are tested elsewhere.
+    fn compat_ports_listen(
+        f: &str,
+        get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
+        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
+        bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
+        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
+        setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
+    ) {
+        let from_toml = |s: &str| -> ArtiConfigBuilder {
+            let cfg: toml::Value = toml::from_str(dbg!(s)).unwrap();
+            let cfg: ArtiConfigBuilder = cfg.try_into().unwrap();
+            cfg
+        };
+
+        let conflicting_cfgs = [
+            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
+        ];
+
+        let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
+            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
+            let cfg = cfg.build().unwrap();
+            assert_eq!(get_listen(&cfg), expected);
+        };
+
+        let check_setters = |port, expected: &_| {
+            for cfg in chain!(
+                iter::once(ArtiConfig::builder()),
+                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
+            ) {
+                for listen in match port {
+                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
+                    Some(port) => vec![Listen::new_localhost(port)],
+                } {
+                    let mut cfg = cfg.clone();
+                    setter_port(&mut cfg, dbg!(port));
+                    setter_listen(&mut cfg, dbg!(listen));
+                    chk(&cfg, expected);
+                }
+            }
+        };
+
+        {
+            let expected = Listen::new_localhost(100);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
+            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
+            assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!(
+                "proxy.{}_port = 100\n proxy.{}_listen = 100",
+                f, f
+            ));
+            chk(&cfg, &expected);
+
+            check_setters(Some(100), &expected);
+        }
+
+        {
+            let expected = Listen::new_none();
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
+            chk(&cfg, &expected);
+
+            check_setters(None, &expected);
+        }
+
+        for cfg in &conflicting_cfgs {
+            let cfg = from_toml(cfg);
+            let err = dbg!(cfg.build()).unwrap_err();
+            assert!(err.to_string().contains("specifying different values"));
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn ports_listen_socks() {
+        compat_ports_listen(
+            "socks",
+            &|cfg| &cfg.proxy.socks_listen,
+            &|bld| &bld.proxy.socks_port,
+            &|bld| &bld.proxy.socks_listen,
+            &|bld, arg| bld.proxy.socks_port(arg),
+            &|bld, arg| bld.proxy.socks_listen(arg),
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compat_ports_listen_dns() {
+        compat_ports_listen(
+            "dns",
+            &|cfg| &cfg.proxy.dns_listen,
+            &|bld| &bld.proxy.dns_port,
+            &|bld| &bld.proxy.dns_listen,
+            &|bld, arg| bld.proxy.dns_port(arg),
+            &|bld, arg| bld.proxy.dns_listen(arg),
+        );
     }
 
     #[allow(clippy::dbg_macro)]
