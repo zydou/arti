@@ -89,8 +89,16 @@ pub enum Error {
     InvalidSubdirectory,
 
     /// We encountered an error while attempting an IO operation on a file.
-    #[error("IO error on {0} while attempting to {1}")]
-    Io(PathBuf, &'static str, #[source] Arc<IoError>),
+    #[error("IO error on {filename} while attempting to {action}")]
+    Io {
+        /// The file that we were trying to modify or inspect
+        filename: PathBuf,
+        /// The action that failed.
+        action: &'static str,
+        /// The error that we got when trying to perform the operation.
+        #[source]
+        err: Arc<IoError>,
+    },
 
     /// A field was missing when we tried to construct a
     /// [`Mistrust`](crate::Mistrust).
@@ -121,7 +129,11 @@ impl Error {
     pub(crate) fn io(err: IoError, fname: impl Into<PathBuf>, action: &'static str) -> Self {
         match err.kind() {
             IoErrorKind::NotFound => Error::NotFound(fname.into()),
-            _ => Error::Io(fname.into(), action, Arc::new(err)),
+            _ => Error::Io {
+                filename: fname.into(),
+                action,
+                err: Arc::new(err),
+            },
         }
     }
 
@@ -134,7 +146,7 @@ impl Error {
                 Error::BadOwner(pb, _) => pb,
                 Error::BadType(pb) => pb,
                 Error::CouldNotInspect(pb, _) => pb,
-                Error::Io(pb, _, _) => pb,
+                Error::Io { filename: pb, .. } => pb,
                 Error::Multiple(_) => return None,
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
@@ -166,7 +178,7 @@ impl Error {
             | Error::CreatingDir(_)
             | Error::Listing(_)
             | Error::InvalidSubdirectory
-            | Error::Io(_, _, _)
+            | Error::Io { .. }
             | Error::MissingField(_)
             | Error::NoSuchGroup(_)
             | Error::NoSuchUser(_) => false,
