@@ -173,7 +173,7 @@ impl SocksHandshake {
             (State::Socks5Wait, [5, NO_AUTHENTICATION])
         } else {
             // In theory we should reply with "NO ACCEPTABLE METHODS".
-            return Err(Error::NotImplemented);
+            return Err(Error::NotImplemented("authentication methods".into()));
         };
 
         self.state = next;
@@ -190,7 +190,9 @@ impl SocksHandshake {
 
         let ver = r.take_u8()?;
         if ver != 1 {
-            return Err(Error::NotImplemented);
+            return Err(Error::NotImplemented(
+                format!("username/password version {}", ver).into(),
+            ));
         }
 
         let ulen = r.take_u8()?;
@@ -437,7 +439,7 @@ mod test {
     fn socks5_init_nothing_works() {
         let mut h = SocksHandshake::new();
         let a = h.handshake(&hex!("05 02 9988")[..]);
-        assert!(matches!(a, Ok(Err(Error::NotImplemented))));
+        assert!(matches!(a, Ok(Err(Error::NotImplemented(_)))));
     }
 
     #[test]

@@ -1,4 +1,6 @@
 //! Declare an error type for tor_socksproto
+use std::borrow::Cow;
+
 use thiserror::Error;
 
 use tor_error::{ErrorKind, HasKind};
@@ -14,7 +16,7 @@ pub enum Error {
     Syntax,
 
     /// Failed to decode a SOCKS message.
-    #[error("Error decoding message")]
+    #[error("Error decoding SOCKS message")]
     Decode(#[from] tor_bytes::Error),
 
     /// The SOCKS client declared a SOCKS version number that isn't
@@ -27,8 +29,8 @@ pub enum Error {
 
     /// The SOCKS client tried to use a SOCKS feature that we don't
     /// support at all.
-    #[error("SOCKS feature not implemented")]
-    NotImplemented,
+    #[error("SOCKS feature ({0}) not implemented")]
+    NotImplemented(Cow<'static, str>),
 
     /// Tried to progress the SOCKS handshake when it was already
     /// finished.  This is a programming error.
@@ -54,7 +56,7 @@ impl HasKind for Error {
                 EK::Internal
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
-            E::NotImplemented => EK::NotImplemented,
+            E::NotImplemented(_) => EK::NotImplemented,
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
         }
