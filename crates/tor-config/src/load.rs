@@ -103,11 +103,11 @@ use crate::ConfigBuildError;
 #[non_exhaustive]
 pub enum ConfigResolveError {
     /// Deserialize failed
-    #[error("config contents not as expected: {0}")]
+    #[error("Config contents not as expected")]
     Deserialize(#[from] config::ConfigError),
 
     /// Build failed
-    #[error("config semantically incorrect: {0}")]
+    #[error("Config semantically incorrect")]
     Build(#[from] ConfigBuildError),
 }
 
