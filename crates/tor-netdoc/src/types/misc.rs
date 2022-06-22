@@ -47,7 +47,9 @@ mod b64impl {
         fn from_str(s: &str) -> Result<Self> {
             // The `base64ct` crate only rejects invalid
             // characters when the input is padded. Therefore,
-            // the input must be padded fist.
+            // the input must be padded fist. For more info on
+            // this, take a look at this issue:
+            // `https://github.com/RustCrypto/utils/issues/576`
             let mut string = s.to_string();
             // Determine padding length
             let offset = 4 - s.len() % 4;
