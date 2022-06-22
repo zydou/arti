@@ -58,10 +58,10 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum Error {
     /// A passed value was below the lower bound for the type.
-    #[error("Value {0} was below the lower bound {1} for this type.")]
+    #[error("Value {0} was below the lower bound {1} for this type")]
     BelowLowerBound(i32, i32),
     /// A passed value was above the upper bound for the type.
-    #[error("Value {0} was above the lower bound {1} for this type.")]
+    #[error("Value {0} was above the lower bound {1} for this type")]
     AboveUpperBound(i32, i32),
     /// Tried to convert a negative value to an unsigned type.
     #[error("Tried to convert a negative value to an unsigned type")]
