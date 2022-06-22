@@ -167,7 +167,7 @@ impl StateMgr for FsStateMgr {
         let string = match self.inner.statepath.read_to_string(rel_fname) {
             Ok(string) => string,
             Err(fs_mistrust::Error::NotFound(_)) => return Ok(None),
-            Err(fs_mistrust::Error::Io(_, e)) => return Err(Error::IoError(e)),
+            Err(fs_mistrust::Error::Io { err, .. }) => return Err(Error::IoError(err)),
             Err(e) => return Err(e.into()),
         };
 

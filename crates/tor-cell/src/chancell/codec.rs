@@ -81,6 +81,14 @@ impl ChannelCodec {
     /// On a definite decoding error, return Err(_).  On a cell that might
     /// just be truncated, return Ok(None).
     pub fn decode_cell(&mut self, src: &mut BytesMut) -> crate::Result<Option<ChanCell>> {
+        /// Wrap `be` as an appropriate type.
+        fn wrap_err(be: tor_bytes::Error) -> crate::Error {
+            crate::Error::BytesErr {
+                err: be,
+                parsed: "channel cell",
+            }
+        }
+
         if src.len() < 7 {
             // Smallest possible command: varcell with len 0
             return Ok(None);
@@ -100,9 +108,9 @@ impl ChannelCodec {
         let cell = src.split_to(cell_len).freeze();
         //trace!("{:?} cell body ({}) is {:?}", cmd, cell.len(), &cell[..]);
         let mut r = Reader::from_bytes(&cell);
-        let circid: CircId = r.take_u32()?.into();
-        r.advance(if varcell { 3 } else { 1 })?;
-        let msg = msg::ChanMsg::take(&mut r, cmd)?;
+        let circid: CircId = r.take_u32().map_err(wrap_err)?.into();
+        r.advance(if varcell { 3 } else { 1 }).map_err(wrap_err)?;
+        let msg = msg::ChanMsg::take(&mut r, cmd).map_err(wrap_err)?;
 
         if !cmd.accepts_circid_val(circid) {
             return Err(Error::ChanProto(format!(

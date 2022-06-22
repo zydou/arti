@@ -87,13 +87,13 @@ pub mod timed;
 #[non_exhaustive]
 pub enum TimeValidityError {
     /// The object is not yet valid
-    #[error("will not be valid for {0:?}")]
+    #[error("Object will not be valid for {}", humantime::format_duration(*.0))]
     NotYetValid(time::Duration),
     /// The object is expired
-    #[error("has been expired for {0:?}")]
+    #[error("Object has been expired for {}", humantime::format_duration(*.0))]
     Expired(time::Duration),
     /// The object isn't timely, and we don't know why, or won't say.
-    #[error("is not currently valid")]
+    #[error("Object is not currently valid")]
     Unspecified,
 }
 

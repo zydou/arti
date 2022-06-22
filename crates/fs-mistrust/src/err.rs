@@ -74,28 +74,31 @@ pub enum Error {
     CreatingDir(#[source] Arc<IoError>),
 
     /// We found a problem while checking the contents of the directory.
-    #[error("Invalid directory content")]
+    #[error("Problem in directory contents")]
     Content(#[source] Box<Error>),
 
     /// We were unable to inspect the contents of the directory
     ///
     /// This error is only present when the `walkdir` feature is enabled.
     #[cfg(feature = "walkdir")]
-    #[error("Unable to list directory")]
+    #[error("Unable to list directory contents")]
     Listing(#[source] Arc<walkdir::Error>),
 
     /// Tried to use an invalid path with a [`CheckedDir`](crate::CheckedDir),
-    #[error("Path was not valid for use with CheckedDir.")]
+    #[error("Provided path was not valid for use with CheckedDir")]
     InvalidSubdirectory,
 
     /// We encountered an error while attempting an IO operation on a file.
-    #[error("IO error on {0}")]
-    Io(PathBuf, #[source] Arc<IoError>),
-
-    /// We could not create an unused temporary path when trying to write a
-    /// file.
-    #[error("Could not name temporary file for {0}")]
-    NoTempFile(PathBuf),
+    #[error("IO error on {filename} while attempting to {action}")]
+    Io {
+        /// The file that we were trying to modify or inspect
+        filename: PathBuf,
+        /// The action that failed.
+        action: &'static str,
+        /// The error that we got when trying to perform the operation.
+        #[source]
+        err: Arc<IoError>,
+    },
 
     /// A field was missing when we tried to construct a
     /// [`Mistrust`](crate::Mistrust).
@@ -103,11 +106,11 @@ pub enum Error {
     MissingField(#[from] derive_builder::UninitializedFieldError),
 
     /// A  group that we were configured to trust could not be found.
-    #[error("No such group: {0}")]
+    #[error("Configured with nonexistent group: {0}")]
     NoSuchGroup(String),
 
     /// A user that we were configured to trust could not be found.
-    #[error("No such user: {0}")]
+    #[error("Configured with nonexistent user: {0}")]
     NoSuchUser(String),
 }
 
@@ -123,10 +126,14 @@ impl Error {
 
     /// Create an error from an IoError encountered while performing IO (open,
     /// read, write) on an object.
-    pub(crate) fn io(err: IoError, fname: impl Into<PathBuf>) -> Self {
+    pub(crate) fn io(err: IoError, fname: impl Into<PathBuf>, action: &'static str) -> Self {
         match err.kind() {
             IoErrorKind::NotFound => Error::NotFound(fname.into()),
-            _ => Error::Io(fname.into(), Arc::new(err)),
+            _ => Error::Io {
+                filename: fname.into(),
+                action,
+                err: Arc::new(err),
+            },
         }
     }
 
@@ -139,8 +146,7 @@ impl Error {
                 Error::BadOwner(pb, _) => pb,
                 Error::BadType(pb) => pb,
                 Error::CouldNotInspect(pb, _) => pb,
-                Error::Io(pb, _) => pb,
-                Error::NoTempFile(pb) => pb,
+                Error::Io { filename: pb, .. } => pb,
                 Error::Multiple(_) => return None,
                 Error::StepsExceeded => return None,
                 Error::CurrentDirectory(_) => return None,
@@ -172,8 +178,7 @@ impl Error {
             | Error::CreatingDir(_)
             | Error::Listing(_)
             | Error::InvalidSubdirectory
-            | Error::Io(_, _)
-            | Error::NoTempFile(_)
+            | Error::Io { .. }
             | Error::MissingField(_)
             | Error::NoSuchGroup(_)
             | Error::NoSuchUser(_) => false,

@@ -731,7 +731,7 @@ impl Versions {
         if versions.len() < (std::u16::MAX / 2) as usize {
             Ok(Self { versions })
         } else {
-            Err(crate::Error::CantEncode)
+            Err(crate::Error::CantEncode("Too many versions"))
         }
     }
     /// Encode this VERSIONS cell in the manner expected for a handshake.
@@ -919,7 +919,10 @@ impl Certs {
             .cert_body(tp)
             .ok_or_else(|| crate::Error::ChanProto(format!("Missing {} certificate", tp)))?;
 
-        let cert = tor_cert::Ed25519Cert::decode(body)?;
+        let cert = tor_cert::Ed25519Cert::decode(body).map_err(|be| crate::Error::BytesErr {
+            err: be,
+            parsed: "ed25519 certificate",
+        })?;
         if cert.peek_cert_type() != tp {
             return Err(crate::Error::ChanProto(format!(
                 "Found a {} certificate labeled as {}",

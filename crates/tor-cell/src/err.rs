@@ -12,20 +12,26 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    #[error("parsing error")]
-    BytesErr(#[from] tor_bytes::Error),
+    #[error("Error while parsing {parsed}")]
+    BytesErr {
+        /// The error that occurred.
+        #[source]
+        err: tor_bytes::Error,
+        /// The thing that was being parsed.
+        parsed: &'static str,
+    },
     /// There was a programming error somewhere in the code.
     #[error("Internal programming error")]
     Internal(tor_error::Bug),
     /// Protocol violation at the channel level
-    #[error("channel protocol violation")]
+    #[error("Channel protocol violation: {0}")]
     ChanProto(String),
     /// Tried to make or use a stream to an invalid destination address.
-    #[error("invalid stream target address")]
+    #[error("Invalid stream target address")]
     BadStreamAddress,
     /// Tried to construct a message that Tor can't represent.
-    #[error("Message can't be represented in a Tor cell.")]
-    CantEncode,
+    #[error("Message can't be represented in a Tor cell: {0}")]
+    CantEncode(&'static str),
 }
 
 impl HasKind for Error {
@@ -34,12 +40,15 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::BytesErr(ByE::Truncated) => EK::Internal,
-            E::BytesErr(_) => EK::TorProtocolViolation,
+            E::BytesErr {
+                err: ByE::Truncated,
+                ..
+            } => EK::Internal,
+            E::BytesErr { .. } => EK::TorProtocolViolation,
             E::Internal(_) => EK::Internal,
             E::ChanProto(_) => EK::TorProtocolViolation,
             E::BadStreamAddress => EK::BadApiUsage,
-            E::CantEncode => EK::Internal,
+            E::CantEncode(_) => EK::Internal,
         }
     }
 }

@@ -1240,6 +1240,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
+ "derive_more",
  "educe",
  "libc",
  "once_cell",
@@ -3527,6 +3528,7 @@ dependencies = [
 name = "tor-checkable"
 version = "0.3.0"
 dependencies = [
+ "humantime 2.1.0",
  "signature",
  "thiserror",
  "tor-llcrypto",

@@ -16,6 +16,7 @@ experimental = ["experimental-api"]
 experimental-api = []
 
 [dependencies]
+humantime = "2"
 signature = "1"
 thiserror = "1"
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }

@@ -338,7 +338,7 @@ impl Data {
     /// Returns an error if `inp` is longer than [`Data::MAXLEN`] bytes.
     pub fn new(inp: &[u8]) -> crate::Result<Self> {
         if inp.len() > Data::MAXLEN {
-            return Err(crate::Error::CantEncode);
+            return Err(crate::Error::CantEncode("Data message too long"));
         }
         Ok(Self::new_unchecked(inp.into()))
     }

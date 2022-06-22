@@ -105,10 +105,10 @@ pub fn convert_curve25519_to_ed25519_private(
 #[non_exhaustive]
 pub enum BlindingError {
     /// A bad public key was provided for blinding
-    #[error("Bad pubkey provided")]
+    #[error("Public key was invalid")]
     BadPubkey,
     /// Dalek failed the scalar multiplication
-    #[error("Key blinding Failed")]
+    #[error("Key blinding failed")]
     BlindingFailed,
 }
 
