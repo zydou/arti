@@ -36,6 +36,7 @@ pub(crate) trait FromBytes: Sized {
 /// Types for decoding base64-encoded values.
 mod b64impl {
     use crate::{Error, ParseErrorKind as EK, Pos, Result};
+    use base64ct::{Base64, Encoding};
     use std::ops::RangeBounds;
 
     /// A byte array, encoded in base64 with optional padding.
@@ -44,12 +45,26 @@ mod b64impl {
     impl std::str::FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let bytes = base64::decode_config(s, base64::STANDARD_NO_PAD).map_err(|_| {
+            // The `base64ct` crate only rejects invalid
+            // characters when the input is padded. Therefore,
+            // the input must be padded fist.
+            let mut string = s.to_string();
+            // Determine padding length
+            let offset = 4 - s.len() % 4;
+            match offset {
+                4 => (),
+                _ => {
+                    // Add pad to input
+                    string.push_str("=".repeat(offset).as_str());
+                }
+            }
+            let v = Base64::decode_vec(&string);
+            let v = v.map_err(|_| {
                 EK::BadArgument
                     .with_msg("Invalid base64")
                     .at_pos(Pos::at(s))
             })?;
-            Ok(B64(bytes))
+            Ok(B64(v))
         }
     }
 
@@ -455,14 +470,16 @@ mod nickname {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use base64ct::Encoding;
+
     use super::*;
     use crate::{Pos, Result};
 
     /// Decode s as a multi-line base64 string, ignoring ascii whitespace.
-    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64::DecodeError> {
+    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64ct::Error> {
         let mut s = s.to_string();
         s.retain(|c| !c.is_ascii_whitespace());
-        base64::decode(s)
+        base64ct::Base64::decode_vec(s.as_str())
     }
 
     #[test]
