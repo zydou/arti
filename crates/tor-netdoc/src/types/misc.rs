@@ -492,6 +492,20 @@ mod test {
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..8).is_ok());
         assert_eq!("Mg".parse::<B64>()?.as_bytes(), &b"2"[..]);
         assert!("Mg".parse::<B64>()?.check_len(1..2).is_ok());
+        assert_eq!(
+            "8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
+                .parse::<B64>()?
+                .as_bytes(),
+            "🍒🍒🍒🍒🍒🍒".as_bytes()
+        );
+        assert!("8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
+            .parse::<B64>()?
+            .check_len(24..25)
+            .is_ok());
+        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz8="
+            .parse::<B64>()?
+            .check_len(32..33)
+            .is_ok());
         // Padded:
         assert_eq!("Mi43MTgyOA==".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
         assert!("Mi43MTgyOA==".parse::<B64>()?.check_len(7..8).is_ok());
@@ -502,6 +516,9 @@ mod test {
         assert!("Mi43!!!!!!".parse::<B64>().is_err());
         // Invalid last character.
         assert!("Mi".parse::<B64>().is_err());
+        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
+            .parse::<B64>()
+            .is_err());
         // Invalid length.
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
         Ok(())
