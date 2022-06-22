@@ -3525,6 +3525,7 @@ dependencies = [
 name = "tor-checkable"
 version = "0.3.0"
 dependencies = [
+ "humantime 2.1.0",
  "signature",
  "thiserror",
  "tor-llcrypto",
