@@ -36,6 +36,7 @@ pub(crate) trait FromBytes: Sized {
 /// Types for decoding base64-encoded values.
 mod b64impl {
     use crate::{Error, ParseErrorKind as EK, Pos, Result};
+    use base64ct::{Base64, Encoding};
     use std::ops::RangeBounds;
 
     /// A byte array, encoded in base64 with optional padding.
@@ -44,12 +45,28 @@ mod b64impl {
     impl std::str::FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            let bytes = base64::decode_config(s, base64::STANDARD_NO_PAD).map_err(|_| {
+            // The `base64ct` crate only rejects invalid
+            // characters when the input is padded. Therefore,
+            // the input must be padded fist. For more info on
+            // this, take a look at this issue:
+            // `https://github.com/RustCrypto/utils/issues/576`
+            let mut string = s.to_string();
+            // Determine padding length
+            let offset = 4 - s.len() % 4;
+            match offset {
+                4 => (),
+                _ => {
+                    // Add pad to input
+                    string.push_str("=".repeat(offset).as_str());
+                }
+            }
+            let v = Base64::decode_vec(&string);
+            let v = v.map_err(|_| {
                 EK::BadArgument
                     .with_msg("Invalid base64")
                     .at_pos(Pos::at(s))
             })?;
-            Ok(B64(bytes))
+            Ok(B64(v))
         }
     }
 
@@ -455,24 +472,76 @@ mod nickname {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use base64ct::Encoding;
+
     use super::*;
     use crate::{Pos, Result};
 
     /// Decode s as a multi-line base64 string, ignoring ascii whitespace.
-    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64::DecodeError> {
+    fn base64_decode_ignore_ws(s: &str) -> std::result::Result<Vec<u8>, base64ct::Error> {
         let mut s = s.to_string();
         s.retain(|c| !c.is_ascii_whitespace());
-        base64::decode(s)
+        base64ct::Base64::decode_vec(s.as_str())
     }
 
     #[test]
     fn base64() -> Result<()> {
+        // Test parsing succeess:
+        // Unpadded:
         assert_eq!("Mi43MTgyOA".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
+        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..8).is_ok());
+        assert_eq!("Mg".parse::<B64>()?.as_bytes(), &b"2"[..]);
+        assert!("Mg".parse::<B64>()?.check_len(1..2).is_ok());
+        assert_eq!(
+            "8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
+                .parse::<B64>()?
+                .as_bytes(),
+            "🍒🍒🍒🍒🍒🍒".as_bytes()
+        );
+        assert!("8J+NkvCfjZLwn42S8J+NkvCfjZLwn42S"
+            .parse::<B64>()?
+            .check_len(24..25)
+            .is_ok());
+        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxKkz8="
+            .parse::<B64>()?
+            .check_len(32..33)
+            .is_ok());
+        // Padded:
         assert_eq!("Mi43MTgyOA==".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
+        assert!("Mi43MTgyOA==".parse::<B64>()?.check_len(7..8).is_ok());
+        assert_eq!("Mg==".parse::<B64>()?.as_bytes(), &b"2"[..]);
+        assert!("Mg==".parse::<B64>()?.check_len(1..2).is_ok());
+
+        // Test parsing failures:
+        // Invalid character.
         assert!("Mi43!!!!!!".parse::<B64>().is_err());
+        // Invalid last character.
         assert!("Mi".parse::<B64>().is_err());
-        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..=8).is_ok());
+        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
+            .parse::<B64>()
+            .is_err());
+        // Invalid length.
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn base64_lengths() -> Result<()> {
+        assert_eq!("".parse::<B64>()?.as_bytes(), b"");
+        assert!("=".parse::<B64>().is_err());
+        assert!("==".parse::<B64>().is_err());
+        assert!("B".parse::<B64>().is_err());
+        assert!("B=".parse::<B64>().is_err());
+        assert!("B==".parse::<B64>().is_err());
+        assert_eq!("Bg".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("Bg=".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("Bg==".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("BCg".parse::<B64>()?.as_bytes(), b"\x04\x28");
+        assert_eq!("BCg=".parse::<B64>()?.as_bytes(), b"\x04\x28");
+        assert!("BCg==".parse::<B64>().is_err());
+        assert_eq!("BCDE".parse::<B64>()?.as_bytes(), b"\x04\x20\xc4");
+        assert!("BCDE=".parse::<B64>().is_err());
+        assert!("BCDE==".parse::<B64>().is_err());
         Ok(())
     }
 
