@@ -524,14 +524,16 @@ impl DirBootstrapStatus {
     /// necessary.
     ///
     /// Return None if all relevant attempts are more recent than this Id.
+    #[allow(clippy::search_is_some)] // tpo/core/arti/-/merge_requests/599#note_2816368
     fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
         // First, ensure that we have a *recent enough* attempt
         // Look for the latest attempt, and see if it's new enough; if not, start a new one.
-        if !self
+        if self
             .entries_mut()
             .rev()
             .take(1)
-            .any(|entry| entry.id >= attempt_id)
+            .find(|entry| entry.id >= attempt_id)
+            .is_none()
         {
             let current = match std::mem::take(&mut self.0) {
                 StatusEnum::NoActivity => None,
