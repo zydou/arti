@@ -9,6 +9,7 @@ use arrayref::array_mut_ref;
 use caret::caret_int;
 use rand::{CryptoRng, Rng};
 
+pub mod extend;
 pub mod msg;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;

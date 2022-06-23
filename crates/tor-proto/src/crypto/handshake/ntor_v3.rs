@@ -6,7 +6,6 @@
 //! message.
 
 // TODO:
-//    Wrap this in an appropriate API, expanding the API as needed.
 //    Remove the "allow" item for dead_code.
 //    Make terminology and variable names consistent with spec.
 
@@ -15,7 +14,7 @@
 
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
-use crate::{Error, Result};
+use crate::{Error, Result, SecretBytes};
 use tor_bytes::{Reader, Writeable, Writer};
 use tor_llcrypto::d::{Sha3_256, Shake256};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
@@ -23,11 +22,16 @@ use tor_llcrypto::util::rand_compat::RngCompatExt;
 
 use cipher::{KeyIvInit, StreamCipher};
 
+use crate::crypto::handshake::KeyGenerator;
 use generic_array::GenericArray;
 use rand_core::{CryptoRng, RngCore};
 use subtle::{Choice, ConstantTimeEq};
+use tor_cell::relaycell::extend::NtorV3Extension;
 use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
+
+/// The verification string to be used for circuit extension.
+const NTOR3_CIRC_VERIFICATION: &[u8] = b"circuit extend";
 
 /// The size of an encryption key in bytes.
 const ENC_KEY_LEN: usize = 32;
@@ -207,12 +211,48 @@ fn kdf_msgkdf(
     (enc_key, mac)
 }
 
-/*
-/// TODO
-pub(crate) struct NtorV3Client {
-    message: Vec<u8>,
+/// Client side of the ntor v3 handshake.
+pub(crate) struct NtorV3Client;
+
+impl NtorV3Client {
+    /// Generate a new client onionskin for a relay with a given onion key.
+    /// If any `extensions` are provided, encode them into to the onionskin.
+    ///
+    /// On success, return a state object that will be used to complete the handshake, along
+    /// with the message to send.
+    #[allow(clippy::needless_pass_by_value)]
+    fn client1<R: RngCore + CryptoRng>(
+        rng: &mut R,
+        key: &NtorV3PublicKey,
+        extensions: Vec<NtorV3Extension>,
+    ) -> (NtorV3HandshakeState, Vec<u8>) {
+        let mut message = Vec::new();
+        NtorV3Extension::write_many_onto(extensions.iter(), &mut message);
+        client_handshake_ntor_v3(rng, key, &message, NTOR3_CIRC_VERIFICATION)
+    }
+
+    /// Handle an onionskin from a relay, and produce a key generator.
+    ///
+    /// The state object must match the one that was used to make the
+    /// client onionskin that the server is replying to.
+    fn client2<T: AsRef<[u8]>>(
+        state: &NtorV3HandshakeState,
+        msg: T,
+    ) -> Result<(
+        Vec<NtorV3Extension>,
+        NtorV3KeyGenerator<impl digest::XofReader>,
+    )> {
+        let (message, xofreader) =
+            client_handshake_ntor_v3_part2(state, msg.as_ref(), NTOR3_CIRC_VERIFICATION)?;
+        let extensions = NtorV3Extension::decode(&message).map_err(|err| Error::CellDecodeErr {
+            object: "ntor v3 extensions",
+            err,
+        })?;
+        let keygen = NtorV3KeyGenerator { reader: xofreader };
+
+        Ok((extensions, keygen))
+    }
 }
-*/
 
 /// Key information about a relay used for the ntor v3 handshake.
 ///
@@ -262,12 +302,21 @@ pub(crate) struct NtorV3HandshakeState {
     msg_mac: MacVal, // msg_mac
 }
 
-/*
+/// A key generator returned from an ntor v3 handshake.
 ///
-pub(crate) struct NtorV3KeyGenerator {
-    seed: SecretBytes,
+/// The type parameter is usually `impl digest::XofReader`.
+pub(crate) struct NtorV3KeyGenerator<R> {
+    /// The underlying `digest::XofReader`.
+    reader: R,
 }
-*/
+
+impl<R: digest::XofReader> KeyGenerator for NtorV3KeyGenerator<R> {
+    fn expand(mut self, keylen: usize) -> Result<SecretBytes> {
+        let mut ret = vec![0; keylen];
+        self.reader.read(&mut ret);
+        Ok(Zeroizing::new(ret))
+    }
+}
 
 /// Client-side Ntor version 3 handshake, part one.
 ///
@@ -327,14 +376,22 @@ fn client_handshake_ntor_v3_no_keygen(
 /// Trait for an object that handle and incoming client message and
 /// return a server's reply.
 ///
-// TODO(nickm): I wanted to use a closure here, but the lifetimes didn't work,
-// and I couldn't figure out why.
+/// This is implemented for `FnMut(&[u8]) -> Option<Vec<u8>>` automatically.
 pub(crate) trait MsgReply {
     /// Given a message received from a client, parse it and decide
     /// how (and whether) to reply.
     ///
     /// Return None if the handshake should fail.
     fn reply(&mut self, msg: &[u8]) -> Option<Vec<u8>>;
+}
+
+impl<F> MsgReply for F
+where
+    F: FnMut(&[u8]) -> Option<Vec<u8>>,
+{
+    fn reply(&mut self, msg: &[u8]) -> Option<Vec<u8>> {
+        self(msg)
+    }
 }
 
 /// Complete an ntor v3 handshake as a server.
@@ -548,16 +605,6 @@ fn client_handshake_ntor_v3_part2(
     }
 }
 
-/*
-impl super::ClientHandshake for NtorV3Client {
-    type KeyType = NtorPublicKey;
-    type StateType = NtorV3HandshakeState;
-    type KeyGen = NtorV3KeyGenerator;
-
-
-}
-*/
-
 #[cfg(test)]
 #[allow(non_snake_case)] // to enable variable names matching the spec.
 #[allow(clippy::many_single_char_names)] // ibid
@@ -618,6 +665,98 @@ mod test {
         let mut c_keys = [0_u8; 1000];
         s_keygen.read(&mut s_keys);
         c_keygen.read(&mut c_keys);
+        assert_eq!(s_keys[..], c_keys[..100]);
+    }
+
+    // Same as previous test, but use the higher-level APIs instead.
+    #[test]
+    fn test_ntor3_roundtrip_highlevel() {
+        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
+        let mut rng = rand::thread_rng();
+        let id = b"not identifier---but correct len";
+
+        let B: curve25519::PublicKey = (&b).into();
+        let relay_public = NtorV3PublicKey {
+            pk: B,
+            id: (*id).into(),
+        };
+        let relay_private = NtorV3SecretKey {
+            pk: relay_public.clone(),
+            sk: b,
+        };
+
+        let (c_state, c_handshake) = NtorV3Client::client1(&mut rng, &relay_public, vec![]);
+
+        let mut rep = |_: &[u8]| Some(vec![]);
+
+        let (s_handshake, mut s_keygen) = server_handshake_ntor_v3(
+            &mut rng,
+            &mut rep,
+            &c_handshake,
+            &[relay_private],
+            NTOR3_CIRC_VERIFICATION,
+        )
+        .unwrap();
+
+        let (extensions, keygen) = NtorV3Client::client2(&c_state, s_handshake).unwrap();
+
+        assert!(extensions.is_empty());
+        use digest::XofReader;
+        let mut s_keys = [0_u8; 100];
+        let c_keys = keygen.expand(1000).unwrap();
+        s_keygen.read(&mut s_keys);
+        assert_eq!(s_keys[..], c_keys[..100]);
+    }
+
+    // Same as previous test, but encode some congestion control extensions.
+    #[test]
+    fn test_ntor3_roundtrip_highlevel_cc() {
+        let b = curve25519::StaticSecret::new(testing_rng().rng_compat());
+        let mut rng = rand::thread_rng();
+        let id = b"not identifier---but correct len";
+
+        let B: curve25519::PublicKey = (&b).into();
+        let relay_public = NtorV3PublicKey {
+            pk: B,
+            id: (*id).into(),
+        };
+        let relay_private = NtorV3SecretKey {
+            pk: relay_public.clone(),
+            sk: b,
+        };
+
+        let client_exts = vec![NtorV3Extension::RequestCongestionControl];
+        let reply_exts = vec![NtorV3Extension::AckCongestionControl { sendme_inc: 42 }];
+
+        let (c_state, c_handshake) = NtorV3Client::client1(
+            &mut rng,
+            &relay_public,
+            vec![NtorV3Extension::RequestCongestionControl],
+        );
+
+        let mut rep = |msg: &[u8]| -> Option<Vec<u8>> {
+            assert_eq!(NtorV3Extension::decode(msg).unwrap(), client_exts);
+            let mut out = vec![];
+            NtorV3Extension::write_many_onto(reply_exts.iter(), &mut out);
+            Some(out)
+        };
+
+        let (s_handshake, mut s_keygen) = server_handshake_ntor_v3(
+            &mut rng,
+            &mut rep,
+            &c_handshake,
+            &[relay_private],
+            NTOR3_CIRC_VERIFICATION,
+        )
+        .unwrap();
+
+        let (extensions, keygen) = NtorV3Client::client2(&c_state, s_handshake).unwrap();
+
+        assert_eq!(extensions, reply_exts);
+        use digest::XofReader;
+        let mut s_keys = [0_u8; 100];
+        let c_keys = keygen.expand(1000).unwrap();
+        s_keygen.read(&mut s_keys);
         assert_eq!(s_keys[..], c_keys[..100]);
     }
 
