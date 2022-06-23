@@ -10,6 +10,8 @@ import subprocess
 # ---------- actual list of lints to apply (or disapply) ----------
 
 WANT_LINTS = """
+#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
+#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -65,7 +67,7 @@ DECIDED_NOT = """
 
 # ---------- code for autoprocessing Rust source files ----------
 
-PAT = re.compile(r'^#!\[(allow|deny|warn)')
+PAT = re.compile(r'^#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 
 opts = None
 deferred_errors = []
