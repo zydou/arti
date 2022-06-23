@@ -405,7 +405,8 @@ impl RouterDesc {
                 .parse_obj::<UnvalidatedEdCert>("ED25519 CERT")?
                 .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)?
                 .into_unchecked()
-                .check_key(&None)?;
+                .check_key(&None)
+                .map_err(|err| EK::BadSignature.err().with_source(err))?;
             let sk = cert.peek_subject_key().as_ed25519().ok_or_else(|| {
                 EK::BadObjectVal
                     .at_pos(cert_tok.pos())
@@ -509,7 +510,7 @@ impl RouterDesc {
             if sign != 0 && sign != 1 {
                 return Err(EK::BadArgument.at_pos(cc.arg_pos(0)).with_msg("not 0 or 1"));
             }
-            let ntor_as_ed =
+            let ntor_as_ed: ll::pk::ed25519::PublicKey =
                 ll::pk::keymanip::convert_curve25519_to_ed25519_public(&ntor_onion_key, sign)
                     .ok_or_else(|| {
                         EK::BadArgument
@@ -521,7 +522,8 @@ impl RouterDesc {
                 .check_cert_type(tor_cert::CertType::NTOR_CC_IDENTITY)?
                 .check_subject_key_is(identity_cert.peek_signing_key())?
                 .into_unchecked()
-                .check_key(&Some(ntor_as_ed))?
+                .check_key(&Some(ntor_as_ed))
+                .map_err(|err| EK::BadSignature.err().with_source(err))?
         };
 
         // TAP key
@@ -636,8 +638,16 @@ impl RouterDesc {
         };
 
         // Now we're going to collect signatures and expiration times.
-        let (identity_cert, identity_sig) = identity_cert.dangerously_split()?;
-        let (crosscert_cert, cc_sig) = crosscert_cert.dangerously_split()?;
+        let (identity_cert, identity_sig) = identity_cert.dangerously_split().map_err(|err| {
+            EK::BadObjectVal
+                .with_msg("missing public key")
+                .with_source(err)
+        })?;
+        let (crosscert_cert, cc_sig) = crosscert_cert.dangerously_split().map_err(|err| {
+            EK::BadObjectVal
+                .with_msg("missing public key")
+                .with_source(err)
+        })?;
         let signatures: Vec<Box<dyn ll::pk::ValidatableSignature>> = vec![
             Box::new(rsa_signature),
             Box::new(ed_signature),

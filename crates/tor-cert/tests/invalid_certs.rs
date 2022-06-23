@@ -1,4 +1,5 @@
 use tor_bytes::Error;
+use tor_cert::CertError;
 //use tor_cert::rsa::RsaCrosscert;
 use tor_cert::Ed25519Cert;
 use tor_llcrypto::pk::ed25519;
@@ -69,7 +70,7 @@ fn mismatched_signing_key() {
     // wasn't what the cert contained.
     assert_eq!(
         cert.check_key(&Some(not_that_key)).err().unwrap(),
-        Error::BadMessage("Mismatched public key on cert")
+        CertError::KeyMismatch
     );
 
     // from testvec_certs.
@@ -86,6 +87,6 @@ fn mismatched_signing_key() {
     // a signing-key extension in the cert.
     assert_eq!(
         cert.check_key(&None).err().unwrap(),
-        Error::BadMessage("Missing public key on cert")
+        CertError::MissingPubKey
     );
 }

@@ -83,15 +83,21 @@
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+mod err;
 pub mod rsa;
 
 use caret::caret_int;
 use signature::Verifier;
-use tor_bytes::{Error, Result};
+use tor_bytes::{Error as BytesError, Result as BytesResult};
 use tor_bytes::{Readable, Reader};
 use tor_llcrypto::pk::*;
 
 use std::time;
+
+pub use err::CertError;
+
+/// A Result defined to use CertError
+type CertResult<T> = std::result::Result<T, CertError>;
 
 caret_int! {
     /// Recognized values for Tor's certificate type field.
@@ -241,7 +247,7 @@ impl CertifiedKey {
     }
     /// Try to extract a CertifiedKey from a Reader, given that we have
     /// already read its type as `key_type`.
-    fn from_reader(key_type: KeyType, r: &mut Reader<'_>) -> Result<Self> {
+    fn from_reader(key_type: KeyType, r: &mut Reader<'_>) -> BytesResult<Self> {
         Ok(match key_type {
             KeyType::ED25519_KEY => CertifiedKey::Ed25519(r.extract()?),
             KeyType::SHA256_OF_RSA => CertifiedKey::RsaSha256Digest(r.extract()?),
@@ -343,7 +349,7 @@ impl Writeable for UnrecognizedExt {
 */
 
 impl Readable for CertExt {
-    fn take_from(b: &mut Reader<'_>) -> Result<Self> {
+    fn take_from(b: &mut Reader<'_>) -> BytesResult<Self> {
         let len = b.take_u16()?;
         let ext_type: ExtType = b.take_u8()?.into();
         let flags = b.take_u8()?;
@@ -352,16 +358,16 @@ impl Readable for CertExt {
         Ok(match ext_type {
             ExtType::SIGNED_WITH_ED25519_KEY => {
                 if body.len() != 32 {
-                    return Err(Error::BadMessage("wrong length on Ed25519 key"));
+                    return Err(BytesError::BadMessage("wrong length on Ed25519 key"));
                 }
                 CertExt::SignedWithEd25519(SignedWithEd25519Ext {
                     pk: ed25519::PublicKey::from_bytes(body)
-                        .map_err(|_| Error::BadMessage("invalid Ed25519 public key"))?,
+                        .map_err(|_| BytesError::BadMessage("invalid Ed25519 public key"))?,
                 })
             }
             _ => {
                 if (flags & 1) != 0 {
-                    return Err(Error::BadMessage(
+                    return Err(BytesError::BadMessage(
                         "unrecognized certificate extension, with 'affects_validation' flag set.",
                     ));
                 }
@@ -412,13 +418,13 @@ impl Ed25519Cert {
     /// Note that the resulting KeyUnknownCertificate is not checked
     /// for validity at all: you will need to provide it with an expected
     /// signing key, then check it for timeliness and well-signedness.
-    pub fn decode(cert: &[u8]) -> Result<KeyUnknownCert> {
+    pub fn decode(cert: &[u8]) -> BytesResult<KeyUnknownCert> {
         let mut r = Reader::from_slice(cert);
         let v = r.take_u8()?;
         if v != 1 {
             // This would be something other than a "v1" certificate. We don't
             // understand those.
-            return Err(Error::BadMessage("Unrecognized certificate version"));
+            return Err(BytesError::BadMessage("Unrecognized certificate version"));
         }
         let cert_type = r.take_u8()?.into();
         let exp_hours = r.take_u32()?;
@@ -519,13 +525,13 @@ impl KeyUnknownCert {
     ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
-    pub fn check_key(self, pkey: &Option<ed25519::PublicKey>) -> Result<UncheckedCert> {
+    pub fn check_key(self, pkey: &Option<ed25519::PublicKey>) -> CertResult<UncheckedCert> {
         let real_key = match (pkey, self.cert.cert.signed_with) {
             (Some(a), Some(b)) if a == &b => b,
-            (Some(_), Some(_)) => return Err(Error::BadMessage("Mismatched public key on cert")),
+            (Some(_), Some(_)) => return Err(CertError::KeyMismatch),
             (Some(a), None) => *a,
             (None, Some(b)) => b,
-            (None, None) => return Err(Error::BadMessage("Missing public key on cert")),
+            (None, None) => return Err(CertError::MissingPubKey),
         };
         Ok(UncheckedCert {
             cert: Ed25519Cert {
@@ -567,12 +573,9 @@ impl UncheckedCert {
     /// been checked, and a signature to validate.
     pub fn dangerously_split(
         self,
-    ) -> Result<(SigCheckedCert, ed25519::ValidatableEd25519Signature)> {
+    ) -> CertResult<(SigCheckedCert, ed25519::ValidatableEd25519Signature)> {
         use tor_checkable::SelfSigned;
-        let signing_key = self
-            .cert
-            .signed_with
-            .ok_or(Error::BadMessage("Missing public key on cert"))?;
+        let signing_key = self.cert.signed_with.ok_or(CertError::MissingPubKey)?;
         let signature =
             ed25519::ValidatableEd25519Signature::new(signing_key, self.signature, &self.text[..]);
         Ok((self.dangerously_assume_wellsigned(), signature))
@@ -592,17 +595,14 @@ impl UncheckedCert {
 }
 
 impl tor_checkable::SelfSigned<SigCheckedCert> for UncheckedCert {
-    type Error = Error;
+    type Error = CertError;
 
-    fn is_well_signed(&self) -> Result<()> {
-        let pubkey = &self
-            .cert
-            .signed_with
-            .ok_or(Error::BadMessage("Certificate was not in fact self-signed"))?;
+    fn is_well_signed(&self) -> CertResult<()> {
+        let pubkey = &self.cert.signed_with.ok_or(CertError::MissingPubKey)?;
 
         pubkey
             .verify(&self.text[..], &self.signature)
-            .map_err(|_| Error::BadMessage("Invalid certificate signature"))?;
+            .map_err(|_| CertError::BadSignature)?;
 
         Ok(())
     }
@@ -638,7 +638,7 @@ mod test {
     use hex_literal::hex;
 
     #[test]
-    fn parse_unrecognized_ext() -> Result<()> {
+    fn parse_unrecognized_ext() -> BytesResult<()> {
         // case one: a flag is set but we don't know it
         let b = hex!("0009 99 10 657874656e73696f6e");
         let mut r = Reader::from_slice(&b);
@@ -651,11 +651,11 @@ mod test {
         // handle the extension.
         let b = hex!("0009 99 11 657874656e73696f6e");
         let mut r = Reader::from_slice(&b);
-        let e: Result<CertExt> = r.extract();
+        let e: Result<CertExt, BytesError> = r.extract();
         assert!(e.is_err());
         assert_eq!(
             e.err().unwrap(),
-            Error::BadMessage(
+            BytesError::BadMessage(
                 "unrecognized certificate extension, with 'affects_validation' flag set."
             )
         );
@@ -664,7 +664,7 @@ mod test {
     }
 
     #[test]
-    fn certified_key() -> Result<()> {
+    fn certified_key() -> BytesResult<()> {
         let b =
             hex!("4c27616d6f757220756e6974206365757820717527656e636861c3ae6e616974206c6520666572");
         let mut r = Reader::from_slice(&b);

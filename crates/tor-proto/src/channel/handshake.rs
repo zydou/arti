@@ -189,7 +189,9 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
                 .await
                 .map_err(io_err_to_handshake)?;
             let mut reader = Reader::from_slice(&msg);
-            reader.extract()?
+            reader
+                .extract()
+                .map_err(|e| Error::from_bytes_err(e, "versions cell"))?
         };
         trace!("{}: received {:?}", self.unique_id, their_versions);
 
@@ -404,7 +406,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // clock skew.)
 
         // Check the identity->signing cert
-        let (id_sk, id_sk_sig) = id_sk.check_key(&None)?.dangerously_split()?;
+        let (id_sk, id_sk_sig) = id_sk
+            .check_key(&None)
+            .map_err(Error::HandshakeCertErr)?
+            .dangerously_split()
+            .map_err(Error::HandshakeCertErr)?;
         sigs.push(&id_sk_sig);
         let (id_sk_timeliness, id_sk) = check_timeliness(id_sk, now, self.clock_skew);
 
@@ -421,8 +427,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // Now look at the signing->TLS cert and check it against the
         // peer certificate.
         let (sk_tls, sk_tls_sig) = sk_tls
-            .check_key(&Some(*signing_key))? // TODO(nickm): this is a bad interface
-            .dangerously_split()?;
+            .check_key(&Some(*signing_key))
+            .map_err(Error::HandshakeCertErr)?
+            .dangerously_split()
+            .map_err(Error::HandshakeCertErr)?;
         sigs.push(&sk_tls_sig);
         let (sk_tls_timeliness, sk_tls) = check_timeliness(sk_tls, now, self.clock_skew);
 
@@ -465,7 +473,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         let rsa_cert = c
             .cert_body(CertType::RSA_ID_V_IDENTITY)
             .ok_or_else(|| Error::HandshakeProto("No RSA->Ed crosscert".into()))?;
-        let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)?
+        let rsa_cert = tor_cert::rsa::RsaCrosscert::decode(rsa_cert)
+            .map_err(|e| Error::from_bytes_err(e, "RSA identity cross-certificate"))?
             .check_signature(&pkrsa)
             .map_err(|_| Error::HandshakeProto("Bad RSA->Ed crosscert signature".into()))?;
         let (rsa_cert_timeliness, rsa_cert) = check_timeliness(rsa_cert, now, self.clock_skew);

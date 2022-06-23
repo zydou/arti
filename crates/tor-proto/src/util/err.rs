@@ -14,9 +14,14 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    // TODO: add context.
-    #[error("Unable to parse a binary object")]
-    BytesErr(#[from] tor_bytes::Error),
+    #[error("Unable to parse {object}")]
+    BytesErr {
+        /// What we were trying to parse.
+        object: &'static str,
+        /// The error that occurred while parsing it.
+        #[source]
+        err: tor_bytes::Error,
+    },
     /// An error that occurred from the io system when using a
     /// channel.
     #[error("IO error on channel with peer")]
@@ -42,6 +47,10 @@ pub enum Error {
         #[source]
         err: tor_cell::Error,
     },
+    /// We found a problem with one of the certificates in the channel
+    /// handshake.
+    #[error("Problem with certificate on handshake")]
+    HandshakeCertErr(#[source] tor_cert::CertError),
     /// We tried to produce too much output for a key derivation function.
     #[error("Tried to extract too many bytes from a KDF")]
     InvalidKDFOutputLength,
@@ -155,6 +164,12 @@ impl Error {
             _ => Error::CellDecodeErr { err, object },
         }
     }
+
+    /// Create an error for a tor_bytes error that occurred while parsing
+    /// something of type `object`.
+    pub(crate) fn from_bytes_err(err: tor_bytes::Error, object: &'static str) -> Error {
+        Error::BytesErr { err, object }
+    }
 }
 
 impl From<Error> for std::io::Error {
@@ -175,10 +190,11 @@ impl From<Error> for std::io::Error {
 
             CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_)
+            BytesErr { .. }
             | BadCellAuth
             | BadCircHandshakeAuth
             | HandshakeProto(_)
+            | HandshakeCertErr(_)
             | ChanProto(_)
             | HandshakeCertsExpired { .. }
             | ChannelClosed(_)
@@ -202,10 +218,14 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::BytesErr(BytesError::Bug(e)) => e.kind(),
-            E::BytesErr(_) => EK::TorProtocolViolation,
+            E::BytesErr {
+                err: BytesError::Bug(e),
+                ..
+            } => e.kind(),
+            E::BytesErr { .. } => EK::TorProtocolViolation,
             E::ChanIoErr(_) => EK::LocalNetworkError,
             E::HandshakeIoErr(_) => EK::TorAccessFailed,
+            E::HandshakeCertErr(_) => EK::TorProtocolViolation,
             E::CellEncodeErr { err, .. } => err.kind(),
             E::CellDecodeErr { err, .. } => err.kind(),
             E::InvalidKDFOutputLength => EK::Internal,

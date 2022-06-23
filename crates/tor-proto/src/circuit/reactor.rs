@@ -1245,7 +1245,8 @@ impl Reactor {
             tag_copy
         };
         // Decode the cell.
-        let msg = RelayCell::decode(body.into())?;
+        let msg =
+            RelayCell::decode(body.into()).map_err(|e| Error::from_bytes_err(e, "relay cell"))?;
 
         let c_t_w = sendme::cell_counts_towards_windows(&msg);
 

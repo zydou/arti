@@ -15,6 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 caret = { path = "../caret", version = "0.2.0" }
 digest = "0.10.0"
 signature = "1"
+thiserror = "1"
 tor-bytes = { path = "../tor-bytes", version = "0.3.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
