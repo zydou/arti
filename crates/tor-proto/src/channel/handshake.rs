@@ -112,7 +112,10 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S
 fn codec_err_to_handshake(err: CodecError) -> Error {
     match err {
         CodecError::Io(e) => Error::HandshakeIoErr(Arc::new(e)),
-        CodecError::Cell(e) => Error::HandshakeProto(format!("Invalid cell on handshake: {}", e)),
+        CodecError::DecCell(e) => {
+            Error::HandshakeProto(format!("Invalid cell on handshake: {}", e))
+        }
+        CodecError::EncCell(e) => Error::from_cell_enc(e, "cell on handshake"),
     }
 }
 
@@ -150,7 +153,8 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
         trace!("{}: sending versions", self.unique_id);
         // Send versions cell
         {
-            let my_versions = msg::Versions::new(LINK_PROTOCOLS)?;
+            let my_versions = msg::Versions::new(LINK_PROTOCOLS)
+                .map_err(|e| Error::from_cell_enc(e, "versions message"))?;
             self.tls
                 .write_all(&my_versions.encode_for_handshake())
                 .await

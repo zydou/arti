@@ -24,10 +24,24 @@ pub enum Error {
     /// An error from the io system that occurred when trying to connect a channel.
     #[error("IO error while handshaking with peer")]
     HandshakeIoErr(#[source] Arc<std::io::Error>),
-    /// An error occurred in the cell-handling layer.
-    // TODO: add context.
-    #[error("Cell encoding or decoding error")]
-    CellErr(#[source] tor_cell::Error),
+    /// An error occurred while trying to create or encode a cell.
+    #[error("Unable to generate or encode {object}")]
+    CellEncodeErr {
+        /// The object we were trying to create or encode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_cell::Error,
+    },
+    /// An error occurred while trying to decode or parse a cell.
+    #[error("Error while parsing {object}")]
+    CellDecodeErr {
+        /// The object we were trying to decode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_cell::Error,
+    },
     /// We tried to produce too much output for a key derivation function.
     #[error("Tried to extract too many bytes from a KDF")]
     InvalidKDFOutputLength,
@@ -126,11 +140,19 @@ pub enum ResolveError {
     Unrecognized,
 }
 
-impl From<tor_cell::Error> for Error {
-    fn from(err: tor_cell::Error) -> Error {
+impl Error {
+    /// Create an error from a tor_cell error that has occurred while trying to
+    /// encode or create something of type `object`
+    pub(crate) fn from_cell_enc(err: tor_cell::Error, object: &'static str) -> Error {
+        Error::CellEncodeErr { object, err }
+    }
+
+    /// Create an error from a tor_cell error that has occurred while trying to
+    /// decode something of type `object`
+    pub(crate) fn from_cell_dec(err: tor_cell::Error, object: &'static str) -> Error {
         match err {
             tor_cell::Error::ChanProto(msg) => Error::ChanProto(msg),
-            _ => Error::CellErr(err),
+            _ => Error::CellDecodeErr { err, object },
         }
     }
 }
@@ -161,7 +183,8 @@ impl From<Error> for std::io::Error {
             | HandshakeCertsExpired { .. }
             | ChannelClosed(_)
             | CircProto(_)
-            | CellErr(_)
+            | CellDecodeErr { .. }
+            | CellEncodeErr { .. }
             | ChanMismatch(_)
             | StreamProto(_) => ErrorKind::InvalidData,
 
@@ -183,7 +206,8 @@ impl HasKind for Error {
             E::BytesErr(_) => EK::TorProtocolViolation,
             E::ChanIoErr(_) => EK::LocalNetworkError,
             E::HandshakeIoErr(_) => EK::TorAccessFailed,
-            E::CellErr(e) => e.kind(),
+            E::CellEncodeErr { err, .. } => err.kind(),
+            E::CellDecodeErr { err, .. } => err.kind(),
             E::InvalidKDFOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,

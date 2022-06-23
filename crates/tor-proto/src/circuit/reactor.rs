@@ -1006,7 +1006,10 @@ impl Reactor {
                 return Ok(());
             }
         }
-        let mut body: RelayCellBody = cell.encode(&mut rand::thread_rng())?.into();
+        let mut body: RelayCellBody = cell
+            .encode(&mut rand::thread_rng())
+            .map_err(|e| Error::from_cell_enc(e, "relay cell body"))?
+            .into();
         let tag = self.crypto_out.encrypt(&mut body, hop)?;
         // NOTE(eta): Now that we've encrypted the cell, we *must* either send it or abort
         //            the whole circuit (e.g. by returning an error).

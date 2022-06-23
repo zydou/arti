@@ -47,7 +47,8 @@ pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 fn codec_err_to_chan(err: CodecError) -> Error {
     match err {
         CodecError::Io(e) => crate::Error::ChanIoErr(Arc::new(e)),
-        CodecError::Cell(e) => e.into(),
+        CodecError::EncCell(err) => Error::from_cell_enc(err, "channel cell"),
+        CodecError::DecCell(err) => Error::from_cell_dec(err, "channel cell"),
     }
 }
 
@@ -438,7 +439,7 @@ pub(crate) mod test {
         let dummy_target = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {}", e);
-            CodecError::Cell(tor_cell::Error::ChanProto("dummy message".into()))
+            CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,

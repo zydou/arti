@@ -21,7 +21,10 @@ pub(crate) enum CodecError {
     Io(#[from] IoError),
     /// An error from the cell decoding logic.
     #[error("Error decoding an incoming channel cell")]
-    Cell(#[from] tor_cell::Error),
+    DecCell(#[source] tor_cell::Error),
+    /// An error from the cell encoding logic.
+    #[error("Error encoding an outgoing channel cell")]
+    EncCell(#[source] tor_cell::Error),
 }
 
 /// Asynchronous wrapper around ChannelCodec in tor_cell, with implementation
@@ -44,7 +47,7 @@ impl futures_codec::Encoder for ChannelCodec {
     type Error = CodecError;
 
     fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        self.0.write_cell(item, dst)?;
+        self.0.write_cell(item, dst).map_err(CodecError::EncCell)?;
         Ok(())
     }
 }
@@ -54,7 +57,7 @@ impl futures_codec::Decoder for ChannelCodec {
     type Error = CodecError;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        Ok(self.0.decode_cell(src)?)
+        self.0.decode_cell(src).map_err(CodecError::DecCell)
     }
 }
 
