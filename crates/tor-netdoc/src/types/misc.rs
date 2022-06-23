@@ -511,6 +511,23 @@ mod test {
         assert!("Mi43MTgyOA==".parse::<B64>()?.check_len(7..8).is_ok());
         assert_eq!("Mg==".parse::<B64>()?.as_bytes(), &b"2"[..]);
         assert!("Mg==".parse::<B64>()?.check_len(1..2).is_ok());
+
+        assert_eq!("".parse::<B64>()?.as_bytes(), b"");
+        assert!("=".parse::<B64>().is_err());
+        assert!("==".parse::<B64>().is_err());
+        assert!("B".parse::<B64>().is_err());
+        assert!("B=".parse::<B64>().is_err());
+        assert!("B==".parse::<B64>().is_err());
+        assert_eq!("Bg".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("Bg=".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("Bg==".parse::<B64>()?.as_bytes(), b"\x06");
+        assert_eq!("BCg".parse::<B64>()?.as_bytes(), b"\x04\x28");
+        assert_eq!("BCg=".parse::<B64>()?.as_bytes(), b"\x04\x28");
+        assert!("BCg==".parse::<B64>().is_err());
+        assert_eq!("BCDE".parse::<B64>()?.as_bytes(), b"\x04\x20\xc4");
+        assert!("BCDE=".parse::<B64>().is_err());
+        assert!("BCDE==".parse::<B64>().is_err());
+
         // Test parsing failures:
         // Invalid character.
         assert!("Mi43!!!!!!".parse::<B64>().is_err());
