@@ -512,6 +512,21 @@ mod test {
         assert_eq!("Mg==".parse::<B64>()?.as_bytes(), &b"2"[..]);
         assert!("Mg==".parse::<B64>()?.check_len(1..2).is_ok());
 
+        // Test parsing failures:
+        // Invalid character.
+        assert!("Mi43!!!!!!".parse::<B64>().is_err());
+        // Invalid last character.
+        assert!("Mi".parse::<B64>().is_err());
+        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
+            .parse::<B64>()
+            .is_err());
+        // Invalid length.
+        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn base64_lengths() -> Result<()> {
         assert_eq!("".parse::<B64>()?.as_bytes(), b"");
         assert!("=".parse::<B64>().is_err());
         assert!("==".parse::<B64>().is_err());
@@ -527,17 +542,6 @@ mod test {
         assert_eq!("BCDE".parse::<B64>()?.as_bytes(), b"\x04\x20\xc4");
         assert!("BCDE=".parse::<B64>().is_err());
         assert!("BCDE==".parse::<B64>().is_err());
-
-        // Test parsing failures:
-        // Invalid character.
-        assert!("Mi43!!!!!!".parse::<B64>().is_err());
-        // Invalid last character.
-        assert!("Mi".parse::<B64>().is_err());
-        assert!("ppwthHXW8kXD0f9fE7UPYsOAAu4uj5ORwSomCMxaaaa"
-            .parse::<B64>()
-            .is_err());
-        // Invalid length.
-        assert!("Mi43MTgyOA".parse::<B64>()?.check_len(8..).is_err());
         Ok(())
     }
 
