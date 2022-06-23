@@ -17,10 +17,10 @@ pub(crate) enum CodecError {
     ///
     /// (This isn't wrapped in an Arc, because we don't need this type to be
     /// clone; it's crate-internal.)
-    #[error("Io error")]
+    #[error("Io error reading or writing a channel cell")]
     Io(#[from] IoError),
-    /// An error from the cell encoding/decoding logic.
-    #[error("encoding/decoding error")]
+    /// An error from the cell decoding logic.
+    #[error("Error decoding an incoming channel cell")]
     Cell(#[from] tor_cell::Error),
 }
 

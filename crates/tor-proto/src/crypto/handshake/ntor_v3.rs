@@ -468,7 +468,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     if okay.into() {
         Ok((reply, keystream))
     } else {
-        Err(RelayHandshakeError::BadHandshake)
+        Err(RelayHandshakeError::BadClientHandshake)
     }
 }
 
@@ -540,7 +540,7 @@ fn client_handshake_ntor_v3_part2(
     if okay.into() {
         Ok((server_reply, keystream))
     } else {
-        Err(Error::BadCircHandshake)
+        Err(Error::BadCircHandshakeAuth)
     }
 }
 

@@ -685,14 +685,14 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: Doesn't seem to be a tor relay"
+                "Handshake protocol violation: Doesn't seem to be a tor relay"
             );
 
             let err = connect_err(&hex!("0000 07 0004 1234 ffff")[..], rt.clone()).await;
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: No shared link protocols"
+                "Handshake protocol violation: No shared link protocols"
             );
         });
     }
@@ -721,7 +721,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: Duplicate certs cell"
+                "Handshake protocol violation: Duplicate certs cell"
             );
 
             let mut buf = Vec::new();
@@ -734,7 +734,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: Duplicate authchallenge cell"
+                "Handshake protocol violation: Duplicate authchallenge cell"
             );
         });
     }
@@ -749,7 +749,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: Missing certs cell"
+                "Handshake protocol violation: Missing certs cell"
             );
         });
     }
@@ -765,7 +765,7 @@ pub(super) mod test {
             assert!(matches!(err, Error::HandshakeProto(_)));
             assert_eq!(
                 format!("{}", err),
-                "handshake protocol violation: Unexpected cell type CREATE"
+                "Handshake protocol violation: Unexpected cell type CREATE"
             );
         });
     }
@@ -844,7 +844,7 @@ pub(super) mod test {
         .unwrap();
         assert_eq!(
             format!("{}", err),
-            "handshake protocol violation: Missing IDENTITY_V_SIGNING certificate"
+            "Handshake protocol violation: Missing IDENTITY_V_SIGNING certificate"
         );
     }
 
@@ -903,7 +903,7 @@ pub(super) mod test {
 
             assert_eq!(
                 format!("{}", res),
-                format!("handshake protocol violation: {}", expect_err.unwrap())
+                format!("Handshake protocol violation: {}", expect_err.unwrap())
             );
         }
     }
@@ -929,7 +929,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", err),
-            "handshake protocol violation: Peer ed25519 id not as expected"
+            "Handshake protocol violation: Peer ed25519 id not as expected"
         );
 
         let err = certs_test(
@@ -945,7 +945,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", err),
-            "handshake protocol violation: Peer RSA id not as expected"
+            "Handshake protocol violation: Peer RSA id not as expected"
         );
 
         let err = certs_test(
@@ -961,7 +961,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", err),
-            "handshake protocol violation: Peer cert did not authenticate TLS cert"
+            "Handshake protocol violation: Peer cert did not authenticate TLS cert"
         );
     }
 
@@ -991,7 +991,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", res),
-            "handshake protocol violation: Invalid ed25519 signature in handshake"
+            "Handshake protocol violation: Invalid ed25519 signature in handshake"
         );
 
         let mut certs = msg::Certs::new_empty();
@@ -1012,7 +1012,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", res),
-            "handshake protocol violation: Bad RSA->Ed crosscert signature"
+            "Handshake protocol violation: Bad RSA->Ed crosscert signature"
         );
     }
 

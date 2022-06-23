@@ -185,7 +185,7 @@ where
     if okay.into() {
         Ok(keygen)
     } else {
-        Err(Error::BadCircHandshake)
+        Err(Error::BadCircHandshakeAuth)
     }
 }
 
@@ -305,7 +305,7 @@ where
     if okay.into() {
         Ok((keygen, reply))
     } else {
-        Err(RelayHandshakeError::BadHandshake)
+        Err(RelayHandshakeError::BadClientHandshake)
     }
 }
 

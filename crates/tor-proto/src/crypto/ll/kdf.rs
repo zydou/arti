@@ -64,7 +64,7 @@ impl Kdf for LegacyKdf {
         let mut result = Zeroizing::new(Vec::with_capacity(n_bytes + Sha1::output_size()));
         let mut k = self.idx;
         if n_bytes > Sha1::output_size() * (256 - (k as usize)) {
-            return Err(Error::InvalidOutputLength);
+            return Err(Error::InvalidKDFOutputLength);
         }
 
         while result.len() < n_bytes {
@@ -93,7 +93,7 @@ impl Kdf for Ntor1Kdf<'_, '_> {
 
         let mut result = Zeroizing::new(vec![0; n_bytes]);
         hkdf.expand(self.m_expand, &mut result[..])
-            .map_err(|_| Error::InvalidOutputLength)?;
+            .map_err(|_| Error::InvalidKDFOutputLength)?;
         Ok(result)
     }
 }
