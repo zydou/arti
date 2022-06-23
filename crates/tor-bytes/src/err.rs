@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-/// Error type for decoding and encoding Tor objects from and to bytes.
+/// Error type for decoding Tor objects from bytes.
 //
 // TODO(nickm): This error type could use a redesign: it doesn't do a good job
 // of preserving context.  At the least it should say what kind of object it
@@ -20,8 +20,8 @@ pub enum Error {
     /// Called Reader::should_be_exhausted(), but found bytes anyway.
     #[error("Extra bytes at end of object")]
     ExtraneousBytes,
-    /// Invalid length value (eg, overflow)
-    #[error("Object length out of bounds")]
+    /// Invalid length value
+    #[error("Object length too large to represent as usize")]
     BadLengthValue,
     /// An attempt to parse an object failed for some reason related to its
     /// contents.
@@ -47,4 +47,14 @@ impl PartialEq for Error {
             (_, _) => false,
         }
     }
+}
+
+/// Error type for encoding Tor objects to bytes.
+#[derive(Error, Debug, Clone, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum EncodeError {
+    /// We tried to encode an object with an attached length, but the length was
+    /// too large to encode in the available space.
+    #[error("Object length too large to encode")]
+    BadLengthValue,
 }

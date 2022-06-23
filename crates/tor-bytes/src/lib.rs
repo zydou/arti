@@ -85,7 +85,7 @@ mod impls;
 mod reader;
 mod writer;
 
-pub use err::Error;
+pub use err::{EncodeError, Error};
 pub use reader::Reader;
 pub use writer::Writer;
 
