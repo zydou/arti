@@ -75,7 +75,10 @@ Up-to-date with ec3e1f2adae6bc18d0db3fdc3e95a2c581f003a8
 - We now use a constant-time implementation of base-64
   decoding. ([#154], [!600])
 - We now make sure that at least _some_ log messages can get reported
-  before the logging is configured. ([!589])
+  before the logging is configured.
+  In particular, unknown configuration settings now generate warning
+  messages on stderr when `arti` starts up.
+  ([!589])
 - Many of our lower-level `Error` types have been refactored to give
   more accurate, useful, and best-practices-conformant messages.
   ([#323], [!598], [!601], [!604])
