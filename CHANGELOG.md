@@ -6,11 +6,12 @@ switch to using a separate changelog for each crate.
 
 # Arti 0.5.0 — 24 Jun 2022
 
-BLURB HERE XXXXX
+Arti 0.5.0 adds more cryptographic acceleration, a useful set of toplevel
+build features, reachable-address filtering, detection for failed directory
+downloads, and numerous cleanups.
 
-
-Up-to-date with ec3e1f2adae6bc18d0db3fdc3e95a2c581f003a8
-
+Note that for the first time, we did _not_ have breaking changes in the
+`arti-client` crate, so its version is staying at 0.4.1.
 
 ### Breaking changes
 
@@ -75,10 +76,9 @@ Up-to-date with ec3e1f2adae6bc18d0db3fdc3e95a2c581f003a8
 - We now use a constant-time implementation of base-64
   decoding. ([#154], [!600])
 - We now make sure that at least _some_ log messages can get reported
-  before the logging is configured.
-  In particular, unknown configuration settings now generate warning
-  messages on stderr when `arti` starts up.
-  ([!589])
+  before the logging is configured.  In particular, unknown
+  configuration settings now generate warning messages on stderr when
+  `arti` starts up.  ([!589])
 - Many of our lower-level `Error` types have been refactored to give
   more accurate, useful, and best-practices-conformant messages.
   ([#323], [!598], [!601], [!604])
