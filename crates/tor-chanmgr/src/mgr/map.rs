@@ -365,7 +365,10 @@ fn update_padding_parameters_from_netdir(
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
     use super::*;
     use std::result::Result as StdResult;
     use std::sync::Arc;
