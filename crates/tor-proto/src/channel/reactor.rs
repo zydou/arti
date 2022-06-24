@@ -47,7 +47,8 @@ pub(super) type ReactorResultChannel<T> = oneshot::Sender<Result<T>>;
 fn codec_err_to_chan(err: CodecError) -> Error {
     match err {
         CodecError::Io(e) => crate::Error::ChanIoErr(Arc::new(e)),
-        CodecError::Cell(e) => e.into(),
+        CodecError::EncCell(err) => Error::from_cell_enc(err, "channel cell"),
+        CodecError::DecCell(err) => Error::from_cell_dec(err, "channel cell"),
     }
 }
 
@@ -438,7 +439,7 @@ pub(crate) mod test {
         let dummy_target = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {}", e);
-            CodecError::Cell(tor_cell::Error::ChanProto("dummy message".into()))
+            CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
         let (chan, reactor) = crate::channel::Channel::new(
             link_protocol,
@@ -566,7 +567,7 @@ pub(crate) mod test {
             let (circ, _) =
                 futures::join!(pending.create_firsthop_fast(&circparams), send_response);
             // Make sure statuses are as expected.
-            assert!(matches!(circ.err().unwrap(), Error::BadCircHandshake));
+            assert!(matches!(circ.err().unwrap(), Error::BadCircHandshakeAuth));
 
             reactor.run_once().await.unwrap();
 
@@ -604,13 +605,13 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: CREATE2 cell on client channel"
+                "Channel protocol violation: CREATE2 cell on client channel"
             );
 
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: Unexpected CREATED* cell not on opening circuit"
+                "Channel protocol violation: Unexpected CREATED* cell not on opening circuit"
             );
 
             // Can't get a relay cell on a circuit we've never heard of.
@@ -622,7 +623,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: Relay cell on nonexistent circuit"
+                "Channel protocol violation: Relay cell on nonexistent circuit"
             );
 
             // Can't get handshaking cells while channel is open.
@@ -634,7 +635,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: VERSIONS cell after handshake is done"
+                "Channel protocol violation: VERSIONS cell after handshake is done"
             );
 
             // We don't accept CREATED.
@@ -646,7 +647,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: CREATED cell received, but we never send CREATEs"
+                "Channel protocol violation: CREATED cell received, but we never send CREATEs"
             );
         });
     }
@@ -695,7 +696,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
             format!("{}", e),
-            "channel protocol violation: Relay cell on pending circuit before CREATED* received"
+            "Channel protocol violation: Relay cell on pending circuit before CREATED* received"
         );
 
             // If a relay cell is sent on a non-existent channel, that's an error.
@@ -706,7 +707,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: Relay cell on nonexistent circuit"
+                "Channel protocol violation: Relay cell on nonexistent circuit"
             );
 
             // It's fine to get a relay cell on a DestroySent channel: that happens
@@ -729,7 +730,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: Too many cells received on destroyed circuit"
+                "Channel protocol violation: Too many cells received on destroyed circuit"
             );
         });
     }
@@ -793,7 +794,7 @@ pub(crate) mod test {
             let e = reactor.run_once().await.unwrap_err().unwrap_err();
             assert_eq!(
                 format!("{}", e),
-                "channel protocol violation: Destroy for nonexistent circuit"
+                "Channel protocol violation: Destroy for nonexistent circuit"
             );
         });
     }

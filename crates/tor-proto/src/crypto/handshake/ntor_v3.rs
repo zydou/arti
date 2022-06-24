@@ -468,7 +468,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     if okay.into() {
         Ok((reply, keystream))
     } else {
-        Err(RelayHandshakeError::BadHandshake)
+        Err(RelayHandshakeError::BadClientHandshake)
     }
 }
 
@@ -485,8 +485,12 @@ fn client_handshake_ntor_v3_part2(
     verification: &[u8],
 ) -> Result<(Vec<u8>, impl digest::XofReader)> {
     let mut reader = Reader::from_slice(relay_handshake);
-    let y_pk: curve25519::PublicKey = reader.extract()?;
-    let auth: DigestVal = reader.extract()?;
+    let y_pk: curve25519::PublicKey = reader
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "v3 ntor handshake"))?;
+    let auth: DigestVal = reader
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "v3 ntor handshake"))?;
     let encrypted_msg = reader.into_rest();
 
     let yx = state.my_sk.diffie_hellman(&y_pk);
@@ -540,7 +544,7 @@ fn client_handshake_ntor_v3_part2(
     if okay.into() {
         Ok((server_reply, keystream))
     } else {
-        Err(Error::BadCircHandshake)
+        Err(Error::BadCircHandshakeAuth)
     }
 }
 

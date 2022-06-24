@@ -169,8 +169,12 @@ where
     T: AsRef<[u8]>,
 {
     let mut cur = Reader::from_slice(msg.as_ref());
-    let their_pk: PublicKey = cur.extract()?;
-    let auth: Authcode = cur.extract()?;
+    let their_pk: PublicKey = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "v3 ntor handshake"))?;
+    let auth: Authcode = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "v3 ntor handshake"))?;
 
     let xy = state.my_sk.diffie_hellman(&their_pk);
     let xb = state.my_sk.diffie_hellman(&state.relay_public.pk);
@@ -185,7 +189,7 @@ where
     if okay.into() {
         Ok(keygen)
     } else {
-        Err(Error::BadCircHandshake)
+        Err(Error::BadCircHandshakeAuth)
     }
 }
 
@@ -305,7 +309,7 @@ where
     if okay.into() {
         Ok((keygen, reply))
     } else {
-        Err(RelayHandshakeError::BadHandshake)
+        Err(RelayHandshakeError::BadClientHandshake)
     }
 }
 

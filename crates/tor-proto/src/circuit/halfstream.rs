@@ -99,7 +99,7 @@ mod test {
         let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
-            "circuit protocol violation: Received a SENDME when none was expected"
+            "Circuit protocol violation: Received a SENDME when none was expected"
         );
         Ok(())
     }
@@ -124,7 +124,7 @@ mod test {
         let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
-            "circuit protocol violation: Received a data cell in violation of a window"
+            "Circuit protocol violation: Received a data cell in violation of a window"
         );
     }
 
@@ -143,7 +143,7 @@ mod test {
         let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
-            "circuit protocol violation: Bad CONNECTED cell on a closed stream!"
+            "Circuit protocol violation: Bad CONNECTED cell on a closed stream!"
         );
     }
 
@@ -154,7 +154,7 @@ mod test {
         let e = hs.handle_msg(&m).err().unwrap();
         assert_eq!(
             format!("{}", e),
-            "circuit protocol violation: Bad EXTENDED2 cell on a closed stream!"
+            "Circuit protocol violation: Bad EXTENDED2 cell on a closed stream!"
         );
     }
 }

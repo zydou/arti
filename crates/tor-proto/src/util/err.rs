@@ -14,90 +14,118 @@ use tor_error::{ErrorKind, HasKind};
 pub enum Error {
     /// An error that occurred in the tor_bytes crate while decoding an
     /// object.
-    #[error("parsing error")]
-    BytesErr(#[from] tor_bytes::Error),
+    #[error("Unable to parse {object}")]
+    BytesErr {
+        /// What we were trying to parse.
+        object: &'static str,
+        /// The error that occurred while parsing it.
+        #[source]
+        err: tor_bytes::Error,
+    },
     /// An error that occurred from the io system when using a
     /// channel.
-    #[error("io error on channel")]
+    #[error("IO error on channel with peer")]
     ChanIoErr(#[source] Arc<std::io::Error>),
     /// An error from the io system that occurred when trying to connect a channel.
-    #[error("io error in handshake")]
+    #[error("IO error while handshaking with peer")]
     HandshakeIoErr(#[source] Arc<std::io::Error>),
-    /// An error occurred in the cell-handling layer.
-    #[error("cell encoding error")]
-    CellErr(#[source] tor_cell::Error),
-    /// We tried to produce too much output for some function.
-    #[error("couldn't produce that much output")]
-    InvalidOutputLength,
+    /// An error occurred while trying to create or encode a cell.
+    #[error("Unable to generate or encode {object}")]
+    CellEncodeErr {
+        /// The object we were trying to create or encode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_cell::Error,
+    },
+    /// An error occurred while trying to decode or parse a cell.
+    #[error("Error while parsing {object}")]
+    CellDecodeErr {
+        /// The object we were trying to decode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_cell::Error,
+    },
+    /// We found a problem with one of the certificates in the channel
+    /// handshake.
+    #[error("Problem with certificate on handshake")]
+    HandshakeCertErr(#[source] tor_cert::CertError),
+    /// We tried to produce too much output for a key derivation function.
+    #[error("Tried to extract too many bytes from a KDF")]
+    InvalidKDFOutputLength,
     /// We tried to encrypt a message to a hop that wasn't there.
-    #[error("tried to encrypt to nonexistent hop")]
+    #[error("Tried to encrypt a cell for a nonexistent hop")]
     NoSuchHop,
     /// The authentication information on this cell was completely wrong,
     /// or the cell was corrupted.
-    #[error("bad relay cell authentication")]
+    #[error("Bad relay cell authentication")]
     BadCellAuth,
-    /// A circuit-extension handshake failed.
-    #[error("handshake failed")]
-    BadCircHandshake,
+    /// A circuit-extension handshake failed due to a mismatched authentication
+    /// value.
+    #[error("Circuit-extension handshake authentication failed")]
+    BadCircHandshakeAuth,
     /// Handshake protocol violation.
-    #[error("handshake protocol violation: {0}")]
+    #[error("Handshake protocol violation: {0}")]
     HandshakeProto(String),
     /// Handshake broken, maybe due to clock skew.
     ///
     /// (If the problem can't be due to clock skew, we return HandshakeProto
     /// instead.)
-    #[error("handshake failed due to expired certificates (possible clock skew)")]
+    #[error("Handshake failed due to expired certificates (possible clock skew)")]
     HandshakeCertsExpired {
         /// For how long has the circuit been expired?
         expired_by: Duration,
     },
     /// Protocol violation at the channel level, other than at the handshake
     /// stage.
-    #[error("channel protocol violation: {0}")]
+    #[error("Channel protocol violation: {0}")]
     ChanProto(String),
     /// Protocol violation at the circuit level
-    #[error("circuit protocol violation: {0}")]
+    #[error("Circuit protocol violation: {0}")]
     CircProto(String),
-    /// Channel is closed.
-    #[error("{0}")]
+    /// Channel is closed, or became closed while we were trying to do some
+    /// operation.
+    #[error("Channel closed")]
     ChannelClosed(#[from] ChannelClosed),
-    /// Circuit is closed.
-    #[error("circuit closed")]
+    /// Circuit is closed, or became closed while we were trying to so some
+    /// operation.
+    #[error("Circuit closed")]
     CircuitClosed,
     /// Can't allocate any more circuit or stream IDs on a channel.
-    #[error("too many entries in map: can't allocate ID")]
+    #[error("Too many entries in map: can't allocate ID")]
     IdRangeFull,
     /// Couldn't extend a circuit because the extending relay or the
     /// target relay refused our request.
-    #[error("circuit extension handshake error: {0}")]
+    #[error("Circuit extension refused: {0}")]
     CircRefused(&'static str),
     /// Tried to make or use a stream to an invalid destination address.
-    #[error("invalid stream target address")]
+    #[error("Invalid stream target address")]
     BadStreamAddress,
     /// Received an End cell from the other end of a stream.
-    #[error("Received an End cell with reason {0}")]
+    #[error("Received an END cell with reason {0}")]
     EndReceived(EndReason),
     /// Stream was already closed when we tried to use it.
-    #[error("stream not connected")]
+    #[error("Stream not connected")]
     NotConnected,
     /// Stream protocol violation
-    #[error("stream protocol violation: {0}")]
+    #[error("Stream protocol violation: {0}")]
     StreamProto(String),
 
     /// Channel does not match target
-    #[error("channel mismatch: {0}")]
+    #[error("Peer identity mismatch: {0}")]
     ChanMismatch(String),
     /// There was a programming error somewhere in our code, or the calling code.
     #[error("Programming error")]
     Bug(#[from] tor_error::Bug),
     /// Remote DNS lookup failed.
-    #[error("remote resolve failed")]
+    #[error("Remote resolve failed")]
     ResolveError(#[source] ResolveError),
 }
 
-/// Error which indicates that the channel was closed
+/// Error which indicates that the channel was closed.
 #[derive(Error, Debug, Clone)]
-#[error("channel closed")]
+#[error("Channel closed")]
 pub struct ChannelClosed;
 
 impl HasKind for ChannelClosed {
@@ -111,22 +139,36 @@ impl HasKind for ChannelClosed {
 #[non_exhaustive]
 pub enum ResolveError {
     /// A transient error which can be retried
-    #[error("received retriable transient error")]
+    #[error("Received retriable transient error")]
     Transient,
     /// A non transient error, which shouldn't be retried
-    #[error("received not retriable error")]
+    #[error("Received non-retriable error")]
     Nontransient,
     /// Could not parse the response properly
-    #[error("received unrecognized result")]
+    #[error("Received unrecognized result")]
     Unrecognized,
 }
 
-impl From<tor_cell::Error> for Error {
-    fn from(err: tor_cell::Error) -> Error {
+impl Error {
+    /// Create an error from a tor_cell error that has occurred while trying to
+    /// encode or create something of type `object`
+    pub(crate) fn from_cell_enc(err: tor_cell::Error, object: &'static str) -> Error {
+        Error::CellEncodeErr { object, err }
+    }
+
+    /// Create an error from a tor_cell error that has occurred while trying to
+    /// decode something of type `object`
+    pub(crate) fn from_cell_dec(err: tor_cell::Error, object: &'static str) -> Error {
         match err {
             tor_cell::Error::ChanProto(msg) => Error::ChanProto(msg),
-            _ => Error::CellErr(err),
+            _ => Error::CellDecodeErr { err, object },
         }
+    }
+
+    /// Create an error for a tor_bytes error that occurred while parsing
+    /// something of type `object`.
+    pub(crate) fn from_bytes_err(err: tor_bytes::Error, object: &'static str) -> Error {
+        Error::BytesErr { err, object }
     }
 }
 
@@ -140,7 +182,7 @@ impl From<Error> for std::io::Error {
                 Err(arc) => return std::io::Error::new(arc.kind(), arc),
             },
 
-            InvalidOutputLength | NoSuchHop | BadStreamAddress => ErrorKind::InvalidInput,
+            InvalidKDFOutputLength | NoSuchHop | BadStreamAddress => ErrorKind::InvalidInput,
 
             NotConnected => ErrorKind::NotConnected,
 
@@ -148,15 +190,17 @@ impl From<Error> for std::io::Error {
 
             CircuitClosed => ErrorKind::ConnectionReset,
 
-            BytesErr(_)
+            BytesErr { .. }
             | BadCellAuth
-            | BadCircHandshake
+            | BadCircHandshakeAuth
             | HandshakeProto(_)
+            | HandshakeCertErr(_)
             | ChanProto(_)
             | HandshakeCertsExpired { .. }
             | ChannelClosed(_)
             | CircProto(_)
-            | CellErr(_)
+            | CellDecodeErr { .. }
+            | CellEncodeErr { .. }
             | ChanMismatch(_)
             | StreamProto(_) => ErrorKind::InvalidData,
 
@@ -174,15 +218,20 @@ impl HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::BytesErr(BytesError::Bug(e)) => e.kind(),
-            E::BytesErr(_) => EK::TorProtocolViolation,
+            E::BytesErr {
+                err: BytesError::Bug(e),
+                ..
+            } => e.kind(),
+            E::BytesErr { .. } => EK::TorProtocolViolation,
             E::ChanIoErr(_) => EK::LocalNetworkError,
             E::HandshakeIoErr(_) => EK::TorAccessFailed,
-            E::CellErr(e) => e.kind(),
-            E::InvalidOutputLength => EK::Internal,
+            E::HandshakeCertErr(_) => EK::TorProtocolViolation,
+            E::CellEncodeErr { err, .. } => err.kind(),
+            E::CellDecodeErr { err, .. } => err.kind(),
+            E::InvalidKDFOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,
-            E::BadCircHandshake => EK::TorProtocolViolation,
+            E::BadCircHandshakeAuth => EK::TorProtocolViolation,
             E::HandshakeProto(_) => EK::TorAccessFailed,
             E::HandshakeCertsExpired { .. } => EK::ClockSkew,
             E::ChanProto(_) => EK::TorProtocolViolation,

@@ -122,17 +122,17 @@ impl KeyGenerator for ShakeKeyGenerator {
 /// An error produced by a Relay's attempt to handle a client's onion handshake.
 #[derive(Clone, Debug, thiserror::Error)]
 pub(crate) enum RelayHandshakeError {
-    /// An error in parsing or encoding a handshake message.
-    #[error("problem in handshake format.")]
+    /// An error in parsing  a handshake message.
+    #[error("Problem decoding onion handshake")]
     Fmt(#[from] tor_bytes::Error),
     /// The client asked for a key we didn't have.
-    #[error("unrecognized key or identity in handshake")]
+    #[error("Client asked for a key or ID that we don't have")]
     MissingKey,
     /// The client did something wrong with their handshake or cryptography.
-    #[error("bad handshake from client")]
-    BadHandshake,
+    #[error("Bad handshake from client")]
+    BadClientHandshake,
     /// An internal error.
-    #[error("internal error")]
+    #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
 }
 

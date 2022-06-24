@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 
 use educe::Educe;
 
+use crate::EncodeError;
 use crate::Writeable;
 use crate::WriteableOnce;
-use crate::{Error, Result};
 
 /// A byte-oriented trait for writing to small arrays.
 ///
@@ -166,9 +166,9 @@ where
     /// In these cases you should have ensured, somehow, that overflow cannot happen.
     /// Ideally, by making your `Writeable` type incapable of holding values
     /// whose encoded length doesn't fit in the length field.
-    pub fn finish(self) -> Result<()> {
+    pub fn finish(self) -> Result<(), EncodeError> {
         let length = self.inner.len();
-        let length: L = length.try_into().map_err(|_| Error::BadLengthValue)?;
+        let length: L = length.try_into().map_err(|_| EncodeError::BadLengthValue)?;
         self.outer.write(&length);
         self.outer.write(&self.inner);
         Ok(())
@@ -245,6 +245,6 @@ mod tests {
 
         let mut w = v.write_nested_u8len();
         w.write_zeros(256);
-        assert_eq!(w.finish().err().unwrap(), Error::BadLengthValue);
+        assert_eq!(w.finish().err().unwrap(), EncodeError::BadLengthValue);
     }
 }

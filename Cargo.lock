@@ -3492,6 +3492,7 @@ dependencies = [
  "digest 0.10.3",
  "hex-literal",
  "signature",
+ "thiserror",
  "tor-bytes",
  "tor-checkable",
  "tor-llcrypto",

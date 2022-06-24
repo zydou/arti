@@ -222,8 +222,12 @@ where
 {
     // Extract the public key of the service from the message
     let mut cur = Reader::from_slice(msg.as_ref());
-    let Y: curve25519::PublicKey = cur.extract()?;
-    let mac_tag: MacTag = cur.extract()?;
+    let Y: curve25519::PublicKey = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
+    let mac_tag: MacTag = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "hs_ntor handshake"))?;
 
     // Get EXP(Y,x) and EXP(B,x)
     let xy = state.x.diffie_hellman(&Y);
@@ -240,7 +244,7 @@ where
 
     // Validate the MAC!
     if my_mac_tag != mac_tag {
-        return Err(Error::BadCircHandshake);
+        return Err(Error::BadCircHandshakeAuth);
     }
 
     Ok(keygen)
@@ -305,10 +309,17 @@ where
 {
     // Extract all the useful pieces from the message
     let mut cur = Reader::from_slice(msg.as_ref());
-    let X: curve25519::PublicKey = cur.extract()?;
+    let X: curve25519::PublicKey = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
     let remaining_bytes = cur.remaining();
-    let ciphertext = &mut cur.take(remaining_bytes - 32)?.to_vec();
-    let mac_tag: MacTag = cur.extract()?;
+    let ciphertext = &mut cur
+        .take(remaining_bytes - 32)
+        .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?
+        .to_vec();
+    let mac_tag: MacTag = cur
+        .extract()
+        .map_err(|e| Error::from_bytes_err(e, "hs ntor handshake"))?;
 
     // Now derive keys needed for handling the INTRO1 cell
     let bx = proto_input.b.diffie_hellman(&X);
@@ -328,7 +339,7 @@ where
     let my_mac_tag = hs_ntor_mac(&mac_body, &mac_key)?;
 
     if my_mac_tag != mac_tag {
-        return Err(Error::BadCircHandshake);
+        return Err(Error::BadCircHandshakeAuth);
     }
 
     // Decrypt the ENCRYPTED_DATA from the intro cell
