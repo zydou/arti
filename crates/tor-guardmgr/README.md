@@ -77,9 +77,6 @@ below) and comments and internal documentation in this crate.
 
 ## Limitations
 
-* Only one guard selection is currently supported: we don't allow a
-  "filtered" or a "bridges" selection.
-
 * Our circuit blocking algorithm is simplified from the one that Tor uses.
   See comments in `GuardSet::circ_usability_status` for more information.
   See also [proposal 337](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/337-simpler-guard-usability.md).
