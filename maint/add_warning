@@ -190,7 +190,7 @@ def main(lints,files):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('standardise Rust lint blocks')
-    parser.add_argument('--check')
+    parser.add_argument('--check', action='store_true')
     parser.add_argument('file', nargs='*')
     opts = parser.parse_args()
 
