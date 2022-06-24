@@ -3,4 +3,5 @@
 # We must edit the tree, this way, sadly:
 #   https://github.com/rust-lang/rust-clippy/issues/8973
 
-allow-dbg-in-tests = true
+# (currently we do not need tohave anything here; everything is dealt with
+# by suppressions maintained by maint/add_warning)
