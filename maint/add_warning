@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import fnmatch
 import sys
 import os
 import re
@@ -10,6 +11,8 @@ import subprocess
 # ---------- actual list of lints to apply (or disapply) ----------
 
 WANT_LINTS = """
+#![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
+#![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
 #![deny(missing_docs)]
 #![warn(noop_method_call)]
 #![deny(unreachable_pub)]
@@ -40,6 +43,18 @@ WANT_LINTS = """
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+#![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
+"""
+
+# ---------- list of lints to apply or disapply *in tests* ----------
+
+TEST_LINTS = """
+#![allow(clippy::bool_assert_comparison)]
+#![allow(clippy::clone_on_copy)]
+#![allow(clippy::dbg_macro)]
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
+#![allow(clippy::unwrap_used)]
 """
 
 # ---------- some notes about lints we might use - NOT USED by any code here ----------
@@ -65,7 +80,7 @@ DECIDED_NOT = """
 
 # ---------- code for autoprocessing Rust source files ----------
 
-PAT = re.compile(r'^#!\[(allow|deny|warn)')
+PAT = re.compile(r'^ *#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 
 opts = None
 deferred_errors = []
@@ -75,27 +90,47 @@ class ImproperFile(Exception):
         self.lno = lno
         self.message = message
 
-def filter_file(lints, inp, outp):
-    in_lint_list = False
+def filter_file(lints, inp, outp, insist):
+    in_lint_list = None
     found_lint_list = False
     lno = 0
     for line in inp.readlines():
         lno += 1
-        if line.startswith("// @@ begin lint list"):
+
+        line_starts = None
+        line_ends = None
+        line_stripped = line.lstrip(' ')
+        if line_stripped.startswith("// @@ begin lint list"):
+            line_starts = 'main'
+        elif line_stripped.startswith("// @@ begin test lint list"):
+            line_starts = 'test'
+        elif line_stripped.startswith("//! <!-- @@ end lint list"):
+            line_ends = 'main'
+        elif line_stripped.startswith("//! <!-- @@ end test lint list"):
+            line_ends = 'test'
+
+        if line_starts:
             if in_lint_list:
                 raise ImproperFile(lno, 'found "@@ begin lint list" but inside lint list')
             found_lint_list = True
-            in_lint_list = True
-        elif line.startswith("//! <!-- @@ end lint list"):
+            in_lint_list = line_starts
+            indent = line[0: len(line) - len(line_stripped)]
+        elif line_ends:
             # End delimiter is Rustdoc containing an HTML comment, because rustfmt
             # *really really* hates comments that come after things.
             # Finishing the automaintained block with just a blank line is too much of a hazard.
             # It does end up in the output HTML from Rustdoc, but it is harmless there.
             if not in_lint_list:
                 raise ImproperFile(lno, 'found "@@ end lint list" but not inside lint list')
-            in_lint_list = False
-            outp.write(WANT_LINTS.strip())
-            outp.write("\n")
+            if in_lint_list != line_ends:
+                raise ImproperFile(lno, 'found end tag '+line_ends+' but expected '+in_lint_list)
+            if in_lint_list == 'test':
+                lints = TEST_LINTS
+            else:
+                lints = WANT_LINTS
+            for lint in lints.strip().split('\n'): 
+                outp.write(indent + lint + '\n')
+            in_lint_list = None
         elif in_lint_list:
             if not PAT.match(line):
                 raise ImproperFile(lno, 'entry in lint list does not look like a lint')
@@ -104,16 +139,19 @@ def filter_file(lints, inp, outp):
         outp.write(line)
     if in_lint_list:
         raise ImproperFile(lno, 'missing "@@ lint list" delimiter, still in lint list at EOF')
-    if not found_lint_list:
+    if insist and not found_lint_list:
         raise ImproperFile(lno, 'standard lint list block seems to be missing (wrong delimiters?)')
 
-def process(lints, fn):
-    print("{}...".format(fn))
+def process(lints, fn, always_insist):
+    insist = (always_insist or
+              fnmatch.fnmatch(fn, 'crates/*/src/lib.rs') or
+              fnmatch.fnmatch(fn, 'crates/*/src/main.rs'))
+
     tmp_name = fn+".tmp~"
     outp = open(tmp_name,'w')
     inp = open(fn,'r')
     try:
-        filter_file(lints, inp, outp)
+        filter_file(lints, inp, outp, insist)
     except ImproperFile as e:
         print('%s:%d: %s' % (fn, e.lno, e.message), file=sys.stderr)
         deferred_errors.append(fn)
@@ -134,12 +172,15 @@ def main(lints,files):
         print("Run this from the top level of an arti repo.")
         sys.exit(1)
 
+    always_insist = True
     if not files:
-        print("No files provided.  Example usage:")
-        print("   ./maint/add_warning crates/*/src/{lib,main}.rs")
+        files = subprocess.run(['find','-name','*.rs'],
+                               stdout=subprocess.PIPE, check=True).stdout;
+        files = files.decode('utf-8').rstrip('\n').split('\n')
+        always_insist = False
 
     for fn in files:
-        process(lints, fn)
+        process(lints, fn, always_insist)
 
     if len(deferred_errors) > 0:
         print('\n' + sys.argv[0] + ': standard lint block mismatch in the following files:\n  '
@@ -149,8 +190,8 @@ def main(lints,files):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('standardise Rust lint blocks')
-    parser.add_argument('--check')
-    parser.add_argument('file', nargs='+')
+    parser.add_argument('--check', action='store_true')
+    parser.add_argument('file', nargs='*')
     opts = parser.parse_args()
 
     main(WANT_LINTS, opts.file)

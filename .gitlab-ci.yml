@@ -34,7 +34,7 @@ maint-checks:
   script:
     - apt-get update && apt-get install -y python3-toml
     - ./maint/check_toposort
-    - ./maint/add_warning --check crates/*/src/{lib,main}.rs
+    - ./maint/add_warning --check
 
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"
@@ -64,7 +64,7 @@ rust-latest:
     - cargo test --verbose --target x86_64-unknown-linux-gnu
     - rustup component add clippy
     - rustup show
-    - cargo clippy --all-features --all-targets -- -D warnings
+    - cargo clippy --all-features --all-targets -- --cfg ci_arti_stable -D warnings
     - cargo build --verbose --release -p arti-bench --target x86_64-unknown-linux-gnu
   artifacts:
     paths:
