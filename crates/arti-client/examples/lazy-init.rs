@@ -1,3 +1,9 @@
+// @@ begin test lint list maintained by maint/add_warning @@
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
+#![allow(clippy::unwrap_used)]
+//! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
 use anyhow::Result;
 use arti_client::{TorClient, TorClientConfig};
 use tokio_crate as tokio;

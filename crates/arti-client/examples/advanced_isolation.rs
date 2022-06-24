@@ -1,3 +1,9 @@
+// @@ begin test lint list maintained by maint/add_warning @@
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
+#![allow(clippy::unwrap_used)]
+//! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
 // This example showcase how to use the trait IsolationHelper to build complexe isolation rules.
 // For most usages, using a combination of TorClient::isolated_client and IsolationToken should
 // be enough.
