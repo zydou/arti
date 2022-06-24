@@ -178,11 +178,11 @@ dependencies = [
 
 [[package]]
 name = "arti-config"
-version = "0.4.0"
+version = "0.4.1"
 
 [[package]]
 name = "arti-hyper"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -595,7 +595,7 @@ checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
 name = "caret"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "cc"
@@ -2646,7 +2646,7 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 
 [[package]]
 name = "retry-error"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
 ]
@@ -2775,7 +2775,7 @@ checksum = "f3f6f92acf49d1b98f7a81226834412ada05458b7364277387724a237f062695"
 
 [[package]]
 name = "safelog"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "educe",
  "fluid-let",
@@ -3527,7 +3527,7 @@ dependencies = [
 
 [[package]]
 name = "tor-checkable"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "humantime 2.1.0",
  "signature",
@@ -3605,7 +3605,7 @@ dependencies = [
 
 [[package]]
 name = "tor-consdiff"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "digest 0.10.3",
  "hex",
@@ -3702,7 +3702,7 @@ dependencies = [
 
 [[package]]
 name = "tor-events"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "async-broadcast",
  "futures",
@@ -3749,7 +3749,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "hex-literal",
  "tor-bytes",
@@ -3912,7 +3912,7 @@ dependencies = [
 
 [[package]]
 name = "tor-protover"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "caret",
  "thiserror",
@@ -3940,7 +3940,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "async-trait",
  "futures",
