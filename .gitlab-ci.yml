@@ -34,7 +34,7 @@ maint-checks:
   script:
     - apt-get update && apt-get install -y python3-toml
     - ./maint/check_toposort
-    - ./maint/add_warning --check crates/*/src/{lib,main}.rs
+    - ./maint/add_warning --check
 
 rust-checks:
   # This is too slow (and the cacheing of the "cargo build" too flaky) to be a "check"

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import fnmatch
 import sys
 import os
 import re
@@ -78,7 +79,7 @@ class ImproperFile(Exception):
         self.lno = lno
         self.message = message
 
-def filter_file(lints, inp, outp):
+def filter_file(lints, inp, outp, insist):
     in_lint_list = False
     found_lint_list = False
     lno = 0
@@ -107,16 +108,19 @@ def filter_file(lints, inp, outp):
         outp.write(line)
     if in_lint_list:
         raise ImproperFile(lno, 'missing "@@ lint list" delimiter, still in lint list at EOF')
-    if not found_lint_list:
+    if insist and not found_lint_list:
         raise ImproperFile(lno, 'standard lint list block seems to be missing (wrong delimiters?)')
 
-def process(lints, fn):
-    print("{}...".format(fn))
+def process(lints, fn, always_insist):
+    insist = (always_insist or
+              fnmatch.fnmatch(fn, 'crates/*/src/lib.rs') or
+              fnmatch.fnmatch(fn, 'crates/*/src/main.rs'))
+
     tmp_name = fn+".tmp~"
     outp = open(tmp_name,'w')
     inp = open(fn,'r')
     try:
-        filter_file(lints, inp, outp)
+        filter_file(lints, inp, outp, insist)
     except ImproperFile as e:
         print('%s:%d: %s' % (fn, e.lno, e.message), file=sys.stderr)
         deferred_errors.append(fn)
@@ -137,12 +141,15 @@ def main(lints,files):
         print("Run this from the top level of an arti repo.")
         sys.exit(1)
 
+    always_insist = True
     if not files:
-        print("No files provided.  Example usage:")
-        print("   ./maint/add_warning crates/*/src/{lib,main}.rs")
+        files = subprocess.run(['find','-name','*.rs'],
+                               stdout=subprocess.PIPE, check=True).stdout;
+        files = files.decode('utf-8').rstrip('\n').split('\n')
+        always_insist = False
 
     for fn in files:
-        process(lints, fn)
+        process(lints, fn, always_insist)
 
     if len(deferred_errors) > 0:
         print('\n' + sys.argv[0] + ': standard lint block mismatch in the following files:\n  '
@@ -153,7 +160,7 @@ def main(lints,files):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('standardise Rust lint blocks')
     parser.add_argument('--check')
-    parser.add_argument('file', nargs='+')
+    parser.add_argument('file', nargs='*')
     opts = parser.parse_args()
 
     main(WANT_LINTS, opts.file)
