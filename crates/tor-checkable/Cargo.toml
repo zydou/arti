@@ -19,4 +19,4 @@ experimental-api = []
 humantime = "2"
 signature = "1"
 thiserror = "1"
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
