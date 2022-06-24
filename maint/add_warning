@@ -49,6 +49,8 @@ WANT_LINTS = """
 # ---------- list of lints to apply or disapply *in tests* ----------
 
 TEST_LINTS = """
+#![allow(clippy::print_stderr)]
+#![allow(clippy::print_stdout)]
 #![allow(clippy::unwrap_used)]
 """
 
