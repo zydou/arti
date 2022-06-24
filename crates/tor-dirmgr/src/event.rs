@@ -337,7 +337,7 @@ pub(crate) enum DirProgress {
 }
 
 /// A reported diagnostic for what kind of trouble we've seen while trying to
-/// bootstap a directory.
+/// bootstrap a directory.
 ///
 /// These blockages types are not yet terribly specific: if you encounter one,
 /// it's probably a good idea to check the logs to see what's really going on.

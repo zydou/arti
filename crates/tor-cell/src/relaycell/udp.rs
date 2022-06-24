@@ -157,7 +157,7 @@ impl From<IpAddr> for Address {
 /// A ConnectUdp message creates a new UDP data stream.
 ///
 /// Upon receiving a ConnectUdp message, a relay tries to connect to the given address with the UDP
-/// procotol if the xit policy permits.
+/// protocol if the exit policy permits.
 ///
 /// If the exit decides to reject the message, or if the UDP connection fails, the exit should send
 /// an End message.
