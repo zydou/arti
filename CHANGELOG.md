@@ -89,9 +89,48 @@ Thanks to everybody who has contributed to this release, including
 0x4ndy, Alex Xu, Arturo Marquez, Dimitris Apostolou, Michael McCune,
 Neel Chauhan, Orhun Parmaksız, Steven Murdoch, and Trinity Pointard.
 
-
-
-
+[!535]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/535
+[!539]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/539
+[!541]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/541
+[!548]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/548
+[!550]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/550
+[!551]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/551
+[!554]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/554
+[!556]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/556
+[!559]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/559
+[!561]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/561
+[!562]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/562
+[!564]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/564
+[!571]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/571
+[!582]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/582
+[!583]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/583
+[!584]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/584
+[!587]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/587
+[!589]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/589
+[!590]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/590
+[!594]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/594
+[!598]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/598
+[!600]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/600
+[!601]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/601
+[!604]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/604
+[#93]: https://gitlab.torproject.org/tpo/core/arti/-/issues/93
+[#154]: https://gitlab.torproject.org/tpo/core/arti/-/issues/154
+[#323]: https://gitlab.torproject.org/tpo/core/arti/-/issues/323
+[#441]: https://gitlab.torproject.org/tpo/core/arti/-/issues/441
+[#442]: https://gitlab.torproject.org/tpo/core/arti/-/issues/442
+[#457]: https://gitlab.torproject.org/tpo/core/arti/-/issues/457
+[#462]: https://gitlab.torproject.org/tpo/core/arti/-/issues/462
+[#468]: https://gitlab.torproject.org/tpo/core/arti/-/issues/468
+[#480]: https://gitlab.torproject.org/tpo/core/arti/-/issues/480
+[#487]: https://gitlab.torproject.org/tpo/core/arti/-/issues/487
+[#488]: https://gitlab.torproject.org/tpo/core/arti/-/issues/488
+[#491]: https://gitlab.torproject.org/tpo/core/arti/-/issues/491
+[#493]: https://gitlab.torproject.org/tpo/core/arti/-/issues/493
+[#497]: https://gitlab.torproject.org/tpo/core/arti/-/issues/497
+[#499]: https://gitlab.torproject.org/tpo/core/arti/-/issues/499
+[2223398eb1670c15]: https://gitlab.torproject.org/tpo/core/arti/-/commit/2223398eb1670c159151bc9aae5fed346b88c904
+[3ba3b26842254cfd]: https://gitlab.torproject.org/tpo/core/arti/-/commit/3ba3b26842254cfd9033ea37b44b746895bcbd02
+[89f9e1decb7872d6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/89f9e1decb7872d688d126fe41ab28b6bd0504a0
 
 
 
