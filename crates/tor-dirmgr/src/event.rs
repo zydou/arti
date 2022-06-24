@@ -18,6 +18,7 @@ use std::{
 
 use educe::Educe;
 use futures::{stream::Stream, Future, StreamExt};
+use itertools::chain;
 use time::OffsetDateTime;
 use tor_basic_utils::skip_fmt;
 use tor_netdir::DirEvent;
@@ -457,14 +458,26 @@ impl DirBootstrapStatus {
     }
 
     /// Return the next DirStatus, if there is one.
-    ///
-    /// Testing-only.
-    #[cfg(test)]
     fn next(&self) -> Option<&DirStatus> {
         match &self.0 {
             StatusEnum::Replacing { next, .. } => Some(&next.status),
             _ => None,
         }
+    }
+
+    /// Return the contained `DirStatus`es, in order: `current`, then `next`
+    fn statuses(&self) -> impl Iterator<Item = &DirStatus> + DoubleEndedIterator {
+        chain!(self.current(), self.next(),)
+    }
+
+    /// Return the contained `StatusEntry`s mutably, in order: `current`, then `next`
+    fn entries_mut(&mut self) -> impl Iterator<Item = &mut StatusEntry> + DoubleEndedIterator {
+        let (current, next) = match &mut self.0 {
+            StatusEnum::NoActivity => (None, None),
+            StatusEnum::Single { current } => (Some(current), None),
+            StatusEnum::Replacing { current, next } => (Some(current), Some(next)),
+        };
+        chain!(current, next,)
     }
 
     /// Return the fraction of completion for directory download, in a form
@@ -476,15 +489,10 @@ impl DirBootstrapStatus {
     /// Callers _should not_ depend on the specific meaning of any particular
     /// fraction; we may change these fractions in the future.
     pub fn frac_at(&self, when: SystemTime) -> f32 {
-        match &self.0 {
-            StatusEnum::NoActivity => 0.0,
-            StatusEnum::Single { current } => current.status.frac_at(when).unwrap_or(0.0),
-            StatusEnum::Replacing { current, next } => current
-                .status
-                .frac_at(when)
-                .or_else(|| next.status.frac_at(when))
-                .unwrap_or(0.0),
-        }
+        self.statuses()
+            .filter_map(|st| st.frac_at(when))
+            .next()
+            .unwrap_or(0.0)
     }
 
     /// Return true if this status indicates that we have a current usable
@@ -508,55 +516,43 @@ impl DirBootstrapStatus {
             }
         }
 
-        match &self.0 {
-            // We're not trying to fetch anything, so it can't be blocked.
-            StatusEnum::NoActivity => None,
-            // We have only one attempt: its blockage is the only relevant one.
-            StatusEnum::Single { current } => current.status.blockage(),
-            // We know about two attempts: any blockage in "current" is more
-            // serious.
-            StatusEnum::Replacing { current, next } => {
-                current.status.blockage().or_else(|| next.status.blockage())
-            }
-        }
+        // Any blockage in "current" is more serious, so return that if there is one
+        self.statuses().filter_map(|st| st.blockage()).next()
     }
 
     /// Return the appropriate DirStatus for `AttemptId`, constructing it if
     /// necessary.
     ///
     /// Return None if all relevant attempts are more recent than this Id.
+    #[allow(clippy::search_is_some)] // tpo/core/arti/-/merge_requests/599#note_2816368
     fn mut_status_for(&mut self, attempt_id: AttemptId) -> Option<&mut DirStatus> {
-        // First, we add a status for this attempt_id if appropriate.
-        //
-        // TODO: should make sure that the compiler is smart enough to optimize
-        // this mem::take() and replacement away, and turn it into a conditional
-        // replacement?
-        self.0 = match std::mem::take(&mut self.0) {
-            StatusEnum::NoActivity => StatusEnum::Single {
-                current: StatusEntry::new(attempt_id),
-            },
-            StatusEnum::Single { current } if current.id < attempt_id => StatusEnum::Replacing {
-                current,
-                next: StatusEntry::new(attempt_id),
-            },
-            StatusEnum::Replacing { current, next } if next.id < attempt_id => {
-                StatusEnum::Replacing {
-                    current,
-                    next: StatusEntry::new(attempt_id),
-                }
-            }
-            other => other,
-        };
-
-        // Now return the correct status.
-        match &mut self.0 {
-            StatusEnum::Single { current } if current.id == attempt_id => Some(&mut current.status),
-            StatusEnum::Replacing { current, .. } if current.id == attempt_id => {
-                Some(&mut current.status)
-            }
-            StatusEnum::Replacing { next, .. } if next.id == attempt_id => Some(&mut next.status),
-            _ => None,
+        // First, ensure that we have a *recent enough* attempt
+        // Look for the latest attempt, and see if it's new enough; if not, start a new one.
+        if self
+            .entries_mut()
+            .rev()
+            .take(1)
+            .find(|entry| entry.id >= attempt_id)
+            .is_none()
+        {
+            let current = match std::mem::take(&mut self.0) {
+                StatusEnum::NoActivity => None,
+                StatusEnum::Single { current } => Some(current),
+                StatusEnum::Replacing { current, .. } => Some(current),
+            };
+            // If we have a `current` already, we keep it, and restart `next`.
+            let next = StatusEntry::new(attempt_id);
+            self.0 = match current {
+                None => StatusEnum::Single { current: next },
+                Some(current) => StatusEnum::Replacing { current, next },
+            };
         }
+
+        // Find the entry with `attempt_id` and return it.
+        // (Despite the above, there might not be one: maybe `attempt_id` is old.)
+        self.entries_mut()
+            .find(|entry| entry.id == attempt_id)
+            .map(|entry| &mut entry.status)
     }
 
     /// If the "next" status is usable, replace the current status with it.
