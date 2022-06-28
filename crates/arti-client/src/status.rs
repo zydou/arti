@@ -144,7 +144,7 @@ pub enum BlockageKind {
     /// successfully with relays and/or from finding a directory that we trust.
     #[display(fmt = "Clock is skewed.")]
     ClockSkewed,
-    /// We've encounted some kind of problem downloading directory
+    /// We've encountered some kind of problem downloading directory
     /// information, and it doesn't seem to be caused by any particular
     /// connection problem.
     #[display(fmt = "Can't bootstrap a Tor directory.")]
