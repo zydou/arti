@@ -36,7 +36,7 @@ pub(crate) trait FromBytes: Sized {
 /// Types for decoding base64-encoded values.
 mod b64impl {
     use crate::{Error, ParseErrorKind as EK, Pos, Result};
-    use base64ct::{Base64, Encoding};
+    use base64ct::{Base64, Base64Unpadded, Encoding};
     use std::ops::RangeBounds;
 
     /// A byte array, encoded in base64 with optional padding.
@@ -45,22 +45,10 @@ mod b64impl {
     impl std::str::FromStr for B64 {
         type Err = Error;
         fn from_str(s: &str) -> Result<Self> {
-            // The `base64ct` crate only rejects invalid
-            // characters when the input is padded. Therefore,
-            // the input must be padded fist. For more info on
-            // this, take a look at this issue:
-            // `https://github.com/RustCrypto/utils/issues/576`
-            let mut string = s.to_string();
-            // Determine padding length
-            let offset = 4 - s.len() % 4;
-            match offset {
-                4 => (),
-                _ => {
-                    // Add pad to input
-                    string.push_str("=".repeat(offset).as_str());
-                }
-            }
-            let v = Base64::decode_vec(&string);
+            let v: core::result::Result<Vec<u8>, base64ct::Error> = match s.len() % 4 {
+                0 => Base64::decode_vec(s),
+                _ => Base64Unpadded::decode_vec(s),
+            };
             let v = v.map_err(|_| {
                 EK::BadArgument
                     .with_msg("Invalid base64")
@@ -533,8 +521,8 @@ mod test {
         assert!("B".parse::<B64>().is_err());
         assert!("B=".parse::<B64>().is_err());
         assert!("B==".parse::<B64>().is_err());
+        assert!("Bg=".parse::<B64>().is_err());
         assert_eq!("Bg".parse::<B64>()?.as_bytes(), b"\x06");
-        assert_eq!("Bg=".parse::<B64>()?.as_bytes(), b"\x06");
         assert_eq!("Bg==".parse::<B64>()?.as_bytes(), b"\x06");
         assert_eq!("BCg".parse::<B64>()?.as_bytes(), b"\x04\x28");
         assert_eq!("BCg=".parse::<B64>()?.as_bytes(), b"\x04\x28");

@@ -45,7 +45,7 @@ experimental-api = []
 dangerous-expose-struct-fields = ["visible", "visibility"]
 
 [dependencies]
-base64ct = { version = "1.5.0", features = ["alloc"] }
+base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "1"
 derive_more = "0.99"
 digest = "0.10.0"
