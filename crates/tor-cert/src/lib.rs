@@ -99,6 +99,11 @@ use std::time;
 
 pub use err::CertError;
 
+#[cfg(feature = "encode")]
+mod encode;
+#[cfg(feature = "encode")]
+pub use err::EncodeError;
+
 /// A Result defined to use CertError
 type CertResult<T> = std::result::Result<T, CertError>;
 
@@ -179,8 +184,14 @@ caret_int! {
 /// Structure for an Ed25519-signed certificate as described in Tor's
 /// cert-spec.txt.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "encode", derive(derive_builder::Builder))]
+#[cfg_attr(
+    feature = "encode",
+    builder(name = "Ed25519CertConstructor", build_fn(skip))
+)]
 pub struct Ed25519Cert {
     /// How many _hours_ after the epoch will this certificate expire?
+    #[cfg_attr(feature = "encode", builder(setter(custom)))]
     exp_hours: u32,
     /// Type of the certificate; recognized values are in certtype::*
     cert_type: CertType,
@@ -188,11 +199,14 @@ pub struct Ed25519Cert {
     cert_key: CertifiedKey,
     /// A list of extensions.
     #[allow(unused)]
+    #[cfg_attr(feature = "encode", builder(setter(custom)))]
     extensions: Vec<CertExt>,
     /// The key that signed this cert.
     ///
-    /// Once the cert has been unwrapped from an KeyUnknownCert, this
-    /// field will be set.
+    /// Once the cert has been unwrapped from an KeyUnknownCert, this field will
+    /// be set.  If there is a `SignedWithEd25519` extension in
+    /// `self.extensions`, this will match it.
+    #[cfg_attr(feature = "encode", builder(setter(custom)))]
     signed_with: Option<ed25519::PublicKey>,
 }
 
@@ -295,61 +309,12 @@ impl CertExt {
     }
 }
 
-/*
-impl Writeable for CertExt {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
-        match self {
-            CertExt::SignedWithEd25519(pk) => pk.write_onto(w),
-            CertExt::Unrecognized(u) => u.write_onto(w),
-        }
-    }
-}
- */
-
 /// Extension indicating that a key that signed a given certificate.
 #[derive(Debug, Clone)]
 struct SignedWithEd25519Ext {
     /// The key that signed the certificate including this extension.
     pk: ed25519::PublicKey,
 }
-
-/*
-impl Writeable for SignedWithEd25519Ext {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
-        // body length
-        w.write_u16(32);
-        // Signed-with-ed25519-key-extension
-        w.write_u8(ExtType::SIGNED_WITH_ED25519_KEY.into());
-        // flags = 0.
-        w.write_u8(0);
-        // body
-        w.write_all(self.pk.as_bytes());
-    }
-}
-*/
-
-/*
-impl UnrecognizedExt {
-    /// Assert that there is no problem with the internal representation
-    /// of this object.
-    fn assert_rep_ok(&self) {
-        assert!(self.body.len() <= std::u16::MAX as usize);
-    }
-}
-*/
-
-/*
-impl Writeable for UnrecognizedExt {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
-        self.assert_rep_ok();
-        w.write_u16(self.body.len() as u16);
-        w.write_u8(self.ext_type.into());
-        let flags = if self.affects_validation { 1 } else { 0 };
-        w.write_u8(flags);
-        w.write_all(&self.body[..]);
-    }
-}
-*/
 
 impl Readable for CertExt {
     fn take_from(b: &mut Reader<'_>) -> BytesResult<Self> {
@@ -385,34 +350,6 @@ impl Readable for CertExt {
 }
 
 impl Ed25519Cert {
-    /*
-        /// Helper: Assert that there is nothing wrong with the
-        /// internal structure of this certificate.
-        fn assert_rep_ok(&self) {
-            assert!(self.extensions.len() <= std::u8::MAX as usize);
-        }
-
-        /// Encode a certificate into a new vector, signing the result
-        /// with `keypair`.
-        pub fn encode_and_sign(&self, skey: &ed25519::Keypair) -> Vec<u8> {
-            self.assert_rep_ok();
-            let mut w = Vec::new();
-            w.write_u8(1); // Version
-            w.write_u8(self.cert_type.into());
-            w.write_u32(self.exp_hours);
-            w.write_u8(self.cert_key.key_type().into());
-            w.write_all(self.cert_key.as_bytes());
-
-            for e in self.extensions.iter() {
-                w.write(e);
-            }
-
-            let signature = skey.sign(&w[..]);
-            w.write(&signature);
-            w
-        }
-    */
-
     /// Try to decode a certificate from a byte slice.
     ///
     /// This function returns an error if the byte slice is not
