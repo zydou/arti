@@ -47,7 +47,7 @@ pub fn convert_curve25519_to_ed25519_public(
     pk::ed25519::PublicKey::from_bytes(compressed_y.as_bytes()).ok()
 }
 
-/// Convert a curve25519 private key to an ed25519 public key (and
+/// Convert a curve25519 private key to an ed25519 private key (and
 /// give a sign bit) to use with it, for use in ntor key cross-certification.
 ///
 /// Note that this formula is not standardized; don't use
