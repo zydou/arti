@@ -82,7 +82,7 @@ impl tor_error::HasRetryTime for PickGuardError {
 #[non_exhaustive]
 pub enum GuardMgrError {
     /// An error manipulating persistent state
-    #[error("Problem accessing persistent state")]
+    #[error("Problem accessing persistent guard state")]
     State(#[from] tor_persist::Error),
 
     /// An error that occurred while trying to spawn a daemon task.
