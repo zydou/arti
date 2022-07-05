@@ -7,6 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{internal, ErrorKind};
+use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_proto::ClockSkew;
 
 /// An error returned by a channel manager.
@@ -18,19 +19,27 @@ pub enum Error {
     UnusableTarget(#[source] tor_error::Bug),
 
     /// We were waiting on a pending channel, but it didn't succeed.
-    #[error("Pending channel failed to launch")]
-    PendingFailed,
+    #[error("Pending channel for {peer} failed to launch")]
+    PendingFailed {
+        /// Who we were talking to
+        peer: OwnedChanTarget,
+    },
 
     /// It took too long for us to establish this connection.
-    #[error("Channel timed out")]
-    ChanTimeout,
+    #[error("Channel for {peer} timed out")]
+    ChanTimeout {
+        /// Who we were trying to talk to
+        peer: OwnedChanTarget,
+    },
 
     /// A protocol error while making a channel
-    #[error("Protocol error while opening a channel.")]
+    #[error("Protocol error while opening a channel with {peer}")]
     Proto {
         /// The underlying error
         #[source]
         source: tor_proto::Error,
+        /// Who we were trying to talk to
+        peer: OwnedChanTarget,
         /// An authenticated ClockSkew (if available) that we received from the
         /// peer.
         clock_skew: Option<ClockSkew>,
@@ -72,12 +81,6 @@ pub enum Error {
     Internal(#[from] tor_error::Bug),
 }
 
-impl From<tor_rtcompat::TimeoutError> for Error {
-    fn from(_: tor_rtcompat::TimeoutError) -> Error {
-        Error::ChanTimeout
-    }
-}
-
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(_: std::sync::PoisonError<T>) -> Error {
         Error::Internal(internal!("Thread failed while holding lock"))
@@ -90,7 +93,7 @@ impl tor_error::HasKind for Error {
         use Error as E;
         use ErrorKind as EK;
         match self {
-            E::ChanTimeout
+            E::ChanTimeout { .. }
             | E::Io { .. }
             | E::Proto {
                 source: ProtoErr::ChanIoErr(_),
@@ -98,7 +101,7 @@ impl tor_error::HasKind for Error {
             } => EK::TorAccessFailed,
             E::Spawn { cause, .. } => cause.kind(),
             E::Proto { source, .. } => source.kind(),
-            E::PendingFailed => EK::TorAccessFailed,
+            E::PendingFailed { .. } => EK::TorAccessFailed,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
             Error::ChannelBuild { .. } => EK::TorAccessFailed,
         }
@@ -111,13 +114,13 @@ impl tor_error::HasRetryTime for Error {
         use Error as E;
         match self {
             // We can retry this action immediately; there was already a time delay.
-            E::ChanTimeout => RT::Immediate,
+            E::ChanTimeout { .. } => RT::Immediate,
 
             // These are worth retrying in a little while.
             //
             // TODO: Someday we might want to distinguish among different kinds of IO
             // errors.
-            E::PendingFailed | E::Proto { .. } | E::Io { .. } => RT::AfterWaiting,
+            E::PendingFailed { .. } | E::Proto { .. } | E::Io { .. } => RT::AfterWaiting,
 
             // This error reflects multiple attempts, but every failure is an IO
             // error, so we can also retry this after a delay.
@@ -150,9 +153,13 @@ impl Error {
     ///
     /// This is not an `Into` implementation because we don't want to call it
     /// accidentally when we actually do have clock skew information.
-    pub(crate) fn from_proto_no_skew(source: tor_proto::Error) -> Self {
+    pub(crate) fn from_proto_no_skew<T: ChanTarget + ?Sized>(
+        source: tor_proto::Error,
+        peer: &T,
+    ) -> Self {
         Error::Proto {
             source,
+            peer: OwnedChanTarget::from_chan_target(peer),
             clock_skew: None,
         }
     }

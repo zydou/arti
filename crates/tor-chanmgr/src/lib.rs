@@ -162,7 +162,7 @@ impl<R: Runtime> ChanMgr<R> {
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
         chan.check_match(target)
-            .map_err(Error::from_proto_no_skew)?;
+            .map_err(|e| Error::from_proto_no_skew(e, target))?;
         Ok((chan, provenance))
     }
 
