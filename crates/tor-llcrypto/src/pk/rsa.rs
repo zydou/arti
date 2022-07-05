@@ -16,7 +16,7 @@
 //! This module should expose RustCrypto trait-based wrappers,
 //! but the [`rsa`] crate didn't support them as of initial writing.
 use arrayref::array_ref;
-use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey};
+use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroize;

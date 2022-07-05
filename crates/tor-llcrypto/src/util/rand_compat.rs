@@ -8,16 +8,19 @@
 //!
 //! # Example:
 //!
-//! As of May 2021, if you're using the current version of
-//! [`x25519-dalek`], and the latest [`rand_core`], then you can't use
+//! As of July 2022, if you're using the current version of
+//! [`ed25519-dalek`], and the latest [`rand_core`], then you can't use
 //! this code, because of the compatibility issue mentioned above.
 //!
 //! ```compile_fail
 //! use rand_core::OsRng;
-//! use x25519_dalek::EphemeralSecret;
+//! use ed25519_dalek::Keypair;
 //!
-//! let my_secret = EphemeralSecret::new(OsRng);
+//! let keypair = Keypair::generate(&mut OsRng);
 //! ```
+//!
+//! (This used to be a problem for `x25519-dalek` too, but that crate has
+//! been updated to a version that doesn't have this problem.)
 //!
 //! But instead, you can wrap the random number generator using the
 //! [`RngCompatExt`] extension trait.
@@ -25,12 +28,12 @@
 //! ```
 //! use tor_llcrypto::util::rand_compat::RngCompatExt;
 //! use rand_core::OsRng;
-//! use x25519_dalek::EphemeralSecret;
+//! use ed25519_dalek::Keypair;
 //!
-//! let my_secret = EphemeralSecret::new(OsRng.rng_compat());
+//! let keypair = Keypair::generate(&mut OsRng.rng_compat());
 //! ```
 //!
-//! The wrapped RNG can be used with the old version of the RngCode
+//! The wrapped RNG can be used with the old version of the RngCore
 //! trait, as well as the new one.
 
 use old_rand_core::{CryptoRng as OldCryptoRng, Error as OldError, RngCore as OldRngCore};
