@@ -2,7 +2,6 @@
 
 mod clean;
 
-use crate::{load_error, store_error};
 use crate::{Error, LockStatus, Result, StateMgr};
 use fs_mistrust::CheckedDir;
 use serde::{de::DeserializeOwned, Serialize};
@@ -171,7 +170,7 @@ impl StateMgr for FsStateMgr {
             Err(e) => return Err(e.into()),
         };
 
-        Ok(Some(serde_json::from_str(&string).map_err(load_error)?))
+        Ok(Some(serde_json::from_str(&string).map_err(Error::loading)?))
     }
 
     fn store<S>(&self, key: &str, val: &S) -> Result<()>
@@ -184,7 +183,7 @@ impl StateMgr for FsStateMgr {
 
         let rel_fname = self.rel_filename(key);
 
-        let output = serde_json::to_string_pretty(val).map_err(store_error)?;
+        let output = serde_json::to_string_pretty(val).map_err(Error::storing)?;
 
         self.inner.statepath.write_and_replace(rel_fname, output)?;
 

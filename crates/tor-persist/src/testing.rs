@@ -1,6 +1,5 @@
 //! Testing-only StateMgr that stores values in a hash table.
 
-use crate::{load_error, store_error};
 use crate::{Error, LockStatus, Result, StateMgr};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
@@ -98,7 +97,7 @@ impl StateMgr for TestingStateMgr {
         let storage = inner.storage.lock().expect("Lock poisoned.");
         let content = storage.entries.get(key);
         match content {
-            Some(value) => Ok(Some(serde_json::from_str(value).map_err(load_error)?)),
+            Some(value) => Ok(Some(serde_json::from_str(value).map_err(Error::loading)?)),
             None => Ok(None),
         }
     }
@@ -113,7 +112,7 @@ impl StateMgr for TestingStateMgr {
         }
         let mut storage = inner.storage.lock().expect("Lock poisoned.");
 
-        let val = serde_json::to_string_pretty(val).map_err(store_error)?;
+        let val = serde_json::to_string_pretty(val).map_err(Error::storing)?;
 
         storage.entries.insert(key.to_string(), val);
         Ok(())
