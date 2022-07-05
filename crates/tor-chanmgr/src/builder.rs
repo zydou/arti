@@ -148,6 +148,10 @@ impl<R: Runtime> ChanBuilder<R> {
         }
 
         let (stream, addr) = connect_to_one(&self.runtime, target.addrs()).await?;
+        let using_target = match target.restrict_addr(&addr) {
+            Ok(v) => v,
+            Err(v) => v,
+        };
 
         let map_ioe = |action: &'static str| {
             move |ioe: io::Error| Error::Io {
@@ -193,7 +197,7 @@ impl<R: Runtime> ChanBuilder<R> {
             )
             .connect(|| self.runtime.wallclock())
             .await
-            .map_err(|e| Error::from_proto_no_skew(e, target))?;
+            .map_err(|e| Error::from_proto_no_skew(e, &using_target))?;
         let clock_skew = Some(chan.clock_skew()); // Not yet authenticated; can't use it till `check` is done.
         let now = self.runtime.wallclock();
         let chan = chan
@@ -206,11 +210,11 @@ impl<R: Runtime> ChanBuilder<R> {
                         .record_handshake_done_with_skewed_clock();
                     Error::Proto {
                         source,
-                        peer: target.clone(),
+                        peer: using_target,
                         clock_skew,
                     }
                 }
-                _ => Error::from_proto_no_skew(source, target),
+                _ => Error::from_proto_no_skew(source, &using_target),
             })?;
         let (chan, reactor) = chan.finish().await.map_err(|source| Error::Proto {
             source,

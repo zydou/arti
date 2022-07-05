@@ -56,6 +56,20 @@ impl OwnedChanTarget {
             rsa_identity: *target.rsa_identity(),
         }
     }
+
+    /// Construct a new OwnedChanTarget containing _only_ the provided `addr`.
+    ///
+    /// If `addr` is not an address of this `ChanTarget`, return the original OwnedChanTarget.
+    pub fn restrict_addr(&self, addr: &SocketAddr) -> Result<Self, Self> {
+        if self.addrs.contains(addr) {
+            Ok(OwnedChanTarget {
+                addrs: vec![*addr],
+                ..*self
+            })
+        } else {
+            Err(self.clone())
+        }
+    }
 }
 
 /// Primarily for error reporting and logging
