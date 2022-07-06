@@ -3845,6 +3845,7 @@ dependencies = [
 name = "tor-persist"
 version = "0.4.1"
 dependencies = [
+ "derive_more",
  "fs-mistrust",
  "fslock",
  "sanitize-filename",
