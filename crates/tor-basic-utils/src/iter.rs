@@ -89,6 +89,40 @@ where
     }
 }
 
+impl FilterCount {
+    /// Return a wrapper that can be displayed as the fraction of rejected items.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use tor_basic_utils::iter::{IteratorExt, FilterCount};
+    /// let mut count = FilterCount::default();
+    /// let sum_of_evens : u32 = (1..=10)
+    ///     .filter_cnt(&mut count, |x| *x % 2 == 0)
+    ///     .sum();
+    /// assert_eq!(format!("Rejected {} as odd", count.display_frac_rejected()),
+    ///     "Rejected 5/10 as odd".to_string());
+    /// ```
+    pub fn display_frac_rejected(&self) -> DisplayFracRejected<'_> {
+        DisplayFracRejected(self)
+    }
+}
+
+/// Return value from [`FilterCount::display_frac_rejected`].
+#[derive(Debug, Clone)]
+pub struct DisplayFracRejected<'a>(&'a FilterCount);
+
+impl<'a> std::fmt::Display for DisplayFracRejected<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}/{}",
+            self.0.n_rejected,
+            self.0.n_accepted + self.0.n_rejected
+        )
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
