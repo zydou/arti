@@ -3830,6 +3830,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
+ "itertools",
  "once_cell",
  "phf",
  "rand 0.8.5",
