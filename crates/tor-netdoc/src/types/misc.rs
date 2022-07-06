@@ -560,11 +560,11 @@ mod test {
                 };
                 let b = b.as_bytes();
 
-                let ep = Base64::encode_string(&b);
-                let eu = Base64Unpadded::encode_string(&b);
+                let ep = Base64::encode_string(b);
+                let eu = Base64Unpadded::encode_string(b);
 
                 assert!(
-                    &s == &ep || &s == &eu,
+                    s == ep || s == eu,
                     "{:?} decoded to {:?} giving neither {:?} nor {:?}",
                     s,
                     b,
