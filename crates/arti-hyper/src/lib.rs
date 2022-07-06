@@ -288,3 +288,76 @@ impl<R: Runtime, TC: TlsConn> Service<Uri> for ArtiHttpConnector<R, TC> {
         })
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn make_uri(url: &str) -> Uri {
+        url.parse::<Uri>().expect("Unable to parse uri")
+    }
+
+    #[test]
+    fn check_supported_uri_schemes() {
+        // Unsupported URI schemes should return an error
+        let unsupported = [
+            "wss://torproject.org",
+            "file://torproject.org",
+            "ftp://torproject.org",
+            "vnc://torproject.org",
+            "/no/scheme",
+        ];
+        for url in unsupported {
+            assert!(uri_to_host_port_tls(make_uri(url)).is_err());
+        }
+
+        // Supported URI schemes should return a result with correct TLS setting
+        let supported = [
+            ("https://torproject.org", UseTls::Tls),
+            ("http://torproject.org", UseTls::Bare),
+        ];
+        for (url, tls) in supported {
+            let (_ret_host, _ret_port, ret_tls) =
+                uri_to_host_port_tls(make_uri(url)).expect("function should return Result");
+
+            assert_eq!(ret_tls, tls);
+        }
+    }
+
+    #[test]
+    fn get_correct_port_and_tls_from_uri() {
+        // (1) Custom ports should be used when explicitly specified, otherwise correct defaults should be used
+        // (2) TLS setting should be dependent on URI scheme, not port
+        let urls = [
+            ("https://torproject.org:999", 999, UseTls::Tls),
+            ("https://torproject.org:80", 80, UseTls::Tls),
+            ("https://torproject.org", 443, UseTls::Tls),
+            ("http://torproject.org:999", 999, UseTls::Bare),
+            ("http://torproject.org:443", 443, UseTls::Bare),
+            ("http://torproject.org", 80, UseTls::Bare),
+        ];
+
+        for (url, port, tls) in urls {
+            let (_ret_host, ret_port, ret_tls) =
+                uri_to_host_port_tls(make_uri(url)).expect("function should return Result");
+
+            assert_eq!(ret_port, port);
+            assert_eq!(ret_tls, tls);
+        }
+    }
+
+    #[test]
+    fn get_correct_host_from_uri() {
+        let urls = [
+            ("https://torproject.org", "torproject.org"),
+            ("http://torproject.org", "torproject.org"),
+        ];
+
+        for (url, host) in urls {
+            let (ret_host, _ret_port, _ret_tls) =
+                uri_to_host_port_tls(make_uri(url)).expect("function should return Result");
+
+            assert_eq!(ret_host, host);
+        }
+    }
+}
