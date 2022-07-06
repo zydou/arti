@@ -3,6 +3,7 @@
 use futures::task::SpawnError;
 use std::sync::Arc;
 use std::time::Instant;
+use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind};
 
 /// A error caused by a failure to pick a guard.
@@ -10,7 +11,7 @@ use tor_error::{Bug, ErrorKind, HasKind};
 #[non_exhaustive]
 pub enum PickGuardError {
     /// All members of the current sample were down.
-    #[error("All guards are down")]
+    #[error("All guards are down or unusable")]
     AllGuardsDown {
         /// The next time at which any guard will be retriable.
         retry_at: Option<Instant>,
@@ -23,10 +24,19 @@ pub enum PickGuardError {
     NoGuardsUsable,
 
     /// We have no usable fallback directories.
-    #[error("All fallback directories are down")]
+    #[error(
+        "No usable fallbacks. Rejected {} as not running, then {} as filtered.", 
+         running.display_frac_rejected(),
+        filtered.display_frac_rejected()
+    )]
     AllFallbacksDown {
         /// The next time at which any fallback directory will back available.
         retry_at: Option<Instant>,
+        /// The number of fallbacks that were believed to be running or down, after applying
+        /// the filter.
+        running: FilterCount,
+        /// The number of fallbacks that satisfied our filter, or did not.
+        filtered: FilterCount,
     },
 
     /// Tried to select guards or fallbacks from an empty list.
@@ -61,6 +71,7 @@ impl tor_error::HasRetryTime for PickGuardError {
             } => RT::At(*when),
             E::AllFallbacksDown {
                 retry_at: Some(when),
+                ..
             } => RT::At(*when),
 
             // If we don't know when the guards/fallbacks will be back up,

@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use super::{DirStatus, FallbackDir, FallbackDirBuilder};
 use crate::fallback::default_fallbacks;
 use crate::{ids::FallbackId, PickGuardError};
+use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_config::define_list_builder_helper;
 
 /// A list of fallback directories.
@@ -48,11 +49,10 @@ impl FallbackList {
     }
     /// Return a random member of this list.
     pub fn choose<R: rand::Rng>(&self, rng: &mut R) -> Result<&FallbackDir, PickGuardError> {
-        // TODO: Return NoCandidatesAvailable when the fallback list is empty.
         self.fallbacks
             .iter()
             .choose(rng)
-            .ok_or(PickGuardError::AllFallbacksDown { retry_at: None })
+            .ok_or(PickGuardError::NoCandidatesAvailable)
     }
 }
 
@@ -135,13 +135,19 @@ impl FallbackState {
             return Err(PickGuardError::NoCandidatesAvailable);
         }
 
+        let mut running = FilterCount::default();
+        let mut filtered = FilterCount::default();
+
         self.fallbacks
             .iter()
-            .filter(|ent| ent.status.usable_at(now) && filter.permits(&ent.fallback))
+            .filter_cnt(&mut running, |ent| ent.status.usable_at(now))
+            .filter_cnt(&mut filtered, |ent| filter.permits(&ent.fallback))
             .choose(rng)
             .map(|ent| &ent.fallback)
             .ok_or_else(|| PickGuardError::AllFallbacksDown {
                 retry_at: self.next_retry(),
+                running,
+                filtered,
             })
     }
 
