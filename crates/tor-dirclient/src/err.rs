@@ -80,9 +80,12 @@ pub enum RequestError {
     #[error("Too much clock skew with directory cache")]
     TooMuchClockSkew,
 
-    /// The requested SHA256 digest of microdescriptors is empty.
-    #[error("The requested SHA256 digest of microdescriptors is empty")]
-    MdSha256Empty,
+    /// We tried to launch a request without any requested objects.
+    ///
+    /// This can happen if (for example) we request an empty list of
+    /// microdescriptors or certificates.
+    #[error("We didn't have any objects to request")]
+    EmptyRequest,
 }
 
 impl From<TimeoutError> for RequestError {
@@ -159,7 +162,7 @@ impl HasKind for RequestError {
             E::HttpError(_) => EK::Internal,
             E::ContentEncoding(_) => EK::TorProtocolViolation,
             E::TooMuchClockSkew => EK::TorDirectoryError,
-            E::MdSha256Empty => EK::Internal,
+            E::EmptyRequest => EK::Internal,
         }
     }
 }
