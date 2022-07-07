@@ -10,11 +10,26 @@ use tor_error::{Bug, ErrorKind, HasKind};
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PickGuardError {
-    /// All members of the current sample were down.
-    #[error("All guards are down or unusable")]
+    /// All members of the current sample were down or unusable.
+    #[error(
+        "No usable guards. Rejected {} as down, then {} as pending, then \
+         {} as unsuitable to purpose, then {} with filter.",
+        running.display_frac_rejected(),
+        pending.display_frac_rejected(),
+        suitable.display_frac_rejected(),
+        filtered.display_frac_rejected(),
+    )]
     AllGuardsDown {
         /// The next time at which any guard will be retriable.
         retry_at: Option<Instant>,
+        /// How many guards we rejected because they had failed too recently.
+        running: FilterCount,
+        /// How many guards we rejected because we are already probing them.
+        pending: FilterCount,
+        /// How many guards we rejected as unsuitable for the intended application.
+        suitable: FilterCount,
+        /// How many guards we rejected because of the provided filter.
+        filtered: FilterCount,
     },
 
     /// Some guards were running, but all of them were either blocked on pending
@@ -68,6 +83,7 @@ impl tor_error::HasRetryTime for PickGuardError {
             // Some errors contain times that we can just use.
             E::AllGuardsDown {
                 retry_at: Some(when),
+                ..
             } => RT::At(*when),
             E::AllFallbacksDown {
                 retry_at: Some(when),
