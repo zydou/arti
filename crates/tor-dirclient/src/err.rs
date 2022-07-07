@@ -18,7 +18,7 @@ pub enum Error {
     CircMgr(#[from] tor_circmgr::Error),
 
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
-    #[error("Error fetching directory information from {source:?}")]
+    #[error("Error fetching directory information{}", FromSource(.source))]
     RequestFailed {
         /// The source that gave us this error.
         source: Option<SourceInfo>,
@@ -27,6 +27,19 @@ pub enum Error {
         #[source]
         error: RequestError,
     },
+}
+
+/// Helper type to display an optional source of directory information.
+struct FromSource<'a>(&'a Option<SourceInfo>);
+
+impl std::fmt::Display for FromSource<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(si) = self.0 {
+            write!(f, " from {}", si)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// An error originating from the tor-dirclient crate.
