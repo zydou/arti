@@ -32,12 +32,6 @@ pub enum PickGuardError {
         filtered: FilterCount,
     },
 
-    /// Some guards were running, but all of them were either blocked on pending
-    /// circuits at other guards, unusable for the provided purpose, or filtered
-    /// out.
-    #[error("No running guards were usable for the selected purpose")]
-    NoGuardsUsable,
-
     /// We have no usable fallback directories.
     #[error(
         "No usable fallbacks. Rejected {} as not running, then {} as filtered.", 
@@ -69,7 +63,7 @@ impl tor_error::HasKind for PickGuardError {
         use PickGuardError as E;
         match self {
             E::AllFallbacksDown { .. } | E::AllGuardsDown { .. } => EK::TorAccessFailed,
-            E::NoGuardsUsable | E::NoCandidatesAvailable => EK::NoPath,
+            E::NoCandidatesAvailable => EK::NoPath,
             E::Internal(_) => EK::Internal,
         }
     }
@@ -97,7 +91,7 @@ impl tor_error::HasRetryTime for PickGuardError {
             // We were asked to choose some kind of guard that doesn't exist in
             // our current universe; that's not going to be come viable down the
             // line.
-            E::NoGuardsUsable | E::NoCandidatesAvailable => RT::Never,
+            E::NoCandidatesAvailable => RT::Never,
 
             // Don't try to recover from internal errors.
             E::Internal(_) => RT::Never,
