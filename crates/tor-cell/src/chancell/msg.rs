@@ -816,16 +816,23 @@ pub struct PaddingNegotiate {
     ito_high_ms: u16,
 }
 impl PaddingNegotiate {
-    /// Create a new PaddingNegotiate message.
-    ///
-    /// If `start` is true, this is a message to enable padding. Otherwise
-    /// this is a message to disable padding.
-    pub fn new(start: bool, ito_low_ms: u16, ito_high_ms: u16) -> Self {
-        let command = if start { 2 } else { 1 };
+    /// Create a new PADDING_NEGOTIATE START message.
+    pub fn start(ito_low_ms: u16, ito_high_ms: u16) -> Self {
+        // Tor Spec section 7.3
         Self {
-            command,
+            command: 2,
             ito_low_ms,
             ito_high_ms,
+        }
+    }
+
+    /// Create a new PADDING_NEGOTIATE STOP message.
+    pub fn stop() -> Self {
+        // Tor Spec section 7.3
+        Self {
+            command: 1,
+            ito_low_ms: 0,
+            ito_high_ms: 0,
         }
     }
 }

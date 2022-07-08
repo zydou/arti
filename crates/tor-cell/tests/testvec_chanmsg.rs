@@ -395,7 +395,13 @@ fn test_padding_negotiate() {
     fbody(
         cmd,
         "00 02 0100 0200",
-        &msg::PaddingNegotiate::new(true, 256, 512).into(),
+        &msg::PaddingNegotiate::start(256, 512).into(),
+    );
+
+    fbody(
+        cmd,
+        "00 01 0000 0000",
+        &msg::PaddingNegotiate::stop().into(),
     );
 
     assert_eq!(
