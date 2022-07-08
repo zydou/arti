@@ -11,7 +11,7 @@ use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
-use tor_cell::chancell::msg::{Destroy, DestroyReason};
+use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 use tor_rtcompat::SleepProvider;
 
@@ -102,6 +102,8 @@ pub struct Reactor<S: SleepProvider> {
     pub(super) output: BoxedChannelSink,
     /// Timer tracking when to generate channel padding
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
+    /// Outgoing cells introduced at the channel reactor
+    pub(super) special_outgoing: SpecialOutgoing,
     /// A map from circuit ID to Sinks on which we can deliver cells.
     pub(super) circs: CircMap,
     /// Information shared with the frontend
@@ -111,6 +113,29 @@ pub struct Reactor<S: SleepProvider> {
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
+}
+
+/// Outgoing cells introduced at the channel reactor
+#[derive(Default, Debug, Clone)]
+pub(super) struct SpecialOutgoing {
+    /// If we must send a `PaddingNegotiate`
+    pub(super) padding_negotiate: Option<PaddingNegotiate>,
+}
+
+impl SpecialOutgoing {
+    /// Do we have a special cell to send?
+    ///
+    /// Called by the reactor before looking for cells from the reactor's clients.
+    /// The returned message *must* be sent by the caller, not dropped!
+    #[must_use = "SpecialOutgoing::next()'s return value must be actually sent"]
+    pub(super) fn next(&mut self) -> Option<ChanCell> {
+        // If this gets more cases, consider making SpecialOutgoing into a #[repr(C)]
+        // enum, so that we can fast-path the usual case of "no special message to send".
+        if let Some(p) = self.padding_negotiate.take() {
+            return Some(p.into());
+        }
+        None
+    }
 }
 
 /// Allows us to just say debug!("{}: Reactor did a thing", &self, ...)
@@ -154,7 +179,14 @@ impl<S: SleepProvider> Reactor<S> {
             // See if the output sink can have cells written to it yet.
             // If so, see if we have to-be-transmitted cells.
             ret = self.output.prepare_send_from(async {
-                // This runs if we will be able to write, so do the read:
+                // This runs if we will be able to write, so try to obtain a cell:
+
+                if let Some(l) = self.special_outgoing.next() {
+                    // See reasoning below.
+                    self.padding_timer.as_mut().note_cell_sent();
+                    return Some(l)
+                }
+
                 select_biased! {
                     n = self.cells.next() => {
                         // Note transmission on *input* to the reactor, not ultimate

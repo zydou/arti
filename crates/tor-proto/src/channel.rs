@@ -385,6 +385,7 @@ impl Channel {
             link_protocol,
             details,
             padding_timer,
+            special_outgoing: Default::default(),
         };
 
         (channel, reactor)
