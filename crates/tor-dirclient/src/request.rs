@@ -270,6 +270,9 @@ impl AuthCertRequest {
 
 impl Requestable for AuthCertRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
+        if self.ids.is_empty() {
+            return Err(RequestError::EmptyRequest);
+        }
         let mut ids = self.ids.clone();
         ids.sort_unstable();
 
@@ -339,7 +342,7 @@ impl Requestable for MicrodescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
         let d_encode_b64 = |d| base64::encode_config(d, base64::STANDARD_NO_PAD);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
-            .ok_or(RequestError::MdSha256Empty)?;
+            .ok_or(RequestError::EmptyRequest)?;
         let uri = format!("/tor/micro/d/{}.z", &ids);
         let req = http::Request::builder().method("GET").uri(uri);
 
@@ -416,7 +419,7 @@ impl Requestable for RouterDescRequest {
         } else {
             uri.push_str("d/");
             let ids = digest_list_stringify(&self.digests, hex::encode, "+")
-                .ok_or(RequestError::MdSha256Empty)?;
+                .ok_or(RequestError::EmptyRequest)?;
             uri.push_str(&ids);
         }
         uri.push_str(".z");
