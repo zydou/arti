@@ -49,7 +49,12 @@ impl<I> IteratorExt for I where I: Iterator {}
 /// A record of how many items a [`CountingFilter`] returned by
 /// [`CFilterExt::filter_cnt`] accepted and rejected.
 ///
-/// In `tor-guardmgr` we use this type to keep track of which filters reject which guards,
+/// In `tor-guardmgr` we use this type to keep track of which filters reject which guards.
+//
+// SEMVER NOTE: This type has public members, is exhaustive, and is re-exposed
+// from various error types elsewhere in arti.  Probably you should not change
+// its members.  If you do, you will need to mark it as a breaking change
+// everywhere that it is re-exported.
 #[derive(Copy, Clone, Default, Debug, Eq, PartialEq)]
 #[allow(clippy::exhaustive_structs)]
 pub struct FilterCount {
