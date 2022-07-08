@@ -3,7 +3,8 @@
 use super::{KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
 use crate::{Error, Result, SecretBytes};
-use tor_bytes::{Reader, Writer};
+use tor_bytes::{EncodeResult, Reader, Writer};
+use tor_error::into_internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::curve25519::*;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -179,7 +180,8 @@ where
     let xb = state.my_sk.diffie_hellman(&state.relay_public.pk);
 
     let (keygen, authcode) =
-        ntor_derive(&xy, &xb, &state.relay_public, &state.my_public, &their_pk);
+        ntor_derive(&xy, &xb, &state.relay_public, &state.my_public, &their_pk)
+            .map_err(into_internal!("Error deriving keys"))?;
 
     let okay = authcode.ct_eq(&auth)
         & ct::bool_to_choice(xy.was_contributory())
@@ -202,7 +204,7 @@ fn ntor_derive(
     server_pk: &NtorPublicKey,
     x: &PublicKey,
     y: &PublicKey,
-) -> (NtorHkdfKeyGenerator, Authcode) {
+) -> EncodeResult<(NtorHkdfKeyGenerator, Authcode)> {
     let ntor1_protoid = &b"ntor-curve25519-sha256-1"[..];
     let ntor1_mac = &b"ntor-curve25519-sha256-1:mac"[..];
     let ntor1_verify = &b"ntor-curve25519-sha256-1:verify"[..];
@@ -226,7 +228,7 @@ fn ntor_derive(
         m.finalize()
     };
     let mut auth_input: SecretBytes = Zeroizing::new(Vec::new());
-    auth_input.write_and_consume_infallible(verify); // verify
+    auth_input.write_and_consume(verify)?; // verify
     auth_input.write_infallible(&server_pk.id); // ID
     auth_input.write_infallible(&server_pk.pk); // B
     auth_input.write_infallible(y); // Y
@@ -242,7 +244,7 @@ fn ntor_derive(
     };
 
     let keygen = NtorHkdfKeyGenerator::new(secret_input);
-    (keygen, auth_mac)
+    Ok((keygen, auth_mac))
 }
 
 /// Perform a server-side ntor handshake.
@@ -299,11 +301,14 @@ where
     let okay =
         ct::bool_to_choice(xy.was_contributory()) & ct::bool_to_choice(xb.was_contributory());
 
-    let (keygen, authcode) = ntor_derive(&xy, &xb, &keypair.pk, &their_pk, &ephem_pub);
+    let (keygen, authcode) = ntor_derive(&xy, &xb, &keypair.pk, &their_pk, &ephem_pub)
+        .map_err(into_internal!("Error deriving keys"))?;
 
     let mut reply: Vec<u8> = Vec::new();
     reply.write_infallible(&ephem_pub);
-    reply.write_and_consume_infallible(authcode);
+    reply.write_and_consume(authcode).map_err(into_internal!(
+        "Generated relay handshake we couldn't encode"
+    ))?;
 
     if okay.into() {
         Ok((keygen, reply))

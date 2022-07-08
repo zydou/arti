@@ -98,13 +98,6 @@ pub trait Writer {
     fn write_infallible<E: Writeable + ?Sized>(&mut self, e: &E) {
         e.write_onto_infallible(self);
     }
-    /// Encode a WriteableOnce object onto this writer, using its
-    /// write_into method.
-    ///
-    /// XXXX This will be removed.
-    fn write_and_consume_infallible<E: WriteableOnce>(&mut self, e: E) {
-        e.write_into_infallible(self);
-    }
 
     /// Arranges to write a u8 length, and some data whose encoding is that length
     ///
@@ -227,7 +220,7 @@ mod tests {
     }
 
     #[test]
-    fn writeable() {
+    fn writeable() -> EncodeResult<()> {
         struct Sequence(u8);
         impl Writeable for Sequence {
             fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
@@ -242,8 +235,9 @@ mod tests {
         v.write_infallible(&Sequence(6));
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5]);
 
-        v.write_and_consume_infallible(Sequence(3));
+        v.write_and_consume(Sequence(3))?;
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5, 0, 1, 2]);
+        Ok(())
     }
 
     #[test]
