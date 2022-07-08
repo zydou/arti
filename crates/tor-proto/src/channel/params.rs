@@ -19,7 +19,7 @@ use super::padding;
 /// ```ignore
 /// pub struct ChannelsParams { ... } // containing the fields as specified
 /// pub struct ChannelsParamsUpdates { ... } // containing `Option` of each field
-/// pub fn ChannelsParams::total_update(&self) -> ChannelsParamsUpdates;
+/// pub fn ChannelsParams::initial_update(&self) -> ChannelsParamsUpdates;
 /// pub fn ChannelsParamsUpdatesBuilder::$field(self, new_value: _) -> Self;
 /// ```
 ///
@@ -78,8 +78,8 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
         /// Create an update message which sets *all* of the settings in `self`
         ///
         /// Used during channel startup.
-        #[must_use = "total_update makes an updates message that must be sent to have effect"]
-        pub fn total_update(&self) -> ChannelsParamsUpdates {
+        #[must_use = "initial_update makes an updates message that must be sent to have effect"]
+        pub fn initial_update(&self) -> ChannelsParamsUpdates {
             ChannelsParamsUpdates {
               $(
                 $field: Some(self.$field.clone()),

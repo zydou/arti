@@ -219,7 +219,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                                 // manager lock acquisition span as the one where we insert the
                                 // channel into the table so it will receive updates.  I.e.,
                                 // here.
-                                chan.reparameterize(channels_params.total_update().into())
+                                chan.reparameterize(channels_params.initial_update().into())
                                     .map_err(|()| internal!("new channel already closed"))?;
                                 Ok(Open(OpenEntry {
                                     channel: chan.clone(),
