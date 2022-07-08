@@ -22,3 +22,26 @@ pub enum CertError {
     #[error("Signature on certificate was invalid")]
     BadSignature,
 }
+
+/// An error related to signing or encoding a certificate
+#[cfg(feature = "encode")]
+#[derive(Clone, Debug, Error)]
+#[non_exhaustive]
+pub enum EncodeError {
+    /// This certificate contains the public key that it is supposed to
+    /// be signed by, and the provided signing private key isn't it.
+    #[error("Tried to sign with wrong key")]
+    KeyMismatch,
+
+    /// The certificate contains more than 255 extensions.
+    #[error("Too many extensions")]
+    TooManyExtensions,
+
+    /// Some extension had a length of over 2^16.
+    #[error("Extension too long")]
+    ExtensionTooLong,
+
+    /// A mandatory field was not provided.
+    #[error("Missing field {0:?}")]
+    MissingField(&'static str),
+}

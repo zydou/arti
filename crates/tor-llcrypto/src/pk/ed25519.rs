@@ -13,7 +13,7 @@ use arrayref::array_ref;
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
-pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature};
+pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Signer};
 
 /// A relay's identity, as an unchecked, unvalidated Ed25519 key.
 ///

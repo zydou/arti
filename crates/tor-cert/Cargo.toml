@@ -11,8 +11,14 @@ keywords = ["tor", "arti", "certificate"]
 categories = ["parser-implementations"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = []
+experimental = ["encode"]
+encode = ["derive_builder"]
+
 [dependencies]
 caret = { path = "../caret", version = "0.2.0" }
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti", optional = true }
 digest = "0.10.0"
 signature = "1"
 thiserror = "1"
@@ -23,3 +29,4 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
 [dev-dependencies]
 base64 = "0.13.0"
 hex-literal = "0.3"
+rand = "0.8"

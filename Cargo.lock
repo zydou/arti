@@ -3478,8 +3478,10 @@ version = "0.4.0"
 dependencies = [
  "base64",
  "caret",
+ "derive_builder_fork_arti",
  "digest 0.10.3",
  "hex-literal",
+ "rand 0.8.5",
  "signature",
  "thiserror",
  "tor-bytes",
