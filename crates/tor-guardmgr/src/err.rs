@@ -3,30 +3,49 @@
 use futures::task::SpawnError;
 use std::sync::Arc;
 use std::time::Instant;
+use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind};
 
 /// A error caused by a failure to pick a guard.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PickGuardError {
-    /// All members of the current sample were down.
-    #[error("All guards are down")]
+    /// All members of the current sample were down or unusable.
+    #[error(
+        "No usable guards. Rejected {} as down, then {} as pending, then \
+         {} as unsuitable to purpose, then {} with filter.",
+        running.display_frac_rejected(),
+        pending.display_frac_rejected(),
+        suitable.display_frac_rejected(),
+        filtered.display_frac_rejected(),
+    )]
     AllGuardsDown {
         /// The next time at which any guard will be retriable.
         retry_at: Option<Instant>,
+        /// How many guards we rejected because they had failed too recently.
+        running: FilterCount,
+        /// How many guards we rejected because we are already probing them.
+        pending: FilterCount,
+        /// How many guards we rejected as unsuitable for the intended application.
+        suitable: FilterCount,
+        /// How many guards we rejected because of the provided filter.
+        filtered: FilterCount,
     },
 
-    /// Some guards were running, but all of them were either blocked on pending
-    /// circuits at other guards, unusable for the provided purpose, or filtered
-    /// out.
-    #[error("No running guards were usable for the selected purpose")]
-    NoGuardsUsable,
-
     /// We have no usable fallback directories.
-    #[error("All fallback directories are down")]
+    #[error(
+        "No usable fallbacks. Rejected {} as not running, then {} as filtered.", 
+         running.display_frac_rejected(),
+        filtered.display_frac_rejected()
+    )]
     AllFallbacksDown {
         /// The next time at which any fallback directory will back available.
         retry_at: Option<Instant>,
+        /// The number of fallbacks that were believed to be running or down, after applying
+        /// the filter.
+        running: FilterCount,
+        /// The number of fallbacks that satisfied our filter, or did not.
+        filtered: FilterCount,
     },
 
     /// Tried to select guards or fallbacks from an empty list.
@@ -44,7 +63,7 @@ impl tor_error::HasKind for PickGuardError {
         use PickGuardError as E;
         match self {
             E::AllFallbacksDown { .. } | E::AllGuardsDown { .. } => EK::TorAccessFailed,
-            E::NoGuardsUsable | E::NoCandidatesAvailable => EK::NoPath,
+            E::NoCandidatesAvailable => EK::NoPath,
             E::Internal(_) => EK::Internal,
         }
     }
@@ -58,9 +77,11 @@ impl tor_error::HasRetryTime for PickGuardError {
             // Some errors contain times that we can just use.
             E::AllGuardsDown {
                 retry_at: Some(when),
+                ..
             } => RT::At(*when),
             E::AllFallbacksDown {
                 retry_at: Some(when),
+                ..
             } => RT::At(*when),
 
             // If we don't know when the guards/fallbacks will be back up,
@@ -70,7 +91,7 @@ impl tor_error::HasRetryTime for PickGuardError {
             // We were asked to choose some kind of guard that doesn't exist in
             // our current universe; that's not going to be come viable down the
             // line.
-            E::NoGuardsUsable | E::NoCandidatesAvailable => RT::Never,
+            E::NoCandidatesAvailable => RT::Never,
 
             // Don't try to recover from internal errors.
             E::Internal(_) => RT::Never,
@@ -82,7 +103,7 @@ impl tor_error::HasRetryTime for PickGuardError {
 #[non_exhaustive]
 pub enum GuardMgrError {
     /// An error manipulating persistent state
-    #[error("Problem accessing persistent state")]
+    #[error("Problem accessing persistent guard state")]
     State(#[from] tor_persist::Error),
 
     /// An error that occurred while trying to spawn a daemon task.

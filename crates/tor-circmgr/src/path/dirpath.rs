@@ -171,7 +171,7 @@ mod test {
         assert!(matches!(
             err,
             Err(Error::Guard(
-                tor_guardmgr::PickGuardError::AllFallbacksDown { .. }
+                tor_guardmgr::PickGuardError::NoCandidatesAvailable
             ))
         ));
     }
