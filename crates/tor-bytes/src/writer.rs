@@ -230,10 +230,11 @@ mod tests {
     fn writeable() {
         struct Sequence(u8);
         impl Writeable for Sequence {
-            fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
+            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
                 for i in 0..self.0 {
                     b.write_u8(i);
                 }
+                Ok(())
             }
         }
 

@@ -10,7 +10,7 @@ use caret::caret_int;
 use educe::Educe;
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
-use tor_bytes::{Error, Result};
+use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -1043,7 +1043,7 @@ impl Readable for ResolvedVal {
 }
 
 impl Writeable for ResolvedVal {
-    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         match self {
             Self::Hostname(h) => {
                 w.write_u8(RES_HOSTNAME);
@@ -1079,6 +1079,7 @@ impl Writeable for ResolvedVal {
                 w.write_all(&v[..]);
             }
         }
+        Ok(())
     }
 }
 

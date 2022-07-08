@@ -3,8 +3,8 @@
 use crate::msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result, TResult, Truncated};
 
-use tor_bytes::Error as BytesError;
 use tor_bytes::Result as BytesResult;
+use tor_bytes::{EncodeResult, Error as BytesError};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_error::internal;
 
@@ -336,7 +336,7 @@ impl Readable for SocksAddr {
 }
 
 impl Writeable for SocksAddr {
-    fn write_onto_infallible<W: Writer + ?Sized>(&self, w: &mut W) {
+    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) -> EncodeResult<()> {
         match self {
             SocksAddr::Ip(IpAddr::V4(ip)) => {
                 w.write_u8(1);
@@ -355,6 +355,7 @@ impl Writeable for SocksAddr {
                 w.write_infallible(h.as_bytes());
             }
         }
+        Ok(())
     }
 }
 

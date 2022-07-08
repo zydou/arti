@@ -5,7 +5,7 @@
 
 use std::net::{IpAddr, SocketAddr};
 
-use tor_bytes::{Error, Readable, Reader, Result, Writeable, Writer};
+use tor_bytes::{EncodeResult, Error, Readable, Reader, Result, Writeable, Writer};
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -67,7 +67,7 @@ impl Readable for LinkSpec {
     }
 }
 impl Writeable for LinkSpec {
-    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         use LinkSpec::*;
         match self {
             OrPort(IpAddr::V4(v4), port) => {
@@ -99,6 +99,7 @@ impl Writeable for LinkSpec {
                 w.write_all(&vec[..]);
             }
         }
+        Ok(())
     }
 }
 

@@ -7,7 +7,7 @@ use super::msg;
 use crate::chancell::CELL_DATA_LEN;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
-use tor_bytes::{Error, Result};
+use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 
 /// Indicates the payload is a hostname.
@@ -40,9 +40,10 @@ impl Readable for AddressPort {
 }
 
 impl Writeable for AddressPort {
-    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         w.write_infallible(&self.addr);
         w.write_u16(self.port);
+        Ok(())
     }
 }
 
@@ -104,7 +105,7 @@ impl Readable for Address {
 }
 
 impl Writeable for Address {
-    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         // Address type.
         w.write_u8(self.wire_addr_type());
         // Address length and data.
@@ -118,7 +119,7 @@ impl Writeable for Address {
             Address::Ipv6(ip) => w.write_infallible(ip),
         }
 
-        w.finish().expect("address did not fit!");
+        w.finish()
     }
 }
 
