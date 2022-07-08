@@ -34,13 +34,13 @@ impl Writer for bytes::BytesMut {
 // ----------------------------------------------------------------------
 
 impl Writeable for [u8] {
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
         b.write_all(self);
     }
 }
 
 impl Writeable for Vec<u8> {
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
         b.write_all(&self[..]);
     }
 }
@@ -65,7 +65,7 @@ impl<N> Writeable for GenericArray<u8, N>
 where
     N: generic_array::ArrayLength<u8>,
 {
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
         b.write_all(self.as_slice());
     }
 }
@@ -108,7 +108,7 @@ where
 macro_rules! impl_u {
     ( $t:ty, $wrfn:ident, $rdfn:ident ) => {
         impl Writeable for $t {
-            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+            fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
                 b.$wrfn(*self)
             }
         }
@@ -136,7 +136,7 @@ mod net_impls {
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     impl Writeable for Ipv4Addr {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(&self.octets()[..]);
         }
     }
@@ -148,7 +148,7 @@ mod net_impls {
     }
 
     impl Writeable for Ipv6Addr {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(&self.octets()[..]);
         }
     }
@@ -167,7 +167,7 @@ mod ed25519_impls {
     use tor_llcrypto::pk::ed25519;
 
     impl Writeable for ed25519::PublicKey {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(self.as_bytes());
         }
     }
@@ -180,7 +180,7 @@ mod ed25519_impls {
     }
 
     impl Writeable for ed25519::Ed25519Identity {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(self.as_bytes());
         }
     }
@@ -191,7 +191,7 @@ mod ed25519_impls {
         }
     }
     impl Writeable for ed25519::Signature {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(&self.to_bytes()[..]);
         }
     }
@@ -210,7 +210,7 @@ mod curve25519_impls {
     use tor_llcrypto::pk::curve25519::{PublicKey, SharedSecret};
 
     impl Writeable for PublicKey {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(self.as_bytes());
         }
     }
@@ -221,7 +221,7 @@ mod curve25519_impls {
         }
     }
     impl Writeable for SharedSecret {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(self.as_bytes());
         }
     }
@@ -233,7 +233,7 @@ mod rsa_impls {
     use tor_llcrypto::pk::rsa::*;
 
     impl Writeable for RsaIdentity {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(self.as_bytes());
         }
     }
@@ -251,9 +251,9 @@ mod digest_impls {
     use super::*;
     use digest::{CtOutput, OutputSizeUser};
     impl<T: OutputSizeUser> WriteableOnce for CtOutput<T> {
-        fn write_into<B: Writer + ?Sized>(self, b: &mut B) {
+        fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B) {
             let code = self.into_bytes();
-            b.write(&code[..]);
+            b.write_infallible(&code[..]);
         }
     }
     impl<T: OutputSizeUser> Readable for CtOutput<T> {
@@ -268,7 +268,7 @@ mod digest_impls {
 mod u8_array_impls {
     use super::*;
     impl<const N: usize> Writeable for [u8; N] {
-        fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+        fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
             b.write_all(&self[..]);
         }
     }
@@ -292,7 +292,7 @@ mod tests {
     macro_rules! check_encode {
         ($e:expr, $e2:expr) => {
             let mut w = Vec::new();
-            w.write(&$e);
+            w.write_infallible(&$e);
             assert_eq!(&w[..], &$e2[..]);
         };
     }

@@ -279,7 +279,7 @@ impl SocksRequest {
         match addr {
             Some(SocksAddr::Ip(IpAddr::V4(ip))) => {
                 w.write_u16(self.port());
-                w.write(ip);
+                w.write_infallible(ip);
             }
             _ => {
                 w.write_u16(0);
@@ -296,11 +296,11 @@ impl SocksRequest {
         w.write_u8(status.into());
         w.write_u8(0); // reserved.
         if let Some(a) = addr {
-            w.write(a);
+            w.write_infallible(a);
             w.write_u16(self.port());
         } else {
             // TODO: sometimes I think we want to answer with ::, not 0.0.0.0
-            w.write(&SocksAddr::Ip(std::net::Ipv4Addr::UNSPECIFIED.into()));
+            w.write_infallible(&SocksAddr::Ip(std::net::Ipv4Addr::UNSPECIFIED.into()));
             w.write_u16(0);
         }
         w
@@ -336,15 +336,15 @@ impl Readable for SocksAddr {
 }
 
 impl Writeable for SocksAddr {
-    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) {
+    fn write_onto_infallible<W: Writer + ?Sized>(&self, w: &mut W) {
         match self {
             SocksAddr::Ip(IpAddr::V4(ip)) => {
                 w.write_u8(1);
-                w.write(ip);
+                w.write_infallible(ip);
             }
             SocksAddr::Ip(IpAddr::V6(ip)) => {
                 w.write_u8(4);
-                w.write(ip);
+                w.write_infallible(ip);
             }
             SocksAddr::Hostname(h) => {
                 let h = h.as_ref();
@@ -352,7 +352,7 @@ impl Writeable for SocksAddr {
                 let hlen = h.len() as u8;
                 w.write_u8(3);
                 w.write_u8(hlen);
-                w.write(h.as_bytes());
+                w.write_infallible(h.as_bytes());
             }
         }
     }

@@ -77,13 +77,13 @@ pub trait Writer {
     }
     /// Encode a Writeable object onto this writer, using its
     /// write_onto method.
-    fn write<E: Writeable + ?Sized>(&mut self, e: &E) {
-        e.write_onto(self);
+    fn write_infallible<E: Writeable + ?Sized>(&mut self, e: &E) {
+        e.write_onto_infallible(self);
     }
     /// Encode a WriteableOnce object onto this writer, using its
     /// write_into method.
-    fn write_and_consume<E: WriteableOnce>(&mut self, e: E) {
-        e.write_into(self);
+    fn write_and_consume_infallible<E: WriteableOnce>(&mut self, e: E) {
+        e.write_into_infallible(self);
     }
 
     /// Arranges to write a u8 length, and some data whose encoding is that length
@@ -169,8 +169,8 @@ where
     pub fn finish(self) -> Result<(), EncodeError> {
         let length = self.inner.len();
         let length: L = length.try_into().map_err(|_| EncodeError::BadLengthValue)?;
-        self.outer.write(&length);
-        self.outer.write(&self.inner);
+        self.outer.write_infallible(&length);
+        self.outer.write_infallible(&self.inner);
         Ok(())
     }
 }
@@ -201,7 +201,7 @@ mod tests {
     fn write_slice() {
         let mut v = Vec::new();
         v.write_u16(0x5468);
-        v.write(&b"ey're good dogs, Bront"[..]);
+        v.write_infallible(&b"ey're good dogs, Bront"[..]);
 
         assert_eq!(&v[..], &b"They're good dogs, Bront"[..]);
     }
@@ -210,7 +210,7 @@ mod tests {
     fn writeable() {
         struct Sequence(u8);
         impl Writeable for Sequence {
-            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+            fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
                 for i in 0..self.0 {
                     b.write_u8(i);
                 }
@@ -218,10 +218,10 @@ mod tests {
         }
 
         let mut v = Vec::new();
-        v.write(&Sequence(6));
+        v.write_infallible(&Sequence(6));
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5]);
 
-        v.write_and_consume(Sequence(3));
+        v.write_and_consume_infallible(Sequence(3));
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5, 0, 1, 2]);
     }
 

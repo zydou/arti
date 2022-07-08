@@ -67,30 +67,30 @@ impl Readable for LinkSpec {
     }
 }
 impl Writeable for LinkSpec {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
         use LinkSpec::*;
         match self {
             OrPort(IpAddr::V4(v4), port) => {
                 w.write_u8(LSTYPE_ORPORT_V4);
                 w.write_u8(6); // Length
-                w.write(v4);
+                w.write_infallible(v4);
                 w.write_u16(*port);
             }
             OrPort(IpAddr::V6(v6), port) => {
                 w.write_u8(LSTYPE_ORPORT_V6);
                 w.write_u8(18); // Length
-                w.write(v6);
+                w.write_infallible(v6);
                 w.write_u16(*port);
             }
             RsaId(r) => {
                 w.write_u8(LSTYPE_RSAID);
                 w.write_u8(20); // Length
-                w.write(r);
+                w.write_infallible(r);
             }
             Ed25519Id(e) => {
                 w.write_u8(LSTYPE_ED25519ID);
                 w.write_u8(32); // Length
-                w.write(e);
+                w.write_infallible(e);
             }
             Unrecognized(tp, vec) => {
                 w.write_u8(*tp);
@@ -165,7 +165,7 @@ mod test {
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
             let mut v = Vec::new();
-            v.write(val);
+            v.write_infallible(val);
             assert_eq!(&v[..], b);
         }
 

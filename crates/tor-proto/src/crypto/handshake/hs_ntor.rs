@@ -204,9 +204,9 @@ where
 
     // Create the relevant parts of INTRO1
     let mut response: Vec<u8> = Vec::new();
-    response.write(&X);
-    response.write(&ciphertext);
-    response.write(&mac_tag);
+    response.write_infallible(&X);
+    response.write_infallible(&ciphertext);
+    response.write_infallible(&mac_tag);
 
     Ok((state, response))
 }
@@ -361,8 +361,8 @@ where
 
     // Set up RENDEZVOUS1 reply to the client
     let mut reply: Vec<u8> = Vec::new();
-    reply.write(&Y);
-    reply.write(&auth_input_mac);
+    reply.write_infallible(&Y);
+    reply.write_infallible(&auth_input_mac);
 
     Ok((keygen, reply, plaintext.clone()))
 }
@@ -413,18 +413,18 @@ fn get_introduce1_key_material(
     // Construct hs_keys = KDF(intro_secret_hs_input | t_hsenc | info, S_KEY_LEN+MAC_LEN)
     // Start by getting 'intro_secret_hs_input'
     let mut secret_input = Zeroizing::new(Vec::new());
-    secret_input.write(bx); // EXP(B,x)
-    secret_input.write(auth_key); // AUTH_KEY
-    secret_input.write(X); // X
-    secret_input.write(B); // B
-    secret_input.write(hs_ntor_protoid_constant); // PROTOID
+    secret_input.write_infallible(bx); // EXP(B,x)
+    secret_input.write_infallible(auth_key); // AUTH_KEY
+    secret_input.write_infallible(X); // X
+    secret_input.write_infallible(B); // B
+    secret_input.write_infallible(hs_ntor_protoid_constant); // PROTOID
 
     // Now fold in the t_hsenc
-    secret_input.write(hs_ntor_key_constant);
+    secret_input.write_infallible(hs_ntor_key_constant);
 
     // and fold in the 'info'
-    secret_input.write(hs_ntor_expand_constant);
-    secret_input.write(subcredential);
+    secret_input.write_infallible(hs_ntor_expand_constant);
+    secret_input.write_infallible(subcredential);
 
     let hs_keys = ShakeKdf::new().derive(&secret_input[..], 32 + 32)?;
     // Extract the keys into arrays
@@ -470,13 +470,13 @@ fn get_rendezvous1_key_material(
 
     // Start with rend_secret_hs_input
     let mut secret_input = Zeroizing::new(Vec::new());
-    secret_input.write(xy); // EXP(X,y)
-    secret_input.write(xb); // EXP(X,b)
-    secret_input.write(auth_key); // AUTH_KEY
-    secret_input.write(B); // B
-    secret_input.write(X); // X
-    secret_input.write(Y); // Y
-    secret_input.write(hs_ntor_protoid_constant); // PROTOID
+    secret_input.write_infallible(xy); // EXP(X,y)
+    secret_input.write_infallible(xb); // EXP(X,b)
+    secret_input.write_infallible(auth_key); // AUTH_KEY
+    secret_input.write_infallible(B); // B
+    secret_input.write_infallible(X); // X
+    secret_input.write_infallible(Y); // Y
+    secret_input.write_infallible(hs_ntor_protoid_constant); // PROTOID
 
     // Build NTOR_KEY_SEED and verify
     let ntor_key_seed = hs_ntor_mac(&secret_input, hs_ntor_key_constant)?;
@@ -484,21 +484,21 @@ fn get_rendezvous1_key_material(
 
     // Start building 'auth_input'
     let mut auth_input = Zeroizing::new(Vec::new());
-    auth_input.write(&verify);
-    auth_input.write(auth_key); // AUTH_KEY
-    auth_input.write(B); // B
-    auth_input.write(Y); // Y
-    auth_input.write(X); // X
-    auth_input.write(hs_ntor_protoid_constant); // PROTOID
-    auth_input.write(server_string_constant); // "Server"
+    auth_input.write_infallible(&verify);
+    auth_input.write_infallible(auth_key); // AUTH_KEY
+    auth_input.write_infallible(B); // B
+    auth_input.write_infallible(Y); // Y
+    auth_input.write_infallible(X); // X
+    auth_input.write_infallible(hs_ntor_protoid_constant); // PROTOID
+    auth_input.write_infallible(server_string_constant); // "Server"
 
     // Get AUTH_INPUT_MAC
     let auth_input_mac = hs_ntor_mac(&auth_input, hs_ntor_mac_constant)?;
 
     // Now finish up with the KDF construction
     let mut kdf_seed = Zeroizing::new(Vec::new());
-    kdf_seed.write(&ntor_key_seed);
-    kdf_seed.write(hs_ntor_expand_constant);
+    kdf_seed.write_infallible(&ntor_key_seed);
+    kdf_seed.write_infallible(hs_ntor_expand_constant);
     let keygen = HsNtorHkdfKeyGenerator::new(Zeroizing::new(kdf_seed.to_vec()));
 
     Ok((keygen, auth_input_mac))

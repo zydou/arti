@@ -62,9 +62,9 @@ type MacKey = [u8; MAC_KEY_LEN];
 struct Encap<'a>(&'a [u8]);
 
 impl<'a> Writeable for Encap<'a> {
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
         b.write_u64(self.0.len() as u64);
-        b.write(self.0);
+        b.write_infallible(self.0);
     }
 }
 
@@ -186,13 +186,13 @@ fn kdf_msgkdf(
     // (ENC_K1, MAC_K1) = PARTITION(phase1_keys, ENC_KEY_LEN, MAC_KEY_LEN
     use digest::{ExtendableOutput, XofReader};
     let mut msg_kdf = DigestWriter(Shake256::default());
-    msg_kdf.write(&T_MSGKDF);
-    msg_kdf.write(xb);
-    msg_kdf.write(&relay_public.id);
-    msg_kdf.write(client_public);
-    msg_kdf.write(&relay_public.pk);
-    msg_kdf.write(PROTOID);
-    msg_kdf.write(&Encap(verification));
+    msg_kdf.write_infallible(&T_MSGKDF);
+    msg_kdf.write_infallible(xb);
+    msg_kdf.write_infallible(&relay_public.id);
+    msg_kdf.write_infallible(client_public);
+    msg_kdf.write_infallible(&relay_public.pk);
+    msg_kdf.write_infallible(PROTOID);
+    msg_kdf.write_infallible(&Encap(verification));
     let mut r = msg_kdf.take().finalize_xof();
     let mut enc_key = Zeroizing::new([0; ENC_KEY_LEN]);
     let mut mac_key = Zeroizing::new([0; MAC_KEY_LEN]);
@@ -201,11 +201,11 @@ fn kdf_msgkdf(
     r.read(&mut mac_key[..]);
     let mut mac = DigestWriter(Sha3_256::default());
     {
-        mac.write(&T_MSGMAC);
-        mac.write(&Encap(&mac_key[..]));
-        mac.write(&relay_public.id);
-        mac.write(&relay_public.pk);
-        mac.write(client_public);
+        mac.write_infallible(&T_MSGMAC);
+        mac.write_infallible(&Encap(&mac_key[..]));
+        mac.write_infallible(&relay_public.id);
+        mac.write_infallible(&relay_public.pk);
+        mac.write_infallible(client_public);
     }
 
     (enc_key, mac)
@@ -351,16 +351,16 @@ fn client_handshake_ntor_v3_no_keygen(
     let encrypted_msg = encrypt(&enc_key, client_msg);
     let msg_mac: DigestVal = {
         use digest::Digest;
-        mac.write(&encrypted_msg);
+        mac.write_infallible(&encrypted_msg);
         mac.take().finalize().into()
     };
 
     let mut message = Vec::new();
-    message.write(&relay_public.id);
-    message.write(&relay_public.pk);
-    message.write(&my_public);
-    message.write(&encrypted_msg);
-    message.write(&msg_mac);
+    message.write_infallible(&relay_public.id);
+    message.write_infallible(&relay_public.pk);
+    message.write_infallible(&my_public);
+    message.write_infallible(&encrypted_msg);
+    message.write_infallible(&msg_mac);
 
     let state = NtorV3HandshakeState {
         relay_public: relay_public.clone(),
@@ -448,7 +448,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     // Verify the message we received.
     let computed_mac: DigestVal = {
         use digest::Digest;
-        mac.write(client_msg);
+        mac.write_infallible(client_msg);
         mac.take().finalize().into()
     };
     let y_pk: curve25519::PublicKey = (secret_key_y).into();
@@ -474,14 +474,14 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
 
     let secret_input = {
         let mut si = Zeroizing::new(Vec::new());
-        si.write(&xy);
-        si.write(&xb);
-        si.write(&keypair.pk.id);
-        si.write(&keypair.pk.pk);
-        si.write(&client_pk);
-        si.write(&y_pk);
-        si.write(PROTOID);
-        si.write(&Encap(verification));
+        si.write_infallible(&xy);
+        si.write_infallible(&xb);
+        si.write_infallible(&keypair.pk.id);
+        si.write_infallible(&keypair.pk.pk);
+        si.write_infallible(&client_pk);
+        si.write_infallible(&y_pk);
+        si.write_infallible(PROTOID);
+        si.write_infallible(&Encap(verification));
         si
     };
     let ntor_key_seed = h_key_seed(&secret_input);
@@ -490,8 +490,8 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     let (enc_key, keystream) = {
         use digest::{ExtendableOutput, XofReader};
         let mut xof = DigestWriter(Shake256::default());
-        xof.write(&T_FINAL);
-        xof.write(&ntor_key_seed);
+        xof.write_infallible(&T_FINAL);
+        xof.write_infallible(&ntor_key_seed);
         let mut r = xof.take().finalize_xof();
         let mut enc_key = Zeroizing::new([0_u8; ENC_KEY_LEN]);
         r.read(&mut enc_key[..]);
@@ -501,24 +501,24 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     let auth: DigestVal = {
         use digest::Digest;
         let mut auth = DigestWriter(Sha3_256::default());
-        auth.write(&T_AUTH);
-        auth.write(&verify);
-        auth.write(&keypair.pk.id);
-        auth.write(&keypair.pk.pk);
-        auth.write(&y_pk);
-        auth.write(&client_pk);
-        auth.write(&msg_mac);
-        auth.write(&Encap(&encrypted_reply));
-        auth.write(PROTOID);
-        auth.write(&b"Server"[..]);
+        auth.write_infallible(&T_AUTH);
+        auth.write_infallible(&verify);
+        auth.write_infallible(&keypair.pk.id);
+        auth.write_infallible(&keypair.pk.pk);
+        auth.write_infallible(&y_pk);
+        auth.write_infallible(&client_pk);
+        auth.write_infallible(&msg_mac);
+        auth.write_infallible(&Encap(&encrypted_reply));
+        auth.write_infallible(PROTOID);
+        auth.write_infallible(&b"Server"[..]);
         auth.take().finalize().into()
     };
 
     let reply = {
         let mut reply = Vec::new();
-        reply.write(&y_pk);
-        reply.write(&auth);
-        reply.write(&encrypted_reply);
+        reply.write_infallible(&y_pk);
+        reply.write_infallible(&auth);
+        reply.write_infallible(&encrypted_reply);
         reply
     };
 
@@ -553,14 +553,14 @@ fn client_handshake_ntor_v3_part2(
     let yx = state.my_sk.diffie_hellman(&y_pk);
     let secret_input = {
         let mut si = Zeroizing::new(Vec::new());
-        si.write(&yx);
-        si.write(&state.shared_secret);
-        si.write(&state.relay_public.id);
-        si.write(&state.relay_public.pk);
-        si.write(&state.my_public);
-        si.write(&y_pk);
-        si.write(PROTOID);
-        si.write(&Encap(verification));
+        si.write_infallible(&yx);
+        si.write_infallible(&state.shared_secret);
+        si.write_infallible(&state.relay_public.id);
+        si.write_infallible(&state.relay_public.pk);
+        si.write_infallible(&state.my_public);
+        si.write_infallible(&y_pk);
+        si.write_infallible(PROTOID);
+        si.write_infallible(&Encap(verification));
         si
     };
     let ntor_key_seed = h_key_seed(&secret_input);
@@ -569,16 +569,16 @@ fn client_handshake_ntor_v3_part2(
     let computed_auth: DigestVal = {
         use digest::Digest;
         let mut auth = DigestWriter(Sha3_256::default());
-        auth.write(&T_AUTH);
-        auth.write(&verify);
-        auth.write(&state.relay_public.id);
-        auth.write(&state.relay_public.pk);
-        auth.write(&y_pk);
-        auth.write(&state.my_public);
-        auth.write(&state.msg_mac);
-        auth.write(&Encap(encrypted_msg));
-        auth.write(PROTOID);
-        auth.write(&b"Server"[..]);
+        auth.write_infallible(&T_AUTH);
+        auth.write_infallible(&verify);
+        auth.write_infallible(&state.relay_public.id);
+        auth.write_infallible(&state.relay_public.pk);
+        auth.write_infallible(&y_pk);
+        auth.write_infallible(&state.my_public);
+        auth.write_infallible(&state.msg_mac);
+        auth.write_infallible(&Encap(encrypted_msg));
+        auth.write_infallible(PROTOID);
+        auth.write_infallible(&b"Server"[..]);
         auth.take().finalize().into()
     };
 
@@ -589,8 +589,8 @@ fn client_handshake_ntor_v3_part2(
     let (enc_key, keystream) = {
         use digest::{ExtendableOutput, XofReader};
         let mut xof = DigestWriter(Shake256::default());
-        xof.write(&T_FINAL);
-        xof.write(&ntor_key_seed);
+        xof.write_infallible(&T_FINAL);
+        xof.write_infallible(&ntor_key_seed);
         let mut r = xof.take().finalize_xof();
         let mut enc_key = Zeroizing::new([0_u8; ENC_KEY_LEN]);
         r.read(&mut enc_key[..]);

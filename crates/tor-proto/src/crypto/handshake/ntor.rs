@@ -147,9 +147,9 @@ fn client_handshake_ntor_v1_no_keygen(
 ) -> (NtorHandshakeState, Vec<u8>) {
     let mut v: Vec<u8> = Vec::new();
 
-    v.write(&relay_public.id);
-    v.write(&relay_public.pk);
-    v.write(&my_public);
+    v.write_infallible(&relay_public.id);
+    v.write_infallible(&relay_public.pk);
+    v.write_infallible(&my_public);
 
     assert_eq!(v.len(), 20 + 32 + 32);
 
@@ -209,13 +209,13 @@ fn ntor_derive(
     let server_string = &b"Server"[..];
 
     let mut secret_input = Zeroizing::new(Vec::new());
-    secret_input.write(xy); // EXP(X,y)
-    secret_input.write(xb); // EXP(X,b)
-    secret_input.write(&server_pk.id); // ID
-    secret_input.write(&server_pk.pk); // B
-    secret_input.write(x); // X
-    secret_input.write(y); // Y
-    secret_input.write(ntor1_protoid); // PROTOID
+    secret_input.write_infallible(xy); // EXP(X,y)
+    secret_input.write_infallible(xb); // EXP(X,b)
+    secret_input.write_infallible(&server_pk.id); // ID
+    secret_input.write_infallible(&server_pk.pk); // B
+    secret_input.write_infallible(x); // X
+    secret_input.write_infallible(y); // Y
+    secret_input.write_infallible(ntor1_protoid); // PROTOID
 
     use hmac::Hmac;
     use tor_llcrypto::d::Sha256;
@@ -226,13 +226,13 @@ fn ntor_derive(
         m.finalize()
     };
     let mut auth_input: SecretBytes = Zeroizing::new(Vec::new());
-    auth_input.write_and_consume(verify); // verify
-    auth_input.write(&server_pk.id); // ID
-    auth_input.write(&server_pk.pk); // B
-    auth_input.write(y); // Y
-    auth_input.write(x); // X
-    auth_input.write(ntor1_protoid); // PROTOID
-    auth_input.write(server_string); // "Server"
+    auth_input.write_and_consume_infallible(verify); // verify
+    auth_input.write_infallible(&server_pk.id); // ID
+    auth_input.write_infallible(&server_pk.pk); // B
+    auth_input.write_infallible(y); // Y
+    auth_input.write_infallible(x); // X
+    auth_input.write_infallible(ntor1_protoid); // PROTOID
+    auth_input.write_infallible(server_string); // "Server"
 
     let auth_mac = {
         let mut m =
@@ -302,8 +302,8 @@ where
     let (keygen, authcode) = ntor_derive(&xy, &xb, &keypair.pk, &their_pk, &ephem_pub);
 
     let mut reply: Vec<u8> = Vec::new();
-    reply.write(&ephem_pub);
-    reply.write_and_consume(authcode);
+    reply.write_infallible(&ephem_pub);
+    reply.write_and_consume_infallible(authcode);
 
     if okay.into() {
         Ok((keygen, reply))

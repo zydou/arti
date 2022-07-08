@@ -94,7 +94,7 @@ pub use writer::Writer;
 
 use arrayref::array_ref;
 
-/// Result type returned by this crate.
+/// Result type returned by this crate for [`Reader`]-related methods.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Trait for an object that can be encoded onto a Writer by reference.
@@ -129,7 +129,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// ```
 pub trait Writeable {
     /// Encode this object into the writer `b`.
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B);
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B);
 }
 
 /// Trait for an object that can be encoded and consumed by a Writer.
@@ -141,12 +141,12 @@ pub trait Writeable {
 /// it implicitly via the Writer::write_and_consume() method.
 pub trait WriteableOnce {
     /// Encode this object into the writer `b`, and consume it.
-    fn write_into<B: Writer + ?Sized>(self, b: &mut B);
+    fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B);
 }
 
 impl<W: Writeable> WriteableOnce for W {
-    fn write_into<B: Writer + ?Sized>(self, b: &mut B) {
-        self.write_onto(b);
+    fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B) {
+        self.write_onto_infallible(b);
     }
 }
 

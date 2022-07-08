@@ -522,8 +522,8 @@ impl Body for End {
         w.write_u8(self.reason.into());
         if let (EndReason::EXITPOLICY, Some((addr, ttl))) = (self.reason, self.addr) {
             match addr {
-                IpAddr::V4(v4) => w.write(&v4),
-                IpAddr::V6(v6) => w.write(&v6),
+                IpAddr::V4(v4) => w.write_infallible(&v4),
+                IpAddr::V6(v6) => w.write_infallible(&v6),
             }
             w.write_u32(ttl);
         }
@@ -600,11 +600,11 @@ impl Body for Connected {
     fn encode_onto(self, w: &mut Vec<u8>) {
         if let Some((addr, ttl)) = self.addr {
             match addr {
-                IpAddr::V4(v4) => w.write(&v4),
+                IpAddr::V4(v4) => w.write_infallible(&v4),
                 IpAddr::V6(v6) => {
                     w.write_u32(0);
                     w.write_u8(6);
-                    w.write(&v6);
+                    w.write_infallible(&v6);
                 }
             }
             w.write_u32(ttl);
@@ -733,10 +733,10 @@ impl Body for Extend {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
-        w.write(&self.addr);
+        w.write_infallible(&self.addr);
         w.write_u16(self.port);
         w.write_all(&self.handshake[..]);
-        w.write(&self.rsaid);
+        w.write_infallible(&self.rsaid);
     }
 }
 
@@ -839,7 +839,7 @@ impl Body for Extend2 {
         let n_linkspecs: u8 = self.linkspec.len().try_into().expect("Too many linkspecs");
         w.write_u8(n_linkspecs);
         for ls in &self.linkspec {
-            w.write(ls);
+            w.write_infallible(ls);
         }
         w.write_u16(self.handshake_type);
         let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
@@ -1043,7 +1043,7 @@ impl Readable for ResolvedVal {
 }
 
 impl Writeable for ResolvedVal {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto_infallible<B: Writer + ?Sized>(&self, w: &mut B) {
         match self {
             Self::Hostname(h) => {
                 w.write_u8(RES_HOSTNAME);
@@ -1054,12 +1054,12 @@ impl Writeable for ResolvedVal {
             Self::Ip(IpAddr::V4(a)) => {
                 w.write_u8(RES_IPV4);
                 w.write_u8(4); // length
-                w.write(a);
+                w.write_infallible(a);
             }
             Self::Ip(IpAddr::V6(a)) => {
                 w.write_u8(RES_IPV6);
                 w.write_u8(16); // length
-                w.write(a);
+                w.write_infallible(a);
             }
             Self::TransientError => {
                 w.write_u8(RES_ERR_TRANSIENT);
@@ -1143,7 +1143,7 @@ impl Body for Resolved {
     }
     fn encode_onto(self, w: &mut Vec<u8>) {
         for (rv, ttl) in &self.answers {
-            w.write(rv);
+            w.write_infallible(rv);
             w.write_u32(*ttl);
         }
     }
