@@ -251,9 +251,10 @@ mod digest_impls {
     use super::*;
     use digest::{CtOutput, OutputSizeUser};
     impl<T: OutputSizeUser> WriteableOnce for CtOutput<T> {
-        fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B) {
+        fn write_into<B: Writer + ?Sized>(self, b: &mut B) -> EncodeResult<()> {
             let code = self.into_bytes();
             b.write_infallible(&code[..]);
+            Ok(())
         }
     }
     impl<T: OutputSizeUser> Readable for CtOutput<T> {
