@@ -105,6 +105,19 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
         }
       )*
     }
+
+    impl ChannelsParamsUpdates {
+        /// Combines `more` into `self`
+        ///
+        /// Values from `more` override ones in `self`.
+        pub fn combine(&mut self, more: &Self) {
+          $(
+            if let Some(new_value) = &more.$field {
+                self.$field = Some(new_value.clone());
+            }
+          )*
+        }
+    }
 } }
 
 define_channels_params_and_automatic_impls! {
