@@ -803,8 +803,8 @@ impl Readable for Versions {
 
 /// A PaddingNegotiate message is used to negotiate channel padding.
 ///
-/// TODO: say more once we implement channel padding.
-#[derive(Clone, Debug)]
+/// This message is constructed in the channel manager and transmitted by the reactor.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaddingNegotiate {
     /// Whether to start or stop padding
     command: u8,
