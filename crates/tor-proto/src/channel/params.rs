@@ -118,7 +118,7 @@ define_channels_params_and_automatic_impls! {
     /// we still pass it because the usual case is that padding is enabled/disabled
     /// rather than the parameters changing,
     /// so the padding timer always keeps parameters, even when disabled.
-    padding_parameters: padding::Parameters
+    padding_parameters: padding::Parameters,
 }
 
 /// Placeholder function for saying whether to enable channel padding
