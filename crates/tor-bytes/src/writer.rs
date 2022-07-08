@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use educe::Educe;
 
 use crate::EncodeError;
+use crate::EncodeResult;
 use crate::Writeable;
 use crate::WriteableOnce;
 
@@ -75,13 +76,32 @@ pub trait Writer {
         let v = vec![0_u8; n];
         self.write_all(&v[..]);
     }
+
     /// Encode a Writeable object onto this writer, using its
     /// write_onto method.
+    fn write<E: Writeable + ?Sized>(&mut self, e: &E) -> EncodeResult<()> {
+        // TODO(nickm): should we recover from errors by undoing any partial
+        // writes that occurred?
+        e.write_onto(self)
+    }
+    /// Encode a WriteableOnce object onto this writer, using its
+    /// write_into method.
+    fn write_and_consume<E: WriteableOnce>(&mut self, e: E) -> EncodeResult<()> {
+        // TODO(nickm): should we recover from errors by undoing any partial
+        // writes that occurred?
+        e.write_into(self)
+    }
+    /// Encode a Writeable object onto this writer, using its
+    /// write_onto method.
+    ///
+    /// XXXX This will be removed.
     fn write_infallible<E: Writeable + ?Sized>(&mut self, e: &E) {
         e.write_onto_infallible(self);
     }
     /// Encode a WriteableOnce object onto this writer, using its
     /// write_into method.
+    ///
+    /// XXXX This will be removed.
     fn write_and_consume_infallible<E: WriteableOnce>(&mut self, e: E) {
         e.write_into_infallible(self);
     }
