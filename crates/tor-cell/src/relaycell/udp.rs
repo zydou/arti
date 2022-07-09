@@ -41,7 +41,7 @@ impl Readable for AddressPort {
 
 impl Writeable for AddressPort {
     fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
-        w.write_infallible(&self.addr);
+        w.write(&self.addr)?;
         w.write_u16(self.port);
         Ok(())
     }
@@ -115,8 +115,8 @@ impl Writeable for Address {
             Address::Hostname(h) => {
                 w.write_all(&h[..]);
             }
-            Address::Ipv4(ip) => w.write_infallible(ip),
-            Address::Ipv6(ip) => w.write_infallible(ip),
+            Address::Ipv4(ip) => w.write(ip)?,
+            Address::Ipv6(ip) => w.write(ip)?,
         }
 
         w.finish()
@@ -204,7 +204,7 @@ impl msg::Body for ConnectUdp {
 
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u32(self.flags.bits());
-        w.write_infallible(&self.addr);
+        w.write(&self.addr)?;
         Ok(())
     }
 }
@@ -251,8 +251,8 @@ impl msg::Body for ConnectedUdp {
     }
 
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        w.write_infallible(&self.our_address);
-        w.write_infallible(&self.their_address);
+        w.write(&self.our_address)?;
+        w.write(&self.their_address)?;
         Ok(())
     }
 }

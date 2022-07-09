@@ -10,7 +10,7 @@ use caret::caret_int;
 use educe::Educe;
 use std::fmt::Write;
 use std::net::{IpAddr, Ipv4Addr};
-use tor_bytes::{EncodeResult, Error, Result};
+use tor_bytes::{EncodeError, EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_linkspec::LinkSpec;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -524,8 +524,8 @@ impl Body for End {
         w.write_u8(self.reason.into());
         if let (EndReason::EXITPOLICY, Some((addr, ttl))) = (self.reason, self.addr) {
             match addr {
-                IpAddr::V4(v4) => w.write_infallible(&v4),
-                IpAddr::V6(v6) => w.write_infallible(&v6),
+                IpAddr::V4(v4) => w.write(&v4)?,
+                IpAddr::V6(v6) => w.write(&v6)?,
             }
             w.write_u32(ttl);
         }
@@ -603,11 +603,11 @@ impl Body for Connected {
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         if let Some((addr, ttl)) = self.addr {
             match addr {
-                IpAddr::V4(v4) => w.write_infallible(&v4),
+                IpAddr::V4(v4) => w.write(&v4)?,
                 IpAddr::V6(v6) => {
                     w.write_u32(0);
                     w.write_u8(6);
-                    w.write_infallible(&v6);
+                    w.write(&v6)?;
                 }
             }
             w.write_u32(ttl);
@@ -686,7 +686,7 @@ impl Body for Sendme {
                 let bodylen: u16 = x
                     .len()
                     .try_into()
-                    .expect("Too many bytes to encode in relay cell.");
+                    .map_err(|_| EncodeError::BadLengthValue)?;
                 w.write_u16(bodylen);
                 w.append(&mut x);
             }
@@ -738,10 +738,10 @@ impl Body for Extend {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        w.write_infallible(&self.addr);
+        w.write(&self.addr)?;
         w.write_u16(self.port);
         w.write_all(&self.handshake[..]);
-        w.write_infallible(&self.rsaid);
+        w.write(&self.rsaid)?;
         Ok(())
     }
 }
@@ -843,13 +843,21 @@ impl Body for Extend2 {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        let n_linkspecs: u8 = self.linkspec.len().try_into().expect("Too many linkspecs");
+        let n_linkspecs: u8 = self
+            .linkspec
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u8(n_linkspecs);
         for ls in &self.linkspec {
-            w.write_infallible(ls);
+            w.write(ls)?;
         }
         w.write_u16(self.handshake_type);
-        let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
+        let handshake_len: u16 = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
         Ok(())
@@ -889,7 +897,11 @@ impl Body for Extended2 {
         })
     }
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
-        let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
+        let handshake_len: u16 = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
         Ok(())
@@ -1058,19 +1070,22 @@ impl Writeable for ResolvedVal {
         match self {
             Self::Hostname(h) => {
                 w.write_u8(RES_HOSTNAME);
-                let h_len: u8 = h.len().try_into().expect("Hostname too long");
+                let h_len: u8 = h
+                    .len()
+                    .try_into()
+                    .map_err(|_| EncodeError::BadLengthValue)?;
                 w.write_u8(h_len);
                 w.write_all(&h[..]);
             }
             Self::Ip(IpAddr::V4(a)) => {
                 w.write_u8(RES_IPV4);
                 w.write_u8(4); // length
-                w.write_infallible(a);
+                w.write(a)?;
             }
             Self::Ip(IpAddr::V6(a)) => {
                 w.write_u8(RES_IPV6);
                 w.write_u8(16); // length
-                w.write_infallible(a);
+                w.write(a)?;
             }
             Self::TransientError => {
                 w.write_u8(RES_ERR_TRANSIENT);
@@ -1085,7 +1100,7 @@ impl Writeable for ResolvedVal {
                 let v_len: u8 = v
                     .len()
                     .try_into()
-                    .expect("Unrecognized resolved entry too long");
+                    .map_err(|_| EncodeError::BadLengthValue)?;
                 w.write_u8(v_len);
                 w.write_all(&v[..]);
             }
@@ -1155,7 +1170,7 @@ impl Body for Resolved {
     }
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         for (rv, ttl) in &self.answers {
-            w.write_infallible(rv);
+            w.write(rv)?;
             w.write_u32(*ttl);
         }
         Ok(())

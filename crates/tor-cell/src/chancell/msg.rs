@@ -3,7 +3,7 @@
 use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
-use tor_bytes::{self, EncodeResult, Error, Readable, Reader, Result, Writer};
+use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
 
 use caret::caret_int;
 use educe::Educe;
@@ -340,8 +340,12 @@ impl Body for Create2 {
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.handshake_type);
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+        let handshake_len = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
         Ok(())
     }
@@ -409,8 +413,12 @@ impl Body for Created2 {
         ChanMsg::Created2(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+        let handshake_len = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
         Ok(())
     }
@@ -686,7 +694,7 @@ impl Body for Netinfo {
             .my_addr
             .len()
             .try_into()
-            .expect("Too many addrs in netinfo cell");
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u8(n_addrs);
         for addr in &self.my_addr {
             enc_one_netinfo_addr(w, addr);
@@ -864,15 +872,16 @@ struct TorCert {
     cert: Vec<u8>,
 }
 /// encode a single TorCert `c` onto a Writer `w`.
-fn enc_one_tor_cert<W: Writer + ?Sized>(w: &mut W, c: &TorCert) {
+fn enc_one_tor_cert<W: Writer + ?Sized>(w: &mut W, c: &TorCert) -> EncodeResult<()> {
     w.write_u8(c.certtype);
     let cert_len: u16 = c
         .cert
         .len()
         .try_into()
-        .expect("Impossibly long certificate");
+        .map_err(|_| EncodeError::BadLengthValue)?;
     w.write_u16(cert_len);
     w.write_all(&c.cert[..]);
+    Ok(())
 }
 /// Try to extract a TorCert from the reader `r`.
 fn take_one_tor_cert(r: &mut Reader<'_>) -> Result<TorCert> {
@@ -955,10 +964,10 @@ impl Body for Certs {
             .certs
             .len()
             .try_into()
-            .expect("Too many certs to encode in cell.");
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u8(n_certs);
         for c in &self.certs {
-            enc_one_tor_cert(w, c);
+            enc_one_tor_cert(w, c)?;
         }
         Ok(())
     }
@@ -1013,8 +1022,12 @@ impl Body for AuthChallenge {
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.challenge[..]);
-        assert!(self.methods.len() <= std::u16::MAX as usize);
-        w.write_u16(self.methods.len() as u16);
+        let n_methods = self
+            .methods
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(n_methods);
         for m in &self.methods {
             w.write_u16(*m);
         }
@@ -1065,8 +1078,12 @@ impl Body for Authenticate {
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.authtype);
-        assert!(self.auth.len() <= std::u16::MAX as usize);
-        w.write_u16(self.auth.len() as u16);
+        let authlen = self
+            .auth
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(authlen);
         w.write_all(&self.auth[..]);
         Ok(())
     }
