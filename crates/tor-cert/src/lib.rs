@@ -102,7 +102,7 @@ pub use err::CertError;
 #[cfg(feature = "encode")]
 mod encode;
 #[cfg(feature = "encode")]
-pub use err::EncodeError;
+pub use err::CertEncodeError;
 
 /// A Result defined to use CertError
 type CertResult<T> = std::result::Result<T, CertError>;

@@ -27,7 +27,7 @@ pub enum CertError {
 #[cfg(feature = "encode")]
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
-pub enum EncodeError {
+pub enum CertEncodeError {
     /// This certificate contains the public key that it is supposed to
     /// be signed by, and the provided signing private key isn't it.
     #[error("Tried to sign with wrong key")]
@@ -44,4 +44,10 @@ pub enum EncodeError {
     /// A mandatory field was not provided.
     #[error("Missing field {0:?}")]
     MissingField(&'static str),
+
+    /// We encounted a problem when encoding the certificate: probably, that
+    /// some length field would have to be longer than its maximum.  This is
+    /// probably a bug in the calling code.
+    #[error("Tried to generate a cert we couldn't encode.")]
+    Bytes(#[from] tor_bytes::EncodeError),
 }
