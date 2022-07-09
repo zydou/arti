@@ -245,6 +245,9 @@ mod tests {
 
         let mut w = v.write_nested_u8len();
         w.write_zeros(256);
-        assert_eq!(w.finish().err().unwrap(), EncodeError::BadLengthValue);
+        assert!(matches!(
+            w.finish().err().unwrap(),
+            EncodeError::BadLengthValue
+        ));
     }
 }

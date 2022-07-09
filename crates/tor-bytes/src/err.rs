@@ -50,11 +50,17 @@ impl PartialEq for Error {
 }
 
 /// Error type for encoding Tor objects to bytes.
-#[derive(Error, Debug, Clone, Eq, PartialEq)]
+#[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum EncodeError {
     /// We tried to encode an object with an attached length, but the length was
     /// too large to encode in the available space.
     #[error("Object length too large to encode")]
     BadLengthValue,
+    /// A parsing error that should never happen.
+    ///
+    /// We use this variant instead of calling assert() and expect() and
+    /// unwrap() from within encoding implementations.
+    #[error("Internal error")]
+    Bug(#[from] tor_error::Bug),
 }
