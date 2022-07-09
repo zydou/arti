@@ -73,29 +73,32 @@ impl Writeable for LinkSpec {
             OrPort(IpAddr::V4(v4), port) => {
                 w.write_u8(LSTYPE_ORPORT_V4);
                 w.write_u8(6); // Length
-                w.write_infallible(v4);
+                w.write(v4)?;
                 w.write_u16(*port);
             }
             OrPort(IpAddr::V6(v6), port) => {
                 w.write_u8(LSTYPE_ORPORT_V6);
                 w.write_u8(18); // Length
-                w.write_infallible(v6);
+                w.write(v6)?;
                 w.write_u16(*port);
             }
             RsaId(r) => {
                 w.write_u8(LSTYPE_RSAID);
                 w.write_u8(20); // Length
-                w.write_infallible(r);
+                w.write(r)?;
             }
             Ed25519Id(e) => {
                 w.write_u8(LSTYPE_ED25519ID);
                 w.write_u8(32); // Length
-                w.write_infallible(e);
+                w.write(e)?;
             }
             Unrecognized(tp, vec) => {
                 w.write_u8(*tp);
-                assert!(vec.len() < std::u8::MAX as usize);
-                w.write_u8(vec.len() as u8);
+                let vec_len = vec
+                    .len()
+                    .try_into()
+                    .map_err(|_| tor_bytes::EncodeError::BadLengthValue)?;
+                w.write_u8(vec_len);
                 w.write_all(&vec[..]);
             }
         }
@@ -166,7 +169,7 @@ mod test {
             assert_eq!(r.remaining(), 0);
             assert_eq!(&got, val);
             let mut v = Vec::new();
-            v.write_infallible(val);
+            v.write(val).expect("Encoding failure");
             assert_eq!(&v[..], b);
         }
 
