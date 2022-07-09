@@ -50,8 +50,12 @@ fn test_body(cmd: ChanCmd, s: &str, m: &msg::ChanMsg, pad_to_len: bool) {
 
     let mut encoded1 = Vec::new();
     let mut encoded2 = Vec::new();
-    decoded.write_body_onto(&mut encoded1);
-    m.clone().write_body_onto(&mut encoded2);
+    decoded
+        .write_body_onto(&mut encoded1)
+        .expect("encode error");
+    m.clone()
+        .write_body_onto(&mut encoded2)
+        .expect("encode error");
     if pad_to_len {
         assert!(encoded1.len() <= CELL_SIZE);
         assert!(encoded2.len() <= CELL_SIZE);

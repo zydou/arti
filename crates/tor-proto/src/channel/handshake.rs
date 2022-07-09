@@ -156,7 +156,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
             let my_versions = msg::Versions::new(LINK_PROTOCOLS)
                 .map_err(|e| Error::from_cell_enc(e, "versions message"))?;
             self.tls
-                .write_all(&my_versions.encode_for_handshake())
+                .write_all(
+                    &my_versions
+                        .encode_for_handshake()
+                        .map_err(|e| Error::from_cell_enc(e.into(), "versions message"))?,
+                )
                 .await
                 .map_err(io_err_to_handshake)?;
             self.tls.flush().await.map_err(io_err_to_handshake)?;

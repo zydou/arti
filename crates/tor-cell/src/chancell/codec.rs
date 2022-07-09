@@ -57,7 +57,7 @@ impl ChannelCodec {
         // now write the cell body and handle the length.
         if cmd.is_var_cell() {
             dst.write_u16(0);
-            msg.write_body_onto(dst);
+            msg.write_body_onto(dst)?;
             let len = dst.len() - pos - 2;
             if len > std::u16::MAX as usize {
                 return Err(Error::Internal(internal!("ran out of space for varcell")));
@@ -65,7 +65,7 @@ impl ChannelCodec {
             // go back and set the length.
             *(array_mut_ref![&mut dst[pos..pos + 2], 0, 2]) = (len as u16).to_be_bytes();
         } else {
-            msg.write_body_onto(dst);
+            msg.write_body_onto(dst)?;
             let len = dst.len() - pos;
             if len > CELL_DATA_LEN {
                 return Err(Error::Internal(internal!("ran out of space for cell")));

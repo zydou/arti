@@ -202,9 +202,10 @@ impl msg::Body for ConnectUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u32(self.flags.bits());
         w.write_infallible(&self.addr);
+        Ok(())
     }
 }
 
@@ -249,9 +250,10 @@ impl msg::Body for ConnectedUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_infallible(&self.our_address);
         w.write_infallible(&self.their_address);
+        Ok(())
     }
 }
 
@@ -313,7 +315,8 @@ impl msg::Body for Datagram {
         })
     }
 
-    fn encode_onto(mut self, w: &mut Vec<u8>) {
+    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.append(&mut self.body);
+        Ok(())
     }
 }

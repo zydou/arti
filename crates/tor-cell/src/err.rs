@@ -20,6 +20,12 @@ pub enum Error {
         /// The thing that was being parsed.
         parsed: &'static str,
     },
+    /// We encountered an error while encoding an outgoing message.
+    ///
+    /// This is likely to be a bug in somebody's code: either the code in this
+    /// crate, or in the calling code that provided an unencodable message.
+    #[error("Error while encoding message")]
+    EncodeErr(#[from] tor_bytes::EncodeError),
     /// There was a programming error somewhere in the code.
     #[error("Internal programming error")]
     Internal(tor_error::Bug),
@@ -44,6 +50,7 @@ impl HasKind for Error {
                 err: ByE::Truncated,
                 ..
             } => EK::Internal,
+            E::EncodeErr(..) => EK::BadApiUsage,
             E::BytesErr { .. } => EK::TorProtocolViolation,
             E::Internal(_) => EK::Internal,
             E::ChanProto(_) => EK::TorProtocolViolation,

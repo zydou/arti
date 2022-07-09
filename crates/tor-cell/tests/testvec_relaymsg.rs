@@ -45,8 +45,10 @@ fn msg_noncanonical(cmd: RelayCmd, s: &str, s2: &str, msg: &msg::RelayMsg) {
 
     let mut encoded1 = Vec::new();
     let mut encoded2 = Vec::new();
-    decoded.encode_onto(&mut encoded1);
-    msg.clone().encode_onto(&mut encoded2);
+    decoded.encode_onto(&mut encoded1).expect("Encoding error.");
+    msg.clone()
+        .encode_onto(&mut encoded2)
+        .expect("Encoding error");
     assert_eq!(encoded1, encoded2);
     assert_eq!(body2, encoded2);
 }

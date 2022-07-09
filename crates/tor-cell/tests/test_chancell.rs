@@ -168,7 +168,7 @@ fn versions() {
     // Test the special encoding of the versions cell.  (It's special
     // because it uses a 2-byte circid.
     let v = msg::Versions::new([4, 5, 6]).unwrap();
-    let encoded = v.clone().encode_for_handshake();
+    let encoded = v.clone().encode_for_handshake().unwrap();
     assert_eq!(encoded, hex!("0000 07 0006 0004 0005 0006"));
 
     // Test the best_shared_protocol function.

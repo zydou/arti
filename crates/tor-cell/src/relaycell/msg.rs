@@ -76,7 +76,7 @@ pub trait Body: Sized {
     /// Decode a relay cell body from a provided reader.
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self>;
     /// Encode the body of this cell into the end of a vec.
-    fn encode_onto(self, w: &mut Vec<u8>);
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()>;
 }
 
 impl<B: Body> From<B> for RelayMsg {
@@ -144,7 +144,7 @@ impl RelayMsg {
         })
     }
     /// Encode the body of this message, not including command or length
-    pub fn encode_onto(self, w: &mut Vec<u8>) {
+    pub fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         use RelayMsg::*;
         match self {
             Begin(b) => b.encode_onto(w),
@@ -156,12 +156,12 @@ impl RelayMsg {
             Extended(b) => b.encode_onto(w),
             Extend2(b) => b.encode_onto(w),
             Extended2(b) => b.encode_onto(w),
-            Truncate => (),
+            Truncate => Ok(()),
             Truncated(b) => b.encode_onto(w),
-            Drop => (),
+            Drop => Ok(()),
             Resolve(b) => b.encode_onto(w),
             Resolved(b) => b.encode_onto(w),
-            BeginDir => (),
+            BeginDir => Ok(()),
             #[cfg(feature = "experimental-udp")]
             ConnectUdp(b) => b.encode_onto(w),
             #[cfg(feature = "experimental-udp")]
@@ -300,7 +300,7 @@ impl Body for Begin {
             flags: flags.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         if self.addr.contains(&b':') {
             w.write_u8(b'[');
             w.write_all(&self.addr[..]);
@@ -314,6 +314,7 @@ impl Body for Begin {
         if self.flags.bits() != 0 {
             w.write_u32(self.flags.bits());
         }
+        Ok(())
     }
 }
 
@@ -381,8 +382,9 @@ impl Body for Data {
             body: r.take(r.remaining())?.into(),
         })
     }
-    fn encode_onto(mut self, w: &mut Vec<u8>) {
+    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.append(&mut self.body);
+        Ok(())
     }
 }
 
@@ -518,7 +520,7 @@ impl Body for End {
             Ok(End { reason, addr: None })
         }
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
         if let (EndReason::EXITPOLICY, Some((addr, ttl))) = (self.reason, self.addr) {
             match addr {
@@ -527,6 +529,7 @@ impl Body for End {
             }
             w.write_u32(ttl);
         }
+        Ok(())
     }
 }
 
@@ -597,7 +600,7 @@ impl Body for Connected {
             addr: Some((addr, ttl)),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         if let Some((addr, ttl)) = self.addr {
             match addr {
                 IpAddr::V4(v4) => w.write_infallible(&v4),
@@ -609,6 +612,7 @@ impl Body for Connected {
             }
             w.write_u32(ttl);
         }
+        Ok(())
     }
 }
 
@@ -674,7 +678,7 @@ impl Body for Sendme {
         };
         Ok(Sendme { digest })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         match self.digest {
             None => (),
             Some(mut x) => {
@@ -687,6 +691,7 @@ impl Body for Sendme {
                 w.append(&mut x);
             }
         }
+        Ok(())
     }
 }
 
@@ -732,11 +737,12 @@ impl Body for Extend {
             rsaid,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_infallible(&self.addr);
         w.write_u16(self.port);
         w.write_all(&self.handshake[..]);
         w.write_infallible(&self.rsaid);
+        Ok(())
     }
 }
 
@@ -764,8 +770,9 @@ impl Body for Extended {
         let handshake = r.take(TAP_S_HANDSHAKE_LEN)?.into();
         Ok(Extended { handshake })
     }
-    fn encode_onto(mut self, w: &mut Vec<u8>) {
+    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.append(&mut self.handshake);
+        Ok(())
     }
 }
 
@@ -835,7 +842,7 @@ impl Body for Extend2 {
             handshake,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         let n_linkspecs: u8 = self.linkspec.len().try_into().expect("Too many linkspecs");
         w.write_u8(n_linkspecs);
         for ls in &self.linkspec {
@@ -845,6 +852,7 @@ impl Body for Extend2 {
         let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
         w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
+        Ok(())
     }
 }
 
@@ -880,10 +888,11 @@ impl Body for Extended2 {
             handshake: handshake.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         let handshake_len: u16 = self.handshake.len().try_into().expect("Handshake too long");
         w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
+        Ok(())
     }
 }
 
@@ -918,8 +927,9 @@ impl Body for Truncated {
             reason: r.take_u8()?.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
+        Ok(())
     }
 }
 
@@ -974,9 +984,10 @@ impl Body for Resolve {
             query: query.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_all(&self.query[..]);
         w.write_u8(0);
+        Ok(())
     }
 }
 
@@ -1142,11 +1153,12 @@ impl Body for Resolved {
         }
         Ok(Resolved { answers })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         for (rv, ttl) in &self.answers {
             w.write_infallible(rv);
             w.write_u32(*ttl);
         }
+        Ok(())
     }
 }
 
@@ -1193,7 +1205,8 @@ impl Body for Unrecognized {
             body: r.take(r.remaining())?.into(),
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_all(&self.body[..]);
+        Ok(())
     }
 }
