@@ -151,7 +151,7 @@ impl Ed25519CertConstructor {
         }
 
         let signature = skey.sign(&w[..]);
-        w.write_infallible(&signature);
+        w.write(&signature)?;
         Ok(w)
     }
 }
