@@ -265,7 +265,7 @@ mod digest_impls {
     impl<T: OutputSizeUser> WriteableOnce for CtOutput<T> {
         fn write_into<B: Writer + ?Sized>(self, b: &mut B) -> EncodeResult<()> {
             let code = self.into_bytes();
-            b.write_infallible(&code[..]);
+            b.write_all(&code[..]);
             Ok(())
         }
     }
@@ -306,7 +306,7 @@ mod tests {
     macro_rules! check_encode {
         ($e:expr, $e2:expr) => {
             let mut w = Vec::new();
-            w.write_infallible(&$e);
+            w.write(&$e).expect("encoding failed");
             assert_eq!(&w[..], &$e2[..]);
         };
     }
