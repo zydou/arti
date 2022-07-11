@@ -816,6 +816,8 @@ caret_int! {
 /// A PaddingNegotiate message is used to negotiate channel padding.
 ///
 /// This message is constructed in the channel manager and transmitted by the reactor.
+///
+/// The `Default` impl is the same as [`start_default()`](PaddingNegotiate::start_default`)
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaddingNegotiate {
     /// Whether to start or stop padding
@@ -828,6 +830,18 @@ pub struct PaddingNegotiate {
     ito_high_ms: u16,
 }
 impl PaddingNegotiate {
+    /// Create a new PADDING_NEGOTIATE START message requesting consensus timing parameters.
+    ///
+    /// This message restores the state to the one which exists at channel startup.
+    pub fn start_default() -> Self {
+        // Tor Spec section 7.3, padding-spec section 2.5.
+        Self {
+            command: PaddingNegotiateCmd::START,
+            ito_low_ms: 0,
+            ito_high_ms: 0,
+        }
+    }
+
     /// Create a new PADDING_NEGOTIATE START message.
     pub fn start(ito_low_ms: u16, ito_high_ms: u16) -> Self {
         // Tor Spec section 7.3
@@ -848,6 +862,12 @@ impl PaddingNegotiate {
         }
     }
 }
+impl Default for PaddingNegotiate {
+    fn default() -> Self {
+        Self::start_default()
+    }
+}
+
 impl Body for PaddingNegotiate {
     fn into_message(self) -> ChanMsg {
         ChanMsg::PaddingNegotiate(self)
