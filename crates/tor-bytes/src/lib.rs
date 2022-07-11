@@ -132,19 +132,7 @@ pub type EncodeResult<T> = std::result::Result<T, EncodeError>;
 /// ```
 pub trait Writeable {
     /// Encode this object into the writer `b`.
-    ///
-    /// XXXXX This function will be removed.
-    fn write_onto_infallible<B: Writer + ?Sized>(&self, b: &mut B) {
-        self.write_onto(b)
-            .expect("Tried to use a fallible writer as infallible: then it failed.");
-    }
-
-    /// Encode this object into the writer `b`.
-    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
-        // XXXX This default implementation will go away.
-        self.write_onto_infallible(b);
-        Ok(())
-    }
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()>;
 }
 
 /// Trait for an object that can be encoded and consumed by a Writer.
@@ -156,25 +144,10 @@ pub trait Writeable {
 /// it implicitly via the Writer::write_and_consume() method.
 pub trait WriteableOnce: Sized {
     /// Encode this object into the writer `b`, and consume it.
-    ///
-    /// XXXX This function will be removed.
-    fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B) {
-        self.write_into(b)
-            .expect("Tried to use a fallible writer as infallible: then it failed.");
-    }
-
-    /// Encode this object into the writer `b`, and consume it.
-    fn write_into<B: Writer + ?Sized>(self, b: &mut B) -> EncodeResult<()> {
-        // XXX This default implementation will be removed.
-        self.write_into_infallible(b);
-        Ok(())
-    }
+    fn write_into<B: Writer + ?Sized>(self, b: &mut B) -> EncodeResult<()>;
 }
 
 impl<W: Writeable + Sized> WriteableOnce for W {
-    fn write_into_infallible<B: Writer + ?Sized>(self, b: &mut B) {
-        self.write_onto_infallible(b);
-    }
     fn write_into<B: Writer + ?Sized>(self, b: &mut B) -> EncodeResult<()> {
         self.write_onto(b)
     }

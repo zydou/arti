@@ -91,14 +91,6 @@ pub trait Writer {
         // writes that occurred?
         e.write_into(self)
     }
-    /// Encode a Writeable object onto this writer, using its
-    /// write_onto method.
-    ///
-    /// XXXX This will be removed.
-    fn write_infallible<E: Writeable + ?Sized>(&mut self, e: &E) {
-        e.write_onto_infallible(self);
-    }
-
     /// Arranges to write a u8 length, and some data whose encoding is that length
     ///
     /// Prefer to use this function, rather than manual length calculations
@@ -182,8 +174,8 @@ where
     pub fn finish(self) -> Result<(), EncodeError> {
         let length = self.inner.len();
         let length: L = length.try_into().map_err(|_| EncodeError::BadLengthValue)?;
-        self.outer.write_infallible(&length);
-        self.outer.write_infallible(&self.inner);
+        self.outer.write(&length)?;
+        self.outer.write(&self.inner)?;
         Ok(())
     }
 }
@@ -214,7 +206,7 @@ mod tests {
     fn write_slice() {
         let mut v = Vec::new();
         v.write_u16(0x5468);
-        v.write_infallible(&b"ey're good dogs, Bront"[..]);
+        v.write(&b"ey're good dogs, Bront"[..]).unwrap();
 
         assert_eq!(&v[..], &b"They're good dogs, Bront"[..]);
     }
@@ -232,7 +224,7 @@ mod tests {
         }
 
         let mut v = Vec::new();
-        v.write_infallible(&Sequence(6));
+        v.write(&Sequence(6))?;
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5]);
 
         v.write_and_consume(Sequence(3))?;
