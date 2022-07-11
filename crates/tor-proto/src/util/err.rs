@@ -47,6 +47,19 @@ pub enum Error {
         #[source]
         err: tor_cell::Error,
     },
+    /// An error occurred while trying to create or encode some non-cell
+    /// message.
+    ///
+    /// This is likely the result of a bug: either in this crate, or the code
+    /// that provided the input.
+    #[error("Problem while encoding {object}")]
+    EncodeErr {
+        /// What we were trying to create or encode.
+        object: &'static str,
+        /// The error that occurred.
+        #[source]
+        err: tor_bytes::EncodeError,
+    },
     /// We found a problem with one of the certificates in the channel
     /// handshake.
     #[error("Problem with certificate on handshake")]
@@ -170,6 +183,12 @@ impl Error {
     pub(crate) fn from_bytes_err(err: tor_bytes::Error, object: &'static str) -> Error {
         Error::BytesErr { err, object }
     }
+
+    /// Create an error for a tor_bytes error that occurred while encoding
+    /// something of type `object`.
+    pub(crate) fn from_bytes_enc(err: tor_bytes::EncodeError, object: &'static str) -> Error {
+        Error::EncodeErr { err, object }
+    }
 }
 
 impl From<Error> for std::io::Error {
@@ -201,6 +220,7 @@ impl From<Error> for std::io::Error {
             | CircProto(_)
             | CellDecodeErr { .. }
             | CellEncodeErr { .. }
+            | EncodeErr { .. }
             | ChanMismatch(_)
             | StreamProto(_) => ErrorKind::InvalidData,
 
@@ -228,6 +248,7 @@ impl HasKind for Error {
             E::HandshakeCertErr(_) => EK::TorProtocolViolation,
             E::CellEncodeErr { err, .. } => err.kind(),
             E::CellDecodeErr { err, .. } => err.kind(),
+            E::EncodeErr { .. } => EK::BadApiUsage,
             E::InvalidKDFOutputLength => EK::Internal,
             E::NoSuchHop => EK::BadApiUsage,
             E::BadCellAuth => EK::TorProtocolViolation,

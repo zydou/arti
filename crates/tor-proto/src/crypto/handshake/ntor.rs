@@ -25,7 +25,7 @@ impl super::ClientHandshake for NtorClient {
         rng: &mut R,
         key: &Self::KeyType,
     ) -> Result<(Self::StateType, Vec<u8>)> {
-        Ok(client_handshake_ntor_v1(rng, key))
+        client_handshake_ntor_v1(rng, key)
     }
 
     fn client2<T: AsRef<[u8]>>(state: Self::StateType, msg: T) -> Result<Self::KeyGen> {
@@ -130,7 +130,7 @@ type Authcode = digest::CtOutput<hmac::Hmac<d::Sha256>>;
 fn client_handshake_ntor_v1<R>(
     rng: &mut R,
     relay_public: &NtorPublicKey,
-) -> (NtorHandshakeState, Vec<u8>)
+) -> Result<(NtorHandshakeState, Vec<u8>)>
 where
     R: RngCore + CryptoRng,
 {
@@ -145,12 +145,13 @@ fn client_handshake_ntor_v1_no_keygen(
     my_public: PublicKey,
     my_sk: StaticSecret,
     relay_public: &NtorPublicKey,
-) -> (NtorHandshakeState, Vec<u8>) {
+) -> Result<(NtorHandshakeState, Vec<u8>)> {
     let mut v: Vec<u8> = Vec::new();
 
-    v.write_infallible(&relay_public.id);
-    v.write_infallible(&relay_public.pk);
-    v.write_infallible(&my_public);
+    v.write(&relay_public.id)
+        .and_then(|_| v.write(&relay_public.pk))
+        .and_then(|_| v.write(&my_public))
+        .map_err(|e| Error::from_bytes_enc(e, "Can't encode client handshake."))?;
 
     assert_eq!(v.len(), 20 + 32 + 32);
 
@@ -160,7 +161,7 @@ fn client_handshake_ntor_v1_no_keygen(
         my_sk,
     };
 
-    (state, v)
+    Ok((state, v))
 }
 
 /// Complete a client handshake, returning a key generator on success.
@@ -211,13 +212,13 @@ fn ntor_derive(
     let server_string = &b"Server"[..];
 
     let mut secret_input = Zeroizing::new(Vec::new());
-    secret_input.write_infallible(xy); // EXP(X,y)
-    secret_input.write_infallible(xb); // EXP(X,b)
-    secret_input.write_infallible(&server_pk.id); // ID
-    secret_input.write_infallible(&server_pk.pk); // B
-    secret_input.write_infallible(x); // X
-    secret_input.write_infallible(y); // Y
-    secret_input.write_infallible(ntor1_protoid); // PROTOID
+    secret_input.write(xy)?; // EXP(X,y)
+    secret_input.write(xb)?; // EXP(X,b)
+    secret_input.write(&server_pk.id)?; // ID
+    secret_input.write(&server_pk.pk)?; // B
+    secret_input.write(x)?; // X
+    secret_input.write(y)?; // Y
+    secret_input.write(ntor1_protoid)?; // PROTOID
 
     use hmac::Hmac;
     use tor_llcrypto::d::Sha256;
@@ -229,12 +230,12 @@ fn ntor_derive(
     };
     let mut auth_input: SecretBytes = Zeroizing::new(Vec::new());
     auth_input.write_and_consume(verify)?; // verify
-    auth_input.write_infallible(&server_pk.id); // ID
-    auth_input.write_infallible(&server_pk.pk); // B
-    auth_input.write_infallible(y); // Y
-    auth_input.write_infallible(x); // X
-    auth_input.write_infallible(ntor1_protoid); // PROTOID
-    auth_input.write_infallible(server_string); // "Server"
+    auth_input.write(&server_pk.id)?; // ID
+    auth_input.write(&server_pk.pk)?; // B
+    auth_input.write(y)?; // Y
+    auth_input.write(x)?; // X
+    auth_input.write(ntor1_protoid)?; // PROTOID
+    auth_input.write(server_string)?; // "Server"
 
     let auth_mac = {
         let mut m =
@@ -305,10 +306,12 @@ where
         .map_err(into_internal!("Error deriving keys"))?;
 
     let mut reply: Vec<u8> = Vec::new();
-    reply.write_infallible(&ephem_pub);
-    reply.write_and_consume(authcode).map_err(into_internal!(
-        "Generated relay handshake we couldn't encode"
-    ))?;
+    reply
+        .write(&ephem_pub)
+        .and_then(|_| reply.write_and_consume(authcode))
+        .map_err(into_internal!(
+            "Generated relay handshake we couldn't encode"
+        ))?;
 
     if okay.into() {
         Ok((keygen, reply))
@@ -386,7 +389,7 @@ mod tests {
         };
 
         let (state, create_msg) =
-            client_handshake_ntor_v1_no_keygen(x_pk.into(), x_sk.into(), &relay_pk);
+            client_handshake_ntor_v1_no_keygen(x_pk.into(), x_sk.into(), &relay_pk).unwrap();
         assert_eq!(&create_msg[..], &client_handshake[..]);
 
         let ephem = make_fake_ephem_key(&y_sk[..]);
