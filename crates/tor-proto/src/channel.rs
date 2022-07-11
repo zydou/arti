@@ -321,6 +321,14 @@ impl Channel {
         self.details.clock_skew
     }
 
+    /// Send a control message
+    fn send_control(&self, msg: CtrlMsg) -> StdResult<(), ChannelClosed> {
+        self.control
+            .unbounded_send(msg)
+            .map_err(|_| ChannelClosed)?;
+        Ok(())
+    }
+
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
@@ -328,9 +336,7 @@ impl Channel {
         &mut self,
         updates: Arc<ChannelsParamsUpdates>,
     ) -> StdResult<(), ChannelClosed> {
-        self.control
-            .unbounded_send(CtrlMsg::ConfigUpdate(updates))
-            .map_err(|_| ChannelClosed)
+        self.send_control(CtrlMsg::ConfigUpdate(updates))
     }
 
     /// Return an error if this channel is somehow mismatched with the
@@ -409,13 +415,11 @@ impl Channel {
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 
         let (tx, rx) = oneshot::channel();
-        self.control
-            .unbounded_send(CtrlMsg::AllocateCircuit {
-                created_sender: createdsender,
-                sender,
-                tx,
-            })
-            .map_err(|_| ChannelClosed)?;
+        self.send_control(CtrlMsg::AllocateCircuit {
+            created_sender: createdsender,
+            sender,
+            tx,
+        })?;
         let (id, circ_unique_id) = rx.await.map_err(|_| ChannelClosed)??;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
@@ -439,14 +443,12 @@ impl Channel {
     /// with a channel: the channel should close on its own once nothing
     /// is using it any more.
     pub fn terminate(&self) {
-        let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
+        let _ = self.send_control(CtrlMsg::Shutdown);
     }
 
     /// Tell the reactor that the circuit with the given ID has gone away.
     pub fn close_circuit(&self, circid: CircId) -> Result<()> {
-        self.control
-            .unbounded_send(CtrlMsg::CloseCircuit(circid))
-            .map_err(|_| ChannelClosed)?;
+        self.send_control(CtrlMsg::CloseCircuit(circid))?;
         Ok(())
     }
 }
