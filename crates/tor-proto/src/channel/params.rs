@@ -41,6 +41,9 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
     /// and use `ChannelsParamsUpdatesBuilder` to both update that params
     /// and generate `ChannelsParamsUpdates` messages representing the changes.
     ///
+    /// The channel frontend processes `ChannelsParamsUpdates` from the channel manager,
+    /// possibly into channel-specific updates.
+    ///
     /// `Default` is a placeholder to use pending availability of a netdir etc.
     #[derive(Debug, Educe, Clone, Eq, PartialEq)]
     #[educe(Default)]

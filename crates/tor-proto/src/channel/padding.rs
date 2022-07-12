@@ -1,6 +1,30 @@
 //! Channel padding
 //!
 //! Tor spec `padding-spec.txt` section 2.
+//!
+//! # Overview of channel padding control arrangements
+//!
+//!  1. `tor_chanmgr::mgr::map` collates information about dormancy, netdir,
+//!     and overall client configuration, to maintain a
+//!     [`ChannelsParams`](crate::channel::ChannelsParams)
+//!     which is to be used for all relevant[^relevant] channels.
+//!     This is distributed to channel frontends by calling `Channel::reparameterize`.
+//!
+//!  2. Circuit and channel `get_or_launch` methods all take a `ChannelUsage`.
+//!     This is plumbed through the layers to `AbstractChanMgr::get_or_launch`,
+//!     which passes it to the channel frontend via `Channel::note_usage`.
+//!
+//!  3. The channel frontend collates this information, and maintains an idea
+//!     of whether padding is relevant for this channel (`PaddingControlState`).
+//!     For channels where it *is* relevant, it sends `CtrlMsg::ConfigUpdate`
+//!     to the reactor.
+//!
+//!  4. The reactor handles `CtrlMsg::ConfigUpdate` by reconfiguring is padding timer;
+//!     and by sending PADDING_NEGOTIATE cell(s).
+//!
+//! [^relevant]: A "relevant" channel is one which is not excluded by the rules about
+//! padding in padding-spec 2.2.  Arti does not currently support acting as a relay,
+//! so all our channels are client-to-guard or client-to-directory.
 
 use std::pin::Pin;
 // TODO, coarsetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
