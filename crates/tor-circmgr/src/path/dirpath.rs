@@ -52,13 +52,13 @@ impl DirPathBuilder {
                     .build()
                     .expect("Unable to build directory guard usage");
                 let (guard, mon, usable) = guardmgr.select_guard(guard_usage, netdir)?;
-                return Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)));
+                Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)))
             }
 
             // In the following cases, we don't have a guardmgr, so we'll use the provided information if we can.
             (DirInfo::Fallbacks(f), None) => {
                 let relay = f.choose(rng)?;
-                return Ok((TorPath::new_fallback_one_hop(relay), None, None));
+                Ok((TorPath::new_fallback_one_hop(relay), None, None))
             }
             (DirInfo::Directory(netdir), None) => {
                 let mut can_share = FilterCount::default();
@@ -73,14 +73,12 @@ impl DirPathBuilder {
                         correct_usage,
                     })?;
 
-                return Ok((TorPath::new_one_hop(relay), None, None));
+                Ok((TorPath::new_one_hop(relay), None, None))
             }
-            (DirInfo::Nothing, None) => {
-                return Err(bad_api_usage!(
-                    "Tried to build a one hop path with no directory, fallbacks, or guard manager"
-                )
-                .into());
-            }
+            (DirInfo::Nothing, None) => Err(bad_api_usage!(
+                "Tried to build a one hop path with no directory, fallbacks, or guard manager"
+            )
+            .into()),
         }
     }
 }
