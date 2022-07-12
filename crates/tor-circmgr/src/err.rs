@@ -28,7 +28,7 @@ pub enum Error {
     PendingCanceled,
 
     /// We were waiting on a pending circuits, but it failed.
-    #[error("Pending circuit failed.")]
+    #[error("The circuit we were waiting for failed to complete")]
     PendingFailed(#[source] Box<Error>),
 
     /// We were told that we could use a given circuit, but before we got a
@@ -37,7 +37,7 @@ pub enum Error {
     ///
     /// This is a version of `UsageMismatched` for when a race is the
     /// likeliest explanation for the mismatch.
-    #[error("Circuit seemed suitable, but another request got it first.")]
+    #[error("Circuit seemed suitable, but another request got it first")]
     LostUsabilityRace(#[source] RestrictionFailed),
 
     /// A circuit succeeded, but was cancelled before it could be used.
@@ -67,7 +67,7 @@ pub enum Error {
     CircTimeout,
 
     /// A request spent too long waiting for a circuit
-    #[error("Spent too long waiting for a circuit to build")]
+    #[error("Spent too long trying to construct circuits for this request")]
     RequestTimeout,
 
     /// No suitable relays for a request
@@ -91,7 +91,7 @@ pub enum Error {
     RequestFailed(RetryError<Box<Error>>),
 
     /// Problem with channel
-    #[error("Problem with channel to {peer}")]
+    #[error("Problem opening a channel to {peer}")]
     Channel {
         /// Which relay we were trying to connect to
         peer: OwnedChanTarget,
@@ -118,7 +118,7 @@ pub enum Error {
     ExpiredConsensus,
 
     /// Unable to spawn task
-    #[error("unable to spawn {spawning}")]
+    #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn
         spawning: &'static str,
