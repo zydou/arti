@@ -91,7 +91,7 @@ pub trait StateMgr: Clone {
     /// Return true if this is a read-write state manager.
     ///
     /// If it returns false, then attempts to `store` will fail with
-    /// [`Error::NoLock`]
+    /// an error of kind [`BadApiUsage`](tor_error::ErrorKind::BadApiUsage)
     fn can_store(&self) -> bool;
 
     /// Try to become a read-write state manager if possible, without
