@@ -576,6 +576,7 @@ impl<R: Runtime> TorClient<R> {
         self.circmgr
             .reconfigure(new_config, how)
             .map_err(wrap_err)?;
+
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
