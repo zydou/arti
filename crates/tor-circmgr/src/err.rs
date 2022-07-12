@@ -6,6 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
+use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::OwnedChanTarget;
 
@@ -75,8 +76,18 @@ pub enum Error {
     NoPath(String),
 
     /// No suitable exit relay for a request.
-    #[error("Can't find exit for circuit: {0}")]
-    NoExit(String),
+    #[error(
+        "Can't find exit for circuit: \
+         Rejected {} because of family restrictions and {} because of port requirements",
+        can_share.display_frac_rejected(),
+        correct_ports.display_frac_rejected(),
+    )]
+    NoExit {
+        /// Exit relays accepted and rejected based on relay family policies.
+        can_share: FilterCount,
+        /// Exit relays accepted and rejected base on the ports that we need.
+        correct_ports: FilterCount,
+    },
 
     /// Problem creating or updating a guard manager.
     #[error("Problem creating or updating guards list")]
@@ -168,7 +179,7 @@ impl HasKind for Error {
             E::Channel { cause, .. } => cause.kind(),
             E::Bug(e) => e.kind(),
             E::NoPath(_) => EK::NoPath,
-            E::NoExit(_) => EK::NoExit,
+            E::NoExit { .. } => EK::NoExit,
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
             E::CircTimeout => EK::TorNetworkTimeout,
@@ -212,7 +223,7 @@ impl HasRetryTime for Error {
             // TODO: In some rare cases, these errors can actually happen when
             // we have walked ourselves into a snag in our path selection.  See
             // additional "TODO" comments in exitpath.rs.
-            E::NoPath(_) | E::NoExit(_) => RT::Never,
+            E::NoPath(_) | E::NoExit { .. } => RT::Never,
 
             // If we encounter UsageMismatched without first converting to
             // LostUsabilityRace, it reflects a real problem in our code.
@@ -298,7 +309,7 @@ impl Error {
             E::CircTimeout => 30,
             E::RequestTimeout => 30,
             E::NoPath(_) => 40,
-            E::NoExit(_) => 40,
+            E::NoExit { .. } => 40,
             E::GuardMgr(_) => 40,
             E::Guard(_) => 40,
             E::RequestFailed(_) => 40,
