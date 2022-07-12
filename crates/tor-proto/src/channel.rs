@@ -73,7 +73,6 @@ use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
-use std::result::Result as StdResult;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
@@ -85,7 +84,9 @@ use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
 
+use educe::Educe;
 use futures::{Sink, SinkExt};
+use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -171,13 +172,68 @@ pub(crate) struct ChannelDetails {
     ///
     /// The reactor (hot code) ought to avoid acquiring this lock.
     /// (It doesn't currently have a useable reference to it.)
-    #[allow(dead_code)]
     mutable: Mutex<MutableDetails>,
 }
 
 /// Mutable details (state) used by the frontend.
 #[derive(Debug, Default)]
-struct MutableDetails {}
+struct MutableDetails {
+    /// State used to control padding
+    padding: PaddingControlState,
+}
+
+/// State used to control padding
+///
+/// We store this here because:
+///
+///  1. It must be per-channel, because it depends on channel usage.  So it can't be in
+///     (for example) `ChannelsParamsUpdate`.
+///
+///  2. It could be in the channel manager's per-channel state but (for code flow reasons
+///     there, really) at the point at which the channel manager concludes for a pending
+///     channel that it ought to update the usage, it has relinquished the lock on its own data
+///     structure.
+///     And there is actually no need for this to be global: a per-channel lock is better than
+///     reacquiring the global one.
+///
+///  3. It doesn't want to be in the channel reactor since that's super hot.
+///
+/// See also the overview at [`tor_proto::channel::padding`](padding)
+#[derive(Debug, Educe)]
+#[educe(Default)]
+enum PaddingControlState {
+    /// No usage of this channel, so far, implies sending or negotiating channel padding.
+    ///
+    /// This means we do not send (have not sent) any `ChannelsParamsUpdates` to the reactor,
+    /// with the following consequences:
+    ///
+    ///  * We don't enable our own padding.
+    ///  * We don't do any work to change the timeout distribution in the padding timer,
+    ///    (which is fine since this timer is not enabled).
+    ///  * We don't send any PADDING_NEGOTIATE cells.  The peer is supposed to come to the
+    ///    same conclusions as us, based on channel usage: it should also not send padding.
+    ///    (Note: sending negotiation cells is not yet done at this point in the branch,
+    ///    but it will be organised via `ChannelsParamsUpdates`.)
+    #[educe(Default)]
+    UsageDoesNotImplyPadding {
+        /// The last padding parameters (from reparameterize)
+        ///
+        /// We keep this so that we can send it if and when
+        /// this channel starts to be used in a way that implies (possibly) sending padding.
+        padding_params: ChannelsParamsUpdates,
+    },
+
+    /// Some usage of this channel implies possibly sending channel padding
+    ///
+    /// The required padding timer, negotiation cell, etc.,
+    /// have been communicated to the reactor via a `CtrlMsg::ConfigUpdate`.
+    ///
+    /// Once we have set this variant, it remains this way forever for this channel,
+    /// (the spec speaks of channels "only used for" certain purposes not getting padding).
+    PaddingConfigured,
+}
+
+use PaddingControlState as PCS;
 
 impl Sink<ChanCell> for Channel {
     type Error = Error;
@@ -365,7 +421,6 @@ impl Channel {
     }
 
     /// Acquire the lock on `mutable` (and handle any poison error)
-    #[allow(dead_code)]
     fn mutable(&self) -> StdResult<MutexGuard<MutableDetails>, tor_error::Bug> {
         self.details
             .mutable
@@ -374,16 +429,64 @@ impl Channel {
     }
 
     /// Note that this channel is about to be used for `usage`
-    pub fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
-        // TODO
+    pub fn note_usage(&self, usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
+        let mut mutable = self.mutable()?;
+
+        use ChannelUsage as CU;
+        let control_padding = match usage {
+            CU::Dir => false,
+            CU::Exit => true,
+            CU::UselessCircuit => false,
+        };
+
+        if control_padding {
+            match &mutable.padding {
+                PCS::UsageDoesNotImplyPadding {
+                    padding_params: params,
+                } => {
+                    // Well, apparently the channel usage *does* imply padding now,
+                    // so we need to (belatedly) enable the timer,
+                    // send the padding negotiation cell, etc.
+                    let params = params.clone();
+
+                    match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
+                        Ok(()) => {}
+                        Err(ChannelClosed) => return Ok(()),
+                    }
+
+                    mutable.padding = PCS::PaddingConfigured;
+                }
+
+                PCS::PaddingConfigured => {
+                    // OK, nothing to do
+                }
+            }
+        }
+
+        drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
         Ok(())
     }
 
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> Result<()> {
-        self.send_control(CtrlMsg::ConfigUpdate(updates))?;
+    pub fn reparameterize(&mut self, params: Arc<ChannelsParamsUpdates>) -> Result<()> {
+        let mut mutable = self
+            .details
+            .mutable
+            .lock()
+            .map_err(|_| internal!("channel details poisoned"))?;
+
+        match &mut mutable.padding {
+            PCS::PaddingConfigured => {
+                self.send_control(CtrlMsg::ConfigUpdate(params))?;
+            }
+            PCS::UsageDoesNotImplyPadding { padding_params } => {
+                padding_params.combine(&params);
+            }
+        }
+
+        drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
         Ok(())
     }
 
