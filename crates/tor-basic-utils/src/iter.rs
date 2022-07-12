@@ -47,7 +47,7 @@ pub trait IteratorExt: Iterator {
 impl<I> IteratorExt for I where I: Iterator {}
 
 /// A record of how many items a [`CountingFilter`] returned by
-/// [`CFilterExt::filter_cnt`] accepted and rejected.
+/// [`IteratorExt::filter_cnt`] accepted and rejected.
 ///
 /// In `tor-guardmgr` we use this type to keep track of which filters reject which guards.
 //
@@ -64,7 +64,7 @@ pub struct FilterCount {
     pub n_rejected: usize,
 }
 
-/// An iterator to implement [`CFilterExt::filter_cnt`].
+/// An iterator to implement [`IteratorExt::filter_cnt`].
 pub struct CountingFilter<'a, P, I> {
     /// The inner iterator that we're taking items from.
     inner: I,
