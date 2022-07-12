@@ -1437,6 +1437,7 @@ mod test {
     use once_cell::sync::Lazy;
     use std::collections::BTreeSet;
     use std::sync::atomic::{self, AtomicUsize};
+    use tor_basic_utils::iter::FilterCount;
     use tor_guardmgr::fallback::FallbackList;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
@@ -1578,7 +1579,11 @@ mod test {
         fn plan_circuit(&self, spec: &FakeSpec, _dir: DirInfo<'_>) -> Result<(FakePlan, FakeSpec)> {
             let next_op = self.next_op(spec);
             if matches!(next_op, FakeOp::NoPlan) {
-                return Err(Error::NoPath("No relays for you".into()));
+                return Err(Error::NoPath {
+                    role: "relay",
+                    can_share: FilterCount::default(),
+                    correct_usage: FilterCount::default(),
+                });
             }
             let plan = FakePlan {
                 spec: spec.clone(),

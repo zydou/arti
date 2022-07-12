@@ -204,24 +204,38 @@ impl<'a> ExitPathBuilder<'a> {
                 (guard, Some(mon), Some(usable))
             }
             None => {
+                let mut can_share = FilterCount::default();
+                let mut correct_usage = FilterCount::default();
                 let entry = netdir
                     .pick_relay(rng, WeightRole::Guard, |r| {
-                        r.is_flagged_guard()
-                            && relays_can_share_circuit_opt(r, chosen_exit, subnet_config)
+                        can_share.count(relays_can_share_circuit_opt(r, chosen_exit, subnet_config))
+                            && correct_usage.count(r.is_flagged_guard())
                     })
-                    .ok_or_else(|| Error::NoPath("No suitable  entry relay found".into()))?;
+                    .ok_or(Error::NoPath {
+                        role: "entry relay",
+                        can_share,
+                        correct_usage,
+                    })?;
                 (entry, None, None)
             }
         };
 
         let exit = self.pick_exit(rng, netdir, Some(&guard), subnet_config)?;
 
+        let mut can_share = FilterCount::default();
+        let mut correct_usage = FilterCount::default();
         let middle = netdir
             .pick_relay(rng, WeightRole::Middle, |r| {
-                relays_can_share_circuit(r, &exit, subnet_config)
-                    && relays_can_share_circuit(r, &guard, subnet_config)
+                can_share.count(
+                    relays_can_share_circuit(r, &exit, subnet_config)
+                        && relays_can_share_circuit(r, &guard, subnet_config),
+                ) && correct_usage.count(true)
             })
-            .ok_or_else(|| Error::NoPath("No suitable middle relay found".into()))?;
+            .ok_or(Error::NoPath {
+                role: "middle relay",
+                can_share,
+                correct_usage,
+            })?;
 
         Ok((
             TorPath::new_multihop(vec![guard, middle, exit]),
