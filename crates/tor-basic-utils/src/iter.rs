@@ -111,6 +111,31 @@ impl FilterCount {
     pub fn display_frac_rejected(&self) -> DisplayFracRejected<'_> {
         DisplayFracRejected(self)
     }
+
+    /// Count and return the provided boolean value.
+    ///
+    /// This is an alternative way to use `FilterCount` when you have to provide
+    /// a function that takes a predicate rather than a member of an iterator
+    /// chain.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use tor_basic_utils::iter::FilterCount;
+    /// let mut count = FilterCount::default();
+    /// let mut emoji = "Hello 🙂 World 🌏!".to_string();
+    /// emoji.retain(|ch| count.count(!ch.is_ascii()));
+    /// assert_eq!(emoji, "🙂🌏");
+    /// assert_eq!(count, FilterCount { n_accepted: 2, n_rejected: 14});
+    /// ```
+    pub fn count(&mut self, accept: bool) -> bool {
+        if accept {
+            self.n_accepted += 1;
+        } else {
+            self.n_rejected += 1;
+        }
+        accept
+    }
 }
 
 /// Return value from [`FilterCount::display_frac_rejected`].
@@ -151,4 +176,23 @@ mod test {
         assert_eq!(count.n_accepted, 4);
         assert_eq!(count.n_rejected, 5);
     }
+
+    #[test]
+    fn counting_with_predicates() {
+        let mut count = FilterCount::default();
+        let v = vec![1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let first_even = v.iter().find(|val| count.count(**val % 2 == 0)).unwrap();
+        assert_eq!(*first_even, 2);
+        assert_eq!(count.n_accepted, 1);
+        assert_eq!(count.n_rejected, 1);
+
+        let mut count = FilterCount::default();
+        let sum_even: usize = v.iter().filter(|val| count.count(**val % 2 == 0)).sum();
+        assert_eq!(sum_even, 20);
+        assert_eq!(count.n_accepted, 4);
+        assert_eq!(count.n_rejected, 5);
+    }
+
+    #[test]
+    fn fooz() {}
 }
