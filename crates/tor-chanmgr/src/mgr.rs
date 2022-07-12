@@ -121,6 +121,16 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
     ) -> Result<(CF::Channel, ChanProvenance)> {
+        let chan = self.get_or_launch_internal(ident, target).await?;
+        Ok(chan)
+    }
+
+    /// Get a channel whose identity is `ident` - internal implementation
+    async fn get_or_launch_internal(
+        &self,
+        ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
+        target: CF::BuildSpec,
+    ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
 
         /// Possible actions that we'll decide to take based on the
