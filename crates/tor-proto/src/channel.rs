@@ -74,6 +74,7 @@ use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
 use std::result::Result as StdResult;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
@@ -166,7 +167,17 @@ pub(crate) struct ChannelDetails {
     clock_skew: ClockSkew,
     /// The time when this channel was successfully completed
     opened_at: coarsetime::Instant,
+    /// Mutable state used by the frontend
+    ///
+    /// The reactor (hot code) ought to avoid acquiring this lock.
+    /// (It doesn't currently have a useable reference to it.)
+    #[allow(dead_code)]
+    mutable: Mutex<MutableDetails>,
 }
+
+/// Mutable details (state) used by the frontend.
+#[derive(Debug, Default)]
+struct MutableDetails {}
 
 impl Sink<ChanCell> for Channel {
     type Error = Error;
@@ -286,6 +297,8 @@ impl Channel {
         let unused_since = OptTimestamp::new();
         unused_since.update();
 
+        let mutable = MutableDetails::default();
+
         let details = ChannelDetails {
             unique_id,
             peer_id,
@@ -293,6 +306,7 @@ impl Channel {
             unused_since,
             clock_skew,
             opened_at: coarsetime::Instant::now(),
+            mutable: Mutex::new(mutable),
         };
         let details = Arc::new(details);
 
@@ -348,6 +362,15 @@ impl Channel {
             .unbounded_send(msg)
             .map_err(|_| ChannelClosed)?;
         Ok(())
+    }
+
+    /// Acquire the lock on `mutable` (and handle any poison error)
+    #[allow(dead_code)]
+    fn mutable(&self) -> StdResult<MutexGuard<MutableDetails>, tor_error::Bug> {
+        self.details
+            .mutable
+            .lock()
+            .map_err(|_| internal!("channel details poisoned"))
     }
 
     /// Note that this channel is about to be used for `usage`
@@ -541,6 +564,7 @@ pub(crate) mod test {
             unused_since,
             clock_skew: ClockSkew::None,
             opened_at: coarsetime::Instant::now(),
+            mutable: Default::default(),
         })
     }
 
