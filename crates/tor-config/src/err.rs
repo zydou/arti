@@ -90,6 +90,10 @@ pub enum ReconfigureError {
         /// The field (or fields) that we tried to change.
         field: String,
     },
+
+    /// There was a programming error somewhere in our code, or the calling code.
+    #[error("Programming error")]
+    Bug(#[from] tor_error::Bug),
 }
 
 impl HasKind for ReconfigureError {
