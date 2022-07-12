@@ -102,8 +102,10 @@ pub enum Error {
     },
 
     /// Protocol issue while building a circuit.
-    #[error("Problem building a circuit with {peer:?}")]
+    #[error("Problem building a circuit, while {}{}", action, WithOptPeer(peer))]
     Protocol {
+        /// The action that we were trying to take.
+        action: &'static str,
         /// The peer that created the protocol error.
         ///
         /// This is set to None if we can't blame a single party.
@@ -330,3 +332,19 @@ impl Error {
 /// This is a separate type since we never report it outside the crate.
 #[derive(Debug)]
 pub(crate) struct PreemptiveCircError;
+
+/// Helper to display an optional peer, prefixed with the string " with".
+struct WithOptPeer<'a, T>(&'a Option<T>);
+
+impl<'a, T> std::fmt::Display for WithOptPeer<'a, T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(peer) = self.0.as_ref() {
+            write!(f, " with {}", peer)
+        } else {
+            Ok(())
+        }
+    }
+}

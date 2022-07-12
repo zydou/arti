@@ -99,6 +99,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
     let (pending_circ, reactor) = chan.new_circ().await.map_err(|error| Error::Protocol {
         error,
         peer: None, // we don't blame the peer, because new_circ() does no networking.
+        action: "initializing circuit",
     })?;
 
     rt.spawn(async {
@@ -124,6 +125,7 @@ impl Buildable for ClientCirc {
             .map_err(|error| Error::Protocol {
                 peer: Some(ct.clone()),
                 error,
+                action: "running CREATE_FAST handshake",
             })
     }
     async fn create<RT: Runtime>(
@@ -139,6 +141,7 @@ impl Buildable for ClientCirc {
             .map_err(|error| Error::Protocol {
                 peer: Some(OwnedChanTarget::from_chan_target(ct)),
                 error,
+                action: "creating first hop",
             })
     }
     async fn extend<RT: Runtime>(
@@ -155,6 +158,7 @@ impl Buildable for ClientCirc {
                 // the hop we were extending from, or the hop we were extending
                 // to.
                 peer: None,
+                action: "extending circuit",
             })
     }
 }
