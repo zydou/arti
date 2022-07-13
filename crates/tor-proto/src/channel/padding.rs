@@ -133,6 +133,18 @@ pub struct Parameters {
 
 impl_standard_builder! { Parameters: !Deserialize + !Builder }
 
+impl Parameters {
+    /// Default parameters for "reduced channel padding"
+    ///
+    /// As per `torspec/padding-spec.txt` section 2.6
+    pub fn default_reduced() -> Self {
+        Parameters {
+            low_ms: IntegerMilliseconds::new(9000),
+            high_ms: IntegerMilliseconds::new(14000),
+        }
+    }
+}
+
 /// Timing parameters, "compiled" into a form which can be sampled more efficiently
 ///
 /// According to the docs for [`rand::Rng::gen_range`],
