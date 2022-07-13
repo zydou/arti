@@ -29,7 +29,7 @@ pub enum Error {
     PendingCanceled,
 
     /// We were waiting on a pending circuits, but it failed.
-    #[error("The circuit we were waiting for failed to complete")]
+    #[error("Circuit we were waiting for failed to complete")]
     PendingFailed(#[source] Box<Error>),
 
     /// We were told that we could use a given circuit, but before we got a
