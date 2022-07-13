@@ -38,8 +38,9 @@ use pin_project::pin_project;
 use rand::distributions::Distribution;
 use tracing::error;
 
-use tor_cell::chancell::msg::Padding;
+use tor_cell::chancell::msg::{Padding, PaddingNegotiate};
 use tor_config::impl_standard_builder;
+use tor_error::into_internal;
 use tor_rtcompat::SleepProvider;
 use tor_units::IntegerMilliseconds;
 
@@ -142,6 +143,21 @@ impl Parameters {
             low_ms: IntegerMilliseconds::new(9000),
             high_ms: IntegerMilliseconds::new(14000),
         }
+    }
+
+    /// Return a `PADDING_NEGOTIATE START` cell specifying precisely these parameters
+    ///
+    /// This function does not take account of the need to avoid sending particular
+    /// parameters, and instead sending zeroes, if the requested padding is the consensus
+    /// default.  The caller must take care of that.
+    pub fn padding_negotiate_cell(&self) -> Result<PaddingNegotiate, tor_error::Bug> {
+        let get = |input: IntegerMilliseconds<u32>| {
+            input
+                .as_millis()
+                .try_into()
+                .map_err(into_internal!("padding negotiate out of range"))
+        };
+        Ok(PaddingNegotiate::start(get(self.low_ms)?, get(self.high_ms)?))
     }
 }
 
