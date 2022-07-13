@@ -16,6 +16,7 @@ default = []
 experimental = ["experimental-udp"]
 # Enable experimental UDP support.
 experimental-udp = []
+onion-service = []
 # Enable testing only API
 testing = ["experimental-udp"]
 

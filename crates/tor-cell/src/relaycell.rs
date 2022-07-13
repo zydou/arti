@@ -11,6 +11,8 @@ use rand::{CryptoRng, Rng};
 
 pub mod extend;
 pub mod msg;
+#[cfg(feature = "onion-service")]
+pub mod onion_service;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;
 
