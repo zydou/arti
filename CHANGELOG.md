@@ -4,6 +4,16 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
+# tor-dirmgr patch release 0.5.1 — 14 July 2022
+
+On 14 July 2022, we put out a patch release (0.5.1) to `tor-dirmgr`, to fix
+a bug that prevented Arti from storing consensus files on
+Windows. Previously, we had generated filenames containing a colon, which
+Windows trieats as a reserved character.
+
+Thanks to "@feelingnothing" for the bug report and the fix.
+
+
 # Arti 0.5.0 — 24 Jun 2022
 
 Arti 0.5.0 adds more cryptographic acceleration, a useful set of toplevel
