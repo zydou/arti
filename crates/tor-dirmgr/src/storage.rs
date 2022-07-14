@@ -94,8 +94,7 @@ pub(crate) enum InputString {
 impl InputString {
     /// Return a view of this InputString as a &str, if it is valid UTF-8.
     pub(crate) fn as_str(&self) -> Result<&str> {
-        self.as_str_impl()
-            .map_err(|_| Error::CacheCorruption("Invalid UTF-8"))
+        self.as_str_impl().map_err(Error::BadUtf8InCache)
     }
 
     /// Helper for [`Self::as_str()`], with unwrapped error type.
