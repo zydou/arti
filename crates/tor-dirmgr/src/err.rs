@@ -28,8 +28,13 @@ pub enum Error {
     #[error("Error from sqlite database")]
     SqliteError(#[source] Arc<rusqlite::Error>),
     /// A schema version that says we can't read it.
-    #[error("Unrecognized data storage schema")]
-    UnrecognizedSchema,
+    #[error("Unrecognized data storage schema v{schema}. (We support v{supported})")]
+    UnrecognizedSchema {
+        /// The schema version in the database
+        schema: u32,
+        /// The schema that we actually support.
+        supported: u32,
+    },
     /// User requested an operation that required a usable
     /// bootstrapped directory, but we didn't have one.
     #[error("Directory not present or not up-to-date")]
@@ -193,7 +198,7 @@ impl Error {
             | Error::CacheCorruption(_)
             | Error::CachePermissions(_)
             | Error::SqliteError(_)
-            | Error::UnrecognizedSchema
+            | Error::UnrecognizedSchema { .. }
             | Error::DirectoryNotPresent
             | Error::ManagerDropped
             | Error::CantAdvanceState
@@ -262,7 +267,7 @@ impl Error {
             | Error::OfflineMode
             | Error::CacheCorruption(_)
             | Error::SqliteError(_)
-            | Error::UnrecognizedSchema
+            | Error::UnrecognizedSchema { .. }
             | Error::ManagerDropped
             | Error::LockFile { .. }
             | Error::CacheFile { .. }
@@ -308,7 +313,7 @@ impl HasKind for Error {
                 }
             }
             E::SqliteError(e) => sqlite_error_kind(e),
-            E::UnrecognizedSchema => EK::CacheCorrupted,
+            E::UnrecognizedSchema { .. } => EK::CacheCorrupted,
             E::DirectoryNotPresent => EK::DirectoryExpired,
             E::NetDirOlder => EK::TorDirectoryError,
             E::BadUtf8FromDirectory(_) => EK::TorProtocolViolation,

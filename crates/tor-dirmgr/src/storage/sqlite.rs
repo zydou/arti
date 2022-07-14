@@ -164,7 +164,10 @@ impl SqliteStore {
             tx.commit()?;
             return Ok(());
         } else if readable_by > SCHEMA_VERSION {
-            return Err(Error::UnrecognizedSchema);
+            return Err(Error::UnrecognizedSchema {
+                schema: readable_by,
+                supported: SCHEMA_VERSION,
+            });
         }
 
         // rolls back the transaction, but nothing was done.
