@@ -18,6 +18,7 @@ use crate::{Error, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::Result as IoResult;
 use std::ops::{Deref, DerefMut};
 use std::str::Utf8Error;
 use std::time::SystemTime;
@@ -131,7 +132,7 @@ impl InputString {
     /// We'll try to memory-map the file if we can.  If that fails, or if we
     /// were built without the `mmap` feature, we'll fall back to reading the
     /// file into memory.
-    pub(crate) fn load(file: File) -> Result<Self> {
+    pub(crate) fn load(file: File) -> IoResult<Self> {
         #[cfg(feature = "mmap")]
         {
             let mapping = unsafe {

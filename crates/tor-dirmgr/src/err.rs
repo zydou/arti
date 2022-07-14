@@ -44,9 +44,20 @@ pub enum Error {
     /// state of a download.
     #[error("Unable to finish bootstrapping a directory")]
     CantAdvanceState,
-    /// Blob storage error
-    #[error("Storage error: {0}")]
-    StorageError(String),
+    /// Error while accessing a lockfile.
+    #[error("Unable to access lock file")]
+    LockFile(Arc<std::io::Error>),
+    /// Error while accessing a file in the store.
+    #[error("Error while {action} cache file {}", fname.display())]
+    CacheFile {
+        /// What we were doing when we encountered the error.
+        action: &'static str,
+        /// The file that we were trying to access.
+        fname: std::path::PathBuf,
+        /// The underlying IO error.
+        #[source]
+        error: Arc<std::io::Error>,
+    },
     /// An error given by the consensus diff crate.
     #[error("Problem applying consensus diff")]
     ConsensusDiffError(#[from] tor_consdiff::Error),
@@ -90,9 +101,6 @@ pub enum Error {
     /// An error given by the checkable crate.
     #[error("Invalid signatures")]
     SignatureError(#[source] Arc<signature::Error>),
-    /// An IO error occurred while manipulating storage on disk.
-    #[error("IO error")]
-    IOError(#[source] Arc<std::io::Error>),
     /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
     #[error("Tried to bootstrap a DirMgr that was configured as offline-only")]
     OfflineMode,
@@ -123,12 +131,6 @@ pub enum Error {
     /// A programming problem, either in our code or the code calling it.
     #[error("Internal programming issue")]
     Bug(#[from] tor_error::Bug),
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Self::IOError(Arc::new(err))
-    }
 }
 
 impl From<signature::Error> for Error {
@@ -183,7 +185,6 @@ impl Error {
             | Error::BadUtf8FromDirectory(_)
             | Error::ConsensusDiffError(_)
             | Error::SignatureError(_)
-            | Error::IOError(_)
             | Error::ConsensusInvalid { .. }
             | Error::UntimelyObject(_) => true,
 
@@ -196,7 +197,8 @@ impl Error {
             | Error::DirectoryNotPresent
             | Error::ManagerDropped
             | Error::CantAdvanceState
-            | Error::StorageError(_)
+            | Error::LockFile { .. }
+            | Error::CacheFile { .. }
             | Error::BadUtf8InCache(_)
             | Error::BadHexInCache(_)
             | Error::OfflineMode
@@ -252,7 +254,6 @@ impl Error {
             | Error::UntimelyObject(_)
             | Error::DirClientError(_)
             | Error::SignatureError(_)
-            | Error::IOError(_)
             | Error::NetDocError { .. } => BootstrapAction::Nonfatal,
 
             Error::ConsensusInvalid { .. } | Error::CantAdvanceState => BootstrapAction::Reset,
@@ -263,7 +264,8 @@ impl Error {
             | Error::SqliteError(_)
             | Error::UnrecognizedSchema
             | Error::ManagerDropped
-            | Error::StorageError(_)
+            | Error::LockFile { .. }
+            | Error::CacheFile { .. }
             | Error::BadUtf8InCache(_)
             | Error::BadHexInCache(_)
             | Error::CachePermissions(_)
@@ -315,7 +317,8 @@ impl HasKind for Error {
             E::UnrecognizedAuthorities => EK::TorProtocolViolation,
             E::ManagerDropped => EK::ArtiShuttingDown,
             E::CantAdvanceState => EK::TorAccessFailed,
-            E::StorageError(_) => EK::CacheAccessFailed,
+            E::LockFile { .. } => EK::CacheAccessFailed,
+            E::CacheFile { .. } => EK::CacheAccessFailed,
             E::ConsensusDiffError(_) => EK::TorProtocolViolation,
             E::NetDocError { source, .. } => match source {
                 DocSource::LocalCache => EK::CacheCorrupted,
@@ -328,7 +331,6 @@ impl HasKind for Error {
             E::UntimelyObject(_) => EK::TorProtocolViolation,
             E::DirClientError(e) => e.kind(),
             E::SignatureError(_) => EK::TorProtocolViolation,
-            E::IOError(_) => EK::CacheAccessFailed,
             E::OfflineMode => EK::BadApiUsage,
             E::Spawn { cause, .. } => cause.kind(),
             E::ExternalDirProvider { kind, .. } => *kind,
