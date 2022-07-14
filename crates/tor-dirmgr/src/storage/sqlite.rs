@@ -395,7 +395,7 @@ impl Store for SqliteStore {
         // anything at all, not even diffs.
         let expires = valid_until + CONSENSUS_LIFETIME;
 
-        let doctype = format!("con:{}", flavor.name());
+        let doctype = format!("con_{}", flavor.name());
 
         let h = self.save_blob_internal(
             contents.as_bytes(),
