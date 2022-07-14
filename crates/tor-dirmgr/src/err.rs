@@ -12,46 +12,46 @@ use tor_error::{ErrorKind, HasKind};
 #[non_exhaustive]
 pub enum Error {
     /// We received a document we didn't want at all.
-    #[error("unwanted object: {0}")]
+    #[error("Received an object we didn't ask for: {0}")]
     Unwanted(&'static str),
     /// The NetDir we downloaded is older than the one we already have.
-    #[error("downloaded netdir is older than the one we have")]
+    #[error("Downloaded netdir is older than the one we have")]
     NetDirOlder,
     /// This DirMgr doesn't support downloads.
-    #[error("tried to download information on a DirMgr with no download support")]
+    #[error("Tried to download information on a DirMgr with no download support")]
     NoDownloadSupport,
     /// We couldn't read something from disk that we should have been
     /// able to read.
-    #[error("corrupt cache: {0}")]
+    #[error("Corrupt cache: {0}")]
     CacheCorruption(&'static str),
     /// rusqlite gave us an error.
-    #[error("sqlite error")]
+    #[error("Error from sqlite database")]
     SqliteError(#[source] Arc<rusqlite::Error>),
     /// A schema version that says we can't read it.
-    #[error("unrecognized data storage schema")]
+    #[error("Unrecognized data storage schema")]
     UnrecognizedSchema,
     /// User requested an operation that required a usable
     /// bootstrapped directory, but we didn't have one.
-    #[error("directory not present or not up-to-date")]
+    #[error("Directory not present or not up-to-date")]
     DirectoryNotPresent,
     /// A consensus document is signed by an unrecognized authority set.
-    #[error("authorities on consensus do not match what we expect.")]
+    #[error("Authorities on consensus are not the ones we expect")]
     UnrecognizedAuthorities,
     /// A directory manager has been dropped; background tasks can exit too.
-    #[error("dirmgr has been dropped; background tasks exiting")]
+    #[error("Dirmgr has been dropped; background tasks exiting")]
     ManagerDropped,
     /// We made a bunch of attempts, but weren't unable to advance the
     /// state of a download.
-    #[error("unable to finish bootstrapping a directory")]
+    #[error("Unable to finish bootstrapping a directory")]
     CantAdvanceState,
     /// Blob storage error
-    #[error("storage error: {0}")]
+    #[error("Storage error: {0}")]
     StorageError(String),
     /// An error given by the consensus diff crate.
-    #[error("consdiff error")]
+    #[error("Problem applying consensus diff")]
     ConsensusDiffError(#[from] tor_consdiff::Error),
     /// Invalid UTF8 in directory response.
-    #[error("invalid utf-8 from directory server")]
+    #[error("Invalid utf-8 from directory server")]
     BadUtf8FromDirectory(#[source] std::string::FromUtf8Error),
     /// Invalid UTF8 from our cache.
     #[error("Invalid utf-8 in directory cache")]
@@ -60,7 +60,7 @@ pub enum Error {
     #[error("Invalid hexadecimal id in directory cache")]
     BadHexInCache(#[source] hex::FromHexError),
     /// An error given by the network document crate.
-    #[error("netdoc error from {source}: {cause}")]
+    #[error("Invalid document from {source}")]
     NetDocError {
         /// Where the document came from.
         source: DocSource,
@@ -73,7 +73,7 @@ pub enum Error {
     /// This kind of error is only returned during the certificate fetching
     /// state; it indicates that a consensus which previously seemed to be
     /// plausible has turned out to be wrong after we got the certificates.
-    #[error("invalid consensus from {source}: {cause}")]
+    #[error("Could not validate consensus from {source}")]
     ConsensusInvalid {
         /// Where the document came from.
         source: DocSource,
@@ -82,25 +82,25 @@ pub enum Error {
         cause: tor_netdoc::Error,
     },
     /// An error caused by an expired or not-yet-valid object.
-    #[error("object expired or not yet valid.")]
+    #[error("Directory object expired or not yet valid")]
     UntimelyObject(#[from] tor_checkable::TimeValidityError),
     /// An error given by dirclient
-    #[error("dirclient error")]
+    #[error("Problem downloading directory object")]
     DirClientError(#[from] tor_dirclient::Error),
     /// An error given by the checkable crate.
-    #[error("checkable error")]
+    #[error("Invalid signatures")]
     SignatureError(#[source] Arc<signature::Error>),
     /// An IO error occurred while manipulating storage on disk.
     #[error("IO error")]
     IOError(#[source] Arc<std::io::Error>),
     /// An attempt was made to bootstrap a `DirMgr` created in offline mode.
-    #[error("cannot bootstrap offline DirMgr")]
+    #[error("Tried to bootstrap a DirMgr that was configured as offline-only")]
     OfflineMode,
     /// A problem with file permissions on our cache directory.
     #[error("Bad permissions in cache directory")]
     CachePermissions(#[from] fs_mistrust::Error),
     /// Unable to spawn task
-    #[error("unable to spawn {spawning}")]
+    #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn
         spawning: &'static str,
@@ -110,7 +110,7 @@ pub enum Error {
     },
 
     /// Other error from an external directory provider
-    #[error("external directory provider")]
+    #[error("Error from external directory provider")]
     ExternalDirProvider {
         /// What happened
         #[source]
@@ -121,7 +121,7 @@ pub enum Error {
     },
 
     /// A programming problem, either in our code or the code calling it.
-    #[error("programming problem")]
+    #[error("Internal programming issue")]
     Bug(#[from] tor_error::Bug),
 }
 
