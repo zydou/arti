@@ -6,6 +6,7 @@ use futures::task::SpawnError;
 use retry_error::RetryError;
 use thiserror::Error;
 
+use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
 use tor_linkspec::OwnedChanTarget;
 
@@ -28,7 +29,7 @@ pub enum Error {
     PendingCanceled,
 
     /// We were waiting on a pending circuits, but it failed.
-    #[error("Pending circuit failed.")]
+    #[error("Circuit we were waiting for failed to complete")]
     PendingFailed(#[source] Box<Error>),
 
     /// We were told that we could use a given circuit, but before we got a
@@ -37,7 +38,7 @@ pub enum Error {
     ///
     /// This is a version of `UsageMismatched` for when a race is the
     /// likeliest explanation for the mismatch.
-    #[error("Circuit seemed suitable, but another request got it first.")]
+    #[error("Circuit seemed suitable, but another request got it first")]
     LostUsabilityRace(#[source] RestrictionFailed),
 
     /// A circuit succeeded, but was cancelled before it could be used.
@@ -67,16 +68,38 @@ pub enum Error {
     CircTimeout,
 
     /// A request spent too long waiting for a circuit
-    #[error("Spent too long waiting for a circuit to build")]
+    #[error("Spent too long trying to construct circuits for this request")]
     RequestTimeout,
 
     /// No suitable relays for a request
-    #[error("Can't build path for circuit: {0}")]
-    NoPath(String),
+    #[error(
+        "Can't find {role} for circuit: Rejected {} because of family restrictions \
+         and {} because of usage requirements.",
+         can_share.display_frac_rejected(),
+         correct_usage.display_frac_rejected(),
+    )]
+    NoPath {
+        /// The role that we were trying to choose a relay for.
+        role: &'static str,
+        /// Relays accepted and rejected based on relay family policies.
+        can_share: FilterCount,
+        /// Relays accepted and rejected based on our usage requirements.
+        correct_usage: FilterCount,
+    },
 
     /// No suitable exit relay for a request.
-    #[error("Can't find exit for circuit: {0}")]
-    NoExit(String),
+    #[error(
+        "Can't find exit for circuit: \
+         Rejected {} because of family restrictions and {} because of port requirements",
+        can_share.display_frac_rejected(),
+        correct_ports.display_frac_rejected(),
+    )]
+    NoExit {
+        /// Exit relays accepted and rejected based on relay family policies.
+        can_share: FilterCount,
+        /// Exit relays accepted and rejected base on the ports that we need.
+        correct_ports: FilterCount,
+    },
 
     /// Problem creating or updating a guard manager.
     #[error("Problem creating or updating guards list")]
@@ -91,7 +114,7 @@ pub enum Error {
     RequestFailed(RetryError<Box<Error>>),
 
     /// Problem with channel
-    #[error("Problem with channel to {peer}")]
+    #[error("Problem opening a channel to {peer}")]
     Channel {
         /// Which relay we were trying to connect to
         peer: OwnedChanTarget,
@@ -102,8 +125,10 @@ pub enum Error {
     },
 
     /// Protocol issue while building a circuit.
-    #[error("Problem building a circuit with {peer:?}")]
+    #[error("Problem building a circuit, while {}{}", action, WithOptPeer(peer))]
     Protocol {
+        /// The action that we were trying to take.
+        action: &'static str,
         /// The peer that created the protocol error.
         ///
         /// This is set to None if we can't blame a single party.
@@ -118,7 +143,7 @@ pub enum Error {
     ExpiredConsensus,
 
     /// Unable to spawn task
-    #[error("unable to spawn {spawning}")]
+    #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn
         spawning: &'static str,
@@ -165,8 +190,8 @@ impl HasKind for Error {
         match self {
             E::Channel { cause, .. } => cause.kind(),
             E::Bug(e) => e.kind(),
-            E::NoPath(_) => EK::NoPath,
-            E::NoExit(_) => EK::NoExit,
+            E::NoPath { .. } => EK::NoPath,
+            E::NoExit { .. } => EK::NoExit,
             E::PendingCanceled => EK::ReactorShuttingDown,
             E::PendingFailed(e) => e.kind(),
             E::CircTimeout => EK::TorNetworkTimeout,
@@ -210,7 +235,7 @@ impl HasRetryTime for Error {
             // TODO: In some rare cases, these errors can actually happen when
             // we have walked ourselves into a snag in our path selection.  See
             // additional "TODO" comments in exitpath.rs.
-            E::NoPath(_) | E::NoExit(_) => RT::Never,
+            E::NoPath { .. } | E::NoExit { .. } => RT::Never,
 
             // If we encounter UsageMismatched without first converting to
             // LostUsabilityRace, it reflects a real problem in our code.
@@ -295,8 +320,8 @@ impl Error {
             E::CircCanceled => 20,
             E::CircTimeout => 30,
             E::RequestTimeout => 30,
-            E::NoPath(_) => 40,
-            E::NoExit(_) => 40,
+            E::NoPath { .. } => 40,
+            E::NoExit { .. } => 40,
             E::GuardMgr(_) => 40,
             E::Guard(_) => 40,
             E::RequestFailed(_) => 40,
@@ -330,3 +355,19 @@ impl Error {
 /// This is a separate type since we never report it outside the crate.
 #[derive(Debug)]
 pub(crate) struct PreemptiveCircError;
+
+/// Helper to display an optional peer, prefixed with the string " with".
+struct WithOptPeer<'a, T>(&'a Option<T>);
+
+impl<'a, T> std::fmt::Display for WithOptPeer<'a, T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(peer) = self.0.as_ref() {
+            write!(f, " with {}", peer)
+        } else {
+            Ok(())
+        }
+    }
+}

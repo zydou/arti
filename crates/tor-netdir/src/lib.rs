@@ -766,7 +766,7 @@ impl NetDir {
     ) -> Option<Relay<'a>>
     where
         R: rand::Rng,
-        P: Fn(&Relay<'a>) -> bool,
+        P: FnMut(&Relay<'a>) -> bool,
     {
         use rand::seq::SliceRandom;
         let relays: Vec<_> = self.relays().filter(usable).collect();
@@ -819,7 +819,7 @@ impl NetDir {
     ) -> Vec<Relay<'a>>
     where
         R: rand::Rng,
-        P: Fn(&Relay<'a>) -> bool,
+        P: FnMut(&Relay<'a>) -> bool,
     {
         use rand::seq::SliceRandom;
         let relays: Vec<_> = self.relays().filter(usable).collect();
