@@ -15,7 +15,7 @@ caret_int! {
 }
 
 /// A piece of extension data, to be encoded as the message in an ntor v3 handshake.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NtorV3Extension {
     /// Request congestion control be enabled for this circuit (client → exit node).
