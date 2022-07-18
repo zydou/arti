@@ -184,6 +184,10 @@ enum ErrorDetail {
         /// What we were trying to do that required bootstrapping.
         action: &'static str
     },
+
+    /// A programming problem, either in our code or the code calling it.
+    #[error("programming problem")]
+    Bug(#[from] tor_error::Bug),
 }
 
 // End of the use of $vis to refer to visibility according to `error_detail`
@@ -258,6 +262,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
+            E::Bug(e) => e.kind(),
         }
     }
 }
