@@ -112,10 +112,12 @@ pub enum BootstrapBehavior {
 }
 
 /// What level of sleep to put a Tor client into.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Educe, PartialEq, Eq)]
+#[educe(Default)]
 #[non_exhaustive]
 pub enum DormantMode {
     /// The client functions as normal, and background tasks run periodically.
+    #[educe(Default)]
     Normal,
     /// Background tasks are suspended, conserving CPU usage. Attempts to use the client will
     /// wake it back up again.
