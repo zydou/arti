@@ -18,6 +18,7 @@ use tor_netdoc::doc::routerdesc::RdDigest;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use rusqlite::{params, OpenFlags, OptionalExtension, Transaction};
@@ -92,8 +93,8 @@ impl SqliteStore {
             }
         }
 
-        let mut lockfile = fslock::LockFile::open(&lockpath)?;
-        if !readonly && !lockfile.try_lock()? {
+        let mut lockfile = fslock::LockFile::open(&lockpath).map_err(Error::from_lockfile)?;
+        if !readonly && !lockfile.try_lock().map_err(Error::from_lockfile)? {
             readonly = true; // we couldn't get the lock!
         };
         let flags = if readonly {
@@ -158,7 +159,10 @@ impl SqliteStore {
             tx.commit()?;
             return Ok(());
         } else if readable_by > SCHEMA_VERSION {
-            return Err(Error::UnrecognizedSchema);
+            return Err(Error::UnrecognizedSchema {
+                schema: readable_by,
+                supported: SCHEMA_VERSION,
+            });
         }
 
         // rolls back the transaction, but nothing was done.
@@ -174,13 +178,10 @@ impl SqliteStore {
 
         let file = self.blob_dir.open(path, OpenOptions::new().read(true))?;
 
-        InputString::load(file).map_err(|err| {
-            Error::StorageError(format!(
-                "Loading blob {:?} from storage at {:?}: {}",
-                path,
-                self.blob_dir.as_path().join(path),
-                err
-            ))
+        InputString::load(file).map_err(|err| Error::CacheFile {
+            action: "loading",
+            fname: path.to_path_buf(),
+            error: Arc::new(err),
         })
     }
 
@@ -202,7 +203,16 @@ impl SqliteStore {
 
         let full_path = self.blob_dir.join(&fname)?;
         let unlinker = Unlinker::new(&full_path);
-        self.blob_dir.write_and_replace(&fname, contents)?;
+        self.blob_dir
+            .write_and_replace(&fname, contents)
+            .map_err(|e| match e {
+                fs_mistrust::Error::Io { err, .. } => Error::CacheFile {
+                    action: "saving",
+                    fname: full_path,
+                    error: err,
+                },
+                err => err.into(),
+            })?;
 
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(INSERT_EXTDOC, params![digeststr, expires, dtype, fname])?;
@@ -261,7 +271,7 @@ impl Store for SqliteStore {
                 .lockfile
                 .as_mut()
                 .expect("No lockfile open; cannot upgrade to read-write storage");
-            if !lf.try_lock()? {
+            if !lf.try_lock().map_err(Error::from_lockfile)? {
                 // Somebody else has the lock.
                 return Ok(false);
             }
@@ -958,11 +968,11 @@ mod test {
         );
         assert_eq!(store.blob_dir.join(&fname1)?, tmp_dir.path().join(&fname1));
         assert_eq!(
-            &std::fs::read(store.blob_dir.join(&fname1)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname1)?).unwrap()[..],
             b"Hello world"
         );
         assert_eq!(
-            &std::fs::read(store.blob_dir.join(&fname2)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname2)?).unwrap()[..],
             b"Goodbye, dear friends"
         );
 
@@ -977,7 +987,7 @@ mod test {
         // Now expire: the second file should go away.
         store.expire_all(&EXPIRATION_DEFAULTS)?;
         assert_eq!(
-            &std::fs::read(store.blob_dir.join(&fname1)?)?[..],
+            &std::fs::read(store.blob_dir.join(&fname1)?).unwrap()[..],
             b"Hello world"
         );
         assert!(std::fs::read(store.blob_dir.join(&fname2)?).is_err());

@@ -18,6 +18,7 @@ use crate::{Error, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::Result as IoResult;
 use std::ops::{Deref, DerefMut};
 use std::str::Utf8Error;
 use std::time::SystemTime;
@@ -93,8 +94,7 @@ pub(crate) enum InputString {
 impl InputString {
     /// Return a view of this InputString as a &str, if it is valid UTF-8.
     pub(crate) fn as_str(&self) -> Result<&str> {
-        self.as_str_impl()
-            .map_err(|_| Error::CacheCorruption("Invalid UTF-8"))
+        self.as_str_impl().map_err(Error::BadUtf8InCache)
     }
 
     /// Helper for [`Self::as_str()`], with unwrapped error type.
@@ -131,7 +131,7 @@ impl InputString {
     /// We'll try to memory-map the file if we can.  If that fails, or if we
     /// were built without the `mmap` feature, we'll fall back to reading the
     /// file into memory.
-    pub(crate) fn load(file: File) -> Result<Self> {
+    pub(crate) fn load(file: File) -> IoResult<Self> {
         #[cfg(feature = "mmap")]
         {
             let mapping = unsafe {
