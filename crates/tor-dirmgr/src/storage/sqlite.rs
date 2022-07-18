@@ -93,13 +93,8 @@ impl SqliteStore {
             }
         }
 
-        let mut lockfile =
-            fslock::LockFile::open(&lockpath).map_err(|e| Error::LockFile(Arc::new(e)))?;
-        if !readonly
-            && !lockfile
-                .try_lock()
-                .map_err(|e| Error::LockFile(Arc::new(e)))?
-        {
+        let mut lockfile = fslock::LockFile::open(&lockpath).map_err(Error::from_lockfile)?;
+        if !readonly && !lockfile.try_lock().map_err(Error::from_lockfile)? {
             readonly = true; // we couldn't get the lock!
         };
         let flags = if readonly {
@@ -276,7 +271,7 @@ impl Store for SqliteStore {
                 .lockfile
                 .as_mut()
                 .expect("No lockfile open; cannot upgrade to read-write storage");
-            if !lf.try_lock().map_err(|e| Error::LockFile(Arc::new(e)))? {
+            if !lf.try_lock().map_err(Error::from_lockfile)? {
                 // Somebody else has the lock.
                 return Ok(false);
             }

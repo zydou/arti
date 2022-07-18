@@ -180,6 +180,12 @@ impl Error {
         Error::NetDocError { source, cause }
     }
 
+    /// Construct a new `Error` from `std::io::Error` for an error that occurred
+    /// while locking a file.
+    pub(crate) fn from_lockfile(err: std::io::Error) -> Error {
+        Error::LockFile(Arc::new(err))
+    }
+
     /// Return true if this error is serious enough that we should mark this
     /// cache as having failed.
     pub(crate) fn indicates_cache_failure(&self) -> bool {
