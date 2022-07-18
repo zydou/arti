@@ -8,9 +8,11 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::sensitive;
+use tor_basic_utils::futures::PostageWatchSenderExt;
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
+use tor_error::internal;
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -21,7 +23,6 @@ use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
@@ -87,7 +88,7 @@ pub struct TorClient<R: Runtime> {
     periodic_task_handles: Vec<TaskHandle>,
 
     /// Shared boolean for whether we're currently in "dormant mode" or not.
-    dormant: Arc<AtomicBool>,
+    dormant: Arc<Mutex<postage::watch::Sender<DormantMode>>>,
 
     /// Settings for how we perform permissions checks on the filesystem.
     fs_mistrust: fs_mistrust::Mistrust,
@@ -395,6 +396,8 @@ impl<R: Runtime> TorClient<R> {
                 .into_iter(),
         );
 
+        let (dormant_send, _dormant_recv) = postage::watch::channel();
+
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
         let skew_status = circmgr.skew_events();
@@ -423,7 +426,7 @@ impl<R: Runtime> TorClient<R> {
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
             periodic_task_handles,
-            dormant: Arc::new(AtomicBool::new(false)),
+            dormant: Arc::new(Mutex::new(dormant_send)),
             fs_mistrust: mistrust,
         })
     }
@@ -497,10 +500,13 @@ impl<R: Runtime> TorClient<R> {
                 self.bootstrap_in_progress.lock().await;
             }
         }
-        // NOTE(eta): will need to be changed when hard dormant mode is introduced
-        if self.dormant.load(Ordering::SeqCst) {
-            self.set_dormant(DormantMode::Normal);
-        }
+        self.dormant
+            .lock()
+            .map_err(|_| internal!("dormant poisoned"))?
+            .maybe_send(|dormant| match *dormant {
+                DormantMode::Soft => DormantMode::Normal,
+                other @ DormantMode::Normal => other,
+            });
         Ok(())
     }
 
@@ -875,17 +881,28 @@ impl<R: Runtime> TorClient<R> {
     pub fn set_dormant(&self, mode: DormantMode) {
         let is_dormant = matches!(mode, DormantMode::Soft);
 
-        // Do an atomic compare-exchange. If it succeeds, we just flipped `self.dormant`.
-        if self
+        struct Unchanged;
+
+        // TODO: this ought to be done by a task listening on dormant
+
+        match self
             .dormant
-            .compare_exchange(!is_dormant, is_dormant, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
-        {
-            for task in self.periodic_task_handles.iter() {
-                if is_dormant {
-                    task.cancel();
-                } else {
-                    task.fire();
+            .lock()
+            .expect("dormant lock poisoned")
+            .try_maybe_send(|old| {
+                if old == &mode {
+                    return Err(Unchanged);
+                }
+                Ok(mode)
+            }) {
+            Err(Unchanged) => {}
+            Ok(()) => {
+                for task in self.periodic_task_handles.iter() {
+                    if is_dormant {
+                        task.cancel();
+                    } else {
+                        task.fire();
+                    }
                 }
             }
         }
