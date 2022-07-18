@@ -25,6 +25,7 @@ pub(crate) enum Resource {
         file: std::path::PathBuf,
     },
     /// Testing-only: a scratch-item in a memory-backed store.
+    #[cfg(feature = "testing")]
     #[display(fmt = "{} in memory-backed store", key)]
     Temporary {
         /// The key for the scratch item
