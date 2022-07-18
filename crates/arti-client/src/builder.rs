@@ -42,9 +42,6 @@ impl<R: Runtime> DirProviderBuilder<R> for DirMgrBuilder {
 /// Rules about whether to replace the `Mistrust` from the configuration.
 #[derive(Clone, Debug)]
 enum FsMistrustOverride {
-    /// Disable the mistrust in the configuration if the the environment
-    /// variable `ARTI_FS_DISABLE_PERMISSION_CHECKS` is set.
-    FromEnvironment,
     /// Disable the mistrust in the configuration unconditionally.
     Disable,
     /// Always use the mistrust in the configuration.
@@ -85,7 +82,7 @@ impl<R: Runtime> TorClientBuilder<R> {
             runtime,
             config: TorClientConfig::default(),
             bootstrap_behavior: BootstrapBehavior::default(),
-            fs_mistrust_override: FsMistrustOverride::FromEnvironment,
+            fs_mistrust_override: FsMistrustOverride::None,
             dirmgr_builder: Arc::new(DirMgrBuilder {}),
             #[cfg(feature = "dirfilter")]
             dirfilter: None,
@@ -115,26 +112,9 @@ impl<R: Runtime> TorClientBuilder<R> {
     /// By default, these checks are configured with the `storage.permissions`
     /// field of the configuration, and can be overridden with the
     /// `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable.
+    // XXXX: Remove this too.
     pub fn disable_fs_permission_checks(mut self) -> Self {
         self.fs_mistrust_override = FsMistrustOverride::Disable;
-        self
-    }
-
-    /// Build a [`TorClient`] that will follow the permissions checks in
-    /// the `storage.permissions` field of the configuration, regardless of how the
-    /// environment is set.
-    pub fn ignore_fs_permission_checks_env_var(mut self) -> Self {
-        self.fs_mistrust_override = FsMistrustOverride::None;
-        self
-    }
-
-    /// Build a [`TorClient`] that will follow the permissions checks in the
-    /// `storage.permissions` field of the configuration, unless  the
-    /// `ARTI_FS_DISABLE_PERMISSION_CHECKS` environment variable is set.
-    ///
-    /// This is the default.
-    pub fn obey_fs_permission_checks_env_var(mut self) -> Self {
-        self.fs_mistrust_override = FsMistrustOverride::FromEnvironment;
         self
     }
 
@@ -188,13 +168,8 @@ impl<R: Runtime> TorClientBuilder<R> {
         }
 
         let override_mistrust: Option<Mistrust> = match self.fs_mistrust_override {
-            FsMistrustOverride::FromEnvironment
-                if crate::config::fs_permissions_checks_disabled_via_env() =>
-            {
-                Some(Mistrust::new_dangerously_trust_everyone())
-            }
             FsMistrustOverride::Disable => Some(Mistrust::new_dangerously_trust_everyone()),
-            _ => None,
+            FsMistrustOverride::None => None,
         };
 
         TorClient::create_inner(

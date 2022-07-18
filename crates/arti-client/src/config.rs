@@ -120,10 +120,13 @@ impl BuilderExt for MistrustBuilder {
     type Built = Mistrust;
 
     fn build_for_arti(&self) -> Result<Self::Built, ConfigBuildError> {
-        self.build().map_err(|e| ConfigBuildError::Invalid {
-            field: "permissions".to_string(),
-            problem: e.to_string(),
-        })
+        self.clone()
+            .controlled_by_env_var_if_not_set(FS_PERMISSIONS_CHECKS_DISABLE_VAR)
+            .build()
+            .map_err(|e| ConfigBuildError::Invalid {
+                field: "permissions".to_string(),
+                problem: e.to_string(),
+            })
     }
 }
 
@@ -369,14 +372,18 @@ pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
     CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
 }
 
+/// The environment variable we look at when deciding whether to disable FS permissions checking.
+pub const FS_PERMISSIONS_CHECKS_DISABLE_VAR: &str = "ARTI_FS_DISABLE_PERMISSION_CHECKS";
+
 /// Return true if the environment has been set up to disable FS permissions
 /// checking.
 ///
 /// This function is exposed so that other tools can use the same checking rules
 /// as `arti-client`.  For more information, see
 /// [`TorClientBuilder`](crate::TorClientBuilder).
+#[deprecated(since = "0.5.0")]
 pub fn fs_permissions_checks_disabled_via_env() -> bool {
-    std::env::var_os("ARTI_FS_DISABLE_PERMISSION_CHECKS").is_some()
+    std::env::var_os(FS_PERMISSIONS_CHECKS_DISABLE_VAR).is_some()
 }
 
 #[cfg(test)]

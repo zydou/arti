@@ -165,7 +165,7 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
-use arti_client::config::{default_config_file, fs_permissions_checks_disabled_via_env};
+use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
 use tor_config::ConfigurationSources;
@@ -403,15 +403,17 @@ pub fn main_main() -> Result<()> {
     let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
         let matches = clap_app.get_matches();
 
-        let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
-            | matches.is_present("disable-fs-permission-checks");
+        let fs_mistrust_disabled = matches.is_present("disable-fs-permission-checks");
 
         // A Mistrust object to use for loading our configuration.  Elsewhere, we
         // use the value _from_ the configuration.
         let cfg_mistrust = if fs_mistrust_disabled {
             fs_mistrust::Mistrust::new_dangerously_trust_everyone()
         } else {
-            fs_mistrust::Mistrust::new()
+            fs_mistrust::MistrustBuilder::default()
+                .controlled_by_env_var(arti_client::config::FS_PERMISSIONS_CHECKS_DISABLE_VAR)
+                .build()
+                .expect("Could not construct default fs-mistrust")
         };
 
         let cfg_sources = {
