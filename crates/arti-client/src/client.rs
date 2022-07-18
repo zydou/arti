@@ -87,9 +87,6 @@ pub struct TorClient<R: Runtime> {
 
     /// Shared boolean for whether we're currently in "dormant mode" or not.
     dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
-
-    /// Settings for how we perform permissions checks on the filesystem.
-    fs_mistrust: fs_mistrust::Mistrust,
 }
 
 /// Preferences for whether a [`TorClient`] should bootstrap on its own or not.
@@ -354,18 +351,18 @@ impl<R: Runtime> TorClient<R> {
         runtime: R,
         config: TorClientConfig,
         autobootstrap: BootstrapBehavior,
-        mistrust: Option<fs_mistrust::Mistrust>,
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
-        let mistrust = mistrust.unwrap_or_else(|| config.storage.permissions().clone());
         let dir_cfg = {
-            let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config(mistrust.clone())?;
+            let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
             c.extensions = dirmgr_extensions;
             c
         };
-        let statemgr =
-            FsStateMgr::from_path_and_mistrust(config.storage.expand_state_dir()?, &mistrust)?;
+        let statemgr = FsStateMgr::from_path_and_mistrust(
+            config.storage.expand_state_dir()?,
+            config.storage.permissions(),
+        )?;
         let addr_cfg = config.address_filter.clone();
 
         let (status_sender, status_receiver) = postage::watch::channel();
@@ -429,7 +426,6 @@ impl<R: Runtime> TorClient<R> {
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
             dormant: Arc::new(Mutex::new(dormant_send)),
-            fs_mistrust: mistrust,
         })
     }
 
@@ -558,9 +554,7 @@ impl<R: Runtime> TorClient<R> {
             _ => {}
         }
 
-        let dir_cfg = new_config
-            .dir_mgr_config(self.fs_mistrust.clone())
-            .map_err(wrap_err)?;
+        let dir_cfg = new_config.dir_mgr_config().map_err(wrap_err)?;
         let state_cfg = new_config.storage.expand_state_dir().map_err(wrap_err)?;
         let addr_cfg = &new_config.address_filter;
         let timeout_cfg = &new_config.stream_timeouts;

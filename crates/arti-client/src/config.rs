@@ -317,13 +317,13 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
 impl TorClientConfig {
     /// Try to create a DirMgrConfig corresponding to this object.
     #[rustfmt::skip]
-    pub(crate) fn dir_mgr_config(&self, mistrust: fs_mistrust::Mistrust) -> Result<dir::DirMgrConfig, ConfigBuildError> {
+    pub(crate) fn dir_mgr_config(&self) -> Result<dir::DirMgrConfig, ConfigBuildError> {
         Ok(dir::DirMgrConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
             tolerance:           self.download_tolerance .clone(),
             cache_path:          self.storage.expand_cache_dir()?,
-            cache_trust:         mistrust,
+            cache_trust:         self.storage.permissions.clone(),
             override_net_params: self.override_net_params.clone(),
             extensions:          Default::default(),
         })
