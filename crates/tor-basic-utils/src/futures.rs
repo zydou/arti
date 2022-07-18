@@ -2,6 +2,7 @@
 
 use std::future::Future;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -457,6 +458,46 @@ impl<T> PostageWatchSenderExt<T> for postage::watch::Sender<T> {
             *self.borrow_mut() = new;
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+/// Wrapper for `postage::watch::Sender` that sends `Default` when dropped
+///
+/// Derefs to the inner `Sender`.
+pub struct DropNotifyWatchSender<T: Default>(Option<postage::watch::Sender<T>>);
+
+impl<T: Default> DropNotifyWatchSender<T> {
+    /// Arrange to send `T::Default` when `inner` is dropped
+    pub fn new(inner: postage::watch::Sender<T>) -> Self {
+        DropNotifyWatchSender(Some(inner))
+    }
+
+    /// Unwrap the inner sender, defusing the drop notification
+    pub fn into_inner(mut self) -> postage::watch::Sender<T> {
+        self.0.take().expect("inner was None")
+    }
+}
+
+impl<T: Default> Deref for DropNotifyWatchSender<T> {
+    type Target = postage::watch::Sender<T>;
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("inner was None")
+    }
+}
+
+impl<T: Default> DerefMut for DropNotifyWatchSender<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().expect("inner was None")
+    }
+}
+
+impl<T: Default> Drop for DropNotifyWatchSender<T> {
+    fn drop(&mut self) {
+        if let Some(mut inner) = self.0.take() {
+            // None means into_inner() was called
+            *inner.borrow_mut() = Default::default();
+        }
     }
 }
 
