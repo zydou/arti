@@ -8,11 +8,11 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::sensitive;
-use tor_basic_utils::futures::PostageWatchSenderExt;
+use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
-use tor_error::internal;
+use tor_error::{internal, Bug};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -27,8 +27,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
+use thiserror::Error;
 use tor_rtcompat::scheduler::TaskHandle;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 /// An active client session on the Tor network.
 ///
@@ -88,7 +89,7 @@ pub struct TorClient<R: Runtime> {
     periodic_task_handles: Vec<TaskHandle>,
 
     /// Shared boolean for whether we're currently in "dormant mode" or not.
-    dormant: Arc<Mutex<postage::watch::Sender<DormantMode>>>,
+    dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
 
     /// Settings for how we perform permissions checks on the filesystem.
     fs_mistrust: fs_mistrust::Mistrust,
@@ -396,7 +397,8 @@ impl<R: Runtime> TorClient<R> {
                 .into_iter(),
         );
 
-        let (dormant_send, _dormant_recv) = postage::watch::channel();
+        let (dormant_send, _dormant_recv) = postage::watch::channel_with(Some(DormantMode::Normal));
+        let dormant_send = DropNotifyWatchSender::new(dormant_send);
 
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
@@ -503,10 +505,14 @@ impl<R: Runtime> TorClient<R> {
         self.dormant
             .lock()
             .map_err(|_| internal!("dormant poisoned"))?
-            .maybe_send(|dormant| match *dormant {
-                DormantMode::Soft => DormantMode::Normal,
-                other @ DormantMode::Normal => other,
-            });
+            .try_maybe_send(|dormant| {
+                Ok::<_, Bug>(Some({
+                    match dormant.ok_or_else(|| internal!("dormant dropped"))? {
+                        DormantMode::Soft => DormantMode::Normal,
+                        other @ DormantMode::Normal => other,
+                    }
+                }))
+            })?;
         Ok(())
     }
 
@@ -881,7 +887,12 @@ impl<R: Runtime> TorClient<R> {
     pub fn set_dormant(&self, mode: DormantMode) {
         let is_dormant = matches!(mode, DormantMode::Soft);
 
-        struct Unchanged;
+        #[derive(Error, Debug)]
+        #[error("{self:?}")]
+        enum Change {
+            Unchanged,
+            Bug(#[from] Bug),
+        }
 
         // TODO: this ought to be done by a task listening on dormant
 
@@ -890,12 +901,15 @@ impl<R: Runtime> TorClient<R> {
             .lock()
             .expect("dormant lock poisoned")
             .try_maybe_send(|old| {
+                let old = old.as_ref().ok_or_else(|| internal!("dormant is None"))?;
                 if old == &mode {
-                    return Err(Unchanged);
+                    return Err(Change::Unchanged);
                 }
-                Ok(mode)
+                Ok(Some(mode))
             }) {
-            Err(Unchanged) => {}
+            Err(Change::Unchanged) => {}
+            // Logging and ignoring it is probably better than panicking?
+            Err(Change::Bug(e)) => error!("problem setting dormant mode: {}", &e),
             Ok(()) => {
                 for task in self.periodic_task_handles.iter() {
                     if is_dormant {
