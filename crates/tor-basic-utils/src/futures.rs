@@ -675,4 +675,21 @@ mod test {
             _ = futures::future::ready(()) => { },
         };
     }
+
+    #[async_test]
+    async fn postage_drop() {
+        let (s, r) = postage::watch::channel_with(20);
+        let s = DropNotifyWatchSender::new(s);
+
+        assert_eq!(*r.borrow(), 20);
+        drop(s);
+        assert_eq!(*r.borrow(), 0);
+
+        let (s, r) = postage::watch::channel_with(44);
+        let s = DropNotifyWatchSender::new(s);
+
+        assert_eq!(*r.borrow(), 44);
+        drop(s.into_inner());
+        assert_eq!(*r.borrow(), 44);
+    }
 }
