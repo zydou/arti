@@ -3,7 +3,7 @@
 use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
-use tor_bytes::{self, Error, Readable, Reader, Result, Writer};
+use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
 
 use caret::caret_int;
 use educe::Educe;
@@ -16,7 +16,7 @@ pub trait Body: Readable {
     ///
     /// Does not encode anything _but_ the cell body, and does not pad
     /// to the cell length.
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W);
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()>;
 }
 
 /// Decoded message from a channel.
@@ -99,7 +99,7 @@ impl ChanMsg {
     }
 
     /// Write the body of this message (not including length or command).
-    pub fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    pub fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         use ChanMsg::*;
         match self {
             Padding(b) => b.write_body_onto(w),
@@ -173,7 +173,9 @@ impl Body for Padding {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Padding(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, _w: &mut W) {}
+    fn write_body_onto<W: Writer + ?Sized>(self, _w: &mut W) -> EncodeResult<()> {
+        Ok(())
+    }
 }
 impl Readable for Padding {
     fn take_from(_r: &mut Reader<'_>) -> Result<Self> {
@@ -199,8 +201,9 @@ impl Body for VPadding {
     fn into_message(self) -> ChanMsg {
         ChanMsg::VPadding(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_zeros(self.len as usize);
+        Ok(())
     }
 }
 impl Readable for VPadding {
@@ -239,8 +242,9 @@ macro_rules! fixed_len {
             fn into_message(self) -> ChanMsg {
                 ChanMsg::$name(self)
             }
-            fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-                w.write_all(&self.handshake[..])
+            fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W)  -> EncodeResult<()> {
+                w.write_all(&self.handshake[..]);
+                Ok(())
             }
         }
         impl Readable for $name {
@@ -334,11 +338,16 @@ impl Body for Create2 {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Create2(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.handshake_type);
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+        let handshake_len = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
+        Ok(())
     }
 }
 impl Readable for Create2 {
@@ -403,10 +412,15 @@ impl Body for Created2 {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Created2(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
-        assert!(self.handshake.len() <= std::u16::MAX as usize);
-        w.write_u16(self.handshake.len() as u16);
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
+        let handshake_len = self
+            .handshake
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(handshake_len);
         w.write_all(&self.handshake[..]);
+        Ok(())
     }
 }
 impl Readable for Created2 {
@@ -474,8 +488,9 @@ impl Body for Relay {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Relay(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.body[..]);
+        Ok(())
     }
 }
 impl Readable for Relay {
@@ -510,8 +525,9 @@ impl Body for Destroy {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Destroy(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(self.reason.into());
+        Ok(())
     }
 }
 impl Readable for Destroy {
@@ -668,7 +684,7 @@ impl Body for Netinfo {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Netinfo(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u32(self.timestamp);
         let their_addr = self
             .their_addr
@@ -678,11 +694,12 @@ impl Body for Netinfo {
             .my_addr
             .len()
             .try_into()
-            .expect("Too many addrs in netinfo cell");
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u8(n_addrs);
         for addr in &self.my_addr {
             enc_one_netinfo_addr(w, addr);
         }
+        Ok(())
     }
 }
 impl Readable for Netinfo {
@@ -739,13 +756,13 @@ impl Versions {
     /// (That's different from a standard cell encoding, since we
     /// have not negotiated versions yet, and so our circuit-ID length
     /// is an obsolete 2 bytes).
-    pub fn encode_for_handshake(self) -> Vec<u8> {
+    pub fn encode_for_handshake(self) -> EncodeResult<Vec<u8>> {
         let mut v = Vec::new();
         v.write_u16(0); // obsolete circuit ID length.
         v.write_u8(ChanCmd::VERSIONS.into());
         v.write_u16((self.versions.len() * 2) as u16); // message length.
-        self.write_body_onto(&mut v);
-        v
+        self.write_body_onto(&mut v)?;
+        Ok(v)
     }
     /// Return the best (numerically highest) link protocol that is
     /// shared by this versions cell and my_protos.
@@ -767,10 +784,11 @@ impl Body for Versions {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Versions(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         for v in &self.versions {
             w.write_u16(*v);
         }
+        Ok(())
     }
 }
 impl Readable for Versions {
@@ -815,11 +833,12 @@ impl Body for PaddingNegotiate {
     fn into_message(self) -> ChanMsg {
         ChanMsg::PaddingNegotiate(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(0); // version
         w.write_u8(self.command);
         w.write_u16(self.ito_low_ms);
         w.write_u16(self.ito_high_ms);
+        Ok(())
     }
 }
 impl Readable for PaddingNegotiate {
@@ -853,15 +872,16 @@ struct TorCert {
     cert: Vec<u8>,
 }
 /// encode a single TorCert `c` onto a Writer `w`.
-fn enc_one_tor_cert<W: Writer + ?Sized>(w: &mut W, c: &TorCert) {
+fn enc_one_tor_cert<W: Writer + ?Sized>(w: &mut W, c: &TorCert) -> EncodeResult<()> {
     w.write_u8(c.certtype);
     let cert_len: u16 = c
         .cert
         .len()
         .try_into()
-        .expect("Impossibly long certificate");
+        .map_err(|_| EncodeError::BadLengthValue)?;
     w.write_u16(cert_len);
     w.write_all(&c.cert[..]);
+    Ok(())
 }
 /// Try to extract a TorCert from the reader `r`.
 fn take_one_tor_cert(r: &mut Reader<'_>) -> Result<TorCert> {
@@ -939,16 +959,17 @@ impl Body for Certs {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Certs(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         let n_certs: u8 = self
             .certs
             .len()
             .try_into()
-            .expect("Too many certs to encode in cell.");
+            .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u8(n_certs);
         for c in &self.certs {
-            enc_one_tor_cert(w, c);
+            enc_one_tor_cert(w, c)?;
         }
+        Ok(())
     }
 }
 impl Readable for Certs {
@@ -999,13 +1020,18 @@ impl Body for AuthChallenge {
     fn into_message(self) -> ChanMsg {
         ChanMsg::AuthChallenge(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.challenge[..]);
-        assert!(self.methods.len() <= std::u16::MAX as usize);
-        w.write_u16(self.methods.len() as u16);
+        let n_methods = self
+            .methods
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(n_methods);
         for m in &self.methods {
             w.write_u16(*m);
         }
+        Ok(())
     }
 }
 impl Readable for AuthChallenge {
@@ -1050,11 +1076,16 @@ impl Body for Authenticate {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Authenticate(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u16(self.authtype);
-        assert!(self.auth.len() <= std::u16::MAX as usize);
-        w.write_u16(self.auth.len() as u16);
+        let authlen = self
+            .auth
+            .len()
+            .try_into()
+            .map_err(|_| EncodeError::BadLengthValue)?;
+        w.write_u16(authlen);
         w.write_all(&self.auth[..]);
+        Ok(())
     }
 }
 impl Readable for Authenticate {
@@ -1086,8 +1117,9 @@ impl Body for Authorize {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Authorize(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.content[..]);
+        Ok(())
     }
 }
 impl Readable for Authorize {
@@ -1137,8 +1169,9 @@ impl Body for Unrecognized {
     fn into_message(self) -> ChanMsg {
         ChanMsg::Unrecognized(self)
     }
-    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) {
+    fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_all(&self.content[..]);
+        Ok(())
     }
 }
 impl Readable for Unrecognized {

@@ -1,7 +1,7 @@
 //! Implementation for parsing and encoding relay cells
 
 use crate::chancell::{RawCellBody, CELL_DATA_LEN};
-use tor_bytes::{Error, Result};
+use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
 use tor_error::internal;
 
@@ -216,7 +216,7 @@ impl RelayCell {
         const MIN_SPACE_BEFORE_PADDING: usize = 4;
 
         // TODO: This implementation is inefficient; it copies too much.
-        let encoded = self.encode_to_vec();
+        let encoded = self.encode_to_vec()?;
         let enc_len = encoded.len();
         if enc_len > CELL_DATA_LEN {
             return Err(crate::Error::Internal(internal!(
@@ -237,7 +237,7 @@ impl RelayCell {
     /// in a RELAY or RELAY_EARLY cell
     ///
     /// TODO: not the best interface, as this requires copying into a cell.
-    fn encode_to_vec(self) -> Vec<u8> {
+    fn encode_to_vec(self) -> EncodeResult<Vec<u8>> {
         let mut w = Vec::new();
         w.write_u8(self.msg.cmd().into());
         w.write_u16(0); // "Recognized"
@@ -246,12 +246,12 @@ impl RelayCell {
         let len_pos = w.len();
         w.write_u16(0); // Length.
         let body_pos = w.len();
-        self.msg.encode_onto(&mut w);
+        self.msg.encode_onto(&mut w)?;
         assert!(w.len() >= body_pos); // nothing was removed
         let payload_len = w.len() - body_pos;
         assert!(payload_len <= std::u16::MAX as usize);
         *(array_mut_ref![w, len_pos, 2]) = (payload_len as u16).to_be_bytes();
-        w
+        Ok(w)
     }
     /// Parse a RELAY or RELAY_EARLY cell body into a RelayCell.
     ///

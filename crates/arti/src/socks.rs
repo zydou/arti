@@ -198,7 +198,9 @@ where
 
             // Send back a SOCKS response, telling the client that it
             // successfully connected.
-            let reply = request.reply(tor_socksproto::SocksStatus::SUCCEEDED, None);
+            let reply = request
+                .reply(tor_socksproto::SocksStatus::SUCCEEDED, None)
+                .context("Encoding socks reply")?;
             write_all_and_flush(&mut socks_w, &reply[..]).await?;
 
             let (tor_r, tor_w) = tor_stream.split();
@@ -216,10 +218,12 @@ where
                 Err(e) => return reply_error(&mut socks_w, &request, e).await,
             };
             if let Some(addr) = addrs.first() {
-                let reply = request.reply(
-                    tor_socksproto::SocksStatus::SUCCEEDED,
-                    Some(&SocksAddr::Ip(*addr)),
-                );
+                let reply = request
+                    .reply(
+                        tor_socksproto::SocksStatus::SUCCEEDED,
+                        Some(&SocksAddr::Ip(*addr)),
+                    )
+                    .context("Encoding socks reply")?;
                 write_all_and_close(&mut socks_w, &reply[..]).await?;
             }
         }
@@ -229,8 +233,9 @@ where
             let addr: IpAddr = match addr.parse() {
                 Ok(ip) => ip,
                 Err(e) => {
-                    let reply =
-                        request.reply(tor_socksproto::SocksStatus::ADDRTYPE_NOT_SUPPORTED, None);
+                    let reply = request
+                        .reply(tor_socksproto::SocksStatus::ADDRTYPE_NOT_SUPPORTED, None)
+                        .context("Encoding socks reply")?;
                     write_all_and_close(&mut socks_w, &reply[..]).await?;
                     return Err(anyhow!(e));
                 }
@@ -243,14 +248,18 @@ where
                 // this conversion should never fail, legal DNS names len must be <= 253 but Socks
                 // names can be up to 255 chars.
                 let hostname = SocksAddr::Hostname(host.try_into()?);
-                let reply = request.reply(tor_socksproto::SocksStatus::SUCCEEDED, Some(&hostname));
+                let reply = request
+                    .reply(tor_socksproto::SocksStatus::SUCCEEDED, Some(&hostname))
+                    .context("Encoding socks reply")?;
                 write_all_and_close(&mut socks_w, &reply[..]).await?;
             }
         }
         _ => {
             // We don't support this SOCKS command.
             warn!("Dropping request; {:?} is unsupported", request.command());
-            let reply = request.reply(tor_socksproto::SocksStatus::COMMAND_NOT_SUPPORTED, None);
+            let reply = request
+                .reply(tor_socksproto::SocksStatus::COMMAND_NOT_SUPPORTED, None)
+                .context("Encoding socks reply")?;
             write_all_and_close(&mut socks_w, &reply[..]).await?;
         }
     };
@@ -307,7 +316,8 @@ where
             request.reply(tor_socksproto::SocksStatus::TTL_EXPIRED, None)
         }
         _ => request.reply(tor_socksproto::SocksStatus::GENERAL_FAILURE, None),
-    };
+    }
+    .context("Encoding socks reply")?;
     // if writing back the error fail, still return the original error
     let _ = write_all_and_close(writer, &reply[..]).await;
 

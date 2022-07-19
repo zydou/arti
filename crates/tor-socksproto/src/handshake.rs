@@ -3,8 +3,8 @@
 use crate::msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result, TResult, Truncated};
 
-use tor_bytes::Error as BytesError;
 use tor_bytes::Result as BytesResult;
+use tor_bytes::{EncodeResult, Error as BytesError};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 use tor_error::internal;
 
@@ -264,7 +264,7 @@ impl SocksRequest {
     ///
     /// Note that an address should be provided only when the request
     /// was for a RESOLVE.
-    pub fn reply(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> Vec<u8> {
+    pub fn reply(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> EncodeResult<Vec<u8>> {
         match self.version() {
             SocksVersion::V4 => self.s4(status, addr),
             SocksVersion::V5 => self.s5(status, addr),
@@ -272,38 +272,38 @@ impl SocksRequest {
     }
 
     /// Format a SOCKS4 reply.
-    fn s4(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> Vec<u8> {
+    fn s4(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> EncodeResult<Vec<u8>> {
         let mut w = Vec::new();
         w.write_u8(0);
         w.write_u8(status.into_socks4_status());
         match addr {
             Some(SocksAddr::Ip(IpAddr::V4(ip))) => {
                 w.write_u16(self.port());
-                w.write(ip);
+                w.write(ip)?;
             }
             _ => {
                 w.write_u16(0);
                 w.write_u32(0);
             }
         }
-        w
+        Ok(w)
     }
 
     /// Format a SOCKS5 reply.
-    pub fn s5(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> Vec<u8> {
+    fn s5(&self, status: SocksStatus, addr: Option<&SocksAddr>) -> EncodeResult<Vec<u8>> {
         let mut w = Vec::new();
         w.write_u8(5);
         w.write_u8(status.into());
         w.write_u8(0); // reserved.
         if let Some(a) = addr {
-            w.write(a);
+            w.write(a)?;
             w.write_u16(self.port());
         } else {
             // TODO: sometimes I think we want to answer with ::, not 0.0.0.0
-            w.write(&SocksAddr::Ip(std::net::Ipv4Addr::UNSPECIFIED.into()));
+            w.write(&SocksAddr::Ip(std::net::Ipv4Addr::UNSPECIFIED.into()))?;
             w.write_u16(0);
         }
-        w
+        Ok(w)
     }
 }
 
@@ -336,15 +336,15 @@ impl Readable for SocksAddr {
 }
 
 impl Writeable for SocksAddr {
-    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) {
+    fn write_onto<W: Writer + ?Sized>(&self, w: &mut W) -> EncodeResult<()> {
         match self {
             SocksAddr::Ip(IpAddr::V4(ip)) => {
                 w.write_u8(1);
-                w.write(ip);
+                w.write(ip)?;
             }
             SocksAddr::Ip(IpAddr::V6(ip)) => {
                 w.write_u8(4);
-                w.write(ip);
+                w.write(ip)?;
             }
             SocksAddr::Hostname(h) => {
                 let h = h.as_ref();
@@ -352,9 +352,10 @@ impl Writeable for SocksAddr {
                 let hlen = h.len() as u8;
                 w.write_u8(3);
                 w.write_u8(hlen);
-                w.write(h.as_bytes());
+                w.write(h.as_bytes())?;
             }
         }
+        Ok(())
     }
 }
 
@@ -385,7 +386,8 @@ mod test {
             req.reply(
                 SocksStatus::GENERAL_FAILURE,
                 Some(&SocksAddr::Ip("127.0.0.1".parse().unwrap()))
-            ),
+            )
+            .unwrap(),
             hex!("00 5B 0050 7f000001")
         );
     }
@@ -410,7 +412,7 @@ mod test {
         assert_eq!(req.command(), SocksCmd::CONNECT);
 
         assert_eq!(
-            req.reply(SocksStatus::SUCCEEDED, None),
+            req.reply(SocksStatus::SUCCEEDED, None).unwrap(),
             hex!("00 5A 0000 00000000")
         );
     }
@@ -486,7 +488,8 @@ mod test {
                 Some(&SocksAddr::Hostname(
                     "foo.example.com".to_string().try_into().unwrap()
                 ))
-            ),
+            )
+            .unwrap(),
             hex!("05 04 00 03 0f 666f6f2e6578616d706c652e636f6d 1f90")
         );
     }
@@ -514,7 +517,8 @@ mod test {
         assert_eq!(req.auth(), &SocksAuth::NoAuth);
 
         assert_eq!(
-            req.reply(SocksStatus::GENERAL_FAILURE, Some(req.addr())),
+            req.reply(SocksStatus::GENERAL_FAILURE, Some(req.addr()))
+                .unwrap(),
             hex!("05 01 00 04 f000 0000 0000 0000 0000 0000 0000 ff11 1f90")
         );
     }
@@ -540,7 +544,7 @@ mod test {
         assert_eq!(req.auth(), &SocksAuth::NoAuth);
 
         assert_eq!(
-            req.reply(SocksStatus::SUCCEEDED, None),
+            req.reply(SocksStatus::SUCCEEDED, None).unwrap(),
             hex!("05 00 00 01 00000000 0000")
         );
     }

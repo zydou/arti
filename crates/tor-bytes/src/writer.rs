@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use educe::Educe;
 
 use crate::EncodeError;
+use crate::EncodeResult;
 use crate::Writeable;
 use crate::WriteableOnce;
 
@@ -75,17 +76,21 @@ pub trait Writer {
         let v = vec![0_u8; n];
         self.write_all(&v[..]);
     }
+
     /// Encode a Writeable object onto this writer, using its
     /// write_onto method.
-    fn write<E: Writeable + ?Sized>(&mut self, e: &E) {
-        e.write_onto(self);
+    fn write<E: Writeable + ?Sized>(&mut self, e: &E) -> EncodeResult<()> {
+        // TODO(nickm): should we recover from errors by undoing any partial
+        // writes that occurred?
+        e.write_onto(self)
     }
     /// Encode a WriteableOnce object onto this writer, using its
     /// write_into method.
-    fn write_and_consume<E: WriteableOnce>(&mut self, e: E) {
-        e.write_into(self);
+    fn write_and_consume<E: WriteableOnce>(&mut self, e: E) -> EncodeResult<()> {
+        // TODO(nickm): should we recover from errors by undoing any partial
+        // writes that occurred?
+        e.write_into(self)
     }
-
     /// Arranges to write a u8 length, and some data whose encoding is that length
     ///
     /// Prefer to use this function, rather than manual length calculations
@@ -169,8 +174,8 @@ where
     pub fn finish(self) -> Result<(), EncodeError> {
         let length = self.inner.len();
         let length: L = length.try_into().map_err(|_| EncodeError::BadLengthValue)?;
-        self.outer.write(&length);
-        self.outer.write(&self.inner);
+        self.outer.write(&length)?;
+        self.outer.write(&self.inner)?;
         Ok(())
     }
 }
@@ -201,28 +206,30 @@ mod tests {
     fn write_slice() {
         let mut v = Vec::new();
         v.write_u16(0x5468);
-        v.write(&b"ey're good dogs, Bront"[..]);
+        v.write(&b"ey're good dogs, Bront"[..]).unwrap();
 
         assert_eq!(&v[..], &b"They're good dogs, Bront"[..]);
     }
 
     #[test]
-    fn writeable() {
+    fn writeable() -> EncodeResult<()> {
         struct Sequence(u8);
         impl Writeable for Sequence {
-            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) {
+            fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
                 for i in 0..self.0 {
                     b.write_u8(i);
                 }
+                Ok(())
             }
         }
 
         let mut v = Vec::new();
-        v.write(&Sequence(6));
+        v.write(&Sequence(6))?;
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5]);
 
-        v.write_and_consume(Sequence(3));
+        v.write_and_consume(Sequence(3))?;
         assert_eq!(&v[..], &[0, 1, 2, 3, 4, 5, 0, 1, 2]);
+        Ok(())
     }
 
     #[test]
@@ -245,6 +252,9 @@ mod tests {
 
         let mut w = v.write_nested_u8len();
         w.write_zeros(256);
-        assert_eq!(w.finish().err().unwrap(), EncodeError::BadLengthValue);
+        assert!(matches!(
+            w.finish().err().unwrap(),
+            EncodeError::BadLengthValue
+        ));
     }
 }

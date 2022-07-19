@@ -7,7 +7,7 @@ use super::msg;
 use crate::chancell::CELL_DATA_LEN;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
-use tor_bytes::{Error, Result};
+use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Readable, Reader, Writeable, Writer};
 
 /// Indicates the payload is a hostname.
@@ -40,9 +40,10 @@ impl Readable for AddressPort {
 }
 
 impl Writeable for AddressPort {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
-        w.write(&self.addr);
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
+        w.write(&self.addr)?;
         w.write_u16(self.port);
+        Ok(())
     }
 }
 
@@ -104,7 +105,7 @@ impl Readable for Address {
 }
 
 impl Writeable for Address {
-    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         // Address type.
         w.write_u8(self.wire_addr_type());
         // Address length and data.
@@ -114,11 +115,11 @@ impl Writeable for Address {
             Address::Hostname(h) => {
                 w.write_all(&h[..]);
             }
-            Address::Ipv4(ip) => w.write(ip),
-            Address::Ipv6(ip) => w.write(ip),
+            Address::Ipv4(ip) => w.write(ip)?,
+            Address::Ipv6(ip) => w.write(ip)?,
         }
 
-        w.finish().expect("address did not fit!");
+        w.finish()
     }
 }
 
@@ -201,9 +202,10 @@ impl msg::Body for ConnectUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u32(self.flags.bits());
-        w.write(&self.addr);
+        w.write(&self.addr)?;
+        Ok(())
     }
 }
 
@@ -248,9 +250,10 @@ impl msg::Body for ConnectedUdp {
         })
     }
 
-    fn encode_onto(self, w: &mut Vec<u8>) {
-        w.write(&self.our_address);
-        w.write(&self.their_address);
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+        w.write(&self.our_address)?;
+        w.write(&self.their_address)?;
+        Ok(())
     }
 }
 
@@ -312,7 +315,8 @@ impl msg::Body for Datagram {
         })
     }
 
-    fn encode_onto(mut self, w: &mut Vec<u8>) {
+    fn encode_onto(mut self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.append(&mut self.body);
+        Ok(())
     }
 }

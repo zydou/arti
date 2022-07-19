@@ -3,11 +3,11 @@
 //! Only available when the crate is built with the `encode` feature.
 
 use crate::{
-    CertExt, Ed25519Cert, Ed25519CertConstructor, EncodeError, ExtType, SignedWithEd25519Ext,
+    CertEncodeError, CertExt, Ed25519Cert, Ed25519CertConstructor, ExtType, SignedWithEd25519Ext,
     UnrecognizedExt,
 };
 use std::time::{Duration, SystemTime};
-use tor_bytes::Writer;
+use tor_bytes::{EncodeResult, Writeable, Writer};
 use tor_llcrypto::pk::ed25519;
 
 impl Ed25519Cert {
@@ -18,24 +18,21 @@ impl Ed25519Cert {
     }
 }
 
-impl CertExt {
+impl Writeable for CertExt {
     /// As Writeable::WriteOnto, but may return an error.
     ///
     /// TODO: Migrate Writeable to provide this interface.
-    fn write_onto_fallible<B: Writer + ?Sized>(&self, w: &mut B) -> Result<(), EncodeError> {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         match self {
-            CertExt::SignedWithEd25519(pk) => pk.write_onto_fallible(w),
-            CertExt::Unrecognized(u) => u.write_onto_fallible(w),
+            CertExt::SignedWithEd25519(pk) => pk.write_onto(w),
+            CertExt::Unrecognized(u) => u.write_onto(w),
         }
     }
 }
 
-impl SignedWithEd25519Ext {
+impl Writeable for SignedWithEd25519Ext {
     /// As Writeable::WriteOnto, but may return an error.
-    ///
-    /// TODO: Migrate Writeable to provide this interface.
-    #[allow(clippy::unnecessary_wraps)]
-    fn write_onto_fallible<B: Writer + ?Sized>(&self, w: &mut B) -> Result<(), EncodeError> {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         // body length
         w.write_u16(32);
         // Signed-with-ed25519-key-extension
@@ -48,18 +45,16 @@ impl SignedWithEd25519Ext {
     }
 }
 
-impl UnrecognizedExt {
+impl Writeable for UnrecognizedExt {
     /// As Writeable::WriteOnto, but may return an error.
-    ///
-    /// TODO: Migrate Writeable to provide this interface.
-    fn write_onto_fallible<B: Writer + ?Sized>(&self, w: &mut B) -> Result<(), EncodeError> {
+    fn write_onto<B: Writer + ?Sized>(&self, w: &mut B) -> EncodeResult<()> {
         // We can't use Writer::write_nested_u16len here, since the length field
         // doesn't include the type or the flags.
         w.write_u16(
             self.body
                 .len()
                 .try_into()
-                .map_err(|_| EncodeError::ExtensionTooLong)?,
+                .map_err(|_| tor_bytes::EncodeError::BadLengthValue)?,
         );
         w.write_u8(self.ext_type.into());
         let flags = if self.affects_validation { 1 } else { 0 };
@@ -114,7 +109,7 @@ impl Ed25519CertConstructor {
     /// This function exists in lieu of a `build()` function, since we have a rule that
     /// we don't produce an `Ed25519Cert` except if the certificate is known to be
     /// valid.
-    pub fn encode_and_sign(&self, skey: &ed25519::Keypair) -> Result<Vec<u8>, EncodeError> {
+    pub fn encode_and_sign(&self, skey: &ed25519::Keypair) -> Result<Vec<u8>, CertEncodeError> {
         use ed25519::Signer;
         let Ed25519CertConstructor {
             exp_hours,
@@ -126,7 +121,7 @@ impl Ed25519CertConstructor {
 
         if let Some(Some(signer)) = &signed_with {
             if signer != &skey.public {
-                return Err(EncodeError::KeyMismatch);
+                return Err(CertEncodeError::KeyMismatch);
             }
         }
 
@@ -134,13 +129,13 @@ impl Ed25519CertConstructor {
         w.write_u8(1); // Version
         w.write_u8(
             cert_type
-                .ok_or(EncodeError::MissingField("cert_type"))?
+                .ok_or(CertEncodeError::MissingField("cert_type"))?
                 .into(),
         );
-        w.write_u32(exp_hours.ok_or(EncodeError::MissingField("expiration"))?);
+        w.write_u32(exp_hours.ok_or(CertEncodeError::MissingField("expiration"))?);
         let cert_key = cert_key
             .clone()
-            .ok_or(EncodeError::MissingField("cert_key"))?;
+            .ok_or(CertEncodeError::MissingField("cert_key"))?;
         w.write_u8(cert_key.key_type().into());
         w.write_all(cert_key.as_bytes());
         let extensions = extensions.as_ref().map(Vec::as_slice).unwrap_or(&[]);
@@ -148,15 +143,15 @@ impl Ed25519CertConstructor {
             extensions
                 .len()
                 .try_into()
-                .map_err(|_| EncodeError::TooManyExtensions)?,
+                .map_err(|_| CertEncodeError::TooManyExtensions)?,
         );
 
         for e in extensions.iter() {
-            e.write_onto_fallible(&mut w)?;
+            e.write_onto(&mut w)?;
         }
 
         let signature = skey.sign(&w[..]);
-        w.write(&signature);
+        w.write(&signature)?;
         Ok(w)
     }
 }

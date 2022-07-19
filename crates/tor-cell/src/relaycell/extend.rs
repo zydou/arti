@@ -2,7 +2,7 @@
 
 use crate::{Error, Result};
 use caret::caret_int;
-use tor_bytes::{Readable, Reader, Writeable, Writer};
+use tor_bytes::{EncodeResult, Readable, Reader, Writeable, Writer};
 
 caret_int! {
     /// A type of ntor v3 extension data (`EXT_FIELD_TYPE`).
@@ -40,8 +40,11 @@ pub enum NtorV3Extension {
 
 impl NtorV3Extension {
     /// Encode a set of extensions into a `tor_bytes::Writer`.
-    pub fn write_many_onto<'a, W: Writer>(exts: impl Iterator<Item = &'a Self>, out: &mut W) {
-        exts.for_each(|x| x.write_onto(out));
+    pub fn write_many_onto<'a, W: Writer>(
+        mut exts: impl Iterator<Item = &'a Self>,
+        out: &mut W,
+    ) -> EncodeResult<()> {
+        exts.try_for_each(|x| x.write_onto(out))
     }
 
     /// Decode a slice of bytes representing the "message" of an ntor v3 handshake into a set of
@@ -62,7 +65,7 @@ impl NtorV3Extension {
 }
 
 impl Writeable for NtorV3Extension {
-    fn write_onto<W: Writer + ?Sized>(&self, out: &mut W) {
+    fn write_onto<W: Writer + ?Sized>(&self, out: &mut W) -> EncodeResult<()> {
         match self {
             NtorV3Extension::RequestCongestionControl => {
                 out.write_all(&[1, 0]);
@@ -77,6 +80,7 @@ impl Writeable for NtorV3Extension {
                 out.write_all(data);
             }
         }
+        Ok(())
     }
 }
 
