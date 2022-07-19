@@ -469,6 +469,9 @@ impl<T> PostageWatchSenderExt<T> for postage::watch::Sender<T> {
 /// Wrapper for `postage::watch::Sender` that sends `Default` when dropped
 ///
 /// Derefs to the inner `Sender`.
+///
+/// Ideally this would be behaviour promised by upstream, or something
+/// See <https://github.com/austinjones/postage-rs/issues/57>.
 pub struct DropNotifyWatchSender<T: Default>(Option<postage::watch::Sender<T>>);
 
 impl<T: Default> DropNotifyWatchSender<T> {
