@@ -454,6 +454,10 @@ impl<T> PostageWatchSenderExt<T> for postage::watch::Sender<T> {
         let lock = self.borrow();
         let new = update(&*lock)?;
         if new != *lock {
+            // We must drop the lock guard, because otherwise borrow_mut will deadlock.
+            // There is no race, because we hold &mut self, so no-one else can get a look in.
+            // (postage::watch::Sender is not one of those facilities which is mereely a
+            // handle, and Clone.)
             drop(lock);
             *self.borrow_mut() = new;
         }
