@@ -66,7 +66,7 @@ fn from_env_var_value(input: std::result::Result<String, VarError>) -> Option<St
     s.make_ascii_lowercase();
     match s.as_ref() {
         "" => None,
-        "0" | "no" | "never" | "false" => Some(Status::CheckPermissions),
+        "0" | "no" | "never" | "false" | "n" => Some(Status::CheckPermissions),
         _ => Some(Status::DisableChecks),
     }
 }
@@ -104,7 +104,7 @@ mod test {
             );
         }
 
-        for word in ["no", "0", "false", "NO", "Never"] {
+        for word in ["no", "0", "false", "NO", "Never", "n"] {
             assert_eq!(
                 from_env_var_value(Ok(word.into())),
                 Some(Status::CheckPermissions)
