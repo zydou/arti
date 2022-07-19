@@ -1,1 +1,1 @@
-BREAKING: Removed some TorClientBuilder methods related to overriding Mistrust.
+BREAKING: Removed some TorClientBuilder methods related to Mistrust, in favour of new fs-mistrust features.

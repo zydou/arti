@@ -1,1 +1,1 @@
-MODIFIED: New accessor to configure how we look at the environment.
+MODIFIED: New facilities to configure how we look at the environment.
