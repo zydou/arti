@@ -8,9 +8,11 @@ use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
 use safelog::sensitive;
+use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
+use tor_error::{internal, Bug};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -19,9 +21,9 @@ use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
 use futures::task::SpawnExt;
+use futures::StreamExt as _;
 use std::net::IpAddr;
 use std::result::Result as StdResult;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::err::ErrorDetail;
@@ -83,11 +85,8 @@ pub struct TorClient<R: Runtime> {
     /// instead.
     should_bootstrap: BootstrapBehavior,
 
-    /// Handles to periodic background tasks, useful for suspending them later.
-    periodic_task_handles: Vec<TaskHandle>,
-
     /// Shared boolean for whether we're currently in "dormant mode" or not.
-    dormant: Arc<AtomicBool>,
+    dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
 
     /// Settings for how we perform permissions checks on the filesystem.
     fs_mistrust: fs_mistrust::Mistrust,
@@ -112,10 +111,12 @@ pub enum BootstrapBehavior {
 }
 
 /// What level of sleep to put a Tor client into.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Educe, PartialEq, Eq)]
+#[educe(Default)]
 #[non_exhaustive]
 pub enum DormantMode {
     /// The client functions as normal, and background tasks run periodically.
+    #[educe(Default)]
     Normal,
     /// Background tasks are suspended, conserving CPU usage. Attempts to use the client will
     /// wake it back up again.
@@ -393,6 +394,13 @@ impl<R: Runtime> TorClient<R> {
                 .into_iter(),
         );
 
+        let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(DormantMode::Normal));
+        let dormant_send = DropNotifyWatchSender::new(dormant_send);
+
+        runtime
+            .spawn(tasks_monitor_dormant(dormant_recv, periodic_task_handles))
+            .map_err(|e| ErrorDetail::from_spawn("periodic task dormant monitor", e))?;
+
         let conn_status = chanmgr.bootstrap_events();
         let dir_status = dirmgr.bootstrap_events();
         let skew_status = circmgr.skew_events();
@@ -420,8 +428,7 @@ impl<R: Runtime> TorClient<R> {
             status_receiver,
             bootstrap_in_progress: Arc::new(AsyncMutex::new(())),
             should_bootstrap: autobootstrap,
-            periodic_task_handles,
-            dormant: Arc::new(AtomicBool::new(false)),
+            dormant: Arc::new(Mutex::new(dormant_send)),
             fs_mistrust: mistrust,
         })
     }
@@ -495,10 +502,17 @@ impl<R: Runtime> TorClient<R> {
                 self.bootstrap_in_progress.lock().await;
             }
         }
-        // NOTE(eta): will need to be changed when hard dormant mode is introduced
-        if self.dormant.load(Ordering::SeqCst) {
-            self.set_dormant(DormantMode::Normal);
-        }
+        self.dormant
+            .lock()
+            .map_err(|_| internal!("dormant poisoned"))?
+            .try_maybe_send(|dormant| {
+                Ok::<_, Bug>(Some({
+                    match dormant.ok_or_else(|| internal!("dormant dropped"))? {
+                        DormantMode::Soft => DormantMode::Normal,
+                        other @ DormantMode::Normal => other,
+                    }
+                }))
+            })?;
         Ok(())
     }
 
@@ -871,20 +885,30 @@ impl<R: Runtime> TorClient<R> {
     ///
     /// See the [`DormantMode`] documentation for more details.
     pub fn set_dormant(&self, mode: DormantMode) {
+        *self
+            .dormant
+            .lock()
+            .expect("dormant lock poisoned")
+            .borrow_mut() = Some(mode);
+    }
+}
+
+/// Monitor `dormant_mode` and enable/disable periodic tasks as applicable
+///
+/// This function is spawned as a task during client construction.
+// TODO should this perhaps be done by each TaskHandle?
+async fn tasks_monitor_dormant(
+    mut dormant_rx: postage::watch::Receiver<Option<DormantMode>>,
+    periodic_task_handles: Vec<TaskHandle>,
+) {
+    while let Some(Some(mode)) = dormant_rx.next().await {
         let is_dormant = matches!(mode, DormantMode::Soft);
 
-        // Do an atomic compare-exchange. If it succeeds, we just flipped `self.dormant`.
-        if self
-            .dormant
-            .compare_exchange(!is_dormant, is_dormant, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
-        {
-            for task in self.periodic_task_handles.iter() {
-                if is_dormant {
-                    task.cancel();
-                } else {
-                    task.fire();
-                }
+        for task in periodic_task_handles.iter() {
+            if is_dormant {
+                task.cancel();
+            } else {
+                task.fire();
             }
         }
     }
