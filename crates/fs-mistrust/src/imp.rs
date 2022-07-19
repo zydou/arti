@@ -42,7 +42,7 @@ impl<'a> super::Verifier<'a> {
     // to the code.  It's not urgent, since the allocations won't cost much
     // compared to the filesystem access.
     pub(crate) fn check_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
-        if self.mistrust.dangerously_trust_everyone {
+        if self.mistrust.is_disabled() {
             // We don't want to walk the path in this case at all: we'll just
             // look at the last element.
 
@@ -88,7 +88,7 @@ impl<'a> super::Verifier<'a> {
     pub(crate) fn check_content_errors(&self, path: &Path) -> impl Iterator<Item = Error> + '_ {
         use std::sync::Arc;
 
-        if !self.check_contents || self.mistrust.dangerously_trust_everyone {
+        if !self.check_contents || self.mistrust.is_disabled() {
             return boxed(std::iter::empty());
         }
 

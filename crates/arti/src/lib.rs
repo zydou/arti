@@ -165,7 +165,7 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
-use arti_client::config::{default_config_file, fs_permissions_checks_disabled_via_env};
+use arti_client::config::default_config_file;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
 use tor_config::ConfigurationSources;
@@ -223,18 +223,14 @@ pub async fn run<R: Runtime>(
     config_sources: ConfigurationSources,
     arti_config: ArtiConfig,
     client_config: TorClientConfig,
-    fs_mistrust_disabled: bool,
 ) -> Result<()> {
     // Using OnDemand arranges that, while we are bootstrapping, incoming connections wait
     // for bootstrap to complete, rather than getting errors.
     use arti_client::BootstrapBehavior::OnDemand;
     use futures::FutureExt;
-    let mut client_builder = TorClient::with_runtime(runtime.clone())
+    let client_builder = TorClient::with_runtime(runtime.clone())
         .config(client_config)
         .bootstrap_behavior(OnDemand);
-    if fs_mistrust_disabled {
-        client_builder = client_builder.disable_fs_permission_checks();
-    }
     let client = client_builder.create_unbootstrapped()?;
     if arti_config.application().watch_configuration {
         watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
@@ -403,22 +399,30 @@ pub fn main_main() -> Result<()> {
     let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
         let matches = clap_app.get_matches();
 
-        let fs_mistrust_disabled = fs_permissions_checks_disabled_via_env()
-            | matches.is_present("disable-fs-permission-checks");
+        let fs_mistrust_disabled = matches.is_present("disable-fs-permission-checks");
 
         // A Mistrust object to use for loading our configuration.  Elsewhere, we
         // use the value _from_ the configuration.
         let cfg_mistrust = if fs_mistrust_disabled {
             fs_mistrust::Mistrust::new_dangerously_trust_everyone()
         } else {
-            fs_mistrust::Mistrust::new()
+            fs_mistrust::MistrustBuilder::default()
+                .controlled_by_env_var(arti_client::config::FS_PERMISSIONS_CHECKS_DISABLE_VAR)
+                .build()
+                .expect("Could not construct default fs-mistrust")
         };
+
+        let mut override_options: Vec<&str> =
+            matches.values_of("option").unwrap_or_default().collect();
+        if fs_mistrust_disabled {
+            override_options.push("storage.permissions.dangerously_trust_everyone=true");
+        }
 
         let cfg_sources = {
             let mut cfg_sources = ConfigurationSources::from_cmdline(
                 default_config_file()?,
                 matches.values_of_os("config-files").unwrap_or_default(),
-                matches.values_of("option").unwrap_or_default(),
+                override_options,
             );
             cfg_sources.set_mistrust(cfg_mistrust);
             cfg_sources
@@ -428,25 +432,13 @@ pub fn main_main() -> Result<()> {
         let (config, client_config) =
             tor_config::resolve::<ArtiCombinedConfig>(cfg).context("read configuration")?;
 
-        let log_mistrust = if fs_mistrust_disabled {
-            fs_mistrust::Mistrust::new_dangerously_trust_everyone()
-        } else {
-            client_config.fs_mistrust().clone()
-        };
+        let log_mistrust = client_config.fs_mistrust().clone();
 
-        Ok::<_, Error>((
-            matches,
-            cfg_sources,
-            config,
-            client_config,
-            fs_mistrust_disabled,
-            log_mistrust,
-        ))
+        Ok::<_, Error>((matches, cfg_sources, config, client_config, log_mistrust))
     })?;
     // Sadly I don't seem to be able to persuade rustfmt to format the two lists of
     // variable names identically.
-    let (matches, cfg_sources, config, client_config, fs_mistrust_disabled, log_mistrust) =
-        pre_config_logging_ret;
+    let (matches, cfg_sources, config, client_config, log_mistrust) = pre_config_logging_ret;
 
     let _log_guards = logging::setup_logging(
         config.logging(),
@@ -486,7 +478,6 @@ pub fn main_main() -> Result<()> {
             cfg_sources,
             config,
             client_config,
-            fs_mistrust_disabled,
         ))?;
         Ok(())
     } else {
