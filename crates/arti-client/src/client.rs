@@ -362,7 +362,8 @@ impl<R: Runtime> TorClient<R> {
         let statemgr = FsStateMgr::from_path_and_mistrust(
             config.storage.expand_state_dir()?,
             config.storage.permissions(),
-        )?;
+        )
+        .map_err(ErrorDetail::StateMgrSetup)?;
         let addr_cfg = config.address_filter.clone();
 
         let (status_sender, status_receiver) = postage::watch::channel();
@@ -459,7 +460,12 @@ impl<R: Runtime> TorClient<R> {
         // This is a futures::lock::Mutex, so it's okay to await while we hold it.
         let _bootstrap_lock = self.bootstrap_in_progress.lock().await;
 
-        if self.statemgr.try_lock()?.held() {
+        if self
+            .statemgr
+            .try_lock()
+            .map_err(ErrorDetail::StateAccess)?
+            .held()
+        {
             debug!("It appears we have the lock on our state files.");
         } else {
             info!(

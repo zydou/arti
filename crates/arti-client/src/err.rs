@@ -123,6 +123,10 @@ enum ErrorDetail {
     #[error("Error setting up the directory manager")]
     DirMgrSetup(#[source] tor_dirmgr::Error),
 
+    /// Error setting up the state mangager.
+    #[error("Error setting up the persistent state manager")]
+    StateMgrSetup(#[source] tor_persist::Error),
+
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
@@ -150,8 +154,8 @@ enum ErrorDetail {
     },
 
     /// An error while interfacing with the persistent data layer.
-    #[error("Error from state manager")]
-    Persist(#[from] tor_persist::Error),
+    #[error("Error while trying to access persistent state")]
+    StateAccess(#[source] tor_persist::Error),
 
     /// We asked an exit to do something, and waited too long for an answer.
     #[error("Timed out while waiting for answer from exit")]
@@ -268,9 +272,10 @@ impl tor_error::HasKind for ErrorDetail {
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
+            E::StateMgrSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
             E::StreamFailed { cause, .. } => cause.kind(),
-            E::Persist(e) => e.kind(),
+            E::StateAccess(e) => e.kind(),
             E::Configuration(e) => e.kind(),
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
