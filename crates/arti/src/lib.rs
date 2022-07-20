@@ -352,7 +352,6 @@ pub fn main_main() -> Result<()> {
                 Arg::with_name("disable-fs-permission-checks")
                     .long("disable-fs-permission-checks")
                     .takes_value(false)
-                    .value_name("FILE")
                     .global(true)
                     .help("Don't check permissions on the files we use."),
             )
