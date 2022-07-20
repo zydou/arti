@@ -6,6 +6,10 @@ set -euo pipefail
 #
 # If a package supports multiple licenses (using OR), then we are okay
 # if it supports _any_ of these licenses.
+#
+# We don't currently do a good job of understanding AND, so
+# intersting license combinations that involve AND may need to be given
+# in quotes.
 RECOGNIZED_LICENSES=(
     Apache-2.0
     BSD-2-Clause
@@ -14,6 +18,7 @@ RECOGNIZED_LICENSES=(
     ISC
     MIT
     Unlicense
+    "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
 )
 
 # List of packages that don't list a license.
@@ -75,12 +80,21 @@ for line in $(cargo license --all-features -t); do
     fi
 
     found_ok=0
-    for lic in ${licenses// OR /$'\n'}; do
-	if containsElement "$lic" "${RECOGNIZED_LICENSES[@]}"; then
-	    found_ok=1
-	    break
-	fi
-    done
+    if containsElement "$licenses" "${RECOGNIZED_LICENSES[@]}"; then
+	found_ok=1
+    else
+        # TODO: By Splitting on "OR" without parsing, this can give bogus
+        # elements in the output if the license is something like "(A OR
+        # B) AND C".  Fortunately the parenthesis will save us from false
+        # negatives here, but in the end we should probably switch to a
+        # real parser.
+        for lic in ${licenses// OR /$'\n'}; do
+    	    if containsElement "$lic" "${RECOGNIZED_LICENSES[@]}"; then
+		found_ok=1
+    		break
+	    fi
+	done
+    fi
     if test $found_ok = "0"; then
 	echo "$package does not advertise any supported license!"
 	echo "   ($package: $licenses)"
