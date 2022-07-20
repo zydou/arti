@@ -471,7 +471,10 @@ impl<R: Runtime> TorClient<R> {
         // unlock the state files.
         let unlock_guard = util::StateMgrUnlockGuard::new(&self.statemgr);
 
-        self.dirmgr.bootstrap().await?;
+        self.dirmgr
+            .bootstrap()
+            .await
+            .map_err(ErrorDetail::DirMgrBootstrap)?;
 
         // Since we succeeded, disarm the unlock guard.
         unlock_guard.disarm();

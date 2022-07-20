@@ -118,6 +118,11 @@ enum ErrorDetail {
     #[error("Error setting up the circuit manager")]
     CircMgrSetup(#[source] tor_circmgr::Error),
 
+    /// Error setting up the directory manager
+    // TODO: should "dirmgr setup error" be its own type in tor-dirmgr?
+    #[error("Error setting up the directory manager")]
+    DirMgrSetup(#[source] tor_dirmgr::Error),
+
     /// Failed to obtain exit circuit
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
@@ -129,9 +134,9 @@ enum ErrorDetail {
         cause: tor_circmgr::Error,
     },
 
-    /// Error while getting a circuit
-    #[error("Directory state error")]
-    DirMgr(#[from] tor_dirmgr::Error),
+    /// Directory manager was unable to bootstrap a working directory.
+    #[error("Unable to bootstrap a working directory")]
+    DirMgrBootstrap(#[source] tor_dirmgr::Error),
 
     /// A protocol error while launching a stream
     #[error("Protocol error while launching a stream")]
@@ -255,7 +260,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::CircMgrSetup(e) => e.kind(),
-            E::DirMgr(e) => e.kind(),
+            E::DirMgrSetup(e) => e.kind(),
+            E::DirMgrBootstrap(e) => e.kind(),
             E::Proto(e) => e.kind(),
             E::Persist(e) => e.kind(),
             E::Configuration(e) => e.kind(),
