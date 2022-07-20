@@ -139,8 +139,15 @@ enum ErrorDetail {
     DirMgrBootstrap(#[source] tor_dirmgr::Error),
 
     /// A protocol error while launching a stream
-    #[error("Protocol error while launching a stream")]
-    Proto(#[from] tor_proto::Error),
+    #[error("Protocol error while launching a {kind} stream")]
+    StreamFailed {
+        /// What kind of stream we were trying to launch.
+        kind: &'static str,
+
+        /// The error that occurred.
+        #[source]
+        cause:  tor_proto::Error
+    },
 
     /// An error while interfacing with the persistent data layer.
     #[error("Error from state manager")]
@@ -262,7 +269,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
-            E::Proto(e) => e.kind(),
+            E::StreamFailed { cause, .. } => cause.kind(),
             E::Persist(e) => e.kind(),
             E::Configuration(e) => e.kind(),
             E::Reconfigure(e) => e.kind(),

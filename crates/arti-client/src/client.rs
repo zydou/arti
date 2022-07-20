@@ -699,7 +699,10 @@ impl<R: Runtime> TorClient<R> {
             .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "data",
+            })?;
 
         Ok(stream)
     }
@@ -752,7 +755,10 @@ impl<R: Runtime> TorClient<R> {
             .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "DNS lookup",
+            })?;
 
         Ok(addrs)
     }
@@ -783,7 +789,10 @@ impl<R: Runtime> TorClient<R> {
             )
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "reverse DNS lookup",
+            })?;
 
         Ok(hostnames)
     }
