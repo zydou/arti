@@ -52,7 +52,7 @@ digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
 once_cell = "1"
-phf = { version = "0.11.0", features = ["macros"] }
+phf = { version = "0.10.0", features = ["macros"] }
 rand = { version = "0.8", optional = true }
 serde = "1.0.103"
 serde_with = "2.0.0"
