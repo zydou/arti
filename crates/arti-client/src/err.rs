@@ -109,17 +109,19 @@ pub_if_error_detail! {
 #[non_exhaustive]
 enum ErrorDetail {
     /// Error setting up the channel manager
+    // TODO: should "chanmgr setup error" be its own type in tor-chanmgr
     #[error("Error setting up the channel manager")]
-    ChanMgrSetup(#[source] tor_chanmgr::Error), // TODO should this be its own type?
+    ChanMgrSetup(#[source] tor_chanmgr::Error),
 
     /// Error setting up the circuit manager
+    // TODO: should "circmgr setup error" be its own type in tor-circmgr?
     #[error("Error setting up the circuit manager")]
-    CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
+    CircMgrSetup(#[source] tor_circmgr::Error),
 
     /// Failed to obtain exit circuit
-    #[error("Failed to obtain exit circuit for {exit_ports}")]
+    #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
-        /// What for
+        /// The ports that we wanted a circuit for.
         exit_ports: TargetPorts,
 
         /// What went wrong
@@ -139,12 +141,13 @@ enum ErrorDetail {
     #[error("Error from state manager")]
     Persist(#[from] tor_persist::Error),
 
-    /// We asked an exit to do something, and waited too long for an answer..
-    #[error("exit timed out")]
+    /// We asked an exit to do something, and waited too long for an answer.
+    #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services not supported.
-    #[error("Rejecting .onion address as unsupported.")]
+    /// Onion services are not supported yet, but we were asked to connect to
+    /// one.
+    #[error("Rejecting .onion address as unsupported")]
     OnionAddressNotSupported,
 
     /// Unusable target address.
@@ -152,23 +155,23 @@ enum ErrorDetail {
     Address(#[from] crate::address::TorAddrError),
 
     /// Hostname not valid.
-    #[error("Rejecting hostname as invalid.")]
+    #[error("Rejecting hostname as invalid")]
     InvalidHostname,
 
-    /// Address was local, and that's not allowed.
+    /// Address was local, and we don't permit connecting to those over Tor.
     #[error("Cannot connect to a local-only address without enabling allow_local_addrs")]
     LocalAddress,
 
     /// Building configuration for the client failed.
-    #[error("Configuration failed")]
+    #[error("Problem with configuration")]
     Configuration(#[from] tor_config::ConfigBuildError),
 
     /// Unable to change configuration.
-    #[error("Reconfiguration failed")]
+    #[error("Unable to change configuration")]
     Reconfigure(#[from] tor_config::ReconfigureError),
 
     /// Unable to spawn task
-    #[error("unable to spawn {spawning}")]
+    #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn.
         spawning: &'static str,
@@ -177,16 +180,16 @@ enum ErrorDetail {
         cause: Arc<SpawnError>
     },
 
-    /// Attempted to use an unbootstrapped `TorClient` for something that requires bootstrapping
-    /// to have completed.
-    #[error("cannot {action} with unbootstrapped client")]
+    /// Attempted to use an unbootstrapped `TorClient` for something that
+    /// requires bootstrapping to have completed.
+    #[error("Cannot {action} with unbootstrapped client")]
     BootstrapRequired {
         /// What we were trying to do that required bootstrapping.
         action: &'static str
     },
 
     /// A programming problem, either in our code or the code calling it.
-    #[error("programming problem")]
+    #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
 }
 
