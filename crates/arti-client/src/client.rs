@@ -362,7 +362,8 @@ impl<R: Runtime> TorClient<R> {
         let statemgr = FsStateMgr::from_path_and_mistrust(
             config.storage.expand_state_dir()?,
             config.storage.permissions(),
-        )?;
+        )
+        .map_err(ErrorDetail::StateMgrSetup)?;
         let addr_cfg = config.address_filter.clone();
 
         let (status_sender, status_receiver) = postage::watch::channel();
@@ -459,7 +460,12 @@ impl<R: Runtime> TorClient<R> {
         // This is a futures::lock::Mutex, so it's okay to await while we hold it.
         let _bootstrap_lock = self.bootstrap_in_progress.lock().await;
 
-        if self.statemgr.try_lock()?.held() {
+        if self
+            .statemgr
+            .try_lock()
+            .map_err(ErrorDetail::StateAccess)?
+            .held()
+        {
             debug!("It appears we have the lock on our state files.");
         } else {
             info!(
@@ -471,7 +477,10 @@ impl<R: Runtime> TorClient<R> {
         // unlock the state files.
         let unlock_guard = util::StateMgrUnlockGuard::new(&self.statemgr);
 
-        self.dirmgr.bootstrap().await?;
+        self.dirmgr
+            .bootstrap()
+            .await
+            .map_err(ErrorDetail::DirMgrBootstrap)?;
 
         // Since we succeeded, disarm the unlock guard.
         unlock_guard.disarm();
@@ -696,7 +705,10 @@ impl<R: Runtime> TorClient<R> {
             .timeout(self.timeoutcfg.get().connect_timeout, stream_future)
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "data",
+            })?;
 
         Ok(stream)
     }
@@ -749,7 +761,10 @@ impl<R: Runtime> TorClient<R> {
             .timeout(self.timeoutcfg.get().resolve_timeout, resolve_future)
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "DNS lookup",
+            })?;
 
         Ok(addrs)
     }
@@ -780,7 +795,10 @@ impl<R: Runtime> TorClient<R> {
             )
             .await
             .map_err(|_| ErrorDetail::ExitTimeout)?
-            .map_err(wrap_err)?;
+            .map_err(|cause| ErrorDetail::StreamFailed {
+                cause,
+                kind: "reverse DNS lookup",
+            })?;
 
         Ok(hostnames)
     }

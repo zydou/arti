@@ -109,17 +109,28 @@ pub_if_error_detail! {
 #[non_exhaustive]
 enum ErrorDetail {
     /// Error setting up the channel manager
+    // TODO: should "chanmgr setup error" be its own type in tor-chanmgr
     #[error("Error setting up the channel manager")]
-    ChanMgrSetup(#[source] tor_chanmgr::Error), // TODO should this be its own type?
+    ChanMgrSetup(#[source] tor_chanmgr::Error),
 
     /// Error setting up the circuit manager
+    // TODO: should "circmgr setup error" be its own type in tor-circmgr?
     #[error("Error setting up the circuit manager")]
-    CircMgrSetup(#[source] tor_circmgr::Error), // TODO should this be its own type?
+    CircMgrSetup(#[source] tor_circmgr::Error),
+
+    /// Error setting up the directory manager
+    // TODO: should "dirmgr setup error" be its own type in tor-dirmgr?
+    #[error("Error setting up the directory manager")]
+    DirMgrSetup(#[source] tor_dirmgr::Error),
+
+    /// Error setting up the state mangager.
+    #[error("Error setting up the persistent state manager")]
+    StateMgrSetup(#[source] tor_persist::Error),
 
     /// Failed to obtain exit circuit
-    #[error("Failed to obtain exit circuit for {exit_ports}")]
+    #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
-        /// What for
+        /// The ports that we wanted a circuit for.
         exit_ports: TargetPorts,
 
         /// What went wrong
@@ -127,24 +138,32 @@ enum ErrorDetail {
         cause: tor_circmgr::Error,
     },
 
-    /// Error while getting a circuit
-    #[error("Directory state error")]
-    DirMgr(#[from] tor_dirmgr::Error),
+    /// Directory manager was unable to bootstrap a working directory.
+    #[error("Unable to bootstrap a working directory")]
+    DirMgrBootstrap(#[source] tor_dirmgr::Error),
 
     /// A protocol error while launching a stream
-    #[error("Protocol error while launching a stream")]
-    Proto(#[from] tor_proto::Error),
+    #[error("Protocol error while launching a {kind} stream")]
+    StreamFailed {
+        /// What kind of stream we were trying to launch.
+        kind: &'static str,
+
+        /// The error that occurred.
+        #[source]
+        cause:  tor_proto::Error
+    },
 
     /// An error while interfacing with the persistent data layer.
-    #[error("Error from state manager")]
-    Persist(#[from] tor_persist::Error),
+    #[error("Error while trying to access persistent state")]
+    StateAccess(#[source] tor_persist::Error),
 
-    /// We asked an exit to do something, and waited too long for an answer..
-    #[error("exit timed out")]
+    /// We asked an exit to do something, and waited too long for an answer.
+    #[error("Timed out while waiting for answer from exit")]
     ExitTimeout,
 
-    /// Onion services not supported.
-    #[error("Rejecting .onion address as unsupported.")]
+    /// Onion services are not supported yet, but we were asked to connect to
+    /// one.
+    #[error("Rejecting .onion address as unsupported")]
     OnionAddressNotSupported,
 
     /// Unusable target address.
@@ -152,23 +171,23 @@ enum ErrorDetail {
     Address(#[from] crate::address::TorAddrError),
 
     /// Hostname not valid.
-    #[error("Rejecting hostname as invalid.")]
+    #[error("Rejecting hostname as invalid")]
     InvalidHostname,
 
-    /// Address was local, and that's not allowed.
+    /// Address was local, and we don't permit connecting to those over Tor.
     #[error("Cannot connect to a local-only address without enabling allow_local_addrs")]
     LocalAddress,
 
     /// Building configuration for the client failed.
-    #[error("Configuration failed")]
+    #[error("Problem with configuration")]
     Configuration(#[from] tor_config::ConfigBuildError),
 
     /// Unable to change configuration.
-    #[error("Reconfiguration failed")]
+    #[error("Unable to change configuration")]
     Reconfigure(#[from] tor_config::ReconfigureError),
 
     /// Unable to spawn task
-    #[error("unable to spawn {spawning}")]
+    #[error("Unable to spawn {spawning}")]
     Spawn {
         /// What we were trying to spawn.
         spawning: &'static str,
@@ -177,16 +196,16 @@ enum ErrorDetail {
         cause: Arc<SpawnError>
     },
 
-    /// Attempted to use an unbootstrapped `TorClient` for something that requires bootstrapping
-    /// to have completed.
-    #[error("cannot {action} with unbootstrapped client")]
+    /// Attempted to use an unbootstrapped `TorClient` for something that
+    /// requires bootstrapping to have completed.
+    #[error("Cannot {action} with unbootstrapped client")]
     BootstrapRequired {
         /// What we were trying to do that required bootstrapping.
         action: &'static str
     },
 
     /// A programming problem, either in our code or the code calling it.
-    #[error("programming problem")]
+    #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
 }
 
@@ -252,9 +271,11 @@ impl tor_error::HasKind for ErrorDetail {
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::CircMgrSetup(e) => e.kind(),
-            E::DirMgr(e) => e.kind(),
-            E::Proto(e) => e.kind(),
-            E::Persist(e) => e.kind(),
+            E::DirMgrSetup(e) => e.kind(),
+            E::StateMgrSetup(e) => e.kind(),
+            E::DirMgrBootstrap(e) => e.kind(),
+            E::StreamFailed { cause, .. } => cause.kind(),
+            E::StateAccess(e) => e.kind(),
             E::Configuration(e) => e.kind(),
             E::Reconfigure(e) => e.kind(),
             E::Spawn { cause, .. } => cause.kind(),
