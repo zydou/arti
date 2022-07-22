@@ -131,11 +131,17 @@ pub struct DownloadScheduleConfig {
 
 impl_standard_builder! { DownloadScheduleConfig }
 
-/// Configuration for how much clock skew to tolerate in our directory information
+/// Configuration for how much much to extend the official tolerances of our
+/// directory information.
+///
+/// Because of possible clock skew, and because we want to tolerate possible
+/// failures of the directory authorities to reach a consensus, we want to
+/// consider a directory to be valid for a while before and after its official
+/// range of validity.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[builder(build_fn(error = "ConfigBuildError"))]
-pub struct DirSkewTolerance {
+pub struct DirTolerance {
     /// For how long before a directory document is valid should we accept it?
     ///
     /// Having a nonzero value here allows us to tolerate a little clock skew.
@@ -161,9 +167,9 @@ pub struct DirSkewTolerance {
     pub(crate) post_valid_tolerance: Duration,
 }
 
-impl_standard_builder! { DirSkewTolerance }
+impl_standard_builder! { DirTolerance }
 
-impl DirSkewTolerance {
+impl DirTolerance {
     /// Return a new [`TimerangeBound`] that extends the validity interval of
     /// `timebound` according to this configuration.
     pub(crate) fn extend_tolerance<B>(&self, timebound: TimerangeBound<B>) -> TimerangeBound<B> {
@@ -233,7 +239,7 @@ pub struct DirMgrConfig {
     pub schedule: DownloadScheduleConfig,
 
     /// How much skew do we tolerate in directory validity times?
-    pub tolerance: DirSkewTolerance,
+    pub tolerance: DirTolerance,
 
     /// A map of network parameters that we're overriding from their settings in
     /// the consensus.

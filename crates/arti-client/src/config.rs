@@ -33,7 +33,7 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirSkewTolerance, DirSkewToleranceBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DirTolerance, DirToleranceBuilder,
         DownloadSchedule, DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir,
         FallbackDirBuilder, NetworkConfig, NetworkConfigBuilder,
     };
@@ -247,7 +247,7 @@ pub struct TorClientConfig {
     /// Information about how much clock skew to tolerate in our directory information
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    download_tolerance: dir::DirSkewTolerance,
+    download_tolerance: dir::DirTolerance,
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
