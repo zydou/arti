@@ -335,6 +335,11 @@ mod test {
         }
     }
 
+    fn new_test_abstract_chanmgr<R: Runtime>(runtime: R) -> AbstractChanMgr<FakeChannelFactory<R>> {
+        let cf = FakeChannelFactory::new(runtime);
+        AbstractChanMgr::new(cf)
+    }
+
     #[async_trait]
     impl<RT: Runtime> ChannelFactory for FakeChannelFactory<RT> {
         type Channel = FakeChannel;
@@ -364,8 +369,7 @@ mod test {
     #[test]
     fn connect_one_ok() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
             let target = (413, '!');
             let chan1 = mgr.get_or_launch(413, target).await.unwrap().0;
             let chan2 = mgr.get_or_launch(413, target).await.unwrap().0;
@@ -380,8 +384,7 @@ mod test {
     #[test]
     fn connect_one_fail() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             // This is set up to always fail.
             let target = (999, '❌');
@@ -396,8 +399,7 @@ mod test {
     #[test]
     fn test_concurrent() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             // TODO(nickm): figure out how to make these actually run
             // concurrently. Right now it seems that they don't actually
@@ -429,8 +431,7 @@ mod test {
     #[test]
     fn unusable_entries() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
                 mgr.get_or_launch(3, (3, 'a')),
