@@ -3471,6 +3471,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex-literal",
+ "itertools",
  "postage",
  "rand 0.8.5",
  "serde",

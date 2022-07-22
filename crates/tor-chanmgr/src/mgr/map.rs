@@ -19,6 +19,9 @@ use tor_proto::ChannelsParams;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
 
+#[cfg(test)]
+mod padding_test;
+
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
 /// We make this a separate type instead of just using
