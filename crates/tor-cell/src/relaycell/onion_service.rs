@@ -5,7 +5,7 @@
 
 use super::msg;
 use caret::caret_int;
-use tor_bytes::{Error, Result};
+use tor_bytes::{EncodeResult, Error, Result};
 use tor_bytes::{Reader, Writer};
 
 caret_int! {
@@ -56,7 +56,7 @@ impl msg::Body for EstablishIntro {
             sig,
         })
     }
-    fn encode_onto(self, w: &mut Vec<u8>) {
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_u8(self.auth_key_type.get());
         // TODO: This should fail when auth_key is too long,
         // but `as` truncates the value silently. This depends on
@@ -68,5 +68,6 @@ impl msg::Body for EstablishIntro {
         w.write_all(&self.handshake_auth[..]);
         w.write_u16(self.sig.len() as u16);
         w.write_all(&self.sig[..]);
+        Ok(())
     }
 }
