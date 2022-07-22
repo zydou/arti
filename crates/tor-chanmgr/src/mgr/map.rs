@@ -378,6 +378,11 @@ mod test {
     use std::result::Result as StdResult;
     use std::sync::Arc;
     use tor_proto::channel::params::ChannelsParamsUpdates;
+
+    fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
+        ChannelMap::new()
+    }
+
     #[derive(Eq, PartialEq, Clone, Debug)]
     struct FakeChannel {
         ident: &'static str,
@@ -444,7 +449,7 @@ mod test {
 
     #[test]
     fn simple_ops() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
         use ChannelState::Open;
 
         assert!(map.replace(b'h', ch("hello")).unwrap().is_none());
@@ -471,7 +476,7 @@ mod test {
 
     #[test]
     fn rmv_unusable() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         map.replace(b'm', closed("machen")).unwrap();
         map.replace(b'f', ch("feinen")).unwrap();
@@ -488,7 +493,7 @@ mod test {
 
     #[test]
     fn change() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         map.replace(b'w', ch("wir")).unwrap();
         map.replace(b'm', ch("machen")).unwrap();
@@ -543,7 +548,7 @@ mod test {
 
     #[test]
     fn reparameterise_via_netdir() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Set some non-default parameters so that we can tell when an update happens
         let _ = map
@@ -594,7 +599,7 @@ mod test {
 
     #[test]
     fn expire_channels() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Channel that has been unused beyond max duration allowed is expired
         map.replace(
@@ -607,7 +612,7 @@ mod test {
         assert_eq!(180, map.expire_channels().as_secs());
         assert!(map.get(&b'w').unwrap().is_none());
 
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Channel that has been unused for shorter than max unused duration
         map.replace(
