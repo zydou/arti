@@ -10,7 +10,9 @@ use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
 #[derive(Debug)]
-pub(crate) enum CreateResponse {
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[allow(clippy::exhaustive_enums)]
+pub enum CreateResponse {
     /// Destroy cell: the CREATE failed.
     Destroy(chanmsg::Destroy),
     /// CreatedFast: good response to a CREATE cell.
@@ -38,7 +40,8 @@ impl TryFrom<ChanMsg> for CreateResponse {
 /// A subclass of ChanMsg that can correctly arrive on a live client
 /// circuit (one where a CREATED* has been received).
 #[derive(Debug)]
-pub(crate) enum ClientCircChanMsg {
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+pub enum ClientCircChanMsg {
     /// A relay cell telling us some kind of remote command from some
     /// party on the circuit.
     Relay(chanmsg::Relay),

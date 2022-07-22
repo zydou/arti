@@ -65,9 +65,8 @@ mod reactor;
 mod unique_id;
 
 pub use crate::channel::params::*;
-use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
+use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::circuit::celltypes::CreateResponse;
 use crate::util::err::ChannelClosed;
 use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
@@ -79,6 +78,20 @@ use tor_cell::chancell::{msg, msg::PaddingNegotiate, ChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
+
+/// Imports that are re-exported pub if feature `testing` is enabled
+///
+/// Putting them together in a little module like this allows us to select the
+/// visibility for all of these things together.
+mod testing_exports {
+    #![allow(unreachable_pub)]
+    pub use super::reactor::CtrlMsg;
+    pub use crate::circuit::celltypes::CreateResponse;
+}
+#[cfg(feature = "testing")]
+pub use testing_exports::*;
+#[cfg(not(feature = "testing"))]
+use testing_exports::*;
 
 use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};

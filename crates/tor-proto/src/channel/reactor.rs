@@ -54,7 +54,9 @@ fn codec_err_to_chan(err: CodecError) -> Error {
 
 /// A message telling the channel reactor to do something.
 #[derive(Debug)]
-pub(super) enum CtrlMsg {
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[allow(clippy::exhaustive_enums)]
+pub enum CtrlMsg {
     /// Shut down the reactor.
     Shutdown,
     /// Tell the reactor that a given circuit has gone away.
