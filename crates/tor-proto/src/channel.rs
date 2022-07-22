@@ -620,6 +620,28 @@ impl Channel {
         self.send_control(CtrlMsg::CloseCircuit(circid))?;
         Ok(())
     }
+
+    /// Make a new fake reactor-less channel.  For testing only, obviously.
+    ///
+    /// Returns the receiver end of the control message mpsc.
+    ///
+    /// Suitable for external callers who want to test behaviour
+    /// of layers including the logic in the channel frontend.
+    //
+    // This differs from test::fake_channel as follows:
+    //  * It returns the mpsc Receiver
+    //  * It does not require explicit specification of details
+    #[cfg(feature = "testing")]
+    pub fn new_fake() -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
+        let (control, control_recv) = mpsc::unbounded();
+        let details = fake_channel_details();
+        let channel = Channel {
+            control,
+            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            details,
+        };
+        (channel, control_recv)
+    }
 }
 
 /// If there is any identity in `wanted_ident` that is not present in
