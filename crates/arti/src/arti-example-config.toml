@@ -130,8 +130,11 @@
 # How to retry a set of microdescriptor downloads.
 #retry_microdescs = { attempts = 3, initial_delay = "1 sec", parallelism = 4 }
 
-# Configuration for how much clock skew to tolerate in our directory information
-[download_tolerance]
+# Information about how premature or expired our directories are allowed to be.
+#
+# These options help us tolerate clock skew, and help survive the case where the
+# directory authorities are unable to reach consensus for a while.
+[directory_tolerance]
 # For how long before a directory document is valid should we accept it?
 #pre_valid_tolerance = "1 day"
 
