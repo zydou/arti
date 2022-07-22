@@ -355,6 +355,7 @@ impl<R: Runtime> TorClient<R> {
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
+        let dormant = DormantMode::Normal;
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
             c.extensions = dirmgr_extensions;
@@ -393,7 +394,7 @@ impl<R: Runtime> TorClient<R> {
                 .into_iter(),
         );
 
-        let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(DormantMode::Normal));
+        let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(dormant));
         let dormant_send = DropNotifyWatchSender::new(dormant_send);
 
         runtime
