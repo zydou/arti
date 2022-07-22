@@ -17,6 +17,8 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use bitflags::bitflags;
 
+#[cfg(feature = "onion-service")]
+use super::onion_service;
 #[cfg(feature = "experimental-udp")]
 use super::udp;
 
@@ -63,10 +65,13 @@ pub enum RelayMsg {
     /// UDP stream data
     #[cfg(feature = "experimental-udp")]
     Datagram(udp::Datagram),
+    // No hs for now.
+    #[cfg(feature = "onion-service")]
+    /// Establish Introduction
+    EstablishIntro(onion_service::EstablishIntro),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
-    // No hs for now.
 }
 
 /// Internal: traits in common different cell bodies.
@@ -111,6 +116,8 @@ impl RelayMsg {
             ConnectedUdp(_) => RelayCmd::CONNECTED_UDP,
             #[cfg(feature = "experimental-udp")]
             Datagram(_) => RelayCmd::DATAGRAM,
+            #[cfg(feature = "onion-service")]
+            EstablishIntro(_) => RelayCmd::ESTABLISH_INTRO,
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -140,6 +147,10 @@ impl RelayMsg {
             }
             #[cfg(feature = "experimental-udp")]
             RelayCmd::DATAGRAM => RelayMsg::Datagram(udp::Datagram::decode_from_reader(r)?),
+            #[cfg(feature = "onion-service")]
+            RelayCmd::ESTABLISH_INTRO => {
+                RelayMsg::EstablishIntro(onion_service::EstablishIntro::decode_from_reader(r)?)
+            }
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
@@ -168,6 +179,8 @@ impl RelayMsg {
             ConnectedUdp(b) => b.encode_onto(w),
             #[cfg(feature = "experimental-udp")]
             Datagram(b) => b.encode_onto(w),
+            #[cfg(feature = "onion-service")]
+            EstablishIntro(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
     }
