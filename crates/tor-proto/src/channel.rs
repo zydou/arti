@@ -653,6 +653,24 @@ where
     Ok(())
 }
 
+/// Make some fake channel details (for testing only!)
+#[allow(dead_code)] // only relevant for tests or with the feature "testing"
+fn fake_channel_details() -> Arc<ChannelDetails> {
+    let unique_id = UniqId::new();
+    let unused_since = OptTimestamp::new();
+    let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
+
+    Arc::new(ChannelDetails {
+        unique_id,
+        peer_id,
+        closed: AtomicBool::new(false),
+        unused_since,
+        clock_skew: ClockSkew::None,
+        opened_at: coarsetime::Instant::now(),
+        mutable: Default::default(),
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // Most of this module is tested via tests that also check on the
@@ -671,22 +689,6 @@ pub(crate) mod test {
             cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
             details,
         }
-    }
-
-    fn fake_channel_details() -> Arc<ChannelDetails> {
-        let unique_id = UniqId::new();
-        let unused_since = OptTimestamp::new();
-        let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
-
-        Arc::new(ChannelDetails {
-            unique_id,
-            peer_id,
-            closed: AtomicBool::new(false),
-            unused_since,
-            clock_skew: ClockSkew::None,
-            opened_at: coarsetime::Instant::now(),
-            mutable: Default::default(),
-        })
     }
 
     #[test]
