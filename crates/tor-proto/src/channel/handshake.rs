@@ -455,8 +455,6 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
             ));
         }
 
-        let ed25519_id: Ed25519Identity = identity_key.into();
-
         // Part 2: validate rsa stuff.
 
         // What is the RSA identity key, according to the X.509 certificate
@@ -494,7 +492,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         trace!(
             "{}: Validated identity as {} [{}]",
             self.unique_id,
-            ed25519_id,
+            identity_key,
             rsa_id
         );
 
@@ -506,7 +504,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // We do this _last_, since "this is the wrong peer" is
         // usually a different situation than "this peer couldn't even
         // identify itself right."
-        if *peer.ed_identity() != ed25519_id {
+        if peer.ed_identity() != identity_key {
             return Err(Error::HandshakeProto(
                 "Peer ed25519 id not as expected".into(),
             ));
@@ -539,7 +537,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
             tls: self.tls,
             unique_id: self.unique_id,
             target_addr: self.target_addr,
-            ed25519_id,
+            ed25519_id: *identity_key,
             rsa_id,
             clock_skew: self.clock_skew,
             sleep_prov: self.sleep_prov,

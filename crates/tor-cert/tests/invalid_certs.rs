@@ -61,7 +61,7 @@ fn mismatched_signing_key() {
          094A0236CDAC45034B0B6842C18E7F6B51B93A3CF7E60663B8AD061C30A62602"
     );
     let cert = Ed25519Cert::decode(&c[..]).unwrap();
-    let not_that_key = ed25519::PublicKey::from_bytes(&hex!(
+    let not_that_key = ed25519::Ed25519Identity::from_bytes(&hex!(
         "DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96CC"
     ))
     .unwrap();

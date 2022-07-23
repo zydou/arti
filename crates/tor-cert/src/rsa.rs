@@ -37,8 +37,8 @@ impl RsaCrosscert {
     }
 
     /// Return true if the subject key in this certificate matches `other`
-    pub fn subject_key_matches(&self, other: &ll::pk::ed25519::PublicKey) -> bool {
-        &self.subject_key == other
+    pub fn subject_key_matches(&self, other: &ll::pk::ed25519::Ed25519Identity) -> bool {
+        other == &self.subject_key.into()
     }
 
     /// Decode a slice of bytes into an RSA crosscert.
