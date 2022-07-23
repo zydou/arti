@@ -410,20 +410,20 @@ mod test {
 
         let mut b = OuterBuilder::default();
         assert!(b.opt_list().is_none());
-        assert_eq! { (&b).build().expect("build failed").list, ['a'] };
+        assert_eq! { b.build().expect("build failed").list, ['a'] };
 
         b.list().push('b');
         assert!(b.opt_list().is_some());
-        assert_eq! { (&b).build().expect("build failed").list, ['a', 'b'] };
+        assert_eq! { b.build().expect("build failed").list, ['a', 'b'] };
 
         for mut b in [b.clone(), OuterBuilder::default()] {
             b.set_list(vec!['x', 'y']);
             assert!(b.opt_list().is_some());
-            assert_eq! { (&b).build().expect("build failed").list, ['x', 'y'] };
+            assert_eq! { b.build().expect("build failed").list, ['x', 'y'] };
         }
 
         *b.opt_list_mut() = None;
-        assert_eq! { (&b).build().expect("build failed").list, ['a'] };
+        assert_eq! { b.build().expect("build failed").list, ['a'] };
     }
 
     #[test]

@@ -548,6 +548,7 @@ mod test {
                 .multi_cartesian_product()
             {
                 let s: String = c_vec.into_iter().collect();
+                #[allow(clippy::print_stderr)]
                 let b = match s.parse::<B64>() {
                     Ok(b) => {
                         eprintln!("{:10} {:?}", &s, b.as_bytes());

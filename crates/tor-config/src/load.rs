@@ -383,7 +383,7 @@ where
             };
             ret?
         };
-        let built = (&builder).build()?;
+        let built = builder.build()?;
         Ok(built)
     }
 }
