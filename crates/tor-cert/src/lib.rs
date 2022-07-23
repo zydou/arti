@@ -44,7 +44,7 @@
 //!
 //! // Decode the cert and check its signature.
 //! let cert = Ed25519Cert::decode(&cert_bin).unwrap()
-//!     .check_key(&None).unwrap()
+//!     .check_key(None).unwrap()
 //!     .check_signature().unwrap()
 //!     .dangerously_assume_timely();
 //! let signed_key = cert.subject_key();
@@ -465,7 +465,7 @@ impl KeyUnknownCert {
     ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
-    pub fn check_key(self, pkey: &Option<ed25519::PublicKey>) -> CertResult<UncheckedCert> {
+    pub fn check_key(self, pkey: Option<&ed25519::PublicKey>) -> CertResult<UncheckedCert> {
         let real_key = match (pkey, self.cert.cert.signed_with) {
             (Some(a), Some(b)) if a == &b => b,
             (Some(_), Some(_)) => return Err(CertError::KeyMismatch),

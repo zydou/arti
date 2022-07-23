@@ -46,7 +46,7 @@ let cert_bin = base64::decode(cert_base64).unwrap();
 
 // Decode the cert and check its signature.
 let cert = Ed25519Cert::decode(&cert_bin).unwrap()
-    .check_key(&None).unwrap()
+    .check_key(None).unwrap()
     .check_signature().unwrap()
     .dangerously_assume_timely();
 let signed_key = cert.subject_key();

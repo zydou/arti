@@ -179,7 +179,7 @@ mod test {
 
         let decoded = Ed25519Cert::decode(&encoded).unwrap(); // Well-formed?
         let validated = decoded
-            .check_key(&Some(keypair.public))
+            .check_key(Some(&keypair.public))
             .unwrap()
             .check_signature()
             .unwrap(); // Well-signed?
