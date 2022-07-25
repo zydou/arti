@@ -108,7 +108,7 @@ use std::{fmt::Debug, time::SystemTime};
 use crate::state::{DirState, NetDirChange};
 pub use authority::{Authority, AuthorityBuilder};
 pub use config::{
-    DirMgrConfig, DirSkewTolerance, DirSkewToleranceBuilder, DownloadScheduleConfig,
+    DirMgrConfig, DirTolerance, DirToleranceBuilder, DownloadScheduleConfig,
     DownloadScheduleConfigBuilder, NetworkConfig, NetworkConfigBuilder,
 };
 pub use docid::DocId;
@@ -1027,7 +1027,7 @@ fn upgrade_weak_ref<T>(weak: &Weak<T>) -> Result<Arc<T>> {
 /// return the age of the oldest consensus that we should request at that time.
 pub(crate) fn default_consensus_cutoff(
     now: SystemTime,
-    tolerance: &DirSkewTolerance,
+    tolerance: &DirTolerance,
 ) -> Result<SystemTime> {
     /// We _always_ allow at least this much age in our consensuses, to account
     /// for the fact that consensuses have some lifetime.
@@ -1219,7 +1219,7 @@ mod test {
                 )
                 .unwrap()
             };
-            let tolerance = DirSkewTolerance::default().post_valid_tolerance;
+            let tolerance = DirTolerance::default().post_valid_tolerance;
             match req {
                 ClientRequest::Consensus(r) => {
                     assert_eq!(r.old_consensus_digests().count(), 0);

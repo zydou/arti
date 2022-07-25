@@ -33,7 +33,7 @@ pub mod circ {
 /// Types for configuring how Tor accesses its directory information.
 pub mod dir {
     pub use tor_dirmgr::{
-        Authority, AuthorityBuilder, DirMgrConfig, DirSkewTolerance, DirSkewToleranceBuilder,
+        Authority, AuthorityBuilder, DirMgrConfig, DirTolerance, DirToleranceBuilder,
         DownloadSchedule, DownloadScheduleConfig, DownloadScheduleConfigBuilder, FallbackDir,
         FallbackDirBuilder, NetworkConfig, NetworkConfigBuilder,
     };
@@ -244,10 +244,15 @@ pub struct TorClientConfig {
     #[builder_field_attr(serde(default))]
     download_schedule: dir::DownloadScheduleConfig,
 
-    /// Information about how much clock skew to tolerate in our directory information
+    /// Information about how premature or expired our directories are allowed
+    /// to be.
+    ///
+    /// These options help us tolerate clock skew, and help survive the case
+    /// where the directory authorities are unable to reach consensus for a
+    /// while.
     #[builder(sub_builder)]
     #[builder_field_attr(serde(default))]
-    download_tolerance: dir::DirSkewTolerance,
+    directory_tolerance: dir::DirTolerance,
 
     /// Facility to override network parameters from the values set in the
     /// consensus.
@@ -321,7 +326,7 @@ impl TorClientConfig {
         Ok(dir::DirMgrConfig {
             network:             self.tor_network        .clone(),
             schedule:            self.download_schedule  .clone(),
-            tolerance:           self.download_tolerance .clone(),
+            tolerance:           self.directory_tolerance.clone(),
             cache_path:          self.storage.expand_cache_dir()?,
             cache_trust:         self.storage.permissions.clone(),
             override_net_params: self.override_net_params.clone(),

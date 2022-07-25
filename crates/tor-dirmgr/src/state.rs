@@ -1542,7 +1542,7 @@ mod test {
             assert!(!state.is_ready(Readiness::Complete));
             assert!(!state.is_ready(Readiness::Usable));
             let consensus_expires: SystemTime = datetime!(2020-08-07 12:43:20 UTC).into();
-            let post_valid_tolerance = crate::DirSkewTolerance::default().post_valid_tolerance;
+            let post_valid_tolerance = crate::DirTolerance::default().post_valid_tolerance;
             assert_eq!(
                 state.reset_time(),
                 Some(consensus_expires + post_valid_tolerance)
