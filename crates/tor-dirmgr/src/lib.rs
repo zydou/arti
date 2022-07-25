@@ -860,18 +860,8 @@ impl<R: Runtime> DirMgr<R> {
     }
 
     /// Return an Arc handle to our latest directory, if we have one.
-    pub fn opt_netdir(&self) -> Option<Arc<NetDir>> {
+    fn opt_netdir(&self) -> Option<Arc<NetDir>> {
         self.netdir.get()
-    }
-
-    /// Return an Arc handle to our latest directory, returning an error if there is none.
-    ///
-    /// # Errors
-    ///
-    /// Errors with [`Error::DirectoryNotPresent`] if the `DirMgr` hasn't been bootstrapped yet.
-    // TODO: Add variants of this that make sure that it's up-to-date?
-    pub fn netdir(&self) -> Result<Arc<NetDir>> {
-        self.opt_netdir().ok_or(Error::DirectoryNotPresent)
     }
 
     /// Return a new asynchronous stream that will receive notification
