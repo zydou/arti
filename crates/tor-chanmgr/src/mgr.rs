@@ -234,8 +234,11 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                                 // manager lock acquisition span as the one where we insert the
                                 // channel into the table so it will receive updates.  I.e.,
                                 // here.
-                                chan.reparameterize(channels_params.initial_update().into())
-                                    .map_err(|_| internal!("failure on new channel"))?;
+                                let update = channels_params.initial_update();
+                                if let Some(update) = update {
+                                    chan.reparameterize(update.into())
+                                        .map_err(|_| internal!("failure on new channel"))?;
+                                }
                                 Ok(Open(OpenEntry {
                                     channel: chan.clone(),
                                     max_unused_duration: Duration::from_secs(

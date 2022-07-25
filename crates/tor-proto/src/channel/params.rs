@@ -75,16 +75,17 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
     }
 
     impl ChannelsParams {
-        /// Create an update message which sets *all* of the settings in `self`
+        /// Create an update message which sets all non-default settings in `self`
         ///
         /// Used during channel startup.
         #[must_use = "initial_update makes an updates message that must be sent to have effect"]
-        pub fn initial_update(&self) -> ChannelsParamsUpdates {
-            ChannelsParamsUpdates {
+        pub fn initial_update(&self) -> Option<ChannelsParamsUpdates> {
+            let mut supposed = ChannelsParams::default();
+            supposed.start_update()
               $(
-                $field: Some(self.$field.clone()),
+                .$field(self.$field.clone())
               )*
-            }
+                .finish()
         }
     }
 
