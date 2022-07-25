@@ -14,6 +14,7 @@
 #![allow(clippy::unwrap_used)]
 
 use crate::{MdDigest, MdReceiver, PartialNetDir};
+use std::iter;
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime};
 use tor_netdoc::doc::microdesc::{Microdesc, MicrodescBuilder};
@@ -53,17 +54,30 @@ pub fn construct_netdir() -> PartialNetDir {
 }
 
 /// As [`construct_custom_network()`], but return a [`PartialNetDir`].
-pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
+pub fn construct_custom_netdir_with_params<F, P, PK>(
+    func: F,
+    params: P,
+) -> BuildResult<PartialNetDir>
 where
     F: FnMut(usize, &mut NodeBuilders),
+    P: IntoIterator<Item = (PK, i32)>,
+    PK: Into<String>,
 {
     let (consensus, microdescs) = construct_custom_network(func)?;
-    let mut dir = PartialNetDir::new(consensus, None);
+    let mut dir = PartialNetDir::new(consensus, Some(&params.into_iter().collect()));
     for md in microdescs {
         dir.add_microdesc(md);
     }
 
     Ok(dir)
+}
+
+/// As [`construct_custom_network()`], but return a [`PartialNetDir`].
+pub fn construct_custom_netdir<F>(func: F) -> BuildResult<PartialNetDir>
+where
+    F: FnMut(usize, &mut NodeBuilders),
+{
+    construct_custom_netdir_with_params(func, iter::empty::<(&str, _)>())
 }
 
 /// As [`construct_custom_network`], but do not require a
