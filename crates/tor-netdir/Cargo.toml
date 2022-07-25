@@ -39,6 +39,7 @@ signature = "1"
 thiserror = "1"
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-config = { path = "../tor-config", version = "0.4.1" }
+tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.4.1" }
