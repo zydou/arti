@@ -154,7 +154,7 @@ pub trait DirProvider: NetDirProvider {
 impl<R: Runtime> NetDirProvider for DirMgr<R> {
     fn netdir(&self, timeliness: Timeliness) -> tor_netdir::Result<Arc<NetDir>> {
         use tor_netdir::Error as NetDirError;
-        let netdir = self.opt_netdir().ok_or(NetDirError::NoInfo)?;
+        let netdir = self.netdir.get().ok_or(NetDirError::NoInfo)?;
         let lifetime = match timeliness {
             Timeliness::Strict => netdir.lifetime().clone(),
             Timeliness::Timely => self
@@ -317,7 +317,9 @@ impl<R: Runtime> DirMgr<R> {
         // TODO: add some way to return a directory that isn't up-to-date
         let _success = dirmgr.load_directory(AttemptId::next()).await?;
 
-        dirmgr.opt_netdir().ok_or(Error::DirectoryNotPresent)
+        dirmgr
+            .netdir(Timeliness::Timely)
+            .map_err(|_| Error::DirectoryNotPresent)
     }
 
     /// Return a current netdir, either loading it or bootstrapping it
@@ -859,11 +861,6 @@ impl<R: Runtime> DirMgr<R> {
         Ok(self.netdir.get().is_some())
     }
 
-    /// Return an Arc handle to our latest directory, if we have one.
-    fn opt_netdir(&self) -> Option<Arc<NetDir>> {
-        self.netdir.get()
-    }
-
     /// Return a new asynchronous stream that will receive notification
     /// whenever the consensus has changed.
     ///
@@ -1090,7 +1087,7 @@ mod test {
             let (_tempdir, mgr) = new_mgr(rt);
 
             assert!(mgr.circmgr().is_err());
-            assert!(mgr.opt_netdir().is_none());
+            assert!(mgr.netdir(Timeliness::Unchecked).is_err());
         });
     }
 
