@@ -323,12 +323,6 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
         self.netdir(Timeliness::Timely)
     }
 
-    /// Return a handle to our latest directory, if we have one.
-    // XXXX(nickm): Remove this method.
-    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
-        self.netdir(Timeliness::Unchecked).ok()
-    }
-
     /// Return a new asynchronous stream that will receive notification
     /// whenever the consensus has changed.
     ///
@@ -348,10 +342,6 @@ where
 
     fn timely_netdir(&self) -> Result<Arc<NetDir>> {
         self.deref().timely_netdir()
-    }
-
-    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
-        self.deref().latest_netdir()
     }
 
     fn events(&self) -> BoxStream<'static, DirEvent> {
