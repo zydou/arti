@@ -207,8 +207,8 @@ impl<R: Runtime> ChanMgr<R> {
                         if ! matches!(direvent, DE::NewConsensus) { continue };
                         let self_ = self_.upgrade().ok_or("channel manager gone away")?;
                         let netdir = netdir.upgrade().ok_or("netdir gone away")?;
-                        let netdir = netdir.latest_netdir();
-                        let netdir = if let Some(nd) = netdir { nd } else { continue };
+                        let netdir = netdir.timely_netdir();
+                        let netdir = if let Ok(nd) = netdir { nd } else { continue };
                         self_.mgr.channels.process_updated_netdir(netdir).map_err(|e| {
                             error!("continually_update_channels_config: failed to process! {} {:?}",
                                    &e, &e);
