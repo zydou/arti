@@ -120,6 +120,17 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
             }
           )*
         }
+
+      $(
+        #[cfg(feature = "testing")]
+        $( #[doc $($doc_attr)*] )*
+        ///
+        /// Accessor.
+        /// For testing the logic which generates channel padding control instructions.
+        pub fn $field(&self) -> Option<&$ty> {
+            self.$field.as_ref()
+        }
+      )*
     }
 } }
 
