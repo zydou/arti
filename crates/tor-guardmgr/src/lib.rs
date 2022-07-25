@@ -688,11 +688,11 @@ impl GuardSets {
 impl GuardMgrInner {
     /// Look up the latest [`NetDir`] (if there is one) from our
     /// [`NetDirProvider`] (if we have one).
-    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
+    fn timely_netdir(&self) -> Option<Arc<NetDir>> {
         self.netdir_provider
             .as_ref()
             .and_then(Weak::upgrade)
-            .and_then(|np| np.latest_netdir())
+            .and_then(|np| np.timely_netdir().ok())
     }
 
     /// Run a function that takes `&mut self` and an optional NetDir.
@@ -709,7 +709,7 @@ impl GuardMgrInner {
     {
         if let Some(nd) = netdir {
             func(self, Some(nd))
-        } else if let Some(nd) = self.latest_netdir() {
+        } else if let Some(nd) = self.timely_netdir() {
             func(self, Some(nd.as_ref()))
         } else {
             func(self, None)
