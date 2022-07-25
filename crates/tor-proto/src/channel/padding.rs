@@ -15,6 +15,7 @@ use rand::distributions::Distribution;
 use tracing::error;
 
 use tor_cell::chancell::msg::Padding;
+use tor_config::impl_standard_builder;
 use tor_rtcompat::SleepProvider;
 use tor_units::IntegerMilliseconds;
 
@@ -96,6 +97,7 @@ pub(crate) struct Timer<R: SleepProvider> {
 
 /// Timing parameters, as described in `padding-spec.txt`
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Builder)]
+#[builder(build_fn(error = "tor_error::Bug"))]
 pub struct Parameters {
     /// Low end of the distribution of `X`
     #[builder(default = "1500.into()")]
@@ -105,13 +107,7 @@ pub struct Parameters {
     pub(crate) high_ms: IntegerMilliseconds<u32>,
 }
 
-impl Default for Parameters {
-    fn default() -> Self {
-        ParametersBuilder::default()
-            .build()
-            .expect("could not build default channel padding Parameters")
-    }
-}
+impl_standard_builder! { Parameters: !Deserialize + !Builder }
 
 /// Timing parameters, "compiled" into a form which can be sampled more efficiently
 ///
