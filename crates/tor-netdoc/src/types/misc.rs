@@ -315,7 +315,7 @@ mod edcert {
             Ok(self)
         }
         /// Give an error if this certificate's subject_key is not `pk`
-        pub(crate) fn check_subject_key_is(self, pk: &ed25519::PublicKey) -> Result<Self> {
+        pub(crate) fn check_subject_key_is(self, pk: &ed25519::Ed25519Identity) -> Result<Self> {
             if self.0.peek_subject_key().as_ed25519() != Some(pk) {
                 return Err(EK::BadObjectVal
                     .at_pos(self.1)
@@ -548,6 +548,7 @@ mod test {
                 .multi_cartesian_product()
             {
                 let s: String = c_vec.into_iter().collect();
+                #[allow(clippy::print_stderr)]
                 let b = match s.parse::<B64>() {
                     Ok(b) => {
                         eprintln!("{:10} {:?}", &s, b.as_bytes());
@@ -715,7 +716,7 @@ mod test {
             .unwrap()
             .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)
             .unwrap()
-            .check_subject_key_is(&right_subject_key.try_into().unwrap())
+            .check_subject_key_is(&right_subject_key)
             .unwrap();
         // check wrong type.
         assert!(cert
@@ -723,9 +724,7 @@ mod test {
             .check_cert_type(tor_cert::CertType::RSA_ID_X509)
             .is_err());
         // check wrong key.
-        assert!(cert
-            .check_subject_key_is(&wrong_subject_key.try_into().unwrap())
-            .is_err());
+        assert!(cert.check_subject_key_is(&wrong_subject_key).is_err());
 
         // Try an invalid object that isn't a certificate.
         let failure = UnvalidatedEdCert::from_vec(vec![1, 2, 3], Pos::None);

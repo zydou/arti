@@ -1218,12 +1218,7 @@ impl Signature {
     /// If possible, find the right certificate for checking this signature
     /// from among a slice of certificates.
     fn find_cert<'a>(&self, certs: &'a [AuthCert]) -> Option<&'a AuthCert> {
-        for c in certs {
-            if self.matches_cert(c) {
-                return Some(c);
-            }
-        }
-        None
+        certs.iter().find(|&c| self.matches_cert(c))
     }
 
     /// Try to check whether this signature is a valid signature of a

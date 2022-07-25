@@ -44,7 +44,7 @@
 //!
 //! // Decode the cert and check its signature.
 //! let cert = Ed25519Cert::decode(&cert_bin).unwrap()
-//!     .check_key(&None).unwrap()
+//!     .check_key(None).unwrap()
 //!     .check_signature().unwrap()
 //!     .dangerously_assume_timely();
 //! let signed_key = cert.subject_key();
@@ -207,7 +207,7 @@ pub struct Ed25519Cert {
     /// be set.  If there is a `SignedWithEd25519` extension in
     /// `self.extensions`, this will match it.
     #[cfg_attr(feature = "encode", builder(setter(custom)))]
-    signed_with: Option<ed25519::PublicKey>,
+    signed_with: Option<ed25519::Ed25519Identity>,
 }
 
 /// One of the data types that can be certified by an Ed25519Cert.
@@ -215,7 +215,7 @@ pub struct Ed25519Cert {
 #[non_exhaustive]
 pub enum CertifiedKey {
     /// An Ed25519 public key, signed directly.
-    Ed25519(ed25519::PublicKey),
+    Ed25519(ed25519::Ed25519Identity),
     /// The SHA256 digest of a DER-encoded RsaPublicKey
     RsaSha256Digest([u8; 32]),
     /// The SHA256 digest of an X.509 certificate.
@@ -256,7 +256,7 @@ impl CertifiedKey {
     }
     /// If this is an Ed25519 public key, return Some(key).
     /// Otherwise, return None.
-    pub fn as_ed25519(&self) -> Option<&ed25519::PublicKey> {
+    pub fn as_ed25519(&self) -> Option<&ed25519::Ed25519Identity> {
         match self {
             CertifiedKey::Ed25519(k) => Some(k),
             _ => None,
@@ -313,7 +313,7 @@ impl CertExt {
 #[derive(Debug, Clone)]
 struct SignedWithEd25519Ext {
     /// The key that signed the certificate including this extension.
-    pk: ed25519::PublicKey,
+    pk: ed25519::Ed25519Identity,
 }
 
 impl Readable for CertExt {
@@ -324,15 +324,10 @@ impl Readable for CertExt {
         let body = b.take(len as usize)?;
 
         Ok(match ext_type {
-            ExtType::SIGNED_WITH_ED25519_KEY => {
-                if body.len() != 32 {
-                    return Err(BytesError::BadMessage("wrong length on Ed25519 key"));
-                }
-                CertExt::SignedWithEd25519(SignedWithEd25519Ext {
-                    pk: ed25519::PublicKey::from_bytes(body)
-                        .map_err(|_| BytesError::BadMessage("invalid Ed25519 public key"))?,
-                })
-            }
+            ExtType::SIGNED_WITH_ED25519_KEY => CertExt::SignedWithEd25519(SignedWithEd25519Ext {
+                pk: ed25519::Ed25519Identity::from_bytes(body)
+                    .ok_or(BytesError::BadMessage("wrong length on Ed25519 key"))?,
+            }),
             _ => {
                 if (flags & 1) != 0 {
                     return Err(BytesError::BadMessage(
@@ -432,7 +427,7 @@ impl Ed25519Cert {
     }
 
     /// Return the ed25519 key that signed this certificate.
-    pub fn signing_key(&self) -> Option<&ed25519::PublicKey> {
+    pub fn signing_key(&self) -> Option<&ed25519::Ed25519Identity> {
         self.signed_with.as_ref()
     }
 
@@ -465,7 +460,7 @@ impl KeyUnknownCert {
     ///
     /// On success, we can check whether the certificate is well-signed;
     /// otherwise, we can't check the certificate.
-    pub fn check_key(self, pkey: &Option<ed25519::PublicKey>) -> CertResult<UncheckedCert> {
+    pub fn check_key(self, pkey: Option<&ed25519::Ed25519Identity>) -> CertResult<UncheckedCert> {
         let real_key = match (pkey, self.cert.cert.signed_with) {
             (Some(a), Some(b)) if a == &b => b,
             (Some(_), Some(_)) => return Err(CertError::KeyMismatch),
@@ -516,6 +511,9 @@ impl UncheckedCert {
     ) -> CertResult<(SigCheckedCert, ed25519::ValidatableEd25519Signature)> {
         use tor_checkable::SelfSigned;
         let signing_key = self.cert.signed_with.ok_or(CertError::MissingPubKey)?;
+        let signing_key = signing_key
+            .try_into()
+            .map_err(|_| CertError::BadSignature)?;
         let signature =
             ed25519::ValidatableEd25519Signature::new(signing_key, self.signature, &self.text[..]);
         Ok((self.dangerously_assume_wellsigned(), signature))
@@ -526,7 +524,7 @@ impl UncheckedCert {
         &self.cert.cert_key
     }
     /// Return signing key of the underlying cert.
-    pub fn peek_signing_key(&self) -> &ed25519::PublicKey {
+    pub fn peek_signing_key(&self) -> &ed25519::Ed25519Identity {
         self.cert
             .signed_with
             .as_ref()
@@ -539,6 +537,7 @@ impl tor_checkable::SelfSigned<SigCheckedCert> for UncheckedCert {
 
     fn is_well_signed(&self) -> CertResult<()> {
         let pubkey = &self.cert.signed_with.ok_or(CertError::MissingPubKey)?;
+        let pubkey: ed25519::PublicKey = pubkey.try_into().map_err(|_| CertError::BadSignature)?;
 
         pubkey
             .verify(&self.text[..], &self.signature)

@@ -719,9 +719,8 @@ impl<'a> Verifier<'a> {
             next
         };
 
-        match opt_error {
-            Some(err) => return Err(err),
-            None => {}
+        if let Some(err) = opt_error {
+            return Err(err);
         }
 
         Ok(())

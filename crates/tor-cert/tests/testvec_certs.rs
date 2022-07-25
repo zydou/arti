@@ -8,12 +8,12 @@ use hex_literal::hex;
 
 #[test]
 fn test_valid_ed() {
-    use tor_llcrypto::pk::ed25519::PublicKey;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     // These are taken from a CERTS cell in a chutney network.
     let signing_key = hex!("F82294B866A31F01FC5D0DA8572850A9B929545C3266558D7D2316E3B74172B0");
     let identity_key = hex!("DCB604DB2034B00FD16986D4ADB9D16B21CB4E4457A33DEC0F538903683E96E9");
-    let signing_key = PublicKey::from_bytes(&signing_key[..]).unwrap();
-    let identity_key = PublicKey::from_bytes(&identity_key[..]).unwrap();
+    let signing_key = Ed25519Identity::from_bytes(&signing_key[..]).unwrap();
+    let identity_key = Ed25519Identity::from_bytes(&identity_key[..]).unwrap();
 
     let notional_time = SystemTime::UNIX_EPOCH + Duration::new(1601000000, 0);
 
@@ -30,7 +30,7 @@ fn test_valid_ed() {
     assert_eq!(cert.peek_cert_type(), 4.into());
     assert_eq!(cert.peek_subject_key().as_ed25519(), Some(&signing_key));
     let cert = cert
-        .check_key(&None)
+        .check_key(None)
         .unwrap()
         .check_signature()
         .unwrap()
@@ -59,7 +59,7 @@ fn test_valid_ed() {
     assert_eq!(cert.peek_cert_type(), 5.into());
     assert_eq!(cert.peek_subject_key().as_bytes(), &tls_cert_digest[..]);
     let cert = cert
-        .check_key(&Some(signing_key))
+        .check_key(Some(&signing_key))
         .unwrap()
         .check_signature()
         .unwrap()
@@ -110,5 +110,5 @@ fn test_valid_rsa_cc() {
         .unwrap()
         .check_valid_at(&notional_time)
         .unwrap();
-    assert!(cert.subject_key_matches(&ed_identity));
+    assert!(cert.subject_key_matches(&ed_identity.into()));
 }

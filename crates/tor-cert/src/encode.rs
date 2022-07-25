@@ -84,7 +84,7 @@ impl Ed25519CertConstructor {
     /// This is optional: you don't need to include the signing key at all.  If
     /// you do, it must match the key that you actually use to sign the
     /// certificate.
-    pub fn signing_key(&mut self, key: ed25519::PublicKey) -> &mut Self {
+    pub fn signing_key(&mut self, key: ed25519::Ed25519Identity) -> &mut Self {
         self.clear_signing_key();
         self.signed_with = Some(Some(key));
         self.extensions
@@ -120,7 +120,7 @@ impl Ed25519CertConstructor {
         } = self;
 
         if let Some(Some(signer)) = &signed_with {
-            if signer != &skey.public {
+            if *signer != skey.public.into() {
                 return Err(CertEncodeError::KeyMismatch);
             }
         }
@@ -172,24 +172,24 @@ mod test {
         let day = Duration::from_secs(86400);
         let encoded = Ed25519Cert::constructor()
             .expiration(now + day * 30)
-            .cert_key(CertifiedKey::Ed25519(keypair.public))
+            .cert_key(CertifiedKey::Ed25519(keypair.public.into()))
             .cert_type(7.into())
             .encode_and_sign(&keypair)
             .unwrap();
 
         let decoded = Ed25519Cert::decode(&encoded).unwrap(); // Well-formed?
         let validated = decoded
-            .check_key(&Some(keypair.public))
+            .check_key(Some(&keypair.public.into()))
             .unwrap()
             .check_signature()
             .unwrap(); // Well-signed?
         let cert = validated.check_valid_at(&(now + day * 20)).unwrap();
         assert_eq!(cert.cert_type(), 7.into());
         if let CertifiedKey::Ed25519(found) = cert.subject_key() {
-            assert_eq!(found, &keypair.public);
+            assert_eq!(found, &keypair.public.into());
         } else {
             panic!("wrong key type");
         }
-        assert!(cert.signing_key() == Some(&keypair.public));
+        assert!(cert.signing_key() == Some(&keypair.public.into()));
     }
 }
