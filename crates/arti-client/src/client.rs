@@ -12,6 +12,7 @@ use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
+use tor_dirmgr::Timeliness;
 use tor_error::{internal, Bug};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -832,6 +833,24 @@ impl<R: Runtime> TorClient<R> {
         &self.runtime
     }
 
+    /// Return a netdir that is timely according to the rules of `timeliness`.
+    ///
+    /// Use `action` to
+    fn netdir(
+        &self,
+        timeliness: Timeliness,
+        action: &'static str,
+    ) -> StdResult<Arc<tor_netdir::NetDir>, ErrorDetail> {
+        use tor_netdir::Error as E;
+        match self.dirmgr.netdir(timeliness) {
+            Ok(netdir) => Ok(netdir),
+            Err(E::NoInfo) | Err(E::NotEnoughInfo) => {
+                Err(ErrorDetail::BootstrapRequired { action })
+            }
+            Err(error) => Err(ErrorDetail::NoDir { error, action }),
+        }
+    }
+
     /// Get or launch an exit-suitable circuit with a given set of
     /// exit ports.
     async fn get_or_launch_exit_circ(
@@ -840,12 +859,7 @@ impl<R: Runtime> TorClient<R> {
         prefs: &StreamPrefs,
     ) -> StdResult<ClientCirc, ErrorDetail> {
         self.wait_for_bootstrap().await?;
-        let dir = self
-            .dirmgr
-            .latest_netdir()
-            .ok_or(ErrorDetail::BootstrapRequired {
-                action: "launch a circuit",
-            })?;
+        let dir = self.netdir(Timeliness::Timely, "build a circuit")?;
 
         let isolation = {
             let mut b = StreamIsolationBuilder::new();
