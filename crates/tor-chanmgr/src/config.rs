@@ -5,7 +5,7 @@
 //! Most types in this module are re-exported by `arti-client`.
 
 use tor_config::impl_standard_builder;
-use tor_config::ConfigBuildError;
+use tor_config::{ConfigBuildError, PaddingLevel};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -17,10 +17,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
-#[non_exhaustive] // TODO needed until there are fields
-#[builder_struct_attr(non_exhaustive)] // TODO needed until there are fields
 pub struct ChannelConfig {
-    // TODO
+    /// Control of channel padding
+    #[builder(default)]
+    pub(crate) padding: PaddingLevel,
 }
 impl_standard_builder! { ChannelConfig }
 
@@ -38,8 +38,8 @@ mod test {
 
     #[test]
     fn channel_config() {
-        let _config = ChannelConfig::default();
+        let config = ChannelConfig::default();
 
-        // TODO
+        assert_eq!(PaddingLevel::Normal, config.padding);
     }
 }

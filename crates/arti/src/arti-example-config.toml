@@ -208,7 +208,19 @@
 
 # Channels and their behaviour
 [channel]
-# (currently no settings: TODO)
+
+# Should we use reduced channel padding?  (This roughly halves the padding
+# cell frequency, and makes the padding unidrecteional, increasing the
+# traceability of the client connections.)
+# Or disable it entirely?
+#
+#padding = "normal"
+#   padding = "reduced"
+#   padding = "none"
+
+# Full manual control of the precise padding timing parameters is available
+# by setting `override_net_params.nf_ito_low` et al.
+# (See torpsec/padding-spec.txt section 3.4.)
 
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
