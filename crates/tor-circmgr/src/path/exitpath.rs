@@ -3,7 +3,7 @@
 use super::TorPath;
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
@@ -137,7 +137,7 @@ impl<'a> ExitPathBuilder<'a> {
         netdir: DirInfo<'a>,
         guards: Option<&GuardMgr<RT>>,
         config: &PathConfig,
-        now: SystemTime,
+        _now: SystemTime,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         let netdir = match netdir {
             DirInfo::Directory(d) => d,
@@ -149,18 +149,6 @@ impl<'a> ExitPathBuilder<'a> {
             }
         };
         let subnet_config = config.subnet_config();
-        let lifetime = netdir.lifetime();
-
-        // Check if the consensus isn't expired by > 72 hours
-        //
-        // TODO(nickm): Now that #412 is implemented, we should refactor our
-        // code so that the directory manager has an API that only hands out
-        // _usable_ directories, and _that_ code can take this 72-hour offset
-        // into account.  This might take corresponding changes in
-        // NetDirProvider, however.
-        if now > lifetime.valid_until() + Duration::new(72 * 60 * 60, 0) {
-            return Err(Error::ExpiredConsensus);
-        }
 
         let chosen_exit = if let ExitPathBuilderInner::ChosenExit(e) = &self.inner {
             Some(e)

@@ -32,7 +32,7 @@ use once_cell::sync::Lazy;
 #[cfg(test)]
 use std::sync::Mutex;
 use tor_circmgr::{CircMgr, DirInfo};
-use tor_netdir::NetDir;
+use tor_netdir::{NetDir, NetDirProvider as _};
 use tor_netdoc::doc::netstatus::ConsensusFlavor;
 
 /// Given a Result<()>, exit the current function if it is anything other than
@@ -308,8 +308,8 @@ async fn fetch_multiple<R: Runtime>(
     }
 
     let circmgr = dirmgr.circmgr()?;
-    // TODO(eta): Maybe don't hold this netdir for so long?
-    let netdir = dirmgr.opt_netdir();
+    // Only use timely directories for bootstrapping directories; otherwise, we'll try fallbacks.
+    let netdir = dirmgr.netdir(tor_netdir::Timeliness::Timely).ok();
 
     // TODO: instead of waiting for all the queries to finish, we
     // could stream the responses back or something.

@@ -278,11 +278,50 @@ pub enum DirEvent {
     NewDescriptors,
 }
 
+/// How "timely" must a network directory be?
+///
+/// This enum is used as an argument when requesting a [`NetDir`] object from
+/// [`NetDirProvider`] and other APIs, to specify how recent the information
+/// must be in order to be useful.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[allow(clippy::exhaustive_enums)]
+pub enum Timeliness {
+    /// The network directory must be strictly timely.
+    ///
+    /// That is, it must be based on a consensus that valid right now, with no
+    /// tolerance for skew or consensus problems.
+    ///
+    /// Avoid using this option if you could use [`Timeliness::Timely`] instead.
+    Strict,
+    /// The network directory must be roughly timely.
+    ///
+    /// This is, it must be be based on a consensus that is not _too_ far in the
+    /// future, and not _too_ far in the past.
+    ///
+    /// (The tolerances for "too far" will depend on configuration.)
+    ///
+    /// This is almost always the option that you want to use.
+    Timely,
+    /// Any network directory is permissible, regardless of how untimely.
+    ///
+    /// Avoid using this option if you could use [`Timeliness::Timely`] instead.
+    Unchecked,
+}
+
 /// An object that can provide [`NetDir`]s, as well as inform consumers when
 /// they might have changed.
 pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
-    /// Return a handle to our latest directory, if we have one.
-    fn latest_netdir(&self) -> Option<Arc<NetDir>>;
+    /// Return a network directory that's live according to the provided
+    /// `timeliness`.
+    fn netdir(&self, timeliness: Timeliness) -> Result<Arc<NetDir>>;
+
+    /// Return a reasonable netdir for general usage.
+    ///
+    /// This is an alias for
+    /// [`netdir_with_timeliness`]`(`[`Timeliness::Timely`]`)`.
+    fn timely_netdir(&self) -> Result<Arc<NetDir>> {
+        self.netdir(Timeliness::Timely)
+    }
 
     /// Return a new asynchronous stream that will receive notification
     /// whenever the consensus has changed.
@@ -297,8 +336,12 @@ impl<T> NetDirProvider for Arc<T>
 where
     T: NetDirProvider,
 {
-    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
-        self.deref().latest_netdir()
+    fn netdir(&self, timeliness: Timeliness) -> Result<Arc<NetDir>> {
+        self.deref().netdir(timeliness)
+    }
+
+    fn timely_netdir(&self) -> Result<Arc<NetDir>> {
+        self.deref().timely_netdir()
     }
 
     fn events(&self) -> BoxStream<'static, DirEvent> {

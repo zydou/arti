@@ -108,7 +108,7 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
                 if let (Some(inner), Some(provider)) = (inner.upgrade(), netdir_provider.upgrade())
                 {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    if let Some(netdir) = provider.latest_netdir() {
+                    if let Ok(netdir) = provider.timely_netdir() {
                         inner.update(runtime.wallclock(), Some(&netdir));
                     }
                 }

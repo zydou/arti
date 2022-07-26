@@ -204,6 +204,17 @@ enum ErrorDetail {
         action: &'static str
     },
 
+    /// Attempted to use a `TorClient` for something when it did not
+    /// have a valid directory.
+    #[error("Tried to {action} without a valid directory")]
+    NoDir {
+        /// The underlying error.
+        #[source]
+        error: tor_netdir::Error,
+        /// What we were trying to do that needed a directory.
+        action: &'static str,
+    },
+
     /// A programming problem, either in our code or the code calling it.
     #[error("Programming problem")]
     Bug(#[from] tor_error::Bug),
@@ -283,6 +294,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::Address(_) | E::InvalidHostname => EK::InvalidStreamTarget,
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
+            E::NoDir { error, .. } => error.kind(),
             E::Bug(e) => e.kind(),
         }
     }

@@ -59,7 +59,7 @@
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
 use tor_linkspec::ChanTarget;
-use tor_netdir::{DirEvent, NetDir, NetDirProvider};
+use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
@@ -572,11 +572,10 @@ impl<R: Runtime> CircMgr<R> {
         while let Some(event) = events.next().await {
             if matches!(event, NewConsensus) {
                 if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                    let netdir = dm
-                        .latest_netdir()
-                        .expect("got new consensus event, without a netdir?");
-                    #[allow(deprecated)]
-                    cm.update_network_parameters(netdir.params());
+                    if let Ok(netdir) = dm.netdir(Timeliness::Timely) {
+                        #[allow(deprecated)]
+                        cm.update_network_parameters(netdir.params());
+                    }
                 } else {
                     debug!("Circmgr or dirmgr has disappeared; task exiting.");
                     break;
@@ -600,7 +599,7 @@ impl<R: Runtime> CircMgr<R> {
     {
         while sched.next().await.is_some() {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                if let Some(netdir) = dm.latest_netdir() {
+                if let Ok(netdir) = dm.netdir(Timeliness::Unchecked) {
                     if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
                         warn!("Problem launching a timeout testing circuit: {}", e);
                     }
@@ -703,7 +702,7 @@ impl<R: Runtime> CircMgr<R> {
 
         while sched.next().await.is_some() {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
-                if let Some(netdir) = dm.latest_netdir() {
+                if let Ok(netdir) = dm.netdir(Timeliness::Timely) {
                     let result = cm
                         .launch_circuits_preemptively(DirInfo::Directory(&netdir))
                         .await;

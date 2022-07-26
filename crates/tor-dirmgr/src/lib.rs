@@ -116,6 +116,7 @@ pub use err::Error;
 pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
 pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
+pub use tor_netdir::Timeliness;
 
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -151,8 +152,26 @@ pub trait DirProvider: NetDirProvider {
 // NOTE(eta): We can't implement this for Arc<DirMgr<R>> due to trait coherence rules, so instead
 //            there's a blanket impl for Arc<T> in tor-netdir.
 impl<R: Runtime> NetDirProvider for DirMgr<R> {
-    fn latest_netdir(&self) -> Option<Arc<NetDir>> {
-        self.opt_netdir()
+    fn netdir(&self, timeliness: Timeliness) -> tor_netdir::Result<Arc<NetDir>> {
+        use tor_netdir::Error as NetDirError;
+        let netdir = self.netdir.get().ok_or(NetDirError::NoInfo)?;
+        let lifetime = match timeliness {
+            Timeliness::Strict => netdir.lifetime().clone(),
+            Timeliness::Timely => self
+                .config
+                .get()
+                .tolerance
+                .extend_lifetime(netdir.lifetime()),
+            Timeliness::Unchecked => return Ok(netdir),
+        };
+        let now = SystemTime::now();
+        if lifetime.valid_after() > now {
+            Err(NetDirError::DirNotYetValid)
+        } else if lifetime.valid_until() < now {
+            Err(NetDirError::DirExpired)
+        } else {
+            Ok(netdir)
+        }
     }
 
     fn events(&self) -> BoxStream<'static, DirEvent> {
@@ -298,7 +317,9 @@ impl<R: Runtime> DirMgr<R> {
         // TODO: add some way to return a directory that isn't up-to-date
         let _success = dirmgr.load_directory(AttemptId::next()).await?;
 
-        dirmgr.opt_netdir().ok_or(Error::DirectoryNotPresent)
+        dirmgr
+            .netdir(Timeliness::Timely)
+            .map_err(|_| Error::DirectoryNotPresent)
     }
 
     /// Return a current netdir, either loading it or bootstrapping it
@@ -316,7 +337,9 @@ impl<R: Runtime> DirMgr<R> {
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<NetDir>> {
         let dirmgr = DirMgr::bootstrap_from_config(config, runtime, circmgr).await?;
-        dirmgr.netdir()
+        dirmgr
+            .timely_netdir()
+            .map_err(|_| Error::DirectoryNotPresent)
     }
 
     /// Create a new `DirMgr` in online mode, but don't bootstrap it yet.
@@ -838,21 +861,6 @@ impl<R: Runtime> DirMgr<R> {
         Ok(self.netdir.get().is_some())
     }
 
-    /// Return an Arc handle to our latest directory, if we have one.
-    pub fn opt_netdir(&self) -> Option<Arc<NetDir>> {
-        self.netdir.get()
-    }
-
-    /// Return an Arc handle to our latest directory, returning an error if there is none.
-    ///
-    /// # Errors
-    ///
-    /// Errors with [`Error::DirectoryNotPresent`] if the `DirMgr` hasn't been bootstrapped yet.
-    // TODO: Add variants of this that make sure that it's up-to-date?
-    pub fn netdir(&self) -> Result<Arc<NetDir>> {
-        self.opt_netdir().ok_or(Error::DirectoryNotPresent)
-    }
-
     /// Return a new asynchronous stream that will receive notification
     /// whenever the consensus has changed.
     ///
@@ -1079,7 +1087,7 @@ mod test {
             let (_tempdir, mgr) = new_mgr(rt);
 
             assert!(mgr.circmgr().is_err());
-            assert!(mgr.opt_netdir().is_none());
+            assert!(mgr.netdir(Timeliness::Unchecked).is_err());
         });
     }
 

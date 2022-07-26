@@ -138,10 +138,6 @@ pub enum Error {
         error: tor_proto::Error,
     },
 
-    /// We have an expired consensus
-    #[error("Consensus is expired")]
-    ExpiredConsensus,
-
     /// Unable to spawn task
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -209,7 +205,6 @@ impl HasKind for Error {
             E::State(e) => e.kind(),
             E::GuardMgr(e) => e.kind(),
             E::Guard(e) => e.kind(),
-            E::ExpiredConsensus => EK::DirectoryExpired,
             E::Spawn { cause, .. } => cause.kind(),
         }
     }
@@ -271,9 +266,6 @@ impl HasRetryTime for Error {
                     .unwrap_or(RT::Never)
             }
 
-            // This will not resolve on its own till the DirMgr gets a working consensus.
-            E::ExpiredConsensus => RT::Never,
-
             // These all indicate an internal error, or an error that shouldn't
             // be able to happen when we're building a circuit.
             E::Spawn { .. } | E::GuardMgr(_) | E::State(_) | E::Bug(_) => RT::Never,
@@ -327,7 +319,6 @@ impl Error {
             E::RequestFailed(_) => 40,
             E::Channel { .. } => 40,
             E::Protocol { .. } => 45,
-            E::ExpiredConsensus => 50,
             E::Spawn { .. } => 90,
             E::State(_) => 90,
             E::UsageMismatched(_) => 90,
