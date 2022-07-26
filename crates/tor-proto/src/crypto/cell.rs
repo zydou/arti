@@ -503,7 +503,7 @@ mod test {
         const SEED: &[u8;108] = b"'You mean to tell me that there's a version of Sha-3 with no limit on the output length?', said Tom shakily.";
 
         // These test vectors were generated from Tor.
-        let data: &[(usize, &str)] = &include!("../../testdata/cell_crypt.data");
+        let data: &[(usize, &str)] = &include!("../../testdata/cell_crypt.rs");
 
         let mut cc_out = OutboundClientCrypt::new();
         let mut cc_in = InboundClientCrypt::new();

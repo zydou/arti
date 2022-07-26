@@ -111,7 +111,7 @@ pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
 
         bld
     }
-    include!("fallback_dirs.inc")
+    include!("../data/fallback_dirs.rs")
 }
 
 impl tor_linkspec::ChanTarget for FallbackDir {
