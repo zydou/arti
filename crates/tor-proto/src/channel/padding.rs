@@ -159,6 +159,16 @@ impl Parameters {
         };
         Ok(PaddingNegotiate::start(get(self.low_ms)?, get(self.high_ms)?))
     }
+
+    /// Make a Parameters sentinel value, with both fields set to zero
+    ///
+    /// The specification says to treat this as disabled, if found in the consensus.
+    pub fn all_zeroes() -> Self {
+        Parameters {
+            low_ms: 0.into(),
+            high_ms: 0.into(),
+        }
+    }
 }
 
 /// Timing parameters, "compiled" into a form which can be sampled more efficiently
