@@ -67,7 +67,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{NetDir, NetDirProvider};
-use tor_proto::channel::Channel;
+use tor_proto::channel::{Channel, ChannelUsage};
 use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
 
@@ -168,6 +168,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn get_or_launch<T: ChanTarget + ?Sized>(
         &self,
         target: &T,
+        usage: ChannelUsage,
     ) -> Result<(Channel, ChanProvenance)> {
         // TODO(nickm): We will need to change the way that we index our map
         // when we eventually support channels that are _not_ primarily
@@ -177,7 +178,10 @@ impl<R: Runtime> ChanMgr<R> {
         let ed_identity = target.ed_identity().ok_or(Error::MissingId)?;
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 
-        let (chan, provenance) = self.mgr.get_or_launch(*ed_identity, targetinfo).await?;
+        let (chan, provenance) = self
+            .mgr
+            .get_or_launch(*ed_identity, targetinfo, usage)
+            .await?;
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
         chan.check_match(target)

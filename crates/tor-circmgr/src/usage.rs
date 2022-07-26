@@ -11,6 +11,7 @@ use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
+use tor_proto::channel::ChannelUsage;
 use tor_rtcompat::Runtime;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
@@ -353,6 +354,16 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 }
             }
             _ => abstract_spec_find_supported(list, usage),
+        }
+    }
+
+    fn channel_usage(&self) -> ChannelUsage {
+        use ChannelUsage as CU;
+        use SupportedCircUsage as SCU;
+        match self {
+            SCU::Dir => CU::Dir,
+            SCU::Exit { .. } => CU::Exit,
+            SCU::NoUsage => CU::UselessCircuit,
         }
     }
 }

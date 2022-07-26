@@ -404,6 +404,7 @@ mod test {
     use super::*;
     use std::sync::Arc;
     use tor_proto::channel::params::ChannelsParamsUpdates;
+    use tor_proto::channel::ChannelUsage;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
         ChannelMap::new(Default::default())
@@ -429,6 +430,9 @@ mod test {
         }
         fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
             self.params_update = Some(update);
+            Ok(())
+        }
+        fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
             Ok(())
         }
     }

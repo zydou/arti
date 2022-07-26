@@ -121,6 +121,27 @@ pub struct Channel {
     details: Arc<ChannelDetails>,
 }
 
+/// How a channel is going to be used
+///
+/// A channel may be used in multiple ways.  Each time it is (re)used, a separate
+/// ChannelUsage is passed in.
+///
+/// This has the same variants as `tor_circmgr::usage::TargCircUsage`
+#[derive(Clone, Debug, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ChannelUsage {
+    /// Use for BEGINDIR-based non-anonymous directory connections
+    Dir,
+
+    /// Use to exit
+    ///
+    /// Includes a circuit being constructed preemptively.
+    Exit,
+
+    /// For a channel which is for circuit(s) which cannot be used
+    UselessCircuit,
+}
+
 /// This is information shared between the reactor and the frontend.
 ///
 /// This exists to make `Channel` cheap to clone, which is desirable because every circuit wants
@@ -326,6 +347,12 @@ impl Channel {
         self.control
             .unbounded_send(msg)
             .map_err(|_| ChannelClosed)?;
+        Ok(())
+    }
+
+    /// Note that this channel is about to be used for `usage`
+    pub fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
+        // TODO
         Ok(())
     }
 

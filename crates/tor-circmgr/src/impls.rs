@@ -1,6 +1,6 @@
 //! Implement traits from [`crate::mgr`] for the circuit types we use.
 
-use crate::mgr::{self, MockablePlan};
+use crate::mgr::{self, AbstractSpec, MockablePlan};
 use crate::path::OwnedPath;
 use crate::usage::{SupportedCircUsage, TargetCircUsage};
 use crate::{DirInfo, Error, Result};
@@ -101,7 +101,12 @@ impl<R: Runtime> crate::mgr::AbstractCircBuilder for crate::build::CircuitBuilde
         // This will probably require a different API for circuit
         // construction.
         match self
-            .build_owned(path, &params, Arc::clone(&guard_status))
+            .build_owned(
+                path,
+                &params,
+                Arc::clone(&guard_status),
+                final_spec.channel_usage(),
+            )
             .await
         {
             Ok(circuit) => {

@@ -14,6 +14,7 @@ use std::time::Duration;
 use tor_error::internal;
 use tor_netdir::NetDir;
 use tor_proto::channel::params::ChannelsParamsUpdates;
+use tor_proto::channel::ChannelUsage;
 
 mod map;
 
@@ -40,6 +41,9 @@ pub(crate) trait AbstractChannel: Clone {
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
     fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()>;
+
+    /// Note that this channel is about to be used for `usage`
+    fn note_usage(&self, usage: ChannelUsage) -> StdResult<(), tor_error::Bug>;
 }
 
 /// Trait to describe how channels are created.
@@ -120,8 +124,10 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         &self,
         ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
+        usage: ChannelUsage,
     ) -> Result<(CF::Channel, ChanProvenance)> {
         let chan = self.get_or_launch_internal(ident, target).await?;
+        chan.0.note_usage(usage)?;
         Ok(chan)
     }
 
@@ -319,6 +325,7 @@ mod test {
     use std::time::Duration;
     use tor_error::bad_api_usage;
 
+    use tor_proto::channel::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
     struct FakeChannelFactory<RT> {
@@ -351,6 +358,9 @@ mod test {
             None
         }
         fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+            Ok(())
+        }
+        fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
             Ok(())
         }
     }
@@ -403,8 +413,8 @@ mod test {
         test_with_one_runtime!(|runtime| async {
             let mgr = new_test_abstract_chanmgr(runtime);
             let target = (413, '!');
-            let chan1 = mgr.get_or_launch(413, target).await.unwrap().0;
-            let chan2 = mgr.get_or_launch(413, target).await.unwrap().0;
+            let chan1 = mgr.get_or_launch(413, target, CU::Exit).await.unwrap().0;
+            let chan2 = mgr.get_or_launch(413, target, CU::Exit).await.unwrap().0;
 
             assert_eq!(chan1, chan2);
 
@@ -420,7 +430,7 @@ mod test {
 
             // This is set up to always fail.
             let target = (999, '❌');
-            let res1 = mgr.get_or_launch(999, target).await;
+            let res1 = mgr.get_or_launch(999, target, CU::Exit).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
             let chan3 = mgr.get_nowait(&999);
@@ -437,12 +447,12 @@ mod test {
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
-                mgr.get_or_launch(3, (3, 'a')),
-                mgr.get_or_launch(3, (3, 'b')),
-                mgr.get_or_launch(44, (44, 'a')),
-                mgr.get_or_launch(44, (44, 'b')),
-                mgr.get_or_launch(86, (86, '❌')),
-                mgr.get_or_launch(86, (86, '🔥')),
+                mgr.get_or_launch(3, (3, 'a'), CU::Exit),
+                mgr.get_or_launch(3, (3, 'b'), CU::Exit),
+                mgr.get_or_launch(44, (44, 'a'), CU::Exit),
+                mgr.get_or_launch(44, (44, 'b'), CU::Exit),
+                mgr.get_or_launch(86, (86, '❌'), CU::Exit),
+                mgr.get_or_launch(86, (86, '🔥'), CU::Exit),
             );
             let ch3a = ch3a.unwrap();
             let ch3b = ch3b.unwrap();
@@ -466,9 +476,9 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
-                mgr.get_or_launch(3, (3, 'a')),
-                mgr.get_or_launch(4, (4, 'a')),
-                mgr.get_or_launch(5, (5, 'a')),
+                mgr.get_or_launch(3, (3, 'a'), CU::Exit),
+                mgr.get_or_launch(4, (4, 'a'), CU::Exit),
+                mgr.get_or_launch(5, (5, 'a'), CU::Exit),
             );
 
             let ch3 = ch3.unwrap().0;
@@ -478,7 +488,7 @@ mod test {
             ch3.start_closing();
             ch5.start_closing();
 
-            let ch3_new = mgr.get_or_launch(3, (3, 'b')).await.unwrap().0;
+            let ch3_new = mgr.get_or_launch(3, (3, 'b'), CU::Exit).await.unwrap().0;
             assert_ne!(ch3, ch3_new);
             assert_eq!(ch3_new.mood, 'b');
 
