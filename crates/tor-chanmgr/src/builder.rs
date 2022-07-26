@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::{event::ChanMgrEventSender, Error};
 
-use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
@@ -252,8 +251,8 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn duration_unused(&self) -> Option<Duration> {
         self.duration_unused()
     }
-    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
-        self.reparameterize(updates).map_err(|_| ())
+    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+        self.reparameterize(updates)
     }
 }
 

@@ -402,7 +402,6 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use std::result::Result as StdResult;
     use std::sync::Arc;
     use tor_proto::channel::params::ChannelsParamsUpdates;
 
@@ -428,7 +427,7 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+        fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
             self.params_update = Some(update);
             Ok(())
         }

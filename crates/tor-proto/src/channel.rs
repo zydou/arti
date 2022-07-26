@@ -332,11 +332,9 @@ impl Channel {
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(
-        &mut self,
-        updates: Arc<ChannelsParamsUpdates>,
-    ) -> StdResult<(), ChannelClosed> {
-        self.send_control(CtrlMsg::ConfigUpdate(updates))
+    pub fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> Result<()> {
+        self.send_control(CtrlMsg::ConfigUpdate(updates))?;
+        Ok(())
     }
 
     /// Return an error if this channel is somehow mismatched with the

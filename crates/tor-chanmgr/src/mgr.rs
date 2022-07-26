@@ -39,9 +39,7 @@ pub(crate) trait AbstractChannel: Clone {
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
-    ///
-    /// Returns `Err` (only) if the channel was closed earlier.
-    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()>;
+    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()>;
 }
 
 /// Trait to describe how channels are created.
@@ -221,7 +219,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                                 // channel into the table so it will receive updates.  I.e.,
                                 // here.
                                 chan.reparameterize(channels_params.initial_update().into())
-                                    .map_err(|()| internal!("new channel already closed"))?;
+                                    .map_err(|_| internal!("failure on new channel"))?;
                                 Ok(Open(OpenEntry {
                                     channel: chan.clone(),
                                     max_unused_duration: Duration::from_secs(
@@ -342,7 +340,7 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
             Ok(())
         }
     }
