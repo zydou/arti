@@ -630,6 +630,17 @@ impl NetDir {
         Some(relay)
     }
 
+    /// Return a relay with the same identities as those in `target`, if one
+    /// exists.
+    ///
+    /// Does not return unusable relays.
+    pub fn by_ids<T>(&self, target: &T) -> Option<Relay<'_>>
+    where
+        T: HasRelayIds + ?Sized,
+    {
+        self.by_id_pair(target.ed_identity(), target.rsa_identity())
+    }
+
     /// Return a relay matching a given Ed25519 identity and RSA identity,
     /// if we have a usable relay with _both_ keys.
     ///
@@ -646,7 +657,7 @@ impl NetDir {
     ///
     /// (Does not return unusable relays.)
     pub fn by_chantarget(&self, chan_target: &impl tor_linkspec::ChanTarget) -> Option<Relay<'_>> {
-        self.by_id_pair(chan_target.ed_identity(), chan_target.rsa_identity())
+        self.by_ids(chan_target)
     }
 
     /// Return a boolean if this consensus definitely has (or does not
