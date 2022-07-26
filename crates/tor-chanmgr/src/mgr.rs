@@ -12,6 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
+use tor_netdir::NetDir;
 use tor_proto::channel::params::ChannelsParamsUpdates;
 
 mod map;
@@ -246,6 +247,16 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         }
 
         Err(last_err.unwrap_or_else(|| Error::Internal(internal!("no error was set!?"))))
+    }
+
+    /// Update the netdir
+    ///
+    /// TODO: Handle lack of a NetDir
+    pub(crate) fn update_netdir(
+        &self, netdir:
+        Arc<NetDir>
+    ) -> StdResult<(), tor_error::Bug> {
+        self.channels.reconfigure_general(None, None, netdir)
     }
 
     /// Expire any channels that have been unused longer than

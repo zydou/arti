@@ -269,8 +269,23 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
-    /// Handle a `NetDir` update (by reparameterising channels as needed)
-    pub(crate) fn process_updated_netdir(&self, netdir: Arc<tor_netdir::NetDir>) -> Result<()> {
+    /// Reconfigure all channels as necessary
+    ///
+    /// (By reparameterising channels as needed)
+    /// This function will handle
+    ///   - netdir update
+    ///   - a reconfiguration (TODO, we lack configuration right now)
+    ///   - dormancy (TODO, this isn't plumbed through here yet)
+    ///
+    /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
+    ///
+    /// TODO: Make this function be able to cope with netdir not being unavailable.
+    pub(super) fn reconfigure_general(
+        &self,
+        _new_config: Option<&()>,
+        _new_dormancy: Option<()>,
+        netdir: Arc<NetDir>,
+    ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
 
         // TODO support dormant mode
@@ -296,7 +311,10 @@ impl<C: AbstractChannel> ChannelMap<C> {
             p
         };
 
-        let mut inner = self.inner.lock()?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| internal!("poisonned channel manager"))?;
         let update = inner
             .channels_params
             .start_update()
@@ -579,7 +597,7 @@ mod test {
         };
 
         eprintln!("-- process a default netdir, which should send an update --");
-        map.process_updated_netdir(netdir.clone()).unwrap();
+        map.reconfigure_general(None, None, netdir.clone()).unwrap();
         with_ch(&|ch| {
             assert_eq!(
                 format!("{:?}", ch.params_update.take().unwrap()),
@@ -593,7 +611,7 @@ mod test {
         eprintln!();
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
-        map.process_updated_netdir(netdir).unwrap();
+        map.reconfigure_general(None, None, netdir).unwrap();
         with_ch(&|ch| assert_eq!(ch.params_update, None));
     }
 
