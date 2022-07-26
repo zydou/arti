@@ -378,7 +378,7 @@ mod test {
     fn suspend_and_resume_with_sleep() {
         test_with_all_runtimes!(|rt| async move {
             let (mut sch, hdl) = TaskSchedule::new(rt.clone());
-            sch.fire_in(Duration::from_micros(100));
+            sch.fire_in(Duration::from_millis(100));
             hdl.suspend();
 
             assert!(sch.next().now_or_never().is_none());
