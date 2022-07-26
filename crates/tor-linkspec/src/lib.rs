@@ -77,5 +77,5 @@ mod owned;
 mod traits;
 
 pub use ls::LinkSpec;
-pub use owned::{OwnedChanTarget, OwnedCircTarget};
-pub use traits::{ChanTarget, CircTarget};
+pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
+pub use traits::{ChanTarget, CircTarget, HasAddrs, HasRelayIds};

@@ -1040,7 +1040,7 @@ mod test {
             // Do the path accessors report a reasonable outcome?
             let path = circ.path();
             assert_eq!(path.len(), 4);
-            use tor_linkspec::ChanTarget;
+            use tor_linkspec::HasRelayIds;
             assert_eq!(path[3].ed_identity(), example_target().ed_identity());
             assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         });

@@ -1,7 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_linkspec::ChanTarget;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
@@ -17,6 +16,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, FirstHopId, GuardUsageKind};
+use tor_linkspec::HasAddrs;
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -686,10 +686,13 @@ impl Guard {
     }
 }
 
-impl tor_linkspec::ChanTarget for Guard {
+impl tor_linkspec::HasAddrs for Guard {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }
+}
+
+impl tor_linkspec::HasRelayIds for Guard {
     fn ed_identity(&self) -> &Ed25519Identity {
         &self.id.0.ed25519
     }
@@ -697,6 +700,8 @@ impl tor_linkspec::ChanTarget for Guard {
         &self.id.0.rsa
     }
 }
+
+impl tor_linkspec::ChanTarget for Guard {}
 
 /// A reason for permanently disabling a guard.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -783,6 +788,7 @@ impl CircHistory {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_linkspec::HasRelayIds;
 
     #[test]
     fn crate_id() {

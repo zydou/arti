@@ -255,7 +255,7 @@ mod test {
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::HasRelayIds;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
 

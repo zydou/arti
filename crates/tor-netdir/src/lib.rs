@@ -68,7 +68,7 @@ mod weight;
 #[cfg(any(test, feature = "testing"))]
 pub mod testnet;
 
-use tor_linkspec::ChanTarget;
+use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
@@ -1112,10 +1112,12 @@ impl<'a> Relay<'a> {
     }
 }
 
-impl<'a> ChanTarget for Relay<'a> {
+impl<'a> HasAddrs for Relay<'a> {
     fn addrs(&self) -> &[std::net::SocketAddr] {
         self.rs.addrs()
     }
+}
+impl<'a> HasRelayIds for Relay<'a> {
     fn ed_identity(&self) -> &Ed25519Identity {
         self.id()
     }
@@ -1123,6 +1125,8 @@ impl<'a> ChanTarget for Relay<'a> {
         self.rsa_id()
     }
 }
+
+impl<'a> ChanTarget for Relay<'a> {}
 
 impl<'a> tor_linkspec::CircTarget for Relay<'a> {
     fn ntor_onion_key(&self) -> &ll::pk::curve25519::PublicKey {

@@ -114,10 +114,12 @@ pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
     include!("fallback_dirs.inc")
 }
 
-impl tor_linkspec::ChanTarget for FallbackDir {
+impl tor_linkspec::HasAddrs for FallbackDir {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }
+}
+impl tor_linkspec::HasRelayIds for FallbackDir {
     fn ed_identity(&self) -> &Ed25519Identity {
         &self.ed_identity
     }
@@ -125,3 +127,5 @@ impl tor_linkspec::ChanTarget for FallbackDir {
         &self.rsa_identity
     }
 }
+
+impl tor_linkspec::ChanTarget for FallbackDir {}

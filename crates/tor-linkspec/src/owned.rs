@@ -4,7 +4,45 @@ use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
-use crate::{ChanTarget, CircTarget};
+use crate::{ChanTarget, CircTarget, HasAddrs, HasRelayIds};
+
+/// RelayIds is an owned copy of the set of identities owned by a relay.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct RelayIds {
+    /// Copy of the ed25519 id from the underlying ChanTarget.
+    ed_identity: pk::ed25519::Ed25519Identity,
+    /// Copy of the rsa id from the underlying ChanTarget.
+    rsa_identity: pk::rsa::RsaIdentity,
+}
+
+impl HasRelayIds for RelayIds {
+    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
+        &self.ed_identity
+    }
+
+    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
+        &self.rsa_identity
+    }
+}
+
+impl RelayIds {
+    /// Construct a new RelayIds object with a given pair of identity keys.
+    pub fn new(
+        ed_identity: pk::ed25519::Ed25519Identity,
+        rsa_identity: pk::rsa::RsaIdentity,
+    ) -> Self {
+        Self {
+            ed_identity,
+            rsa_identity,
+        }
+    }
+
+    /// Construct a new RelayIds object from another object that impements
+    /// [`HasRelayIds`]
+    pub fn from_relay_ids<T: HasRelayIds + ?Sized>(other: &T) -> Self {
+        Self::new(*other.ed_identity(), *other.rsa_identity())
+    }
+}
 
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
@@ -12,23 +50,27 @@ use crate::{ChanTarget, CircTarget};
 pub struct OwnedChanTarget {
     /// Copy of the addresses from the underlying ChanTarget.
     addrs: Vec<SocketAddr>,
-    /// Copy of the ed25519 id from the underlying ChanTarget.
-    ed_identity: pk::ed25519::Ed25519Identity,
-    /// Copy of the rsa id from the underlying ChanTarget.
-    rsa_identity: pk::rsa::RsaIdentity,
+    /// Identities that this relay provides.
+    ids: RelayIds,
 }
 
-impl ChanTarget for OwnedChanTarget {
+impl HasAddrs for OwnedChanTarget {
     fn addrs(&self) -> &[SocketAddr] {
         &self.addrs[..]
     }
+}
+
+impl HasRelayIds for OwnedChanTarget {
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        &self.ed_identity
+        self.ids.ed_identity()
     }
+
     fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        &self.rsa_identity
+        self.ids.rsa_identity()
     }
 }
+
+impl ChanTarget for OwnedChanTarget {}
 
 impl OwnedChanTarget {
     /// Construct a new OwnedChanTarget from its parts.
@@ -40,8 +82,7 @@ impl OwnedChanTarget {
     ) -> Self {
         Self {
             addrs,
-            ed_identity,
-            rsa_identity,
+            ids: RelayIds::new(ed_identity, rsa_identity),
         }
     }
 
@@ -52,8 +93,7 @@ impl OwnedChanTarget {
     {
         OwnedChanTarget {
             addrs: target.addrs().to_vec(),
-            ed_identity: *target.ed_identity(),
-            rsa_identity: *target.rsa_identity(),
+            ids: RelayIds::from_relay_ids(target),
         }
     }
 
@@ -64,7 +104,7 @@ impl OwnedChanTarget {
         if self.addrs.contains(addr) {
             Ok(OwnedChanTarget {
                 addrs: vec![*addr],
-                ..*self
+                ids: self.ids.clone(),
             })
         } else {
             Err(self.clone())
@@ -81,7 +121,7 @@ impl Display for OwnedChanTarget {
             [a] => write!(f, "{}", a)?,
             [a, ..] => write!(f, "{}+", a)?,
         };
-        write!(f, "{}", &self.ed_identity)?; // short enough to print
+        write!(f, "{}", self.ed_identity())?; // short enough to print
         write!(f, "]")?;
         Ok(())
     }
@@ -136,10 +176,13 @@ impl Display for OwnedCircTarget {
     }
 }
 
-impl ChanTarget for OwnedCircTarget {
+impl HasAddrs for OwnedCircTarget {
     fn addrs(&self) -> &[SocketAddr] {
         self.chan_target.addrs()
     }
+}
+
+impl HasRelayIds for OwnedCircTarget {
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
         self.chan_target.ed_identity()
     }
@@ -147,6 +190,8 @@ impl ChanTarget for OwnedCircTarget {
         self.chan_target.rsa_identity()
     }
 }
+
+impl ChanTarget for OwnedCircTarget {}
 
 impl CircTarget for OwnedCircTarget {
     fn ntor_onion_key(&self) -> &pk::curve25519::PublicKey {

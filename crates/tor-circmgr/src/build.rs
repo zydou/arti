@@ -482,6 +482,7 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::channel::oneshot;
     use std::sync::Mutex;
+    use tor_linkspec::HasRelayIds;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
     use tracing::trace;

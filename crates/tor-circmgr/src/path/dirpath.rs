@@ -100,7 +100,7 @@ mod test {
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::fallback::{FallbackDir, FallbackList};
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::HasRelayIds;
     use tor_netdir::testnet;
 
     #[test]

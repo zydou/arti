@@ -140,7 +140,7 @@ impl OwnedPath {
 #[cfg(test)]
 fn assert_same_path_when_owned(path: &TorPath<'_>) {
     #![allow(clippy::unwrap_used)]
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::HasRelayIds;
     let owned: OwnedPath = path.try_into().unwrap();
 
     match (&owned, &path.inner) {

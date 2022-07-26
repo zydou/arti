@@ -1318,11 +1318,13 @@ impl FirstHop {
     }
 }
 
-// This is somewhat redundant with the implementation in crate::guard::Guard.
-impl tor_linkspec::ChanTarget for FirstHop {
+// This is somewhat redundant with the implementations in crate::guard::Guard.
+impl tor_linkspec::HasAddrs for FirstHop {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }
+}
+impl tor_linkspec::HasRelayIds for FirstHop {
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
         &self.id.as_ref().ed25519
     }
@@ -1330,6 +1332,7 @@ impl tor_linkspec::ChanTarget for FirstHop {
         &self.id.as_ref().rsa
     }
 }
+impl tor_linkspec::ChanTarget for FirstHop {}
 
 /// The purpose for which we plan to use a guard.
 ///
@@ -1414,6 +1417,7 @@ pub enum GuardRestriction {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_linkspec::{HasAddrs, HasRelayIds};
     use tor_persist::TestingStateMgr;
     use tor_rtcompat::test_with_all_runtimes;
 
@@ -1536,8 +1540,6 @@ mod test {
     #[test]
     fn filtering_basics() {
         test_with_all_runtimes!(|rt| async move {
-            use tor_linkspec::ChanTarget;
-
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             let filter = {
@@ -1558,7 +1560,6 @@ mod test {
 
     #[test]
     fn external_status() {
-        use tor_linkspec::ChanTarget;
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let data_usage = GuardUsage::default();

@@ -4,28 +4,35 @@
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
-/// Information about a Tor relay used to connect to it.
-///
-/// Anything that implements 'ChanTarget' can be used as the
-/// identity of a relay for the purposes of launching a new
-/// channel.
-pub trait ChanTarget {
-    /// Return the addresses at which you can connect to this relay
-    // TODO: This is a questionable API. I'd rather return an iterator
-    // of addresses or references to addresses, but both of those options
-    // make defining the right associated types rather tricky.
-    fn addrs(&self) -> &[SocketAddr];
+/// An object containing information about a relay's identity keys.
+pub trait HasRelayIds {
     /// Return the ed25519 identity for this relay.
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;
+    /// Return the RSA identity for this relay.
+    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
     /// Return the ed25519 identity key for this relay, if it is valid.
     ///
     /// This can be costly.
     fn ed_identity_key(&self) -> Option<pk::ed25519::PublicKey> {
         self.ed_identity().try_into().ok()
     }
-    /// Return the RSA identity for this relay.
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
 }
+
+/// An object that represents a host on the network with known IP addresses.
+pub trait HasAddrs {
+    /// Return the addresses at which you can connect to this server.
+    // TODO: This is a questionable API. I'd rather return an iterator
+    // of addresses or references to addresses, but both of those options
+    // make defining the right associated types rather tricky.
+    fn addrs(&self) -> &[SocketAddr];
+}
+
+/// Information about a Tor relay used to connect to it.
+///
+/// Anything that implements 'ChanTarget' can be used as the
+/// identity of a relay for the purposes of launching a new
+/// channel.
+pub trait ChanTarget: HasRelayIds + HasAddrs {}
 
 /// Information about a Tor relay used to extend a circuit to it.
 ///
@@ -64,10 +71,12 @@ mod test {
         ntor: pk::curve25519::PublicKey,
         pv: tor_protover::Protocols,
     }
-    impl ChanTarget for Example {
+    impl HasAddrs for Example {
         fn addrs(&self) -> &[SocketAddr] {
             &self.addrs[..]
         }
+    }
+    impl HasRelayIds for Example {
         fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
             &self.ed_id
         }
@@ -75,6 +84,7 @@ mod test {
             &self.rsa_id
         }
     }
+    impl ChanTarget for Example {}
     impl CircTarget for Example {
         fn ntor_onion_key(&self) -> &pk::curve25519::PublicKey {
             &self.ntor

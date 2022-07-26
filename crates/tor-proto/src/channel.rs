@@ -77,7 +77,7 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::{ChanTarget, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_rtcompat::SleepProvider;

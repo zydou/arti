@@ -366,7 +366,7 @@ pub(crate) mod test {
     use crate::path::OwnedPath;
     use crate::test::OptDummyGuardMgr;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::HasRelayIds;
     use tor_netdir::testnet;
 
     impl IsolationTokenEq for TargetCircUsage {
