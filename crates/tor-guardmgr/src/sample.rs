@@ -883,6 +883,7 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use tor_linkspec::HasRelayIds;
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
@@ -1316,7 +1317,7 @@ mod test {
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|idx, bld| {
-            if idx == p_id1.0.ed25519.as_bytes()[0] as usize {
+            if idx == p_id1.0.ed_identity().as_bytes()[0] as usize {
                 bld.omit_md = true;
             }
         })

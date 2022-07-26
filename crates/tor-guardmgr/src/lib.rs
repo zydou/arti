@@ -1326,10 +1326,10 @@ impl tor_linkspec::HasAddrs for FirstHop {
 }
 impl tor_linkspec::HasRelayIds for FirstHop {
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        &self.id.as_ref().ed25519
+        self.id.ed_identity()
     }
     fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        &self.id.as_ref().rsa
+        self.id.rsa_identity()
     }
 }
 impl tor_linkspec::ChanTarget for FirstHop {}

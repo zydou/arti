@@ -16,7 +16,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, FirstHopId, GuardUsageKind};
-use tor_linkspec::HasAddrs;
+use tor_linkspec::{HasAddrs, HasRelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -393,8 +393,8 @@ impl Guard {
     /// Return true if this guard obeys a single restriction.
     fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
         match r {
-            GuardRestriction::AvoidId(ed) => &self.id.0.ed25519 != ed,
-            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.0.ed25519),
+            GuardRestriction::AvoidId(ed) => self.id.0.ed_identity() != ed,
+            GuardRestriction::AvoidAllIds(ids) => !ids.contains(self.id.0.ed_identity()),
         }
     }
 
@@ -424,7 +424,7 @@ impl Guard {
     /// download another microdescriptor before we can be certain whether this
     /// guard is listed or not.
     pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
-        netdir.id_pair_listed(&self.id.0.ed25519, &self.id.0.rsa)
+        netdir.id_pair_listed(self.id.0.ed_identity(), self.id.0.rsa_identity())
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -657,7 +657,7 @@ impl Guard {
     /// We use this information to decide whether we are about to sample
     /// too much of the network as guards.
     pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(&self.id.0.rsa, tor_netdir::WeightRole::Guard)
+        dir.weight_by_rsa_id(self.id.0.rsa_identity(), tor_netdir::WeightRole::Guard)
     }
 
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
@@ -694,10 +694,10 @@ impl tor_linkspec::HasAddrs for Guard {
 
 impl tor_linkspec::HasRelayIds for Guard {
     fn ed_identity(&self) -> &Ed25519Identity {
-        &self.id.0.ed25519
+        self.id.0.ed_identity()
     }
     fn rsa_identity(&self) -> &RsaIdentity {
-        &self.id.0.rsa
+        self.id.0.rsa_identity()
     }
 }
 
@@ -813,8 +813,8 @@ mod test {
         let g = basic_guard();
 
         assert_eq!(g.guard_id(), &id);
-        assert_eq!(g.ed_identity(), &id.0.ed25519);
-        assert_eq!(g.rsa_identity(), &id.0.rsa);
+        assert_eq!(g.ed_identity(), id.0.ed_identity());
+        assert_eq!(g.rsa_identity(), id.0.rsa_identity());
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
         assert_eq!(g.reachable(), Reachable::Unknown);
         assert_eq!(g.reachable(), Reachable::default());
