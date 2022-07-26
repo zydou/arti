@@ -318,7 +318,7 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// Return a reasonable netdir for general usage.
     ///
     /// This is an alias for
-    /// [`netdir_with_timeliness`]`(`[`Timeliness::Timely`]`)`.
+    /// [`NetDirProvider::netdir`]`(`[`Timeliness::Timely`]`)`.
     fn timely_netdir(&self) -> Result<Arc<NetDir>> {
         self.netdir(Timeliness::Timely)
     }
