@@ -804,22 +804,6 @@ pub(super) mod test {
         }
     }
 
-    struct DummyChanTarget {
-        ed: Ed25519Identity,
-        rsa: RsaIdentity,
-    }
-    impl ChanTarget for DummyChanTarget {
-        fn addrs(&self) -> &[SocketAddr] {
-            &[]
-        }
-        fn ed_identity(&self) -> &Ed25519Identity {
-            &self.ed
-        }
-        fn rsa_identity(&self) -> &RsaIdentity {
-            &self.rsa
-        }
-    }
-
     // Timestamp when the example certificates were all valid.
     fn cert_timestamp() -> SystemTime {
         SystemTime::UNIX_EPOCH + Duration::new(1601143280, 0)
@@ -839,7 +823,7 @@ pub(super) mod test {
         let unver = make_unverified(certs, runtime.clone());
         let ed = Ed25519Identity::from_bytes(peer_ed).unwrap();
         let rsa = RsaIdentity::from_bytes(peer_rsa).unwrap();
-        let chan = DummyChanTarget { ed, rsa };
+        let chan = OwnedChanTarget::new(Vec::new(), ed, rsa);
         unver.check_internal(&chan, peer_cert_sha256, when)
     }
 
