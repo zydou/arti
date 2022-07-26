@@ -1,17 +1,20 @@
 //! Owned variants of [`ChanTarget`] and [`CircTarget`].
 
+use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
 use crate::{ChanTarget, CircTarget, HasAddrs, HasRelayIds};
 
-/// RelayIds is an owned copy of the set of identities owned by a relay.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+/// RelayIds is an owned copy of the set of identities of a relay.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RelayIds {
     /// Copy of the ed25519 id from the underlying ChanTarget.
+    #[serde(rename = "ed25519")]
     ed_identity: pk::ed25519::Ed25519Identity,
     /// Copy of the rsa id from the underlying ChanTarget.
+    #[serde(rename = "rsa")]
     rsa_identity: pk::rsa::RsaIdentity,
 }
 
