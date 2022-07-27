@@ -28,6 +28,7 @@ regex = { version = "1", default-features = false, features = ["std"] }
 serde = { version = "1.0.103", features = ["derive"] }
 serde_ignored = "0.1.3"
 shellexpand = { version = "2.1.2", optional = true }
+strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 toml = "0.5"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.3" }

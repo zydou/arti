@@ -3555,6 +3555,7 @@ dependencies = [
  "serde_ignored",
  "serde_json",
  "shellexpand",
+ "strum",
  "tempfile",
  "thiserror",
  "toml",
