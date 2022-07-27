@@ -8,7 +8,7 @@ set -euo pipefail
 # if it supports _any_ of these licenses.
 #
 # We don't currently do a good job of understanding AND, so
-# intersting license combinations that involve AND may need to be given
+# interesting license combinations that involve AND may need to be given
 # in quotes.
 RECOGNIZED_LICENSES=(
     Apache-2.0
