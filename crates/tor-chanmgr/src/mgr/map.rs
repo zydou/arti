@@ -327,7 +327,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// This function will handle
     ///   - netdir update
     ///   - a reconfiguration
-    ///   - dormancy (TODO, this doesn't do anything yet)
+    ///   - dormancy
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
     pub(super) fn reconfigure_general(
@@ -337,8 +337,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
         netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
-
-        // TODO support dormant mode
         // TODO when entering/leaving dormant mode, send CELL_PADDING_NEGOTIATE to peers
         // TODO with reduced padding, send CELL_PADDING_NEGOTIATE
 
@@ -419,22 +417,26 @@ impl<C: AbstractChannel> ChannelMap<C> {
 ///     and construct a corresponding ChannelsParams.
 ///
 ///  2. During reconfiguration.
-///
-/// TODO this doesn't actually pay attention to dormancy yet.
 fn parameterize(
     channels_params: &mut ChannelsParams,
     config: &ChannelConfig,
-    _dormancy: Dormancy,
+    dormancy: Dormancy,
     netdir: StdResult<&NetDirExtract, &()>,
 ) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
     let padding_parameters = padding_parameters(config.padding, netdir)?;
-    // TODO if this is equal to all_zeroes(), do not enable padding
-    // (when we enable padding at all, which we do not do yet...)
 
-    let update = channels_params
+    let send_padding = (match dormancy {
+        Dormancy::Active => true,
+        Dormancy::Dormant => false,
+    }) && padding_parameters != PaddingParameters::all_zeroes();
+
+    let mut update = channels_params
         .start_update()
-        .padding_parameters(padding_parameters)
-        .finish();
+        .padding_enable(send_padding);
+    if send_padding {
+        update = update.padding_parameters(padding_parameters);
+    }
+    let update = update.finish();
 
     Ok(update)
 }
