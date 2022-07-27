@@ -418,9 +418,8 @@ fn padding_parameters(
                     |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
                 let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
                 let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
-
-                if high > low {
-                    return Err("high > low");
+                if low > high {
+                    return Err("low > high");
                 }
                 p.low_ms(low);
                 p.high_ms(high);
