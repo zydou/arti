@@ -319,7 +319,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// (By reparameterising channels as needed)
     /// This function will handle
     ///   - netdir update
-    ///   - a reconfiguration (TODO, this doesn't do anything yet)
+    ///   - a reconfiguration
     ///   - dormancy (TODO, this doesn't do anything yet)
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
@@ -360,6 +360,8 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
 
         let padding_parameters = padding_parameters(inner.config.padding, Ok(&netdir))?;
+        // TODO if this is equal to all_zeroes(), do not enable padding
+        // (when we enable padding at all, which we do not do yet...)
 
         let update = inner
             .channels_params
@@ -404,10 +406,14 @@ impl<C: AbstractChannel> ChannelMap<C> {
 /// With `PaddingLevel::None`, will return `PaddingParameters::all_zeroes`; but
 /// does not account for padding being enabled/disabled other ways than via the config.
 fn padding_parameters(
-    _config: PaddingLevel,
+    config: PaddingLevel,
     netdir: StdResult<&NetDirExtract, &()>,
 ) -> StdResult<PaddingParameters, tor_error::Bug> {
-    let reduced = false; // TODO
+    let reduced = match config {
+        PaddingLevel::Reduced => true,
+        PaddingLevel::Normal => false,
+        PaddingLevel::None => return Ok(PaddingParameters::all_zeroes()),
+    };
 
     Ok(match netdir {
         Ok(netdir) => {
