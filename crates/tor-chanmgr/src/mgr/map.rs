@@ -323,13 +323,11 @@ impl<C: AbstractChannel> ChannelMap<C> {
     ///   - dormancy (TODO, this doesn't do anything yet)
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
-    ///
-    /// TODO: Make this function be able to cope with netdir not being unavailable.
     pub(super) fn reconfigure_general(
         &self,
         new_config: Option<&ChannelConfig>,
         new_dormancy: Option<Dormancy>,
-        netdir: Arc<NetDir>,
+        netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
 
@@ -340,11 +338,14 @@ impl<C: AbstractChannel> ChannelMap<C> {
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
         let netdir = {
-            let nde = NetDirExtract::from(&*netdir);
+            let extract = netdir
+                .as_ref()
+                .map(|n| NetDirExtract::from(&**n))
+                .map_err(|_| ());
             // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
             // before we take the channel map lock.
             drop(netdir);
-            nde
+            extract
         };
 
         let mut inner = self
@@ -359,7 +360,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             inner.dormancy = new_dormancy;
         }
 
-        let padding_parameters = padding_parameters(inner.config.padding, Ok(&netdir))?;
+        let padding_parameters = padding_parameters(inner.config.padding, netdir.as_ref())?;
         // TODO if this is equal to all_zeroes(), do not enable padding
         // (when we enable padding at all, which we do not do yet...)
 
@@ -672,7 +673,8 @@ mod test {
         };
 
         eprintln!("-- process a default netdir, which should send an update --");
-        map.reconfigure_general(None, None, netdir.clone()).unwrap();
+        map.reconfigure_general(None, None, Ok(netdir.clone()))
+            .unwrap();
         with_ch(&|ch| {
             assert_eq!(
                 format!("{:?}", ch.params_update.take().unwrap()),
@@ -686,7 +688,7 @@ mod test {
         eprintln!();
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
-        map.reconfigure_general(None, None, netdir).unwrap();
+        map.reconfigure_general(None, None, Ok(netdir)).unwrap();
         with_ch(&|ch| assert_eq!(ch.params_update, None));
     }
 

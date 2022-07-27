@@ -264,7 +264,6 @@ impl<R: Runtime> ChanMgr<R> {
                         let self_ = self_.upgrade().ok_or("channel manager gone away")?;
                         let netdir = netdir.upgrade().ok_or("netdir gone away")?;
                         let netdir = netdir.timely_netdir();
-                        let netdir = if let Ok(nd) = netdir { nd } else { continue };
                         self_.mgr.update_netdir(netdir).map_err(|e| {
                             error!("continually_update_channels_config: failed to process! {} {:?}",
                                    &e, &e);

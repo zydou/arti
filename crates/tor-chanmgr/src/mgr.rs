@@ -264,11 +264,9 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     }
 
     /// Update the netdir
-    ///
-    /// TODO: Handle lack of a NetDir
     pub(crate) fn update_netdir(
         &self,
-        netdir: Arc<NetDir>
+        netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
         self.channels.reconfigure_general(None, None, netdir)
     }
@@ -279,9 +277,6 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         dormancy: Dormancy,
         netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
-        let netdir = netdir.map_err(
-            |_| internal!("should handle lack of netdir!"), // TODO this needs to go away
-        )?;
         self.channels
             .reconfigure_general(None, Some(dormancy), netdir)
     }
@@ -292,9 +287,6 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         config: &ChannelConfig,
         netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
-        let netdir = netdir.map_err(
-            |_| internal!("should handle lack of netdir!"), // TODO this needs to go away
-        )?;
         self.channels
             .reconfigure_general(Some(config), None, netdir)
     }
