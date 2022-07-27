@@ -123,7 +123,7 @@ enum ErrorDetail {
     #[error("Error setting up the directory manager")]
     DirMgrSetup(#[source] tor_dirmgr::Error),
 
-    /// Error setting up the state mangager.
+    /// Error setting up the state manager.
     #[error("Error setting up the persistent state manager")]
     StateMgrSetup(#[source] tor_persist::Error),
 

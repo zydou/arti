@@ -63,7 +63,7 @@ impl msg::Body for EstablishIntro {
         // `tor_bytes::Writer::write` to return a `Result`.
         w.write_u16(self.auth_key.len() as u16);
         w.write_all(&self.auth_key[..]);
-        // N_EXTENTIONS is zero for now
+        // N_EXTENSIONS is zero for now
         w.write_u8(0_u8);
         w.write_all(&self.handshake_auth[..]);
         w.write_u16(self.sig.len() as u16);
