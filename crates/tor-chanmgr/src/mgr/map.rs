@@ -191,7 +191,13 @@ impl<C: AbstractChannel> ChannelState<C> {
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
     pub(crate) fn new(config: ChannelConfig, dormancy: Dormancy) -> Self {
-        let channels_params = ChannelsParams::default();
+        let mut channels_params = ChannelsParams::default();
+
+        let netdir = Err(&()); // we never have a netdir at startup
+        let update = parameterize(&mut channels_params, &config, dormancy, netdir)
+            .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
+        let _: Option<_> = update; // there are no channels yet, that would need to be told
+
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
@@ -411,7 +417,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
 ///
 ///  1. During chanmgr creation, it is called once to analyse the initial state
 ///     and construct a corresponding ChannelsParams.
-///     (TODO this doesn't happen yet.)
 ///
 ///  2. During reconfiguration.
 ///
