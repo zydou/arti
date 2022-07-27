@@ -58,13 +58,15 @@ mod mgr;
 #[cfg(test)]
 mod testing;
 
+use educe::Educe;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
-use tor_netdir::NetDirProvider;
+use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::channel::Channel;
 use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
@@ -103,16 +105,28 @@ pub enum ChanProvenance {
     Preexisting,
 }
 
+/// Dormancy state, as far as the channel manager is concerned
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Educe)]
+#[educe(Default)]
+pub enum Dormancy {
+    /// Not dormant
+    #[educe(Default)]
+    Active,
+    /// Totally dormant
+    Dormant,
+}
+
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
-    pub fn new(runtime: R) -> Self {
+    pub fn new(runtime: R, dormancy: Dormancy) -> Self {
         let (sender, receiver) = event::channel();
         let builder = builder::ChanBuilder::new(runtime, sender);
-        let mgr = mgr::AbstractChanMgr::new(builder);
+        let mgr = mgr::AbstractChanMgr::new(builder, dormancy);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -185,6 +199,19 @@ impl<R: Runtime> ChanMgr<R> {
     /// Return the duration from now until next channel expires.
     pub fn expire_channels(&self) -> Duration {
         self.mgr.expire_channels()
+    }
+
+    /// Notifies the chanmgr to be dormant like dormancy
+    ///
+    /// For netdir`, `None` means "there is definitely no consensus now",
+    /// *not* "use previous netdir/consensus data".
+    /// (This is not a great use of `Option` and work is on the way to change it.)
+    pub fn set_dormancy(
+        &self,
+        dormancy: Dormancy,
+        netdir: tor_netdir::Result<Arc<NetDir>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        self.mgr.set_dormancy(dormancy, netdir)
     }
 
     /// Watch for things that ought to change the configuration of all channels in the client

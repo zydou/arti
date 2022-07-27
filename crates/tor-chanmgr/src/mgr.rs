@@ -1,7 +1,7 @@
 //! Abstract implementation of a channel manager
 
 use crate::mgr::map::OpenEntry;
-use crate::{ChanProvenance, Error, Result};
+use crate::{ChanProvenance, Dormancy, Error, Result};
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -88,10 +88,10 @@ type Sending<C> = oneshot::Sender<Result<C>>;
 
 impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
-    pub(crate) fn new(connector: CF) -> Self {
+    pub(crate) fn new(connector: CF, dormancy: Dormancy) -> Self {
         AbstractChanMgr {
             connector,
-            channels: map::ChannelMap::new(),
+            channels: map::ChannelMap::new(dormancy),
         }
     }
 
@@ -253,10 +253,23 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     ///
     /// TODO: Handle lack of a NetDir
     pub(crate) fn update_netdir(
-        &self, netdir:
-        Arc<NetDir>
+        &self,
+        netdir: Arc<NetDir>
     ) -> StdResult<(), tor_error::Bug> {
         self.channels.reconfigure_general(None, None, netdir)
+    }
+
+    /// Notifies the chanmgr to be dormant like dormancy
+    pub(crate) fn set_dormancy(
+        &self,
+        dormancy: Dormancy,
+        netdir: tor_netdir::Result<Arc<NetDir>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        let netdir = netdir.map_err(
+            |_| internal!("should handle lack of netdir!"), // TODO this needs to go away
+        )?;
+        self.channels
+            .reconfigure_general(None, Some(dormancy), netdir)
     }
 
     /// Expire any channels that have been unused longer than
@@ -348,7 +361,7 @@ mod test {
 
     fn new_test_abstract_chanmgr<R: Runtime>(runtime: R) -> AbstractChanMgr<FakeChannelFactory<R>> {
         let cf = FakeChannelFactory::new(runtime);
-        AbstractChanMgr::new(cf)
+        AbstractChanMgr::new(cf, Default::default())
     }
 
     #[async_trait]

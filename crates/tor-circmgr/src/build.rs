@@ -796,7 +796,7 @@ mod test {
         path: OwnedPath,
         advance_on_timeout: Option<(Duration, Duration)>,
     ) -> (Result<FakeCirc>, Vec<(bool, u8, Duration)>) {
-        let chanmgr = Arc::new(ChanMgr::new(rt.clone()));
+        let chanmgr = Arc::new(ChanMgr::new(rt.clone(), Default::default()));
         // always has 3 second timeout, 100 second abandon.
         let timeouts = match advance_on_timeout {
             Some((d1, d2)) => TimeoutRecorder::with_delays(rt.clone(), d1, d2),

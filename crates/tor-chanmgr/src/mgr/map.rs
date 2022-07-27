@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{AbstractChannel, Pending};
-use crate::{Error, Result};
+use crate::{Dormancy, Error, Result};
 
 use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
@@ -42,6 +42,9 @@ struct Inner<C: AbstractChannel> {
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
     channels_params: ChannelsParams,
+
+    /// Dormancy
+    dormancy: Dormancy,
 }
 
 /// Structure that can only be constructed from within this module.
@@ -146,12 +149,13 @@ impl<C: AbstractChannel> ChannelState<C> {
 
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(dormancy: Dormancy) -> Self {
         let channels_params = ChannelsParams::default();
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
                 channels_params,
+                dormancy,
             }),
         }
     }
@@ -275,7 +279,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// This function will handle
     ///   - netdir update
     ///   - a reconfiguration (TODO, we lack configuration right now)
-    ///   - dormancy (TODO, this isn't plumbed through here yet)
+    ///   - dormancy (TODO, this doesn't do anything yet)
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
     ///
@@ -283,7 +287,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     pub(super) fn reconfigure_general(
         &self,
         _new_config: Option<&()>,
-        _new_dormancy: Option<()>,
+        new_dormancy: Option<Dormancy>,
         netdir: Arc<NetDir>,
     ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
@@ -315,6 +319,11 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .inner
             .lock()
             .map_err(|_| internal!("poisonned channel manager"))?;
+
+        if let Some(new_dormancy) = new_dormancy {
+            inner.dormancy = new_dormancy;
+        }
+
         let update = inner
             .channels_params
             .start_update()
@@ -398,7 +407,7 @@ mod test {
     use tor_proto::channel::params::ChannelsParamsUpdates;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
-        ChannelMap::new()
+        ChannelMap::new(Default::default())
     }
 
     #[derive(Eq, PartialEq, Clone, Debug)]
