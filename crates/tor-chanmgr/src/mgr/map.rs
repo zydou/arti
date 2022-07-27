@@ -344,6 +344,18 @@ impl<C: AbstractChannel> ChannelMap<C> {
             nde
         };
 
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| internal!("poisonned channel manager"))?;
+
+        if let Some(new_config) = new_config {
+            inner.config = new_config.clone();
+        }
+        if let Some(new_dormancy) = new_dormancy {
+            inner.dormancy = new_dormancy;
+        }
+
         let padding_parameters = {
             let mut p = PaddingParametersBuilder::default();
             update_padding_parameters_from_netdir(&mut p, &netdir).unwrap_or_else(|e| {
@@ -358,18 +370,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
             p
         };
-
-        let mut inner = self
-            .inner
-            .lock()
-            .map_err(|_| internal!("poisonned channel manager"))?;
-
-        if let Some(new_config) = new_config {
-            inner.config = new_config.clone();
-        }
-        if let Some(new_dormancy) = new_dormancy {
-            inner.dormancy = new_dormancy;
-        }
 
         let update = inner
             .channels_params
