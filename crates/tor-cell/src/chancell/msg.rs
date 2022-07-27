@@ -801,13 +801,25 @@ impl Readable for Versions {
     }
 }
 
+caret_int! {
+    /// A ChanCmd is the type of a channel cell.  The value of the ChanCmd
+    /// indicates the meaning of the cell, and (possibly) its length.
+    pub struct PaddingNegotiateCmd(u8) {
+        /// Start padding
+        START = 2,
+
+        /// Stop padding
+        STOP = 1,
+    }
+}
+
 /// A PaddingNegotiate message is used to negotiate channel padding.
 ///
 /// This message is constructed in the channel manager and transmitted by the reactor.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaddingNegotiate {
     /// Whether to start or stop padding
-    command: u8,
+    command: PaddingNegotiateCmd,
     /// Suggested lower-bound value for inter-packet timeout in msec.
     // TODO(nickm) is that right?
     ito_low_ms: u16,
@@ -820,7 +832,7 @@ impl PaddingNegotiate {
     pub fn start(ito_low_ms: u16, ito_high_ms: u16) -> Self {
         // Tor Spec section 7.3
         Self {
-            command: 2,
+            command: PaddingNegotiateCmd::START,
             ito_low_ms,
             ito_high_ms,
         }
@@ -830,7 +842,7 @@ impl PaddingNegotiate {
     pub fn stop() -> Self {
         // Tor Spec section 7.3
         Self {
-            command: 1,
+            command: PaddingNegotiateCmd::STOP,
             ito_low_ms: 0,
             ito_high_ms: 0,
         }
@@ -842,7 +854,7 @@ impl Body for PaddingNegotiate {
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(0); // version
-        w.write_u8(self.command);
+        w.write_u8(self.command.get());
         w.write_u16(self.ito_low_ms);
         w.write_u16(self.ito_high_ms);
         Ok(())
@@ -856,7 +868,7 @@ impl Readable for PaddingNegotiate {
                 "Unrecognized padding negotiation version",
             ));
         }
-        let command = r.take_u8()?;
+        let command = r.take_u8()?.into();
         let ito_low_ms = r.take_u16()?;
         let ito_high_ms = r.take_u16()?;
         Ok(PaddingNegotiate {
