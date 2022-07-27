@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{AbstractChannel, Pending};
-use crate::{Dormancy, Error, Result};
+use crate::{ChannelConfig, Dormancy, Error, Result};
 
 use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
@@ -42,6 +42,9 @@ struct Inner<C: AbstractChannel> {
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
     channels_params: ChannelsParams,
+
+    /// The configuration (from the config file or API caller)
+    config: ChannelConfig,
 
     /// Dormancy
     dormancy: Dormancy,
@@ -149,11 +152,12 @@ impl<C: AbstractChannel> ChannelState<C> {
 
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
-    pub(crate) fn new(dormancy: Dormancy) -> Self {
+    pub(crate) fn new(config: ChannelConfig, dormancy: Dormancy) -> Self {
         let channels_params = ChannelsParams::default();
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
+                config,
                 channels_params,
                 dormancy,
             }),
@@ -278,7 +282,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// (By reparameterising channels as needed)
     /// This function will handle
     ///   - netdir update
-    ///   - a reconfiguration (TODO, we lack configuration right now)
+    ///   - a reconfiguration (TODO, this doesn't do anything yet)
     ///   - dormancy (TODO, this doesn't do anything yet)
     ///
     /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
@@ -286,7 +290,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     /// TODO: Make this function be able to cope with netdir not being unavailable.
     pub(super) fn reconfigure_general(
         &self,
-        _new_config: Option<&()>,
+        new_config: Option<&ChannelConfig>,
         new_dormancy: Option<Dormancy>,
         netdir: Arc<NetDir>,
     ) -> StdResult<(), tor_error::Bug> {
@@ -320,6 +324,9 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .lock()
             .map_err(|_| internal!("poisonned channel manager"))?;
 
+        if let Some(new_config) = new_config {
+            inner.config = new_config.clone();
+        }
         if let Some(new_dormancy) = new_dormancy {
             inner.dormancy = new_dormancy;
         }
@@ -407,7 +414,7 @@ mod test {
     use tor_proto::channel::ChannelUsage;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
-        ChannelMap::new(Default::default())
+        ChannelMap::new(ChannelConfig::default(), Default::default())
     }
 
     #[derive(Eq, PartialEq, Clone, Debug)]

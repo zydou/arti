@@ -52,6 +52,7 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod builder;
+mod config;
 mod err;
 mod event;
 mod mgr;
@@ -65,6 +66,7 @@ use futures::StreamExt;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
+use tor_config::ReconfigureError;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{NetDir, NetDirProvider};
 use tor_proto::channel::{Channel, ChannelUsage};
@@ -72,6 +74,8 @@ use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
 
 pub use err::Error;
+
+pub use config::{ChannelConfig, ChannelConfigBuilder};
 
 use tor_rtcompat::Runtime;
 
@@ -123,10 +127,10 @@ impl<R: Runtime> ChanMgr<R> {
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
-    pub fn new(runtime: R, dormancy: Dormancy) -> Self {
+    pub fn new(runtime: R, config: &ChannelConfig, dormancy: Dormancy) -> Self {
         let (sender, receiver) = event::channel();
         let builder = builder::ChanBuilder::new(runtime, sender);
-        let mgr = mgr::AbstractChanMgr::new(builder, dormancy);
+        let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -216,6 +220,22 @@ impl<R: Runtime> ChanMgr<R> {
         netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
         self.mgr.set_dormancy(dormancy, netdir)
+    }
+
+    /// Reconfigure all channels
+    pub fn reconfigure(
+        &self,
+        config: &ChannelConfig,
+        how: tor_config::Reconfigure,
+        netdir: tor_netdir::Result<Arc<NetDir>>,
+    ) -> StdResult<(), ReconfigureError> {
+        let r = self.mgr.reconfigure(config, netdir);
+
+        // We don't care about how, because reconfiguration can only fail due to bugs
+        let _ = how;
+        let _: Option<&tor_error::Bug> = r.as_ref().err();
+
+        Ok(r?)
     }
 
     /// Watch for things that ought to change the configuration of all channels in the client

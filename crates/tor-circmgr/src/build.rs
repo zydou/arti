@@ -509,6 +509,7 @@ mod test {
     use futures::channel::oneshot;
     use std::sync::Mutex;
     use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
+    use tor_chanmgr::ChannelConfig;
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::ChannelUsage as CU;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
@@ -826,7 +827,11 @@ mod test {
         advance_on_timeout: Option<(Duration, Duration)>,
         usage: ChannelUsage,
     ) -> (Result<FakeCirc>, Vec<(bool, u8, Duration)>) {
-        let chanmgr = Arc::new(ChanMgr::new(rt.clone(), Default::default()));
+        let chanmgr = Arc::new(ChanMgr::new(
+            rt.clone(),
+            &ChannelConfig::default(),
+            Default::default(),
+        ));
         // always has 3 second timeout, 100 second abandon.
         let timeouts = match advance_on_timeout {
             Some((d1, d2)) => TimeoutRecorder::with_delays(rt.clone(), d1, d2),

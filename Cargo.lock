@@ -3464,6 +3464,7 @@ name = "tor-chanmgr"
 version = "0.5.0"
 dependencies = [
  "async-trait",
+ "derive_builder_fork_arti",
  "derive_more",
  "educe",
  "float_eq",
@@ -3472,8 +3473,10 @@ dependencies = [
  "hex-literal",
  "postage",
  "rand 0.8.5",
+ "serde",
  "thiserror",
  "tor-basic-utils",
+ "tor-config",
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",

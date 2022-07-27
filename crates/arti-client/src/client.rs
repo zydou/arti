@@ -56,6 +56,10 @@ pub struct TorClient<R: Runtime> {
     client_isolation: IsolationToken,
     /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
     connect_prefs: StreamPrefs,
+    /// Channel manager, used by circuits etc.,
+    ///
+    /// Used directly by client only for reconfiguration.
+    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -382,7 +386,11 @@ impl<R: Runtime> TorClient<R> {
         let status_receiver = status::BootstrapEvents {
             inner: status_receiver,
         };
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone(), dormant.into()));
+        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &config.channel,
+            dormant.into(),
+        ));
         let circmgr =
             tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
                 .map_err(ErrorDetail::CircMgrSetup)?;
@@ -434,6 +442,7 @@ impl<R: Runtime> TorClient<R> {
             runtime,
             client_isolation,
             connect_prefs: Default::default(),
+            chanmgr,
             circmgr,
             dirmgr,
             statemgr,
@@ -594,6 +603,12 @@ impl<R: Runtime> TorClient<R> {
             .map_err(wrap_err)?;
 
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
+
+        let netdir = self.dirmgr.timely_netdir();
+
+        self.chanmgr
+            .reconfigure(&new_config.channel, how, netdir)
+            .map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
             return Ok(());
