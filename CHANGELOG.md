@@ -4,14 +4,109 @@ This file describes changes in Arti through the current release.  Once Arti
 is more mature, and we start to version crates independently, we may
 switch to using a separate changelog for each crate.
 
+
+# Arti 0.6.0 — 1 August 2022
+
+Arti 0.6.0 fixes bugs, cleans up some messy internals, improves error
+messages, and adds more preparation for future work in netflow padding.
+
+(These notes summarize changes in all crates since Arti 0.5.0.)
+
+
+[XXXX Up-to-date as of e571bc6c094a27dc20544c93feed7b7f7cf4f0fb XXXXX]
+
+
+
+### Breaking changes
+
+- The `download_tolerance` configuration section has been renamed to
+  `directory_tolerance`: It's not about tolerances at download time, but
+  rather about how expired or premature a directory can be. The related
+  `DirSkewTolerance` has also been renamed. ([#503], [!638])
+- Several methods related to managing the [`Mistrust`] file-permissions
+  object have been removed or changed, thanks to refactoring elsewhere.
+  ([#483], [#640])
+
+### Breaking changes in lower level crates
+
+These changes should not break any code that only depends on the
+[`arti_client`] APIs, but they will affect programs that use APIs from
+lower-level crates to interact more closely with the Tor protocols.
+
+- The `Error` types in all crates have been refactored to include far more
+  accurate information about errors and their context.  This does not break
+  the [`arti_client`] API, but it will affect anybody using lower-level
+  crates. ([#323], [!614], [!616], [!619], [!620], [!625], [!628], [!638])
+- The [`Writeable`] trait used to encode data, and related methods,
+  are now fallible.  Previously they had no way to report errors.
+  ([#513], [!623], [!640])
+- The [`tor-cert`] APIs have been tweaked to support more compact
+  internal representations and more idiomatic usage. ([#512], [!641],
+  [!643]).
+- The [`NetDirProvider`] API, and related APIs in [`tor-dirmgr`], have been
+  changed to support returning network directories with varying timeliness
+  requirements. ([#528], [!642])
+
+### New features
+
+- The internal [`tor-cert`] API now supports generating Tor-compatible
+  certificates. ([#511], [!611])
+- Improved API support for circuit handshakes that include external
+  encrypted data, such as [`ntor-v3`] and [`hs-ntor`]. ([!618])
+
+### Major bugfixes
+
+- Fix a bug that prevented Arti from storing consensus files on
+  Windows. Previously, we had generated filenames containing a colon, which
+  Windows treats as a reserved character. ([#516], [!627])
+
+### Infrastructure
+
+- Our license checker now tolerates complicated licenses with nested boolean
+  expressions, by explicitly allow-listing the ones we like. ([!635])
+
+### Cleanups, minor features, and minor bugfixes
+
+- Upgrade to a newer version of [`base64ct`], and remove some work-around
+  logic required for the older versions.  ([!608])
+- Various typo fixes. ([!609], [!610], [!650])
+- Upgrade to a pre-release version of
+  [`x25519-dalek`] to avoid a hard dependency on an outdated version of
+  [`zeroize`], so we can follow the latest version of the [`rsa`] crate.
+  ([#448], [!612])
+- Our client-global "dormant mode" flag is now published via a
+  [`postage::watch`], which makes it easier to observe for changes. ([!632)
+- Preliminary (unused) support for some onion-service-related cells.
+  ([!626])
+- The [`fs-mistrust`] crate can now use environment variables to be told to
+  disable itself. This has allowed for simplifications elsewhere in our
+  configuration logic. ([#483], [!630])
+- Clean up an incorrect `--help` message. ([!633])
+
+### Testing
+
+- More tests for [`arti-hyper`]. ([!615])
+- More tests for our undderlying base-64 implementation. ([!613])
+
+### Acknowledgments
+
+Thanks to everyone who has contributed to this release, including Arturo
+Marquez, Dimitris Apostolou, `feelingnothing`, Jim Newsome, Richard
+Pospesel, `spongechameleon`, Trinity Pointard, and Yuan Lyu.
+
+
+
+
+
 # tor-dirmgr patch release 0.5.1 — 14 July 2022
 
 On 14 July 2022, we put out a patch release (0.5.1) to `tor-dirmgr`, to fix
 a bug that prevented Arti from storing consensus files on
 Windows. Previously, we had generated filenames containing a colon, which
-Windows trieats as a reserved character.
+Windows treats as a reserved character.
 
 Thanks to "@feelingnothing" for the bug report and the fix.
+
 
 
 # Arti 0.5.0 — 24 Jun 2022
