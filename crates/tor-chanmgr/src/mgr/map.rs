@@ -13,6 +13,7 @@ use tor_error::{internal, into_internal};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
+use tor_proto::channel::ChannelsParamsUpdates;
 use tor_proto::ChannelsParams;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
@@ -352,6 +353,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .inner
             .lock()
             .map_err(|_| internal!("poisonned channel manager"))?;
+        let mut inner = &mut *inner;
 
         if let Some(new_config) = new_config {
             inner.config = new_config.clone();
@@ -360,15 +362,13 @@ impl<C: AbstractChannel> ChannelMap<C> {
             inner.dormancy = new_dormancy;
         }
 
-        let padding_parameters = padding_parameters(inner.config.padding, netdir.as_ref())?;
-        // TODO if this is equal to all_zeroes(), do not enable padding
-        // (when we enable padding at all, which we do not do yet...)
+        let update = parameterize(
+            &mut inner.channels_params,
+            &inner.config,
+            inner.dormancy,
+            netdir.as_ref(),
+        )?;
 
-        let update = inner
-            .channels_params
-            .start_update()
-            .padding_parameters(padding_parameters)
-            .finish();
         let update = if let Some(u) = update {
             u
         } else {
@@ -400,6 +400,38 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
         ret
     }
+}
+
+/// Converts config, dormancy, and netdir, into channel parameters
+///
+/// `channels_params` is updated with the new parameters,
+/// and the update message, if one is needed, is returned.
+///
+/// This is called in two places:
+///
+///  1. During chanmgr creation, it is called once to analyse the initial state
+///     and construct a corresponding ChannelsParams.
+///     (TODO this doesn't happen yet.)
+///
+///  2. During reconfiguration.
+///
+/// TODO this doesn't actually pay attention to dormancy yet.
+fn parameterize(
+    channels_params: &mut ChannelsParams,
+    config: &ChannelConfig,
+    _dormancy: Dormancy,
+    netdir: StdResult<&NetDirExtract, &()>,
+) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
+    let padding_parameters = padding_parameters(config.padding, netdir)?;
+    // TODO if this is equal to all_zeroes(), do not enable padding
+    // (when we enable padding at all, which we do not do yet...)
+
+    let update = channels_params
+        .start_update()
+        .padding_parameters(padding_parameters)
+        .finish();
+
+    Ok(update)
 }
 
 /// Given a `NetDirExtract` and whether we're reducing padding, return a `PaddingParameters`
