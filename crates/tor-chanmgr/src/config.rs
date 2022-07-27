@@ -24,6 +24,14 @@ pub struct ChannelConfig {
 }
 impl_standard_builder! { ChannelConfig }
 
+#[cfg(feature = "testing")]
+impl ChannelConfig {
+    /// The padding level (accessor for testing)
+    pub fn padding(&self) -> PaddingLevel {
+        self.padding
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

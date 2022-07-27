@@ -12,6 +12,7 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
+testing = [ ]
 
 [dependencies]
 async-trait = "0.1.2"
