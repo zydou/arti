@@ -12,7 +12,7 @@ use tor_error::{internal, into_internal};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::ChannelsParams;
-use tor_units::BoundedInt32;
+use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
@@ -102,6 +102,41 @@ impl<C: Clone> ChannelState<C> {
         match self {
             ChannelState::Open(ent) => &mut ent.channel,
             _ => panic!("Not an open channel"),
+        }
+    }
+}
+
+/// Type of the `nf_ito_*` netdir parameters, convenience alias
+type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>>;
+
+/// Extract from a `NetDir` which we need, conveniently organised for our processing
+///
+/// This type serves two functions at once:
+///
+///  1. Being a subset of the parameters from the netdir, we can copy it out of
+///     the netdir, before we do more complex processing - and, in particular,
+///     before we obtain the lock on `inner` (which we need to actually handle the update,
+///     because we need to combine information from the config with that from the netdir).
+///
+///  2. Rather than four separate named fields, it has arrays, so that it is easy to
+///     select the values without error-prone recapitulation of field names.
+#[derive(Debug, Clone)]
+struct NetDirExtract {
+    /// `nf_ito_*`
+    ///
+    /// `nf_ito[ 0=normal, 1=reduced ][ 0=low, 1=high ]`
+    // TODO we could use some enum or IndexVec or something to make this less `0` and `1`
+    nf_ito: [[NfIto; 2]; 2],
+}
+
+impl From<&NetDir> for NetDirExtract {
+    fn from(netdir: &NetDir) -> Self {
+        let p = &netdir.params();
+        NetDirExtract {
+            nf_ito: [
+                [p.nf_ito_low, p.nf_ito_high],
+                [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
+            ],
         }
     }
 }
@@ -301,6 +336,14 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
+        let netdir = {
+            let nde = NetDirExtract::from(&*netdir);
+            // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
+            // before we take the channel map lock.
+            drop(netdir);
+            nde
+        };
+
         let padding_parameters = {
             let mut p = PaddingParametersBuilder::default();
             update_padding_parameters_from_netdir(&mut p, &netdir).unwrap_or_else(|e| {
@@ -313,9 +356,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
                 .build()
                 .map_err(into_internal!("failed to build padding parameters"))?;
 
-            // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
-            // before we take the channel map lock.
-            drop(netdir);
             p
         };
 
@@ -372,21 +412,17 @@ impl<C: AbstractChannel> ChannelMap<C> {
 /// Given a `NetDir`, update a `PaddingParametersBuilder` with channel padding parameters
 fn update_padding_parameters_from_netdir(
     p: &mut PaddingParametersBuilder,
-    netdir: &NetDir,
+    netdir: &NetDirExtract,
 ) -> StdResult<(), &'static str> {
-    let params = netdir.params();
     // TODO support reduced padding via global client config,
     // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
-    let (low, high) = (&params.nf_ito_low, &params.nf_ito_high);
+    let reduced = false; // TODO
+    let nf_ito = netdir.nf_ito[usize::from(reduced)];
 
-    let conv_timing_param =
-        |bounded: BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>| bounded.get().try_into();
-    let low = low
-        .try_map(conv_timing_param)
-        .map_err(|_| "low value out of range?!")?;
-    let high = high
-        .try_map(conv_timing_param)
-        .map_err(|_| "high value out of range?!")?;
+    let get_timing_param =
+        |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
+    let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
+    let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
 
     if high > low {
         return Err("high > low");
