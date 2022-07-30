@@ -166,6 +166,8 @@ impl<'a> super::Verifier<'a> {
     /// Check whether a given file has the correct ownership and permissions,
     /// and push errors into `errors` if not. Other inputs are as for
     /// `check_one`.
+    ///
+    /// On iOS, check permissions but assumes the owner is the current user.
     #[cfg(target_family = "unix")]
     fn check_permissions(
         &self,
@@ -178,9 +180,13 @@ impl<'a> super::Verifier<'a> {
         // always change the permissions of the object.  (If we're talking
         // about a directory, the owner cah change the permissions and owner
         // of anything in the directory.)
-        let uid = meta.uid();
-        if uid != 0 && Some(uid) != self.mistrust.trust_user {
-            errors.push(Error::BadOwner(path.into(), uid));
+
+        #[cfg(not(target_os = "ios"))]
+        {
+            let uid = meta.uid();
+            if uid != 0 && Some(uid) != self.mistrust.trust_user {
+                errors.push(Error::BadOwner(path.into(), uid));
+            }
         }
 
         // On Unix-like platforms, symlink permissions are ignored (and usually
@@ -190,6 +196,8 @@ impl<'a> super::Verifier<'a> {
             return;
         }
 
+        // mut not used when compiling or iOS
+        #[allow(unused_mut)]
         let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
             // If this is the target object, and it must not be readable, then
             // we forbid it to be group-rwx and all-rwx.
@@ -219,9 +227,11 @@ impl<'a> super::Verifier<'a> {
             }
         };
         // If we trust the GID, then we allow even more bits to be set.
+        #[cfg(not(target_os = "ios"))]
         if self.mistrust.trust_group == Some(meta.gid()) {
             forbidden_bits &= !0o070;
         }
+
         let bad_bits = meta.mode() & forbidden_bits;
         if bad_bits != 0 {
             errors.push(Error::BadPermission(

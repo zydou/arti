@@ -283,7 +283,7 @@ mod dir;
 mod disable;
 mod err;
 mod imp;
-#[cfg(target_family = "unix")]
+#[cfg(all(target_family = "unix", not(target_os = "ios")))]
 mod user;
 
 #[cfg(test)]
@@ -305,7 +305,7 @@ pub use err::Error;
 /// A result type as returned by this crate
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[cfg(target_family = "unix")]
+#[cfg(all(target_family = "unix", not(target_os = "ios")))]
 pub use user::{TrustedGroup, TrustedUser};
 
 /// Configuration for verifying that a file or directory is really "private".
@@ -361,7 +361,7 @@ pub struct Mistrust {
     status: disable::Status,
 
     /// What user ID do we trust by default (if any?)
-    #[cfg(target_family = "unix")]
+    #[cfg(all(target_family = "unix", not(target_os = "ios")))]
     #[builder(
         setter(into),
         field(type = "TrustedUser", build = "self.trust_user.get_uid()?")
@@ -369,7 +369,7 @@ pub struct Mistrust {
     trust_user: Option<u32>,
 
     /// What group ID do we trust by default (if any?)
-    #[cfg(target_family = "unix")]
+    #[cfg(all(target_family = "unix", not(target_os = "ios")))]
     #[builder(
         setter(into),
         field(type = "TrustedGroup", build = "self.trust_group.get_gid()?")
@@ -400,7 +400,7 @@ impl MistrustBuilder {
     /// trusted.
     ///
     /// This option disables the default group-trust behavior as well.
-    #[cfg(target_family = "unix")]
+    #[cfg(all(target_family = "unix", not(target_os = "ios")))]
     pub fn trust_admin_only(&mut self) -> &mut Self {
         self.trust_user = TrustedUser::None;
         self.trust_group = TrustedGroup::None;
@@ -415,7 +415,7 @@ impl MistrustBuilder {
     /// With this option set, no group is trusted, and and any group-readable or
     /// group-writable objects are treated the same as world-readable and
     /// world-writable objects respectively.
-    #[cfg(target_family = "unix")]
+    #[cfg(all(target_family = "unix", not(target_os = "ios")))]
     pub fn trust_no_group_id(&mut self) -> &mut Self {
         self.trust_group = TrustedGroup::None;
         self
