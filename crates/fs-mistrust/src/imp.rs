@@ -196,8 +196,6 @@ impl<'a> super::Verifier<'a> {
             return;
         }
 
-        // mut not used when compiling or iOS
-        #[allow(unused_mut)]
         let mut forbidden_bits = if !self.readable_okay && path_type == PathType::Final {
             // If this is the target object, and it must not be readable, then
             // we forbid it to be group-rwx and all-rwx.
@@ -229,6 +227,13 @@ impl<'a> super::Verifier<'a> {
         // If we trust the GID, then we allow even more bits to be set.
         #[cfg(not(target_os = "ios"))]
         if self.mistrust.trust_group == Some(meta.gid()) {
+            forbidden_bits &= !0o070;
+        }
+
+        // rational: on iOS the platform already protect user data, and not setting this poses
+        // issue with the default application data folder.
+        #[cfg(target_os = "ios")]
+        {
             forbidden_bits &= !0o070;
         }
 
