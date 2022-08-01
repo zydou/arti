@@ -38,11 +38,11 @@ serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 thiserror = "1"
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-config = { path = "../tor-config", version = "0.4.1" }
+tor-config = { path = "../tor-config", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.5.0" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }
 tor-units = { path = "../tor-units", version = "0.3.1" }
 tracing = "0.1.18"
@@ -53,4 +53,4 @@ hex = "0.4"
 hex-literal = "0.3"
 rand_chacha = "0.3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.2" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.4.1", features = ["build_docs"] }
+tor-netdoc = { path = "../tor-netdoc", version = "0.5.0", features = ["build_docs"] }
