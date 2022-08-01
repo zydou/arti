@@ -60,6 +60,7 @@ pub mod aes {
             &mut self,
             mut buf: InOutBuf<'_, '_, u8>,
         ) -> Result<(), StreamCipherError> {
+            // TODO(nickm): It would be lovely if we could get rid of this copy somehow.
             let in_buf = buf.get_in().to_vec();
             self.0
                 .update(&in_buf, buf.get_out())
@@ -106,6 +107,7 @@ pub mod aes {
             &mut self,
             mut buf: InOutBuf<'_, '_, u8>,
         ) -> Result<(), StreamCipherError> {
+            // TODO(nickm): It would be lovely if we could get rid of this copy.
             let in_buf = buf.get_in().to_vec();
             self.0
                 .update(&in_buf, buf.get_out())
