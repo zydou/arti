@@ -46,6 +46,8 @@ lower-level crates to interact more closely with the Tor protocols.
 - The [`NetDirProvider`] API, and related APIs in [`tor-dirmgr`], have been
   changed to support returning network directories with varying timeliness
   requirements. ([#528], [!642])
+- The [`fs-mistrust`] API no longer supports certain operations related to
+  unix groups, when built on iOS. ([!652])
 
 ### New features
 
@@ -59,6 +61,8 @@ lower-level crates to interact more closely with the Tor protocols.
 - Fix a bug that prevented Arti from storing consensus files on
   Windows. Previously, we had generated filenames containing a colon, which
   Windows treats as a reserved character. ([#516], [!627])
+- Fix compilation on iOS.  Our dependency on the [`rust-users`] crate
+  had broken our ability to work correctly there. ([#519], [!652])
 
 ### Infrastructure
 
