@@ -33,7 +33,7 @@ thiserror = "1"
 tor-circmgr = { path = "../tor-circmgr", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.0" }
 tor-proto = { path = "../tor-proto", version = "0.5.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0" }

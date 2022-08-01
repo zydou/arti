@@ -24,7 +24,7 @@ signature = "1"
 thiserror = "1"
 tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 
 [dev-dependencies]
 base64 = "0.13.0"

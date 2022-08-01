@@ -21,10 +21,10 @@ futures = "0.3.14"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.2" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.3" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 tor-netdir = { path = "../tor-netdir", version = "0.5.0" }
 tor-proto = { path = "../tor-proto", version = "0.5.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0" }

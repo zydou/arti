@@ -28,12 +28,12 @@ caret = { path = "../caret", version = "0.2.0" }
 educe = "0.4.6"
 rand = "0.8"
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.2" }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.3" }
 tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
 tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 
 [dev-dependencies]
 hex = "0.4"
