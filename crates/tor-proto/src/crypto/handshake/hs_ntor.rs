@@ -26,8 +26,8 @@
 
 use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
-use crate::{Error, Result, SecretBytes};
-use tor_bytes::{Reader, Writer};
+use crate::{Error, Result};
+use tor_bytes::{Reader, SecretBuf, Writer};
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519};
 use tor_llcrypto::util::rand_compat::RngCompatExt;
@@ -56,19 +56,19 @@ pub type Subcredential = [u8; 32];
 /// expansion protocol specified in section "Key expansion" of rend-spec-v3.txt .
 pub struct HsNtorHkdfKeyGenerator {
     /// Secret data derived from the handshake, used as input to HKDF
-    seed: SecretBytes,
+    seed: SecretBuf,
 }
 
 impl HsNtorHkdfKeyGenerator {
     /// Create a new key generator to expand a given seed
-    pub fn new(seed: SecretBytes) -> Self {
+    pub fn new(seed: SecretBuf) -> Self {
         HsNtorHkdfKeyGenerator { seed }
     }
 }
 
 impl KeyGenerator for HsNtorHkdfKeyGenerator {
     /// Expand the seed into a keystream of 'keylen' size
-    fn expand(self, keylen: usize) -> Result<SecretBytes> {
+    fn expand(self, keylen: usize) -> Result<SecretBuf> {
         ShakeKdf::new().derive(&self.seed[..], keylen)
     }
 }
@@ -473,7 +473,7 @@ fn get_rendezvous1_key_material(
     let hs_ntor_key_constant = &b"tor-hs-ntor-curve25519-sha3-256-1:hs_key_extract"[..];
 
     // Start with rend_secret_hs_input
-    let mut secret_input = Zeroizing::new(Vec::new());
+    let mut secret_input = SecretBuf::new();
     secret_input
         .write(xy) // EXP(X,y)
         .and_then(|_| secret_input.write(xb)) // EXP(X,b)
@@ -491,7 +491,7 @@ fn get_rendezvous1_key_material(
     let verify = hs_ntor_mac(&secret_input, hs_ntor_verify_constant)?;
 
     // Start building 'auth_input'
-    let mut auth_input = Zeroizing::new(Vec::new());
+    let mut auth_input = SecretBuf::new();
     auth_input
         .write(&verify)
         .and_then(|_| auth_input.write(auth_key)) // AUTH_KEY
@@ -506,12 +506,12 @@ fn get_rendezvous1_key_material(
     let auth_input_mac = hs_ntor_mac(&auth_input, hs_ntor_mac_constant)?;
 
     // Now finish up with the KDF construction
-    let mut kdf_seed = Zeroizing::new(Vec::new());
+    let mut kdf_seed = SecretBuf::new();
     kdf_seed
         .write(&ntor_key_seed)
         .and_then(|_| kdf_seed.write(hs_ntor_expand_constant))
         .map_err(into_internal!("Can't encode kdf-input for hs-ntor."))?;
-    let keygen = HsNtorHkdfKeyGenerator::new(Zeroizing::new(kdf_seed.to_vec()));
+    let keygen = HsNtorHkdfKeyGenerator::new(kdf_seed);
 
     Ok((keygen, auth_input_mac))
 }

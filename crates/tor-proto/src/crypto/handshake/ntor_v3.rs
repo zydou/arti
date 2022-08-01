@@ -14,8 +14,8 @@
 
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
-use crate::{Error, Result, SecretBytes};
-use tor_bytes::{EncodeResult, Reader, Writeable, Writer};
+use crate::{Error, Result};
+use tor_bytes::{EncodeResult, Reader, SecretBuf, Writeable, Writer};
 use tor_error::into_internal;
 use tor_llcrypto::d::{Sha3_256, Shake256};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
@@ -316,10 +316,10 @@ pub(crate) struct NtorV3KeyGenerator<R> {
 }
 
 impl<R: digest::XofReader> KeyGenerator for NtorV3KeyGenerator<R> {
-    fn expand(mut self, keylen: usize) -> Result<SecretBytes> {
-        let mut ret = vec![0; keylen];
-        self.reader.read(&mut ret);
-        Ok(Zeroizing::new(ret))
+    fn expand(mut self, keylen: usize) -> Result<SecretBuf> {
+        let mut ret: SecretBuf = vec![0; keylen].into();
+        self.reader.read(ret.as_mut());
+        Ok(ret)
     }
 }
 
