@@ -86,10 +86,12 @@
 mod err;
 mod impls;
 mod reader;
+mod secretbuf;
 mod writer;
 
 pub use err::{EncodeError, Error};
 pub use reader::Reader;
+pub use secretbuf::SecretBuf;
 pub use writer::Writer;
 
 use arrayref::array_ref;

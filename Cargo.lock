@@ -3425,6 +3425,7 @@ dependencies = [
  "thiserror",
  "tor-error",
  "tor-llcrypto",
+ "zeroize",
 ]
 
 [[package]]
