@@ -40,12 +40,12 @@ thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true }
 tokio-util = { version = "0.7.0", features = ["compat"], optional = true }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.2" }
-tor-bytes = { path = "../tor-bytes", version = "0.4.0" }
-tor-cell = { path = "../tor-cell", version = "0.4.0" }
-tor-cert = { path = "../tor-cert", version = "0.4.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
+tor-cell = { path = "../tor-cell", version = "0.5.0" }
+tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.3.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0" }

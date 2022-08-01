@@ -1,6 +1,6 @@
 [package]
 name = "arti"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -34,14 +34,14 @@ experimental = ["arti-client/experimental"]
 
 [dependencies]
 anyhow = "1.0.23"
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.4.1", default-features = false }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.5.0", default-features = false }
 async-ctrlc = { version = "1.2.0", optional = true }
 cfg-if = "1.0.0"
 clap = "2.33.0"
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 educe = "0.4.6"
-fs-mistrust = { path = "../fs-mistrust", version = "0.3.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.4.0" }
 futures = "0.3.14"
 notify = "4.0"
 once_cell = { version = "1", optional = true }
@@ -52,7 +52,7 @@ tokio-crate = { package = "tokio", version = "1.7", optional = true, features = 
 tor-config = { path = "../tor-config", version = "0.4.1" }
 tor-error = { path = "../tor-error", version = "0.3.2", default-features = false }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0", default-features = false }
-tor-socksproto = { path = "../tor-socksproto", version = "0.4.0" }
+tor-socksproto = { path = "../tor-socksproto", version = "0.5.0" }
 tracing = "0.1.18"
 tracing-appender = "0.2.0"
 tracing-journald = { version = "0.3.0", optional = true }

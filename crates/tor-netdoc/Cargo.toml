@@ -60,8 +60,8 @@ signature = "1"
 thiserror = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
 tinystr = "0.6.0"
-tor-bytes = { path = "../tor-bytes", version = "0.4.0" }
-tor-cert = { path = "../tor-cert", version = "0.4.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
+tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }

@@ -16,8 +16,8 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { package = "arti", path = "../arti", version = "0.5.0" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.4.1", features = [
+arti = { package = "arti", path = "../arti", version = "0.6.0" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.5.0", features = [
     "dirfilter",
 ] }
 async-trait = "0.1.2"
@@ -33,7 +33,7 @@ serde = { version = "1.0.103", features = ["derive"] }
 tokio = { version = "1.7", features = ["signal", "macros"] }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0", features = ["experimental-api"] }
 tor-config = { path = "../tor-config", version = "0.4.1" }
-tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.5.0", features = [
+tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.6.0", features = [
     "dirfilter",
 ] }
 tor-error = { path = "../tor-error", version = "0.3.2" }

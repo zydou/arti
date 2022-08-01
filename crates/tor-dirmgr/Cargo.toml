@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -36,7 +36,7 @@ derive_more = "0.99"
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "2"
-fs-mistrust = { path = "../fs-mistrust", version = "0.3.0" }
+fs-mistrust = { path = "../fs-mistrust", version = "0.4.0" }
 fslock = { version = "0.2.0" }
 futures = "0.3.14"
 hex = "0.4"
@@ -55,14 +55,14 @@ thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.3.2" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.3.2" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.4.0" }
 tor-config = { path = "../tor-config", version = "0.4.1" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.3.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.3.2" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.4.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.5.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.2" }
-tor-netdir = { path = "../tor-netdir", version = "0.4.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.5.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.4.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0" }
 tracing = "0.1.18"
