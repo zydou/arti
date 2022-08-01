@@ -227,7 +227,7 @@ fn ntor_derive(
         m.update(&secret_input[..]);
         m.finalize()
     };
-    let mut auth_input: SecretBuf = SecretBuf::new();
+    let mut auth_input = Vec::new();
     auth_input.write_and_consume(verify)?; // verify
     auth_input.write(&server_pk.id)?; // ID
     auth_input.write(&server_pk.pk)?; // B

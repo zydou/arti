@@ -45,6 +45,10 @@ impl super::ClientHandshake for CreateFastClient {
         if msg.len() != FAST_S_HANDSHAKE_LEN {
             return Err(Error::BadCircHandshakeAuth);
         }
+        // There is not necessarily much point here (and below) in using a
+        // SecretBuf, since the data at issue are already in a cell that
+        // _wasn't_ marked with Zeroize.  Still, for consistency, we use it
+        // here.
         let mut inp = SecretBuf::with_capacity(SECRET_INPUT_LEN);
         inp.extend_from_slice(&state.0[..]);
         inp.extend_from_slice(&msg[0..20]);

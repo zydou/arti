@@ -42,7 +42,9 @@ use tor_llcrypto::cipher::aes::Aes256Ctr;
 use zeroize::Zeroizing;
 
 /// The ENC_KEY from the HS Ntor protocol
-type EncKey = [u8; 32];
+//
+// TODO (nickm): Any move operations applied to this key could subvert the zeroizing.
+type EncKey = Zeroizing<[u8; 32]>;
 /// The MAC_KEY from the HS Ntor protocol
 type MacKey = [u8; 32];
 /// A generic 256-bit MAC tag
@@ -136,12 +138,12 @@ pub struct HsNtorClientState {
 fn encrypt_and_mac(
     mut plaintext: Vec<u8>,
     other_data: &[u8],
-    enc_key: EncKey,
+    enc_key: &EncKey,
     mac_key: MacKey,
 ) -> Result<(Vec<u8>, MacTag)> {
     // Encrypt the introduction data using 'enc_key'
     let zero_iv = GenericArray::default();
-    let mut cipher = Aes256Ctr::new(&enc_key.into(), &zero_iv);
+    let mut cipher = Aes256Ctr::new(enc_key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(&mut plaintext);
     let ciphertext = plaintext; // it's now encrypted
 
@@ -198,7 +200,7 @@ where
     let (ciphertext, mac_tag) = encrypt_and_mac(
         proto_input.plaintext.clone(),
         &proto_input.intro_cell_data,
-        enc_key,
+        &enc_key,
         mac_key,
     )?;
 
@@ -346,7 +348,7 @@ where
 
     // Decrypt the ENCRYPTED_DATA from the intro cell
     let zero_iv = GenericArray::default();
-    let mut cipher = Aes256Ctr::new(&enc_key.into(), &zero_iv);
+    let mut cipher = Aes256Ctr::new(enc_key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(ciphertext);
     let plaintext = ciphertext; // it's now decrypted
 
@@ -416,7 +418,7 @@ fn get_introduce1_key_material(
 
     // Construct hs_keys = KDF(intro_secret_hs_input | t_hsenc | info, S_KEY_LEN+MAC_LEN)
     // Start by getting 'intro_secret_hs_input'
-    let mut secret_input = Zeroizing::new(Vec::new());
+    let mut secret_input = SecretBuf::new();
     secret_input
         .write(bx) // EXP(B,x)
         .and_then(|_| secret_input.write(auth_key)) // AUTH_KEY
@@ -432,10 +434,12 @@ fn get_introduce1_key_material(
 
     let hs_keys = ShakeKdf::new().derive(&secret_input[..], 32 + 32)?;
     // Extract the keys into arrays
-    let enc_key = hs_keys[0..32]
-        .try_into()
-        .map_err(into_internal!("converting enc_key"))
-        .map_err(Error::from)?;
+    let enc_key = Zeroizing::new(
+        hs_keys[0..32]
+            .try_into()
+            .map_err(into_internal!("converting enc_key"))
+            .map_err(Error::from)?,
+    );
     let mac_key = hs_keys[32..64]
         .try_into()
         .map_err(into_internal!("converting mac_key"))
@@ -491,7 +495,7 @@ fn get_rendezvous1_key_material(
     let verify = hs_ntor_mac(&secret_input, hs_ntor_verify_constant)?;
 
     // Start building 'auth_input'
-    let mut auth_input = SecretBuf::new();
+    let mut auth_input = Vec::new();
     auth_input
         .write(&verify)
         .and_then(|_| auth_input.write(auth_key)) // AUTH_KEY
