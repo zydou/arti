@@ -12,11 +12,6 @@ messages, and adds more preparation for future work in netflow padding.
 
 (These notes summarize changes in all crates since Arti 0.5.0.)
 
-
-[XXXX Up-to-date as of e571bc6c094a27dc20544c93feed7b7f7cf4f0fb XXXXX]
-
-
-
 ### Breaking changes
 
 - The `download_tolerance` configuration section has been renamed to
@@ -79,7 +74,7 @@ lower-level crates to interact more closely with the Tor protocols.
   [`zeroize`], so we can follow the latest version of the [`rsa`] crate.
   ([#448], [!612])
 - Our client-global "dormant mode" flag is now published via a
-  [`postage::watch`], which makes it easier to observe for changes. ([!632)
+  [`postage::watch`], which makes it easier to observe for changes. ([!632])
 - Preliminary (unused) support for some onion-service-related cells.
   ([!626])
 - The [`fs-mistrust`] crate can now use environment variables to be told to
@@ -98,6 +93,61 @@ Thanks to everyone who has contributed to this release, including Arturo
 Marquez, Dimitris Apostolou, `feelingnothing`, Jim Newsome, Richard
 Pospesel, `spongechameleon`, Trinity Pointard, and Yuan Lyu.
 
+[!608]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/608
+[!609]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/609
+[!610]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/610
+[!611]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/611
+[!612]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/612
+[!613]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/613
+[!614]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/614
+[!615]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/615
+[!616]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/616
+[!618]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/618
+[!619]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/619
+[!620]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/620
+[!623]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/623
+[!625]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/625
+[!626]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/626
+[!627]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/627
+[!628]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/628
+[!630]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/630
+[!632]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/632
+[!633]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/633
+[!635]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/635
+[!638]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/638
+[!640]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/640
+[!641]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/641
+[!642]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/642
+[!643]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/643
+[!650]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/650
+[!652]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/652
+[#323]: https://gitlab.torproject.org/tpo/core/arti/-/issues/323
+[#448]: https://gitlab.torproject.org/tpo/core/arti/-/issues/448
+[#483]: https://gitlab.torproject.org/tpo/core/arti/-/issues/483
+[#503]: https://gitlab.torproject.org/tpo/core/arti/-/issues/503
+[#511]: https://gitlab.torproject.org/tpo/core/arti/-/issues/511
+[#512]: https://gitlab.torproject.org/tpo/core/arti/-/issues/512
+[#513]: https://gitlab.torproject.org/tpo/core/arti/-/issues/513
+[#516]: https://gitlab.torproject.org/tpo/core/arti/-/issues/516
+[#519]: https://gitlab.torproject.org/tpo/core/arti/-/issues/519
+[#528]: https://gitlab.torproject.org/tpo/core/arti/-/issues/528
+[#640]: https://gitlab.torproject.org/tpo/core/arti/-/issues/640
+[`Mistrust`]: https://tpo.pages.torproject.net/core/doc/rust/fs_mistrust/struct.Mistrust.html
+[`NetDirProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/trait.NetDirProvider.html
+[`Writeable`]: https://tpo.pages.torproject.net/core/doc/rust/tor_bytes/trait.Writeable.html
+[`arti-hyper`]: https://tpo.pages.torproject.net/core/doc/rust/arti_hyper/index.html
+[`arti_client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
+[`base64ct`]: https://docs.rs/base64ct/latest/base64ct/
+[`fs-mistrust`]: https://tpo.pages.torproject.net/core/doc/rust/fs_mistrust/index.html
+[`hs-ntor`]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/rend-spec-v3.txt#L1876
+[`ntor-v3`]: https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/proposals/332-ntor-v3-with-extra-data.md
+[`postage::watch`]: https://docs.rs/postage/latest/postage/watch/index.html
+[`rsa`]: https://docs.rs/rsa/latest/rsa/
+[`rust-users`]: https://docs.rs/users/latest/users/
+[`tor-cert`]: https://tpo.pages.torproject.net/core/doc/rust/tor_cert/index.html
+[`tor-dirmgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_dirmgr/index.html
+[`x25519-dalek`]: https://docs.rs/x25519-dalek/latest/x25519_dalek/
+[`zeroize`]: https://docs.rs/zeroize/latest/zeroize/
 
 
 
