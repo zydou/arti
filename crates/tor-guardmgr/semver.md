@@ -1,1 +1,0 @@
-BREAKING: Error type changes.
