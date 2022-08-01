@@ -166,6 +166,8 @@ impl<'a> super::Verifier<'a> {
     /// Check whether a given file has the correct ownership and permissions,
     /// and push errors into `errors` if not. Other inputs are as for
     /// `check_one`.
+    ///
+    /// On iOS, check permissions but assumes the owner is the current user.
     #[cfg(target_family = "unix")]
     fn check_permissions(
         &self,
@@ -178,9 +180,13 @@ impl<'a> super::Verifier<'a> {
         // always change the permissions of the object.  (If we're talking
         // about a directory, the owner cah change the permissions and owner
         // of anything in the directory.)
-        let uid = meta.uid();
-        if uid != 0 && Some(uid) != self.mistrust.trust_user {
-            errors.push(Error::BadOwner(path.into(), uid));
+
+        #[cfg(not(target_os = "ios"))]
+        {
+            let uid = meta.uid();
+            if uid != 0 && Some(uid) != self.mistrust.trust_user {
+                errors.push(Error::BadOwner(path.into(), uid));
+            }
         }
 
         // On Unix-like platforms, symlink permissions are ignored (and usually
@@ -219,9 +225,18 @@ impl<'a> super::Verifier<'a> {
             }
         };
         // If we trust the GID, then we allow even more bits to be set.
+        #[cfg(not(target_os = "ios"))]
         if self.mistrust.trust_group == Some(meta.gid()) {
             forbidden_bits &= !0o070;
         }
+
+        // rational: on iOS the platform already protect user data, and not setting this poses
+        // issue with the default application data folder.
+        #[cfg(target_os = "ios")]
+        {
+            forbidden_bits &= !0o070;
+        }
+
         let bad_bits = meta.mode() & forbidden_bits;
         if bad_bits != 0 {
             errors.push(Error::BadPermission(

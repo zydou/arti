@@ -1325,16 +1325,18 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
     /// no longer be given out for new circuits.
     pub(crate) fn expire_circs(&self, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
-        let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
-        list.expire_circs(now, dirty_cutoff);
+        if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
+            list.expire_circs(now, dirty_cutoff);
+        }
     }
 
     /// Consider expiring the circuit with given circuit `id`,
     /// according to the rules in `config` and the current time `now`.
     pub(crate) fn expire_circ(&self, circ_id: &<B::Circ as AbstractCirc>::Id, now: Instant) {
         let mut list = self.circs.lock().expect("poisoned lock");
-        let dirty_cutoff = now - self.circuit_timing().max_dirtiness;
-        list.expire_circ(circ_id, now, dirty_cutoff);
+        if let Some(dirty_cutoff) = now.checked_sub(self.circuit_timing().max_dirtiness) {
+            list.expire_circ(circ_id, now, dirty_cutoff);
+        }
     }
 
     /// Return the number of open circuits held by this circuit manager.

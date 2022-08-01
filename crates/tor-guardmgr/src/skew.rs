@@ -22,9 +22,9 @@ pub(crate) struct SkewObservation {
 
 impl SkewObservation {
     /// Return true if this observation has been made more recently than
-    /// `cutoff`.
-    pub(crate) fn more_recent_than(&self, cutoff: Instant) -> bool {
-        self.when > cutoff
+    /// `cutoff`. If cutoff is None, consider it's very far in the past.
+    pub(crate) fn more_recent_than(&self, cutoff: Option<Instant>) -> bool {
+        cutoff.map_or(true, |cutoff| self.when > cutoff)
     }
 }
 
@@ -108,7 +108,7 @@ impl SkewEstimate {
         now: Instant,
     ) -> Option<Self> {
         // Only consider skew observations reported at least this recently.
-        let cutoff = now - Duration::from_secs(3600);
+        let cutoff = now.checked_sub(Duration::from_secs(3600));
 
         // Don't even look at our observations unless we  have at least this
         // many. (This value is chosen somewhat arbitrarily.)
