@@ -687,6 +687,15 @@ impl NetDir {
         }
     }
 
+    /// As `id_pair_listed`, but check whether a relay exists (or may exist)
+    /// with the same identities as those in `target`.
+    pub fn ids_listed<T>(&self, target: &T) -> Option<bool>
+    where
+        T: HasRelayIds + ?Sized,
+    {
+        self.id_pair_listed(target.ed_identity(), target.rsa_identity())
+    }
+
     /// Return true if we are currently missing a micro descriptor for the
     /// given RSA identity.
     ///

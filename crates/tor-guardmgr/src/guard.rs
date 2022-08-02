@@ -424,7 +424,7 @@ impl Guard {
     /// download another microdescriptor before we can be certain whether this
     /// guard is listed or not.
     pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
-        netdir.id_pair_listed(self.id.0.ed_identity(), self.id.0.rsa_identity())
+        netdir.ids_listed(&self.id.0)
     }
 
     /// Change this guard's status based on a newly received or newly
