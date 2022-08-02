@@ -314,6 +314,14 @@ impl Default for NetParameters {
     }
 }
 
+// This impl is a bit silly, but it makes the `params` method on NetDirProvider
+// work out.
+impl AsRef<NetParameters> for NetParameters {
+    fn as_ref(&self) -> &NetParameters {
+        self
+    }
+}
+
 impl NetParameters {
     /// Construct a new NetParameters from a given list of key=value parameters.
     ///

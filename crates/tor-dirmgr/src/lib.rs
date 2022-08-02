@@ -90,6 +90,7 @@ use scopeguard::ScopeGuard;
 use tor_circmgr::CircMgr;
 use tor_dirclient::SourceInfo;
 use tor_error::into_internal;
+use tor_netdir::params::NetParameters;
 use tor_netdir::{DirEvent, MdReceiver, NetDir, NetDirProvider};
 
 use async_trait::async_trait;
@@ -177,6 +178,30 @@ impl<R: Runtime> NetDirProvider for DirMgr<R> {
     fn events(&self) -> BoxStream<'static, DirEvent> {
         Box::pin(self.events.subscribe())
     }
+
+    fn params(&self) -> Arc<dyn AsRef<tor_netdir::params::NetParameters>> {
+        if let Some(netdir) = self.netdir.get() {
+            // We have a directory, so we'd like to give it out for its
+            // parameters.
+            //
+            // We do this even if the directory is expired, since parameters
+            // don't really expire on any plausible timescale.
+            netdir
+        } else {
+            // We have no directory, so we'll give out the default parameters as
+            // modified by the provided override_net_params configuration.
+            //
+            self.default_parameters
+                .lock()
+                .expect("Poisoned lock")
+                .clone()
+        }
+        // TODO(nickm): If we felt extremely clever, we could add a third case
+        // where, if we have a pending directory with a validated consensus, we
+        // give out that consensus's network parameters even if we _don't_ yet
+        // have a full directory.  That's significant refactoring, though, for
+        // an unclear amount of benefit.
+    }
 }
 
 #[async_trait]
@@ -231,6 +256,9 @@ pub struct DirMgr<R: Runtime> {
     // TODO(eta): Eurgh! This is so many Arcs! (especially considering this
     //            gets wrapped in an Arc)
     netdir: Arc<SharedMutArc<NetDir>>,
+
+    /// A set of network parameters to hand out when we have no directory.
+    default_parameters: Mutex<Arc<NetParameters>>,
 
     /// A publisher handle that we notify whenever the consensus changes.
     events: event::FlagPublisher<DirEvent>,
@@ -721,6 +749,11 @@ impl<R: Runtime> DirMgr<R> {
                 netdir.replace_overridden_parameters(&new_config.override_net_params);
                 Ok(())
             });
+            {
+                let mut params = self.default_parameters.lock().expect("lock failed");
+                *params = Arc::new(NetParameters::from_map(&new_config.override_net_params));
+            }
+
             // (It's okay to ignore the error, since it just means that there
             // was no current netdir.)
             self.events.publish(DirEvent::NewConsensus);
@@ -810,6 +843,8 @@ impl<R: Runtime> DirMgr<R> {
         let store = Mutex::new(config.open_store(offline)?);
         let netdir = Arc::new(SharedMutArc::new());
         let events = event::FlagPublisher::new();
+        let default_parameters = NetParameters::from_map(&config.override_net_params);
+        let default_parameters = Mutex::new(Arc::new(default_parameters));
 
         let (send_status, receive_status) = postage::watch::channel();
         let send_status = Mutex::new(send_status);
@@ -827,6 +862,7 @@ impl<R: Runtime> DirMgr<R> {
             config: config.into(),
             store,
             netdir,
+            default_parameters,
             events,
             send_status,
             receive_status,
