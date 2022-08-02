@@ -263,6 +263,7 @@ impl<S: SleepProvider> Reactor<S> {
                     // if one is added and we fail to handle it here.
                     padding_enable,
                     padding_parameters,
+                    padding_negotiate,
                 } = &*updates;
                 if let Some(parameters) = padding_parameters {
                     self.padding_timer.as_mut().reconfigure(parameters);
@@ -273,6 +274,9 @@ impl<S: SleepProvider> Reactor<S> {
                     } else {
                         self.padding_timer.as_mut().disable();
                     }
+                }
+                if let Some(padding_negotiate) = padding_negotiate {
+                    self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
         }

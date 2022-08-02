@@ -2,6 +2,8 @@
 
 use educe::Educe;
 
+use tor_cell::chancell::msg::PaddingNegotiate;
+
 use super::padding;
 
 /// Generate most of the module: things which contain or process all params fields (or each one)
@@ -133,6 +135,9 @@ define_channels_params_and_automatic_impls! {
     /// rather than the parameters changing,
     /// so the padding timer always keeps parameters, even when disabled.
     padding_parameters: padding::Parameters,
+
+    /// Channel padding negotiation cell
+    padding_negotiate: PaddingNegotiate,
 }
 
 /// Placeholder function for saying whether to enable channel padding

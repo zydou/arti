@@ -75,7 +75,7 @@ use crate::{Error, Result};
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
-use tor_cell::chancell::{msg, ChanCell, CircId};
+use tor_cell::chancell::{msg, msg::PaddingNegotiate, ChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
@@ -212,8 +212,6 @@ enum PaddingControlState {
     ///    (which is fine since this timer is not enabled).
     ///  * We don't send any PADDING_NEGOTIATE cells.  The peer is supposed to come to the
     ///    same conclusions as us, based on channel usage: it should also not send padding.
-    ///    (Note: sending negotiation cells is not yet done at this point in the branch,
-    ///    but it will be organised via `ChannelsParamsUpdates`.)
     #[educe(Default)]
     UsageDoesNotImplyPadding {
         /// The last padding parameters (from reparameterize)
@@ -448,7 +446,13 @@ impl Channel {
                     // Well, apparently the channel usage *does* imply padding now,
                     // so we need to (belatedly) enable the timer,
                     // send the padding negotiation cell, etc.
-                    let params = params.clone();
+                    let mut params = params.clone();
+
+                    // Except, maybe the padding we would be requesting is precisely default,
+                    // so we wouldn't actually want to send that cell.
+                    if params.padding_negotiate == Some(PaddingNegotiate::start_default()) {
+                        params.padding_negotiate = None;
+                    }
 
                     match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
                         Ok(()) => {}

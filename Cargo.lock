@@ -3476,6 +3476,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tor-basic-utils",
+ "tor-cell",
  "tor-config",
  "tor-error",
  "tor-linkspec",

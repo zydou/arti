@@ -8,6 +8,7 @@ use crate::{ChannelConfig, Dormancy, Error, Result};
 use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
@@ -337,8 +338,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
         netdir: tor_netdir::Result<Arc<NetDir>>,
     ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
-        // TODO when entering/leaving dormant mode, send CELL_PADDING_NEGOTIATE to peers
-        // TODO with reduced padding, send CELL_PADDING_NEGOTIATE
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
@@ -423,16 +422,61 @@ fn parameterize(
     dormancy: Dormancy,
     netdir: StdResult<&NetDirExtract, &()>,
 ) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
-    let padding_parameters = padding_parameters(config.padding, netdir)?;
+    // Everything in this calculation applies to *all* channels, disregarding
+    // channel usage.  Usage is handled downstream, in the channel frontend.
+    // See the module doc in `crates/tor-proto/src/channel/padding.rs`.
+
+    let padding_of_level = |level| padding_parameters(level, netdir);
+    let padding_parameters = padding_of_level(config.padding)?;
+    let padding_default = padding_of_level(PaddingLevel::default())?;
 
     let send_padding = (match dormancy {
         Dormancy::Active => true,
         Dormancy::Dormant => false,
     }) && padding_parameters != PaddingParameters::all_zeroes();
 
+    let recv_padding = match config.padding {
+        PaddingLevel::Reduced => false,
+        PaddingLevel::Normal => send_padding,
+        PaddingLevel::None => false,
+    };
+
+    // Whether the inbound padding approach we are to use, is the same as the default
+    // derived from the netdir (disregarding our config and dormancy).
+    //
+    // Ie, whether the parameters we want are precisely those that a peer would
+    // use by default (assuming they have the same view of the netdir as us).
+    let recv_equals_default = if padding_default == PaddingParameters::all_zeroes() {
+        // The netdir has padding disabled by setting the parameters to zero.
+        // That means our peers won't do padding unless we ask it to.
+        // Or to put it another way, our desired peer padding approach is the same as our
+        // peers' default iff we also think padding should be disabled.
+        !recv_padding
+    } else {
+        // Peers are going to do padding.  That is the same approach as we want
+        // if we want to receive padding, with the same parameters.
+        recv_padding && padding_parameters == padding_default
+    };
+
+    let padding_negotiate = if recv_equals_default {
+        // Our padding approach is the same as peers' defaults.  So the PADDING_NEGOTIATE
+        // message we need to send is the START(0,0).  (The channel frontend elides an
+        // initial message of this form, - see crates/tor-proto/src/channel.rs::note_usage.)
+        //p
+        // If the netdir default is no padding, and we previously negotiated
+        // padding being enabled, and now want to disable it, we would send
+        // START(0,0) rather than STOP.  That is OK (even, arguably, right).
+        PaddingNegotiate::start_default()
+    } else if !recv_padding {
+        PaddingNegotiate::stop()
+    } else {
+        padding_parameters.padding_negotiate_cell()?
+    };
+
     let mut update = channels_params
         .start_update()
-        .padding_enable(send_padding);
+        .padding_enable(send_padding)
+        .padding_negotiate(padding_negotiate);
     if send_padding {
         update = update.padding_parameters(padding_parameters);
     }
@@ -721,7 +765,8 @@ mod test {
                 "ChannelsParamsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
                         low_ms: IntegerMilliseconds { value: 1500 }, \
-                        high_ms: IntegerMilliseconds { value: 9500 } }) }"
+                        high_ms: IntegerMilliseconds { value: 9500 } }), \
+                    padding_negotiate: None }"
             );
         });
         eprintln!();
