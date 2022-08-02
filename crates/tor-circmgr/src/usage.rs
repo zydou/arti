@@ -366,7 +366,6 @@ pub(crate) mod test {
     use crate::path::OwnedPath;
     use crate::test::OptDummyGuardMgr;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::HasRelayIds;
     use tor_netdir::testnet;
 
     impl IsolationTokenEq for TargetCircUsage {
@@ -714,7 +713,7 @@ pub(crate) mod test {
         assert_eq!(path.len(), 3);
 
         // Make sure that the usage is correct.
-        let last_relay = netdir.by_id(path[2].ed_identity()).unwrap();
+        let last_relay = netdir.by_ids(&path[2]).unwrap();
         let policy = ExitPolicy::from_relay(&last_relay);
         // We'll always get exits for these, since we try to build
         // paths with an exit if there are any exits.
