@@ -482,7 +482,7 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::channel::oneshot;
     use std::sync::Mutex;
-    use tor_linkspec::HasRelayIds;
+    use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
     use tracing::trace;
@@ -637,7 +637,7 @@ mod test {
     /// Replacement type for circuit, to implement buildable.
     #[derive(Clone)]
     struct FakeCirc {
-        hops: Vec<Ed25519Identity>,
+        hops: Vec<RelayIds>,
         onehop: bool,
     }
     #[async_trait]
@@ -657,7 +657,7 @@ mod test {
             }
 
             let c = FakeCirc {
-                hops: vec![*ct.ed_identity()],
+                hops: vec![RelayIds::from_relay_ids(ct)],
                 onehop: true,
             };
             Ok(Mutex::new(c))
@@ -677,7 +677,7 @@ mod test {
             }
 
             let c = FakeCirc {
-                hops: vec![*ct.ed_identity()],
+                hops: vec![RelayIds::from_relay_ids(ct)],
                 onehop: false,
             };
             Ok(Mutex::new(c))
@@ -697,7 +697,7 @@ mod test {
 
             {
                 let mut c = self.lock().unwrap();
-                c.hops.push(*ed_id);
+                c.hops.push(RelayIds::from_relay_ids(ct));
             }
             Ok(())
         }
@@ -830,7 +830,8 @@ mod test {
                 run_builder_test(rt, Duration::from_millis(100), path, None).await;
             let circ = outcome.unwrap();
             assert!(circ.onehop);
-            assert_eq!(circ.hops, [id_100ms]);
+            assert_eq!(circ.hops.len(), 1);
+            assert!(circ.hops[0].same_relay_ids(&chan_t(id_100ms)));
 
             assert_eq!(timeouts.len(), 1);
             assert!(timeouts[0].0); // success
@@ -855,7 +856,10 @@ mod test {
                 run_builder_test(rt, Duration::from_millis(100), path, None).await;
             let circ = outcome.unwrap();
             assert!(!circ.onehop);
-            assert_eq!(circ.hops, [id_100ms, id_200ms, id_300ms]);
+            assert_eq!(circ.hops.len(), 3);
+            assert!(circ.hops[0].same_relay_ids(&chan_t(id_100ms)));
+            assert!(circ.hops[1].same_relay_ids(&chan_t(id_200ms)));
+            assert!(circ.hops[2].same_relay_ids(&chan_t(id_300ms)));
 
             assert_eq!(timeouts.len(), 1);
             assert!(timeouts[0].0); // success

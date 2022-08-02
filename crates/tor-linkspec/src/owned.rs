@@ -221,8 +221,7 @@ mod test {
 
         let ti2 = OwnedChanTarget::from_chan_target(&ti);
         assert_eq!(ti.addrs(), ti2.addrs());
-        assert_eq!(ti.ed_identity(), ti2.ed_identity());
-        assert_eq!(ti.rsa_identity(), ti2.rsa_identity());
+        assert!(ti.same_relay_ids(&ti2));
 
         assert_eq!(format!("{:?}", ti), format!("{:?}", ti2));
         assert_eq!(format!("{:?}", ti), format!("{:?}", ti.clone()));
@@ -239,8 +238,7 @@ mod test {
         let ct = OwnedCircTarget::new(ch.clone(), [99; 32].into(), "FlowCtrl=7".parse().unwrap());
 
         assert_eq!(ct.addrs(), ch.addrs());
-        assert_eq!(ct.rsa_identity(), ch.rsa_identity());
-        assert_eq!(ct.ed_identity(), ch.ed_identity());
+        assert!(ct.same_relay_ids(&ch));
         assert_eq!(ct.ntor_onion_key().as_bytes(), &[99; 32]);
         assert_eq!(&ct.protovers().to_string(), "FlowCtrl=7");
         let ct2 = OwnedCircTarget::from_circ_target(&ct);

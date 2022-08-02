@@ -16,6 +16,16 @@ pub trait HasRelayIds {
     fn ed_identity_key(&self) -> Option<pk::ed25519::PublicKey> {
         self.ed_identity().try_into().ok()
     }
+
+    /// Return true if this object has exactly the same relay IDs as `other`.
+    //
+    // TODO: Once we make it so particular identity key types are optional, we
+    // should add a note saying that this function is usually not what you want
+    // for many cases, since you might want to know "could this be the same
+    // relay" vs "is this definitely the same relay."
+    fn same_relay_ids<T: HasRelayIds>(&self, other: &T) -> bool {
+        self.ed_identity() == other.ed_identity() && self.rsa_identity() == other.rsa_identity()
+    }
 }
 
 /// An object that represents a host on the network with known IP addresses.

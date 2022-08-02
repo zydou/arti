@@ -813,8 +813,7 @@ mod test {
         let g = basic_guard();
 
         assert_eq!(g.guard_id(), &id);
-        assert_eq!(g.ed_identity(), id.0.ed_identity());
-        assert_eq!(g.rsa_identity(), id.0.rsa_identity());
+        assert!(g.same_relay_ids(&FirstHopId::from(id)));
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
         assert_eq!(g.reachable(), Reachable::Unknown);
         assert_eq!(g.reachable(), Reachable::default());
@@ -1015,14 +1014,13 @@ mod test {
         // Construct a guard from a relay from the netdir.
         let relay22 = netdir.by_id(&[22; 32].into()).unwrap();
         let guard22 = Guard::from_relay(&relay22, now, &params);
-        assert_eq!(guard22.ed_identity(), relay22.ed_identity());
-        assert_eq!(guard22.rsa_identity(), relay22.rsa_identity());
+        assert!(guard22.same_relay_ids(&relay22));
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
         let id: FirstHopId = guard22.id.clone().into();
         let r = id.get_relay(&netdir).unwrap();
-        assert_eq!(r.ed_identity(), relay22.ed_identity());
+        assert!(r.same_relay_ids(&relay22));
 
         // Can we check on the guard's weight?
         let w = guard22.get_weight(&netdir).unwrap();

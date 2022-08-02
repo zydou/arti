@@ -268,9 +268,9 @@ mod test {
         let r2 = &relays[1];
         let r3 = &relays[2];
 
-        assert!(r1.ed_identity() != r2.ed_identity());
-        assert!(r1.ed_identity() != r3.ed_identity());
-        assert!(r2.ed_identity() != r3.ed_identity());
+        assert!(!r1.same_relay_ids(r2));
+        assert!(!r1.same_relay_ids(r3));
+        assert!(!r2.same_relay_ids(r3));
 
         let subnet_config = SubnetConfig::default();
         assert!(relays_can_share_circuit(r1, r2, subnet_config));
@@ -315,7 +315,7 @@ mod test {
             if let TorPathInner::Path(p) = path.inner {
                 assert_exit_path_ok(&p[..]);
                 let exit = &p[2];
-                assert_eq!(exit.ed_identity(), chosen.ed_identity());
+                assert!(exit.same_relay_ids(&chosen));
             } else {
                 panic!("Generated the wrong kind of path");
             }
