@@ -69,8 +69,8 @@ fn padding_parameters_calculation() {
         );
         let got = padding_parameters(pconfig, netdir).unwrap();
         let exp = PaddingParameters::builder()
-            .low_ms(exp[0].into())
-            .high_ms(exp[1].into())
+            .low(exp[0].into())
+            .high(exp[1].into())
             .build()
             .unwrap();
         assert_eq!(got, exp);
@@ -202,8 +202,8 @@ impl CaseContext {
                 nego.map(|(cmd, [low, high])| PaddingNegotiate::from_raw(cmd, low as _, high as _));
             let timing = timing.map(|[low, high]| {
                 PaddingParameters::builder()
-                    .low_ms(low.into())
-                    .high_ms(high.into())
+                    .low(low.into())
+                    .high(high.into())
                     .build()
                     .unwrap()
             });

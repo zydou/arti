@@ -514,8 +514,8 @@ fn padding_parameters(
                 if low > high {
                     return Err("low > high");
                 }
-                p.low_ms(low);
-                p.high_ms(high);
+                p.low(low);
+                p.high(high);
                 Ok::<_, &'static str>(())
             })()
             .unwrap_or_else(|e| {
@@ -739,7 +739,7 @@ mod test {
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()
-                    .low_ms(1234.into())
+                    .low(1234.into())
                     .build()
                     .unwrap(),
             )
@@ -767,8 +767,8 @@ mod test {
                 // evade field visibility by (ab)using Debug impl
                 "ChannelsParamsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
-                        low_ms: IntegerMilliseconds { value: 1500 }, \
-                        high_ms: IntegerMilliseconds { value: 9500 } }), \
+                        low: IntegerMilliseconds { value: 1500 }, \
+                        high: IntegerMilliseconds { value: 9500 } }), \
                     padding_negotiate: None }"
             );
         });

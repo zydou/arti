@@ -126,10 +126,10 @@ pub(crate) struct Timer<R: SleepProvider> {
 pub struct Parameters {
     /// Low end of the distribution of `X`
     #[builder(default = "1500.into()")]
-    pub(crate) low_ms: IntegerMilliseconds<u32>,
+    pub(crate) low: IntegerMilliseconds<u32>,
     /// High end of the distribution of `X` (inclusive)
     #[builder(default = "9500.into()")]
-    pub(crate) high_ms: IntegerMilliseconds<u32>,
+    pub(crate) high: IntegerMilliseconds<u32>,
 }
 
 impl_standard_builder! { Parameters: !Deserialize + !Builder }
@@ -140,8 +140,8 @@ impl Parameters {
     /// As per `torspec/padding-spec.txt` section 2.6
     pub fn default_reduced() -> Self {
         Parameters {
-            low_ms: IntegerMilliseconds::new(9000),
-            high_ms: IntegerMilliseconds::new(14000),
+            low: IntegerMilliseconds::new(9000),
+            high: IntegerMilliseconds::new(14000),
         }
     }
 
@@ -157,7 +157,7 @@ impl Parameters {
                 .try_into()
                 .map_err(into_internal!("padding negotiate out of range"))
         };
-        Ok(PaddingNegotiate::start(get(self.low_ms)?, get(self.high_ms)?))
+        Ok(PaddingNegotiate::start(get(self.low)?, get(self.high)?))
     }
 
     /// Make a Parameters sentinel value, with both fields set to zero
@@ -165,8 +165,8 @@ impl Parameters {
     /// The specification says to treat this as disabled, if found in the consensus.
     pub fn all_zeroes() -> Self {
         Parameters {
-            low_ms: 0.into(),
-            high_ms: 0.into(),
+            low: 0.into(),
+            high: 0.into(),
         }
     }
 }
@@ -389,8 +389,8 @@ impl Parameters {
     fn prepare(self) -> PreparedParameters {
         PreparedParameters {
             x_distribution_ms: rand::distributions::Uniform::new_inclusive(
-                self.low_ms.as_millis(),
-                self.high_ms.as_millis(),
+                self.low.as_millis(),
+                self.high.as_millis(),
             ),
         }
     }
@@ -448,8 +448,8 @@ mod test {
         let runtime = tor_rtmock::MockSleepRuntime::new(runtime);
 
         let parameters = Parameters {
-            low_ms: 1000.into(),
-            high_ms: 1000.into(),
+            low: 1000.into(),
+            high: 1000.into(),
         };
 
         let () = runtime.block_on(async {
@@ -617,8 +617,8 @@ mod test {
             let mut obs = [0_u32; n];
 
             let params = Parameters {
-                low_ms: min.into(),
-                high_ms: (max - 1).into(), // convert exclusive to inclusive
+                low: min.into(),
+                high: (max - 1).into(), // convert exclusive to inclusive
             }
             .prepare();
 

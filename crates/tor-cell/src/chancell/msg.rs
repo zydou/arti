@@ -867,7 +867,11 @@ impl PaddingNegotiate {
     /// For testing only
     #[cfg(feature = "testing")]
     pub fn from_raw(command: PaddingNegotiateCmd, ito_low_ms: u16, ito_high_ms: u16) -> Self {
-        PaddingNegotiate { command, ito_low_ms, ito_high_ms, }
+        PaddingNegotiate {
+            command,
+            ito_low_ms,
+            ito_high_ms,
+        }
     }
 }
 impl Default for PaddingNegotiate {
