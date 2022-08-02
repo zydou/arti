@@ -48,7 +48,7 @@ valgrind --tool=massif ./target/release/arti-testing connect \
 The results for 20 July 2022 were:
 
 ```
-Boostrapping: 20.3 MiB
+Bootstrapping: 20.3 MiB
 Cached: 14.7 MiB
 ```
 
