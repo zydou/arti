@@ -19,7 +19,7 @@ impl FallbackId {
     }
     /// Extract a `FallbackId` from a ChanTarget object.
     pub(crate) fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
-        Self::new(*target.ed_identity(), *target.rsa_identity())
+        Self(RelayIds::from_relay_ids(target))
     }
 }
 
