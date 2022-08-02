@@ -8,8 +8,10 @@ use crate::{ChannelConfig, Dormancy, Error, Result};
 use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
 use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
+use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::ChannelsParams;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
@@ -333,6 +335,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
         // TODO support dormant mode
         // TODO when entering/leaving dormant mode, send CELL_PADDING_NEGOTIATE to peers
+        // TODO with reduced padding, send CELL_PADDING_NEGOTIATE
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
@@ -356,20 +359,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             inner.dormancy = new_dormancy;
         }
 
-        let padding_parameters = {
-            let mut p = PaddingParametersBuilder::default();
-            update_padding_parameters_from_netdir(&mut p, &netdir).unwrap_or_else(|e| {
-                info!(
-                    "consensus channel padding parameters wrong, using defaults: {}",
-                    &e,
-                );
-            });
-            let p = p
-                .build()
-                .map_err(into_internal!("failed to build padding parameters"))?;
-
-            p
-        };
+        let padding_parameters = padding_parameters(inner.config.padding, Ok(&netdir))?;
 
         let update = inner
             .channels_params
@@ -409,28 +399,53 @@ impl<C: AbstractChannel> ChannelMap<C> {
     }
 }
 
-/// Given a `NetDir`, update a `PaddingParametersBuilder` with channel padding parameters
-fn update_padding_parameters_from_netdir(
-    p: &mut PaddingParametersBuilder,
-    netdir: &NetDirExtract,
-) -> StdResult<(), &'static str> {
-    // TODO support reduced padding via global client config,
-    // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
+/// Given a `NetDirExtract` and whether we're reducing padding, return a `PaddingParameters`
+///
+/// With `PaddingLevel::None`, will return `PaddingParameters::all_zeroes`; but
+/// does not account for padding being enabled/disabled other ways than via the config.
+fn padding_parameters(
+    _config: PaddingLevel,
+    netdir: StdResult<&NetDirExtract, &()>,
+) -> StdResult<PaddingParameters, tor_error::Bug> {
     let reduced = false; // TODO
-    let nf_ito = netdir.nf_ito[usize::from(reduced)];
 
-    let get_timing_param =
-        |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
-    let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
-    let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
+    Ok(match netdir {
+        Ok(netdir) => {
+            let mut p = PaddingParametersBuilder::default();
+            let () = (|| {
+                let nf_ito = netdir.nf_ito[usize::from(reduced)];
+                let get_timing_param =
+                    |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
+                let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
+                let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
 
-    if high > low {
-        return Err("high > low");
-    }
+                if high > low {
+                    return Err("high > low");
+                }
+                p.low_ms(low);
+                p.high_ms(high);
+                Ok::<_, &'static str>(())
+            })()
+            .unwrap_or_else(|e| {
+                info!(
+                    "consensus channel padding parameters wrong, using defaults: {}",
+                    &e
+                );
+            });
 
-    p.low_ms(low);
-    p.high_ms(high);
-    Ok(())
+            p.build()
+                .map_err(into_internal!("failed to build padding parameters"))?
+        }
+        Err(()) => {
+            // TODO we should use a fallback here so that config overrides take effect,
+            // as discussed in https://gitlab.torproject.org/tpo/core/arti/-/issues/528
+            if reduced {
+                PaddingParameters::default_reduced()
+            } else {
+                PaddingParameters::default()
+            }
+        }
+    })
 }
 
 #[cfg(test)]
