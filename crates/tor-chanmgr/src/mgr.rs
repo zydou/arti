@@ -346,6 +346,7 @@ mod test {
         mood: char,
         closing: Arc<AtomicBool>,
         detect_reuse: Arc<char>,
+        last_params: Option<ChannelsParamsUpdates>,
     }
 
     impl PartialEq for FakeChannel {
@@ -365,7 +366,8 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+        fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+            self.last_params = Some((*updates).clone());
             Ok(())
         }
         fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
@@ -412,6 +414,7 @@ mod test {
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
                 detect_reuse: Default::default(),
+                last_params: None,
             })
         }
     }
