@@ -3717,10 +3717,13 @@ dependencies = [
 name = "tor-linkspec"
 version = "0.4.0"
 dependencies = [
+ "base64ct",
  "derive_more",
+ "hex",
  "hex-literal",
  "serde",
  "strum",
+ "thiserror",
  "tor-bytes",
  "tor-llcrypto",
  "tor-protover",
