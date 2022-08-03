@@ -15,6 +15,9 @@ use subtle::{Choice, ConstantTimeEq};
 
 pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Signer};
 
+/// The length of an ED25519 identity, in bytes.
+pub const ED25519_ID_LEN: usize = 32;
+
 /// A relay's identity, as an unchecked, unvalidated Ed25519 key.
 ///
 /// This type is distinct from an Ed25519 [`PublicKey`] for several reasons:
@@ -27,7 +30,7 @@ pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signat
 #[allow(clippy::derive_hash_xor_eq)]
 pub struct Ed25519Identity {
     /// A raw unchecked Ed25519 public key.
-    id: [u8; 32],
+    id: [u8; ED25519_ID_LEN],
 }
 
 impl Ed25519Identity {
@@ -65,8 +68,8 @@ impl Ed25519Identity {
     }
 }
 
-impl From<[u8; 32]> for Ed25519Identity {
-    fn from(id: [u8; 32]) -> Self {
+impl From<[u8; ED25519_ID_LEN]> for Ed25519Identity {
+    fn from(id: [u8; ED25519_ID_LEN]) -> Self {
         Ed25519Identity::new(id)
     }
 }
