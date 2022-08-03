@@ -482,7 +482,7 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::channel::oneshot;
     use std::sync::Mutex;
-    use tor_linkspec::{HasRelayIds, RelayIds};
+    use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
     use tracing::trace;
@@ -634,6 +634,19 @@ mod test {
         bytes.into()
     }
 
+    /// As [`timeouts_from_key`], but first extract the relevant key from the
+    /// OwnedChanTarget.
+    fn timeouts_from_chantarget<CT: ChanTarget>(ct: &CT) -> (Duration, Duration) {
+        // Extracting the Ed25519 identity should always succeed in this case:
+        // we put it there ourselves!
+        let ed_id = ct
+            .identity(RelayIdType::Ed25519)
+            .expect("No ed25519 key was present for fake ChanTarget‽")
+            .try_into()
+            .expect("ChanTarget provided wrong key type");
+        timeouts_from_key(ed_id)
+    }
+
     /// Replacement type for circuit, to implement buildable.
     #[derive(Clone)]
     struct FakeCirc {
@@ -649,8 +662,7 @@ mod test {
             ct: &OwnedChanTarget,
             _: &CircParameters,
         ) -> Result<Self> {
-            let ed_id = ct.ed_identity();
-            let (d1, d2) = timeouts_from_key(ed_id);
+            let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
             if !d2.is_zero() {
                 rt.allow_one_advance(d2);
@@ -669,8 +681,7 @@ mod test {
             ct: &OwnedCircTarget,
             _: &CircParameters,
         ) -> Result<Self> {
-            let ed_id = ct.ed_identity();
-            let (d1, d2) = timeouts_from_key(ed_id);
+            let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
             if !d2.is_zero() {
                 rt.allow_one_advance(d2);
@@ -688,8 +699,7 @@ mod test {
             ct: &OwnedCircTarget,
             _: &CircParameters,
         ) -> Result<()> {
-            let ed_id = ct.ed_identity();
-            let (d1, d2) = timeouts_from_key(ed_id);
+            let (d1, d2) = timeouts_from_chantarget(ct);
             rt.sleep(d1).await;
             if !d2.is_zero() {
                 rt.allow_one_advance(d2);
