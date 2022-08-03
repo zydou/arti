@@ -1,11 +1,32 @@
 //! Declare traits to be implemented by types that describe a place
 //! that Tor can connect to, directly or indirectly.
 
-use std::net::SocketAddr;
+use std::{iter::FusedIterator, net::SocketAddr};
 use tor_llcrypto::pk;
+
+use crate::{RelayIdRef, RelayIdType, RelayIdTypeIter};
 
 /// An object containing information about a relay's identity keys.
 pub trait HasRelayIds {
+    /// Return the identity of this relay whose type is `key_type`, or None if
+    /// the relay has no such identity.
+    ///
+    /// (Currently all relays have all recognized identity types, but we might
+    /// implement or deprecate an identity type in the future.)
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Rsa => Some(self.rsa_identity().into()),
+            RelayIdType::Ed25519 => Some(self.ed_identity().into()),
+        }
+    }
+    /// Return an iterator over all of the identities held by this object.
+    fn identities(&self) -> RelayIdIter<'_, Self> {
+        RelayIdIter {
+            info: self,
+            next_key: RelayIdType::all_types(),
+        }
+    }
+
     /// Return the ed25519 identity for this relay.
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;
     /// Return the RSA identity for this relay.
@@ -27,6 +48,30 @@ pub trait HasRelayIds {
         self.ed_identity() == other.ed_identity() && self.rsa_identity() == other.rsa_identity()
     }
 }
+
+/// An iterator over all of the relay identities held by a [`HasRelayIds`]
+#[derive(Clone)]
+pub struct RelayIdIter<'a, T: HasRelayIds + ?Sized> {
+    /// The object holding the keys
+    info: &'a T,
+    /// The next key type to yield
+    next_key: RelayIdTypeIter,
+}
+
+impl<'a, T: HasRelayIds + ?Sized> Iterator for RelayIdIter<'a, T> {
+    type Item = RelayIdRef<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for key_type in &mut self.next_key {
+            if let Some(key) = self.info.identity(key_type) {
+                return Some(key);
+            }
+        }
+        None
+    }
+}
+// RelayIdIter is fused since next_key is fused.
+impl<'a, T: HasRelayIds + ?Sized> FusedIterator for RelayIdIter<'a, T> {}
 
 /// An object that represents a host on the network with known IP addresses.
 pub trait HasAddrs {
@@ -54,7 +99,7 @@ pub trait CircTarget: ChanTarget {
     // of link specifiers, but that's not so easy to do, since it seems
     // doing so correctly would require default associated types.
     fn linkspecs(&self) -> Vec<crate::LinkSpec> {
-        let mut result = vec![(*self.ed_identity()).into(), (*self.rsa_identity()).into()];
+        let mut result: Vec<_> = self.identities().map(|id| id.to_owned().into()).collect();
         for addr in self.addrs().iter() {
             result.push(addr.into());
         }
