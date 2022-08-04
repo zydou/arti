@@ -110,14 +110,20 @@ pub enum ChanProvenance {
 }
 
 /// Dormancy state, as far as the channel manager is concerned
+///
+/// This is usually derived in higher layers from `arti_client::DormantMode`.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Educe)]
 #[educe(Default)]
 pub enum Dormancy {
     /// Not dormant
+    ///
+    /// Channels will operate normally.
     #[educe(Default)]
     Active,
     /// Totally dormant
+    ///
+    /// Channels will not perform any spontaneous activity (eg, netflow padding)
     Dormant,
 }
 
