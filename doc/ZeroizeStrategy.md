@@ -44,10 +44,10 @@ ones seem to be, in decreasing order of severity.
 
 ## Analysis and policies
 
-During an attack of type 2, 3, or 4 above, `zeroize` will never render the
-attack completely harmless: it will only limit its impact.  Therefore, it makes
-sense to use it as part of a defense-in-depth strategy to try to lower the
-impact of these attacks if they occur.
+During an exposure of type 2, 3, or 4 above, `zeroize` will never render the
+attack completely harmless: it will only limit its impact.  Therefore, it
+makes sense to use it as part of a defense-in-depth strategy to try to lower
+the impact of these attacks if they occur.
 
 Information of types 1 and 2 is fairly well contained in individual places in
 the code. Information of type 3, however, is spread all over the place: it's
