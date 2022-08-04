@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
-use tor_linkspec::RelayId;
+use tor_linkspec::RelayIdSet;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -166,14 +166,17 @@ impl<'a> ExitPathBuilder<'a> {
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
-                    let mut family = std::collections::HashSet::new();
-                    family.insert(RelayId::from(*exit_relay.id()));
+                    // TODO(nickm): Our way of building a family here is
+                    // somewhat questionable. We're only adding the ed25519
+                    // identities of the exit relay and its family to the
+                    // RelayId set.  That's fine for now, since we will only use
+                    // relays at this point if they have a known Ed25519
+                    // identity.  But if in the future the ed25519 identity
+                    // becomes optional, this will need to change.
+                    let mut family = RelayIdSet::new();
+                    family.insert(*exit_relay.id());
                     // TODO(nickm): See "limitations" note on `known_family_members`.
-                    family.extend(
-                        netdir
-                            .known_family_members(exit_relay)
-                            .map(|r| RelayId::from(*r.id())),
-                    );
+                    family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
                     b.restrictions()
                         .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }

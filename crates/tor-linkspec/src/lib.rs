@@ -77,7 +77,7 @@ mod ls;
 mod owned;
 mod traits;
 
-pub use ids::{RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter};
+pub use ids::{set::RelayIdSet, RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter};
 pub use ls::LinkSpec;
 pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
 pub use traits::{ChanTarget, CircTarget, HasAddrs, HasRelayIds};

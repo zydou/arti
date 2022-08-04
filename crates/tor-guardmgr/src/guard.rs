@@ -395,12 +395,7 @@ impl Guard {
         match r {
             GuardRestriction::AvoidId(avoid_id) => !self.id.0.has_identity(avoid_id.as_ref()),
             GuardRestriction::AvoidAllIds(avoid_ids) => {
-                // TODO(nickm): This copies all of our IDs!
-                // We should use a contains method on a RelayIdSet or something.
-                self.id
-                    .0
-                    .identities()
-                    .all(|id| !avoid_ids.contains(&id.to_owned()))
+                self.id.0.identities().all(|id| !avoid_ids.contains(id))
             }
         }
     }

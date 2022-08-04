@@ -137,11 +137,11 @@ use educe::Educe;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
-use tor_linkspec::RelayId;
+use tor_linkspec::{RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
@@ -1414,9 +1414,7 @@ pub enum GuardRestriction {
     /// Don't pick a guard with the provided identity.
     AvoidId(RelayId),
     /// Don't pick a guard with any of the provided Ed25519 identities.
-    //
-    // TODO(nickm): Switch this to a type that can actually work well with RelayId.
-    AvoidAllIds(HashSet<RelayId>),
+    AvoidAllIds(RelayIdSet),
 }
 
 #[cfg(test)]

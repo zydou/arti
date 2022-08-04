@@ -11,6 +11,8 @@ use tor_llcrypto::pk::{
     rsa::{RsaIdentity, RSA_ID_LEN},
 };
 
+pub(crate) mod set;
+
 /// The type of a relay identity.
 ///
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd, Display, strum::EnumIter)]
@@ -197,6 +199,17 @@ impl serde::Serialize for RelayId {
         self.as_ref().serialize(serializer)
     }
 }
+impl<'a> serde::Serialize for RelayIdRef<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // TODO(nickm): maybe encode this as bytes when dealing with
+        // non-human-readable formats.
+        self.to_string().serialize(serializer)
+    }
+}
+
 impl<'de> serde::Deserialize<'de> for RelayId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
