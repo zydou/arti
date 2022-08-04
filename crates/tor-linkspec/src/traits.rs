@@ -42,12 +42,6 @@ pub trait HasRelayIds {
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;
     /// Return the RSA identity for this relay.
     fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
-    /// Return the ed25519 identity key for this relay, if it is valid.
-    ///
-    /// This can be costly.
-    fn ed_identity_key(&self) -> Option<pk::ed25519::PublicKey> {
-        self.ed_identity().try_into().ok()
-    }
 
     /// Return true if this object has exactly the same relay IDs as `other`.
     //
@@ -218,22 +212,5 @@ mod test {
             specs[3],
             LinkSpec::OrPort("::1".parse::<IpAddr>().unwrap(), 909)
         );
-    }
-
-    #[test]
-    fn key_accessor() {
-        let ex = example();
-        // We can get the ed25519 key if it's valid...
-        let key = ex.ed_identity_key().unwrap();
-        assert_eq!(&pk::ed25519::Ed25519Identity::from(key), ex.ed_identity());
-
-        // Now try an invalid example.
-        let a = hex!("6d616e79737472696e677361726565646b6579736e6f74746869736f6e654091");
-        let ex = Example {
-            ed_id: pk::ed25519::Ed25519Identity::from_bytes(&a).unwrap(),
-            ..ex
-        };
-        let key = ex.ed_identity_key();
-        assert!(key.is_none());
     }
 }
