@@ -26,6 +26,17 @@ pub trait HasRelayIds {
             next_key: RelayIdType::all_types(),
         }
     }
+    /// Check whether the provided Id is a known identity of this relay.
+    ///
+    /// Remember that a given set of identity keys may be incomplete: some
+    /// objects that represent a relay have only a subset of the relay's
+    /// identities. Therefore, a "true" answer means that the relay has this
+    /// identity,  but a "false" answer could mean that the relay has a
+    /// different identity of this type, or that it has _no_ known identity of
+    /// this type.
+    fn has_identity(&self, id: RelayIdRef<'_>) -> bool {
+        self.identity(id.id_type()).map(|my_id| my_id == id) == Some(true)
+    }
 
     /// Return the ed25519 identity for this relay.
     fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;

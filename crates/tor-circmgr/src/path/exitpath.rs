@@ -7,6 +7,7 @@ use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
+use tor_linkspec::RelayId;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -166,9 +167,13 @@ impl<'a> ExitPathBuilder<'a> {
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
                     let mut family = std::collections::HashSet::new();
-                    family.insert(*exit_relay.id());
+                    family.insert(RelayId::from(*exit_relay.id()));
                     // TODO(nickm): See "limitations" note on `known_family_members`.
-                    family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
+                    family.extend(
+                        netdir
+                            .known_family_members(exit_relay)
+                            .map(|r| RelayId::from(*r.id())),
+                    );
                     b.restrictions()
                         .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }

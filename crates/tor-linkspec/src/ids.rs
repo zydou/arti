@@ -94,6 +94,14 @@ impl RelayId {
                 .into(),
         })
     }
+
+    /// Return the type of this relay identity.
+    pub fn id_type(&self) -> RelayIdType {
+        match self {
+            RelayId::Ed25519(_) => RelayIdType::Ed25519,
+            RelayId::Rsa(_) => RelayIdType::Rsa,
+        }
+    }
 }
 
 impl<'a> RelayIdRef<'a> {
@@ -105,6 +113,14 @@ impl<'a> RelayIdRef<'a> {
         match *self {
             RelayIdRef::Ed25519(key) => (*key).into(),
             RelayIdRef::Rsa(key) => (*key).into(),
+        }
+    }
+
+    /// Return the type of this relay identity.
+    pub fn id_type(&self) -> RelayIdType {
+        match self {
+            RelayIdRef::Ed25519(_) => RelayIdType::Ed25519,
+            RelayIdRef::Rsa(_) => RelayIdType::Rsa,
         }
     }
 }

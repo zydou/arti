@@ -393,8 +393,15 @@ impl Guard {
     /// Return true if this guard obeys a single restriction.
     fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
         match r {
-            GuardRestriction::AvoidId(ed) => self.id.0.ed_identity() != ed,
-            GuardRestriction::AvoidAllIds(ids) => !ids.contains(self.id.0.ed_identity()),
+            GuardRestriction::AvoidId(avoid_id) => !self.id.0.has_identity(avoid_id.as_ref()),
+            GuardRestriction::AvoidAllIds(avoid_ids) => {
+                // TODO(nickm): This copies all of our IDs!
+                // We should use a contains method on a RelayIdSet or something.
+                self.id
+                    .0
+                    .identities()
+                    .all(|id| !avoid_ids.contains(&id.to_owned()))
+            }
         }
     }
 
@@ -788,7 +795,7 @@ impl CircHistory {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use tor_linkspec::HasRelayIds;
+    use tor_linkspec::{HasRelayIds, RelayId};
 
     #[test]
     fn crate_id() {
@@ -809,6 +816,9 @@ mod test {
 
     #[test]
     fn simple_accessors() {
+        fn ed(id: [u8; 32]) -> RelayId {
+            RelayId::Ed25519(id.into())
+        }
         let id = basic_id();
         let g = basic_guard();
 
@@ -820,34 +830,33 @@ mod test {
 
         use crate::GuardUsageBuilder;
         let mut usage1 = GuardUsageBuilder::new();
+
         usage1
             .restrictions()
-            .push(GuardRestriction::AvoidId([22; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([22; 32])));
         let usage1 = usage1.build().unwrap();
         let mut usage2 = GuardUsageBuilder::new();
         usage2
             .restrictions()
-            .push(GuardRestriction::AvoidId([13; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([13; 32])));
         let usage2 = usage2.build().unwrap();
         let usage3 = GuardUsage::default();
         let mut usage4 = GuardUsageBuilder::new();
         usage4
             .restrictions()
-            .push(GuardRestriction::AvoidId([22; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([22; 32])));
         usage4
             .restrictions()
-            .push(GuardRestriction::AvoidId([13; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([13; 32])));
         let usage4 = usage4.build().unwrap();
         let mut usage5 = GuardUsageBuilder::new();
         usage5.restrictions().push(GuardRestriction::AvoidAllIds(
-            vec![[22; 32].into(), [13; 32].into()].into_iter().collect(),
+            vec![ed([22; 32]), ed([13; 32])].into_iter().collect(),
         ));
         let usage5 = usage5.build().unwrap();
         let mut usage6 = GuardUsageBuilder::new();
         usage6.restrictions().push(GuardRestriction::AvoidAllIds(
-            vec![[99; 32].into(), [100; 32].into()]
-                .into_iter()
-                .collect(),
+            vec![ed([99; 32]), ed([100; 32])].into_iter().collect(),
         ));
         let usage6 = usage6.build().unwrap();
 

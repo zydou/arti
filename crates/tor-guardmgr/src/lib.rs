@@ -141,6 +141,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
+use tor_linkspec::RelayId;
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
@@ -1410,10 +1411,12 @@ impl GuardUsageBuilder {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum GuardRestriction {
-    /// Don't pick a guard with the provided Ed25519 identity.
-    AvoidId(pk::ed25519::Ed25519Identity),
+    /// Don't pick a guard with the provided identity.
+    AvoidId(RelayId),
     /// Don't pick a guard with any of the provided Ed25519 identities.
-    AvoidAllIds(HashSet<pk::ed25519::Ed25519Identity>),
+    //
+    // TODO(nickm): Switch this to a type that can actually work well with RelayId.
+    AvoidAllIds(HashSet<RelayId>),
 }
 
 #[cfg(test)]
