@@ -9,7 +9,7 @@ use educe::Educe;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
-/// Padding enablemwent - rough amount of padding requested
+/// Padding enablement - rough amount of padding requested
 ///
 /// Padding is cover traffic, used to help mitigate traffic analysis,
 /// obscure traffic patterns, and impede router-level data collection.

@@ -211,7 +211,7 @@ impl<R: Runtime> ChanMgr<R> {
 
     /// Notifies the chanmgr to be dormant like dormancy
     ///
-    /// For netdir`, `None` means "there is definitely no consensus now",
+    /// For `netdir`, `None` means "there is definitely no consensus now",
     /// *not* "use previous netdir/consensus data".
     /// (This is not a great use of `Option` and work is on the way to change it.)
     pub fn set_dormancy(
