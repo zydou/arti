@@ -12,7 +12,6 @@ Example:
 """
 
 import re, subprocess
-from enum import Enum
 
 LINK_PATTERN = re.compile(r'''
   \[([^\]]*)\] # Match [, then some non-] characters, then ]...
@@ -125,7 +124,7 @@ def process(s):
     return "".join(lnk.text() for lnk in items)
 
 if __name__ == '__main__':
-    import fileinput, sys
+    import sys
     if len(sys.argv) == 1 or sys.argv[1] == "-":
         in_file = sys.stdin
     else:
