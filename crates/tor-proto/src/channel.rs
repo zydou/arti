@@ -141,7 +141,8 @@ pub struct Channel {
 /// A channel may be used in multiple ways.  Each time it is (re)used, a separate
 /// ChannelUsage is passed in.
 ///
-/// This has the same variants as `tor_circmgr::usage::TargCircUsage`
+/// This type is obtained from a `tor_circmgr::usage::SupportedCircUsage` in
+/// `tor_circmgr::usage`, and it has roughly the same set of variants.
 #[derive(Clone, Debug, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ChannelUsage {
@@ -153,7 +154,7 @@ pub enum ChannelUsage {
     /// Includes a circuit being constructed preemptively.
     Exit,
 
-    /// For a channel which is for circuit(s) which cannot be used
+    /// For a channel which is not use for circuit(s), or only for useless circuits
     UselessCircuit,
 }
 
