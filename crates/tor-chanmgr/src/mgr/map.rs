@@ -127,6 +127,9 @@ type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_B
 ///
 ///  2. Rather than four separate named fields, it has arrays, so that it is easy to
 ///     select the values without error-prone recapitulation of field names.
+//
+// TODO: Rename this to `NetParamsExtract` apropos
+//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/657#note_2825975
 #[derive(Debug, Clone)]
 struct NetDirExtract {
     /// `nf_ito_*`
