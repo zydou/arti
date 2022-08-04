@@ -14,8 +14,8 @@
 
 use super::{RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
-use crate::{Error, Result, SecretBytes};
-use tor_bytes::{EncodeResult, Reader, Writeable, Writer};
+use crate::{Error, Result};
+use tor_bytes::{EncodeResult, Reader, SecretBuf, Writeable, Writer};
 use tor_error::into_internal;
 use tor_llcrypto::d::{Sha3_256, Shake256};
 use tor_llcrypto::pk::{curve25519, ed25519::Ed25519Identity};
@@ -52,7 +52,9 @@ type DigestVal = [u8; DIGEST_LEN];
 /// The output of the MAC.
 type MacVal = [u8; MAC_LEN];
 /// A key for symmetric encryption or decryption.
-type EncKey = [u8; ENC_KEY_LEN];
+//
+// TODO (nickm): Any move operations applied to this key could subvert the zeroizing.
+type EncKey = Zeroizing<[u8; ENC_KEY_LEN]>;
 /// A key for message authentication codes.
 type MacKey = [u8; MAC_KEY_LEN];
 
@@ -137,7 +139,7 @@ fn hash(t: &Encap<'_>, data: &[u8]) -> DigestVal {
 fn encrypt(key: &EncKey, m: &[u8]) -> Vec<u8> {
     let mut d = m.to_vec();
     let zero_iv = GenericArray::default();
-    let mut cipher = Aes256Ctr::new(key.into(), &zero_iv);
+    let mut cipher = Aes256Ctr::new(key.as_ref().into(), &zero_iv);
     cipher.apply_keystream(&mut d);
     d
 }
@@ -181,7 +183,7 @@ fn kdf_msgkdf(
     relay_public: &NtorV3PublicKey,
     client_public: &curve25519::PublicKey,
     verification: &[u8],
-) -> EncodeResult<(Zeroizing<EncKey>, DigestWriter<Sha3_256>)> {
+) -> EncodeResult<(EncKey, DigestWriter<Sha3_256>)> {
     // secret_input_phase1 = Bx | ID | X | B | PROTOID | ENCAP(VER)
     // phase1_keys = KDF_msgkdf(secret_input_phase1)
     // (ENC_K1, MAC_K1) = PARTITION(phase1_keys, ENC_KEY_LEN, MAC_KEY_LEN
@@ -316,10 +318,10 @@ pub(crate) struct NtorV3KeyGenerator<R> {
 }
 
 impl<R: digest::XofReader> KeyGenerator for NtorV3KeyGenerator<R> {
-    fn expand(mut self, keylen: usize) -> Result<SecretBytes> {
-        let mut ret = vec![0; keylen];
-        self.reader.read(&mut ret);
-        Ok(Zeroizing::new(ret))
+    fn expand(mut self, keylen: usize) -> Result<SecretBuf> {
+        let mut ret: SecretBuf = vec![0; keylen].into();
+        self.reader.read(ret.as_mut());
+        Ok(ret)
     }
 }
 
@@ -480,7 +482,7 @@ fn server_handshake_ntor_v3_no_keygen<REPLY: MsgReply>(
     // that we're going to reply.
 
     let secret_input = {
-        let mut si = Zeroizing::new(Vec::new());
+        let mut si = SecretBuf::new();
         si.write(&xy)
             .and_then(|_| si.write(&xb))
             .and_then(|_| si.write(&keypair.pk.id))
@@ -566,7 +568,7 @@ fn client_handshake_ntor_v3_part2(
     // would be better to factor it out.
     let yx = state.my_sk.diffie_hellman(&y_pk);
     let secret_input = {
-        let mut si = Zeroizing::new(Vec::new());
+        let mut si = SecretBuf::new();
         si.write(&yx)
             .and_then(|_| si.write(&state.shared_secret))
             .and_then(|_| si.write(&state.relay_public.id))

@@ -28,11 +28,13 @@ pub mod aes {
     use cipher::{InnerIvInit, IvSizeUser, StreamCipher, StreamCipherError};
     use digest::crypto_common::{InnerUser, KeyInit, KeySizeUser};
     use openssl::symm::{Cipher, Crypter, Mode};
+    use zeroize::{Zeroize, ZeroizeOnDrop};
 
     /// AES 128 in counter mode as used by Tor.
     pub struct Aes128Ctr(Crypter);
 
     /// AES 128 key
+    #[derive(Zeroize, ZeroizeOnDrop)]
     pub struct Aes128Key([u8; 16]);
 
     impl KeySizeUser for Aes128Key {
@@ -58,6 +60,7 @@ pub mod aes {
             &mut self,
             mut buf: InOutBuf<'_, '_, u8>,
         ) -> Result<(), StreamCipherError> {
+            // TODO(nickm): It would be lovely if we could get rid of this copy somehow.
             let in_buf = buf.get_in().to_vec();
             self.0
                 .update(&in_buf, buf.get_out())
@@ -78,6 +81,7 @@ pub mod aes {
     pub struct Aes256Ctr(Crypter);
 
     /// AES 256 key
+    #[derive(Zeroize, ZeroizeOnDrop)]
     pub struct Aes256Key([u8; 32]);
 
     impl KeySizeUser for Aes256Key {
@@ -103,6 +107,7 @@ pub mod aes {
             &mut self,
             mut buf: InOutBuf<'_, '_, u8>,
         ) -> Result<(), StreamCipherError> {
+            // TODO(nickm): It would be lovely if we could get rid of this copy.
             let in_buf = buf.get_in().to_vec();
             self.0
                 .update(&in_buf, buf.get_out())

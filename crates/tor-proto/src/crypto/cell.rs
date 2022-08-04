@@ -48,7 +48,7 @@ pub(crate) trait CryptInit: Sized {
     /// Initialize this object from a key generator.
     fn construct<K: super::handshake::KeyGenerator>(keygen: K) -> Result<Self> {
         let seed = keygen.expand(Self::seed_len())?;
-        Self::initialize(&seed)
+        Self::initialize(&seed[..])
     }
 }
 
@@ -393,9 +393,9 @@ pub(crate) mod tor1 {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::SecretBytes;
     use rand::RngCore;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_bytes::SecretBuf;
 
     fn add_layers(
         cc_out: &mut OutboundClientCrypt,
@@ -411,10 +411,8 @@ mod test {
     fn roundtrip() {
         // Take canned keys and make sure we can do crypto correctly.
         use crate::crypto::handshake::ShakeKeyGenerator as KGen;
-        fn s(seed: &[u8]) -> SecretBytes {
-            let mut s: SecretBytes = SecretBytes::new(Vec::new());
-            s.extend(seed);
-            s
+        fn s(seed: &[u8]) -> SecretBuf {
+            seed.to_vec().into()
         }
 
         let seed1 = s(b"hidden we are free");

@@ -617,6 +617,7 @@ checksum = "d1873270f8f7942c191139cb8a40fd228da6c3fd2fc376d7e92d47aa14aeb59e"
 dependencies = [
  "crypto-common",
  "inout",
+ "zeroize",
 ]
 
 [[package]]
@@ -3424,6 +3425,7 @@ dependencies = [
  "thiserror",
  "tor-error",
  "tor-llcrypto",
+ "zeroize",
 ]
 
 [[package]]

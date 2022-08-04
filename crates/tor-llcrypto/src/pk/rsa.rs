@@ -19,7 +19,6 @@ use arrayref::array_ref;
 use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
 use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
-use zeroize::Zeroize;
 
 /// How many bytes are in an "RSA ID"?  (This is a legacy tor
 /// concept, and refers to identifying a relay by a SHA1 digest
@@ -32,7 +31,7 @@ pub const RSA_ID_LEN: usize = 20;
 /// Note that for modern purposes, you should almost always identify a
 /// relay by its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity)
 /// instead of by this kind of identity key.
-#[derive(Clone, Copy, Hash, Zeroize, Ord, PartialOrd)]
+#[derive(Clone, Copy, Hash, Ord, PartialOrd)]
 #[allow(clippy::derive_hash_xor_eq)]
 pub struct RsaIdentity {
     /// SHA1 digest of a DER encoded public key.
