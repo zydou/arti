@@ -680,25 +680,6 @@ impl NetDir {
         }
     }
 
-    /// Return a relay matching a given Ed25519 identity and RSA identity,
-    /// if we have a usable relay with _both_ keys.
-    ///
-    /// (Does not return unusable relays.)
-    ///
-    /// Note that if a microdescriptor is subsequently added for a relay
-    /// with this ID, the ID may become usable.
-    pub fn by_id_pair(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
-        self.by_id(ed_id).filter(|r| r.rs.rsa_identity() == rsa_id)
-    }
-
-    /// Return the usable relay matching a given [`ChanTarget`]'s
-    /// identities, if any.
-    ///
-    /// (Does not return unusable relays.)
-    pub fn by_chantarget(&self, chan_target: &impl tor_linkspec::ChanTarget) -> Option<Relay<'_>> {
-        self.by_ids(chan_target)
-    }
-
     /// Return a boolean if this consensus definitely has (or does not have) a
     /// relay matching the listed identities.
     ///
@@ -707,7 +688,7 @@ impl NetDir {
     /// `Some(b)`, it will always return that value for the same `ed_id` and
     /// `rsa_id` on this `NetDir`.  A `None` answer may later become `Some(b)`
     /// if a microdescriptor arrives.
-    pub fn id_pair_listed(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<bool> {
+    fn id_pair_listed(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<bool> {
         let r = self.by_rsa_id_unchecked(rsa_id);
         match r {
             Some(unchecked) => {
@@ -769,7 +750,7 @@ impl NetDir {
 
     /// Return a (possibly unusable) relay with a given RSA identity.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
-    pub fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
+    fn by_rsa_id_unchecked(&self, rsa_id: &RsaIdentity) -> Option<UncheckedRelay<'_>> {
         let rs_idx = *self.rs_idx_by_rsa.get(rsa_id)?;
         let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
         assert_eq!(rs.rsa_identity(), rsa_id);
@@ -777,14 +758,15 @@ impl NetDir {
     }
     /// Return the relay with a given RSA identity, if we have one
     /// and it is usable.
-    pub fn by_rsa_id(&self, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
+    fn by_rsa_id(&self, rsa_id: &RsaIdentity) -> Option<Relay<'_>> {
         self.by_rsa_id_unchecked(rsa_id)?.into_relay()
     }
     /// Return true if `rsa_id` is listed in this directory, even if it
     /// isn't currently usable.
-    pub fn rsa_id_is_listed(&self, rsa_id: &RsaIdentity) -> bool {
+    fn rsa_id_is_listed(&self, rsa_id: &RsaIdentity) -> bool {
         self.by_rsa_id_unchecked(rsa_id).is_some()
     }
+
     /// Return the parameters from the consensus, clamped to the
     /// correct ranges, with defaults filled in.
     ///
@@ -1244,7 +1226,7 @@ mod test {
     use std::collections::HashSet;
     use std::time::Duration;
     use tor_basic_utils::test_rng;
-    use tor_linkspec::RelayIdType;
+    use tor_linkspec::{RelayIdType, RelayIds};
 
     // Basic functionality for a partial netdir: Add microdescriptors,
     // then you have a netdir.
@@ -1682,17 +1664,19 @@ mod test {
         assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
         assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
 
-        let r = netdir.by_id_pair(&[13; 32].into(), &[13; 20].into());
+        let pair_13_13 = RelayIds::new([13; 32].into(), [13; 20].into());
+        let pair_14_14 = RelayIds::new([14; 32].into(), [14; 20].into());
+        let pair_14_99 = RelayIds::new([14; 32].into(), [99; 20].into());
+
+        let r = netdir.by_ids(&pair_13_13);
         assert!(r.is_none());
-        let r = netdir
-            .by_id_pair(&[14; 32].into(), &[14; 20].into())
-            .unwrap();
+        let r = netdir.by_ids(&pair_14_14).unwrap();
         assert_eq!(r.identity(RelayIdType::Rsa).unwrap().as_bytes(), &[14; 20]);
         assert_eq!(
             r.identity(RelayIdType::Ed25519).unwrap().as_bytes(),
             &[14; 32]
         );
-        let r = netdir.by_id_pair(&[14; 32].into(), &[99; 20].into());
+        let r = netdir.by_ids(&pair_14_99);
         assert!(r.is_none());
 
         assert_eq!(
