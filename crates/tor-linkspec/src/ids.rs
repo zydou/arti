@@ -104,6 +104,42 @@ impl RelayId {
             RelayId::Rsa(_) => RelayIdType::Rsa,
         }
     }
+
+    /// Return a byte-slice corresponding to the contents of this identity.
+    ///
+    /// The return value discards the type of the identity, and so should be
+    /// handled with care to make sure that it does not get confused with an
+    /// identity of some other type.
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            RelayId::Ed25519(key) => key.as_bytes(),
+            RelayId::Rsa(key) => key.as_bytes(),
+        }
+    }
+
+    /// Extract the RsaIdentity from a RelayId that is known to hold one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is not an RSA identity.
+    pub(crate) fn unwrap_rsa(self) -> RsaIdentity {
+        match self {
+            RelayId::Rsa(rsa) => rsa,
+            _ => panic!("Not an RSA identity."),
+        }
+    }
+
+    /// Extract the Ed25519Identity from a RelayId that is known to hold one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is not an Ed25519 identity.
+    pub(crate) fn unwrap_ed25519(self) -> Ed25519Identity {
+        match self {
+            RelayId::Ed25519(ed25519) => ed25519,
+            _ => panic!("Not an Ed25519 identity."),
+        }
+    }
 }
 
 impl<'a> RelayIdRef<'a> {
@@ -123,6 +159,38 @@ impl<'a> RelayIdRef<'a> {
         match self {
             RelayIdRef::Ed25519(_) => RelayIdType::Ed25519,
             RelayIdRef::Rsa(_) => RelayIdType::Rsa,
+        }
+    }
+
+    /// Return a byte-slice corresponding to the contents of this identity.
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            RelayIdRef::Ed25519(key) => key.as_bytes(),
+            RelayIdRef::Rsa(key) => key.as_bytes(),
+        }
+    }
+
+    /// Extract the RsaIdentity from a RelayIdRef that is known to hold one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is not an RSA identity.
+    pub(crate) fn unwrap_rsa(self) -> &'a RsaIdentity {
+        match self {
+            RelayIdRef::Rsa(rsa) => rsa,
+            _ => panic!("Not an RSA identity."),
+        }
+    }
+
+    /// Extract the Ed25519Identity from a RelayIdRef that is known to hold one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is not an Ed25519 identity.
+    pub(crate) fn unwrap_ed25519(self) -> &'a Ed25519Identity {
+        match self {
+            RelayIdRef::Ed25519(ed25519) => ed25519,
+            _ => panic!("Not an Ed25519 identity."),
         }
     }
 }
