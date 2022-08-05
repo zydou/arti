@@ -515,14 +515,6 @@ impl PartialNetDir {
             Err(self)
         }
     }
-    /// Return true if we are currently missing a microdescriptor for the
-    /// given RSA identity.
-    ///
-    /// A descriptor is `missing` only if it is listed in the consensus,
-    /// but we don't have it downloaded.
-    pub fn missing_descriptor_for(&self, rsa_id: &RsaIdentity) -> bool {
-        self.netdir.missing_descriptor_for(rsa_id)
-    }
 }
 
 impl MdReceiver for PartialNetDir {
@@ -733,18 +725,6 @@ impl NetDir {
             // TODO: If we later support more identity key types, this will
             // become incorrect.
             (None, None) => None,
-        }
-    }
-
-    /// Return true if we are currently missing a micro descriptor for the
-    /// given RSA identity.
-    ///
-    /// A descriptor is `missing` only if it is listed in the consensus,
-    /// but we don't have it downloaded.
-    pub fn missing_descriptor_for(&self, rsa_id: &RsaIdentity) -> bool {
-        match self.by_rsa_id_unchecked(rsa_id) {
-            Some(unchecked) => unchecked.md.is_none(),
-            None => false,
         }
     }
 
@@ -1640,9 +1620,6 @@ mod test {
             nb.omit_md = idx == 13;
         })
         .unwrap();
-
-        assert!(netdir.missing_descriptor_for(&[13; 20].into()));
-        assert!(!netdir.missing_descriptor_for(&[15; 20].into()));
 
         let netdir = netdir.unwrap_if_sufficient().unwrap();
 
