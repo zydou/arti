@@ -621,36 +621,36 @@ impl NetDir {
     pub fn relays(&self) -> impl Iterator<Item = Relay<'_>> {
         self.all_relays().filter_map(UncheckedRelay::into_relay)
     }
-    /// Return a relay matching a given Ed25519 identity, if we have a
+
+    /// Return a relay matching a given identity, if we have a
     /// _usable_ relay with that key.
     ///
     /// (Does not return unusable relays.)
     ///
-    /// Note that if a microdescriptor is subsequently added for a relay
-    /// with this ID, the ID may become usable.
+    ///    
+    /// Note that a `None` answer is not always permanent: if a microdescriptor
+    /// is subsequently added for a relay with this ID, the ID may become usable
+    /// even if it was not usable before.
     #[allow(clippy::missing_panics_doc)] // Can't panic on valid object.
-    pub fn by_id(&self, id: &Ed25519Identity) -> Option<Relay<'_>> {
-        let rs_idx = *self.rs_idx_by_ed.get(id)?;
-        let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
+    pub fn by_id<'a, T>(&self, id: T) -> Option<Relay<'_>>
+    where
+        T: Into<RelayIdRef<'a>> + ?Sized,
+    {
+        let id = id.into();
+        let answer = match id {
+            RelayIdRef::Ed25519(ed25519) => {
+                let rs_idx = *self.rs_idx_by_ed.get(ed25519)?;
+                let rs = self.consensus.relays().get(rs_idx).expect("Corrupt index");
 
-        let relay = self.relay_from_rs_and_idx(rs, rs_idx).into_relay()?;
-        assert_eq!(id, relay.id());
-        Some(relay)
-    }
-
-    /// Return a relay matching a given identity, if we have a _usable_ relay
-    /// with that key.
-    ///
-    /// (Does not return unusable relays.)
-    ///
-    pub fn by_relay_id(&self, id: RelayIdRef<'_>) -> Option<Relay<'_>> {
-        match id {
-            RelayIdRef::Ed25519(ed25519) => self.by_id(ed25519),
+                self.relay_from_rs_and_idx(rs, rs_idx).into_relay()?
+            }
             RelayIdRef::Rsa(rsa) => self
                 .by_rsa_id_unchecked(rsa)
-                .and_then(UncheckedRelay::into_relay),
-            other_type => self.relays().find(|r| r.has_identity(other_type)),
-        }
+                .and_then(UncheckedRelay::into_relay)?,
+            other_type => self.relays().find(|r| r.has_identity(other_type))?,
+        };
+        assert!(answer.has_identity(id));
+        Some(answer)
     }
 
     /// Return a relay with the same identities as those in `target`, if one
@@ -660,22 +660,23 @@ impl NetDir {
     ///
     /// # Limitations
     ///
-    /// This will be very slow if `target` does not have an Ed25519 identity.
+    /// This will be very slow if `target` does not have an Ed25519 or RSA
+    /// identity.
     pub fn by_ids<T>(&self, target: &T) -> Option<Relay<'_>>
     where
         T: HasRelayIds + ?Sized,
     {
-        if let Some(ed_id) = target.identity(RelayIdType::Ed25519) {
-            self.by_relay_id(ed_id).filter(|relay| {
-                // This is like "same_relay_ids", but it does not check the
-                // Ed25519 identity because that's already been checked.
-                RelayIdType::all_types().all(|id_type| {
-                    id_type == RelayIdType::Ed25519
-                        || relay.identity(id_type) == target.identity(id_type)
-                })
-            })
+        let mut identities = target.identities();
+        // Don't try if there are no identities.
+        let first_id = identities.next()?;
+
+        // Since there is at most one relay with each given ID type,
+        // we only need to check the first relay we find.
+        let candidate = self.by_id(first_id)?;
+        if identities.all(|wanted_id| candidate.has_identity(wanted_id)) {
+            Some(candidate)
         } else {
-            self.relays().find(|r| r.same_relay_ids(target))
+            None
         }
     }
 
@@ -1525,13 +1526,21 @@ mod test {
         let dir = dir.unwrap_if_sufficient().unwrap();
 
         // Pick out a few relays by ID.
-        let r0 = dir.by_id(&[0; 32].into()).unwrap();
-        let r1 = dir.by_id(&[1; 32].into()).unwrap();
-        let r2 = dir.by_id(&[2; 32].into()).unwrap();
-        let r3 = dir.by_id(&[3; 32].into()).unwrap();
-        let r10 = dir.by_id(&[10; 32].into()).unwrap();
-        let r15 = dir.by_id(&[15; 32].into()).unwrap();
-        let r20 = dir.by_id(&[20; 32].into()).unwrap();
+        let k0 = Ed25519Identity::from([0; 32]);
+        let k1 = Ed25519Identity::from([1; 32]);
+        let k2 = Ed25519Identity::from([2; 32]);
+        let k3 = Ed25519Identity::from([3; 32]);
+        let k10 = Ed25519Identity::from([10; 32]);
+        let k15 = Ed25519Identity::from([15; 32]);
+        let k20 = Ed25519Identity::from([20; 32]);
+
+        let r0 = dir.by_id(&k0).unwrap();
+        let r1 = dir.by_id(&k1).unwrap();
+        let r2 = dir.by_id(&k2).unwrap();
+        let r3 = dir.by_id(&k3).unwrap();
+        let r10 = dir.by_id(&k10).unwrap();
+        let r15 = dir.by_id(&k15).unwrap();
+        let r20 = dir.by_id(&k20).unwrap();
 
         assert_eq!(r0.id(), &[0; 32].into());
         assert_eq!(r0.rsa_id(), &[0; 20].into());
@@ -1605,8 +1614,8 @@ mod test {
         .unwrap_if_sufficient()
         .unwrap();
 
-        let e12 = netdir.by_id(&[12; 32].into()).unwrap();
-        let e32 = netdir.by_id(&[32; 32].into()).unwrap();
+        let e12 = netdir.by_id(&Ed25519Identity::from([12; 32])).unwrap();
+        let e32 = netdir.by_id(&Ed25519Identity::from([32; 32])).unwrap();
 
         assert!(!e12.supports_exit_port_ipv4(80));
         assert!(e32.supports_exit_port_ipv4(80));
@@ -1632,8 +1641,8 @@ mod test {
     fn test_accessors() {
         let netdir = construct_netdir().unwrap_if_sufficient().unwrap();
 
-        let r4 = netdir.by_id(&[4; 32].into()).unwrap();
-        let r16 = netdir.by_id(&[16; 32].into()).unwrap();
+        let r4 = netdir.by_id(&Ed25519Identity::from([4; 32])).unwrap();
+        let r16 = netdir.by_id(&Ed25519Identity::from([16; 32])).unwrap();
 
         assert!(!r4.md().ipv4_policy().allows_some_port());
         assert!(r16.md().ipv4_policy().allows_some_port());
@@ -1655,10 +1664,10 @@ mod test {
 
         let netdir = netdir.unwrap_if_sufficient().unwrap();
 
-        let r = netdir.by_id(&[0; 32].into()).unwrap();
+        let r = netdir.by_id(&Ed25519Identity::from([0; 32])).unwrap();
         assert_eq!(r.id().as_bytes(), &[0; 32]);
 
-        assert!(netdir.by_id(&[13; 32].into()).is_none());
+        assert!(netdir.by_id(&Ed25519Identity::from([13; 32])).is_none());
 
         let r = netdir.by_rsa_id(&[12; 20].into()).unwrap();
         assert_eq!(r.rsa_id().as_bytes(), &[12; 20]);
@@ -1725,7 +1734,7 @@ mod test {
         let g_total = netdir.total_weight(WeightRole::Guard, |_| false);
         assert_eq!(g_total, RelayWeight(0));
 
-        let relay = netdir.by_id(&[35; 32].into()).unwrap();
+        let relay = netdir.by_id(&Ed25519Identity::from([35; 32])).unwrap();
         assert!(relay.is_flagged_guard());
         let w = netdir.relay_weight(&relay, WeightRole::Guard);
         assert_eq!(w, RelayWeight(6_000));
@@ -1760,13 +1769,13 @@ mod test {
         .unwrap();
 
         // In the testing netdir, adjacent members are in the same family by default...
-        let r0 = netdir.by_id(&[0; 32].into()).unwrap();
+        let r0 = netdir.by_id(&Ed25519Identity::from([0; 32])).unwrap();
         let family: Vec<_> = netdir.known_family_members(&r0).collect();
         assert_eq!(family.len(), 1);
         assert_eq!(family[0].id(), &Ed25519Identity::from([1; 32]));
 
         // But we've made this relay claim membership with several others.
-        let r10 = netdir.by_id(&[10; 32].into()).unwrap();
+        let r10 = netdir.by_id(&Ed25519Identity::from([10; 32])).unwrap();
         let family: HashSet<_> = netdir.known_family_members(&r10).map(|r| *r.id()).collect();
         assert_eq!(family.len(), 2);
         assert!(family.contains(&Ed25519Identity::from([11; 32])));

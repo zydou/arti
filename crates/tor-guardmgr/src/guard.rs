@@ -790,6 +790,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use tor_linkspec::{HasRelayIds, RelayId};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     #[test]
     fn crate_id() {
@@ -1015,7 +1016,7 @@ mod test {
         let now = SystemTime::now();
 
         // Construct a guard from a relay from the netdir.
-        let relay22 = netdir.by_id(&[22; 32].into()).unwrap();
+        let relay22 = netdir.by_id(&Ed25519Identity::from([22; 32])).unwrap();
         let guard22 = Guard::from_relay(&relay22, now, &params);
         assert!(guard22.same_relay_ids(&relay22));
         assert!(Some(guard22.added_at) <= Some(now));

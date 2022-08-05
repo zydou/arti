@@ -264,6 +264,7 @@ mod test {
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_linkspec::{HasRelayIds, RelayIds};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
 
@@ -312,7 +313,7 @@ mod test {
             }
         }
 
-        let chosen = netdir.by_id(&[0x20; 32].into()).unwrap();
+        let chosen = netdir.by_id(&Ed25519Identity::from([0x20; 32])).unwrap();
 
         let config = PathConfig::default();
         for _ in 0..1000 {
