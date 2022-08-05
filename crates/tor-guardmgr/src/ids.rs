@@ -16,7 +16,10 @@ pub(crate) struct FallbackId(pub(crate) RelayIds);
 impl FallbackId {
     /// Return a new, manually constructed `FallbackId`
     /// Extract a `FallbackId` from a ChanTarget object.
-    pub(crate) fn from_relay_ids<T: tor_linkspec::HasRelayIds>(target: &T) -> Self {
+    pub(crate) fn from_relay_ids<T>(target: &T) -> Self
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         Self(RelayIds::from_relay_ids(target))
     }
 }
@@ -36,7 +39,10 @@ impl GuardId {
         Self(RelayIds::new(ed25519, rsa))
     }
     /// Extract a `GuardId` from a ChanTarget object.
-    pub(crate) fn from_relay_ids<T: tor_linkspec::HasRelayIds>(target: &T) -> Self {
+    pub(crate) fn from_relay_ids<T>(target: &T) -> Self
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         Self(RelayIds::from_relay_ids(target))
     }
 }

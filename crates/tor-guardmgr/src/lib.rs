@@ -573,11 +573,10 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with a guard, something described
     /// in `external_failure` went wrong with it.
-    pub fn note_external_failure(
-        &self,
-        identity: &impl tor_linkspec::HasRelayIds,
-        external_failure: ExternalActivity,
-    ) {
+    pub fn note_external_failure<T>(&self, identity: &T, external_failure: ExternalActivity)
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
         let ids = inner.lookup_ids(identity);
@@ -601,11 +600,10 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with a guard, some activity
     /// described in `external_activity` was successful with it.
-    pub fn note_external_success(
-        &self,
-        identity: &impl tor_linkspec::HasRelayIds,
-        external_activity: ExternalActivity,
-    ) {
+    pub fn note_external_success<T>(&self, identity: &T, external_activity: ExternalActivity)
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
         inner.record_external_success(identity, external_activity, self.runtime.wallclock());
@@ -971,12 +969,14 @@ impl GuardMgrInner {
     ///
     /// (This has to be a separate function so that we can borrow params while
     /// we have `mut self` borrowed.)
-    fn record_external_success(
+    fn record_external_success<T>(
         &mut self,
-        identity: &impl tor_linkspec::HasRelayIds,
+        identity: &T,
         external_activity: ExternalActivity,
         now: SystemTime,
-    ) {
+    ) where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         for id in self.lookup_ids(identity) {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
@@ -1092,7 +1092,10 @@ impl GuardMgrInner {
     /// doesn't know whether its circuit came from a guard or a fallback.  To
     /// solve that, we'll need CircMgr to record and report which one it was
     /// using, which will take some more plumbing.
-    fn lookup_ids(&self, identity: &impl tor_linkspec::HasRelayIds) -> Vec<FirstHopId> {
+    fn lookup_ids<T>(&self, identity: &T) -> Vec<FirstHopId>
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let mut vec = Vec::with_capacity(2);
 
         let id = ids::GuardId::from_relay_ids(identity);
