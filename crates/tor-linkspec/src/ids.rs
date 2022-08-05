@@ -171,6 +171,12 @@ impl<'a> RelayIdRef<'a> {
     }
 }
 
+impl<'a> From<&'a RelayId> for RelayIdRef<'a> {
+    fn from(ident: &'a RelayId) -> Self {
+        ident.as_ref()
+    }
+}
+
 /// Expand to an implementation for PartialEq for a given key type.
 macro_rules! impl_eq_variant {
     { $var:ident($type:ty) } => {
