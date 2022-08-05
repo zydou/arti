@@ -263,7 +263,7 @@ mod test {
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::HasRelayIds;
+    use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
 
@@ -431,9 +431,9 @@ mod test {
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
                     assert_exit_path_ok(&p[..]);
-                    distinct_guards.insert(p[0].ed_identity().clone());
-                    distinct_mid.insert(p[1].ed_identity().clone());
-                    distinct_exit.insert(p[2].ed_identity().clone());
+                    distinct_guards.insert(RelayIds::from_relay_ids(&p[0]));
+                    distinct_mid.insert(RelayIds::from_relay_ids(&p[1]));
+                    distinct_exit.insert(RelayIds::from_relay_ids(&p[2]));
                 } else {
                     panic!("Wrong kind of path");
                 }
@@ -450,9 +450,9 @@ mod test {
             assert_ne!(distinct_exit.len(), 1);
 
             let guard_relay = netdir
-                .by_id(distinct_guards.iter().next().unwrap())
+                .by_ids(distinct_guards.iter().next().unwrap())
                 .unwrap();
-            let exit_relay = netdir.by_id(distinct_exit.iter().next().unwrap()).unwrap();
+            let exit_relay = netdir.by_ids(distinct_exit.iter().next().unwrap()).unwrap();
 
             // Now we'll try a forced exit that is not the same as our
             // actual guard.

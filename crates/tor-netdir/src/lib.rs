@@ -68,7 +68,7 @@ mod weight;
 #[cfg(any(test, feature = "testing"))]
 pub mod testnet;
 
-use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds};
+use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
@@ -205,18 +205,26 @@ impl From<u64> for RelayWeight {
     }
 }
 
-/// A view of the Tor directory, suitable for use in building
-/// circuits.
+/// A view of the Tor directory, suitable for use in building circuits.
 ///
-/// Abstractly, a [`NetDir`] is a set of usable public [`Relay`]s,
-/// each of which has its own properties, identity, and correct weighted
-/// probability for use under different circumstances.
+/// Abstractly, a [`NetDir`] is a set of usable public [`Relay`]s, each of which
+/// has its own properties, identity, and correct weighted probability for use
+/// under different circumstances.
 ///
-/// A [`NetDir`] is constructed by making a [`PartialNetDir`] from a
-/// consensus document, and then adding enough microdescriptors to
-/// that `PartialNetDir` so that it can be used to build paths.
-/// (Thus, if you have a NetDir, it is definitely adequate to build
-/// paths.)
+/// A [`NetDir`] is constructed by making a [`PartialNetDir`] from a consensus
+/// document, and then adding enough microdescriptors to that `PartialNetDir` so
+/// that it can be used to build paths. (Thus, if you have a NetDir, it is
+/// definitely adequate to build paths.)
+///
+/// # Limitations
+///
+/// The current NetDir implementation assumes fairly strongly that every relay
+/// has an Ed25519 identity and an RSA identity, that the consensus is indexed
+/// by RSA identities, and that the Ed25519 identities are stored in
+/// microdescriptors.
+///
+/// If these assumptions someday change, then we'll have to revise the
+/// implementation.
 #[derive(Debug, Clone)]
 pub struct NetDir {
     /// A microdescriptor consensus that lists the members of the network,
@@ -630,15 +638,45 @@ impl NetDir {
         Some(relay)
     }
 
+    /// Return a relay matching a given identity, if we have a _usable_ relay
+    /// with that key.
+    ///
+    /// (Does not return unusable relays.)
+    ///
+    pub fn by_relay_id(&self, id: RelayIdRef<'_>) -> Option<Relay<'_>> {
+        match id {
+            RelayIdRef::Ed25519(ed25519) => self.by_id(ed25519),
+            RelayIdRef::Rsa(rsa) => self
+                .by_rsa_id_unchecked(rsa)
+                .and_then(UncheckedRelay::into_relay),
+            other_type => self.relays().find(|r| r.has_identity(other_type)),
+        }
+    }
+
     /// Return a relay with the same identities as those in `target`, if one
     /// exists.
     ///
     /// Does not return unusable relays.
+    ///
+    /// # Limitations
+    ///
+    /// This will be very slow if `target` does not have an Ed25519 identity.
     pub fn by_ids<T>(&self, target: &T) -> Option<Relay<'_>>
     where
         T: HasRelayIds + ?Sized,
     {
-        self.by_id_pair(target.ed_identity(), target.rsa_identity())
+        if let Some(ed_id) = target.identity(RelayIdType::Ed25519) {
+            self.by_relay_id(ed_id).filter(|relay| {
+                // This is like "same_relay_ids", but it does not check the
+                // Ed25519 identity because that's already been checked.
+                RelayIdType::all_types().all(|id_type| {
+                    id_type == RelayIdType::Ed25519
+                        || relay.identity(id_type) == target.identity(id_type)
+                })
+            })
+        } else {
+            self.relays().find(|r| r.same_relay_ids(target))
+        }
     }
 
     /// Return a relay matching a given Ed25519 identity and RSA identity,
@@ -660,15 +698,14 @@ impl NetDir {
         self.by_ids(chan_target)
     }
 
-    /// Return a boolean if this consensus definitely has (or does not
-    /// have) a relay matching both the given Ed25519 and RSA
-    /// identity.
+    /// Return a boolean if this consensus definitely has (or does not have) a
+    /// relay matching the listed identities.
     ///
-    /// If we can't yet tell for sure, return None.
     ///
-    /// Once function has returned `Some(b)`, it will always return that
-    /// value for the same `ed_id` and `rsa_id` on this `NetDir`.  A `None`
-    /// answer may later become `Some(b)` if a microdescriptor arrives.
+    /// If we can't yet tell for sure, return None. Once function has returned
+    /// `Some(b)`, it will always return that value for the same `ed_id` and
+    /// `rsa_id` on this `NetDir`.  A `None` answer may later become `Some(b)`
+    /// if a microdescriptor arrives.
     pub fn id_pair_listed(&self, ed_id: &Ed25519Identity, rsa_id: &RsaIdentity) -> Option<bool> {
         let r = self.by_rsa_id_unchecked(rsa_id);
         match r {
@@ -689,11 +726,32 @@ impl NetDir {
 
     /// As `id_pair_listed`, but check whether a relay exists (or may exist)
     /// with the same identities as those in `target`.
+    ///
+    /// # Limitations
+    ///
+    /// This can be inefficient if the target does not have both an ed25519 and
+    /// an rsa identity key.
     pub fn ids_listed<T>(&self, target: &T) -> Option<bool>
     where
         T: HasRelayIds + ?Sized,
     {
-        self.id_pair_listed(target.ed_identity(), target.rsa_identity())
+        let rsa_id = target.rsa_identity();
+        let ed25519_id = target.ed_identity();
+
+        match (rsa_id, ed25519_id) {
+            (Some(r), Some(e)) => self.id_pair_listed(e, r),
+            (Some(r), None) => Some(self.rsa_id_is_listed(r)),
+            (None, Some(e)) => {
+                if self.rs_idx_by_ed.contains_key(e) {
+                    Some(true)
+                } else {
+                    None
+                }
+            }
+            // TODO: If we later support more identity key types, this will
+            // become incorrect.
+            (None, None) => None,
+        }
     }
 
     /// Return true if we are currently missing a micro descriptor for the
@@ -1137,12 +1195,24 @@ impl<'a> HasAddrs for Relay<'a> {
         self.rs.addrs()
     }
 }
-impl<'a> HasRelayIds for Relay<'a> {
+impl<'a> tor_linkspec::HasRelayIdsLegacy for Relay<'a> {
     fn ed_identity(&self) -> &Ed25519Identity {
         self.id()
     }
     fn rsa_identity(&self) -> &RsaIdentity {
         self.rsa_id()
+    }
+}
+
+impl<'a> HasRelayIds for UncheckedRelay<'a> {
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Ed25519 if self.rs.ed25519_id_is_usable() => {
+                self.md.map(|m| m.ed25519_id().into())
+            }
+            RelayIdType::Rsa => Some(self.rs.rsa_identity().into()),
+            _ => None,
+        }
     }
 }
 
@@ -1173,6 +1243,7 @@ mod test {
     use std::collections::HashSet;
     use std::time::Duration;
     use tor_basic_utils::test_rng;
+    use tor_linkspec::RelayIdType;
 
     // Basic functionality for a partial netdir: Add microdescriptors,
     // then you have a netdir.
@@ -1351,7 +1422,7 @@ mod test {
                 r.supports_exit_port_ipv4(80)
             });
             let r = r.unwrap();
-            let id_byte = r.rsa_identity().as_bytes()[0];
+            let id_byte = r.identity(RelayIdType::Rsa).unwrap().as_bytes()[0];
             picked[id_byte as usize] += 1;
         }
         // non-exits should never get picked.
@@ -1383,7 +1454,7 @@ mod test {
             });
             assert_eq!(relays.len(), 4);
             for r in relays {
-                let id_byte = r.rsa_identity().as_bytes()[0];
+                let id_byte = r.identity(RelayIdType::Rsa).unwrap().as_bytes()[0];
                 picked[id_byte as usize] += 1;
             }
         }
@@ -1607,8 +1678,11 @@ mod test {
         let r = netdir
             .by_id_pair(&[14; 32].into(), &[14; 20].into())
             .unwrap();
-        assert_eq!(r.rsa_identity(), &[14; 20].into());
-        assert_eq!(r.ed_identity(), &[14; 32].into());
+        assert_eq!(r.identity(RelayIdType::Rsa).unwrap().as_bytes(), &[14; 20]);
+        assert_eq!(
+            r.identity(RelayIdType::Ed25519).unwrap().as_bytes(),
+            &[14; 32]
+        );
         let r = netdir.by_id_pair(&[14; 32].into(), &[99; 20].into());
         assert!(r.is_none());
 

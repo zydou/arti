@@ -1,7 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use educe::Educe;
@@ -220,7 +219,7 @@ impl Guard {
         );
 
         Self::new(
-            GuardId::from_chan_target(relay),
+            GuardId::from_relay_ids(relay),
             relay.addrs().into(),
             added_at,
         )
@@ -659,7 +658,7 @@ impl Guard {
     /// We use this information to decide whether we are about to sample
     /// too much of the network as guards.
     pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(self.id.0.rsa_identity(), tor_netdir::WeightRole::Guard)
+        dir.weight_by_rsa_id(self.id.0.rsa_identity()?, tor_netdir::WeightRole::Guard)
     }
 
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
@@ -695,11 +694,11 @@ impl tor_linkspec::HasAddrs for Guard {
 }
 
 impl tor_linkspec::HasRelayIds for Guard {
-    fn ed_identity(&self) -> &Ed25519Identity {
-        self.id.0.ed_identity()
-    }
-    fn rsa_identity(&self) -> &RsaIdentity {
-        self.id.0.rsa_identity()
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.id.0.identity(key_type)
     }
 }
 

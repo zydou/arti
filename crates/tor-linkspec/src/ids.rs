@@ -116,30 +116,6 @@ impl RelayId {
             RelayId::Rsa(key) => key.as_bytes(),
         }
     }
-
-    /// Extract the RsaIdentity from a RelayId that is known to hold one.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this is not an RSA identity.
-    pub(crate) fn unwrap_rsa(self) -> RsaIdentity {
-        match self {
-            RelayId::Rsa(rsa) => rsa,
-            _ => panic!("Not an RSA identity."),
-        }
-    }
-
-    /// Extract the Ed25519Identity from a RelayId that is known to hold one.
-    ///
-    /// # Panics
-    ///
-    /// Panics if this is not an Ed25519 identity.
-    pub(crate) fn unwrap_ed25519(self) -> Ed25519Identity {
-        match self {
-            RelayId::Ed25519(ed25519) => ed25519,
-            _ => panic!("Not an Ed25519 identity."),
-        }
-    }
 }
 
 impl<'a> RelayIdRef<'a> {

@@ -2,7 +2,8 @@
 
 use derive_more::AsRef;
 use serde::{Deserialize, Serialize};
-use tor_linkspec::{HasRelayIds, RelayIds};
+use tor_linkspec::RelayIds;
+#[cfg(test)]
 use tor_llcrypto::pk;
 
 /// An identifier for a fallback directory cache.
@@ -14,11 +15,8 @@ pub(crate) struct FallbackId(pub(crate) RelayIds);
 
 impl FallbackId {
     /// Return a new, manually constructed `FallbackId`
-    pub(crate) fn new(ed25519: pk::ed25519::Ed25519Identity, rsa: pk::rsa::RsaIdentity) -> Self {
-        Self(RelayIds::new(ed25519, rsa))
-    }
     /// Extract a `FallbackId` from a ChanTarget object.
-    pub(crate) fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
+    pub(crate) fn from_relay_ids<T: tor_linkspec::HasRelayIds>(target: &T) -> Self {
         Self(RelayIds::from_relay_ids(target))
     }
 }
@@ -33,12 +31,13 @@ pub(crate) struct GuardId(pub(crate) RelayIds);
 
 impl GuardId {
     /// Return a new, manually constructed `GuardId`
+    #[cfg(test)]
     pub(crate) fn new(ed25519: pk::ed25519::Ed25519Identity, rsa: pk::rsa::RsaIdentity) -> Self {
         Self(RelayIds::new(ed25519, rsa))
     }
     /// Extract a `GuardId` from a ChanTarget object.
-    pub(crate) fn from_chan_target<T: tor_linkspec::ChanTarget>(target: &T) -> Self {
-        Self::new(*target.ed_identity(), *target.rsa_identity())
+    pub(crate) fn from_relay_ids<T: tor_linkspec::HasRelayIds>(target: &T) -> Self {
+        Self(RelayIds::from_relay_ids(target))
     }
 }
 
@@ -56,8 +55,12 @@ pub(crate) enum FirstHopIdInner {
 /// A unique cryptographic identifier for a selected guard or fallback
 /// directory.
 ///
-/// (This is implemented internally using both of the guard's Ed25519 and RSA
-/// identities.)
+/// (This is implemented internally using all of the guard's known identities.)
+///
+/// TODO(nickm): we may want a fuzzier match for this type in the future in our
+/// maps, if we ever learn about more identity types.  Right now we don't
+/// recognize two `FirstHopId`s as "the same" if one has more IDs than the
+/// other, even if all the IDs that they do have are the same.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FirstHopId(pub(crate) FirstHopIdInner);
 
@@ -83,13 +86,12 @@ impl AsRef<RelayIds> for FirstHopId {
         }
     }
 }
-impl HasRelayIds for FirstHopId {
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        self.as_ref().ed_identity()
-    }
-
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        self.as_ref().rsa_identity()
+impl tor_linkspec::HasRelayIds for FirstHopId {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.as_ref().identity(key_type)
     }
 }
 

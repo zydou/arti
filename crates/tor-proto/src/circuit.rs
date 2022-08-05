@@ -62,7 +62,7 @@ use tor_cell::{
 };
 
 use tor_error::{bad_api_usage, internal, into_internal};
-use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget};
+use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget, RelayIdType};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -235,7 +235,9 @@ impl ClientCirc {
         Tg: CircTarget,
     {
         let key = NtorPublicKey {
-            id: *target.rsa_identity(),
+            id: *target
+                .rsa_identity()
+                .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
             pk: *target.ntor_onion_key(),
         };
         let mut linkspecs = target.linkspecs();
@@ -549,10 +551,14 @@ impl PendingClientCirc {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::Ntor {
                     public_key: NtorPublicKey {
-                        id: *target.rsa_identity(),
+                        id: *target
+                            .rsa_identity()
+                            .ok_or(Error::MissingId(RelayIdType::Rsa))?,
                         pk: *target.ntor_onion_key(),
                     },
-                    ed_identity: *target.ed_identity(),
+                    ed_identity: *target
+                        .ed_identity()
+                        .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
                 require_sendme_auth,
                 params: params.clone(),

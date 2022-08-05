@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use tor_bytes::Reader;
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::{ChanTarget, HasRelayIds, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -504,14 +504,30 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // We do this _last_, since "this is the wrong peer" is
         // usually a different situation than "this peer couldn't even
         // identify itself right."
-        if peer.ed_identity() != identity_key {
-            return Err(Error::HandshakeProto(
-                "Peer ed25519 id not as expected".into(),
-            ));
-        }
 
-        if *peer.rsa_identity() != rsa_id {
-            return Err(Error::HandshakeProto("Peer RSA id not as expected".into()));
+        // TODO: We'll need a different constructor if there are someday
+        // more/different identity keys.
+        let actual_identity = RelayIds::new(*identity_key, rsa_id);
+
+        // We enforce that the relay proved that it has every ID that we wanted:
+        // it may also have additional IDs that we didn't ask for.
+        for desired_id in peer.identities() {
+            let id_type = desired_id.id_type();
+            match actual_identity.identity(id_type) {
+                Some(actual) if actual == desired_id => {}
+                Some(_) => {
+                    return Err(Error::HandshakeProto(format!(
+                        "Peer {} id not as expected",
+                        id_type
+                    )))
+                }
+                None => {
+                    return Err(Error::HandshakeProto(format!(
+                        "Peer did not present a {} id.",
+                        id_type
+                    )))
+                }
+            }
         }
 
         // If we reach this point, the clock skew might be may now be considered
@@ -928,7 +944,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", err),
-            "Handshake protocol violation: Peer ed25519 id not as expected"
+            "Handshake protocol violation: Peer Ed25519 id not as expected"
         );
 
         let err = certs_test(
@@ -944,7 +960,7 @@ pub(super) mod test {
 
         assert_eq!(
             format!("{}", err),
-            "Handshake protocol violation: Peer RSA id not as expected"
+            "Handshake protocol violation: Peer RSA (legacy) id not as expected"
         );
 
         let err = certs_test(

@@ -76,6 +76,14 @@ pub enum Error {
         #[source]
         cause: Arc<SpawnError>,
     },
+
+    /// A relay did not have the set of identity keys that we expected.
+    ///
+    /// (Currently, `tor-chanmgr` only works to manage channels with a known
+    /// expected Ed25519 identity.)
+    #[error("Could not identify relay by identity key")]
+    MissingId,
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -103,6 +111,7 @@ impl tor_error::HasKind for Error {
             E::Proto { source, .. } => source.kind(),
             E::PendingFailed { .. } => EK::TorAccessFailed,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
+            E::MissingId => EK::BadApiUsage,
             Error::ChannelBuild { .. } => EK::TorAccessFailed,
         }
     }
@@ -134,7 +143,7 @@ impl tor_error::HasRetryTime for Error {
             E::UnusableTarget(_) => RT::Never,
 
             // These aren't recoverable at all.
-            E::Spawn { .. } | E::Internal(_) => RT::Never,
+            E::Spawn { .. } | E::MissingId | E::Internal(_) => RT::Never,
         }
     }
 }

@@ -77,9 +77,7 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
-use tor_linkspec::{ChanTarget, HasRelayIds, OwnedChanTarget};
-use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
 
 use asynchronous_codec as futures_codec;
@@ -306,16 +304,6 @@ impl Channel {
         self.details.unique_id
     }
 
-    /// Return the Ed25519 identity for the peer of this channel.
-    pub fn peer_ed25519_id(&self) -> &Ed25519Identity {
-        self.details.peer_id.ed_identity()
-    }
-
-    /// Return the (legacy) RSA identity for the peer of this channel.
-    pub fn peer_rsa_id(&self) -> &RsaIdentity {
-        self.details.peer_id.rsa_identity()
-    }
-
     /// Return an OwnedChanTarget representing the actual handshake used to
     /// create this channel.
     pub fn target(&self) -> &OwnedChanTarget {
@@ -347,23 +335,25 @@ impl Channel {
 
     /// Return an error if this channel is somehow mismatched with the
     /// given target.
-    pub fn check_match<T: ChanTarget + ?Sized>(&self, target: &T) -> Result<()> {
-        if self.peer_ed25519_id() != target.ed_identity() {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.peer_ed25519_id(),
-                target.ed_identity()
-            )));
+    pub fn check_match<T: HasRelayIds + ?Sized>(&self, target: &T) -> Result<()> {
+        for desired in target.identities() {
+            let id_type = desired.id_type();
+            match self.details.peer_id.identity(id_type) {
+                Some(actual) if actual == desired => {}
+                Some(actual) => {
+                    return Err(Error::ChanMismatch(format!(
+                        "Identity {} does not match target {}",
+                        actual, desired
+                    )));
+                }
+                None => {
+                    return Err(Error::ChanMismatch(format!(
+                        "Peer does not have {} identity",
+                        id_type
+                    )))
+                }
+            }
         }
-
-        if self.peer_rsa_id() != target.rsa_identity() {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.peer_rsa_id(),
-                target.rsa_identity()
-            )));
-        }
-
         Ok(())
     }
 

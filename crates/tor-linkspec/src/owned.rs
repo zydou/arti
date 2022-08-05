@@ -5,26 +5,29 @@ use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
-use crate::{ChanTarget, CircTarget, HasAddrs, HasRelayIds};
+use crate::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 
-/// RelayIds is an owned copy of the set of identities of a relay.
+/// RelayIds is an owned copy of the set of known identities of a relay.
+///
+/// Note that an object of this type will not necessarily have every type of
+/// identity: it's possible that we don't know all the identities, or that one
+/// of the identity types has become optional.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RelayIds {
     /// Copy of the ed25519 id from the underlying ChanTarget.
     #[serde(rename = "ed25519")]
-    ed_identity: pk::ed25519::Ed25519Identity,
+    ed_identity: Option<pk::ed25519::Ed25519Identity>,
     /// Copy of the rsa id from the underlying ChanTarget.
     #[serde(rename = "rsa")]
-    rsa_identity: pk::rsa::RsaIdentity,
+    rsa_identity: Option<pk::rsa::RsaIdentity>,
 }
 
 impl HasRelayIds for RelayIds {
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        &self.ed_identity
-    }
-
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        &self.rsa_identity
+    fn identity(&self, key_type: RelayIdType) -> Option<crate::RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Ed25519 => self.ed_identity.as_ref().map(RelayIdRef::from),
+            RelayIdType::Rsa => self.rsa_identity.as_ref().map(RelayIdRef::from),
+        }
     }
 }
 
@@ -35,15 +38,23 @@ impl RelayIds {
         rsa_identity: pk::rsa::RsaIdentity,
     ) -> Self {
         Self {
-            ed_identity,
-            rsa_identity,
+            ed_identity: Some(ed_identity),
+            rsa_identity: Some(rsa_identity),
         }
     }
 
-    /// Construct a new RelayIds object from another object that impements
-    /// [`HasRelayIds`]
+    /// Construct a new `RelayIds` object from another object that implements
+    /// [`HasRelayIds`].
+    ///
+    /// Note that it is possible to construct an _empty_ `RelayIds` object if
+    /// the input does not contain any recognized identity type.
     pub fn from_relay_ids<T: HasRelayIds + ?Sized>(other: &T) -> Self {
-        Self::new(*other.ed_identity(), *other.rsa_identity())
+        Self {
+            ed_identity: other
+                .identity(RelayIdType::Ed25519)
+                .map(|r| *r.unwrap_ed25519()),
+            rsa_identity: other.identity(RelayIdType::Rsa).map(|r| *r.unwrap_rsa()),
+        }
     }
 }
 
@@ -64,12 +75,8 @@ impl HasAddrs for OwnedChanTarget {
 }
 
 impl HasRelayIds for OwnedChanTarget {
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        self.ids.ed_identity()
-    }
-
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        self.ids.rsa_identity()
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        self.ids.identity(key_type)
     }
 }
 
@@ -124,7 +131,9 @@ impl Display for OwnedChanTarget {
             [a] => write!(f, "{}", a)?,
             [a, ..] => write!(f, "{}+", a)?,
         };
-        write!(f, "{}", self.ed_identity())?; // short enough to print
+        for ident in self.identities() {
+            write!(f, " {}", ident)?;
+        }
         write!(f, "]")?;
         Ok(())
     }
@@ -186,11 +195,8 @@ impl HasAddrs for OwnedCircTarget {
 }
 
 impl HasRelayIds for OwnedCircTarget {
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        self.chan_target.ed_identity()
-    }
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        self.chan_target.rsa_identity()
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        self.chan_target.identity(key_type)
     }
 }
 

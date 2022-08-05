@@ -6,19 +6,30 @@ use tor_llcrypto::pk;
 
 use crate::{RelayIdRef, RelayIdType, RelayIdTypeIter};
 
+/// Legacy implementation helper for HasRelayIds.
+///
+/// Previously, we assumed that everything had these two identity types, which
+/// is not an assumption we want to keep making in the future.
+pub trait HasRelayIdsLegacy {
+    /// Return the ed25519 identity for this relay.
+    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;
+    /// Return the RSA identity for this relay.
+    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
+}
+
 /// An object containing information about a relay's identity keys.
+///
+/// This trait has a fairly large number of methods, most of which you're not
+/// actually expected to implement.  The only one that you need to provide is
+/// [`identity`](HasRelayIds::identity).
 pub trait HasRelayIds {
     /// Return the identity of this relay whose type is `key_type`, or None if
     /// the relay has no such identity.
     ///
     /// (Currently all relays have all recognized identity types, but we might
     /// implement or deprecate an identity type in the future.)
-    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
-        match key_type {
-            RelayIdType::Rsa => Some(self.rsa_identity().into()),
-            RelayIdType::Ed25519 => Some(self.ed_identity().into()),
-        }
-    }
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>>;
+
     /// Return an iterator over all of the identities held by this object.
     fn identities(&self) -> RelayIdIter<'_, Self> {
         RelayIdIter {
@@ -26,6 +37,18 @@ pub trait HasRelayIds {
             next_key: RelayIdType::all_types(),
         }
     }
+
+    /// Return the ed25519 identity for this relay if it has one.
+    fn ed_identity(&self) -> Option<&pk::ed25519::Ed25519Identity> {
+        self.identity(RelayIdType::Ed25519)
+            .map(RelayIdRef::unwrap_ed25519)
+    }
+
+    /// Return the RSA identity for this relay if it has one.
+    fn rsa_identity(&self) -> Option<&pk::rsa::RsaIdentity> {
+        self.identity(RelayIdType::Rsa).map(RelayIdRef::unwrap_rsa)
+    }
+
     /// Check whether the provided Id is a known identity of this relay.
     ///
     /// Remember that a given set of identity keys may be incomplete: some
@@ -38,19 +61,44 @@ pub trait HasRelayIds {
         self.identity(id.id_type()).map(|my_id| my_id == id) == Some(true)
     }
 
-    /// Return the ed25519 identity for this relay.
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity;
-    /// Return the RSA identity for this relay.
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity;
-
     /// Return true if this object has exactly the same relay IDs as `other`.
     //
     // TODO: Once we make it so particular identity key types are optional, we
     // should add a note saying that this function is usually not what you want
     // for many cases, since you might want to know "could this be the same
     // relay" vs "is this definitely the same relay."
-    fn same_relay_ids<T: HasRelayIds>(&self, other: &T) -> bool {
-        self.ed_identity() == other.ed_identity() && self.rsa_identity() == other.rsa_identity()
+    //
+    // NOTE: We don't make this an `Eq` method, since we want to make callers
+    // choose carefully among this method, `has_all_relay_ids_from`, and any
+    // similar methods we add in the future.
+    fn same_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
+        RelayIdType::all_types().all(|key_type| self.identity(key_type) == other.identity(key_type))
+    }
+
+    /// Return true if this object has every relay ID that `other` does.
+    ///
+    /// (It still returns true if there are some IDs in this object that are not
+    /// present in `other`.)
+    fn has_all_relay_ids_from<T: HasRelayIds + ?Sized>(&self, other: &T) -> bool {
+        RelayIdType::all_types().all(|key_type| {
+            match (self.identity(key_type), other.identity(key_type)) {
+                // If we both have the same key for this type, great.
+                (Some(mine), Some(theirs)) if mine == theirs => true,
+                // Uh oh. They do have a key for his type, but it's not ours.
+                (_, Some(_theirs)) => false,
+                // If they don't care what we have for this type, great.
+                (_, None) => true,
+            }
+        })
+    }
+}
+
+impl<T: HasRelayIdsLegacy> HasRelayIds for T {
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Rsa => Some(self.rsa_identity().into()),
+            RelayIdType::Ed25519 => Some(self.ed_identity().into()),
+        }
     }
 }
 
@@ -136,7 +184,7 @@ mod test {
             &self.addrs[..]
         }
     }
-    impl HasRelayIds for Example {
+    impl HasRelayIdsLegacy for Example {
         fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
             &self.ed_id
         }

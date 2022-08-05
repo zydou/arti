@@ -58,7 +58,7 @@ impl FallbackDir {
     /// Return a copy of this FallbackDir as a [`FirstHop`](crate::FirstHop)
     pub fn as_guard(&self) -> crate::FirstHop {
         crate::FirstHop {
-            id: FallbackId::from_chan_target(self).into(),
+            id: FallbackId::from_relay_ids(self).into(),
             orports: self.orports.clone(),
         }
     }
@@ -119,7 +119,7 @@ impl tor_linkspec::HasAddrs for FallbackDir {
         &self.orports[..]
     }
 }
-impl tor_linkspec::HasRelayIds for FallbackDir {
+impl tor_linkspec::HasRelayIdsLegacy for FallbackDir {
     fn ed_identity(&self) -> &Ed25519Identity {
         &self.ed_identity
     }

@@ -148,7 +148,6 @@ use tracing::{debug, info, trace, warn};
 
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
@@ -579,11 +578,9 @@ impl<R: Runtime> GuardMgr<R> {
         identity: &impl tor_linkspec::HasRelayIds,
         external_failure: ExternalActivity,
     ) {
-        let ed_identity = identity.ed_identity();
-        let rsa_identity = identity.rsa_identity();
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        let ids = inner.lookup_ids(ed_identity, rsa_identity);
+        let ids = inner.lookup_ids(identity);
         for id in ids {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
@@ -609,17 +606,9 @@ impl<R: Runtime> GuardMgr<R> {
         identity: &impl tor_linkspec::HasRelayIds,
         external_activity: ExternalActivity,
     ) {
-        let ed_identity = identity.ed_identity();
-        let rsa_identity = identity.rsa_identity();
-
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
-        inner.record_external_success(
-            ed_identity,
-            rsa_identity,
-            external_activity,
-            self.runtime.wallclock(),
-        );
+        inner.record_external_success(identity, external_activity, self.runtime.wallclock());
     }
 
     /// Return a stream of events about our estimated clock skew; these events
@@ -984,12 +973,11 @@ impl GuardMgrInner {
     /// we have `mut self` borrowed.)
     fn record_external_success(
         &mut self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
+        identity: &impl tor_linkspec::HasRelayIds,
         external_activity: ExternalActivity,
         now: SystemTime,
     ) {
-        for id in self.lookup_ids(ed_identity, rsa_identity) {
+        for id in self.lookup_ids(identity) {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
                     self.guards.active_guards_mut().record_success(
@@ -1104,19 +1092,15 @@ impl GuardMgrInner {
     /// doesn't know whether its circuit came from a guard or a fallback.  To
     /// solve that, we'll need CircMgr to record and report which one it was
     /// using, which will take some more plumbing.
-    fn lookup_ids(
-        &self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
-    ) -> Vec<FirstHopId> {
+    fn lookup_ids(&self, identity: &impl tor_linkspec::HasRelayIds) -> Vec<FirstHopId> {
         let mut vec = Vec::with_capacity(2);
 
-        let id = ids::GuardId::new(*ed_identity, *rsa_identity);
+        let id = ids::GuardId::from_relay_ids(identity);
         if self.guards.active_guards().contains(&id) {
             vec.push(id.into());
         }
 
-        let id = ids::FallbackId::new(*ed_identity, *rsa_identity);
+        let id = ids::FallbackId::from_relay_ids(identity);
         if self.fallbacks.contains(&id) {
             vec.push(id.into());
         }
@@ -1329,11 +1313,11 @@ impl tor_linkspec::HasAddrs for FirstHop {
     }
 }
 impl tor_linkspec::HasRelayIds for FirstHop {
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        self.id.ed_identity()
-    }
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        self.id.rsa_identity()
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.id.identity(key_type)
     }
 }
 impl tor_linkspec::ChanTarget for FirstHop {}
