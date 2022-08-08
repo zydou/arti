@@ -127,12 +127,12 @@ type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_B
 ///
 ///  2. Rather than four separate named fields, it has arrays, so that it is easy to
 ///     select the values without error-prone recapitulation of field names.
-//
 #[derive(Debug, Clone)]
 struct NetParamsExtract {
-    /// `nf_ito_*`
+    /// `nf_ito_*`, the padding timeout parameters from the netdir consensus
     ///
     /// `nf_ito[ 0=normal, 1=reduced ][ 0=low, 1=high ]`
+    /// are `nf_ito_{low,high}{,_reduced` from `NetParameters`.
     // TODO we could use some enum or IndexVec or something to make this less `0` and `1`
     nf_ito: [[NfIto; 2]; 2],
 }
