@@ -62,31 +62,33 @@ fn interesting_netdir() -> Arc<NetDir> {
 
 #[test]
 fn padding_parameters_calculation() {
-    fn one(pconfig: PaddingLevel, netparams: &NetParamsExtract, exp: [u32; 2]) {
+    fn one(pconfig: PaddingLevel, netparams: &NetParamsExtract, exp: Option<[u32; 2]>) {
         eprintln!(
             "### {:?} {:?}",
             &pconfig,
             netparams.nf_ito.map(|l| l.map(|v| v.as_millis().get())),
         );
         let got = padding_parameters(pconfig, netparams).unwrap();
-        let exp = PaddingParameters::builder()
-            .low(exp[0].into())
-            .high(exp[1].into())
-            .build()
-            .unwrap();
+        let exp = exp.map(|exp| {
+            PaddingParameters::builder()
+                .low(exp[0].into())
+                .high(exp[1].into())
+                .build()
+                .unwrap()
+        });
         assert_eq!(got, exp);
     }
 
     one(
         PL::default(),
         &NetParamsExtract::from(interesting_netdir().params()),
-        ADJ_MS,
+        Some(ADJ_MS),
     );
 
     one(
         PL::Reduced,
         &NetParamsExtract::from(interesting_netdir().params()),
-        ADJ_REDUCED_MS,
+        Some(ADJ_REDUCED_MS),
     );
 
     let make_bogus_netdir = |values: &[(&str, i32)]| {
@@ -107,7 +109,7 @@ fn padding_parameters_calculation() {
         ("nf_ito_low", ADJ_REDUCED_MS[1] as _),
         ("nf_ito_high", ADJ_REDUCED_MS[0] as _),
     ]);
-    one(PL::default(), &bogus_netdir, DEF_MS);
+    one(PL::default(), &bogus_netdir, Some(DEF_MS));
 }
 
 struct FakeChannelFactory {

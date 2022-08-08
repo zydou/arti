@@ -428,18 +428,18 @@ fn parameterize(
     // See the module doc in `crates/tor-proto/src/channel/padding.rs`.
 
     let padding_of_level = |level| padding_parameters(level, netdir);
-    let padding_parameters = padding_of_level(config.padding)?;
+    let send_padding = padding_of_level(config.padding)?;
     let padding_default = padding_of_level(PaddingLevel::default())?;
 
-    let send_padding = (match dormancy {
-        Dormancy::Active => true,
-        Dormancy::Dormant => false,
-    }) && padding_parameters != PaddingParameters::all_zeroes();
+    let send_padding = match dormancy {
+        Dormancy::Active => send_padding,
+        Dormancy::Dormant => None,
+    };
 
     let recv_padding = match config.padding {
-        PaddingLevel::Reduced => false,
+        PaddingLevel::Reduced => None,
         PaddingLevel::Normal => send_padding,
-        PaddingLevel::None => false,
+        PaddingLevel::None => None,
     };
 
     // Whether the inbound padding approach we are to use, is the same as the default
@@ -447,17 +447,7 @@ fn parameterize(
     //
     // Ie, whether the parameters we want are precisely those that a peer would
     // use by default (assuming they have the same view of the netdir as us).
-    let recv_equals_default = if padding_default == PaddingParameters::all_zeroes() {
-        // The netdir has padding disabled by setting the parameters to zero.
-        // That means our peers won't do padding unless we ask it to.
-        // Or to put it another way, our desired peer padding approach is the same as our
-        // peers' default iff we also think padding should be disabled.
-        !recv_padding
-    } else {
-        // Peers are going to do padding.  That is the same approach as we want
-        // if we want to receive padding, with the same parameters.
-        recv_padding && padding_parameters == padding_default
-    };
+    let recv_equals_default = recv_padding == padding_default;
 
     let padding_negotiate = if recv_equals_default {
         // Our padding approach is the same as peers' defaults.  So the PADDING_NEGOTIATE
@@ -468,18 +458,19 @@ fn parameterize(
         // padding being enabled, and now want to disable it, we would send
         // START(0,0) rather than STOP.  That is OK (even, arguably, right).
         PaddingNegotiate::start_default()
-    } else if !recv_padding {
-        PaddingNegotiate::stop()
     } else {
-        padding_parameters.padding_negotiate_cell()?
+        match recv_padding {
+            None => PaddingNegotiate::stop(),
+            Some(params) => params.padding_negotiate_cell()?,
+        }
     };
 
     let mut update = channels_params
         .start_update()
-        .padding_enable(send_padding)
+        .padding_enable(send_padding.is_some())
         .padding_negotiate(padding_negotiate);
-    if send_padding {
-        update = update.padding_parameters(padding_parameters);
+    if let Some(params) = send_padding {
+        update = update.padding_parameters(params);
     }
     let update = update.finish();
 
@@ -493,11 +484,11 @@ fn parameterize(
 fn padding_parameters(
     config: PaddingLevel,
     netdir: &NetParamsExtract,
-) -> StdResult<PaddingParameters, tor_error::Bug> {
+) -> StdResult<Option<PaddingParameters>, tor_error::Bug> {
     let reduced = match config {
         PaddingLevel::Reduced => true,
         PaddingLevel::Normal => false,
-        PaddingLevel::None => return Ok(PaddingParameters::all_zeroes()),
+        PaddingLevel::None => return Ok(None),
     };
 
     padding_parameters_builder(reduced, netdir)
@@ -506,10 +497,13 @@ fn padding_parameters(
                 "consensus channel padding parameters wrong, using defaults: {}",
                 &e
             );
-            PaddingParametersBuilder::default()
+            Some(PaddingParametersBuilder::default())
         })
-        .build()
-        .map_err(into_internal!("failed to build padding parameters"))
+        .map(|p| {
+            p.build()
+                .map_err(into_internal!("failed to build padding parameters"))
+        })
+        .transpose()
 }
 
 /// Given a `NetDirExtract` and whether we're reducing padding,
@@ -520,7 +514,7 @@ fn padding_parameters(
 fn padding_parameters_builder(
     reduced: bool,
     netdir: &NetParamsExtract,
-) -> StdResult<PaddingParametersBuilder, &'static str> {
+) -> StdResult<Option<PaddingParametersBuilder>, &'static str> {
     let mut p = PaddingParametersBuilder::default();
 
     let nf_ito = netdir.nf_ito[usize::from(reduced)];
@@ -530,9 +524,14 @@ fn padding_parameters_builder(
     if low > high {
         return Err("low > high");
     }
+    if low.as_millis() == 0 && high.as_millis() == 0 {
+        // Zeroes for both channel padding consensus parameters means "don't send padding".
+        // padding-spec.txt s2.6, see description of `nf_ito_high`.
+        return Ok(None);
+    }
     p.low(low);
     p.high(high);
-    Ok::<_, &'static str>(p)
+    Ok::<_, &'static str>(Some(p))
 }
 
 #[cfg(test)]
