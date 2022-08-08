@@ -481,7 +481,7 @@ fn parameterize(
         // Our padding approach is the same as peers' defaults.  So the PADDING_NEGOTIATE
         // message we need to send is the START(0,0).  (The channel frontend elides an
         // initial message of this form, - see crates/tor-proto/src/channel.rs::note_usage.)
-        //p
+        //
         // If the netdir default is no padding, and we previously negotiated
         // padding being enabled, and now want to disable it, we would send
         // START(0,0) rather than STOP.  That is OK (even, arguably, right).
