@@ -158,7 +158,7 @@ pub enum ChannelUsage {
     UselessCircuit,
 }
 
-/// This is information shared between the reactor and the frontend.
+/// This is information shared between the reactor and the frontend (`Channel` object).
 ///
 /// This exists to make `Channel` cheap to clone, which is desirable because every circuit wants
 /// an owned mutable `Channel`.
@@ -182,14 +182,14 @@ pub(crate) struct ChannelDetails {
     clock_skew: ClockSkew,
     /// The time when this channel was successfully completed
     opened_at: coarsetime::Instant,
-    /// Mutable state used by the frontend
+    /// Mutable state used by the `Channel` (frontend)
     ///
     /// The reactor (hot code) ought to avoid acquiring this lock.
     /// (It doesn't currently have a useable reference to it.)
     mutable: Mutex<MutableDetails>,
 }
 
-/// Mutable details (state) used by the frontend.
+/// Mutable details (state) used by the `Channel` (frontend)
 #[derive(Debug, Default)]
 struct MutableDetails {
     /// State used to control padding
@@ -627,7 +627,8 @@ impl Channel {
     /// Returns the receiver end of the control message mpsc.
     ///
     /// Suitable for external callers who want to test behaviour
-    /// of layers including the logic in the channel frontend.
+    /// of layers including the logic in the channel frontend
+    /// (`Channel` object methods).
     //
     // This differs from test::fake_channel as follows:
     //  * It returns the mpsc Receiver

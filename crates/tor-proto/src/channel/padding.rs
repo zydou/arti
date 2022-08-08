@@ -8,13 +8,14 @@
 //!     and overall client configuration, to maintain a
 //!     [`ChannelsParams`](crate::channel::ChannelsParams)
 //!     which is to be used for all relevant[^relevant] channels.
-//!     This is distributed to channel frontends by calling `Channel::reparameterize`.
+//!     This is distributed to channel frontends (`Channel`s)
+//!     by calling `Channel::reparameterize`.
 //!
 //!  2. Circuit and channel `get_or_launch` methods all take a `ChannelUsage`.
 //!     This is plumbed through the layers to `AbstractChanMgr::get_or_launch`,
 //!     which passes it to the channel frontend via `Channel::note_usage`.
 //!
-//!  3. The channel frontend collates this information, and maintains an idea
+//!  3. The `Channel` collates this information, and maintains an idea
 //!     of whether padding is relevant for this channel (`PaddingControlState`).
 //!     For channels where it *is* relevant, it sends `CtrlMsg::ConfigUpdate`
 //!     to the reactor.
