@@ -815,6 +815,12 @@ caret_int! {
 
 /// A PaddingNegotiate message is used to negotiate channel padding.
 ///
+/// Sent by a client to its guard node,
+/// to instruct the relay to enable/disable channel padding.
+/// (Not relevant for channels used only for directory lookups,
+/// nor inter-relay channels.)
+/// See `padding-spec.txt`, section 2.2.
+///
 /// This message is constructed in the channel manager and transmitted by the reactor.
 ///
 /// The `Default` impl is the same as [`start_default()`](PaddingNegotiate::start_default`)
