@@ -583,9 +583,7 @@ mod test {
             self.params_update = Some(update);
             Ok(())
         }
-        fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
-            Ok(())
-        }
+        fn engage_padding_activities(&self) {}
     }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {

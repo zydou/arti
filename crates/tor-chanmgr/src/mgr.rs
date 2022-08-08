@@ -54,7 +54,7 @@ pub(crate) trait AbstractChannel: Clone {
     /// Idempotent.
     ///
     /// There is no way to undo the effect of this call.
-    fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug>;
+    fn engage_padding_activities(&self);
 }
 
 /// Trait to describe how channels are created.
@@ -148,7 +148,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
 
         match usage {
             CU::Dir | CU::UselessCircuit => {}
-            CU::Exit => chan.0.engage_padding_activities()?,
+            CU::Exit => chan.0.engage_padding_activities(),
         }
 
         Ok(chan)
@@ -393,9 +393,7 @@ mod test {
             self.last_params = Some((*updates).clone());
             Ok(())
         }
-        fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
-            Ok(())
-        }
+        fn engage_padding_activities(&self) {}
     }
 
     impl FakeChannel {

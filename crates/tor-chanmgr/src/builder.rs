@@ -2,7 +2,6 @@
 
 use std::io;
 use std::net::SocketAddr;
-use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use crate::{event::ChanMgrEventSender, Error};
@@ -255,8 +254,8 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
         self.reparameterize(updates)
     }
-    fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
-        self.engage_padding_activities()
+    fn engage_padding_activities(&self) {
+        self.engage_padding_activities();
     }
 }
 

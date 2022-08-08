@@ -412,18 +412,18 @@ impl Channel {
     }
 
     /// Acquire the lock on `mutable` (and handle any poison error)
-    fn mutable(&self) -> StdResult<MutexGuard<MutableDetails>, tor_error::Bug> {
+    fn mutable(&self) -> MutexGuard<MutableDetails> {
         self.details
             .mutable
             .lock()
-            .map_err(|_| internal!("channel details poisoned"))
+            .expect("channel details poisoned")
     }
 
     /// Specify that this channel should do activities related to channel padding
     ///
     /// See [`AbstractChannel::set_channel_padding_relevant`]
-    pub fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
-        let mut mutable = self.mutable()?;
+    pub fn engage_padding_activities(&self) {
+        let mut mutable = self.mutable();
 
         match &mutable.padding {
             PCS::UsageDoesNotImplyPadding {
@@ -442,7 +442,7 @@ impl Channel {
 
                 match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
                     Ok(()) => {}
-                    Err(ChannelClosed) => return Ok(()),
+                    Err(ChannelClosed) => return,
                 }
 
                 mutable.padding = PCS::PaddingConfigured;
@@ -454,7 +454,6 @@ impl Channel {
         }
 
         drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
-        Ok(())
     }
 
     /// Reparameterise (update parameters; reconfigure)

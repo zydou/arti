@@ -278,7 +278,7 @@ async fn padding_control_through_layers() {
     c.expect_0();
 
     eprintln!("### Exit ###");
-    c.channel.engage_padding_activities().unwrap();
+    c.channel.engage_padding_activities();
     c.expect_1(Expected {
         enabled: Some(true), // we now turn on our padding sender
         timing: None,        // with default parameters
