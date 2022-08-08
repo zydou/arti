@@ -431,7 +431,10 @@ impl<C: AbstractChannel> ChannelMap<C> {
     }
 }
 
-/// Converts config, dormancy, and netdir, into channel parameters
+/// Converts config, dormancy, and netdir, into parameter updates
+///
+/// Calculates new parameters, updating `channels_params` as appropriate.
+/// If anything changed, the corresponding update instruction is returned.
 ///
 /// `channels_params` is updated with the new parameters,
 /// and the update message, if one is needed, is returned.
