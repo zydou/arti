@@ -308,7 +308,11 @@ async fn run<R: Runtime>(
 /// # Panics
 ///
 /// Currently, might panic if wrong arguments are specified.
-pub fn main_main() -> Result<()> {
+pub fn main_main<I, T>(cli_args: I) -> Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
     // We describe a default here, rather than using `default()`, because the
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
@@ -424,7 +428,7 @@ pub fn main_main() -> Result<()> {
         .finish();
     let pre_config_logging = tracing::Dispatch::new(pre_config_logging);
     let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
-        let matches = clap_app.get_matches();
+        let matches = clap_app.get_matches_from_safe(cli_args)?;
 
         let fs_mistrust_disabled = matches.is_present("disable-fs-permission-checks");
 
@@ -513,6 +517,17 @@ pub fn main_main() -> Result<()> {
 }
 
 /// Main program, callable directly from a binary crate's `main`
+///
+/// This function behaves the same as `main_main()`, except:
+///   * It takes command-line arguments from `std::env::args_os` rather than
+///     from an argument.
+///   * It exits the process with an appropriate error code on error.
 pub fn main() {
-    main_main().unwrap_or_else(|e| with_safe_logging_suppressed(|| tor_error::report_and_exit(e)));
+    match main_main(std::env::args_os()) {
+        Ok(()) => {}
+        Err(e) => match e.downcast_ref::<clap::Error>() {
+            Some(clap_err) => clap_err.exit(),
+            None => with_safe_logging_suppressed(|| tor_error::report_and_exit(e)),
+        },
+    }
 }
