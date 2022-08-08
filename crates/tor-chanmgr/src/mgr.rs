@@ -1,7 +1,7 @@
 //! Abstract implementation of a channel manager
 
 use crate::mgr::map::OpenEntry;
-use crate::{ChanProvenance, ChannelConfig, Dormancy, Error, Result};
+use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -14,7 +14,6 @@ use std::time::Duration;
 use tor_error::internal;
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelsParamsUpdates;
-use tor_proto::channel::ChannelUsage;
 
 mod map;
 
@@ -42,8 +41,20 @@ pub(crate) trait AbstractChannel: Clone {
     /// but this will be done "reasonably soon".
     fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()>;
 
-    /// Note that this channel is about to be used for `usage`
-    fn note_usage(&self, usage: ChannelUsage) -> StdResult<(), tor_error::Bug>;
+    /// Specify that this channel should do activities related to channel padding
+    ///
+    /// Initially, the channel does nothing related to channel padding:
+    /// it neither sends any padding, nor sends any PADDING_NEGOTIATE cells.
+    ///
+    /// After this function has been called, it will do both,
+    /// according to the parameters specified through `reparameterize`.
+    /// Note that this might include *disabling* padding
+    /// (for example, by sending a `PADDING_NEGOTIATE`).
+    ///
+    /// Idempotent.
+    ///
+    /// There is no way to undo the effect of this call.
+    fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug>;
 }
 
 /// Trait to describe how channels are created.
@@ -131,8 +142,15 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         target: CF::BuildSpec,
         usage: ChannelUsage,
     ) -> Result<(CF::Channel, ChanProvenance)> {
+        use ChannelUsage as CU;
+
         let chan = self.get_or_launch_internal(ident, target).await?;
-        chan.0.note_usage(usage)?;
+
+        match usage {
+            CU::Dir | CU::UselessCircuit => {}
+            CU::Exit => chan.0.engage_padding_activities()?,
+        }
+
         Ok(chan)
     }
 
@@ -338,7 +356,7 @@ mod test {
     use std::time::Duration;
     use tor_error::bad_api_usage;
 
-    use tor_proto::channel::ChannelUsage as CU;
+    use crate::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
     struct FakeChannelFactory<RT> {
@@ -375,7 +393,7 @@ mod test {
             self.last_params = Some((*updates).clone());
             Ok(())
         }
-        fn note_usage(&self, _usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
+        fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
             Ok(())
         }
     }

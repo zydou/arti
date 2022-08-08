@@ -69,7 +69,7 @@ use std::time::Duration;
 use tor_config::ReconfigureError;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
-use tor_proto::channel::{Channel, ChannelUsage};
+use tor_proto::channel::Channel;
 use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
 
@@ -125,6 +125,28 @@ pub enum Dormancy {
     ///
     /// Channels will not perform any spontaneous activity (eg, netflow padding)
     Dormant,
+}
+
+/// How a channel is going to be used
+///
+/// A channel may be used in multiple ways.  Each time it is (re)used, a separate
+/// ChannelUsage is passed in.
+///
+/// This type is obtained from a `tor_circmgr::usage::SupportedCircUsage` in
+/// `tor_circmgr::usage`, and it has roughly the same set of variants.
+#[derive(Clone, Debug, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ChannelUsage {
+    /// Use for BEGINDIR-based non-anonymous directory connections
+    Dir,
+
+    /// Use to exit
+    ///
+    /// Includes a circuit being constructed preemptively.
+    Exit,
+
+    /// For a channel which is not use for circuit(s), or only for useless circuits
+    UselessCircuit,
 }
 
 impl<R: Runtime> ChanMgr<R> {

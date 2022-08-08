@@ -12,10 +12,9 @@ use std::sync::{
     Arc,
 };
 use std::time::{Duration, Instant};
-use tor_chanmgr::{ChanMgr, ChanProvenance};
+use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_guardmgr::GuardStatus;
 use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
-use tor_proto::channel::ChannelUsage;
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -508,10 +507,10 @@ mod test {
     use crate::timeouts::TimeoutEstimator;
     use futures::channel::oneshot;
     use std::sync::Mutex;
-    use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_chanmgr::ChannelConfig;
+    use tor_chanmgr::ChannelUsage as CU;
+    use tor_linkspec::{HasRelayIds, RelayIdType, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
-    use tor_proto::channel::ChannelUsage as CU;
     use tor_rtcompat::{test_with_all_runtimes, SleepProvider};
     use tracing::trace;
 

@@ -8,10 +8,10 @@ use std::time::SystemTime;
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
+use tor_chanmgr::ChannelUsage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
-use tor_proto::channel::ChannelUsage;
 use tor_rtcompat::Runtime;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};

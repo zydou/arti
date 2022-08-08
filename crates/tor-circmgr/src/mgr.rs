@@ -27,9 +27,9 @@ use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
+use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
 use tor_error::{internal, AbsRetryTime, HasRetryTime};
-use tor_proto::channel::ChannelUsage;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;

@@ -136,28 +136,6 @@ pub struct Channel {
     details: Arc<ChannelDetails>,
 }
 
-/// How a channel is going to be used
-///
-/// A channel may be used in multiple ways.  Each time it is (re)used, a separate
-/// ChannelUsage is passed in.
-///
-/// This type is obtained from a `tor_circmgr::usage::SupportedCircUsage` in
-/// `tor_circmgr::usage`, and it has roughly the same set of variants.
-#[derive(Clone, Debug, Copy, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum ChannelUsage {
-    /// Use for BEGINDIR-based non-anonymous directory connections
-    Dir,
-
-    /// Use to exit
-    ///
-    /// Includes a circuit being constructed preemptively.
-    Exit,
-
-    /// For a channel which is not use for circuit(s), or only for useless circuits
-    UselessCircuit,
-}
-
 /// This is information shared between the reactor and the frontend (`Channel` object).
 ///
 /// This exists to make `Channel` cheap to clone, which is desirable because every circuit wants
@@ -441,44 +419,37 @@ impl Channel {
             .map_err(|_| internal!("channel details poisoned"))
     }
 
-    /// Note that this channel is about to be used for `usage`
-    pub fn note_usage(&self, usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
+    /// Specify that this channel should do activities related to channel padding
+    ///
+    /// See [`AbstractChannel::set_channel_padding_relevant`]
+    pub fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
         let mut mutable = self.mutable()?;
 
-        use ChannelUsage as CU;
-        let control_padding = match usage {
-            CU::Dir => false,
-            CU::Exit => true,
-            CU::UselessCircuit => false,
-        };
+        match &mutable.padding {
+            PCS::UsageDoesNotImplyPadding {
+                padding_params: params,
+            } => {
+                // Well, apparently the channel usage *does* imply padding now,
+                // so we need to (belatedly) enable the timer,
+                // send the padding negotiation cell, etc.
+                let mut params = params.clone();
 
-        if control_padding {
-            match &mutable.padding {
-                PCS::UsageDoesNotImplyPadding {
-                    padding_params: params,
-                } => {
-                    // Well, apparently the channel usage *does* imply padding now,
-                    // so we need to (belatedly) enable the timer,
-                    // send the padding negotiation cell, etc.
-                    let mut params = params.clone();
-
-                    // Except, maybe the padding we would be requesting is precisely default,
-                    // so we wouldn't actually want to send that cell.
-                    if params.padding_negotiate == Some(PaddingNegotiate::start_default()) {
-                        params.padding_negotiate = None;
-                    }
-
-                    match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
-                        Ok(()) => {}
-                        Err(ChannelClosed) => return Ok(()),
-                    }
-
-                    mutable.padding = PCS::PaddingConfigured;
+                // Except, maybe the padding we would be requesting is precisely default,
+                // so we wouldn't actually want to send that cell.
+                if params.padding_negotiate == Some(PaddingNegotiate::start_default()) {
+                    params.padding_negotiate = None;
                 }
 
-                PCS::PaddingConfigured => {
-                    // OK, nothing to do
+                match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
+                    Ok(()) => {}
+                    Err(ChannelClosed) => return Ok(()),
                 }
+
+                mutable.padding = PCS::PaddingConfigured;
+            }
+
+            PCS::PaddingConfigured => {
+                // OK, nothing to do
             }
         }
 

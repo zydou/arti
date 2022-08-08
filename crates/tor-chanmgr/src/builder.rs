@@ -12,7 +12,6 @@ use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_proto::channel::params::ChannelsParamsUpdates;
-use tor_proto::channel::ChannelUsage;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
 
 use async_trait::async_trait;
@@ -256,8 +255,8 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
         self.reparameterize(updates)
     }
-    fn note_usage(&self, usage: ChannelUsage) -> StdResult<(), tor_error::Bug> {
-        self.note_usage(usage)
+    fn engage_padding_activities(&self) -> StdResult<(), tor_error::Bug> {
+        self.engage_padding_activities()
     }
 }
 

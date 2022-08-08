@@ -22,9 +22,10 @@ use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
 use tor_linkspec::HasRelayIds;
 use tor_netdir::NetDir;
-use tor_proto::channel::{Channel, ChannelUsage, CtrlMsg};
+use tor_proto::channel::{Channel, CtrlMsg};
 
 use crate::mgr::{AbstractChanMgr, ChannelFactory};
+use crate::ChannelUsage;
 
 use PaddingLevel as PL;
 
@@ -277,7 +278,7 @@ async fn padding_control_through_layers() {
     c.expect_0();
 
     eprintln!("### Exit ###");
-    c.channel.note_usage(ChannelUsage::Exit).unwrap();
+    c.channel.engage_padding_activities().unwrap();
     c.expect_1(Expected {
         enabled: Some(true), // we now turn on our padding sender
         timing: None,        // with default parameters
