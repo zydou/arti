@@ -150,10 +150,8 @@ impl Parameters {
         Ok(PaddingNegotiate::start(get(self.low)?, get(self.high)?))
     }
 
-    /// Make a Parameters sentinel value, with both fields set to zero
-    ///
-    /// The specification says to treat this as disabled, if found in the consensus.
-    pub fn all_zeroes() -> Self {
+    /// Make a Parameters sentinel value, with both fields set to zero, which means "no padding"
+    pub fn disabled() -> Self {
         Parameters {
             low: 0.into(),
             high: 0.into(),
