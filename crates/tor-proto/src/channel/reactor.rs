@@ -278,6 +278,9 @@ impl<S: SleepProvider> Reactor<S> {
                     }
                 }
                 if let Some(padding_negotiate) = padding_negotiate {
+                    // This replaces any previous PADDING_NEGOTIATE cell that we were
+                    // told to send, but which we didn't manage to send yet.
+                    // It doesn't make sense to queue them up.
                     self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
