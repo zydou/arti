@@ -18,6 +18,7 @@ use tor_proto::channel::ChannelsParamsUpdates;
 use tor_proto::ChannelsParams;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
+use void::{Void, ResultVoidExt as _};
 
 #[cfg(test)]
 mod padding_test;
@@ -149,6 +150,26 @@ impl From<&NetParameters> for NetParamsExtract {
                 [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
             ],
         }
+    }
+}
+
+impl NetParamsExtract {
+    /// Return the padding timer prameter low end, for reduced-ness `reduced`, as a `u32`
+    fn pad_low(&self, reduced: bool) -> IntegerMilliseconds<u32> {
+        self.pad_get(reduced, 0)
+    }
+    /// Return the padding timer prameter high end, for reduced-ness `reduced`, as a `u32`
+    fn pad_high(&self, reduced: bool) -> IntegerMilliseconds<u32> {
+        self.pad_get(reduced, 1)
+    }
+
+    /// Return and converts one padding parameter timer
+    ///
+    /// Internal function.
+    fn pad_get(&self, reduced: bool, low_or_high: usize) -> IntegerMilliseconds<u32> {
+        self.nf_ito[usize::from(reduced)][low_or_high]
+            .try_map(|v| Ok::<_,Void>(v.into()))
+            .void_unwrap()
     }
 }
 
@@ -521,10 +542,8 @@ fn padding_parameters_builder(
 ) -> StdResult<Option<PaddingParametersBuilder>, &'static str> {
     let mut p = PaddingParametersBuilder::default();
 
-    let nf_ito = netdir.nf_ito[usize::from(reduced)];
-    let get_timing_param = |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
-    let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
-    let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
+    let low = netdir.pad_low(reduced);
+    let high = netdir.pad_high(reduced);
     if low > high {
         return Err("low > high");
     }
