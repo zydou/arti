@@ -136,16 +136,6 @@ pub struct Parameters {
 impl_standard_builder! { Parameters: !Deserialize + !Builder }
 
 impl Parameters {
-    /// Default parameters for "reduced channel padding"
-    ///
-    /// As per `torspec/padding-spec.txt` section 2.6
-    pub fn default_reduced() -> Self {
-        Parameters {
-            low: IntegerMilliseconds::new(9000),
-            high: IntegerMilliseconds::new(14000),
-        }
-    }
-
     /// Return a `PADDING_NEGOTIATE START` cell specifying precisely these parameters
     ///
     /// This function does not take account of the need to avoid sending particular
