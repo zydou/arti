@@ -68,7 +68,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_config::ReconfigureError;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
-use tor_netdir::{NetDir, NetDirProvider};
+use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::{Channel, ChannelUsage};
 use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
@@ -133,10 +133,15 @@ impl<R: Runtime> ChanMgr<R> {
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
-    pub fn new(runtime: R, config: &ChannelConfig, dormancy: Dormancy) -> Self {
+    pub fn new(
+        runtime: R,
+        config: &ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
         let (sender, receiver) = event::channel();
         let builder = builder::ChanBuilder::new(runtime, sender);
-        let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy);
+        let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -219,9 +224,9 @@ impl<R: Runtime> ChanMgr<R> {
     pub fn set_dormancy(
         &self,
         dormancy: Dormancy,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), tor_error::Bug> {
-        self.mgr.set_dormancy(dormancy, netdir)
+        self.mgr.set_dormancy(dormancy, netparams)
     }
 
     /// Reconfigure all channels
@@ -229,9 +234,9 @@ impl<R: Runtime> ChanMgr<R> {
         &self,
         config: &ChannelConfig,
         how: tor_config::Reconfigure,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), ReconfigureError> {
-        let r = self.mgr.reconfigure(config, netdir);
+        let r = self.mgr.reconfigure(config, netparams);
 
         // We don't care about how, because reconfiguration can only fail due to bugs
         let _ = how;
@@ -265,8 +270,8 @@ impl<R: Runtime> ChanMgr<R> {
                         if ! matches!(direvent, DE::NewConsensus) { continue };
                         let self_ = self_.upgrade().ok_or("channel manager gone away")?;
                         let netdir = netdir.upgrade().ok_or("netdir gone away")?;
-                        let netdir = netdir.timely_netdir();
-                        self_.mgr.update_netdir(netdir).map_err(|e| {
+                        let netparams = netdir.params();
+                        self_.mgr.update_netparams(netparams).map_err(|e| {
                             error!("continually_update_channels_config: failed to process! {} {:?}",
                                    &e, &e);
                             "error processing netdir"

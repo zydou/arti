@@ -21,6 +21,7 @@ use itertools::{zip_eq, Itertools};
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
 use tor_linkspec::HasRelayIds;
+use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, ChannelUsage, CtrlMsg};
 
 use crate::mgr::{AbstractChanMgr, ChannelFactory};
@@ -61,13 +62,13 @@ fn interesting_netdir() -> Arc<NetDir> {
 
 #[test]
 fn padding_parameters_calculation() {
-    fn one(pconfig: PaddingLevel, netdir: StdResult<&NetDirExtract, &()>, exp: [u32; 2]) {
+    fn one(pconfig: PaddingLevel, netparams: &NetParamsExtract, exp: [u32; 2]) {
         eprintln!(
             "### {:?} {:?}",
             &pconfig,
-            netdir.map(|n| n.nf_ito.map(|l| l.map(|v| v.as_millis().get())))
+            netparams.nf_ito.map(|l| l.map(|v| v.as_millis().get())),
         );
-        let got = padding_parameters(pconfig, netdir).unwrap();
+        let got = padding_parameters(pconfig, Ok(netparams)).unwrap();
         let exp = PaddingParameters::builder()
             .low(exp[0].into())
             .high(exp[1].into())
@@ -76,29 +77,28 @@ fn padding_parameters_calculation() {
         assert_eq!(got, exp);
     }
 
-    one(PL::default(), Err(&()), DEF_MS);
     one(
         PL::default(),
-        Ok(&NetDirExtract::from(&*interesting_netdir())),
+        &NetParamsExtract::from(interesting_netdir().params()),
         ADJ_MS,
     );
 
-    one(PL::Reduced, Err(&()), REDUCED_MS);
     one(
         PL::Reduced,
-        Ok(&NetDirExtract::from(&*interesting_netdir())),
+        &NetParamsExtract::from(interesting_netdir().params()),
         ADJ_REDUCED_MS,
     );
 
     let make_bogus_netdir = |values: &[(&str, i32)]| {
-        NetDirExtract::from(
-            &tor_netdir::testnet::construct_custom_netdir_with_params(
+        NetParamsExtract::from(
+            tor_netdir::testnet::construct_custom_netdir_with_params(
                 |_, _| {},
                 values.iter().cloned(),
             )
             .unwrap()
             .unwrap_if_sufficient()
-            .unwrap(),
+            .unwrap()
+            .params(),
         )
     };
 
@@ -107,7 +107,7 @@ fn padding_parameters_calculation() {
         ("nf_ito_low", ADJ_REDUCED_MS[1] as _),
         ("nf_ito_high", ADJ_REDUCED_MS[0] as _),
     ]);
-    one(PL::default(), Ok(&bogus_netdir), DEF_MS);
+    one(PL::default(), &bogus_netdir, DEF_MS);
 }
 
 struct FakeChannelFactory {
@@ -128,7 +128,7 @@ struct CaseContext {
     channel: Channel,
     recv: mpsc::UnboundedReceiver<CtrlMsg>,
     chanmgr: AbstractChanMgr<FakeChannelFactory>,
-    netdir: tor_netdir::Result<Arc<NetDir>>,
+    netparams: Arc<dyn AsRef<NetParameters>>,
 }
 
 /// Details of an expected control message
@@ -150,23 +150,23 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
     let peer_id = channel.target().ed_identity().unwrap().clone();
     let factory = FakeChannelFactory { channel };
 
-    let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy);
+    let netparams = Arc::new(NetParameters::default());
+
+    let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &*netparams);
 
     let (channel, _prov) = chanmgr.get_or_launch(peer_id, (), usage).await.unwrap();
-
-    let netdir = Err(tor_netdir::Error::NoInfo);
 
     CaseContext {
         channel,
         recv,
         chanmgr,
-        netdir,
+        netparams,
     }
 }
 
 impl CaseContext {
-    fn netdir(&self) -> tor_netdir::Result<Arc<NetDir>> {
-        self.netdir.clone()
+    fn netparams(&self) -> Arc<dyn AsRef<NetParameters>> {
+        self.netparams.clone()
     }
 
     fn expect_1(&mut self, exp: Expected) {
@@ -284,7 +284,7 @@ async fn padding_control_through_layers() {
 
     eprintln!("### set_dormancy - Dormant ###");
     c.chanmgr
-        .set_dormancy(Dormancy::Dormant, c.netdir())
+        .set_dormancy(Dormancy::Dormant, c.netparams())
         .unwrap();
     c.expect_1(Expected {
         enabled: Some(false), // we now must turn off our padding sender
@@ -293,12 +293,14 @@ async fn padding_control_through_layers() {
     });
 
     eprintln!("### change to reduced padding while dormant ###");
-    c.chanmgr.reconfigure(&cconfig_reduced, c.netdir()).unwrap();
+    c.chanmgr
+        .reconfigure(&cconfig_reduced, c.netparams())
+        .unwrap();
     c.expect_0();
 
     eprintln!("### set_dormancy - Active ###");
     c.chanmgr
-        .set_dormancy(Dormancy::Active, c.netdir())
+        .set_dormancy(Dormancy::Active, c.netparams())
         .unwrap();
     c.expect_1(Expected {
         enabled: Some(true),
@@ -307,8 +309,8 @@ async fn padding_control_through_layers() {
     });
 
     eprintln!("### imagine a netdir turns up, with some different parameters ###");
-    c.netdir = Ok(interesting_netdir());
-    c.chanmgr.update_netdir(c.netdir()).unwrap();
+    c.netparams = interesting_netdir();
+    c.chanmgr.update_netparams(c.netparams()).unwrap();
     c.expect_1(Expected {
         enabled: None,                // still enabled
         timing: Some(ADJ_REDUCED_MS), // parameters adjusted a bit
@@ -317,7 +319,7 @@ async fn padding_control_through_layers() {
 
     eprintln!("### change back to normal padding ###");
     c.chanmgr
-        .reconfigure(&ChannelConfig::default(), c.netdir())
+        .reconfigure(&ChannelConfig::default(), c.netparams())
         .unwrap();
     c.expect_1(Expected {
         enabled: None,                   // still enabled
@@ -327,7 +329,7 @@ async fn padding_control_through_layers() {
 
     eprintln!("### consensus changes to no padding ###");
     // ---- consensus is no padding ----
-    c.netdir = Ok(some_interesting_netdir(
+    c.netparams = some_interesting_netdir(
         [
             "nf_ito_low",
             "nf_ito_high",
@@ -336,8 +338,8 @@ async fn padding_control_through_layers() {
         ]
         .into_iter()
         .map(|k| (k, 0)),
-    ));
-    c.chanmgr.update_netdir(c.netdir()).unwrap();
+    );
+    c.chanmgr.update_netparams(c.netparams()).unwrap();
     c.expect_1(Expected {
         enabled: Some(false),
         timing: None,

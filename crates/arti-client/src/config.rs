@@ -265,7 +265,7 @@ pub struct TorClientConfig {
         )
     )]
     #[builder_field_attr(serde(default))]
-    override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
+    pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
 
     /// Information about how to build paths through the network.
     #[builder(sub_builder)]

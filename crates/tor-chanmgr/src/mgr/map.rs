@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
-use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
+use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
 use tor_proto::channel::ChannelsParamsUpdates;
@@ -116,11 +116,11 @@ impl<C: Clone> ChannelState<C> {
 /// Type of the `nf_ito_*` netdir parameters, convenience alias
 type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>>;
 
-/// Extract from a `NetDir` which we need, conveniently organised for our processing
+/// Extract from a `NetDarameters` which we need, conveniently organised for our processing
 ///
 /// This type serves two functions at once:
 ///
-///  1. Being a subset of the parameters from the netdir, we can copy it out of
+///  1. Being a subset of the parameters, we can copy it out of
 ///     the netdir, before we do more complex processing - and, in particular,
 ///     before we obtain the lock on `inner` (which we need to actually handle the update,
 ///     because we need to combine information from the config with that from the netdir).
@@ -128,10 +128,8 @@ type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_B
 ///  2. Rather than four separate named fields, it has arrays, so that it is easy to
 ///     select the values without error-prone recapitulation of field names.
 //
-// TODO: Rename this to `NetParamsExtract` apropos
-//   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/657#note_2825975
 #[derive(Debug, Clone)]
-struct NetDirExtract {
+struct NetParamsExtract {
     /// `nf_ito_*`
     ///
     /// `nf_ito[ 0=normal, 1=reduced ][ 0=low, 1=high ]`
@@ -139,10 +137,9 @@ struct NetDirExtract {
     nf_ito: [[NfIto; 2]; 2],
 }
 
-impl From<&NetDir> for NetDirExtract {
-    fn from(netdir: &NetDir) -> Self {
-        let p = &netdir.params();
-        NetDirExtract {
+impl From<&NetParameters> for NetParamsExtract {
+    fn from(p: &NetParameters) -> Self {
+        NetParamsExtract {
             nf_ito: [
                 [p.nf_ito_low, p.nf_ito_high],
                 [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
@@ -197,11 +194,14 @@ impl<C: AbstractChannel> ChannelState<C> {
 
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
-    pub(crate) fn new(config: ChannelConfig, dormancy: Dormancy) -> Self {
+    pub(crate) fn new(
+        config: ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
         let mut channels_params = ChannelsParams::default();
-
-        let netdir = Err(&()); // we never have a netdir at startup
-        let update = parameterize(&mut channels_params, &config, dormancy, netdir)
+        let netparams = NetParamsExtract::from(netparams);
+        let update = parameterize(&mut channels_params, &config, dormancy, Ok(&netparams))
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
 
@@ -341,20 +341,15 @@ impl<C: AbstractChannel> ChannelMap<C> {
         &self,
         new_config: Option<&ChannelConfig>,
         new_dormancy: Option<Dormancy>,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
         let netdir = {
-            let extract = netdir
-                .as_ref()
-                .map(|n| NetDirExtract::from(&**n))
-                .map_err(|_| ());
-            // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
-            // before we take the channel map lock.
-            drop(netdir);
+            let extract = NetParamsExtract::from((*netparams).as_ref());
+            drop(netparams);
             extract
         };
 
@@ -375,7 +370,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             &mut inner.channels_params,
             &inner.config,
             inner.dormancy,
-            netdir.as_ref(),
+            Ok(&netdir), // TODO we never call this with Err, get rid of Result
         )?;
 
         let update = if let Some(u) = update {
@@ -426,7 +421,7 @@ fn parameterize(
     channels_params: &mut ChannelsParams,
     config: &ChannelConfig,
     dormancy: Dormancy,
-    netdir: StdResult<&NetDirExtract, &()>,
+    netdir: StdResult<&NetParamsExtract, void::Void>,
 ) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
     // Everything in this calculation applies to *all* channels, disregarding
     // channel usage.  Usage is handled downstream, in the channel frontend.
@@ -497,7 +492,7 @@ fn parameterize(
 /// does not account for padding being enabled/disabled other ways than via the config.
 fn padding_parameters(
     config: PaddingLevel,
-    netdir: StdResult<&NetDirExtract, &()>,
+    netdir: StdResult<&NetParamsExtract, void::Void>,
 ) -> StdResult<PaddingParameters, tor_error::Bug> {
     let reduced = match config {
         PaddingLevel::Reduced => true,
@@ -531,15 +526,7 @@ fn padding_parameters(
             p.build()
                 .map_err(into_internal!("failed to build padding parameters"))?
         }
-        Err(()) => {
-            // TODO we should use a fallback here so that config overrides take effect,
-            // as discussed in https://gitlab.torproject.org/tpo/core/arti/-/issues/528
-            if reduced {
-                PaddingParameters::default_reduced()
-            } else {
-                PaddingParameters::default()
-            }
-        }
+        Err(v) => void::unreachable(v),
     })
 }
 
@@ -560,7 +547,11 @@ mod test {
     use tor_proto::channel::ChannelUsage;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
-        ChannelMap::new(ChannelConfig::default(), Default::default())
+        ChannelMap::new(
+            ChannelConfig::default(),
+            Default::default(),
+            &Default::default(),
+        )
     }
 
     #[derive(Eq, PartialEq, Clone, Debug)]
@@ -762,8 +753,7 @@ mod test {
         };
 
         eprintln!("-- process a default netdir, which should send an update --");
-        map.reconfigure_general(None, None, Ok(netdir.clone()))
-            .unwrap();
+        map.reconfigure_general(None, None, netdir.clone()).unwrap();
         with_ch(&|ch| {
             assert_eq!(
                 format!("{:?}", ch.params_update.take().unwrap()),
@@ -778,7 +768,7 @@ mod test {
         eprintln!();
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
-        map.reconfigure_general(None, None, Ok(netdir)).unwrap();
+        map.reconfigure_general(None, None, netdir).unwrap();
         with_ch(&|ch| assert_eq!(ch.params_update, None));
     }
 

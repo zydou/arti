@@ -12,7 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
-use tor_netdir::NetDir;
+use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelsParamsUpdates;
 use tor_proto::channel::ChannelUsage;
 
@@ -90,10 +90,15 @@ type Sending<C> = oneshot::Sender<Result<C>>;
 
 impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
-    pub(crate) fn new(connector: CF, config: &ChannelConfig, dormancy: Dormancy) -> Self {
+    pub(crate) fn new(
+        connector: CF,
+        config: &ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
         AbstractChanMgr {
             connector,
-            channels: map::ChannelMap::new(config.clone(), dormancy),
+            channels: map::ChannelMap::new(config.clone(), dormancy, netparams),
         }
     }
 
@@ -267,31 +272,31 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     }
 
     /// Update the netdir
-    pub(crate) fn update_netdir(
+    pub(crate) fn update_netparams(
         &self,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), tor_error::Bug> {
-        self.channels.reconfigure_general(None, None, netdir)
+        self.channels.reconfigure_general(None, None, netparams)
     }
 
     /// Notifies the chanmgr to be dormant like dormancy
     pub(crate) fn set_dormancy(
         &self,
         dormancy: Dormancy,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), tor_error::Bug> {
         self.channels
-            .reconfigure_general(None, Some(dormancy), netdir)
+            .reconfigure_general(None, Some(dormancy), netparams)
     }
 
     /// Reconfigure all channels
     pub(crate) fn reconfigure(
         &self,
         config: &ChannelConfig,
-        netdir: tor_netdir::Result<Arc<NetDir>>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
     ) -> StdResult<(), tor_error::Bug> {
         self.channels
-            .reconfigure_general(Some(config), None, netdir)
+            .reconfigure_general(Some(config), None, netparams)
     }
 
     /// Expire any channels that have been unused longer than
@@ -389,7 +394,12 @@ mod test {
 
     fn new_test_abstract_chanmgr<R: Runtime>(runtime: R) -> AbstractChanMgr<FakeChannelFactory<R>> {
         let cf = FakeChannelFactory::new(runtime);
-        AbstractChanMgr::new(cf, &ChannelConfig::default(), Default::default())
+        AbstractChanMgr::new(
+            cf,
+            &ChannelConfig::default(),
+            Default::default(),
+            &Default::default(),
+        )
     }
 
     #[async_trait]

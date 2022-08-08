@@ -831,6 +831,7 @@ mod test {
             rt.clone(),
             &ChannelConfig::default(),
             Default::default(),
+            &Default::default(),
         ));
         // always has 3 second timeout, 100 second abandon.
         let timeouts = match advance_on_timeout {

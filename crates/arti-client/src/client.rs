@@ -14,7 +14,7 @@ use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort}
 use tor_config::MutCfg;
 use tor_dirmgr::Timeliness;
 use tor_error::{internal, Bug};
-use tor_netdir::NetDirProvider;
+use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -390,6 +390,7 @@ impl<R: Runtime> TorClient<R> {
             runtime.clone(),
             &config.channel,
             dormant.into(),
+            &NetParameters::from_map(&config.override_net_params),
         ));
         let circmgr =
             tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
@@ -604,10 +605,10 @@ impl<R: Runtime> TorClient<R> {
 
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
 
-        let netdir = self.dirmgr.timely_netdir();
+        let netparams = self.dirmgr.params();
 
         self.chanmgr
-            .reconfigure(&new_config.channel, how, netdir)
+            .reconfigure(&new_config.channel, how, netparams)
             .map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
@@ -962,10 +963,10 @@ async fn tasks_monitor_dormant<R: Runtime>(
     periodic_task_handles: Vec<TaskHandle>,
 ) {
     while let Some(Some(mode)) = dormant_rx.next().await {
-        let netdir = netdir.timely_netdir();
+        let netparams = netdir.params();
 
         chanmgr
-            .set_dormancy(mode.into(), netdir)
+            .set_dormancy(mode.into(), netparams)
             .unwrap_or_else(|e| error!("set dormancy: {e}"));
 
         let is_dormant = matches!(mode, DormantMode::Soft);
