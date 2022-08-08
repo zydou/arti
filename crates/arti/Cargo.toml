@@ -12,13 +12,14 @@ categories = ["command-line-utilities", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["tokio", "native-tls", "dns-proxy"]
+default = ["tokio", "native-tls", "dns-proxy", "harden"]
 
-full = ["async-std", "tokio", "native-tls", "journald", "arti-client/full", "dns-proxy"]
+full = ["async-std", "tokio", "native-tls", "journald", "arti-client/full", "dns-proxy", "harden"]
 
 async-std = ["arti-client/async-std", "tor-rtcompat/async-std", "async-ctrlc", "once_cell"]
 dns-proxy = ["trust-dns-proto"]
 experimental-api = ["visibility"]
+harden = ["secmem-proc"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
 rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
@@ -49,6 +50,7 @@ notify = "4.0"
 once_cell = { version = "1", optional = true }
 rlimit = "0.8.3"
 safelog = { path = "../safelog", version = "0.1.0" }
+secmem-proc = { version = "0.1.1", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tor-config = { path = "../tor-config", version = "0.5.0" }

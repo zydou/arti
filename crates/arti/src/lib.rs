@@ -54,6 +54,8 @@
 //!   backend (available as part of systemd.)
 //! * `dns-proxy` (default) -- Build with support for proxying certain simple
 //!   DNS queries over the Tor network.  
+//! * `harden` (default) -- Build with support for hardening the Arti process by
+//!   disabling debugger attachment and other local memory-inspection vectors.
 //!
 //! * `full` -- Build with all features above, along with all stable additive
 //!   features from other arti crates.  (This does not include experimental
@@ -199,7 +201,7 @@ use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Error, Result};
 use clap::{App, AppSettings, Arg, SubCommand};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 /// Shorthand for a boxed and pinned Future.
 type PinnedFuture<T> = std::pin::Pin<Box<dyn futures::Future<Output = T>>>;
@@ -490,6 +492,14 @@ where
         &log_mistrust,
         matches.value_of("loglevel"),
     )?;
+
+    #[cfg(feature = "harden")]
+    if !config.application().permit_debugging {
+        if let Err(e) = process::enable_process_hardening() {
+            error!("Encountered a problem while enabling hardening. To disable this feature, set application.permit_debugging to true.");
+            return Err(e);
+        }
+    }
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
