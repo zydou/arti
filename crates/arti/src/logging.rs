@@ -259,7 +259,8 @@ where
 
 /// Opaque structure that gets dropped when the program is shutting down,
 /// after logs are no longer needed.  The `Drop` impl flushes buffered messages.
-pub struct LogGuards {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) struct LogGuards {
     /// The actual list of guards we're returning.
     #[allow(unused)]
     guards: Vec<WorkerGuard>,
@@ -273,7 +274,8 @@ pub struct LogGuards {
 ///
 /// Note that the returned LogGuard must be dropped precisely when the program
 /// quits; they're used to ensure that all the log messages are flushed.
-pub fn setup_logging(
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) fn setup_logging(
     config: &LoggingConfig,
     mistrust: &Mistrust,
     cli: Option<&str>,

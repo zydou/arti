@@ -93,6 +93,7 @@
 //!  versioning guarantees: we might break them or remove them between patch
 //!  versions.
 //!
+//! * `experimental-api` -- build with experimental, unstable API support.
 //! * `experimental` -- Build with all experimental features above, along with
 //!   all experimental features from other arti crates.
 //!
@@ -152,13 +153,29 @@
 #![allow(clippy::print_stdout)]
 
 pub mod cfg;
-#[cfg(feature = "dns-proxy")]
-pub mod dns;
-pub mod exit;
 pub mod logging;
+
+#[cfg(all(feature = "experimental-api", feature = "dns-proxy"))]
+pub mod dns;
+#[cfg(feature = "experimental-api")]
+pub mod exit;
+#[cfg(feature = "experimental-api")]
 pub mod process;
+#[cfg(feature = "experimental-api")]
 pub mod socks;
+#[cfg(feature = "experimental-api")]
 pub mod watch_cfg;
+
+#[cfg(all(not(feature = "experimental-api"), feature = "dns-proxy"))]
+mod dns;
+#[cfg(not(feature = "experimental-api"))]
+mod exit;
+#[cfg(not(feature = "experimental-api"))]
+mod process;
+#[cfg(not(feature = "experimental-api"))]
+mod socks;
+#[cfg(not(feature = "experimental-api"))]
+mod watch_cfg;
 
 use std::fmt::Write;
 
@@ -219,7 +236,8 @@ fn list_enabled_features() -> &'static [&'static str] {
 /// # Panics
 ///
 /// Currently, might panic if things go badly enough wrong
-pub async fn run<R: Runtime>(
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     dns_port: u16,

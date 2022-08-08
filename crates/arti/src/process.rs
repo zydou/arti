@@ -10,7 +10,8 @@ use crate::ArtiConfig;
 /// # Limitations
 ///
 /// This doesn't actually do anything on windows.
-pub fn use_max_file_limit(config: &ArtiConfig) {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) fn use_max_file_limit(config: &ArtiConfig) {
     match rlimit::increase_nofile_limit(config.system.max_files) {
         Ok(n) => tracing::debug!("Increased process file limit to {}", n),
         Err(e) => tracing::warn!("Error while increasing file limit: {}", e),
