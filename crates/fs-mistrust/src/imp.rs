@@ -181,7 +181,7 @@ impl<'a> super::Verifier<'a> {
         // about a directory, the owner cah change the permissions and owner
         // of anything in the directory.)
 
-        #[cfg(not(target_os = "ios"))]
+        #[cfg(all(not(target_os = "ios"), not(target_os = "android")))]
         {
             let uid = meta.uid();
             if uid != 0 && Some(uid) != self.mistrust.trust_user {
@@ -225,14 +225,23 @@ impl<'a> super::Verifier<'a> {
             }
         };
         // If we trust the GID, then we allow even more bits to be set.
-        #[cfg(not(target_os = "ios"))]
+        #[cfg(all(not(target_os = "ios"), not(target_os = "android")))]
         if self.mistrust.trust_group == Some(meta.gid()) {
             forbidden_bits &= !0o070;
         }
 
-        // rational: on iOS the platform already protect user data, and not setting this poses
-        // issue with the default application data folder.
-        #[cfg(target_os = "ios")]
+        // Both iOS and Android have some directory on the path for application data directory
+        // which is group writeable. However both system already offer some guarantees regarding
+        // application data being kept away from other apps.
+        //
+        // iOS: https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/FileSystemProgrammingGuide/FileSystemOverview/FileSystemOverview.html
+        // > For security purposes, an iOS app’s interactions with the file system are limited
+        // to the directories inside the app’s sandbox directory
+        //
+        // Android: https://developer.android.com/training/data-storage
+        // > App-specific storage: [...] Use the directories within internal storage to save
+        // sensitive information that other apps shouldn't access.
+        #[cfg(any(target_os = "ios", target_os = "android"))]
         {
             forbidden_bits &= !0o070;
         }
