@@ -154,8 +154,7 @@ impl Parameters {
     pub fn padding_negotiate_cell(&self) -> Result<PaddingNegotiate, tor_error::Bug> {
         let get = |input: IntegerMilliseconds<u32>| {
             input
-                .as_millis()
-                .try_into()
+                .try_map(TryFrom::try_from)
                 .map_err(into_internal!("padding negotiate out of range"))
         };
         Ok(PaddingNegotiate::start(get(self.low)?, get(self.high)?))

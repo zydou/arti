@@ -3440,6 +3440,7 @@ dependencies = [
  "tor-error",
  "tor-linkspec",
  "tor-llcrypto",
+ "tor-units",
 ]
 
 [[package]]

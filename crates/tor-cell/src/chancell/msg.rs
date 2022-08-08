@@ -4,6 +4,7 @@ use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
+use tor_units::IntegerMilliseconds;
 
 use caret::caret_int;
 use educe::Educe;
@@ -849,12 +850,12 @@ impl PaddingNegotiate {
     }
 
     /// Create a new PADDING_NEGOTIATE START message.
-    pub fn start(ito_low_ms: u16, ito_high_ms: u16) -> Self {
+    pub fn start(ito_low: IntegerMilliseconds<u16>, ito_high: IntegerMilliseconds<u16>) -> Self {
         // Tor Spec section 7.3
         Self {
             command: PaddingNegotiateCmd::START,
-            ito_low_ms,
-            ito_high_ms,
+            ito_low_ms: ito_low.as_millis(),
+            ito_high_ms: ito_high.as_millis(),
         }
     }
 
