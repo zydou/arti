@@ -52,6 +52,8 @@
 //!   (default)
 //! * `journald` -- Build with support for logging to the `journald` logging
 //!   backend (available as part of systemd.)
+//! * `dns-proxy` (default) -- Build with support for proxying certain simple
+//!   DNS queries over the Tor network.  
 //!
 //! * `full` -- Build with all features above, along with all stable additive
 //!   features from other arti crates.  (This does not include experimental
@@ -150,6 +152,7 @@
 #![allow(clippy::print_stdout)]
 
 pub mod cfg;
+#[cfg(feature = "dns-proxy")]
 pub mod dns;
 pub mod exit;
 pub mod logging;
@@ -246,6 +249,7 @@ pub async fn run<R: Runtime>(
         }));
     }
 
+    #[cfg(feature = "dns-proxy")]
     if dns_port != 0 {
         let runtime = runtime.clone();
         let client = client.isolated_client();
@@ -253,6 +257,12 @@ pub async fn run<R: Runtime>(
             let res = dns::run_dns_resolver(runtime, client, dns_port).await;
             (res, "DNS")
         }));
+    }
+
+    #[cfg(not(feature = "dns-proxy"))]
+    if dns_port != 0 {
+        warn!("Tried to specify a DNS proxy port, but Arti was built without dns-proxy support.");
+        return Ok(());
     }
 
     if proxy.is_empty() {
