@@ -500,31 +500,39 @@ fn padding_parameters(
         PaddingLevel::None => return Ok(PaddingParameters::all_zeroes()),
     };
 
-    Ok({
-        let mut p = PaddingParametersBuilder::default();
-        let () = (|| {
-            let nf_ito = netdir.nf_ito[usize::from(reduced)];
-            let get_timing_param =
-                |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
-            let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
-            let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
-            if low > high {
-                return Err("low > high");
-            }
-            p.low(low);
-            p.high(high);
-            Ok::<_, &'static str>(())
-        })()
+    padding_parameters_builder(reduced, netdir)
         .unwrap_or_else(|e| {
             info!(
                 "consensus channel padding parameters wrong, using defaults: {}",
                 &e
             );
-        });
+            PaddingParametersBuilder::default()
+        })
+        .build()
+        .map_err(into_internal!("failed to build padding parameters"))
+}
 
-        p.build()
-            .map_err(into_internal!("failed to build padding parameters"))?
-    })
+/// Given a `NetDirExtract` and whether we're reducing padding,
+/// return a `PaddingParametersBuilder`
+///
+/// If `Err`, the string is a description of what is wrong with the parameters;
+/// the caller should use `PaddingParameters::Default`.
+fn padding_parameters_builder(
+    reduced: bool,
+    netdir: &NetParamsExtract,
+) -> StdResult<PaddingParametersBuilder, &'static str> {
+    let mut p = PaddingParametersBuilder::default();
+
+    let nf_ito = netdir.nf_ito[usize::from(reduced)];
+    let get_timing_param = |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
+    let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
+    let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
+    if low > high {
+        return Err("low > high");
+    }
+    p.low(low);
+    p.high(high);
+    Ok::<_, &'static str>(p)
 }
 
 #[cfg(test)]
