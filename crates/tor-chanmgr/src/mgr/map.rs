@@ -201,7 +201,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
     ) -> Self {
         let mut channels_params = ChannelsParams::default();
         let netparams = NetParamsExtract::from(netparams);
-        let update = parameterize(&mut channels_params, &config, dormancy, Ok(&netparams))
+        let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
 
@@ -370,7 +370,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             &mut inner.channels_params,
             &inner.config,
             inner.dormancy,
-            Ok(&netdir), // TODO we never call this with Err, get rid of Result
+            &netdir,
         )?;
 
         let update = if let Some(u) = update {
@@ -421,7 +421,7 @@ fn parameterize(
     channels_params: &mut ChannelsParams,
     config: &ChannelConfig,
     dormancy: Dormancy,
-    netdir: StdResult<&NetParamsExtract, void::Void>,
+    netdir: &NetParamsExtract,
 ) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
     // Everything in this calculation applies to *all* channels, disregarding
     // channel usage.  Usage is handled downstream, in the channel frontend.
@@ -492,7 +492,7 @@ fn parameterize(
 /// does not account for padding being enabled/disabled other ways than via the config.
 fn padding_parameters(
     config: PaddingLevel,
-    netdir: StdResult<&NetParamsExtract, void::Void>,
+    netdir: &NetParamsExtract,
 ) -> StdResult<PaddingParameters, tor_error::Bug> {
     let reduced = match config {
         PaddingLevel::Reduced => true,
@@ -500,33 +500,30 @@ fn padding_parameters(
         PaddingLevel::None => return Ok(PaddingParameters::all_zeroes()),
     };
 
-    Ok(match netdir {
-        Ok(netdir) => {
-            let mut p = PaddingParametersBuilder::default();
-            let () = (|| {
-                let nf_ito = netdir.nf_ito[usize::from(reduced)];
-                let get_timing_param =
-                    |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
-                let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
-                let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
-                if low > high {
-                    return Err("low > high");
-                }
-                p.low(low);
-                p.high(high);
-                Ok::<_, &'static str>(())
-            })()
-            .unwrap_or_else(|e| {
-                info!(
-                    "consensus channel padding parameters wrong, using defaults: {}",
-                    &e
-                );
-            });
+    Ok({
+        let mut p = PaddingParametersBuilder::default();
+        let () = (|| {
+            let nf_ito = netdir.nf_ito[usize::from(reduced)];
+            let get_timing_param =
+                |index: usize| nf_ito[index].try_map(|bounded| bounded.get().try_into());
+            let low = get_timing_param(0).map_err(|_| "low value arithmetic overflow?!")?;
+            let high = get_timing_param(1).map_err(|_| "high value arithmetic overflow?!")?;
+            if low > high {
+                return Err("low > high");
+            }
+            p.low(low);
+            p.high(high);
+            Ok::<_, &'static str>(())
+        })()
+        .unwrap_or_else(|e| {
+            info!(
+                "consensus channel padding parameters wrong, using defaults: {}",
+                &e
+            );
+        });
 
-            p.build()
-                .map_err(into_internal!("failed to build padding parameters"))?
-        }
-        Err(v) => void::unreachable(v),
+        p.build()
+            .map_err(into_internal!("failed to build padding parameters"))?
     })
 }
 

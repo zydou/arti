@@ -68,7 +68,7 @@ fn padding_parameters_calculation() {
             &pconfig,
             netparams.nf_ito.map(|l| l.map(|v| v.as_millis().get())),
         );
-        let got = padding_parameters(pconfig, Ok(netparams)).unwrap();
+        let got = padding_parameters(pconfig, netparams).unwrap();
         let exp = PaddingParameters::builder()
             .low(exp[0].into())
             .high(exp[1].into())
