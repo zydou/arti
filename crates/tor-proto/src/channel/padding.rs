@@ -6,7 +6,7 @@
 //!
 //!  1. `tor_chanmgr::mgr::map` collates information about dormancy, netdir,
 //!     and overall client configuration, to maintain a
-//!     [`ChannelsParams`](crate::channel::ChannelsParams)
+//!     [`ChannelPaddingInstructions`](crate::channel::ChannelPaddingInstructions)
 //!     which is to be used for all relevant[^relevant] channels.
 //!     This is distributed to channel frontends (`Channel`s)
 //!     by calling `Channel::reparameterize`.

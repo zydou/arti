@@ -1,4 +1,23 @@
 //! Parameters influencing all channels in a Tor client
+//!
+//! This module contains [`ChannelPaddingInstructions`].
+//!
+//! These are instructions about what to do about padding.
+//! They include information about:
+//!   * whether padding is to be sent
+//!   * what timing parameters to use for sending padding
+//!   * what `PADDING_NEGOTIATE` cell to send
+//!
+//! The instructions are, ultimately, instructions to the channel reactor.
+//! The reactor gets a [`ChannelPaddingInstructionsUpdates`],
+//! which is a set of *changes* to make.
+//!
+//! The producer side is the channel manager,
+//! which records the current `ChannelPaddingInstructions`
+//! and makes updates with [`ChannelPaddingInstructionsUpdatesBuilder`]
+//! (and is assisted by [`Channel::engage_padding_activities`]).
+//!
+//! [`Channel::engage_padding_activities`]: super::Channel::engage_padding_activities
 
 use educe::Educe;
 
@@ -6,7 +25,8 @@ use tor_cell::chancell::msg::PaddingNegotiate;
 
 use super::padding;
 
-/// Generate most of the module: things which contain or process all params fields (or each one)
+/// Generate most of the types and methods relating to ChannelPaddingInstructions:
+/// things which contain or process all instructions fields (or each one)
 ///
 /// There is one call to this macro, which has as argument
 /// the body of `struct ChannelPaddingInstructions`, with the following differences:
@@ -32,15 +52,15 @@ macro_rules! define_channels_insns_and_automatic_impls { { $(
     $field:ident : $ty:ty
 ),* $(,)? } => {
 
-    /// Initial, and, overall, parameters for channels
+    /// Initial, and, overall, padding instructions for channels
     ///
-    /// This is used both to generate the initial parameters,
+    /// This is used both to generate the initial instructions,
     /// and to handle updates:
     /// when used for handling updates,
-    /// it contains the last parameters that has been implemented.
+    /// it contains the last instructions that has been implemented.
     ///
     /// Central code managing all channels will contain a `ChannelPaddingInstructions`,
-    /// and use `ChannelPaddingInstructionsUpdatesBuilder` to both update that params
+    /// and use `ChannelPaddingInstructionsUpdatesBuilder` to both update those `Instructions`
     /// and generate `ChannelPaddingInstructionsUpdates` messages representing the changes.
     ///
     /// The channel frontend (methods on `Channel`)
@@ -58,7 +78,7 @@ macro_rules! define_channels_insns_and_automatic_impls { { $(
       )*
     }
 
-    /// Reparameterisation message
+    /// New instructions to the reactor
     ///
     /// Can contain updates to each of the fields in `ChannelPaddingInstructions`.
     /// Constructed via [`ChannelPaddingInstructionsUpdatesBuilder`],
@@ -149,6 +169,16 @@ define_channels_insns_and_automatic_impls! {
     padding_parameters: padding::Parameters,
 
     /// Channel padding negotiation cell
+    ///
+    /// In `ChannelPaddingInstructions`, and when set via `Builder`,
+    /// this is the `PADDING_NEGOTIATE` cell which should be used when we want
+    /// to instruct our peer (the guard) to do padding like we have concluded we want.
+    ///
+    /// (An initial `PaddingNegotiate::start_default()` is elided
+    /// in [`Channel::engage_padding_activities`]
+    /// since that is what the peer would do anyway.)
+    ///
+    /// [`Channel::engage_padding_activities`]: super::Channel::engage_padding_activities
     padding_negotiate: PaddingNegotiate,
 }
 
@@ -159,7 +189,7 @@ pub(crate) fn interim_enable_by_env_var() -> bool {
     std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != ""
 }
 
-/// Builder for a channels params update
+/// Builder for a channels padding instructions update
 ///
 /// Obtain this from `ChannelPaddingInstructions::update`,
 /// call zero or more setter methods,
@@ -170,7 +200,7 @@ pub(crate) fn interim_enable_by_env_var() -> bool {
 ///
 /// Panics if dropped.  Instead, call `finish`.
 pub struct ChannelPaddingInstructionsUpdatesBuilder<'c> {
-    /// Tracking the existing params
+    /// Tracking the existing instructions
     insns: &'c mut ChannelPaddingInstructions,
 
     /// The update we are building
@@ -183,7 +213,7 @@ pub struct ChannelPaddingInstructionsUpdatesBuilder<'c> {
 }
 
 impl ChannelPaddingInstructions {
-    /// Start building an update to channel parameters
+    /// Start building an update to channel padding instructions
     ///
     /// The builder **must not be dropped**, once created;
     /// instead, [`finish`](ChannelPaddingInstructionsUpdatesBuilder::finish) must be called.
@@ -224,7 +254,7 @@ impl<'c> ChannelPaddingInstructionsUpdatesBuilder<'c> {
     ///
     /// If `Some` is returned, the update **must** be implemented,
     /// since the underlying tracking [`ChannelPaddingInstructions`] has already been updated.
-    #[must_use = "the update from finish() must be sent, to avoid losing params changes"]
+    #[must_use = "the update from finish() must be sent, to avoid losing insns changes"]
     pub fn finish(mut self) -> Option<ChannelPaddingInstructionsUpdates> {
         self.drop_bomb = false;
         self.update.take()
