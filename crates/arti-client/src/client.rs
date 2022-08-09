@@ -967,7 +967,7 @@ async fn tasks_monitor_dormant<R: Runtime>(
 
         chanmgr
             .set_dormancy(mode.into(), netparams)
-            .unwrap_or_else(|e| error!("set dormancy: {e}"));
+            .unwrap_or_else(|e| error!("set dormancy: {}", e));
 
         let is_dormant = matches!(mode, DormantMode::Soft);
 
