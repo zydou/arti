@@ -243,7 +243,7 @@ async fn padding_control_through_layers() {
     let mut c = case(PL::default(), Dormancy::Active, ChannelUsage::Exit).await;
     c.expect_1(Expected {
         enabled: Some(true),
-        timing: None,
+        timing: Some(DEF_MS),
         nego: None,
     });
 
@@ -261,7 +261,7 @@ async fn padding_control_through_layers() {
     let mut c = case(PL::default(), Dormancy::Dormant, ChannelUsage::Exit).await;
     c.expect_1(Expected {
         enabled: None,
-        timing: None,
+        timing: Some(DEF_MS),
         nego: Some(STOP_MSG),
     });
 
@@ -280,9 +280,9 @@ async fn padding_control_through_layers() {
     eprintln!("### Exit ###");
     c.channel.engage_padding_activities();
     c.expect_1(Expected {
-        enabled: Some(true), // we now turn on our padding sender
-        timing: None,        // with default parameters
-        nego: None,          // the peer will start padding when it sees us do non-dir stuff
+        enabled: Some(true),  // we now turn on our padding sender
+        timing: Some(DEF_MS), // with default parameters
+        nego: None,           // the peer will start padding when it sees us do non-dir stuff
     });
 
     eprintln!("### set_dormancy - Dormant ###");

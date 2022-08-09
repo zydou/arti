@@ -98,12 +98,19 @@ macro_rules! define_channels_insns_and_automatic_impls { { $(
     }
 
     impl ChannelPaddingInstructions {
-        /// Create an update message which sets all non-default settings in `self`
+        /// Create an update message which sets settings in `self` which
+        /// are not equal to the initial behaviour of the reactor.
         ///
         /// Used during channel startup.
         #[must_use = "initial_update makes an updates message that must be sent to have effect"]
         pub fn initial_update(&self) -> Option<ChannelPaddingInstructionsUpdates> {
             let mut supposed = ChannelPaddingInstructions::default();
+
+            // The initial configuration of the padding timer used by the reactor has no
+            // parameters, so does not send padding.  We need to mirror that here, so that we
+            // give the reactor an initial set of timing parameters.
+            supposed.padding_parameters = padding::Parameters::disabled();
+
             supposed.start_update()
               $(
                 .$field(self.$field.clone())
