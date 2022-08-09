@@ -157,7 +157,6 @@ macro_rules! define_channels_insns_and_automatic_impls { { $(
 
 define_channels_insns_and_automatic_impls! {
     /// Whether to send padding
-    #[field educe(Default(expression = "interim_enable_by_env_var()"))]
     padding_enable: bool,
 
     /// Padding timing parameters
@@ -180,13 +179,6 @@ define_channels_insns_and_automatic_impls! {
     ///
     /// [`Channel::engage_padding_activities`]: super::Channel::engage_padding_activities
     padding_negotiate: PaddingNegotiate,
-}
-
-/// Placeholder function for saying whether to enable channel padding
-///
-/// This will be abolished in due course.
-pub(crate) fn interim_enable_by_env_var() -> bool {
-    std::env::var("ARTI_EXPERIMENTAL_CHANNEL_PADDING").unwrap_or_default() != ""
 }
 
 /// Builder for a channels padding instructions update
