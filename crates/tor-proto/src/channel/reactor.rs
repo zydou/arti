@@ -185,6 +185,7 @@ impl<S: SleepProvider> Reactor<S> {
 
                 if let Some(l) = self.special_outgoing.next() {
                     // See reasoning below.
+                    // eprintln!("PADDING - SENDING NEOGIATION: {:?}", &l);
                     self.padding_timer.as_mut().note_cell_sent();
                     return Some(l)
                 }
@@ -210,7 +211,10 @@ impl<S: SleepProvider> Reactor<S> {
                         self.padding_timer.as_mut().note_cell_sent();
                         n
                     },
-                    p = self.padding_timer.as_mut().next() => Some(p.into()),
+                    p = self.padding_timer.as_mut().next() => {
+                        // eprintln!("PADDING - SENDING PADDING: {:?}", &p);
+                        Some(p.into())
+                    },
                 }
             }) => {
                 let (msg, sendable) = ret.map_err(codec_err_to_chan)?;
