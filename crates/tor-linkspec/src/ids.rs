@@ -15,7 +15,19 @@ pub(crate) mod set;
 
 /// The type of a relay identity.
 ///
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd, Display, strum::EnumIter)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    Hash,
+    Ord,
+    PartialOrd,
+    Display,
+    strum::EnumIter,
+    strum::EnumCount,
+)]
 #[non_exhaustive]
 pub enum RelayIdType {
     /// An Ed25519 identity.
@@ -59,6 +71,9 @@ pub enum RelayIdRef<'a> {
 }
 
 impl RelayIdType {
+    /// The number of distinct types currently implemented.
+    pub const COUNT: usize = <RelayIdType as strum::EnumCount>::COUNT;
+
     /// Return an iterator over all
     pub fn all_types() -> RelayIdTypeIter {
         use strum::IntoEnumIterator;

@@ -68,6 +68,7 @@ mod weight;
 #[cfg(any(test, feature = "testing"))]
 pub mod testnet;
 
+use static_assertions::const_assert;
 use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
@@ -712,6 +713,10 @@ impl NetDir {
         let rsa_id = target.rsa_identity();
         let ed25519_id = target.ed_identity();
 
+        // TODO: If we later support more identity key types, this will
+        // become incorrect.  This assertion might help us recognize that case.
+        const_assert!(RelayIdType::COUNT == 2);
+
         match (rsa_id, ed25519_id) {
             (Some(r), Some(e)) => self.id_pair_listed(e, r),
             (Some(r), None) => Some(self.rsa_id_is_listed(r)),
@@ -722,8 +727,6 @@ impl NetDir {
                     None
                 }
             }
-            // TODO: If we later support more identity key types, this will
-            // become incorrect.
             (None, None) => None,
         }
     }

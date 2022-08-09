@@ -36,6 +36,7 @@ hex-literal = { version = "0.3", optional = true }
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
+static_assertions = "1"
 thiserror = "1"
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-config = { path = "../tor-config", version = "0.5.0" }
