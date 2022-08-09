@@ -648,7 +648,7 @@ where
 }
 
 /// Make some fake channel details (for testing only!)
-#[allow(dead_code)] // only relevant for tests or with the feature "testing"
+#[cfg(any(test, feature = "testing"))]
 fn fake_channel_details() -> Arc<ChannelDetails> {
     let unique_id = UniqId::new();
     let unused_since = OptTimestamp::new();
