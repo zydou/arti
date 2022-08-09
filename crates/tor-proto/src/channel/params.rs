@@ -26,7 +26,7 @@ use super::padding;
 /// ```
 ///
 /// Within the macro body, we indent the per-field `$( )*` with 2 spaces.
-macro_rules! define_channels_params_and_automatic_impls { { $(
+macro_rules! define_channels_insns_and_automatic_impls { { $(
     $( #[doc $($doc_attr:tt)*] )*
     $( #[field $other_attr:meta] )*
     $field:ident : $ty:ty
@@ -98,12 +98,12 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
         ///
         /// (Adds this setting to the update, if it has changed.)
         pub fn $field(mut self, new_value: $ty) -> Self {
-            if &new_value != &self.params.$field {
+            if &new_value != &self.insns.$field {
                 self
                     .update
                     .get_or_insert_with(|| Default::default())
                     .$field = Some(new_value.clone());
-                self.params.$field = new_value;
+                self.insns.$field = new_value;
             }
             self
         }
@@ -135,7 +135,7 @@ macro_rules! define_channels_params_and_automatic_impls { { $(
     }
 } }
 
-define_channels_params_and_automatic_impls! {
+define_channels_insns_and_automatic_impls! {
     /// Whether to send padding
     #[field educe(Default(expression = "interim_enable_by_env_var()"))]
     padding_enable: bool,
@@ -171,7 +171,7 @@ pub(crate) fn interim_enable_by_env_var() -> bool {
 /// Panics if dropped.  Instead, call `finish`.
 pub struct ChannelPaddingInstructionsUpdatesBuilder<'c> {
     /// Tracking the existing params
-    params: &'c mut ChannelPaddingInstructions,
+    insns: &'c mut ChannelPaddingInstructions,
 
     /// The update we are building
     ///
@@ -199,7 +199,7 @@ impl ChannelPaddingInstructions {
     /// [`ChannelPaddingInstructionsUpdatesBuilder`] panics if it is dropped.
     pub fn start_update(&mut self) -> ChannelPaddingInstructionsUpdatesBuilder {
         ChannelPaddingInstructionsUpdatesBuilder {
-            params: self,
+            insns: self,
             update: None,
             drop_bomb: true,
         }
