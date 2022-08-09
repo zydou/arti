@@ -183,9 +183,21 @@ impl From<Vec<u8>> for InputString {
 
 /// Configuration of expiration of each element of a [`Store`].
 pub(crate) struct ExpirationConfig {
-    /// How long to keep expired router descriptors.
+    /// How long to keep router descriptors.
+    ///
+    /// This timeout is measured since the publication date of the router
+    /// descriptor.
+    ///
+    /// TODO(nickm): We may want a better approach in the future; see notes in
+    /// `EXPIRATION_DEFAULTS`.
     pub(super) router_descs: Duration,
-    /// How long to keep expired microdescriptors descriptors.
+    /// How long to keep unlisted microdescriptors.
+    ///
+    /// This timeout counts the amount of time since a microdescriptor is no
+    /// longer listed in a live consensus. Shorter values save storage at the
+    /// expense of extra bandwidth spent re-downloading microdescriptors; higher
+    /// values save bandwidth at the expense of storage used to store old
+    /// microdescriptors that might become listed again.
     pub(super) microdescs: Duration,
     /// How long to keep expired authority certificate.
     pub(super) authcerts: Duration,
@@ -196,10 +208,21 @@ pub(crate) struct ExpirationConfig {
 /// Configuration of expiration shared between [`Store`] implementations.
 pub(crate) const EXPIRATION_DEFAULTS: ExpirationConfig = {
     ExpirationConfig {
-        // TODO: Choose a more realistic time.
-        router_descs: Duration::days(3 * 30),
-        // TODO: Choose a more realistic time.
-        microdescs: Duration::days(3 * 30),
+        // TODO: This is the value that C Tor uses here, but it may be desirable
+        // to adjust it depending on what we find in practice.  For relays,
+        // instead of looking at publication date, we might want to use an
+        // approach more similar to the "last-listed" approach taken by
+        // microdescriptors.  For bridges, we can keep descriptors for a longer
+        // time.  In either case, we may be able to discard all but the most
+        // recent descriptor from each identity.
+        router_descs: Duration::days(5),
+        // This value is a compromise between saving bandwidth (by not having to
+        // re-download microdescs) and saving space (by not having to store too
+        // many microdescs).  It's the same one that C tor uses; experiments on
+        // 2022 data suggest that it winds up using only 1% more microdesc dl
+        // bandwidth than strictly necessary, at the cost of storing 40% more
+        // microdescriptors than will be immediately useful at any given time.
+        microdescs: Duration::days(7),
         authcerts: Duration::ZERO,
         consensuses: Duration::days(2),
     }
