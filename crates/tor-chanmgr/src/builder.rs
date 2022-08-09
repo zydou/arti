@@ -251,7 +251,10 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn duration_unused(&self) -> Option<Duration> {
         self.duration_unused()
     }
-    fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
+    fn reparameterize(
+        &mut self,
+        updates: Arc<ChannelPaddingInstructionsUpdates>,
+    ) -> tor_proto::Result<()> {
         self.reparameterize(updates)
     }
     fn engage_padding_activities(&self) {

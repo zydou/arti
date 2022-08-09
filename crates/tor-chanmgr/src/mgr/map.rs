@@ -18,7 +18,7 @@ use tor_proto::channel::ChannelPaddingInstructionsUpdates;
 use tor_proto::ChannelPaddingInstructions;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
-use void::{Void, ResultVoidExt as _};
+use void::{ResultVoidExt as _, Void};
 
 #[cfg(test)]
 mod padding_test;
@@ -168,7 +168,7 @@ impl NetParamsExtract {
     /// Internal function.
     fn pad_get(&self, reduced: bool, low_or_high: usize) -> IntegerMilliseconds<u32> {
         self.nf_ito[usize::from(reduced)][low_or_high]
-            .try_map(|v| Ok::<_,Void>(v.into()))
+            .try_map(|v| Ok::<_, Void>(v.into()))
             .void_unwrap()
     }
 }
@@ -601,7 +601,10 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reparameterize(&mut self, update: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
+        fn reparameterize(
+            &mut self,
+            update: Arc<ChannelPaddingInstructionsUpdates>,
+        ) -> tor_proto::Result<()> {
             self.params_update = Some(update);
             Ok(())
         }

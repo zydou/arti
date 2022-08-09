@@ -208,7 +208,10 @@ impl ChannelPaddingInstructions {
 
 impl<'c> Drop for ChannelPaddingInstructionsUpdatesBuilder<'c> {
     fn drop(&mut self) {
-        assert!(!self.drop_bomb, "ChannelPaddingInstructionsUpdatesBuilder dropped");
+        assert!(
+            !self.drop_bomb,
+            "ChannelPaddingInstructionsUpdatesBuilder dropped"
+        );
     }
 }
 

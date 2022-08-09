@@ -39,7 +39,10 @@ pub(crate) trait AbstractChannel: Clone {
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
-    fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()>;
+    fn reparameterize(
+        &mut self,
+        updates: Arc<ChannelPaddingInstructionsUpdates>,
+    ) -> tor_proto::Result<()>;
 
     /// Specify that this channel should do activities related to channel padding
     ///
@@ -389,7 +392,10 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
+        fn reparameterize(
+            &mut self,
+            updates: Arc<ChannelPaddingInstructionsUpdates>,
+        ) -> tor_proto::Result<()> {
             self.last_params = Some((*updates).clone());
             Ok(())
         }
