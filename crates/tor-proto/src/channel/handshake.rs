@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use tor_bytes::Reader;
-use tor_linkspec::{ChanTarget, HasRelayIds, OwnedChanTarget, RelayIds};
+use tor_linkspec::{ChanTarget, OwnedChanTarget, RelayIds};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -511,24 +511,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
 
         // We enforce that the relay proved that it has every ID that we wanted:
         // it may also have additional IDs that we didn't ask for.
-        for desired_id in peer.identities() {
-            let id_type = desired_id.id_type();
-            match actual_identity.identity(id_type) {
-                Some(actual) if actual == desired_id => {}
-                Some(_) => {
-                    return Err(Error::HandshakeProto(format!(
-                        "Peer {} id not as expected",
-                        id_type
-                    )))
-                }
-                None => {
-                    return Err(Error::HandshakeProto(format!(
-                        "Peer did not present a {} id.",
-                        id_type
-                    )))
-                }
-            }
-        }
+        match super::check_id_match_helper(&actual_identity, peer) {
+            Err(Error::ChanMismatch(msg)) => Err(Error::HandshakeProto(msg)),
+            other => other,
+        }?;
 
         // If we reach this point, the clock skew might be may now be considered
         // authenticated: The certificates are what we wanted, and everything
@@ -612,6 +598,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
 pub(super) mod test {
     #![allow(clippy::unwrap_used)]
     use hex_literal::hex;
+    use regex::Regex;
     use std::time::{Duration, SystemTime};
 
     use super::*;
@@ -942,10 +929,10 @@ pub(super) mod test {
         .err()
         .unwrap();
 
-        assert_eq!(
-            format!("{}", err),
-            "Handshake protocol violation: Peer Ed25519 id not as expected"
-        );
+        let re = Regex::new(
+            r"Identity .* does not match target ed25519:EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA",
+        ).unwrap();
+        assert!(re.is_match(&format!("{}", err)));
 
         let err = certs_test(
             certs.clone(),
@@ -958,10 +945,11 @@ pub(super) mod test {
         .err()
         .unwrap();
 
-        assert_eq!(
-            format!("{}", err),
-            "Handshake protocol violation: Peer RSA (legacy) id not as expected"
-        );
+        let re = Regex::new(
+            r"Identity .* does not match target \$9999999999999999999999999999999999999999",
+        )
+        .unwrap();
+        assert!(re.is_match(&format!("{}", err)));
 
         let err = certs_test(
             certs,

@@ -336,25 +336,7 @@ impl Channel {
     /// Return an error if this channel is somehow mismatched with the
     /// given target.
     pub fn check_match<T: HasRelayIds + ?Sized>(&self, target: &T) -> Result<()> {
-        for desired in target.identities() {
-            let id_type = desired.id_type();
-            match self.details.peer_id.identity(id_type) {
-                Some(actual) if actual == desired => {}
-                Some(actual) => {
-                    return Err(Error::ChanMismatch(format!(
-                        "Identity {} does not match target {}",
-                        actual, desired
-                    )));
-                }
-                None => {
-                    return Err(Error::ChanMismatch(format!(
-                        "Peer does not have {} identity",
-                        id_type
-                    )))
-                }
-            }
-        }
-        Ok(())
+        check_id_match_helper(&self.details.peer_id, target)
     }
 
     /// Return true if this channel is closed and therefore unusable.
@@ -467,6 +449,37 @@ impl Channel {
             .map_err(|_| ChannelClosed)?;
         Ok(())
     }
+}
+
+/// If there is any identity in `wanted_ident` that is not present in
+/// `my_ident`, return a ChanMismatch error.
+///
+/// This is a helper for [`Channel::check_match`] and
+/// [`UnverifiedChannel::check_internal`].
+fn check_id_match_helper<T, U>(my_ident: &T, wanted_ident: &U) -> Result<()>
+where
+    T: HasRelayIds + ?Sized,
+    U: HasRelayIds + ?Sized,
+{
+    for desired in wanted_ident.identities() {
+        let id_type = desired.id_type();
+        match my_ident.identity(id_type) {
+            Some(actual) if actual == desired => {}
+            Some(actual) => {
+                return Err(Error::ChanMismatch(format!(
+                    "Identity {} does not match target {}",
+                    actual, desired
+                )));
+            }
+            None => {
+                return Err(Error::ChanMismatch(format!(
+                    "Peer does not have {} identity",
+                    id_type
+                )))
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
