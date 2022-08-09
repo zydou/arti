@@ -46,17 +46,9 @@ pub(crate) trait AbstractChannel: Clone {
 
     /// Specify that this channel should do activities related to channel padding
     ///
-    /// Initially, the channel does nothing related to channel padding:
-    /// it neither sends any padding, nor sends any PADDING_NEGOTIATE cells.
+    /// See [`Channel::engage_padding_activities`]
     ///
-    /// After this function has been called, it will do both,
-    /// according to the parameters specified through `reparameterize`.
-    /// Note that this might include *disabling* padding
-    /// (for example, by sending a `PADDING_NEGOTIATE`).
-    ///
-    /// Idempotent.
-    ///
-    /// There is no way to undo the effect of this call.
+    /// [`Channel::engage_padding_activities`]: tor_proto::channel::Channel::engage_padding_activities
     fn engage_padding_activities(&self);
 }
 
