@@ -53,7 +53,8 @@ pub fn construct_netdir() -> PartialNetDir {
     construct_custom_netdir(simple_net_func).expect("failed to build default testing netdir")
 }
 
-/// As [`construct_custom_network()`], but return a [`PartialNetDir`].
+/// As [`construct_custom_network()`], but return a [`PartialNetDir`],
+/// and allow network parameter customisation.
 pub fn construct_custom_netdir_with_params<F, P, PK>(
     func: F,
     params: P,
