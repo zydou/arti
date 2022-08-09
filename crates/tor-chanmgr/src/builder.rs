@@ -10,7 +10,7 @@ use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
-use tor_proto::channel::params::ChannelsParamsUpdates;
+use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
 
 use async_trait::async_trait;
@@ -251,7 +251,7 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     fn duration_unused(&self) -> Option<Duration> {
         self.duration_unused()
     }
-    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+    fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
         self.reparameterize(updates)
     }
     fn engage_padding_activities(&self) {

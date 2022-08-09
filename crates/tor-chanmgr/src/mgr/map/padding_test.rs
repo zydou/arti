@@ -191,7 +191,7 @@ impl CaseContext {
 
         for (i, (got, exp)) in zip_eq(messages, expected).enumerate() {
             eprintln!("{i} {got:?} {exp:?}");
-            let got: ChannelsParamsUpdates = match got {
+            let got: ChannelPaddingInstructionsUpdates = match got {
                 Ok(CtrlMsg::ConfigUpdate(u)) => (*u).clone(),
                 _ => panic!("wrong message {got:?}"),
             };

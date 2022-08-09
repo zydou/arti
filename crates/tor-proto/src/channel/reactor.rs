@@ -79,7 +79,7 @@ pub enum CtrlMsg {
     ///
     /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
-    ConfigUpdate(Arc<ChannelsParamsUpdates>),
+    ConfigUpdate(Arc<ChannelPaddingInstructionsUpdates>),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -260,7 +260,7 @@ impl<S: SleepProvider> Reactor<S> {
                 self.update_disused_since();
             }
             CtrlMsg::ConfigUpdate(updates) => {
-                let ChannelsParamsUpdates {
+                let ChannelPaddingInstructionsUpdates {
                     // List all the fields explicitly; that way the compiler will warn us
                     // if one is added and we fail to handle it here.
                     padding_enable,

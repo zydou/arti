@@ -14,8 +14,8 @@ use tor_error::{internal, into_internal};
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
-use tor_proto::channel::ChannelsParamsUpdates;
-use tor_proto::ChannelsParams;
+use tor_proto::channel::ChannelPaddingInstructionsUpdates;
+use tor_proto::ChannelPaddingInstructions;
 use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
 use void::{Void, ResultVoidExt as _};
@@ -49,7 +49,7 @@ struct Inner<C: AbstractChannel> {
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
-    channels_params: ChannelsParams,
+    channels_params: ChannelPaddingInstructions,
 
     /// The configuration (from the config file or API caller)
     config: ChannelConfig,
@@ -224,7 +224,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         dormancy: Dormancy,
         netparams: &NetParameters,
     ) -> Self {
-        let mut channels_params = ChannelsParams::default();
+        let mut channels_params = ChannelPaddingInstructions::default();
         let netparams = NetParamsExtract::from(netparams);
         let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
@@ -277,7 +277,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         func: F,
     ) -> Result<Option<ChannelState<C>>>
     where
-        F: FnOnce(&ChannelsParams) -> Result<ChannelState<C>>,
+        F: FnOnce(&ChannelPaddingInstructions) -> Result<ChannelState<C>>,
     {
         let mut inner = self.inner.lock()?;
         let newval = func(&inner.channels_params)?;
@@ -442,15 +442,15 @@ impl<C: AbstractChannel> ChannelMap<C> {
 /// This is called in two places:
 ///
 ///  1. During chanmgr creation, it is called once to analyse the initial state
-///     and construct a corresponding ChannelsParams.
+///     and construct a corresponding ChannelPaddingInstructions.
 ///
 ///  2. During reconfiguration.
 fn parameterize(
-    channels_params: &mut ChannelsParams,
+    channels_params: &mut ChannelPaddingInstructions,
     config: &ChannelConfig,
     dormancy: Dormancy,
     netdir: &NetParamsExtract,
-) -> StdResult<Option<ChannelsParamsUpdates>, tor_error::Bug> {
+) -> StdResult<Option<ChannelPaddingInstructionsUpdates>, tor_error::Bug> {
     // Everything in this calculation applies to *all* channels, disregarding
     // channel usage.  Usage is handled downstream, in the channel frontend.
     // See the module doc in `crates/tor-proto/src/channel/padding.rs`.
@@ -573,7 +573,7 @@ mod test {
 
     use super::*;
     use std::sync::Arc;
-    use tor_proto::channel::params::ChannelsParamsUpdates;
+    use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
         ChannelMap::new(
@@ -588,7 +588,7 @@ mod test {
         ident: &'static str,
         usable: bool,
         unused_duration: Option<u64>,
-        params_update: Option<Arc<ChannelsParamsUpdates>>,
+        params_update: Option<Arc<ChannelPaddingInstructionsUpdates>>,
     }
     impl AbstractChannel for FakeChannel {
         type Ident = u8;
@@ -601,7 +601,7 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+        fn reparameterize(&mut self, update: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
             self.params_update = Some(update);
             Ok(())
         }
@@ -785,7 +785,7 @@ mod test {
             assert_eq!(
                 format!("{:?}", ch.params_update.take().unwrap()),
                 // evade field visibility by (ab)using Debug impl
-                "ChannelsParamsUpdates { padding_enable: None, \
+                "ChannelPaddingInstructionsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
                         low: IntegerMilliseconds { value: 1500 }, \
                         high: IntegerMilliseconds { value: 9500 } }), \

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
 use tor_netdir::params::NetParameters;
-use tor_proto::channel::params::ChannelsParamsUpdates;
+use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
 mod map;
 
@@ -35,11 +35,11 @@ pub(crate) trait AbstractChannel: Clone {
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
 
-    /// Reparameterise this channel according to the provided `ChannelsParamsUpdates`
+    /// Reparameterise this channel according to the provided `ChannelPaddingInstructionsUpdates`
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
-    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()>;
+    fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()>;
 
     /// Specify that this channel should do activities related to channel padding
     ///
@@ -369,7 +369,7 @@ mod test {
         mood: char,
         closing: Arc<AtomicBool>,
         detect_reuse: Arc<char>,
-        last_params: Option<ChannelsParamsUpdates>,
+        last_params: Option<ChannelPaddingInstructionsUpdates>,
     }
 
     impl PartialEq for FakeChannel {
@@ -389,7 +389,7 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> tor_proto::Result<()> {
+        fn reparameterize(&mut self, updates: Arc<ChannelPaddingInstructionsUpdates>) -> tor_proto::Result<()> {
             self.last_params = Some((*updates).clone());
             Ok(())
         }

@@ -179,7 +179,7 @@ struct MutableDetails {
 /// We store this here because:
 ///
 ///  1. It must be per-channel, because it depends on channel usage.  So it can't be in
-///     (for example) `ChannelsParamsUpdate`.
+///     (for example) `ChannelPaddingInstructionsUpdate`.
 ///
 ///  2. It could be in the channel manager's per-channel state but (for code flow reasons
 ///     there, really) at the point at which the channel manager concludes for a pending
@@ -196,7 +196,7 @@ struct MutableDetails {
 enum PaddingControlState {
     /// No usage of this channel, so far, implies sending or negotiating channel padding.
     ///
-    /// This means we do not send (have not sent) any `ChannelsParamsUpdates` to the reactor,
+    /// This means we do not send (have not sent) any `ChannelPaddingInstructionsUpdates` to the reactor,
     /// with the following consequences:
     ///
     ///  * We don't enable our own padding.
@@ -210,7 +210,7 @@ enum PaddingControlState {
         ///
         /// We keep this so that we can send it if and when
         /// this channel starts to be used in a way that implies (possibly) sending padding.
-        padding_params: ChannelsParamsUpdates,
+        padding_params: ChannelPaddingInstructionsUpdates,
     },
 
     /// Some usage of this channel implies possibly sending channel padding
@@ -459,7 +459,7 @@ impl Channel {
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(&mut self, params: Arc<ChannelsParamsUpdates>) -> Result<()> {
+    pub fn reparameterize(&mut self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
         let mut mutable = self
             .details
             .mutable
