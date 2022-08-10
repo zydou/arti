@@ -339,6 +339,11 @@ pub trait NetDirProvider: UpcastArcNetDirProvider + Send + Sync {
     /// this stream yields an event, all you can assume is that the event has
     /// occurred at least once.
     fn events(&self) -> BoxStream<'static, DirEvent>;
+
+    /// Return the latest network parameters.
+    ///
+    /// If we have no directory, return a reasonable set of defaults.
+    fn params(&self) -> Arc<dyn AsRef<NetParameters>>;
 }
 
 impl<T> NetDirProvider for Arc<T>
@@ -355,6 +360,10 @@ where
 
     fn events(&self) -> BoxStream<'static, DirEvent> {
         self.deref().events()
+    }
+
+    fn params(&self) -> Arc<dyn AsRef<NetParameters>> {
+        self.deref().params()
     }
 }
 
@@ -381,6 +390,12 @@ where
         Self: 'a,
     {
         self
+    }
+}
+
+impl AsRef<NetParameters> for NetDir {
+    fn as_ref(&self) -> &NetParameters {
+        self.params()
     }
 }
 

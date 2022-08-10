@@ -2,8 +2,8 @@
 
 use super::{KeyGenerator, RelayHandshakeError, RelayHandshakeResult};
 use crate::util::ct;
-use crate::{Error, Result, SecretBytes};
-use tor_bytes::{EncodeResult, Reader, Writer};
+use crate::{Error, Result};
+use tor_bytes::{EncodeResult, Reader, SecretBuf, Writer};
 use tor_error::into_internal;
 use tor_llcrypto::d;
 use tor_llcrypto::pk::curve25519::*;
@@ -11,7 +11,6 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 
 use digest::Mac;
 use rand_core::{CryptoRng, RngCore};
-use zeroize::Zeroizing;
 
 /// Client side of the Ntor handshake.
 pub(crate) struct NtorClient;
@@ -104,18 +103,18 @@ pub(crate) struct NtorHandshakeState {
 pub(crate) struct NtorHkdfKeyGenerator {
     /// Secret key information derived from the handshake, used as input
     /// to HKDF
-    seed: SecretBytes,
+    seed: SecretBuf,
 }
 
 impl NtorHkdfKeyGenerator {
     /// Create a new key generator to expand a given seed
-    pub(crate) fn new(seed: SecretBytes) -> Self {
+    pub(crate) fn new(seed: SecretBuf) -> Self {
         NtorHkdfKeyGenerator { seed }
     }
 }
 
 impl KeyGenerator for NtorHkdfKeyGenerator {
-    fn expand(self, keylen: usize) -> Result<SecretBytes> {
+    fn expand(self, keylen: usize) -> Result<SecretBuf> {
         let ntor1_key = &b"ntor-curve25519-sha256-1:key_extract"[..];
         let ntor1_expand = &b"ntor-curve25519-sha256-1:key_expand"[..];
         use crate::crypto::ll::kdf::{Kdf, Ntor1Kdf};
@@ -211,7 +210,7 @@ fn ntor_derive(
     let ntor1_verify = &b"ntor-curve25519-sha256-1:verify"[..];
     let server_string = &b"Server"[..];
 
-    let mut secret_input = Zeroizing::new(Vec::new());
+    let mut secret_input = SecretBuf::new();
     secret_input.write(xy)?; // EXP(X,y)
     secret_input.write(xb)?; // EXP(X,b)
     secret_input.write(&server_pk.id)?; // ID
@@ -228,7 +227,7 @@ fn ntor_derive(
         m.update(&secret_input[..]);
         m.finalize()
     };
-    let mut auth_input: SecretBytes = Zeroizing::new(Vec::new());
+    let mut auth_input = Vec::new();
     auth_input.write_and_consume(verify)?; // verify
     auth_input.write(&server_pk.id)?; // ID
     auth_input.write(&server_pk.pk)?; // B

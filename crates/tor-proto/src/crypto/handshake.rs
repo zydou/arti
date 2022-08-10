@@ -17,9 +17,10 @@ pub(crate) mod ntor;
 #[cfg(feature = "ntor_v3")]
 pub(crate) mod ntor_v3;
 
-use crate::{Result, SecretBytes};
+use crate::Result;
 //use zeroize::Zeroizing;
 use rand_core::{CryptoRng, RngCore};
+use tor_bytes::SecretBuf;
 
 /// A ClientHandshake is used to generate a client onionskin and
 /// handle a relay onionskin.
@@ -73,7 +74,7 @@ pub(crate) trait ServerHandshake {
 /// It can only be used once.
 pub(crate) trait KeyGenerator {
     /// Consume the key
-    fn expand(self, keylen: usize) -> Result<SecretBytes>;
+    fn expand(self, keylen: usize) -> Result<SecretBuf>;
 }
 
 /// Generates keys based on the KDF-TOR function.
@@ -81,18 +82,18 @@ pub(crate) trait KeyGenerator {
 /// This is deprecated and shouldn't be used for new keys.
 pub(crate) struct TapKeyGenerator {
     /// Seed for the TAP KDF.
-    seed: SecretBytes,
+    seed: SecretBuf,
 }
 
 impl TapKeyGenerator {
     /// Create a key generator based on a provided seed
-    pub(crate) fn new(seed: SecretBytes) -> Self {
+    pub(crate) fn new(seed: SecretBuf) -> Self {
         TapKeyGenerator { seed }
     }
 }
 
 impl KeyGenerator for TapKeyGenerator {
-    fn expand(self, keylen: usize) -> Result<SecretBytes> {
+    fn expand(self, keylen: usize) -> Result<SecretBuf> {
         use crate::crypto::ll::kdf::{Kdf, LegacyKdf};
         LegacyKdf::new(1).derive(&self.seed[..], keylen)
     }
@@ -101,19 +102,19 @@ impl KeyGenerator for TapKeyGenerator {
 /// Generates keys based on SHAKE-256.
 pub(crate) struct ShakeKeyGenerator {
     /// Seed for the key generator
-    seed: SecretBytes,
+    seed: SecretBuf,
 }
 
 impl ShakeKeyGenerator {
     /// Create a key generator based on a provided seed
     #[allow(dead_code)] // We'll construct these for v3 onion services
-    pub(crate) fn new(seed: SecretBytes) -> Self {
+    pub(crate) fn new(seed: SecretBuf) -> Self {
         ShakeKeyGenerator { seed }
     }
 }
 
 impl KeyGenerator for ShakeKeyGenerator {
-    fn expand(self, keylen: usize) -> Result<SecretBytes> {
+    fn expand(self, keylen: usize) -> Result<SecretBuf> {
         use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
         ShakeKdf::new().derive(&self.seed[..], keylen)
     }

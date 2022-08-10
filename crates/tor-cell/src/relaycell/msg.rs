@@ -66,9 +66,12 @@ pub enum RelayMsg {
     #[cfg(feature = "experimental-udp")]
     Datagram(udp::Datagram),
     // No hs for now.
-    #[cfg(feature = "onion-service")]
     /// Establish Introduction
+    #[cfg(feature = "onion-service")]
     EstablishIntro(onion_service::EstablishIntro),
+    /// Establish Rendezvous
+    #[cfg(feature = "onion-service")]
+    EstablishRendezvous(onion_service::EstablishRendezvous),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
@@ -118,6 +121,8 @@ impl RelayMsg {
             Datagram(_) => RelayCmd::DATAGRAM,
             #[cfg(feature = "onion-service")]
             EstablishIntro(_) => RelayCmd::ESTABLISH_INTRO,
+            #[cfg(feature = "onion-service")]
+            EstablishRendezvous(_) => RelayCmd::ESTABLISH_RENDEZVOUS,
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -151,6 +156,10 @@ impl RelayMsg {
             RelayCmd::ESTABLISH_INTRO => {
                 RelayMsg::EstablishIntro(onion_service::EstablishIntro::decode_from_reader(r)?)
             }
+            #[cfg(feature = "onion-service")]
+            RelayCmd::ESTABLISH_RENDEZVOUS => RelayMsg::EstablishRendezvous(
+                onion_service::EstablishRendezvous::decode_from_reader(r)?,
+            ),
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
@@ -181,6 +190,8 @@ impl RelayMsg {
             Datagram(b) => b.encode_onto(w),
             #[cfg(feature = "onion-service")]
             EstablishIntro(b) => b.encode_onto(w),
+            #[cfg(feature = "onion-service")]
+            EstablishRendezvous(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
     }

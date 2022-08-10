@@ -1,0 +1,2 @@
+MODIFIED: New SecretBuf API.
+

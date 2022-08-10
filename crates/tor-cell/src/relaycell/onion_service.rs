@@ -71,3 +71,33 @@ impl msg::Body for EstablishIntro {
         Ok(())
     }
 }
+
+/// A message sent from client to rendezvous point.
+#[derive(Debug, Clone)]
+pub struct EstablishRendezvous {
+    /// A rendezvous cookie is an arbitrary 20-byte value,
+    /// chosen randomly by the client.
+    cookie: [u8; EstablishRendezvous::COOKIE_LEN],
+}
+impl EstablishRendezvous {
+    /// The only acceptable length of a rendezvous cookie.
+    pub const COOKIE_LEN: usize = 20;
+
+    /// Construct a new establish rendezvous cell.
+    pub fn new(cookie: [u8; Self::COOKIE_LEN]) -> Self {
+        Self { cookie }
+    }
+}
+impl msg::Body for EstablishRendezvous {
+    fn into_message(self) -> msg::RelayMsg {
+        msg::RelayMsg::EstablishRendezvous(self)
+    }
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        let cookie = r.extract()?;
+        r.take_rest();
+        Ok(Self { cookie })
+    }
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+        w.write(&self.cookie)
+    }
+}

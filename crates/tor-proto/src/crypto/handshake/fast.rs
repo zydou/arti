@@ -7,6 +7,7 @@ use crate::util::ct::bytes_eq;
 use crate::{Error, Result};
 
 use rand::{CryptoRng, RngCore};
+use tor_bytes::SecretBuf;
 use tor_error::into_internal;
 
 /// Number of bytes used for a "CREATE_FAST" handshake by the initiator.
@@ -21,6 +22,9 @@ pub(crate) struct CreateFastClientState([u8; FAST_C_HANDSHAKE_LEN]);
 ///
 /// See module documentation; you probably don't want to use this.
 pub(crate) struct CreateFastClient;
+
+/// How many bytes does this handshake use for its input seed?
+const SECRET_INPUT_LEN: usize = 40;
 
 impl super::ClientHandshake for CreateFastClient {
     type KeyType = ();
@@ -41,9 +45,13 @@ impl super::ClientHandshake for CreateFastClient {
         if msg.len() != FAST_S_HANDSHAKE_LEN {
             return Err(Error::BadCircHandshakeAuth);
         }
-        let mut inp = Vec::new();
-        inp.extend(&state.0[..]);
-        inp.extend(&msg[0..20]);
+        // There is not necessarily much point here (and below) in using a
+        // SecretBuf, since the data at issue are already in a cell that
+        // _wasn't_ marked with Zeroize.  Still, for consistency, we use it
+        // here.
+        let mut inp = SecretBuf::with_capacity(SECRET_INPUT_LEN);
+        inp.extend_from_slice(&state.0[..]);
+        inp.extend_from_slice(&msg[0..20]);
 
         let kh_expect = LegacyKdf::new(0).derive(&inp[..], 20)?;
 
@@ -51,7 +59,7 @@ impl super::ClientHandshake for CreateFastClient {
             return Err(Error::BadCircHandshakeAuth);
         }
 
-        Ok(super::TapKeyGenerator::new(inp.into()))
+        Ok(super::TapKeyGenerator::new(inp))
     }
 }
 
@@ -76,15 +84,15 @@ impl super::ServerHandshake for CreateFastServer {
         let mut reply = vec![0_u8; FAST_S_HANDSHAKE_LEN];
         rng.fill_bytes(&mut reply[0..20]);
 
-        let mut inp = Vec::new();
-        inp.extend(msg);
-        inp.extend(&reply[0..20]);
+        let mut inp = SecretBuf::with_capacity(SECRET_INPUT_LEN);
+        inp.extend_from_slice(msg);
+        inp.extend_from_slice(&reply[0..20]);
         let kh = LegacyKdf::new(0)
             .derive(&inp[..], 20)
             .map_err(into_internal!("Can't expand key"))?;
         reply[20..].copy_from_slice(&kh);
 
-        Ok((super::TapKeyGenerator::new(inp.into()), reply))
+        Ok((super::TapKeyGenerator::new(inp), reply))
     }
 }
 

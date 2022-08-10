@@ -129,9 +129,6 @@ pub use util::skew::ClockSkew;
 
 pub use channel::params::ChannelsParams;
 
-/// A vector of bytes that gets cleared when it's dropped.
-type SecretBytes = zeroize::Zeroizing<Vec<u8>>;
-
 /// A Result type for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
