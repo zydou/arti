@@ -53,10 +53,8 @@
 //!
 //! # Design notes
 //!
-//! This crate's APIs are structured to explicitly avoid any usage of
-//! an asynchronous runtime: It doesn't launch tasks or include
-//! timeouts.  Those are done at a higher level in Arti, via the
-//! [`tor-rtcompat`] crate.
+//! This crate's APIs are structured to limit usage of an asynchronous runtime:
+//! It doesn't launch tasks or create timers except when necessary.
 //!
 //! To the extent possible, this crate avoids doing public-key
 //! cryptography in the same functions it uses for network activity.
