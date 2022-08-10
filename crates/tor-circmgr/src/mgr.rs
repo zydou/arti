@@ -1441,6 +1441,7 @@ mod test {
     use std::sync::atomic::{self, AtomicUsize};
     use tor_basic_utils::iter::FilterCount;
     use tor_guardmgr::fallback::FallbackList;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
     use tor_rtmock::MockSleepRuntime;
@@ -2114,9 +2115,9 @@ mod test {
         // Nodes with ID 0x0a through 0x13 and 0x1e through 0x27 are
         // exits.  Odd-numbered ones allow only ports 80 and 443;
         // even-numbered ones allow all ports.
-        let id_noexit = [0x05; 32].into();
-        let id_webexit = [0x11; 32].into();
-        let id_fullexit = [0x20; 32].into();
+        let id_noexit: Ed25519Identity = [0x05; 32].into();
+        let id_webexit: Ed25519Identity = [0x11; 32].into();
+        let id_fullexit: Ed25519Identity = [0x20; 32].into();
 
         let not_exit = network.by_id(&id_noexit).unwrap();
         let web_exit = network.by_id(&id_webexit).unwrap();

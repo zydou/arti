@@ -7,6 +7,7 @@ use std::time::SystemTime;
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{bad_api_usage, internal};
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
+use tor_linkspec::RelayIdSet;
 use tor_netdir::{NetDir, Relay, SubnetConfig, WeightRole};
 use tor_rtcompat::Runtime;
 
@@ -165,7 +166,14 @@ impl<'a> ExitPathBuilder<'a> {
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
                 guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
-                    let mut family = std::collections::HashSet::new();
+                    // TODO(nickm): Our way of building a family here is
+                    // somewhat questionable. We're only adding the ed25519
+                    // identities of the exit relay and its family to the
+                    // RelayId set.  That's fine for now, since we will only use
+                    // relays at this point if they have a known Ed25519
+                    // identity.  But if in the future the ed25519 identity
+                    // becomes optional, this will need to change.
+                    let mut family = RelayIdSet::new();
                     family.insert(*exit_relay.id());
                     // TODO(nickm): See "limitations" note on `known_family_members`.
                     family.extend(netdir.known_family_members(exit_relay).map(|r| *r.id()));
@@ -255,7 +263,8 @@ mod test {
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::{HasRelayIds, RelayIds};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
 
@@ -268,9 +277,9 @@ mod test {
         let r2 = &relays[1];
         let r3 = &relays[2];
 
-        assert!(r1.ed_identity() != r2.ed_identity());
-        assert!(r1.ed_identity() != r3.ed_identity());
-        assert!(r2.ed_identity() != r3.ed_identity());
+        assert!(!r1.same_relay_ids(r2));
+        assert!(!r1.same_relay_ids(r3));
+        assert!(!r2.same_relay_ids(r3));
 
         let subnet_config = SubnetConfig::default();
         assert!(relays_can_share_circuit(r1, r2, subnet_config));
@@ -304,7 +313,7 @@ mod test {
             }
         }
 
-        let chosen = netdir.by_id(&[0x20; 32].into()).unwrap();
+        let chosen = netdir.by_id(&Ed25519Identity::from([0x20; 32])).unwrap();
 
         let config = PathConfig::default();
         for _ in 0..1000 {
@@ -315,7 +324,7 @@ mod test {
             if let TorPathInner::Path(p) = path.inner {
                 assert_exit_path_ok(&p[..]);
                 let exit = &p[2];
-                assert_eq!(exit.ed_identity(), chosen.ed_identity());
+                assert!(exit.same_relay_ids(&chosen));
             } else {
                 panic!("Generated the wrong kind of path");
             }
@@ -423,9 +432,9 @@ mod test {
                 assert_same_path_when_owned(&path);
                 if let TorPathInner::Path(p) = path.inner {
                     assert_exit_path_ok(&p[..]);
-                    distinct_guards.insert(p[0].ed_identity().clone());
-                    distinct_mid.insert(p[1].ed_identity().clone());
-                    distinct_exit.insert(p[2].ed_identity().clone());
+                    distinct_guards.insert(RelayIds::from_relay_ids(&p[0]));
+                    distinct_mid.insert(RelayIds::from_relay_ids(&p[1]));
+                    distinct_exit.insert(RelayIds::from_relay_ids(&p[2]));
                 } else {
                     panic!("Wrong kind of path");
                 }
@@ -442,9 +451,9 @@ mod test {
             assert_ne!(distinct_exit.len(), 1);
 
             let guard_relay = netdir
-                .by_id(distinct_guards.iter().next().unwrap())
+                .by_ids(distinct_guards.iter().next().unwrap())
                 .unwrap();
-            let exit_relay = netdir.by_id(distinct_exit.iter().next().unwrap()).unwrap();
+            let exit_relay = netdir.by_ids(distinct_exit.iter().next().unwrap()).unwrap();
 
             // Now we'll try a forced exit that is not the same as our
             // actual guard.

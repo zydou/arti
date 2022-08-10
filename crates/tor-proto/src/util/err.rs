@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use thiserror::Error;
 use tor_cell::relaycell::msg::EndReason;
 use tor_error::{ErrorKind, HasKind};
+use tor_linkspec::RelayIdType;
 
 /// An error type for the tor-proto crate.
 ///
@@ -134,6 +135,10 @@ pub enum Error {
     /// Remote DNS lookup failed.
     #[error("Remote resolve failed")]
     ResolveError(#[source] ResolveError),
+    /// We tried to do something with a that we couldn't, because of an identity key type
+    /// that the relay doesn't have.
+    #[error("Relay has no {0} identity")]
+    MissingId(RelayIdType),
 }
 
 /// Error which indicates that the channel was closed.
@@ -222,7 +227,8 @@ impl From<Error> for std::io::Error {
             | CellEncodeErr { .. }
             | EncodeErr { .. }
             | ChanMismatch(_)
-            | StreamProto(_) => ErrorKind::InvalidData,
+            | StreamProto(_)
+            | MissingId(_) => ErrorKind::InvalidData,
 
             Bug(ref e) if e.kind() == tor_error::ErrorKind::BadApiUsage => ErrorKind::InvalidData,
 
@@ -269,6 +275,7 @@ impl HasKind for Error {
             E::ResolveError(ResolveError::Nontransient) => EK::RemoteHostNotFound,
             E::ResolveError(ResolveError::Transient) => EK::RemoteHostResolutionFailed,
             E::ResolveError(ResolveError::Unrecognized) => EK::RemoteHostResolutionFailed,
+            E::MissingId(_) => EK::BadApiUsage,
             E::Bug(e) => e.kind(),
         }
     }

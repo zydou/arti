@@ -137,17 +137,17 @@ use educe::Educe;
 use futures::channel::mpsc;
 use futures::task::SpawnExt;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
+use tor_linkspec::{RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
-use tor_llcrypto::pk;
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
@@ -573,15 +573,13 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with a guard, something described
     /// in `external_failure` went wrong with it.
-    pub fn note_external_failure(
-        &self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
-        external_failure: ExternalActivity,
-    ) {
+    pub fn note_external_failure<T>(&self, identity: &T, external_failure: ExternalActivity)
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        let ids = inner.lookup_ids(ed_identity, rsa_identity);
+        let ids = inner.lookup_ids(identity);
         for id in ids {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
@@ -602,20 +600,13 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Record that _after_ we built a circuit with a guard, some activity
     /// described in `external_activity` was successful with it.
-    pub fn note_external_success(
-        &self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
-        external_activity: ExternalActivity,
-    ) {
+    pub fn note_external_success<T>(&self, identity: &T, external_activity: ExternalActivity)
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let mut inner = self.inner.lock().expect("Poisoned lock");
 
-        inner.record_external_success(
-            ed_identity,
-            rsa_identity,
-            external_activity,
-            self.runtime.wallclock(),
-        );
+        inner.record_external_success(identity, external_activity, self.runtime.wallclock());
     }
 
     /// Return a stream of events about our estimated clock skew; these events
@@ -978,14 +969,15 @@ impl GuardMgrInner {
     ///
     /// (This has to be a separate function so that we can borrow params while
     /// we have `mut self` borrowed.)
-    fn record_external_success(
+    fn record_external_success<T>(
         &mut self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
+        identity: &T,
         external_activity: ExternalActivity,
         now: SystemTime,
-    ) {
-        for id in self.lookup_ids(ed_identity, rsa_identity) {
+    ) where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
+        for id in self.lookup_ids(identity) {
             match &id.0 {
                 FirstHopIdInner::Guard(id) => {
                     self.guards.active_guards_mut().record_success(
@@ -1100,19 +1092,18 @@ impl GuardMgrInner {
     /// doesn't know whether its circuit came from a guard or a fallback.  To
     /// solve that, we'll need CircMgr to record and report which one it was
     /// using, which will take some more plumbing.
-    fn lookup_ids(
-        &self,
-        ed_identity: &pk::ed25519::Ed25519Identity,
-        rsa_identity: &pk::rsa::RsaIdentity,
-    ) -> Vec<FirstHopId> {
+    fn lookup_ids<T>(&self, identity: &T) -> Vec<FirstHopId>
+    where
+        T: tor_linkspec::HasRelayIds + ?Sized,
+    {
         let mut vec = Vec::with_capacity(2);
 
-        let id = ids::GuardId::new(*ed_identity, *rsa_identity);
+        let id = ids::GuardId::from_relay_ids(identity);
         if self.guards.active_guards().contains(&id) {
             vec.push(id.into());
         }
 
-        let id = ids::FallbackId::new(*ed_identity, *rsa_identity);
+        let id = ids::FallbackId::from_relay_ids(identity);
         if self.fallbacks.contains(&id) {
             vec.push(id.into());
         }
@@ -1318,18 +1309,21 @@ impl FirstHop {
     }
 }
 
-// This is somewhat redundant with the implementation in crate::guard::Guard.
-impl tor_linkspec::ChanTarget for FirstHop {
+// This is somewhat redundant with the implementations in crate::guard::Guard.
+impl tor_linkspec::HasAddrs for FirstHop {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }
-    fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-        &self.id.as_ref().ed25519
-    }
-    fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-        &self.id.as_ref().rsa
+}
+impl tor_linkspec::HasRelayIds for FirstHop {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.id.identity(key_type)
     }
 }
+impl tor_linkspec::ChanTarget for FirstHop {}
 
 /// The purpose for which we plan to use a guard.
 ///
@@ -1404,16 +1398,17 @@ impl GuardUsageBuilder {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum GuardRestriction {
-    /// Don't pick a guard with the provided Ed25519 identity.
-    AvoidId(pk::ed25519::Ed25519Identity),
+    /// Don't pick a guard with the provided identity.
+    AvoidId(RelayId),
     /// Don't pick a guard with any of the provided Ed25519 identities.
-    AvoidAllIds(HashSet<pk::ed25519::Ed25519Identity>),
+    AvoidAllIds(RelayIdSet),
 }
 
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_linkspec::{HasAddrs, HasRelayIds};
     use tor_persist::TestingStateMgr;
     use tor_rtcompat::test_with_all_runtimes;
 
@@ -1536,8 +1531,6 @@ mod test {
     #[test]
     fn filtering_basics() {
         test_with_all_runtimes!(|rt| async move {
-            use tor_linkspec::ChanTarget;
-
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
             let filter = {
@@ -1558,7 +1551,6 @@ mod test {
 
     #[test]
     fn external_status() {
-        use tor_linkspec::ChanTarget;
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let data_usage = GuardUsage::default();
@@ -1579,11 +1571,7 @@ mod test {
             mon.succeeded();
 
             // Record that this guard gave us a bad directory object.
-            guardmgr.note_external_failure(
-                guard.ed_identity(),
-                guard.rsa_identity(),
-                ExternalActivity::DirCache,
-            );
+            guardmgr.note_external_failure(&guard, ExternalActivity::DirCache);
 
             // We ask for another guard, for data usage.  We should get the same
             // one as last time, since the director failure doesn't mean this
@@ -1601,11 +1589,7 @@ mod test {
             mon.succeeded();
 
             // Now record a success for for directory usage.
-            guardmgr.note_external_success(
-                guard.ed_identity(),
-                guard.rsa_identity(),
-                ExternalActivity::DirCache,
-            );
+            guardmgr.note_external_success(&guard, ExternalActivity::DirCache);
 
             // Now that the guard is working as a cache, asking for it should get us the same guard.
             let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage, Some(&netdir)).unwrap();

@@ -12,6 +12,12 @@ categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [dependencies]
+base64ct = "1.5.1"
+derive_more = "0.99"
+hex = "0.4"
+serde = { version = "1.0.103", features = ["derive"] }
+strum = { version = "0.24", features = ["derive"] }
+thiserror = "1"
 tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }

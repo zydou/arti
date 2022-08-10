@@ -736,11 +736,10 @@ impl<R: Runtime> CircMgr<R> {
         target: &impl ChanTarget,
         external_failure: ExternalActivity,
     ) {
-        self.mgr.peek_builder().guardmgr().note_external_failure(
-            target.ed_identity(),
-            target.rsa_identity(),
-            external_failure,
-        );
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_failure(target, external_failure);
     }
 
     /// Record that a success occurred on a circuit with a given guard, in a way
@@ -750,11 +749,10 @@ impl<R: Runtime> CircMgr<R> {
         target: &impl ChanTarget,
         external_activity: ExternalActivity,
     ) {
-        self.mgr.peek_builder().guardmgr().note_external_success(
-            target.ed_identity(),
-            target.rsa_identity(),
-            external_activity,
-        );
+        self.mgr
+            .peek_builder()
+            .guardmgr()
+            .note_external_success(target, external_activity);
     }
 
     /// Return a stream of events about our estimated clock skew; these events

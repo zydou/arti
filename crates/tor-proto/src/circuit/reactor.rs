@@ -35,7 +35,7 @@ use crate::crypto::handshake::ntor::{NtorClient, NtorPublicKey};
 use crate::crypto::handshake::{ClientHandshake, KeyGenerator};
 use tor_cell::chancell;
 use tor_cell::chancell::{ChanCell, CircId};
-use tor_linkspec::{LinkSpec, OwnedChanTarget};
+use tor_linkspec::{LinkSpec, OwnedChanTarget, RelayIds};
 use tor_llcrypto::pk;
 use tracing::{debug, trace, warn};
 
@@ -781,21 +781,8 @@ impl Reactor {
         params: &CircParameters,
     ) -> Result<()> {
         // Exit now if we have an Ed25519 or RSA identity mismatch.
-        // FIXME(eta): this is copypasta from Channel::check_match!
-        if self.channel.peer_rsa_id() != &pubkey.id {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.channel.peer_rsa_id(),
-                pubkey.id,
-            )));
-        }
-        if self.channel.peer_ed25519_id() != &ed_identity {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.channel.peer_ed25519_id(),
-                ed_identity
-            )));
-        }
+        let target = RelayIds::new(ed_identity, pubkey.id);
+        self.channel.check_match(&target)?;
 
         let wrap = Create2Wrap {
             handshake_type: 0x0002, // ntor

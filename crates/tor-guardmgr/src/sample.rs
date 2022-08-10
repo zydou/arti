@@ -258,7 +258,7 @@ impl GuardSet {
     fn contains_relay(&self, relay: &Relay<'_>) -> bool {
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
-        let id = GuardId::from_chan_target(relay);
+        let id = GuardId::from_relay_ids(relay);
         self.contains(&id)
     }
 
@@ -404,7 +404,7 @@ impl GuardSet {
     ///
     /// Does nothing if it is already a guard.
     fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
-        let id = GuardId::from_chan_target(relay);
+        let id = GuardId::from_relay_ids(relay);
         if self.guards.contains_key(&id) {
             return;
         }
@@ -883,6 +883,7 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
@@ -1315,8 +1316,9 @@ mod test {
         assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
 
         use tor_netdir::testnet;
-        let netdir2 = testnet::construct_custom_netdir(|idx, bld| {
-            if idx == p_id1.0.ed25519.as_bytes()[0] as usize {
+        let netdir2 = testnet::construct_custom_netdir(|_idx, bld| {
+            let md_so_far = bld.md.testing_md().expect("Couldn't build md?");
+            if &p_id1.0.identity(RelayIdType::Ed25519).unwrap() == md_so_far.ed25519_id() {
                 bld.omit_md = true;
             }
         })

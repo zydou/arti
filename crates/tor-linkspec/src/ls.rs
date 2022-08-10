@@ -9,6 +9,8 @@ use tor_bytes::{EncodeResult, Error, Readable, Reader, Result, Writeable, Writer
 use tor_llcrypto::pk::ed25519;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
+use crate::RelayId;
+
 /// A piece of information about a relay and how to connect to it.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +131,14 @@ impl From<ed25519::Ed25519Identity> for LinkSpec {
 impl From<ed25519::PublicKey> for LinkSpec {
     fn from(pk: ed25519::PublicKey) -> Self {
         LinkSpec::Ed25519Id(pk.into())
+    }
+}
+impl From<RelayId> for LinkSpec {
+    fn from(id: RelayId) -> Self {
+        match id {
+            RelayId::Ed25519(key) => LinkSpec::Ed25519Id(key),
+            RelayId::Rsa(key) => LinkSpec::RsaId(key),
+        }
     }
 }
 

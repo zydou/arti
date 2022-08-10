@@ -77,9 +77,7 @@ use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_cell::chancell::{msg, ChanCell, CircId};
 use tor_error::internal;
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
-use tor_llcrypto::pk::ed25519::Ed25519Identity;
-use tor_llcrypto::pk::rsa::RsaIdentity;
+use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
 
 use asynchronous_codec as futures_codec;
@@ -306,16 +304,6 @@ impl Channel {
         self.details.unique_id
     }
 
-    /// Return the Ed25519 identity for the peer of this channel.
-    pub fn peer_ed25519_id(&self) -> &Ed25519Identity {
-        self.details.peer_id.ed_identity()
-    }
-
-    /// Return the (legacy) RSA identity for the peer of this channel.
-    pub fn peer_rsa_id(&self) -> &RsaIdentity {
-        self.details.peer_id.rsa_identity()
-    }
-
     /// Return an OwnedChanTarget representing the actual handshake used to
     /// create this channel.
     pub fn target(&self) -> &OwnedChanTarget {
@@ -347,24 +335,8 @@ impl Channel {
 
     /// Return an error if this channel is somehow mismatched with the
     /// given target.
-    pub fn check_match<T: ChanTarget + ?Sized>(&self, target: &T) -> Result<()> {
-        if self.peer_ed25519_id() != target.ed_identity() {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.peer_ed25519_id(),
-                target.ed_identity()
-            )));
-        }
-
-        if self.peer_rsa_id() != target.rsa_identity() {
-            return Err(Error::ChanMismatch(format!(
-                "Identity {} does not match target {}",
-                self.peer_rsa_id(),
-                target.rsa_identity()
-            )));
-        }
-
-        Ok(())
+    pub fn check_match<T: HasRelayIds + ?Sized>(&self, target: &T) -> Result<()> {
+        check_id_match_helper(&self.details.peer_id, target)
     }
 
     /// Return true if this channel is closed and therefore unusable.
@@ -479,6 +451,37 @@ impl Channel {
     }
 }
 
+/// If there is any identity in `wanted_ident` that is not present in
+/// `my_ident`, return a ChanMismatch error.
+///
+/// This is a helper for [`Channel::check_match`] and
+/// [`UnverifiedChannel::check_internal`].
+fn check_id_match_helper<T, U>(my_ident: &T, wanted_ident: &U) -> Result<()>
+where
+    T: HasRelayIds + ?Sized,
+    U: HasRelayIds + ?Sized,
+{
+    for desired in wanted_ident.identities() {
+        let id_type = desired.id_type();
+        match my_ident.identity(id_type) {
+            Some(actual) if actual == desired => {}
+            Some(actual) => {
+                return Err(Error::ChanMismatch(format!(
+                    "Identity {} does not match target {}",
+                    actual, desired
+                )));
+            }
+            None => {
+                return Err(Error::ChanMismatch(format!(
+                    "Peer does not have {} identity",
+                    id_type
+                )))
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // Most of this module is tested via tests that also check on the
@@ -551,38 +554,11 @@ pub(crate) mod test {
 
     #[test]
     fn check_match() {
-        use std::net::SocketAddr;
         let chan = fake_channel(fake_channel_details());
 
-        struct ChanT {
-            ed_id: Ed25519Identity,
-            rsa_id: RsaIdentity,
-        }
-
-        impl ChanTarget for ChanT {
-            fn ed_identity(&self) -> &Ed25519Identity {
-                &self.ed_id
-            }
-            fn rsa_identity(&self) -> &RsaIdentity {
-                &self.rsa_id
-            }
-            fn addrs(&self) -> &[SocketAddr] {
-                &[]
-            }
-        }
-
-        let t1 = ChanT {
-            ed_id: [6; 32].into(),
-            rsa_id: [10; 20].into(),
-        };
-        let t2 = ChanT {
-            ed_id: [0x1; 32].into(),
-            rsa_id: [0x3; 20].into(),
-        };
-        let t3 = ChanT {
-            ed_id: [0x3; 32].into(),
-            rsa_id: [0x2; 20].into(),
-        };
+        let t1 = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
+        let t2 = OwnedChanTarget::new(vec![], [0x1; 32].into(), [0x3; 20].into());
+        let t3 = OwnedChanTarget::new(vec![], [0x3; 32].into(), [0x2; 20].into());
 
         assert!(chan.check_match(&t1).is_ok());
         assert!(chan.check_match(&t2).is_err());

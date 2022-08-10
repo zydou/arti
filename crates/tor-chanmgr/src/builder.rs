@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 use std::result::Result as StdResult;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_proto::channel::params::ChannelsParamsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
@@ -242,7 +242,9 @@ impl<R: Runtime> ChanBuilder<R> {
 impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
     type Ident = pk::ed25519::Ed25519Identity;
     fn ident(&self) -> &Self::Ident {
-        self.peer_ed25519_id()
+        self.target()
+            .ed_identity()
+            .expect("This channel had an Ed25519 identity when we created it, but now it doesn't!?")
     }
     fn is_usable(&self) -> bool {
         !self.is_closing()

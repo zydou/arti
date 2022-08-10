@@ -140,21 +140,21 @@ impl OwnedPath {
 #[cfg(test)]
 fn assert_same_path_when_owned(path: &TorPath<'_>) {
     #![allow(clippy::unwrap_used)]
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::HasRelayIds;
     let owned: OwnedPath = path.try_into().unwrap();
 
     match (&owned, &path.inner) {
         (OwnedPath::ChannelOnly(c), TorPathInner::FallbackOneHop(f)) => {
-            assert_eq!(c.ed_identity(), f.ed_identity());
+            assert!(c.same_relay_ids(*f));
         }
         (OwnedPath::Normal(p), TorPathInner::OneHop(h)) => {
             assert_eq!(p.len(), 1);
-            assert_eq!(p[0].ed_identity(), h.ed_identity());
+            assert!(p[0].same_relay_ids(h));
         }
         (OwnedPath::Normal(p1), TorPathInner::Path(p2)) => {
             assert_eq!(p1.len(), p2.len());
             for (n1, n2) in p1.iter().zip(p2.iter()) {
-                assert_eq!(n1.ed_identity(), n2.ed_identity());
+                assert!(n1.same_relay_ids(n2));
             }
         }
         (_, _) => {

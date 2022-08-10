@@ -1,8 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_linkspec::ChanTarget;
-use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use educe::Educe;
@@ -17,6 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, FirstHopId, GuardUsageKind};
+use tor_linkspec::{HasAddrs, HasRelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -220,7 +219,7 @@ impl Guard {
         );
 
         Self::new(
-            GuardId::from_chan_target(relay),
+            GuardId::from_relay_ids(relay),
             relay.addrs().into(),
             added_at,
         )
@@ -393,8 +392,10 @@ impl Guard {
     /// Return true if this guard obeys a single restriction.
     fn obeys_restriction(&self, r: &GuardRestriction) -> bool {
         match r {
-            GuardRestriction::AvoidId(ed) => &self.id.0.ed25519 != ed,
-            GuardRestriction::AvoidAllIds(ids) => !ids.contains(&self.id.0.ed25519),
+            GuardRestriction::AvoidId(avoid_id) => !self.id.0.has_identity(avoid_id.as_ref()),
+            GuardRestriction::AvoidAllIds(avoid_ids) => {
+                self.id.0.identities().all(|id| !avoid_ids.contains(id))
+            }
         }
     }
 
@@ -424,7 +425,7 @@ impl Guard {
     /// download another microdescriptor before we can be certain whether this
     /// guard is listed or not.
     pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
-        netdir.id_pair_listed(&self.id.0.ed25519, &self.id.0.rsa)
+        netdir.ids_listed(&self.id.0)
     }
 
     /// Change this guard's status based on a newly received or newly
@@ -657,7 +658,7 @@ impl Guard {
     /// We use this information to decide whether we are about to sample
     /// too much of the network as guards.
     pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(&self.id.0.rsa, tor_netdir::WeightRole::Guard)
+        dir.weight_by_rsa_id(self.id.0.rsa_identity()?, tor_netdir::WeightRole::Guard)
     }
 
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
@@ -686,17 +687,22 @@ impl Guard {
     }
 }
 
-impl tor_linkspec::ChanTarget for Guard {
+impl tor_linkspec::HasAddrs for Guard {
     fn addrs(&self) -> &[SocketAddr] {
         &self.orports[..]
     }
-    fn ed_identity(&self) -> &Ed25519Identity {
-        &self.id.0.ed25519
-    }
-    fn rsa_identity(&self) -> &RsaIdentity {
-        &self.id.0.rsa
+}
+
+impl tor_linkspec::HasRelayIds for Guard {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.id.0.identity(key_type)
     }
 }
+
+impl tor_linkspec::ChanTarget for Guard {}
 
 /// A reason for permanently disabling a guard.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -783,6 +789,8 @@ impl CircHistory {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use tor_linkspec::{HasRelayIds, RelayId};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     #[test]
     fn crate_id() {
@@ -803,46 +811,47 @@ mod test {
 
     #[test]
     fn simple_accessors() {
+        fn ed(id: [u8; 32]) -> RelayId {
+            RelayId::Ed25519(id.into())
+        }
         let id = basic_id();
         let g = basic_guard();
 
         assert_eq!(g.guard_id(), &id);
-        assert_eq!(g.ed_identity(), &id.0.ed25519);
-        assert_eq!(g.rsa_identity(), &id.0.rsa);
+        assert!(g.same_relay_ids(&FirstHopId::from(id)));
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
         assert_eq!(g.reachable(), Reachable::Unknown);
         assert_eq!(g.reachable(), Reachable::default());
 
         use crate::GuardUsageBuilder;
         let mut usage1 = GuardUsageBuilder::new();
+
         usage1
             .restrictions()
-            .push(GuardRestriction::AvoidId([22; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([22; 32])));
         let usage1 = usage1.build().unwrap();
         let mut usage2 = GuardUsageBuilder::new();
         usage2
             .restrictions()
-            .push(GuardRestriction::AvoidId([13; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([13; 32])));
         let usage2 = usage2.build().unwrap();
         let usage3 = GuardUsage::default();
         let mut usage4 = GuardUsageBuilder::new();
         usage4
             .restrictions()
-            .push(GuardRestriction::AvoidId([22; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([22; 32])));
         usage4
             .restrictions()
-            .push(GuardRestriction::AvoidId([13; 32].into()));
+            .push(GuardRestriction::AvoidId(ed([13; 32])));
         let usage4 = usage4.build().unwrap();
         let mut usage5 = GuardUsageBuilder::new();
         usage5.restrictions().push(GuardRestriction::AvoidAllIds(
-            vec![[22; 32].into(), [13; 32].into()].into_iter().collect(),
+            vec![ed([22; 32]), ed([13; 32])].into_iter().collect(),
         ));
         let usage5 = usage5.build().unwrap();
         let mut usage6 = GuardUsageBuilder::new();
         usage6.restrictions().push(GuardRestriction::AvoidAllIds(
-            vec![[99; 32].into(), [100; 32].into()]
-                .into_iter()
-                .collect(),
+            vec![ed([99; 32]), ed([100; 32])].into_iter().collect(),
         ));
         let usage6 = usage6.build().unwrap();
 
@@ -1007,16 +1016,15 @@ mod test {
         let now = SystemTime::now();
 
         // Construct a guard from a relay from the netdir.
-        let relay22 = netdir.by_id(&[22; 32].into()).unwrap();
+        let relay22 = netdir.by_id(&Ed25519Identity::from([22; 32])).unwrap();
         let guard22 = Guard::from_relay(&relay22, now, &params);
-        assert_eq!(guard22.ed_identity(), relay22.ed_identity());
-        assert_eq!(guard22.rsa_identity(), relay22.rsa_identity());
+        assert!(guard22.same_relay_ids(&relay22));
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
         let id: FirstHopId = guard22.id.clone().into();
         let r = id.get_relay(&netdir).unwrap();
-        assert_eq!(r.ed_identity(), relay22.ed_identity());
+        assert!(r.same_relay_ids(&relay22));
 
         // Can we check on the guard's weight?
         let w = guard22.get_weight(&netdir).unwrap();

@@ -62,7 +62,7 @@ use tor_cell::{
 };
 
 use tor_error::{bad_api_usage, internal, into_internal};
-use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget};
+use tor_linkspec::{CircTarget, LinkSpec, OwnedChanTarget, RelayIdType};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -235,7 +235,9 @@ impl ClientCirc {
         Tg: CircTarget,
     {
         let key = NtorPublicKey {
-            id: *target.rsa_identity(),
+            id: *target
+                .rsa_identity()
+                .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
             pk: *target.ntor_onion_key(),
         };
         let mut linkspecs = target.linkspecs();
@@ -549,10 +551,14 @@ impl PendingClientCirc {
                 recv_created: self.recvcreated,
                 handshake: CircuitHandshake::Ntor {
                     public_key: NtorPublicKey {
-                        id: *target.rsa_identity(),
+                        id: *target
+                            .rsa_identity()
+                            .ok_or(Error::MissingId(RelayIdType::Rsa))?,
                         pk: *target.ntor_onion_key(),
                     },
-                    ed_identity: *target.ed_identity(),
+                    ed_identity: *target
+                        .ed_identity()
+                        .ok_or(Error::MissingId(RelayIdType::Ed25519))?,
                 },
                 require_sendme_auth,
                 params: params.clone(),
@@ -679,7 +685,7 @@ mod test {
     use tor_basic_utils::test_rng::testing_rng;
     use tor_cell::chancell::{msg as chanmsg, ChanCell};
     use tor_cell::relaycell::{msg as relaymsg, RelayCell, StreamId};
-    use tor_llcrypto::pk;
+    use tor_linkspec::OwnedCircTarget;
     use tor_rtcompat::{Runtime, SleepProvider};
     use tracing::trace;
 
@@ -695,40 +701,13 @@ mod test {
         ClientCircChanMsg::Relay(chanmsg)
     }
 
-    struct ExampleTarget {
-        ntor_key: pk::curve25519::PublicKey,
-        protovers: tor_protover::Protocols,
-        ed_id: pk::ed25519::Ed25519Identity,
-        rsa_id: pk::rsa::RsaIdentity,
-    }
-    impl tor_linkspec::ChanTarget for ExampleTarget {
-        fn addrs(&self) -> &[std::net::SocketAddr] {
-            &[]
-        }
-        fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
-            &self.ed_id
-        }
-        fn rsa_identity(&self) -> &pk::rsa::RsaIdentity {
-            &self.rsa_id
-        }
-    }
-    impl tor_linkspec::CircTarget for ExampleTarget {
-        fn ntor_onion_key(&self) -> &pk::curve25519::PublicKey {
-            &self.ntor_key
-        }
-        fn protovers(&self) -> &tor_protover::Protocols {
-            &self.protovers
-        }
-    }
-    /// return an ExampleTarget that can get used for an ntor handshake.
-    fn example_target() -> ExampleTarget {
-        ExampleTarget {
-            ntor_key: hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253")
-                .into(),
-            protovers: "FlowCtrl=1".parse().unwrap(),
-            ed_id: [6_u8; 32].into(),
-            rsa_id: [10_u8; 20].into(),
-        }
+    /// return an example OwnedCircTarget that can get used for an ntor handshake.
+    fn example_target() -> OwnedCircTarget {
+        OwnedCircTarget::new(
+            OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into()),
+            hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
+            "FlowCtrl=1".parse().unwrap(),
+        )
     }
     fn example_ntor_key() -> crate::crypto::handshake::ntor::NtorSecretKey {
         crate::crypto::handshake::ntor::NtorSecretKey::new(
@@ -1067,7 +1046,7 @@ mod test {
             // Do the path accessors report a reasonable outcome?
             let path = circ.path();
             assert_eq!(path.len(), 4);
-            use tor_linkspec::ChanTarget;
+            use tor_linkspec::HasRelayIds;
             assert_eq!(path[3].ed_identity(), example_target().ed_identity());
             assert_ne!(path[0].ed_identity(), example_target().ed_identity());
         });

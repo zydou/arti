@@ -100,7 +100,7 @@ mod test {
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::fallback::{FallbackDir, FallbackList};
-    use tor_linkspec::ChanTarget;
+    use tor_linkspec::RelayIds;
     use tor_netdir::testnet;
 
     #[test]
@@ -200,7 +200,7 @@ mod test {
                     .pick_path(&mut rng, dirinfo, Some(&guards))
                     .unwrap();
                 if let crate::path::TorPathInner::OwnedOneHop(relay) = path.inner {
-                    distinct_guards.insert(relay.ed_identity().clone());
+                    distinct_guards.insert(RelayIds::from_relay_ids(&relay));
                     mon.unwrap().succeeded();
                     assert!(usable.unwrap().await.unwrap());
                 } else {

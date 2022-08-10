@@ -3698,7 +3698,13 @@ dependencies = [
 name = "tor-linkspec"
 version = "0.4.0"
 dependencies = [
+ "base64ct",
+ "derive_more",
+ "hex",
  "hex-literal",
+ "serde",
+ "strum",
+ "thiserror",
  "tor-bytes",
  "tor-llcrypto",
  "tor-protover",
@@ -3754,6 +3760,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "serde",
  "signature",
+ "static_assertions",
  "thiserror",
  "tor-basic-utils",
  "tor-checkable",
@@ -3838,6 +3845,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.5",
  "rand_core 0.6.3",
+ "regex",
  "statrs",
  "subtle",
  "thiserror",
