@@ -94,6 +94,8 @@
 //!  versions.
 //!
 //! * `experimental-api` -- build with experimental, unstable API support.
+//!    (Right now, most APIs in the `arti` crate are experimental, since this
+//!    crate was originally written to run as a binary only.)
 //! * `experimental` -- Build with all experimental features above, along with
 //!   all experimental features from other arti crates.
 //!
@@ -307,12 +309,20 @@ async fn run<R: Runtime>(
     )
 }
 
-/// Inner function to allow convenient error handling
+/// Inner function, to handle a set of CLI arguments and return a single
+/// `Result<()>` for convenient handling.
+///
+/// # ⚠️ Warning! ⚠️
+///
+/// If your program needs to call this function, you are setting yourself up for
+/// some serious maintenance headaches.  See discussion on [`main`] and please
+/// reach out to help us build you a better API.
 ///
 /// # Panics
 ///
 /// Currently, might panic if wrong arguments are specified.
-pub fn main_main<I, T>(cli_args: I) -> Result<()>
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+fn main_main<I, T>(cli_args: I) -> Result<()>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
@@ -526,6 +536,25 @@ where
 ///   * It takes command-line arguments from `std::env::args_os` rather than
 ///     from an argument.
 ///   * It exits the process with an appropriate error code on error.
+///
+/// # ⚠️ Warning ⚠️
+///
+/// Calling this function, or the related experimental function `main_main`, is
+/// probably a bad idea for your code.  It means that you are invoking Arti as
+/// if from the command line, but keeping it embedded inside your process. Doing
+/// this will block your process take over handling for several signal types,
+/// possibly disable debugger attachment, and a lot more junk that a library
+/// really has no business doing for you.  It is not designed to run in this
+/// way, and may give you strange results.
+///
+/// If the functionality you want is available in [`arti_client`] crate, or from
+/// a *non*-experimental API in this crate, it would be better for you to use
+/// that API instead.
+///
+/// Alternatively, if you _do_ need some underlying function from the `arti`
+/// crate, it would be better for all of us if you had a stable interface to that
+/// function. Please reach out to the Arti developers, so we can work together
+/// to get you the stable API you need.
 pub fn main() {
     match main_main(std::env::args_os()) {
         Ok(()) => {}
