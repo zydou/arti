@@ -276,6 +276,8 @@ pub struct NetParameters {
         from "min_paths_for_circs_pct",
 
     /// Channel padding, low end of random padding interval, milliseconds
+    ///
+    /// `nf_ito` stands for "netflow inactive timeout".
     pub nf_ito_low: IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>> = (1500)
         from "nf_ito_low",
     /// Channel padding, high end of random padding interval, milliseconds
