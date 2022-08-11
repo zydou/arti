@@ -240,7 +240,7 @@ async fn padding_control_through_layers() {
 
     // ---- simple case, active exit, defaults ----
 
-    let mut c = case(PL::default(), Dormancy::Active, ChannelUsage::Exit).await;
+    let mut c = case(PL::default(), Dormancy::Active, ChannelUsage::UserTraffic).await;
     c.expect_1(Expected {
         enabled: Some(true),
         timing: Some(DEF_MS),
@@ -249,7 +249,7 @@ async fn padding_control_through_layers() {
 
     // ---- reduced padding ----
 
-    let mut c = case(PL::Reduced, Dormancy::Active, ChannelUsage::Exit).await;
+    let mut c = case(PL::Reduced, Dormancy::Active, ChannelUsage::UserTraffic).await;
     c.expect_1(Expected {
         enabled: Some(true),
         timing: Some(REDUCED_MS),
@@ -258,7 +258,7 @@ async fn padding_control_through_layers() {
 
     // ---- dormant ----
 
-    let mut c = case(PL::default(), Dormancy::Dormant, ChannelUsage::Exit).await;
+    let mut c = case(PL::default(), Dormancy::Dormant, ChannelUsage::UserTraffic).await;
     c.expect_1(Expected {
         enabled: None,
         timing: Some(DEF_MS),
@@ -277,7 +277,7 @@ async fn padding_control_through_layers() {
     // directory circuits don't get padding (and we don't need to tell the peer to disable)
     c.expect_0();
 
-    eprintln!("### Exit ###");
+    eprintln!("### UserTraffic ###");
     c.channel.engage_padding_activities();
     c.expect_1(Expected {
         enabled: Some(true),  // we now turn on our padding sender

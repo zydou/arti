@@ -143,7 +143,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
 
         match usage {
             CU::Dir | CU::UselessCircuit => {}
-            CU::Exit => chan.0.engage_padding_activities(),
+            CU::UserTraffic => chan.0.engage_padding_activities(),
         }
 
         Ok(chan)
@@ -448,8 +448,16 @@ mod test {
         test_with_one_runtime!(|runtime| async {
             let mgr = new_test_abstract_chanmgr(runtime);
             let target = (413, '!');
-            let chan1 = mgr.get_or_launch(413, target, CU::Exit).await.unwrap().0;
-            let chan2 = mgr.get_or_launch(413, target, CU::Exit).await.unwrap().0;
+            let chan1 = mgr
+                .get_or_launch(413, target, CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
+            let chan2 = mgr
+                .get_or_launch(413, target, CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
 
             assert_eq!(chan1, chan2);
 
@@ -465,7 +473,7 @@ mod test {
 
             // This is set up to always fail.
             let target = (999, '❌');
-            let res1 = mgr.get_or_launch(999, target, CU::Exit).await;
+            let res1 = mgr.get_or_launch(999, target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
             let chan3 = mgr.get_nowait(&999);
@@ -482,12 +490,12 @@ mod test {
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
-                mgr.get_or_launch(3, (3, 'a'), CU::Exit),
-                mgr.get_or_launch(3, (3, 'b'), CU::Exit),
-                mgr.get_or_launch(44, (44, 'a'), CU::Exit),
-                mgr.get_or_launch(44, (44, 'b'), CU::Exit),
-                mgr.get_or_launch(86, (86, '❌'), CU::Exit),
-                mgr.get_or_launch(86, (86, '🔥'), CU::Exit),
+                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(3, (3, 'b'), CU::UserTraffic),
+                mgr.get_or_launch(44, (44, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(44, (44, 'b'), CU::UserTraffic),
+                mgr.get_or_launch(86, (86, '❌'), CU::UserTraffic),
+                mgr.get_or_launch(86, (86, '🔥'), CU::UserTraffic),
             );
             let ch3a = ch3a.unwrap();
             let ch3b = ch3b.unwrap();
@@ -511,9 +519,9 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
-                mgr.get_or_launch(3, (3, 'a'), CU::Exit),
-                mgr.get_or_launch(4, (4, 'a'), CU::Exit),
-                mgr.get_or_launch(5, (5, 'a'), CU::Exit),
+                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(4, (4, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(5, (5, 'a'), CU::UserTraffic),
             );
 
             let ch3 = ch3.unwrap().0;
@@ -523,7 +531,11 @@ mod test {
             ch3.start_closing();
             ch5.start_closing();
 
-            let ch3_new = mgr.get_or_launch(3, (3, 'b'), CU::Exit).await.unwrap().0;
+            let ch3_new = mgr
+                .get_or_launch(3, (3, 'b'), CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
             assert_ne!(ch3, ch3_new);
             assert_eq!(ch3_new.mood, 'b');
 

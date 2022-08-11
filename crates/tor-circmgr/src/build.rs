@@ -872,7 +872,7 @@ mod test {
             let path = OwnedPath::ChannelOnly(chan_t(id_100ms));
 
             let (outcome, timeouts) =
-                run_builder_test(rt, Duration::from_millis(100), path, None, CU::Exit).await;
+                run_builder_test(rt, Duration::from_millis(100), path, None, CU::UserTraffic).await;
             let circ = outcome.unwrap();
             assert!(circ.onehop);
             assert_eq!(circ.hops.len(), 1);
@@ -898,7 +898,7 @@ mod test {
                 OwnedPath::Normal(vec![circ_t(id_100ms), circ_t(id_200ms), circ_t(id_300ms)]);
 
             let (outcome, timeouts) =
-                run_builder_test(rt, Duration::from_millis(100), path, None, CU::Exit).await;
+                run_builder_test(rt, Duration::from_millis(100), path, None, CU::UserTraffic).await;
             let circ = outcome.unwrap();
             assert!(!circ.onehop);
             assert_eq!(circ.hops.len(), 3);
@@ -926,7 +926,7 @@ mod test {
             let path = OwnedPath::Normal(vec![circ_t(id_100ms), circ_t(id_200ms), circ_t(id_hour)]);
 
             let (outcome, timeouts) =
-                run_builder_test(rt, Duration::from_millis(100), path, None, CU::Exit).await;
+                run_builder_test(rt, Duration::from_millis(100), path, None, CU::UserTraffic).await;
             assert!(matches!(outcome, Err(Error::CircTimeout)));
 
             assert_eq!(timeouts.len(), 1);
@@ -957,7 +957,7 @@ mod test {
                 Duration::from_millis(100),
                 path,
                 Some(timeout_advance),
-                CU::Exit,
+                CU::UserTraffic,
             )
             .await;
             assert!(matches!(outcome, Err(Error::CircTimeout)));

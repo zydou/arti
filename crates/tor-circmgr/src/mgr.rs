@@ -1517,7 +1517,7 @@ mod test {
             Ok(())
         }
         fn channel_usage(&self) -> ChannelUsage {
-            ChannelUsage::Exit
+            ChannelUsage::UserTraffic
         }
     }
 

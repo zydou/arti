@@ -143,7 +143,7 @@ pub enum ChannelUsage {
     /// Use to transmit user traffic (including exit traffic) over the network.
     ///
     /// Includes a circuit being constructed preemptively.
-    Exit,
+    UserTraffic,
 
     /// For a channel which is not use for circuit(s), or only for useless circuits
     UselessCircuit,

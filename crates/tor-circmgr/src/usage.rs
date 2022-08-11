@@ -362,7 +362,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         use SupportedCircUsage as SCU;
         match self {
             SCU::Dir => CU::Dir,
-            SCU::Exit { .. } => CU::Exit,
+            SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
         }
     }
