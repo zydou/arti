@@ -140,7 +140,7 @@ pub enum ChannelUsage {
     /// Use for BEGINDIR-based non-anonymous directory connections
     Dir,
 
-    /// Use to exit
+    /// Use to transmit user traffic (including exit traffic) over the network.
     ///
     /// Includes a circuit being constructed preemptively.
     Exit,
