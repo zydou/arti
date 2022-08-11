@@ -133,7 +133,7 @@ pub struct Parameters {
     pub(crate) high: IntegerMilliseconds<u32>,
 }
 
-impl_standard_builder! { Parameters: !Deserialize + !Builder }
+impl_standard_builder! { Parameters: !Deserialize + !Builder + !Default }
 
 impl Parameters {
     /// Return a `PADDING_NEGOTIATE START` cell specifying precisely these parameters
@@ -148,6 +148,11 @@ impl Parameters {
                 .map_err(into_internal!("padding negotiate out of range"))
         };
         Ok(PaddingNegotiate::start(get(self.low)?, get(self.high)?))
+    }
+
+    /// Make a Parameters containing the specification-defined default parameters
+    pub fn default_padding() -> Self {
+        Parameters::builder().build().expect("build succeeded")
     }
 
     /// Make a Parameters sentinel value, with both fields set to zero, which means "no padding"

@@ -172,6 +172,7 @@ define_channels_insns_and_automatic_impls! {
     /// we still pass it because the usual case is that padding is enabled/disabled
     /// rather than the parameters changing,
     /// so the padding timer always keeps parameters, even when disabled.
+    #[field educe(Default(expression = "padding::Parameters::default_padding()"))]
     padding_parameters: padding::Parameters,
 
     /// Channel padding negotiation cell
