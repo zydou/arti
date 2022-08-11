@@ -56,7 +56,7 @@ struct Inner<C: AbstractChannel> {
 
     /// Dormancy
     ///
-    /// The last dormancy infomration we have been told about and passed on to our channels.
+    /// The last dormancy information we have been told about and passed on to our channels.
     /// Updated via `ChanMgr::set_dormancy` and hence `ChannelMap::reconfigure_general`,
     /// which then uses it to calculate how to reconfigure the channels.
     dormancy: Dormancy,
