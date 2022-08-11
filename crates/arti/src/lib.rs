@@ -52,6 +52,8 @@
 //!   (default)
 //! * `journald` -- Build with support for logging to the `journald` logging
 //!   backend (available as part of systemd.)
+//! * `dns-proxy` (default) -- Build with support for proxying certain simple
+//!   DNS queries over the Tor network.  
 //!
 //! * `full` -- Build with all features above, along with all stable additive
 //!   features from other arti crates.  (This does not include experimental
@@ -88,11 +90,18 @@
 //! ## Experimental features
 //!
 //!  Note that the APIs enabled by these features are NOT covered by semantic
-//!  versioning guarantees: we might break them or remove them between patch
+//!  versioning[^1] guarantees: we might break them or remove them between patch
 //!  versions.
 //!
+//! * `experimental-api` -- build with experimental, unstable API support.
+//!    (Right now, most APIs in the `arti` crate are experimental, since this
+//!    crate was originally written to run as a binary only.)
 //! * `experimental` -- Build with all experimental features above, along with
 //!   all experimental features from other arti crates.
+//!
+//! [^1]: Remember, semantic versioning is what makes various `cargo` features
+//! work reliably. To be explicit, if you want `cargo update` to _only_ make
+//! correct changes, then you cannot enable these features.
 //!
 //! # Limitations
 //!
@@ -150,12 +159,29 @@
 #![allow(clippy::print_stdout)]
 
 pub mod cfg;
-pub mod dns;
-pub mod exit;
 pub mod logging;
+
+#[cfg(all(feature = "experimental-api", feature = "dns-proxy"))]
+pub mod dns;
+#[cfg(feature = "experimental-api")]
+pub mod exit;
+#[cfg(feature = "experimental-api")]
 pub mod process;
+#[cfg(feature = "experimental-api")]
 pub mod socks;
+#[cfg(feature = "experimental-api")]
 pub mod watch_cfg;
+
+#[cfg(all(not(feature = "experimental-api"), feature = "dns-proxy"))]
+mod dns;
+#[cfg(not(feature = "experimental-api"))]
+mod exit;
+#[cfg(not(feature = "experimental-api"))]
+mod process;
+#[cfg(not(feature = "experimental-api"))]
+mod socks;
+#[cfg(not(feature = "experimental-api"))]
+mod watch_cfg;
 
 use std::fmt::Write;
 
@@ -216,7 +242,8 @@ fn list_enabled_features() -> &'static [&'static str] {
 /// # Panics
 ///
 /// Currently, might panic if things go badly enough wrong
-pub async fn run<R: Runtime>(
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
     dns_port: u16,
@@ -246,6 +273,7 @@ pub async fn run<R: Runtime>(
         }));
     }
 
+    #[cfg(feature = "dns-proxy")]
     if dns_port != 0 {
         let runtime = runtime.clone();
         let client = client.isolated_client();
@@ -253,6 +281,12 @@ pub async fn run<R: Runtime>(
             let res = dns::run_dns_resolver(runtime, client, dns_port).await;
             (res, "DNS")
         }));
+    }
+
+    #[cfg(not(feature = "dns-proxy"))]
+    if dns_port != 0 {
+        warn!("Tried to specify a DNS proxy port, but Arti was built without dns-proxy support.");
+        return Ok(());
     }
 
     if proxy.is_empty() {
@@ -275,12 +309,24 @@ pub async fn run<R: Runtime>(
     )
 }
 
-/// Inner function to allow convenient error handling
+/// Inner function, to handle a set of CLI arguments and return a single
+/// `Result<()>` for convenient handling.
+///
+/// # ⚠️ Warning! ⚠️
+///
+/// If your program needs to call this function, you are setting yourself up for
+/// some serious maintenance headaches.  See discussion on [`main`] and please
+/// reach out to help us build you a better API.
 ///
 /// # Panics
 ///
 /// Currently, might panic if wrong arguments are specified.
-pub fn main_main() -> Result<()> {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+fn main_main<I, T>(cli_args: I) -> Result<()>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
     // We describe a default here, rather than using `default()`, because the
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
@@ -396,7 +442,7 @@ pub fn main_main() -> Result<()> {
         .finish();
     let pre_config_logging = tracing::Dispatch::new(pre_config_logging);
     let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
-        let matches = clap_app.get_matches();
+        let matches = clap_app.get_matches_from_safe(cli_args)?;
 
         let fs_mistrust_disabled = matches.is_present("disable-fs-permission-checks");
 
@@ -485,6 +531,36 @@ pub fn main_main() -> Result<()> {
 }
 
 /// Main program, callable directly from a binary crate's `main`
+///
+/// This function behaves the same as `main_main()`, except:
+///   * It takes command-line arguments from `std::env::args_os` rather than
+///     from an argument.
+///   * It exits the process with an appropriate error code on error.
+///
+/// # ⚠️ Warning ⚠️
+///
+/// Calling this function, or the related experimental function `main_main`, is
+/// probably a bad idea for your code.  It means that you are invoking Arti as
+/// if from the command line, but keeping it embedded inside your process. Doing
+/// this will block your process take over handling for several signal types,
+/// possibly disable debugger attachment, and a lot more junk that a library
+/// really has no business doing for you.  It is not designed to run in this
+/// way, and may give you strange results.
+///
+/// If the functionality you want is available in [`arti_client`] crate, or from
+/// a *non*-experimental API in this crate, it would be better for you to use
+/// that API instead.
+///
+/// Alternatively, if you _do_ need some underlying function from the `arti`
+/// crate, it would be better for all of us if you had a stable interface to that
+/// function. Please reach out to the Arti developers, so we can work together
+/// to get you the stable API you need.
 pub fn main() {
-    main_main().unwrap_or_else(|e| with_safe_logging_suppressed(|| tor_error::report_and_exit(e)));
+    match main_main(std::env::args_os()) {
+        Ok(()) => {}
+        Err(e) => match e.downcast_ref::<clap::Error>() {
+            Some(clap_err) => clap_err.exit(),
+            None => with_safe_logging_suppressed(|| tor_error::report_and_exit(e)),
+        },
+    }
 }

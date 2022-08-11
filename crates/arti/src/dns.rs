@@ -224,7 +224,8 @@ where
 }
 
 /// Launch a DNS resolver to listen on a given local port, and run indefinitely.
-pub async fn run_dns_resolver<R: Runtime>(
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) async fn run_dns_resolver<R: Runtime>(
     runtime: R,
     tor_client: TorClient<R>,
     dns_port: u16,

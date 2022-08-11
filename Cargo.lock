@@ -112,6 +112,7 @@ dependencies = [
  "tracing-journald",
  "tracing-subscriber",
  "trust-dns-proto",
+ "visibility",
  "winapi 0.3.9",
 ]
 
