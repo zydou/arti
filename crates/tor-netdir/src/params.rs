@@ -304,6 +304,27 @@ pub struct NetParameters {
     pub unused_client_circ_timeout_while_learning_cbt: IntegerSeconds<BoundedInt32<10, 60_000>> = (3*60)
         from "cbtlearntimeout",
 
+    /// The minimum number of SENDME acks required to estimate RTT and/or bandwidth.
+    pub cc_min_sendme_acks: BoundedInt32<2, 20> = (5)
+        from "cc_bwe_min",
+    /// The "N" parameter in N-EWMA smoothing of RTT and/or bandwidth estimation, specified as a
+    /// percentage of the number of SENDME acks in a congestion window.
+    ///
+    /// A percentage over 100% indicates smoothing with more than one congestion window's worth
+    /// of SENDMEs.
+    pub cc_ewma_n_by_sendme_acks: Percentage<BoundedInt32<1, 255>> = (50)
+        from "cc_ewma_cwnd_pct",
+    /// The maximum value of the "N" parameter in N-EWMA smoothing of RTT and/or bandwidth
+    /// estimation.
+    pub cc_ewma_n_max: BoundedInt32<2, {i32::MAX}> = (10)
+        from "cc_ewma_max",
+    /// How many cells a SENDME acks under the congestion-control regime.
+    pub cc_sendme_cell_ack_count: BoundedInt32<1, 255> = (31)
+        from "cc_sendme_inc",
+    /// How often we update our congestion window, per congestion window worth of packets.
+    /// (For example, if this is 2, we will update the window twice every window.)
+    pub cc_cwnd_inc_rate: BoundedInt32<1, 250> = (1)
+        from "cc_cwnd_inc_rate",
 }
 
 }
