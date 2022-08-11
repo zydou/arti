@@ -106,11 +106,6 @@ macro_rules! define_channels_insns_and_automatic_impls { { $(
         pub fn initial_update(&self) -> Option<ChannelPaddingInstructionsUpdates> {
             let mut supposed = ChannelPaddingInstructions::default();
 
-            // The initial configuration of the padding timer used by the reactor has no
-            // parameters, so does not send padding.  We need to mirror that here, so that we
-            // give the reactor an initial set of timing parameters.
-            supposed.padding_parameters = padding::Parameters::disabled();
-
             supposed.start_update()
               $(
                 .$field(self.$field.clone())
@@ -172,7 +167,11 @@ define_channels_insns_and_automatic_impls! {
     /// we still pass it because the usual case is that padding is enabled/disabled
     /// rather than the parameters changing,
     /// so the padding timer always keeps parameters, even when disabled.
-    #[field educe(Default(expression = "padding::Parameters::default_padding()"))]
+    //
+    // The initial configuration of the padding timer used by the reactor has no
+    // parameters, so does not send padding.  We need to mirror that here, so that we
+    // give the reactor an initial set of timing parameters.
+    #[field educe(Default(expression = "padding::Parameters::disabled()"))]
     padding_parameters: padding::Parameters,
 
     /// Channel padding negotiation cell

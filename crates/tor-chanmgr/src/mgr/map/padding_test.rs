@@ -261,7 +261,7 @@ async fn padding_control_through_layers() {
     let mut c = case(PL::default(), Dormancy::Dormant, ChannelUsage::UserTraffic).await;
     c.expect_1(Expected {
         enabled: None,
-        timing: Some(DEF_MS),
+        timing: None,
         nego: Some(STOP_MSG),
     });
 
