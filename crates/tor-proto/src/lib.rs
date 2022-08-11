@@ -53,15 +53,31 @@
 //!
 //! # Design notes
 //!
-//! This crate's APIs are structured to explicitly avoid any usage of
-//! an asynchronous runtime: It doesn't launch tasks or include
-//! timeouts.  Those are done at a higher level in Arti, via the
-//! [`tor-rtcompat`] crate.
+//! This crate's APIs are structured to limit usage of an asynchronous runtime:
+//! It doesn't launch tasks or create timers except when necessary.
 //!
 //! To the extent possible, this crate avoids doing public-key
 //! cryptography in the same functions it uses for network activity.
 //! This makes it easier for higher-level code to parallelize or yield
 //! around public-key operations.
+//!
+//! Also, this crate tries to avoid knowing or encoding information about what
+//! its objects (channels, circuits, streams) are "used for".  That is, whenever
+//! possible, we encode _how an object should behave_, not _the reason that it
+//! should behave that way_.  For example, the `Circuit` object in this crate
+//! remembers the path through which the circuit was built, but _not_ the
+//! purpose that the circuit serves, or what it may be used for.  It's the
+//! responsibility of other crates to enforce that kind of rule.
+//!
+//! Why separate behavior from purpose in this way?
+//! We do so in order to prevent a kind of logical overloading that we ran into
+//! with the C tor implementation, where usage information is _not_ separate
+//! from behavioral settings.  Since usage information is available, at all
+//! points in the codebase the C tor code has converged in many places on
+//! complex logic involving that usage information in order to set individual
+//! behaviors.  Because of that, adding a new kinds usage or behavior in C tor
+//! has become quite complex.  We're trying to avoid that kind of complexity in
+//! Arti.
 //!
 //! # Limitations
 //!
