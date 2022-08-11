@@ -507,8 +507,8 @@ fn parameterize(
 
 /// Given a `NetDirExtract` and whether we're reducing padding, return a `PaddingParameters`
 ///
-/// With `PaddingLevel::None`, will return `PaddingParameters::all_zeroes`; but
-/// does not account for padding being enabled/disabled other ways than via the config.
+/// With `PaddingLevel::None`, or the consensus specifies no padding, will return `None`;
+/// but does not account for other reasons why padding might be enabled/disabled.
 fn padding_parameters(
     config: PaddingLevel,
     netdir: &NetParamsExtract,
@@ -536,6 +536,9 @@ fn padding_parameters(
 
 /// Given a `NetDirExtract` and whether we're reducing padding,
 /// return a `PaddingParametersBuilder`
+///
+/// If the consensus specifies no padding, will return `None`;
+/// but does not account for other reasons why padding might be enabled/disabled.
 ///
 /// If `Err`, the string is a description of what is wrong with the parameters;
 /// the caller should use `PaddingParameters::Default`.
