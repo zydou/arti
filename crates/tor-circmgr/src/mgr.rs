@@ -775,15 +775,29 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         fn div_ceil(a: usize, b: usize) -> usize {
             (a + b - 1) / b
         }
+        /// Largest number of "resets" that we will accept in this attempt.
+        ///
+        /// A "reset" is an internally generated error that does not represent a
+        /// real problem; only a "whoops, got to try again" kind of a situation.
+        /// For example, if we reconfigure in the middle of an attempt and need
+        /// to re-launch the circuit, that counts as a "reset", since there was
+        /// nothing actually _wrong_ with the circuit we were building.
+        ///
+        /// We accept more resets than we do real failures. However,
+        /// we don't accept an unlimited number: we don't want to inadvertently
+        /// permit infinite loops here. If we ever bump against this limit, we
+        /// should not automatically increase it: we should instead figure out
+        /// why it is happening and try to make it not happen.
+        const MAX_RESETS: usize = 8;
 
         let circuit_timing = self.circuit_timing();
         let wait_for_circ = circuit_timing.request_timeout;
         let timeout_at = self.runtime.now() + wait_for_circ;
         let max_tries = circuit_timing.request_max_retries;
-        // We compute the maximum number of times through this loop by dividing
-        // the maximum number of circuits to attempt by the number that will be
-        // launched in parallel for each iteration.
-        let max_iterations = div_ceil(
+        // We compute the maximum number of failures by dividing the maximum
+        // number of circuits to attempt by the number that will be launched in
+        // parallel for each iteration.
+        let max_failures = div_ceil(
             max_tries as usize,
             std::cmp::max(1, self.builder.launch_parallelism(usage)),
         );
@@ -791,7 +805,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         let mut retry_schedule = RetryDelay::from_msec(100);
         let mut retry_err = RetryError::<Box<Error>>::in_attempt_to("find or build a circuit");
 
-        for n in 1..(max_iterations + 1) {
+        let mut n_failures = 0;
+        let mut n_resets = 0;
+
+        for attempt_num in 1.. {
             // How much time is remaining?
             let remaining = match timeout_at.checked_duration_since(self.runtime.now()) {
                 None => {
@@ -812,7 +829,7 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     match outcome {
                         Ok(Ok(circ)) => return Ok(circ),
                         Ok(Err(e)) => {
-                            info!("Circuit attempt {} failed.", n);
+                            info!("Circuit attempt {} failed.", attempt_num);
                             Error::RequestFailed(e)
                         }
                         Err(_) => {
@@ -825,7 +842,10 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 }
                 Err(e) => {
                     // We couldn't pick the action!
-                    info!("Couldn't pick action for circuit attempt {}: {}", n, &e);
+                    info!(
+                        "Couldn't pick action for circuit attempt {}: {}",
+                        attempt_num, &e
+                    );
                     e
                 }
             };
@@ -835,14 +855,20 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
             let retry_time =
                 error.abs_retry_time(now, || retry_schedule.next_delay(&mut rand::thread_rng()));
 
+            let (count, count_limit) = if error.is_internal_reset() {
+                (&mut n_resets, MAX_RESETS)
+            } else {
+                (&mut n_failures, max_failures)
+            };
             // Record the error, flattening it if needed.
             match error {
                 Error::RequestFailed(e) => retry_err.extend(e),
                 e => retry_err.push(e),
             }
 
-            // If this is the last iteration, don't bother waiting, since we won't retry.
-            if n == max_iterations {
+            *count += 1;
+            // If we have reached our limit of this kind of problem, we're done.
+            if *count >= count_limit {
                 break;
             }
 
