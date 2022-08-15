@@ -248,7 +248,7 @@ impl RoundtripTimeEstimator {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::print_stderr)]
 mod test {
     use crate::rtt::RoundtripTimeEstimator;
     use std::sync::atomic::{AtomicBool, Ordering};
