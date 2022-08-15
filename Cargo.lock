@@ -99,6 +99,7 @@ dependencies = [
  "regex",
  "rlimit",
  "safelog",
+ "secmem-proc",
  "serde",
  "serde_json",
  "tokio",
@@ -2765,6 +2766,18 @@ checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
 dependencies = [
  "ring",
  "untrusted 0.7.1",
+]
+
+[[package]]
+name = "secmem-proc"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b291669c8562407a90242395b35409c070f748c64268ed7c837bd0550c4dec5"
+dependencies = [
+ "cfg-if 1.0.0",
+ "libc",
+ "thiserror",
+ "winapi 0.3.9",
 ]
 
 [[package]]

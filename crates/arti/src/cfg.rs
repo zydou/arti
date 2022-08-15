@@ -27,6 +27,18 @@ pub struct ApplicationConfig {
     /// recreated, or for some other reason).
     #[builder(default)]
     pub(crate) watch_configuration: bool,
+
+    /// If true, we should allow other applications not owned by the system
+    /// administrator to monitor the Arti application and inspect its memory.
+    ///
+    /// Otherwise, we take various steps (including disabling core dumps) to
+    /// make it harder for other programs to view our internal state.
+    ///
+    /// This option has no effect when arti is built without the `harden`
+    /// feature.  When `harden` is not enabled, debugger attachment is permitted
+    /// whether this option is set or not.
+    #[builder(default)]
+    pub(crate) permit_debugging: bool,
 }
 impl_standard_builder! { ApplicationConfig }
 

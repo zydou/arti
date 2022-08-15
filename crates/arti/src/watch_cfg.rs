@@ -93,11 +93,18 @@ fn reconfigure<R: Runtime>(
     if config.logging() != original.logging() {
         warn!("Can't (yet) reconfigure logging settings while arti is running.");
     }
+    if config.application().permit_debugging && !original.application().permit_debugging {
+        warn!("Cannot disable application hardening when it has already been enabled.");
+    }
     client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
     if !config.application().watch_configuration {
         // Stop watching for configuration changes.
         return Ok(true);
+    }
+    if !config.application().permit_debugging {
+        #[cfg(feature = "harden")]
+        crate::process::enable_process_hardening()?;
     }
 
     Ok(false)
