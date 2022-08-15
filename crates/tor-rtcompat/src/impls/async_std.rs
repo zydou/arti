@@ -51,7 +51,7 @@ mod net {
         Ready(TcpListener),
         /// We've called `accept` on the listener, and we're waiting
         /// for a future to complete.
-        Accepting(Pin<Box<dyn Future<Output = FResult>>>),
+        Accepting(Pin<Box<dyn Future<Output = FResult> + Send>>),
     }
     impl IncomingStreams {
         /// Create a new IncomingStreams from a TcpListener.
