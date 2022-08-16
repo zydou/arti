@@ -337,10 +337,14 @@ impl Error {
             // `CircMgr`). If it happens, it just means that we should try again
             // with the new configuration.
             Error::CircCanceled => true,
+            // This error is a reset because it doesn't indicate anything wrong
+            // with the circuit: it just means that multiple requests all wanted
+            // to use the circuit at once, and they turned out not to be
+            // compatible with one another after the circuit was built.
+            Error::LostUsabilityRace(_) => true,
 
             Error::PendingCanceled
             | Error::PendingFailed(_)
-            | Error::LostUsabilityRace(_)
             | Error::UsageMismatched(_)
             | Error::CircTimeout
             | Error::RequestTimeout
