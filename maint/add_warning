@@ -59,7 +59,7 @@ TEST_LINTS = """
 
 # ---------- some notes about lints we might use - NOT USED by any code here ----------
 
-SOON="""
+SOON = """
 """
 
 WISH_WE_COULD = """
@@ -85,10 +85,12 @@ PAT = re.compile(r'^ *#!\[(?:cfg_attr\(.*)?(allow|deny|warn)')
 opts = None
 deferred_errors = []
 
+
 class ImproperFile(Exception):
     def __init__(self, lno, message):
         self.lno = lno
         self.message = message
+
 
 def filter_file(lints, inp, outp, insist):
     in_lint_list = None
@@ -111,7 +113,8 @@ def filter_file(lints, inp, outp, insist):
 
         if line_starts:
             if in_lint_list:
-                raise ImproperFile(lno, 'found "@@ begin lint list" but inside lint list')
+                raise ImproperFile(
+                    lno, 'found "@@ begin lint list" but inside lint list')
             found_lint_list = True
             in_lint_list = line_starts
             indent = line[0: len(line) - len(line_stripped)]
@@ -121,26 +124,32 @@ def filter_file(lints, inp, outp, insist):
             # Finishing the automaintained block with just a blank line is too much of a hazard.
             # It does end up in the output HTML from Rustdoc, but it is harmless there.
             if not in_lint_list:
-                raise ImproperFile(lno, 'found "@@ end lint list" but not inside lint list')
+                raise ImproperFile(
+                    lno, 'found "@@ end lint list" but not inside lint list')
             if in_lint_list != line_ends:
-                raise ImproperFile(lno, 'found end tag '+line_ends+' but expected '+in_lint_list)
+                raise ImproperFile(lno, 'found end tag ' +
+                                   line_ends+' but expected '+in_lint_list)
             if in_lint_list == 'test':
                 lints = TEST_LINTS
             else:
                 lints = WANT_LINTS
-            for lint in lints.strip().split('\n'): 
+            for lint in lints.strip().split('\n'):
                 outp.write(indent + lint + '\n')
             in_lint_list = None
         elif in_lint_list:
             if not PAT.match(line):
-                raise ImproperFile(lno, 'entry in lint list does not look like a lint')
+                raise ImproperFile(
+                    lno, 'entry in lint list does not look like a lint')
             # do not send to output
             continue
         outp.write(line)
     if in_lint_list:
-        raise ImproperFile(lno, 'missing "@@ lint list" delimiter, still in lint list at EOF')
+        raise ImproperFile(
+            lno, 'missing "@@ lint list" delimiter, still in lint list at EOF')
     if insist and not found_lint_list:
-        raise ImproperFile(lno, 'standard lint list block seems to be missing (wrong delimiters?)')
+        raise ImproperFile(
+            lno, 'standard lint list block seems to be missing (wrong delimiters?)')
+
 
 def process(lints, fn, always_insist):
     insist = (always_insist or
@@ -148,14 +157,14 @@ def process(lints, fn, always_insist):
               fnmatch.fnmatch(fn, 'crates/*/src/main.rs'))
 
     tmp_name = fn+".tmp~"
-    outp = open(tmp_name,'w')
-    inp = open(fn,'r')
+    outp = open(tmp_name, 'w')
+    inp = open(fn, 'r')
     try:
         filter_file(lints, inp, outp, insist)
     except ImproperFile as e:
         print('%s:%d: %s' % (fn, e.lno, e.message), file=sys.stderr)
         deferred_errors.append(fn)
-        os.remove(tmp_name) # this tmp file is probably partial
+        os.remove(tmp_name)  # this tmp file is probably partial
         return
 
     inp.close()
@@ -167,15 +176,16 @@ def process(lints, fn, always_insist):
     else:
         shutil.move(tmp_name, fn)
 
-def main(lints,files):
+
+def main(lints, files):
     if not os.path.exists("./crates/tor-proto/src/lib.rs"):
         print("Run this from the top level of an arti repo.")
         sys.exit(1)
 
     always_insist = True
     if not files:
-        files = subprocess.run(['find','-name','*.rs'],
-                               stdout=subprocess.PIPE, check=True).stdout;
+        files = subprocess.run(['find', '-name', '*.rs'],
+                               stdout=subprocess.PIPE, check=True).stdout
         files = files.decode('utf-8').rstrip('\n').split('\n')
         always_insist = False
 
@@ -187,6 +197,7 @@ def main(lints,files):
               + ', '.join(deferred_errors), file=sys.stderr)
         print('Run ' + sys.argv[0] + ' (possibly after editing it) to fix.')
         sys.exit(1)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('standardise Rust lint blocks')

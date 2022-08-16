@@ -11,12 +11,13 @@ Example:
   ./gen_md_links < new_changelog
 """
 
-import re, subprocess
+import re
+import subprocess
 
 LINK_PATTERN = re.compile(r'''
   \[([^\]]*)\] # Match [, then some non-] characters, then ]...
   (?!\()       # But only when not followed by (.
-''',re.X)
+''', re.X)
 
 
 def links(s):
@@ -35,6 +36,7 @@ def links(s):
     for m in LINK_PATTERN.finditer(s):
         yield m.group(1)
 
+
 def is_commit(s):
     """Return true if `s` looks like a git commit.
 
@@ -51,6 +53,7 @@ def is_commit(s):
         except ValueError:
             pass
     return False
+
 
 def lookup_git_commit(short):
     """Expand a git commit from its short version.
@@ -70,11 +73,13 @@ def lookup_git_commit(short):
         raise ValueError(f"Unrecognized git commit {short}")
     return p.stdout.read().strip().decode("ascii")
 
+
 class LinkType:
     MergeRequest = 1
     Issue = 2
     Commit = 3
     Other = 4
+
 
 class Link:
     def __init__(self, s):
@@ -123,6 +128,7 @@ def process(s):
     items = sorted((Link(lnk) for lnk in set(links(s))), key=Link.sort_key)
     return "".join(lnk.text() for lnk in items)
 
+
 if __name__ == '__main__':
     import sys
     if len(sys.argv) == 1 or sys.argv[1] == "-":
@@ -132,4 +138,3 @@ if __name__ == '__main__':
 
     text = in_file.read()
     print(process(text))
-
