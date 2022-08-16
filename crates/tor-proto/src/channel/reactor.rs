@@ -264,6 +264,13 @@ impl<S: SleepProvider> Reactor<S> {
                 self.update_disused_since();
             }
             CtrlMsg::ConfigUpdate(updates) => {
+                if self.link_protocol == 4 {
+                    // Link protocol 4 does not permit sending, or negotiating, link padding.
+                    // We test for == 4 so that future updates to handshake.rs LINK_PROTOCOLS
+                    // keep doing padding things.
+                    return Ok(());
+                }
+
                 let ChannelPaddingInstructionsUpdates {
                     // List all the fields explicitly; that way the compiler will warn us
                     // if one is added and we fail to handle it here.
