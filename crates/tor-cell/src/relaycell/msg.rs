@@ -441,7 +441,7 @@ caret_int! {
         EXITPOLICY = 4,
         /// Circuit destroyed
         DESTROY = 5,
-        /// TCP connection was closed
+        /// Anonymized TCP connection was closed
         DONE = 6,
         /// Connection timed out, or OR timed out while connecting
         TIMEOUT = 7,
