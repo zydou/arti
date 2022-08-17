@@ -3,17 +3,25 @@
 use std::time::Duration;
 
 use super::{AbstractChannel, Pending};
-use crate::{Error, Result};
+use crate::{ChannelConfig, Dormancy, Error, Result};
 
 use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
 use std::sync::Arc;
+use tor_cell::chancell::msg::PaddingNegotiate;
+use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
-use tor_netdir::{params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND, NetDir};
+use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
+use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
-use tor_proto::ChannelsParams;
-use tor_units::BoundedInt32;
+use tor_proto::channel::ChannelPaddingInstructionsUpdates;
+use tor_proto::ChannelPaddingInstructions;
+use tor_units::{BoundedInt32, IntegerMilliseconds};
 use tracing::info;
+use void::{ResultVoidExt as _, Void};
+
+#[cfg(test)]
+mod padding_test;
 
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
@@ -41,7 +49,17 @@ struct Inner<C: AbstractChannel> {
     ///
     /// (Must be protected by the same lock as `channels`, or a channel might be
     /// created using being-replaced parameters, but not get an update.)
-    channels_params: ChannelsParams,
+    channels_params: ChannelPaddingInstructions,
+
+    /// The configuration (from the config file or API caller)
+    config: ChannelConfig,
+
+    /// Dormancy
+    ///
+    /// The last dormancy information we have been told about and passed on to our channels.
+    /// Updated via `ChanMgr::set_dormancy` and hence `ChannelMap::reconfigure_general`,
+    /// which then uses it to calculate how to reconfigure the channels.
+    dormancy: Dormancy,
 }
 
 /// Structure that can only be constructed from within this module.
@@ -100,6 +118,61 @@ impl<C: Clone> ChannelState<C> {
     }
 }
 
+/// Type of the `nf_ito_*` netdir parameters, convenience alias
+type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>>;
+
+/// Extract from a `NetDarameters` which we need, conveniently organised for our processing
+///
+/// This type serves two functions at once:
+///
+///  1. Being a subset of the parameters, we can copy it out of
+///     the netdir, before we do more complex processing - and, in particular,
+///     before we obtain the lock on `inner` (which we need to actually handle the update,
+///     because we need to combine information from the config with that from the netdir).
+///
+///  2. Rather than four separate named fields, it has arrays, so that it is easy to
+///     select the values without error-prone recapitulation of field names.
+#[derive(Debug, Clone)]
+struct NetParamsExtract {
+    /// `nf_ito_*`, the padding timeout parameters from the netdir consensus
+    ///
+    /// `nf_ito[ 0=normal, 1=reduced ][ 0=low, 1=high ]`
+    /// are `nf_ito_{low,high}{,_reduced` from `NetParameters`.
+    // TODO we could use some enum or IndexVec or something to make this less `0` and `1`
+    nf_ito: [[NfIto; 2]; 2],
+}
+
+impl From<&NetParameters> for NetParamsExtract {
+    fn from(p: &NetParameters) -> Self {
+        NetParamsExtract {
+            nf_ito: [
+                [p.nf_ito_low, p.nf_ito_high],
+                [p.nf_ito_low_reduced, p.nf_ito_high_reduced],
+            ],
+        }
+    }
+}
+
+impl NetParamsExtract {
+    /// Return the padding timer prameter low end, for reduced-ness `reduced`, as a `u32`
+    fn pad_low(&self, reduced: bool) -> IntegerMilliseconds<u32> {
+        self.pad_get(reduced, 0)
+    }
+    /// Return the padding timer prameter high end, for reduced-ness `reduced`, as a `u32`
+    fn pad_high(&self, reduced: bool) -> IntegerMilliseconds<u32> {
+        self.pad_get(reduced, 1)
+    }
+
+    /// Return and converts one padding parameter timer
+    ///
+    /// Internal function.
+    fn pad_get(&self, reduced: bool, low_or_high: usize) -> IntegerMilliseconds<u32> {
+        self.nf_ito[usize::from(reduced)][low_or_high]
+            .try_map(|v| Ok::<_, Void>(v.into()))
+            .void_unwrap()
+    }
+}
+
 impl<C: AbstractChannel> ChannelState<C> {
     /// Return an error if `ident`is definitely not a matching
     /// matching identity for this state.
@@ -146,12 +219,23 @@ impl<C: AbstractChannel> ChannelState<C> {
 
 impl<C: AbstractChannel> ChannelMap<C> {
     /// Create a new empty ChannelMap.
-    pub(crate) fn new() -> Self {
-        let channels_params = ChannelsParams::default();
+    pub(crate) fn new(
+        config: ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
+        let mut channels_params = ChannelPaddingInstructions::default();
+        let netparams = NetParamsExtract::from(netparams);
+        let update = parameterize(&mut channels_params, &config, dormancy, &netparams)
+            .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
+        let _: Option<_> = update; // there are no channels yet, that would need to be told
+
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
                 channels: HashMap::new(),
+                config,
                 channels_params,
+                dormancy,
             }),
         }
     }
@@ -193,7 +277,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         func: F,
     ) -> Result<Option<ChannelState<C>>>
     where
-        F: FnOnce(&ChannelsParams) -> Result<ChannelState<C>>,
+        F: FnOnce(&ChannelPaddingInstructions) -> Result<ChannelState<C>>,
     {
         let mut inner = self.inner.lock()?;
         let newval = func(&inner.channels_params)?;
@@ -269,39 +353,51 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
-    /// Handle a `NetDir` update (by reparameterising channels as needed)
-    pub(crate) fn process_updated_netdir(&self, netdir: Arc<tor_netdir::NetDir>) -> Result<()> {
+    /// Reconfigure all channels as necessary
+    ///
+    /// (By reparameterising channels as needed)
+    /// This function will handle
+    ///   - netdir update
+    ///   - a reconfiguration
+    ///   - dormancy
+    ///
+    /// For `new_config` and `new_dormancy`, `None` means "no change to previous info".
+    pub(super) fn reconfigure_general(
+        &self,
+        new_config: Option<&ChannelConfig>,
+        new_dormancy: Option<Dormancy>,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), tor_error::Bug> {
         use ChannelState as CS;
-
-        // TODO support dormant mode
-        // TODO when entering/leaving dormant mode, send CELL_PADDING_NEGOTIATE to peers
 
         // TODO when we support operation as a relay, inter-relay channels ought
         // not to get padding.
-        let padding_parameters = {
-            let mut p = PaddingParametersBuilder::default();
-            update_padding_parameters_from_netdir(&mut p, &netdir).unwrap_or_else(|e| {
-                info!(
-                    "consensus channel padding parameters wrong, using defaults: {}",
-                    &e,
-                );
-            });
-            let p = p
-                .build()
-                .map_err(into_internal!("failed to build padding parameters"))?;
-
-            // Drop the `Arc<NetDir>` as soon as we have got what we need from it,
-            // before we take the channel map lock.
-            drop(netdir);
-            p
+        let netdir = {
+            let extract = NetParamsExtract::from((*netparams).as_ref());
+            drop(netparams);
+            extract
         };
 
-        let mut inner = self.inner.lock()?;
-        let update = inner
-            .channels_params
-            .start_update()
-            .padding_parameters(padding_parameters)
-            .finish();
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| internal!("poisonned channel manager"))?;
+        let mut inner = &mut *inner;
+
+        if let Some(new_config) = new_config {
+            inner.config = new_config.clone();
+        }
+        if let Some(new_dormancy) = new_dormancy {
+            inner.dormancy = new_dormancy;
+        }
+
+        let update = parameterize(
+            &mut inner.channels_params,
+            &inner.config,
+            inner.dormancy,
+            &netdir,
+        )?;
+
         let update = if let Some(u) = update {
             u
         } else {
@@ -335,32 +431,136 @@ impl<C: AbstractChannel> ChannelMap<C> {
     }
 }
 
-/// Given a `NetDir`, update a `PaddingParametersBuilder` with channel padding parameters
-fn update_padding_parameters_from_netdir(
-    p: &mut PaddingParametersBuilder,
-    netdir: &NetDir,
-) -> StdResult<(), &'static str> {
-    let params = netdir.params();
-    // TODO support reduced padding via global client config,
-    // TODO and with reduced padding, send CELL_PADDING_NEGOTIATE
-    let (low, high) = (&params.nf_ito_low, &params.nf_ito_high);
+/// Converts config, dormancy, and netdir, into parameter updates
+///
+/// Calculates new parameters, updating `channels_params` as appropriate.
+/// If anything changed, the corresponding update instruction is returned.
+///
+/// `channels_params` is updated with the new parameters,
+/// and the update message, if one is needed, is returned.
+///
+/// This is called in two places:
+///
+///  1. During chanmgr creation, it is called once to analyse the initial state
+///     and construct a corresponding ChannelPaddingInstructions.
+///
+///  2. During reconfiguration.
+fn parameterize(
+    channels_params: &mut ChannelPaddingInstructions,
+    config: &ChannelConfig,
+    dormancy: Dormancy,
+    netdir: &NetParamsExtract,
+) -> StdResult<Option<ChannelPaddingInstructionsUpdates>, tor_error::Bug> {
+    // Everything in this calculation applies to *all* channels, disregarding
+    // channel usage.  Usage is handled downstream, in the channel frontend.
+    // See the module doc in `crates/tor-proto/src/channel/padding.rs`.
 
-    let conv_timing_param =
-        |bounded: BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>| bounded.get().try_into();
-    let low = low
-        .try_map(conv_timing_param)
-        .map_err(|_| "low value out of range?!")?;
-    let high = high
-        .try_map(conv_timing_param)
-        .map_err(|_| "high value out of range?!")?;
+    let padding_of_level = |level| padding_parameters(level, netdir);
+    let send_padding = padding_of_level(config.padding)?;
+    let padding_default = padding_of_level(PaddingLevel::default())?;
 
-    if high > low {
-        return Err("high > low");
+    let send_padding = match dormancy {
+        Dormancy::Active => send_padding,
+        Dormancy::Dormant => None,
+    };
+
+    let recv_padding = match config.padding {
+        PaddingLevel::Reduced => None,
+        PaddingLevel::Normal => send_padding,
+        PaddingLevel::None => None,
+    };
+
+    // Whether the inbound padding approach we are to use, is the same as the default
+    // derived from the netdir (disregarding our config and dormancy).
+    //
+    // Ie, whether the parameters we want are precisely those that a peer would
+    // use by default (assuming they have the same view of the netdir as us).
+    let recv_equals_default = recv_padding == padding_default;
+
+    let padding_negotiate = if recv_equals_default {
+        // Our padding approach is the same as peers' defaults.  So the PADDING_NEGOTIATE
+        // message we need to send is the START(0,0).  (The channel frontend elides an
+        // initial message of this form, - see crates/tor-proto/src/channel.rs::note_usage.)
+        //
+        // If the netdir default is no padding, and we previously negotiated
+        // padding being enabled, and now want to disable it, we would send
+        // START(0,0) rather than STOP.  That is OK (even, arguably, right).
+        PaddingNegotiate::start_default()
+    } else {
+        match recv_padding {
+            None => PaddingNegotiate::stop(),
+            Some(params) => params.padding_negotiate_cell()?,
+        }
+    };
+
+    let mut update = channels_params
+        .start_update()
+        .padding_enable(send_padding.is_some())
+        .padding_negotiate(padding_negotiate);
+    if let Some(params) = send_padding {
+        update = update.padding_parameters(params);
     }
+    let update = update.finish();
 
-    p.low_ms(low);
-    p.high_ms(high);
-    Ok(())
+    Ok(update)
+}
+
+/// Given a `NetDirExtract` and whether we're reducing padding, return a `PaddingParameters`
+///
+/// With `PaddingLevel::None`, or the consensus specifies no padding, will return `None`;
+/// but does not account for other reasons why padding might be enabled/disabled.
+fn padding_parameters(
+    config: PaddingLevel,
+    netdir: &NetParamsExtract,
+) -> StdResult<Option<PaddingParameters>, tor_error::Bug> {
+    let reduced = match config {
+        PaddingLevel::Reduced => true,
+        PaddingLevel::Normal => false,
+        PaddingLevel::None => return Ok(None),
+    };
+
+    padding_parameters_builder(reduced, netdir)
+        .unwrap_or_else(|e| {
+            info!(
+                "consensus channel padding parameters wrong, using defaults: {}",
+                &e
+            );
+            Some(PaddingParametersBuilder::default())
+        })
+        .map(|p| {
+            p.build()
+                .map_err(into_internal!("failed to build padding parameters"))
+        })
+        .transpose()
+}
+
+/// Given a `NetDirExtract` and whether we're reducing padding,
+/// return a `PaddingParametersBuilder`
+///
+/// If the consensus specifies no padding, will return `None`;
+/// but does not account for other reasons why padding might be enabled/disabled.
+///
+/// If `Err`, the string is a description of what is wrong with the parameters;
+/// the caller should use `PaddingParameters::Default`.
+fn padding_parameters_builder(
+    reduced: bool,
+    netdir: &NetParamsExtract,
+) -> StdResult<Option<PaddingParametersBuilder>, &'static str> {
+    let mut p = PaddingParametersBuilder::default();
+
+    let low = netdir.pad_low(reduced);
+    let high = netdir.pad_high(reduced);
+    if low > high {
+        return Err("low > high");
+    }
+    if low.as_millis() == 0 && high.as_millis() == 0 {
+        // Zeroes for both channel padding consensus parameters means "don't send padding".
+        // padding-spec.txt s2.6, see description of `nf_ito_high`.
+        return Ok(None);
+    }
+    p.low(low);
+    p.high(high);
+    Ok::<_, &'static str>(Some(p))
 }
 
 #[cfg(test)]
@@ -375,15 +575,23 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use std::result::Result as StdResult;
     use std::sync::Arc;
-    use tor_proto::channel::params::ChannelsParamsUpdates;
+    use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
+
+    fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
+        ChannelMap::new(
+            ChannelConfig::default(),
+            Default::default(),
+            &Default::default(),
+        )
+    }
+
     #[derive(Eq, PartialEq, Clone, Debug)]
     struct FakeChannel {
         ident: &'static str,
         usable: bool,
         unused_duration: Option<u64>,
-        params_update: Option<Arc<ChannelsParamsUpdates>>,
+        params_update: Option<Arc<ChannelPaddingInstructionsUpdates>>,
     }
     impl AbstractChannel for FakeChannel {
         type Ident = u8;
@@ -396,10 +604,14 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             self.unused_duration.map(Duration::from_secs)
         }
-        fn reparameterize(&mut self, update: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+        fn reparameterize(
+            &mut self,
+            update: Arc<ChannelPaddingInstructionsUpdates>,
+        ) -> tor_proto::Result<()> {
             self.params_update = Some(update);
             Ok(())
         }
+        fn engage_padding_activities(&self) {}
     }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
@@ -444,7 +656,7 @@ mod test {
 
     #[test]
     fn simple_ops() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
         use ChannelState::Open;
 
         assert!(map.replace(b'h', ch("hello")).unwrap().is_none());
@@ -471,7 +683,7 @@ mod test {
 
     #[test]
     fn rmv_unusable() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         map.replace(b'm', closed("machen")).unwrap();
         map.replace(b'f', ch("feinen")).unwrap();
@@ -488,7 +700,7 @@ mod test {
 
     #[test]
     fn change() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         map.replace(b'w', ch("wir")).unwrap();
         map.replace(b'm', ch("machen")).unwrap();
@@ -543,7 +755,7 @@ mod test {
 
     #[test]
     fn reparameterise_via_netdir() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Set some non-default parameters so that we can tell when an update happens
         let _ = map
@@ -554,7 +766,7 @@ mod test {
             .start_update()
             .padding_parameters(
                 PaddingParametersBuilder::default()
-                    .low_ms(1234.into())
+                    .low(1234.into())
                     .build()
                     .unwrap(),
             )
@@ -574,27 +786,28 @@ mod test {
         };
 
         eprintln!("-- process a default netdir, which should send an update --");
-        map.process_updated_netdir(netdir.clone()).unwrap();
+        map.reconfigure_general(None, None, netdir.clone()).unwrap();
         with_ch(&|ch| {
             assert_eq!(
                 format!("{:?}", ch.params_update.take().unwrap()),
                 // evade field visibility by (ab)using Debug impl
-                "ChannelsParamsUpdates { padding_enable: None, \
+                "ChannelPaddingInstructionsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
-                        low_ms: IntegerMilliseconds { value: 1500 }, \
-                        high_ms: IntegerMilliseconds { value: 9500 } }) }"
+                        low: IntegerMilliseconds { value: 1500 }, \
+                        high: IntegerMilliseconds { value: 9500 } }), \
+                    padding_negotiate: None }"
             );
         });
         eprintln!();
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
-        map.process_updated_netdir(netdir).unwrap();
+        map.reconfigure_general(None, None, netdir).unwrap();
         with_ch(&|ch| assert_eq!(ch.params_update, None));
     }
 
     #[test]
     fn expire_channels() {
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Channel that has been unused beyond max duration allowed is expired
         map.replace(
@@ -607,7 +820,7 @@ mod test {
         assert_eq!(180, map.expire_channels().as_secs());
         assert!(map.get(&b'w').unwrap().is_none());
 
-        let map = ChannelMap::new();
+        let map = new_test_channel_map();
 
         // Channel that has been unused for shorter than max unused duration
         map.replace(

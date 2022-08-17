@@ -5,6 +5,7 @@ use tor_bytes::Error as BytesError;
 /// 0.4.5.0-alpha-dev to dump all of its cells to the logs, and
 /// running in a chutney network with "test-network-all".
 use tor_cell::chancell::{msg, ChanCmd};
+use tor_units::IntegerMilliseconds;
 
 use std::net::IpAddr;
 
@@ -395,7 +396,14 @@ fn test_padding_negotiate() {
     fbody(
         cmd,
         "00 02 0100 0200",
-        &msg::PaddingNegotiate::new(true, 256, 512).into(),
+        &msg::PaddingNegotiate::start(IntegerMilliseconds::new(256), IntegerMilliseconds::new(512))
+            .into(),
+    );
+
+    fbody(
+        cmd,
+        "00 01 0000 0000",
+        &msg::PaddingNegotiate::stop().into(),
     );
 
     assert_eq!(

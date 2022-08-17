@@ -14,6 +14,7 @@ use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort}
 use tor_config::MutCfg;
 use tor_dirmgr::Timeliness;
 use tor_error::{internal, Bug};
+use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
@@ -30,7 +31,7 @@ use std::sync::{Arc, Mutex};
 use crate::err::ErrorDetail;
 use crate::{status, util, TorClientBuilder};
 use tor_rtcompat::scheduler::TaskHandle;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 /// An active client session on the Tor network.
 ///
@@ -55,6 +56,10 @@ pub struct TorClient<R: Runtime> {
     client_isolation: IsolationToken,
     /// Connection preferences.  Starts out as `Default`,  Inherited by our clones.
     connect_prefs: StreamPrefs,
+    /// Channel manager, used by circuits etc.,
+    ///
+    /// Used directly by client only for reconfiguration.
+    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
@@ -143,6 +148,15 @@ enum StreamIsolationPreference {
     Explicit(Box<dyn Isolation>),
     /// Isolate every connection!
     EveryStream,
+}
+
+impl From<DormantMode> for tor_chanmgr::Dormancy {
+    fn from(dormant: DormantMode) -> tor_chanmgr::Dormancy {
+        match dormant {
+            DormantMode::Normal => tor_chanmgr::Dormancy::Active,
+            DormantMode::Soft => tor_chanmgr::Dormancy::Dormant,
+        }
+    }
 }
 
 impl StreamPrefs {
@@ -355,6 +369,7 @@ impl<R: Runtime> TorClient<R> {
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
+        let dormant = DormantMode::Normal;
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
             c.extensions = dirmgr_extensions;
@@ -371,7 +386,12 @@ impl<R: Runtime> TorClient<R> {
         let status_receiver = status::BootstrapEvents {
             inner: status_receiver,
         };
-        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(runtime.clone()));
+        let chanmgr = Arc::new(tor_chanmgr::ChanMgr::new(
+            runtime.clone(),
+            &config.channel,
+            dormant.into(),
+            &NetParameters::from_map(&config.override_net_params),
+        ));
         let circmgr =
             tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
                 .map_err(ErrorDetail::CircMgrSetup)?;
@@ -393,11 +413,16 @@ impl<R: Runtime> TorClient<R> {
                 .into_iter(),
         );
 
-        let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(DormantMode::Normal));
+        let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(dormant));
         let dormant_send = DropNotifyWatchSender::new(dormant_send);
 
         runtime
-            .spawn(tasks_monitor_dormant(dormant_recv, periodic_task_handles))
+            .spawn(tasks_monitor_dormant(
+                dormant_recv,
+                dirmgr.clone().upcast_arc(),
+                chanmgr.clone(),
+                periodic_task_handles,
+            ))
             .map_err(|e| ErrorDetail::from_spawn("periodic task dormant monitor", e))?;
 
         let conn_status = chanmgr.bootstrap_events();
@@ -418,6 +443,7 @@ impl<R: Runtime> TorClient<R> {
             runtime,
             client_isolation,
             connect_prefs: Default::default(),
+            chanmgr,
             circmgr,
             dirmgr,
             statemgr,
@@ -576,7 +602,14 @@ impl<R: Runtime> TorClient<R> {
         self.circmgr
             .reconfigure(new_config, how)
             .map_err(wrap_err)?;
+
         self.dirmgr.reconfigure(&dir_cfg, how).map_err(wrap_err)?;
+
+        let netparams = self.dirmgr.params();
+
+        self.chanmgr
+            .reconfigure(&new_config.channel, how, netparams)
+            .map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {
             return Ok(());
@@ -923,11 +956,19 @@ impl<R: Runtime> TorClient<R> {
 ///
 /// This function is spawned as a task during client construction.
 // TODO should this perhaps be done by each TaskHandle?
-async fn tasks_monitor_dormant(
+async fn tasks_monitor_dormant<R: Runtime>(
     mut dormant_rx: postage::watch::Receiver<Option<DormantMode>>,
+    netdir: Arc<dyn NetDirProvider>,
+    chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
     periodic_task_handles: Vec<TaskHandle>,
 ) {
     while let Some(Some(mode)) = dormant_rx.next().await {
+        let netparams = netdir.params();
+
+        chanmgr
+            .set_dormancy(mode.into(), netparams)
+            .unwrap_or_else(|e| error!("set dormancy: {}", e));
+
         let is_dormant = matches!(mode, DormantMode::Soft);
 
         for task in periodic_task_handles.iter() {

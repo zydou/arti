@@ -206,6 +206,22 @@
 # List of directory authorities which we expect to sign consensus documents.
 #   authorities = [ <default list is compiled-in > ]
 
+# Channels and their behaviour
+[channel]
+
+# Should we use reduced channel padding?  (This roughly halves the padding
+# cell frequency, and makes the padding unidrecteional, increasing the
+# traceability of the client connections.)
+# Or disable it entirely?
+#
+#padding = "normal"
+#   padding = "reduced"
+#   padding = "none"
+
+# Full manual control of the precise padding timing parameters is available
+# by setting `override_net_params.nf_ito_low` et al.
+# (See torpsec/padding-spec.txt section 3.4.)
+
 # Rules for how long circuits should survive, and how long pending
 # requests should wait for a circuit.
 [circuit_timing]

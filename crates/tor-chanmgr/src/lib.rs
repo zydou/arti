@@ -52,24 +52,30 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod builder;
+mod config;
 mod err;
 mod event;
 mod mgr;
 #[cfg(test)]
 mod testing;
 
+use educe::Educe;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
+use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
+use tor_config::ReconfigureError;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
-use tor_netdir::NetDirProvider;
+use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
 use tracing::{debug, error};
 use void::{ResultVoidErrExt, Void};
 
 pub use err::Error;
+
+pub use config::{ChannelConfig, ChannelConfigBuilder};
 
 use tor_rtcompat::Runtime;
 
@@ -103,16 +109,61 @@ pub enum ChanProvenance {
     Preexisting,
 }
 
+/// Dormancy state, as far as the channel manager is concerned
+///
+/// This is usually derived in higher layers from `arti_client::DormantMode`.
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Educe)]
+#[educe(Default)]
+pub enum Dormancy {
+    /// Not dormant
+    ///
+    /// Channels will operate normally.
+    #[educe(Default)]
+    Active,
+    /// Totally dormant
+    ///
+    /// Channels will not perform any spontaneous activity (eg, netflow padding)
+    Dormant,
+}
+
+/// How a channel is going to be used
+///
+/// A channel may be used in multiple ways.  Each time it is (re)used, a separate
+/// ChannelUsage is passed in.
+///
+/// This type is obtained from a `tor_circmgr::usage::SupportedCircUsage` in
+/// `tor_circmgr::usage`, and it has roughly the same set of variants.
+#[derive(Clone, Debug, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ChannelUsage {
+    /// Use for BEGINDIR-based non-anonymous directory connections
+    Dir,
+
+    /// Use to transmit user traffic (including exit traffic) over the network.
+    ///
+    /// Includes a circuit being constructed preemptively.
+    UserTraffic,
+
+    /// For a channel which is not use for circuit(s), or only for useless circuits
+    UselessCircuit,
+}
+
 impl<R: Runtime> ChanMgr<R> {
     /// Construct a new channel manager.
     ///
     /// # Usage note
     ///
     /// For the manager to work properly, you will need to call `ChanMgr::launch_background_tasks`.
-    pub fn new(runtime: R) -> Self {
+    pub fn new(
+        runtime: R,
+        config: &ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
         let (sender, receiver) = event::channel();
         let builder = builder::ChanBuilder::new(runtime, sender);
-        let mgr = mgr::AbstractChanMgr::new(builder);
+        let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -154,6 +205,7 @@ impl<R: Runtime> ChanMgr<R> {
     pub async fn get_or_launch<T: ChanTarget + ?Sized>(
         &self,
         target: &T,
+        usage: ChannelUsage,
     ) -> Result<(Channel, ChanProvenance)> {
         // TODO(nickm): We will need to change the way that we index our map
         // when we eventually support channels that are _not_ primarily
@@ -163,7 +215,10 @@ impl<R: Runtime> ChanMgr<R> {
         let ed_identity = target.ed_identity().ok_or(Error::MissingId)?;
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 
-        let (chan, provenance) = self.mgr.get_or_launch(*ed_identity, targetinfo).await?;
+        let (chan, provenance) = self
+            .mgr
+            .get_or_launch(*ed_identity, targetinfo, usage)
+            .await?;
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
         chan.check_match(target)
@@ -185,6 +240,31 @@ impl<R: Runtime> ChanMgr<R> {
     /// Return the duration from now until next channel expires.
     pub fn expire_channels(&self) -> Duration {
         self.mgr.expire_channels()
+    }
+
+    /// Notifies the chanmgr to be dormant like dormancy
+    pub fn set_dormancy(
+        &self,
+        dormancy: Dormancy,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        self.mgr.set_dormancy(dormancy, netparams)
+    }
+
+    /// Reconfigure all channels
+    pub fn reconfigure(
+        &self,
+        config: &ChannelConfig,
+        how: tor_config::Reconfigure,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), ReconfigureError> {
+        let r = self.mgr.reconfigure(config, netparams);
+
+        // We don't care about how, because reconfiguration can only fail due to bugs
+        let _ = how;
+        let _: Option<&tor_error::Bug> = r.as_ref().err();
+
+        Ok(r?)
     }
 
     /// Watch for things that ought to change the configuration of all channels in the client
@@ -212,9 +292,8 @@ impl<R: Runtime> ChanMgr<R> {
                         if ! matches!(direvent, DE::NewConsensus) { continue };
                         let self_ = self_.upgrade().ok_or("channel manager gone away")?;
                         let netdir = netdir.upgrade().ok_or("netdir gone away")?;
-                        let netdir = netdir.timely_netdir();
-                        let netdir = if let Ok(nd) = netdir { nd } else { continue };
-                        self_.mgr.channels.process_updated_netdir(netdir).map_err(|e| {
+                        let netparams = netdir.params();
+                        self_.mgr.update_netparams(netparams).map_err(|e| {
                             error!("continually_update_channels_config: failed to process! {} {:?}",
                                    &e, &e);
                             "error processing netdir"

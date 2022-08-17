@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
+pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
 pub use tor_config::impl_standard_builder;
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, Reconfigure};
 
@@ -264,7 +265,12 @@ pub struct TorClientConfig {
         )
     )]
     #[builder_field_attr(serde(default))]
-    override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
+    pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
+
+    /// Information about how to build paths through the network.
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) channel: ChannelConfig,
 
     /// Information about how to build paths through the network.
     #[as_ref]

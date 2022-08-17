@@ -65,26 +65,41 @@ mod reactor;
 mod unique_id;
 
 pub use crate::channel::params::*;
-use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, CtrlMsg, Reactor};
+use crate::channel::reactor::{BoxedChannelSink, BoxedChannelStream, Reactor};
 pub use crate::channel::unique_id::UniqId;
-use crate::circuit::celltypes::CreateResponse;
 use crate::util::err::ChannelClosed;
 use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
 use std::pin::Pin;
-use std::result::Result as StdResult;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
-use tor_cell::chancell::{msg, ChanCell, CircId};
+use tor_cell::chancell::{msg, msg::PaddingNegotiate, ChanCell, CircId};
 use tor_error::internal;
 use tor_linkspec::{HasRelayIds, OwnedChanTarget};
 use tor_rtcompat::SleepProvider;
+
+/// Imports that are re-exported pub if feature `testing` is enabled
+///
+/// Putting them together in a little module like this allows us to select the
+/// visibility for all of these things together.
+mod testing_exports {
+    #![allow(unreachable_pub)]
+    pub use super::reactor::CtrlMsg;
+    pub use crate::circuit::celltypes::CreateResponse;
+}
+#[cfg(feature = "testing")]
+pub use testing_exports::*;
+#[cfg(not(feature = "testing"))]
+use testing_exports::*;
 
 use asynchronous_codec as futures_codec;
 use futures::channel::{mpsc, oneshot};
 use futures::io::{AsyncRead, AsyncWrite};
 
+use educe::Educe;
 use futures::{Sink, SinkExt};
+use std::result::Result as StdResult;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -121,7 +136,7 @@ pub struct Channel {
     details: Arc<ChannelDetails>,
 }
 
-/// This is information shared between the reactor and the frontend.
+/// This is information shared between the reactor and the frontend (`Channel` object).
 ///
 /// This exists to make `Channel` cheap to clone, which is desirable because every circuit wants
 /// an owned mutable `Channel`.
@@ -145,7 +160,70 @@ pub(crate) struct ChannelDetails {
     clock_skew: ClockSkew,
     /// The time when this channel was successfully completed
     opened_at: coarsetime::Instant,
+    /// Mutable state used by the `Channel` (frontend)
+    ///
+    /// The reactor (hot code) ought to avoid acquiring this lock.
+    /// (It doesn't currently have a useable reference to it.)
+    mutable: Mutex<MutableDetails>,
 }
+
+/// Mutable details (state) used by the `Channel` (frontend)
+#[derive(Debug, Default)]
+struct MutableDetails {
+    /// State used to control padding
+    padding: PaddingControlState,
+}
+
+/// State used to control padding
+///
+/// We store this here because:
+///
+///  1. It must be per-channel, because it depends on channel usage.  So it can't be in
+///     (for example) `ChannelPaddingInstructionsUpdate`.
+///
+///  2. It could be in the channel manager's per-channel state but (for code flow reasons
+///     there, really) at the point at which the channel manager concludes for a pending
+///     channel that it ought to update the usage, it has relinquished the lock on its own data
+///     structure.
+///     And there is actually no need for this to be global: a per-channel lock is better than
+///     reacquiring the global one.
+///
+///  3. It doesn't want to be in the channel reactor since that's super hot.
+///
+/// See also the overview at [`tor_proto::channel::padding`](padding)
+#[derive(Debug, Educe)]
+#[educe(Default)]
+enum PaddingControlState {
+    /// No usage of this channel, so far, implies sending or negotiating channel padding.
+    ///
+    /// This means we do not send (have not sent) any `ChannelPaddingInstructionsUpdates` to the reactor,
+    /// with the following consequences:
+    ///
+    ///  * We don't enable our own padding.
+    ///  * We don't do any work to change the timeout distribution in the padding timer,
+    ///    (which is fine since this timer is not enabled).
+    ///  * We don't send any PADDING_NEGOTIATE cells.  The peer is supposed to come to the
+    ///    same conclusions as us, based on channel usage: it should also not send padding.
+    #[educe(Default)]
+    UsageDoesNotImplyPadding {
+        /// The last padding parameters (from reparameterize)
+        ///
+        /// We keep this so that we can send it if and when
+        /// this channel starts to be used in a way that implies (possibly) sending padding.
+        padding_params: ChannelPaddingInstructionsUpdates,
+    },
+
+    /// Some usage of this channel implies possibly sending channel padding
+    ///
+    /// The required padding timer, negotiation cell, etc.,
+    /// have been communicated to the reactor via a `CtrlMsg::ConfigUpdate`.
+    ///
+    /// Once we have set this variant, it remains this way forever for this channel,
+    /// (the spec speaks of channels "only used for" certain purposes not getting padding).
+    PaddingConfigured,
+}
+
+use PaddingControlState as PCS;
 
 impl Sink<ChanCell> for Channel {
     type Error = Error;
@@ -265,6 +343,8 @@ impl Channel {
         let unused_since = OptTimestamp::new();
         unused_since.update();
 
+        let mutable = MutableDetails::default();
+
         let details = ChannelDetails {
             unique_id,
             peer_id,
@@ -272,6 +352,7 @@ impl Channel {
             unused_since,
             clock_skew,
             opened_at: coarsetime::Instant::now(),
+            mutable: Mutex::new(mutable),
         };
         let details = Arc::new(details);
 
@@ -294,6 +375,7 @@ impl Channel {
             link_protocol,
             details,
             padding_timer,
+            special_outgoing: Default::default(),
         };
 
         (channel, reactor)
@@ -321,16 +403,90 @@ impl Channel {
         self.details.clock_skew
     }
 
+    /// Send a control message
+    fn send_control(&self, msg: CtrlMsg) -> StdResult<(), ChannelClosed> {
+        self.control
+            .unbounded_send(msg)
+            .map_err(|_| ChannelClosed)?;
+        Ok(())
+    }
+
+    /// Acquire the lock on `mutable` (and handle any poison error)
+    fn mutable(&self) -> MutexGuard<MutableDetails> {
+        self.details
+            .mutable
+            .lock()
+            .expect("channel details poisoned")
+    }
+
+    /// Specify that this channel should do activities related to channel padding
+    ///
+    /// Initially, the channel does nothing related to channel padding:
+    /// it neither sends any padding, nor sends any PADDING_NEGOTIATE cells.
+    ///
+    /// After this function has been called, it will do both,
+    /// according to the parameters specified through `reparameterize`.
+    /// Note that this might include *disabling* padding
+    /// (for example, by sending a `PADDING_NEGOTIATE`).
+    ///
+    /// Idempotent.
+    ///
+    /// There is no way to undo the effect of this call.
+    pub fn engage_padding_activities(&self) {
+        let mut mutable = self.mutable();
+
+        match &mutable.padding {
+            PCS::UsageDoesNotImplyPadding {
+                padding_params: params,
+            } => {
+                // Well, apparently the channel usage *does* imply padding now,
+                // so we need to (belatedly) enable the timer,
+                // send the padding negotiation cell, etc.
+                let mut params = params.clone();
+
+                // Except, maybe the padding we would be requesting is precisely default,
+                // so we wouldn't actually want to send that cell.
+                if params.padding_negotiate == Some(PaddingNegotiate::start_default()) {
+                    params.padding_negotiate = None;
+                }
+
+                match self.send_control(CtrlMsg::ConfigUpdate(Arc::new(params))) {
+                    Ok(()) => {}
+                    Err(ChannelClosed) => return,
+                }
+
+                mutable.padding = PCS::PaddingConfigured;
+            }
+
+            PCS::PaddingConfigured => {
+                // OK, nothing to do
+            }
+        }
+
+        drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
+    }
+
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(
-        &mut self,
-        updates: Arc<ChannelsParamsUpdates>,
-    ) -> StdResult<(), ChannelClosed> {
-        self.control
-            .unbounded_send(CtrlMsg::ConfigUpdate(updates))
-            .map_err(|_| ChannelClosed)
+    pub fn reparameterize(&mut self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
+        let mut mutable = self
+            .details
+            .mutable
+            .lock()
+            .map_err(|_| internal!("channel details poisoned"))?;
+
+        match &mut mutable.padding {
+            PCS::PaddingConfigured => {
+                self.send_control(CtrlMsg::ConfigUpdate(params))?;
+            }
+            PCS::UsageDoesNotImplyPadding { padding_params } => {
+                padding_params.combine(&params);
+            }
+        }
+
+        drop(mutable); // release the lock now: lock span covers the send, ensuring ordering
+        Ok(())
     }
 
     /// Return an error if this channel is somehow mismatched with the
@@ -409,13 +565,11 @@ impl Channel {
         let (createdsender, createdreceiver) = oneshot::channel::<CreateResponse>();
 
         let (tx, rx) = oneshot::channel();
-        self.control
-            .unbounded_send(CtrlMsg::AllocateCircuit {
-                created_sender: createdsender,
-                sender,
-                tx,
-            })
-            .map_err(|_| ChannelClosed)?;
+        self.send_control(CtrlMsg::AllocateCircuit {
+            created_sender: createdsender,
+            sender,
+            tx,
+        })?;
         let (id, circ_unique_id) = rx.await.map_err(|_| ChannelClosed)??;
 
         trace!("{}: Allocated CircId {}", circ_unique_id, id);
@@ -439,15 +593,36 @@ impl Channel {
     /// with a channel: the channel should close on its own once nothing
     /// is using it any more.
     pub fn terminate(&self) {
-        let _ = self.control.unbounded_send(CtrlMsg::Shutdown);
+        let _ = self.send_control(CtrlMsg::Shutdown);
     }
 
     /// Tell the reactor that the circuit with the given ID has gone away.
     pub fn close_circuit(&self, circid: CircId) -> Result<()> {
-        self.control
-            .unbounded_send(CtrlMsg::CloseCircuit(circid))
-            .map_err(|_| ChannelClosed)?;
+        self.send_control(CtrlMsg::CloseCircuit(circid))?;
         Ok(())
+    }
+
+    /// Make a new fake reactor-less channel.  For testing only, obviously.
+    ///
+    /// Returns the receiver end of the control message mpsc.
+    ///
+    /// Suitable for external callers who want to test behaviour
+    /// of layers including the logic in the channel frontend
+    /// (`Channel` object methods).
+    //
+    // This differs from test::fake_channel as follows:
+    //  * It returns the mpsc Receiver
+    //  * It does not require explicit specification of details
+    #[cfg(feature = "testing")]
+    pub fn new_fake() -> (Channel, mpsc::UnboundedReceiver<CtrlMsg>) {
+        let (control, control_recv) = mpsc::unbounded();
+        let details = fake_channel_details();
+        let channel = Channel {
+            control,
+            cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
+            details,
+        };
+        (channel, control_recv)
     }
 }
 
@@ -482,6 +657,24 @@ where
     Ok(())
 }
 
+/// Make some fake channel details (for testing only!)
+#[cfg(any(test, feature = "testing"))]
+fn fake_channel_details() -> Arc<ChannelDetails> {
+    let unique_id = UniqId::new();
+    let unused_since = OptTimestamp::new();
+    let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
+
+    Arc::new(ChannelDetails {
+        unique_id,
+        peer_id,
+        closed: AtomicBool::new(false),
+        unused_since,
+        clock_skew: ClockSkew::None,
+        opened_at: coarsetime::Instant::now(),
+        mutable: Default::default(),
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     // Most of this module is tested via tests that also check on the
@@ -500,21 +693,6 @@ pub(crate) mod test {
             cell_tx: mpsc::channel(CHANNEL_BUFFER_SIZE).0,
             details,
         }
-    }
-
-    fn fake_channel_details() -> Arc<ChannelDetails> {
-        let unique_id = UniqId::new();
-        let unused_since = OptTimestamp::new();
-        let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
-
-        Arc::new(ChannelDetails {
-            unique_id,
-            peer_id,
-            closed: AtomicBool::new(false),
-            unused_since,
-            clock_skew: ClockSkew::None,
-            opened_at: coarsetime::Instant::now(),
-        })
     }
 
     #[test]

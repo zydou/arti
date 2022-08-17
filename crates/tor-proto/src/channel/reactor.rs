@@ -11,7 +11,7 @@ use crate::circuit::halfcirc::HalfCirc;
 use crate::util::err::{ChannelClosed, ReactorError};
 use crate::{Error, Result};
 use tor_basic_utils::futures::SinkExt as _;
-use tor_cell::chancell::msg::{Destroy, DestroyReason};
+use tor_cell::chancell::msg::{Destroy, DestroyReason, PaddingNegotiate};
 use tor_cell::chancell::{msg::ChanMsg, ChanCell, CircId};
 use tor_rtcompat::SleepProvider;
 
@@ -54,7 +54,9 @@ fn codec_err_to_chan(err: CodecError) -> Error {
 
 /// A message telling the channel reactor to do something.
 #[derive(Debug)]
-pub(super) enum CtrlMsg {
+#[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
+#[allow(clippy::exhaustive_enums)]
+pub enum CtrlMsg {
     /// Shut down the reactor.
     Shutdown,
     /// Tell the reactor that a given circuit has gone away.
@@ -77,7 +79,7 @@ pub(super) enum CtrlMsg {
     ///
     /// These updates are done via a control message to avoid adding additional branches to the
     /// main reactor `select!`.
-    ConfigUpdate(Arc<ChannelsParamsUpdates>),
+    ConfigUpdate(Arc<ChannelPaddingInstructionsUpdates>),
 }
 
 /// Object to handle incoming cells and background tasks on a channel.
@@ -102,6 +104,8 @@ pub struct Reactor<S: SleepProvider> {
     pub(super) output: BoxedChannelSink,
     /// Timer tracking when to generate channel padding
     pub(super) padding_timer: Pin<Box<padding::Timer<S>>>,
+    /// Outgoing cells introduced at the channel reactor
+    pub(super) special_outgoing: SpecialOutgoing,
     /// A map from circuit ID to Sinks on which we can deliver cells.
     pub(super) circs: CircMap,
     /// Information shared with the frontend
@@ -111,6 +115,29 @@ pub struct Reactor<S: SleepProvider> {
     /// What link protocol is the channel using?
     #[allow(dead_code)] // We don't support protocols where this would matter
     pub(super) link_protocol: u16,
+}
+
+/// Outgoing cells introduced at the channel reactor
+#[derive(Default, Debug, Clone)]
+pub(super) struct SpecialOutgoing {
+    /// If we must send a `PaddingNegotiate`
+    pub(super) padding_negotiate: Option<PaddingNegotiate>,
+}
+
+impl SpecialOutgoing {
+    /// Do we have a special cell to send?
+    ///
+    /// Called by the reactor before looking for cells from the reactor's clients.
+    /// The returned message *must* be sent by the caller, not dropped!
+    #[must_use = "SpecialOutgoing::next()'s return value must be actually sent"]
+    pub(super) fn next(&mut self) -> Option<ChanCell> {
+        // If this gets more cases, consider making SpecialOutgoing into a #[repr(C)]
+        // enum, so that we can fast-path the usual case of "no special message to send".
+        if let Some(p) = self.padding_negotiate.take() {
+            return Some(p.into());
+        }
+        None
+    }
 }
 
 /// Allows us to just say debug!("{}: Reactor did a thing", &self, ...)
@@ -154,7 +181,15 @@ impl<S: SleepProvider> Reactor<S> {
             // See if the output sink can have cells written to it yet.
             // If so, see if we have to-be-transmitted cells.
             ret = self.output.prepare_send_from(async {
-                // This runs if we will be able to write, so do the read:
+                // This runs if we will be able to write, so try to obtain a cell:
+
+                if let Some(l) = self.special_outgoing.next() {
+                    // See reasoning below.
+                    // eprintln!("PADDING - SENDING NEOGIATION: {:?}", &l);
+                    self.padding_timer.as_mut().note_cell_sent();
+                    return Some(l)
+                }
+
                 select_biased! {
                     n = self.cells.next() => {
                         // Note transmission on *input* to the reactor, not ultimate
@@ -176,7 +211,10 @@ impl<S: SleepProvider> Reactor<S> {
                         self.padding_timer.as_mut().note_cell_sent();
                         n
                     },
-                    p = self.padding_timer.as_mut().next() => Some(p.into()),
+                    p = self.padding_timer.as_mut().next() => {
+                        // eprintln!("PADDING - SENDING PADDING: {:?}", &p);
+                        Some(p.into())
+                    },
                 }
             }) => {
                 let (msg, sendable) = ret.map_err(codec_err_to_chan)?;
@@ -226,11 +264,19 @@ impl<S: SleepProvider> Reactor<S> {
                 self.update_disused_since();
             }
             CtrlMsg::ConfigUpdate(updates) => {
-                let ChannelsParamsUpdates {
+                if self.link_protocol == 4 {
+                    // Link protocol 4 does not permit sending, or negotiating, link padding.
+                    // We test for == 4 so that future updates to handshake.rs LINK_PROTOCOLS
+                    // keep doing padding things.
+                    return Ok(());
+                }
+
+                let ChannelPaddingInstructionsUpdates {
                     // List all the fields explicitly; that way the compiler will warn us
                     // if one is added and we fail to handle it here.
                     padding_enable,
                     padding_parameters,
+                    padding_negotiate,
                 } = &*updates;
                 if let Some(parameters) = padding_parameters {
                     self.padding_timer.as_mut().reconfigure(parameters);
@@ -241,6 +287,12 @@ impl<S: SleepProvider> Reactor<S> {
                     } else {
                         self.padding_timer.as_mut().disable();
                     }
+                }
+                if let Some(padding_negotiate) = padding_negotiate {
+                    // This replaces any previous PADDING_NEGOTIATE cell that we were
+                    // told to send, but which we didn't manage to send yet.
+                    // It doesn't make sense to queue them up.
+                    self.special_outgoing.padding_negotiate = Some(padding_negotiate.clone());
                 }
             }
         }

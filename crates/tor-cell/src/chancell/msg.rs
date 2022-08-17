@@ -4,6 +4,7 @@ use super::{ChanCmd, RawCellBody, CELL_DATA_LEN};
 use std::net::{IpAddr, Ipv4Addr};
 use tor_basic_utils::skip_fmt;
 use tor_bytes::{self, EncodeError, EncodeResult, Error, Readable, Reader, Result, Writer};
+use tor_units::IntegerMilliseconds;
 
 use caret::caret_int;
 use educe::Educe;
@@ -801,13 +802,33 @@ impl Readable for Versions {
     }
 }
 
+caret_int! {
+    /// A ChanCmd is the type of a channel cell.  The value of the ChanCmd
+    /// indicates the meaning of the cell, and (possibly) its length.
+    pub struct PaddingNegotiateCmd(u8) {
+        /// Start padding
+        START = 2,
+
+        /// Stop padding
+        STOP = 1,
+    }
+}
+
 /// A PaddingNegotiate message is used to negotiate channel padding.
 ///
-/// TODO: say more once we implement channel padding.
-#[derive(Clone, Debug)]
+/// Sent by a client to its guard node,
+/// to instruct the relay to enable/disable channel padding.
+/// (Not relevant for channels used only for directory lookups,
+/// nor inter-relay channels.)
+/// See `padding-spec.txt`, section 2.2.
+///
+/// This message is constructed in the channel manager and transmitted by the reactor.
+///
+/// The `Default` impl is the same as [`start_default()`](PaddingNegotiate::start_default`)
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaddingNegotiate {
     /// Whether to start or stop padding
-    command: u8,
+    command: PaddingNegotiateCmd,
     /// Suggested lower-bound value for inter-packet timeout in msec.
     // TODO(nickm) is that right?
     ito_low_ms: u16,
@@ -816,26 +837,63 @@ pub struct PaddingNegotiate {
     ito_high_ms: u16,
 }
 impl PaddingNegotiate {
-    /// Create a new PaddingNegotiate message.
+    /// Create a new PADDING_NEGOTIATE START message requesting consensus timing parameters.
     ///
-    /// If `start` is true, this is a message to enable padding. Otherwise
-    /// this is a message to disable padding.
-    pub fn new(start: bool, ito_low_ms: u16, ito_high_ms: u16) -> Self {
-        let command = if start { 2 } else { 1 };
+    /// This message restores the state to the one which exists at channel startup.
+    pub fn start_default() -> Self {
+        // Tor Spec section 7.3, padding-spec section 2.5.
         Self {
+            command: PaddingNegotiateCmd::START,
+            ito_low_ms: 0,
+            ito_high_ms: 0,
+        }
+    }
+
+    /// Create a new PADDING_NEGOTIATE START message.
+    pub fn start(ito_low: IntegerMilliseconds<u16>, ito_high: IntegerMilliseconds<u16>) -> Self {
+        // Tor Spec section 7.3
+        Self {
+            command: PaddingNegotiateCmd::START,
+            ito_low_ms: ito_low.as_millis(),
+            ito_high_ms: ito_high.as_millis(),
+        }
+    }
+
+    /// Create a new PADDING_NEGOTIATE STOP message.
+    pub fn stop() -> Self {
+        // Tor Spec section 7.3
+        Self {
+            command: PaddingNegotiateCmd::STOP,
+            ito_low_ms: 0,
+            ito_high_ms: 0,
+        }
+    }
+
+    /// Construct from the three fields: command, low_ms, high_ms, as a tupe
+    ///
+    /// For testing only
+    #[cfg(feature = "testing")]
+    pub fn from_raw(command: PaddingNegotiateCmd, ito_low_ms: u16, ito_high_ms: u16) -> Self {
+        PaddingNegotiate {
             command,
             ito_low_ms,
             ito_high_ms,
         }
     }
 }
+impl Default for PaddingNegotiate {
+    fn default() -> Self {
+        Self::start_default()
+    }
+}
+
 impl Body for PaddingNegotiate {
     fn into_message(self) -> ChanMsg {
         ChanMsg::PaddingNegotiate(self)
     }
     fn write_body_onto<W: Writer + ?Sized>(self, w: &mut W) -> EncodeResult<()> {
         w.write_u8(0); // version
-        w.write_u8(self.command);
+        w.write_u8(self.command.get());
         w.write_u16(self.ito_low_ms);
         w.write_u16(self.ito_high_ms);
         Ok(())
@@ -849,7 +907,7 @@ impl Readable for PaddingNegotiate {
                 "Unrecognized padding negotiation version",
             ));
         }
-        let command = r.take_u8()?;
+        let command = r.take_u8()?.into();
         let ito_low_ms = r.take_u16()?;
         let ito_high_ms = r.take_u16()?;
         Ok(PaddingNegotiate {

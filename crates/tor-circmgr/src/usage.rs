@@ -8,6 +8,7 @@ use std::time::SystemTime;
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
+use tor_chanmgr::ChannelUsage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
@@ -353,6 +354,16 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 }
             }
             _ => abstract_spec_find_supported(list, usage),
+        }
+    }
+
+    fn channel_usage(&self) -> ChannelUsage {
+        use ChannelUsage as CU;
+        use SupportedCircUsage as SCU;
+        match self {
+            SCU::Dir => CU::Dir,
+            SCU::Exit { .. } => CU::UserTraffic,
+            SCU::NoUsage => CU::UselessCircuit,
         }
     }
 }

@@ -27,6 +27,7 @@ use crate::{DirInfo, Error, Result};
 
 use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
+use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
 use tor_error::{internal, AbsRetryTime, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
@@ -114,6 +115,9 @@ pub(crate) trait AbstractSpec: Clone + Debug {
     ) -> Vec<&'b mut OpenEntry<Self, C>> {
         abstract_spec_find_supported(list, usage)
     }
+
+    /// How the circuit will be used, for use by the channel
+    fn channel_usage(&self) -> ChannelUsage;
 }
 
 /// An error type returned by [`AbstractSpec::restrict_mut`]
@@ -1537,6 +1541,9 @@ mod test {
 
             self.isolation = new_iso;
             Ok(())
+        }
+        fn channel_usage(&self) -> ChannelUsage {
+            ChannelUsage::UserTraffic
         }
     }
 

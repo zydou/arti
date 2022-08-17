@@ -178,6 +178,14 @@ impl<T> NetParams<T> {
     }
 }
 
+impl<K: Into<String>, T> FromIterator<(K, T)> for NetParams<T> {
+    fn from_iter<I: IntoIterator<Item = (K, T)>>(i: I) -> Self {
+        NetParams {
+            params: i.into_iter().map(|(k, v)| (k.into(), v)).collect(),
+        }
+    }
+}
+
 impl<'de, T> Deserialize<'de> for NetParams<T>
 where
     T: Deserialize<'de>,

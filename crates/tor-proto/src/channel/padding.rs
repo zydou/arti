@@ -1,6 +1,31 @@
 //! Channel padding
 //!
 //! Tor spec `padding-spec.txt` section 2.
+//!
+//! # Overview of channel padding control arrangements
+//!
+//!  1. `tor_chanmgr::mgr::map` collates information about dormancy, netdir,
+//!     and overall client configuration, to maintain a
+//!     [`ChannelPaddingInstructions`](crate::channel::ChannelPaddingInstructions)
+//!     which is to be used for all relevant[^relevant] channels.
+//!     This is distributed to channel frontends (`Channel`s)
+//!     by calling `Channel::reparameterize`.
+//!
+//!  2. Circuit and channel `get_or_launch` methods all take a `ChannelUsage`.
+//!     This is plumbed through the layers to `AbstractChanMgr::get_or_launch`,
+//!     which passes it to the channel frontend via `Channel::note_usage`.
+//!
+//!  3. The `Channel` collates this information, and maintains an idea
+//!     of whether padding is relevant for this channel (`PaddingControlState`).
+//!     For channels where it *is* relevant, it sends `CtrlMsg::ConfigUpdate`
+//!     to the reactor.
+//!
+//!  4. The reactor handles `CtrlMsg::ConfigUpdate` by reconfiguring is padding timer;
+//!     and by sending PADDING_NEGOTIATE cell(s).
+//!
+//! [^relevant]: A "relevant" channel is one which is not excluded by the rules about
+//! padding in padding-spec 2.2.  Arti does not currently support acting as a relay,
+//! so all our channels are client-to-guard or client-to-directory.
 
 use std::pin::Pin;
 // TODO, coarsetime maybe?  But see arti#496 and also we want to use the mockable SleepProvider
@@ -14,7 +39,9 @@ use pin_project::pin_project;
 use rand::distributions::Distribution;
 use tracing::error;
 
-use tor_cell::chancell::msg::Padding;
+use tor_cell::chancell::msg::{Padding, PaddingNegotiate};
+use tor_config::impl_standard_builder;
+use tor_error::into_internal;
 use tor_rtcompat::SleepProvider;
 use tor_units::IntegerMilliseconds;
 
@@ -96,20 +123,44 @@ pub(crate) struct Timer<R: SleepProvider> {
 
 /// Timing parameters, as described in `padding-spec.txt`
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Builder)]
+#[builder(build_fn(error = "tor_error::Bug"))]
 pub struct Parameters {
     /// Low end of the distribution of `X`
     #[builder(default = "1500.into()")]
-    pub(crate) low_ms: IntegerMilliseconds<u32>,
+    pub(crate) low: IntegerMilliseconds<u32>,
     /// High end of the distribution of `X` (inclusive)
     #[builder(default = "9500.into()")]
-    pub(crate) high_ms: IntegerMilliseconds<u32>,
+    pub(crate) high: IntegerMilliseconds<u32>,
 }
 
-impl Default for Parameters {
-    fn default() -> Self {
-        ParametersBuilder::default()
-            .build()
-            .expect("could not build default channel padding Parameters")
+impl_standard_builder! { Parameters: !Deserialize + !Builder + !Default }
+
+impl Parameters {
+    /// Return a `PADDING_NEGOTIATE START` cell specifying precisely these parameters
+    ///
+    /// This function does not take account of the need to avoid sending particular
+    /// parameters, and instead sending zeroes, if the requested padding is the consensus
+    /// default.  The caller must take care of that.
+    pub fn padding_negotiate_cell(&self) -> Result<PaddingNegotiate, tor_error::Bug> {
+        let get = |input: IntegerMilliseconds<u32>| {
+            input
+                .try_map(TryFrom::try_from)
+                .map_err(into_internal!("padding negotiate out of range"))
+        };
+        Ok(PaddingNegotiate::start(get(self.low)?, get(self.high)?))
+    }
+
+    /// Make a Parameters containing the specification-defined default parameters
+    pub fn default_padding() -> Self {
+        Parameters::builder().build().expect("build succeeded")
+    }
+
+    /// Make a Parameters sentinel value, with both fields set to zero, which means "no padding"
+    pub fn disabled() -> Self {
+        Parameters {
+            low: 0.into(),
+            high: 0.into(),
+        }
     }
 }
 
@@ -331,8 +382,8 @@ impl Parameters {
     fn prepare(self) -> PreparedParameters {
         PreparedParameters {
             x_distribution_ms: rand::distributions::Uniform::new_inclusive(
-                self.low_ms.as_millis(),
-                self.high_ms.as_millis(),
+                self.low.as_millis(),
+                self.high.as_millis(),
             ),
         }
     }
@@ -390,8 +441,8 @@ mod test {
         let runtime = tor_rtmock::MockSleepRuntime::new(runtime);
 
         let parameters = Parameters {
-            low_ms: 1000.into(),
-            high_ms: 1000.into(),
+            low: 1000.into(),
+            high: 1000.into(),
         };
 
         let () = runtime.block_on(async {
@@ -559,8 +610,8 @@ mod test {
             let mut obs = [0_u32; n];
 
             let params = Parameters {
-                low_ms: min.into(),
-                high_ms: (max - 1).into(), // convert exclusive to inclusive
+                low: min.into(),
+                high: (max - 1).into(), // convert exclusive to inclusive
             }
             .prepare();
 

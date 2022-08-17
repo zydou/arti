@@ -17,6 +17,9 @@ full = ["tokio"]
 experimental = ["hs", "ntor_v3"]
 hs = []
 ntor_v3 = []
+# Enable testing-only APIs.  APIs under this feature are not
+# covered by semver.
+testing = []
 tokio = ["tokio-crate", "tokio-util"]
 
 [dependencies]
@@ -44,6 +47,7 @@ tor-bytes = { path = "../tor-bytes", version = "0.5.0" }
 tor-cell = { path = "../tor-cell", version = "0.5.0" }
 tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
+tor-config = { path = "../tor-config", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }

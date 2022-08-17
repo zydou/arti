@@ -1,7 +1,7 @@
 //! Abstract implementation of a channel manager
 
 use crate::mgr::map::OpenEntry;
-use crate::{ChanProvenance, Error, Result};
+use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
@@ -12,7 +12,8 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
-use tor_proto::channel::params::ChannelsParamsUpdates;
+use tor_netdir::params::NetParameters;
+use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
 mod map;
 
@@ -34,13 +35,21 @@ pub(crate) trait AbstractChannel: Clone {
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
 
-    /// Reparameterise this channel according to the provided `ChannelsParamsUpdates`
+    /// Reparameterise this channel according to the provided `ChannelPaddingInstructionsUpdates`
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
+    fn reparameterize(
+        &mut self,
+        updates: Arc<ChannelPaddingInstructionsUpdates>,
+    ) -> tor_proto::Result<()>;
+
+    /// Specify that this channel should do activities related to channel padding
     ///
-    /// Returns `Err` (only) if the channel was closed earlier.
-    fn reparameterize(&mut self, updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()>;
+    /// See [`Channel::engage_padding_activities`]
+    ///
+    /// [`Channel::engage_padding_activities`]: tor_proto::channel::Channel::engage_padding_activities
+    fn engage_padding_activities(&self);
 }
 
 /// Trait to describe how channels are created.
@@ -87,10 +96,15 @@ type Sending<C> = oneshot::Sender<Result<C>>;
 
 impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
-    pub(crate) fn new(connector: CF) -> Self {
+    pub(crate) fn new(
+        connector: CF,
+        config: &ChannelConfig,
+        dormancy: Dormancy,
+        netparams: &NetParameters,
+    ) -> Self {
         AbstractChanMgr {
             connector,
-            channels: map::ChannelMap::new(),
+            channels: map::ChannelMap::new(config.clone(), dormancy, netparams),
         }
     }
 
@@ -118,6 +132,25 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// If no such channel exists already, but we have one that's in
     /// progress, wait for it to succeed or fail.
     pub(crate) async fn get_or_launch(
+        &self,
+        ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
+        target: CF::BuildSpec,
+        usage: ChannelUsage,
+    ) -> Result<(CF::Channel, ChanProvenance)> {
+        use ChannelUsage as CU;
+
+        let chan = self.get_or_launch_internal(ident, target).await?;
+
+        match usage {
+            CU::Dir | CU::UselessCircuit => {}
+            CU::UserTraffic => chan.0.engage_padding_activities(),
+        }
+
+        Ok(chan)
+    }
+
+    /// Get a channel whose identity is `ident` - internal implementation
+    async fn get_or_launch_internal(
         &self,
         ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
@@ -219,8 +252,11 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
                                 // manager lock acquisition span as the one where we insert the
                                 // channel into the table so it will receive updates.  I.e.,
                                 // here.
-                                chan.reparameterize(channels_params.total_update().into())
-                                    .map_err(|()| internal!("new channel already closed"))?;
+                                let update = channels_params.initial_update();
+                                if let Some(update) = update {
+                                    chan.reparameterize(update.into())
+                                        .map_err(|_| internal!("failure on new channel"))?;
+                                }
                                 Ok(Open(OpenEntry {
                                     channel: chan.clone(),
                                     max_unused_duration: Duration::from_secs(
@@ -246,6 +282,34 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
         }
 
         Err(last_err.unwrap_or_else(|| Error::Internal(internal!("no error was set!?"))))
+    }
+
+    /// Update the netdir
+    pub(crate) fn update_netparams(
+        &self,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        self.channels.reconfigure_general(None, None, netparams)
+    }
+
+    /// Notifies the chanmgr to be dormant like dormancy
+    pub(crate) fn set_dormancy(
+        &self,
+        dormancy: Dormancy,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        self.channels
+            .reconfigure_general(None, Some(dormancy), netparams)
+    }
+
+    /// Reconfigure all channels
+    pub(crate) fn reconfigure(
+        &self,
+        config: &ChannelConfig,
+        netparams: Arc<dyn AsRef<NetParameters>>,
+    ) -> StdResult<(), tor_error::Bug> {
+        self.channels
+            .reconfigure_general(Some(config), None, netparams)
     }
 
     /// Expire any channels that have been unused longer than
@@ -287,6 +351,7 @@ mod test {
     use std::time::Duration;
     use tor_error::bad_api_usage;
 
+    use crate::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
     struct FakeChannelFactory<RT> {
@@ -299,6 +364,7 @@ mod test {
         mood: char,
         closing: Arc<AtomicBool>,
         detect_reuse: Arc<char>,
+        last_params: Option<ChannelPaddingInstructionsUpdates>,
     }
 
     impl PartialEq for FakeChannel {
@@ -318,9 +384,14 @@ mod test {
         fn duration_unused(&self) -> Option<Duration> {
             None
         }
-        fn reparameterize(&mut self, _updates: Arc<ChannelsParamsUpdates>) -> StdResult<(), ()> {
+        fn reparameterize(
+            &mut self,
+            updates: Arc<ChannelPaddingInstructionsUpdates>,
+        ) -> tor_proto::Result<()> {
+            self.last_params = Some((*updates).clone());
             Ok(())
         }
+        fn engage_padding_activities(&self) {}
     }
 
     impl FakeChannel {
@@ -333,6 +404,16 @@ mod test {
         fn new(runtime: RT) -> Self {
             FakeChannelFactory { runtime }
         }
+    }
+
+    fn new_test_abstract_chanmgr<R: Runtime>(runtime: R) -> AbstractChanMgr<FakeChannelFactory<R>> {
+        let cf = FakeChannelFactory::new(runtime);
+        AbstractChanMgr::new(
+            cf,
+            &ChannelConfig::default(),
+            Default::default(),
+            &Default::default(),
+        )
     }
 
     #[async_trait]
@@ -357,6 +438,7 @@ mod test {
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
                 detect_reuse: Default::default(),
+                last_params: None,
             })
         }
     }
@@ -364,11 +446,18 @@ mod test {
     #[test]
     fn connect_one_ok() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
             let target = (413, '!');
-            let chan1 = mgr.get_or_launch(413, target).await.unwrap().0;
-            let chan2 = mgr.get_or_launch(413, target).await.unwrap().0;
+            let chan1 = mgr
+                .get_or_launch(413, target, CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
+            let chan2 = mgr
+                .get_or_launch(413, target, CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
 
             assert_eq!(chan1, chan2);
 
@@ -380,12 +469,11 @@ mod test {
     #[test]
     fn connect_one_fail() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             // This is set up to always fail.
             let target = (999, '❌');
-            let res1 = mgr.get_or_launch(999, target).await;
+            let res1 = mgr.get_or_launch(999, target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
             let chan3 = mgr.get_nowait(&999);
@@ -396,19 +484,18 @@ mod test {
     #[test]
     fn test_concurrent() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             // TODO(nickm): figure out how to make these actually run
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
-                mgr.get_or_launch(3, (3, 'a')),
-                mgr.get_or_launch(3, (3, 'b')),
-                mgr.get_or_launch(44, (44, 'a')),
-                mgr.get_or_launch(44, (44, 'b')),
-                mgr.get_or_launch(86, (86, '❌')),
-                mgr.get_or_launch(86, (86, '🔥')),
+                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(3, (3, 'b'), CU::UserTraffic),
+                mgr.get_or_launch(44, (44, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(44, (44, 'b'), CU::UserTraffic),
+                mgr.get_or_launch(86, (86, '❌'), CU::UserTraffic),
+                mgr.get_or_launch(86, (86, '🔥'), CU::UserTraffic),
             );
             let ch3a = ch3a.unwrap();
             let ch3b = ch3b.unwrap();
@@ -429,13 +516,12 @@ mod test {
     #[test]
     fn unusable_entries() {
         test_with_one_runtime!(|runtime| async {
-            let cf = FakeChannelFactory::new(runtime);
-            let mgr = AbstractChanMgr::new(cf);
+            let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
-                mgr.get_or_launch(3, (3, 'a')),
-                mgr.get_or_launch(4, (4, 'a')),
-                mgr.get_or_launch(5, (5, 'a')),
+                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(4, (4, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(5, (5, 'a'), CU::UserTraffic),
             );
 
             let ch3 = ch3.unwrap().0;
@@ -445,7 +531,11 @@ mod test {
             ch3.start_closing();
             ch5.start_closing();
 
-            let ch3_new = mgr.get_or_launch(3, (3, 'b')).await.unwrap().0;
+            let ch3_new = mgr
+                .get_or_launch(3, (3, 'b'), CU::UserTraffic)
+                .await
+                .unwrap()
+                .0;
             assert_ne!(ch3, ch3_new);
             assert_eq!(ch3_new.mood, 'b');
 

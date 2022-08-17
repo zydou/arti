@@ -31,8 +31,7 @@ use super::CellFrame;
 use tracing::{debug, trace};
 
 /// A list of the link protocols that we support.
-// We only support version 4 for now, since we don't do padding right.
-static LINK_PROTOCOLS: &[u16] = &[4];
+static LINK_PROTOCOLS: &[u16] = &[4, 5];
 
 /// A raw client channel on which nothing has been done.
 pub struct OutboundClientHandshake<
@@ -655,7 +654,7 @@ pub(super) mod test {
             let handshake = OutboundClientHandshake::new(mb, None, rt.clone());
             let unverified = handshake.connect(|| now).await?;
 
-            assert_eq!(unverified.link_protocol, 4);
+            assert_eq!(unverified.link_protocol, 5);
             // No timestamp in the NETINFO, so no skew.
             assert_eq!(unverified.clock_skew(), ClockSkew::None);
 
