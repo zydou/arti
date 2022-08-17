@@ -27,7 +27,7 @@ client-side support for:
   * [ ] `HSIntro=5`
   * [ ] `HSRend=2`
   * [x] `Link=4`
-  * [ ] `Link=5`
+  * [x] `Link=5`
   * [x] `Microdesc=2` [^1]
   * [ ] `Padding=2`
   * [x] `Relay=2`
