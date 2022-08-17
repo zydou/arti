@@ -31,3 +31,6 @@ fslock = { version = "0.2.0" }
 
 [dev-dependencies]
 tempfile = "3"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

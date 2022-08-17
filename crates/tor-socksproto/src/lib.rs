@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Implements SOCKS in the flavors provided by Tor.
 //!
 //! # Overview

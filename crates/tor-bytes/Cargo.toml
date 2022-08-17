@@ -28,3 +28,6 @@ hex-literal = "0.3"
 
 [target.wasm32-unknown-unknown.dependencies]
 getrandom = { version = "0.2.3", features = ["js"] }
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

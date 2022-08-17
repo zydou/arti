@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Parse and represent directory objects used in Tor.
 //!
 //! # Overview

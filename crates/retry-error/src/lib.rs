@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! An error attempt to represent multiple failures.
 //!
 //! This crate implements [`RetryError`], a type to use when you

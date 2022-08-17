@@ -24,3 +24,6 @@ tor-protover = { path = "../tor-protover", version = "0.3.0" }
 
 [dev-dependencies]
 hex-literal = "0.3"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

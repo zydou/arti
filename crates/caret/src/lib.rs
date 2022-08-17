@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `caret`: Integers with some named values.
 //!
 //! # Crikey! Another Rust Enum Tool?

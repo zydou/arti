@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! # `safelog`: Mark data as sensitive for logging purposes.
 //!
 //! Some information is too sensitive to routinely write to system logs, but

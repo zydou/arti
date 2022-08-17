@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-linkspec`: Descriptions of Tor relays, as used to connect to them.
 //!
 //! # Overview

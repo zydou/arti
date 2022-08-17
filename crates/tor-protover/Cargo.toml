@@ -14,3 +14,6 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 caret = { path = "../caret", version = "0.2.0" }
 thiserror = "1"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

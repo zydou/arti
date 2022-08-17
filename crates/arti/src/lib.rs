@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! A minimal command line program for connecting to the tor network
 //!
 //! (If you want a more general Tor client library interface, use

@@ -45,3 +45,6 @@ tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0", features = ["tokio
 
 [dev-dependencies]
 tracing-subscriber = "0.3.0"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Support for mocking with `tor-rtcompat` asynchronous runtimes.
 //!
 //! # Overview

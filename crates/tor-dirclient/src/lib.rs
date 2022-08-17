@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-dirclient`: Implements a minimal directory client for Tor.
 //!
 //! # Overview

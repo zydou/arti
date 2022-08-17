@@ -21,3 +21,6 @@ tracing = "0.1.18"
 
 [dev-dependencies]
 tokio = { version = "1.7", features = ["macros", "rt", "rt-multi-thread", "time"] }
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

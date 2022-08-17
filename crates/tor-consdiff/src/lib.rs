@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-consdiff`: Restricted ed diff and patch formats for Tor.
 //!
 //! # Overview

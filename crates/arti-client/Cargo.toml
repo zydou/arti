@@ -98,3 +98,6 @@ tokio-crate = { package = "tokio", version = "1.7", features = [
 tokio-util = { version = "0.7.0", features = ["compat"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0", features = ["tokio", "native-tls"] }
 tracing-subscriber = "0.3.0"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

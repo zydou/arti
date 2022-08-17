@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-units` -- Safe wrappers for primitive numeric types.
 //!
 //! # Overview

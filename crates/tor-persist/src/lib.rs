@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-persist`: Persistent data storage for use with Tor.
 //!
 //! This crate is part of

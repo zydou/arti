@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-bytes`: Utilities to decode/encode things into bytes.
 //!
 //! # Overview

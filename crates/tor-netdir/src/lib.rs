@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Represents a clients'-eye view of the Tor network.
 //!
 //! # Overview

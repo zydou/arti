@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! High-level layer for making http(s) requests the Tor network as a client.
 //!
 //! This can be used by applications which embed Arti,

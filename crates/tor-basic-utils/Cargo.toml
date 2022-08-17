@@ -27,3 +27,6 @@ derive_more = "0.99"
 educe = "0.4.6"
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "rt", "rt-multi-thread", "time"] }
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
