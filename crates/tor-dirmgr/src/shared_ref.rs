@@ -16,6 +16,7 @@ use crate::{Error, Result};
 // sure we don't hold the lock against any async suspend points.
 #[derive(Debug, Educe)]
 #[educe(Default)]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 #[cfg_attr(not(feature = "experimental-api"), allow(unreachable_pub))]
 pub struct SharedMutArc<T> {
     /// Locked reference to the current value.

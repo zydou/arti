@@ -105,6 +105,7 @@ pub_if_error_detail! {
 /// [`kind`](`tor_error::HasKind::kind`) trait method to distinguish among
 /// different kinds of [`Error`](crate::Error).  If that doesn't provide enough information
 /// for your use case, please let us know.
+#[cfg_attr(docsrs, doc(cfg(feature = "error_detail")))]
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
 enum ErrorDetail {

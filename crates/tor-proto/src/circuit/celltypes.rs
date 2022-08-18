@@ -9,6 +9,7 @@ use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
 /// that we send.
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #[derive(Debug)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[allow(clippy::exhaustive_enums)]
