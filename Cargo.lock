@@ -3395,6 +3395,7 @@ dependencies = [
  "futures",
  "futures-await-test",
  "hex",
+ "libc",
  "pin-project",
  "postage",
  "rand 0.8.5",

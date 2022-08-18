@@ -83,6 +83,33 @@ pub fn skip_fmt<T>(_: &T, f: &mut fmt::Formatter) -> fmt::Result {
 
 // ----------------------------------------------------------------------
 
+/// Implementation of `ErrorKind::NotADirectory` that doesn't require Nightly
+pub trait IoErrorExt {
+    /// Is this `io::ErrorKind::NotADirectory` ?
+    fn is_not_a_directory(&self) -> bool;
+}
+impl IoErrorExt for std::io::Error {
+    fn is_not_a_directory(&self) -> bool {
+        self.raw_os_error()
+            == Some(
+                #[cfg(target_family = "unix")]
+                libc::ENOTDIR,
+                #[cfg(target_family = "windows")]
+                {
+                    /// Obtained from Rust stdlib source code
+                    /// See also:
+                    ///   <https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499->
+                    /// (although the documentation is anaemic) and
+                    /// <https://github.com/rust-lang/rust/pull/79965>
+                    const ERROR_DIRECTORY: i32 = 267;
+                    ERROR_DIRECTORY
+                },
+            )
+    }
+}
+
+// ----------------------------------------------------------------------
+
 /// Define an "accessor trait", which describes structs that have fields of certain types
 ///
 /// This can be useful if a large struct, living high up in the dependency graph,
