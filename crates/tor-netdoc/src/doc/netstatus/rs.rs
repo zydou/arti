@@ -39,21 +39,29 @@ struct GenericRouterStatus<D> {
     ///
     /// Nicknames can be used for convenience purpose, but no more:
     /// there is no mechanism to enforce their uniqueness.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     nickname: Nickname,
     /// Fingerprint of the old-style RSA identity for this relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     identity: RsaIdentity,
     /// A list of address:port values where this relay can be reached.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     addrs: Vec<net::SocketAddr>,
     /// Digest of the document for this relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     doc_digest: D,
     /// Flags applied by the authorities to this relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     flags: RelayFlags,
     /// Version of the software that this relay is running.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     version: Option<Version>,
     /// List of subprotocol versions supported by this relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     protos: Arc<Protocols>,
     /// Information about how to weight this relay when choosing a
     /// relay at random.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     weight: RelayWeight,
 }
 
