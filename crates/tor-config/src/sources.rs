@@ -439,7 +439,18 @@ world = \"nonsense\"
             (d, MustRead::MustRead),
             (xd.clone(), MustRead::TolerateAbsence),
         ];
-        let c = load_nodefaults(&files, Default::default()).unwrap();
+        let c = sources_nodefaults(&files, Default::default());
+        let found = c.scan().unwrap();
+
+        assert_eq!(
+            found
+                .iter()
+                .map(|p| p.path().strip_prefix(&td).unwrap().to_str().unwrap())
+                .collect_vec(),
+            &["1.toml", "extra.d", "extra.d/2.toml"]
+        );
+
+        let c = found.load().unwrap();
 
         assert_eq!(c.get_string("hello.friends").unwrap(), "4242");
         assert_eq!(c.get_string("hello.world").unwrap(), "nonsense");
