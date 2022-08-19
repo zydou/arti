@@ -13,6 +13,14 @@
 //! perhaps [`set_mistrust`](ConfigurationSources::set_mistrust),
 //! and finally [`load`](ConfigurationSources::load).
 //! The resulting [`config::Config`] can then be deserialized.
+//!
+//! If you want to watch for config file changes,
+//! use [`ConfigurationSources::scan()`],
+//! to obtain a [`FoundConfigFiles`],
+//! start watching the paths returned by [`FoundConfigFiles::iter()`],
+//! and then call [`FoundConfigFiles::load()`].
+//! (This ordering starts watching the files before you read them,
+//! which is necessary to avoid possibly missing changes.)
 
 use crate::CmdLine;
 
@@ -48,6 +56,50 @@ enum MustRead {
 
     /// This file must be present and readable.
     MustRead,
+}
+
+/// Configuration files we found in the filesystem
+///
+/// Result of [`ConfigurationSources::scan`].
+///
+/// When loading configuration files and also watching for filesystem updates,
+/// this type encapsulates all the actual filesystem objects that need watching.
+#[derive(Debug)]
+pub struct FoundConfigFiles<'srcs> {
+    /// The things we found
+    files: Vec<FoundConfigFile>,
+
+    /// Our parent, which contains details we need for `load`
+    sources: &'srcs ConfigurationSources,
+}
+
+/// A configuration source file, found or not found on the filesystem
+#[derive(Debug, Clone)]
+pub struct FoundConfigFile {
+    /// The path of the (putative) object
+    path: PathBuf,
+
+    /// Were we expecting this to definitely exist
+    must_read: MustRead,
+}
+
+impl FoundConfigFile {
+    /// Get the path
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Was this a directory, when we found it ?
+    pub fn was_dir(&self) -> bool {
+        // TODO: we don't support directories right now
+        false
+    }
+}
+
+impl AsRef<Path> for FoundConfigFile {
+    fn as_ref(&self) -> &Path {
+        self.path()
+    }
 }
 
 impl ConfigurationSources {
@@ -132,63 +184,89 @@ impl ConfigurationSources {
         &self.mistrust
     }
 
-    /// Return an iterator over the files that we care about.
-    pub fn files(&self) -> impl Iterator<Item = &Path> {
-        self.files.iter().map(|(f, _)| f.as_path())
+    /// Scan for files and load the configuration into a new [`config::Config`].
+    ///
+    /// This is a convenience method for [`scan()`](Self::scan)
+    /// followed by [`files.load`].
+    pub fn load(&self) -> Result<config::Config, ConfigError> {
+        let files = self.scan()?;
+        files.load()
     }
 
-    /// Load the configuration into a new [`config::Config`].
-    pub fn load(&self) -> Result<config::Config, ConfigError> {
-        let mut builder = config::Config::builder();
-        builder = add_sources(builder, &self.mistrust, &self.files, &self.options)?;
-        builder.build()
+    /// Scan for configuration source files (including scanning any directories)
+    //
+    // Currently this does not actually look at the filesystem, but it will do.
+    pub fn scan(&self) -> Result<FoundConfigFiles, ConfigError> {
+        let mut out = vec![];
+
+        for &(ref found, must_read) in &self.files {
+            out.push(FoundConfigFile {
+                path: found.clone(),
+                must_read,
+            });
+        }
+
+        Ok(FoundConfigFiles {
+            files: out,
+            sources: self,
+        })
     }
 }
 
-/// Add every file and commandline source to `builder`, returning a new
-/// builder.
-fn add_sources<P>(
-    mut builder: ConfigBuilder,
-    mistrust: &fs_mistrust::Mistrust,
-    files: &[(P, MustRead)],
-    opts: &[String],
-) -> Result<ConfigBuilder, ConfigError>
-where
-    P: AsRef<Path>,
-{
-    for (path, must_read) in files {
-        let required = must_read == &MustRead::MustRead;
+impl FoundConfigFiles<'_> {
+    /// Iterate over the filesystem objects that the scan found
+    //
+    // This ought really to be `impl IntoIterator for &Self` but that's awkward without TAIT
+    pub fn iter(&self) -> impl Iterator<Item = &FoundConfigFile> {
+        self.files.iter()
+    }
 
-        match mistrust
-            .verifier()
-            .permit_readable()
-            .require_file()
-            .check(&path)
-        {
-            Ok(()) => {}
-            Err(fs_mistrust::Error::NotFound(_)) if !required => {}
-            Err(e) => return Err(ConfigError::Foreign(e.into())),
+    /// Add every file and commandline source to `builder`, returning a new
+    /// builder.
+    fn add_sources(self, mut builder: ConfigBuilder) -> Result<ConfigBuilder, ConfigError> {
+        for FoundConfigFile { path, must_read } in self.files {
+            let required = must_read == MustRead::MustRead;
+
+            match self
+                .sources
+                .mistrust
+                .verifier()
+                .permit_readable()
+                .check(&path)
+            {
+                Ok(()) => {}
+                Err(fs_mistrust::Error::NotFound(_)) if !required => {}
+                Err(e) => return Err(ConfigError::Foreign(e.into())),
+            }
+
+            // Not going to use File::with_name here, since it doesn't
+            // quite do what we want.
+            let f: config::File<_, _> = path.into();
+            builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
         }
 
-        // Not going to use File::with_name here, since it doesn't
-        // quite do what we want.
-        let f: config::File<_, _> = path.as_ref().into();
-        builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
+        let mut cmdline = CmdLine::new();
+        for opt in &self.sources.options {
+            cmdline.push_toml_line(opt.clone());
+        }
+        builder = builder.add_source(cmdline);
+
+        Ok(builder)
     }
 
-    let mut cmdline = CmdLine::new();
-    for opt in opts {
-        cmdline.push_toml_line(opt.clone());
+    /// Load the configuration into a new [`config::Config`].
+    pub fn load(self) -> Result<config::Config, ConfigError> {
+        let mut builder = config::Config::builder();
+        builder = self.add_sources(builder)?;
+        builder.build()
     }
-    builder = builder.add_source(cmdline);
-
-    Ok(builder)
 }
 
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use itertools::Itertools;
     use tempfile::tempdir;
 
     static EX_TOML: &str = "
@@ -204,10 +282,17 @@ friends = 4242
         opts: &[String],
     ) -> Result<config::Config, config::ConfigError> {
         let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
-
-        add_sources(config::Config::builder(), &mistrust, files, opts)
-            .unwrap()
-            .build()
+        let files = files
+            .iter()
+            .map(|(p, m)| (p.as_ref().to_owned(), *m))
+            .collect_vec();
+        let options = opts.iter().cloned().collect_vec();
+        ConfigurationSources {
+            files,
+            options,
+            mistrust,
+        }
+        .load()
     }
 
     #[test]
@@ -260,7 +345,11 @@ world = \"nonsense\"
             ["/family/yor.toml", "/family/anya.toml"],
             ["decade=1960", "snack=peanuts"],
         );
-        let files: Vec<_> = sources.files().map(|path| path.to_str().unwrap()).collect();
+        let files: Vec<_> = sources
+            .files
+            .iter()
+            .map(|file| file.0.to_str().unwrap())
+            .collect();
         assert_eq!(files, vec!["/family/yor.toml", "/family/anya.toml"]);
         assert_eq!(sources.files[0].1, MustRead::MustRead);
         assert_eq!(

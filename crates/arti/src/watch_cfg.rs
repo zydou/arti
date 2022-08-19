@@ -9,7 +9,7 @@ use std::time::Duration;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
 use notify::Watcher;
-use tor_config::ConfigurationSources;
+use tor_config::{sources::FoundConfigFiles, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
 
@@ -18,13 +18,23 @@ use crate::{ArtiCombinedConfig, ArtiConfig};
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Prepare a watcher for the configuration files (config must be read after this point)
-fn prepare_watcher(sources: &ConfigurationSources) -> anyhow::Result<FileWatcher> {
+/// Find the configuration files and prepare a watcher
+///
+/// For the watching to be reliably effective (race-free), the config must be read
+/// *after* this point, using the returned `FoundConfigFiles`.
+fn prepare_watcher(
+    sources: &ConfigurationSources,
+) -> anyhow::Result<(FileWatcher, FoundConfigFiles)> {
     let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
-    for file in sources.files() {
-        watcher.watch_file(file)?;
+    let files = sources.scan()?;
+    for file in files.iter() {
+        if file.was_dir() {
+            watcher.watch_dir(file)?;
+        } else {
+            watcher.watch_file(file)?;
+        }
     }
-    Ok(watcher)
+    Ok((watcher, files))
 }
 
 /// Launch a thread to watch our configuration files.
@@ -37,10 +47,13 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let mut watcher = prepare_watcher(&sources)?;
+    let (mut watcher, found_files) = prepare_watcher(&sources)?;
 
     // If watching, we must reload the config once right away, because
     // we have set up the watcher *after* loading it the first time.
+    //
+    // That means we safely drop the found_files without races, since we're going to rescan.
+    drop(found_files);
     let mut first_reload = iter::once(notify::DebouncedEvent::Rescan);
 
     std::thread::spawn(move || {
@@ -66,7 +79,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
             }
             debug!("FS event {:?}: reloading configuration.", event);
 
-            watcher = match prepare_watcher(&sources) {
+            let (new_watcher, found_files) = match prepare_watcher(&sources) {
                 Ok(y) => y,
                 Err(e) => {
                     error!(
@@ -76,8 +89,9 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                     break;
                 }
             };
+            watcher = new_watcher;
 
-            match reconfigure(&sources, &original, &client) {
+            match reconfigure(found_files, &original, &client) {
                 Ok(exit) => {
                     info!("Successfully reloaded configuration.");
                     if exit {
@@ -102,11 +116,11 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 ///
 /// Return true if we should stop watching for configuration changes.
 fn reconfigure<R: Runtime>(
-    sources: &ConfigurationSources,
+    found_files: FoundConfigFiles<'_>,
     original: &ArtiConfig,
     client: &TorClient<R>,
 ) -> anyhow::Result<bool> {
-    let config = sources.load()?;
+    let config = found_files.load()?;
     let (config, client_config) = tor_config::resolve::<ArtiCombinedConfig>(config)?;
     if config.proxy() != original.proxy() {
         warn!("Can't (yet) reconfigure proxy settings while arti is running.");
