@@ -27,8 +27,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = std_channel();
-    let mut watcher = FileWatcher::new(tx, POLL_INTERVAL)?;
+    let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
 
     for file in sources.files() {
         watcher.watch_file(file)?;
@@ -39,7 +38,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // `arti` application, we probably don't want to have this thread own
         // the FileWatcher.
         debug!("Waiting for FS events");
-        while let Ok(event) = rx.recv() {
+        while let Ok(event) = watcher.rx().recv() {
             if !watcher.event_matched(&event) {
                 // NOTE: Sadly, it's not safe to log in this case.  If the user
                 // has put a configuration file and a logfile in the same
@@ -47,7 +46,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 // every time we log, and fill up the filesystem.
                 continue;
             }
-            while let Ok(_ignore) = rx.try_recv() {
+            while let Ok(_ignore) = watcher.rx().try_recv() {
                 // Discard other events, so that we only reload once.
                 //
                 // We can afford to treat both error cases from try_recv [Empty
@@ -114,6 +113,8 @@ fn reconfigure<R: Runtime>(
 /// directories in order to learn about changes in some specific files that they
 /// contain.
 ///
+/// The wrapper contains the `Watcher` and also the channel for receiving events.
+///
 /// The `Watcher` implementation in `notify` has a weakness: it gives sensible
 /// results when you're watching directories, but if you start watching
 /// non-directory files, it won't notice when those files get replaced.  That's
@@ -129,6 +130,8 @@ fn reconfigure<R: Runtime>(
 /// to mess around with `std::sync::mpsc` and filter out the events they want
 /// using `FileWatcher::event_matched`.
 struct FileWatcher {
+    /// The channel we receive events on
+    rx: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
     /// An underlying `notify` watcher that tells us about directory changes.
     watcher: notify::RecommendedWatcher,
     /// The list of directories that we're currently watching.
@@ -139,16 +142,20 @@ struct FileWatcher {
 
 impl FileWatcher {
     /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(
-        tx: std::sync::mpsc::Sender<notify::DebouncedEvent>,
-        interval: Duration,
-    ) -> anyhow::Result<Self> {
+    fn new(interval: Duration) -> anyhow::Result<Self> {
+        let (tx, rx) = std_channel();
         let watcher = notify::watcher(tx, interval)?;
         Ok(Self {
+            rx,
             watcher,
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
         })
+    }
+
+    /// Access the channel - use for receiving events
+    fn rx(&self) -> &std::sync::mpsc::Receiver<notify::DebouncedEvent> {
+        &self.rx
     }
 
     /// Watch a single file (not a directory).  Does nothing if we're already watching that file.
