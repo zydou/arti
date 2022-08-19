@@ -17,6 +17,15 @@ use crate::{ArtiCombinedConfig, ArtiConfig};
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
 
+/// Prepare a watcher for the configuration files
+fn prepare_watcher(sources: &ConfigurationSources) -> anyhow::Result<FileWatcher> {
+    let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
+    for file in sources.files() {
+        watcher.watch_file(file)?;
+    }
+    Ok(watcher)
+}
+
 /// Launch a thread to watch our configuration files.
 ///
 /// Whenever one or more files in `files` changes, try to reload our
@@ -27,11 +36,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
-
-    for file in sources.files() {
-        watcher.watch_file(file)?;
-    }
+    let watcher = prepare_watcher(&sources)?;
 
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
