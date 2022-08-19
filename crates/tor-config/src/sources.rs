@@ -22,9 +22,12 @@
 //! (This ordering starts watching the files before you read them,
 //! which is necessary to avoid possibly missing changes.)
 
+use std::{fs, io};
+
 use crate::CmdLine;
 
 use config::ConfigError;
+use tor_basic_utils::IoErrorExt as _;
 
 /// The synchronous configuration builder type we use.
 ///
@@ -58,7 +61,7 @@ enum MustRead {
     MustRead,
 }
 
-/// Configuration files we found in the filesystem
+/// Configuration files and directories we found in the filesystem
 ///
 /// Result of [`ConfigurationSources::scan`].
 ///
@@ -67,13 +70,21 @@ enum MustRead {
 #[derive(Debug)]
 pub struct FoundConfigFiles<'srcs> {
     /// The things we found
+    ///
+    /// This includes both:
+    ///  * Files which ought to be read
+    ///  * Directories, which may or may not contain any currently-relevant files
+    ///
+    /// The directories are retained for the purpose of watching for config changes:
+    /// we will want to detect files being created within them,
+    /// so our caller needs to discover them (via [`FoundConfigFiles::iter()`]).
     files: Vec<FoundConfigFile>,
 
     /// Our parent, which contains details we need for `load`
     sources: &'srcs ConfigurationSources,
 }
 
-/// A configuration source file, found or not found on the filesystem
+/// A configuration source file or directory, found or not found on the filesystem
 #[derive(Debug, Clone)]
 pub struct FoundConfigFile {
     /// The path of the (putative) object
@@ -81,6 +92,18 @@ pub struct FoundConfigFile {
 
     /// Were we expecting this to definitely exist
     must_read: MustRead,
+
+    /// What happened when we looked for it
+    ty: FoundType,
+}
+
+/// Was this filesystem object a file or a directory?
+#[derive(Debug, Copy, Clone)]
+enum FoundType {
+    /// File
+    File,
+    /// Directory
+    Dir,
 }
 
 impl FoundConfigFile {
@@ -91,8 +114,10 @@ impl FoundConfigFile {
 
     /// Was this a directory, when we found it ?
     pub fn was_dir(&self) -> bool {
-        // TODO: we don't support directories right now
-        false
+        match self.ty {
+            FoundType::Dir => true,
+            FoundType::File => false,
+        }
     }
 }
 
@@ -112,13 +137,17 @@ impl ConfigurationSources {
     ///
     /// The caller should have parsed the program's command line, and extracted (inter alia)
     ///
-    ///  * `config_files_options`: Paths of config file(s)
+    ///  * `config_files_options`: Paths of config file(s) (or directories of `.toml` files)
     ///  * `cmdline_toml_override_options`: Overrides ("key=value")
     ///
     /// The caller should also provide `default_config_file`, the default location of the
     /// configuration file.  This is used if no file(s) are specified on the command line.
     ///
     /// `mistrust` is used to check whether the configuration files have appropriate permissions.
+    ///
+    /// Configuration file locations that turn out to be directories,
+    /// will be scanned for files whose name ends in `.toml`.
+    /// All those files (if any) will be read (in lexical order by filename).
     pub fn from_cmdline<F, O>(
         default_config_file: impl Into<PathBuf>,
         config_files_options: impl IntoIterator<Item = F>,
@@ -194,16 +223,71 @@ impl ConfigurationSources {
     }
 
     /// Scan for configuration source files (including scanning any directories)
-    //
-    // Currently this does not actually look at the filesystem, but it will do.
     pub fn scan(&self) -> Result<FoundConfigFiles, ConfigError> {
         let mut out = vec![];
 
         for &(ref found, must_read) in &self.files {
-            out.push(FoundConfigFile {
-                path: found.clone(),
-                must_read,
-            });
+            let required = must_read == MustRead::MustRead;
+
+            // Returns Err(error) if we shuold bail,
+            // or Ok(()) if we should ignore the error and skip the file.
+            let handle_io_error = |e: io::Error| {
+                if e.kind() == io::ErrorKind::NotFound && !required {
+                    Ok(())
+                } else {
+                    Err(ConfigError::Foreign(
+                        anyhow::anyhow!(format!(
+                            "unable to access config path: {:?}: {}",
+                            &found, e
+                        ))
+                        .into(),
+                    ))
+                }
+            };
+
+            match fs::read_dir(&found) {
+                Ok(dir) => {
+                    out.push(FoundConfigFile {
+                        path: found.clone(),
+                        must_read,
+                        ty: FoundType::Dir,
+                    });
+                    // Rebinding `found` avoids using the directory name by mistake.
+                    let mut entries = vec![];
+                    for found in dir {
+                        // reuse map_io_err, which embeds the directory name,
+                        // since if we have Err we don't have an entry name.
+                        let found = match found {
+                            Ok(y) => y,
+                            Err(e) => {
+                                handle_io_error(e)?;
+                                continue;
+                            }
+                        };
+                        let leaf = found.file_name();
+                        let leaf: &Path = leaf.as_ref();
+                        match leaf.extension() {
+                            Some(e) if e == "toml" => {}
+                            _ => continue,
+                        }
+                        entries.push(found.path());
+                    }
+                    entries.sort();
+                    out.extend(entries.into_iter().map(|path| FoundConfigFile {
+                        path,
+                        must_read: MustRead::TolerateAbsence,
+                        ty: FoundType::File,
+                    }));
+                }
+                Err(e) if e.is_not_a_directory() => {
+                    out.push(FoundConfigFile {
+                        path: found.clone(),
+                        must_read,
+                        ty: FoundType::File,
+                    });
+                }
+                Err(e) => handle_io_error(e)?,
+            }
         }
 
         Ok(FoundConfigFiles {
@@ -224,8 +308,18 @@ impl FoundConfigFiles<'_> {
     /// Add every file and commandline source to `builder`, returning a new
     /// builder.
     fn add_sources(self, mut builder: ConfigBuilder) -> Result<ConfigBuilder, ConfigError> {
-        for FoundConfigFile { path, must_read } in self.files {
+        for FoundConfigFile {
+            path,
+            must_read,
+            ty,
+        } in self.files
+        {
             let required = must_read == MustRead::MustRead;
+
+            match ty {
+                FoundType::File => {}
+                FoundType::Dir => continue,
+            }
 
             match self
                 .sources

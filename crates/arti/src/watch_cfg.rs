@@ -263,16 +263,18 @@ impl FileWatcher {
     /// Return true if the provided event describes a change affecting one of
     /// the files that we care about.
     fn event_matched(&self, event: &notify::DebouncedEvent) -> bool {
-        let watching = |f| self.watching_files.contains(f);
+        let watching = |f: &_| self.watching_files.contains(f);
+        let watching_or_parent =
+            |f: &Path| watching(f) || f.parent().map(watching).unwrap_or(false);
 
         match event {
             notify::DebouncedEvent::NoticeWrite(f) => watching(f),
             notify::DebouncedEvent::NoticeRemove(f) => watching(f),
-            notify::DebouncedEvent::Create(f) => watching(f),
+            notify::DebouncedEvent::Create(f) => watching_or_parent(f),
             notify::DebouncedEvent::Write(f) => watching(f),
             notify::DebouncedEvent::Chmod(f) => watching(f),
             notify::DebouncedEvent::Remove(f) => watching(f),
-            notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching(f2),
+            notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching_or_parent(f2),
             notify::DebouncedEvent::Rescan => {
                 // We've missed some events: no choice but to reload.
                 true
