@@ -1,6 +1,7 @@
 //! Code to watch configuration files for any changes.
 
 use std::collections::HashSet;
+use std::iter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel as std_channel;
 use std::time::Duration;
@@ -17,7 +18,7 @@ use crate::{ArtiCombinedConfig, ArtiConfig};
 /// How long (worst case) should we take to learn about configuration changes?
 const POLL_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Prepare a watcher for the configuration files
+/// Prepare a watcher for the configuration files (config must be read after this point)
 fn prepare_watcher(sources: &ConfigurationSources) -> anyhow::Result<FileWatcher> {
     let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
     for file in sources.files() {
@@ -38,12 +39,16 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 ) -> anyhow::Result<()> {
     let watcher = prepare_watcher(&sources)?;
 
+    // If watching, we must reload the config once right away, because
+    // we have set up the watcher *after* loading it the first time.
+    let mut first_reload = iter::once(notify::DebouncedEvent::Rescan);
+
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
         // `arti` application, we probably don't want to have this thread own
         // the FileWatcher.
-        debug!("Waiting for FS events");
-        while let Ok(event) = watcher.rx().recv() {
+        debug!("Entering FS event loop");
+        while let Some(event) = first_reload.next().or_else(|| watcher.rx().recv().ok()) {
             if !watcher.event_matched(&event) {
                 // NOTE: Sadly, it's not safe to log in this case.  If the user
                 // has put a configuration file and a logfile in the same
