@@ -233,7 +233,7 @@ world = \"nonsense\"
         let c = load_nodefaults(&files, Default::default()).unwrap();
 
         assert!(c.get_string("hello.friends").is_err());
-        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
+        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense");
     }
 
     #[test]
@@ -247,9 +247,9 @@ world = \"nonsense\"
         let v2 = vec!["other.var=present".to_string()];
         let c = load_nodefaults(&v, &v2).unwrap();
 
-        assert_eq!(c.get_string("hello.friends").unwrap(), "4242".to_string());
-        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense".to_string());
-        assert_eq!(c.get_string("other.var").unwrap(), "present".to_string());
+        assert_eq!(c.get_string("hello.friends").unwrap(), "4242");
+        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense");
+        assert_eq!(c.get_string("other.var").unwrap(), "present");
     }
 
     #[test]
