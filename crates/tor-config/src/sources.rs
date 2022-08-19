@@ -369,12 +369,11 @@ world = \"stuff\"
 friends = 4242
 ";
 
-    /// Load from a set of files and option strings, without taking
-    /// the arti defaults into account.
-    fn load_nodefaults<P: AsRef<Path>>(
+    /// Make a ConfigurationSources (that doesn't include the arti defaults)
+    fn sources_nodefaults<P: AsRef<Path>>(
         files: &[(P, MustRead)],
         opts: &[String],
-    ) -> Result<config::Config, config::ConfigError> {
+    ) -> ConfigurationSources {
         let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
         let files = files
             .iter()
@@ -386,7 +385,15 @@ friends = 4242
             options,
             mistrust,
         }
-        .load()
+    }
+
+    /// Load from a set of files and option strings, without taking
+    /// the arti defaults into account.
+    fn load_nodefaults<P: AsRef<Path>>(
+        files: &[(P, MustRead)],
+        opts: &[String],
+    ) -> Result<config::Config, config::ConfigError> {
+        sources_nodefaults(files, opts).load()
     }
 
     #[test]
