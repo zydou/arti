@@ -180,8 +180,28 @@ impl FileWatcher {
         &self.rx
     }
 
-    /// Watch a single file (not a directory).  Does nothing if we're already watching that file.
+    /// Watch a single file (not a directory).
+    ///
+    /// Idempotent: does nothing if we're already watching that file.
     fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        self.watch_just_parents(path.as_ref())?;
+        Ok(())
+    }
+
+    /// Watch a directory (but not any subdirs).
+    ///
+    /// Idempotent.
+    fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        let path = self.watch_just_parents(path.as_ref())?;
+        self.watch_just_abs_dir(&path)
+    }
+
+    /// Watch the parents of `path`.
+    ///
+    /// Returns the absolute path of `path`.
+    ///
+    /// Idempotent.
+    fn watch_just_parents(&mut self, path: &Path) -> anyhow::Result<PathBuf> {
         // Make the path absolute (without necessarily making it canonical).
         //
         // We do this because `notify` reports all of its events in terms of
@@ -189,7 +209,7 @@ impl FileWatcher {
         // relative path, we'd get reports about the absolute paths of the files
         // in that directory.
         let cwd = std::env::current_dir()?;
-        let path = cwd.join(path.as_ref());
+        let path = cwd.join(path);
         debug_assert!(path.is_absolute());
 
         // See what directory we should watch in order to watch this file.
@@ -202,18 +222,27 @@ impl FileWatcher {
             None => path.as_ref(),
         };
 
-        // Start watching this directory, if we're not already watching it.
+        self.watch_just_abs_dir(watch_target)?;
+
+        // Note this file as one that we're watching, so that we can see changes
+        // to it later on.
+        self.watching_files.insert(path.clone());
+
+        Ok(path)
+    }
+
+    /// Watch just this (absolute) directory.
+    ///
+    /// Does not watch any of the parents.
+    ///
+    /// Idempotent.
+    fn watch_just_abs_dir(&mut self, watch_target: &Path) -> anyhow::Result<()> {
         if !self.watching_dirs.contains(watch_target) {
             self.watcher
                 .watch(watch_target, notify::RecursiveMode::NonRecursive)?;
 
             self.watching_dirs.insert(watch_target.into());
         }
-
-        // Note this file as one that we're watching, so that we can see changes
-        // to it later on.
-        self.watching_files.insert(path);
-
         Ok(())
     }
 
