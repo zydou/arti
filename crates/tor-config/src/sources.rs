@@ -416,6 +416,35 @@ world = \"nonsense\"
     }
 
     #[test]
+    fn dir_with_some() {
+        let td = tempdir().unwrap();
+        let cf = td.path().join("1.toml");
+        let d = td.path().join("extra.d");
+        let df = d.join("2.toml");
+        let xd = td.path().join("nonexistent.d");
+        std::fs::create_dir(&d).unwrap();
+        std::fs::write(&cf, EX_TOML).unwrap();
+        std::fs::write(&df, EX2_TOML).unwrap();
+        std::fs::write(d.join("not-toml"), "SYNTAX ERROR").unwrap();
+
+        let files = vec![
+            (cf, MustRead::MustRead),
+            (d, MustRead::MustRead),
+            (xd.clone(), MustRead::TolerateAbsence),
+        ];
+        let c = load_nodefaults(&files, Default::default()).unwrap();
+
+        assert_eq!(c.get_string("hello.friends").unwrap(), "4242");
+        assert_eq!(c.get_string("hello.world").unwrap(), "nonsense");
+
+        let files = vec![(xd, MustRead::MustRead)];
+        let e = load_nodefaults(&files, Default::default())
+            .unwrap_err()
+            .to_string();
+        assert!(dbg!(e).contains("nonexistent.d"));
+    }
+
+    #[test]
     fn load_two_files_with_cmdline() {
         let td = tempdir().unwrap();
         let cf1 = td.path().join("a_file");
