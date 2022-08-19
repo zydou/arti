@@ -140,20 +140,21 @@ impl ConfigurationSources {
     ///  * `config_files_options`: Paths of config file(s) (or directories of `.toml` files)
     ///  * `cmdline_toml_override_options`: Overrides ("key=value")
     ///
-    /// The caller should also provide `default_config_file`, the default location of the
-    /// configuration file.  This is used if no file(s) are specified on the command line.
+    /// The caller should also provide `default_config_files`, the default locations of the
+    /// configuration files.  This is used if no file(s) are specified on the command line.
     ///
     /// `mistrust` is used to check whether the configuration files have appropriate permissions.
     ///
     /// Configuration file locations that turn out to be directories,
     /// will be scanned for files whose name ends in `.toml`.
     /// All those files (if any) will be read (in lexical order by filename).
-    pub fn from_cmdline<F, O>(
-        default_config_file: impl Into<PathBuf>,
+    pub fn from_cmdline<P, F, O>(
+        default_config_files: impl IntoIterator<Item = P>,
         config_files_options: impl IntoIterator<Item = F>,
         cmdline_toml_override_options: impl IntoIterator<Item = O>,
     ) -> Self
     where
+        P: Into<PathBuf>,
         F: Into<PathBuf>,
         O: Into<String>,
     {
@@ -166,8 +167,9 @@ impl ConfigurationSources {
             any_files = true;
         }
         if !any_files {
-            let default = default_config_file.into();
-            cfg_sources.push_optional_file(default);
+            for default in default_config_files {
+                cfg_sources.push_optional_file(default.into());
+            }
         }
 
         for s in cmdline_toml_override_options {
@@ -482,7 +484,7 @@ world = \"nonsense\"
     fn from_cmdline() {
         // Try one with specified files
         let sources = ConfigurationSources::from_cmdline(
-            "/etc/loid.toml",
+            ["/etc/loid.toml"],
             ["/family/yor.toml", "/family/anya.toml"],
             ["decade=1960", "snack=peanuts"],
         );
@@ -500,7 +502,7 @@ world = \"nonsense\"
 
         // Try once with default only.
         let sources = ConfigurationSources::from_cmdline(
-            "/etc/loid.toml",
+            ["/etc/loid.toml"],
             Vec::<PathBuf>::new(),
             ["decade=1960", "snack=peanuts"],
         );

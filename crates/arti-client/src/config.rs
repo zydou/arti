@@ -378,9 +378,12 @@ impl TorClientConfigBuilder {
     }
 }
 
-/// Return a filename for the default user configuration file.
-pub fn default_config_file() -> Result<PathBuf, CfgPathError> {
-    CfgPath::new("${ARTI_CONFIG}/arti.toml".into()).path()
+/// Return the filenames for the default user configuration files
+pub fn default_config_files() -> Result<Vec<PathBuf>, CfgPathError> {
+    ["${ARTI_CONFIG}/arti.toml", "${ARTI_CONFIG}/arti.d"]
+        .into_iter()
+        .map(|f| CfgPath::new(f.into()).path())
+        .collect()
 }
 
 /// The environment variable we look at when deciding whether to disable FS permissions checking.
@@ -461,7 +464,9 @@ mod test {
         // We don't want to second-guess the directories crate too much
         // here, so we'll just make sure it does _something_ plausible.
 
-        let dflt = default_config_file().unwrap();
-        assert!(dflt.ends_with("arti.toml"));
+        let dflt = default_config_files().unwrap();
+        assert!(dflt[0].ends_with("arti.toml"));
+        assert!(dflt[1].ends_with("arti.d"));
+        assert_eq!(dflt.len(), 2);
     }
 }

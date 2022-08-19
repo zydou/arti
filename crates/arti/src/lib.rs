@@ -194,7 +194,7 @@ pub use cfg::{
 };
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
-use arti_client::config::default_config_file;
+use arti_client::config::default_config_files;
 use arti_client::{TorClient, TorClientConfig};
 use safelog::with_safe_logging_suppressed;
 use tor_config::ConfigurationSources;
@@ -334,7 +334,7 @@ where
     // correct behavior is different depending on whether the filename is given
     // explicitly or not.
     let mut config_file_help = "Specify which config file(s) to read.".to_string();
-    if let Ok(default) = default_config_file() {
+    if let Ok(default) = default_config_files() {
         // If we couldn't resolve the default config file, then too bad.  If something
         // actually tries to use it, it will produce an error, but don't fail here
         // just for that reason.
@@ -468,7 +468,7 @@ where
 
         let cfg_sources = {
             let mut cfg_sources = ConfigurationSources::from_cmdline(
-                default_config_file()?,
+                default_config_files()?,
                 matches.values_of_os("config-files").unwrap_or_default(),
                 override_options,
             );
