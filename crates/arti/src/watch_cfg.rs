@@ -98,15 +98,15 @@ fn reconfigure<R: Runtime>(
     }
     client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
-    if !config.application().watch_configuration {
-        // Stop watching for configuration changes.
-        return Ok(true);
-    }
     if !config.application().permit_debugging {
         #[cfg(feature = "harden")]
         crate::process::enable_process_hardening()?;
     }
 
+    if !config.application().watch_configuration {
+        // Stop watching for configuration changes.
+        return Ok(true);
+    }
     Ok(false)
 }
 
