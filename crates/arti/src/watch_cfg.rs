@@ -11,7 +11,7 @@ use arti_client::TorClient;
 use notify::Watcher;
 use tor_config::ConfigurationSources;
 use tor_rtcompat::Runtime;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
@@ -37,7 +37,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let watcher = prepare_watcher(&sources)?;
+    let mut watcher = prepare_watcher(&sources)?;
 
     // If watching, we must reload the config once right away, because
     // we have set up the watcher *after* loading it the first time.
@@ -65,6 +65,18 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 // call recv() in the outer loop.
             }
             debug!("FS event {:?}: reloading configuration.", event);
+
+            watcher = match prepare_watcher(&sources) {
+                Ok(y) => y,
+                Err(e) => {
+                    error!(
+                        "FS watch: failed to rescan config and re-establish watch: {}",
+                        e
+                    );
+                    break;
+                }
+            };
+
             match reconfigure(&sources, &original, &client) {
                 Ok(exit) => {
                     info!("Successfully reloaded configuration.");
