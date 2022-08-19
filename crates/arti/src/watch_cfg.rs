@@ -15,8 +15,8 @@ use tracing::{debug, error, info, warn};
 
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
-/// How long (worst case) should we take to learn about configuration changes?
-const POLL_INTERVAL: Duration = Duration::from_secs(10);
+/// How long to wait after a file is created, before we try to read it.
+const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Find the configuration files and prepare a watcher
 ///
@@ -25,7 +25,7 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 fn prepare_watcher(
     sources: &ConfigurationSources,
 ) -> anyhow::Result<(FileWatcher, FoundConfigFiles)> {
-    let mut watcher = FileWatcher::new(POLL_INTERVAL)?;
+    let mut watcher = FileWatcher::new(DEBOUNCE_INTERVAL)?;
     let files = sources.scan()?;
     for file in files.iter() {
         if file.was_dir() {
