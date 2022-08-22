@@ -18,9 +18,14 @@ IGNORE=(
     # fixed in `notify` 5.0 however only pre-releases are available
     # for now.
     --ignore RUSTSEC-2020-0016
+    # This is not a vulnerability but an unmaintained warning for `ansi_term`.
+    # The upstream issue does not offer good alternatives, and anyway we get
+    # this crate via clap and tracing-*.
+    # It does not seem at all likely that this is really a problem for us.
+    --ignore RUSTSEC-2021-0139
 )
 
-cargo audit -D warnings "${IGNORE[@]}"
+${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
 
 
 OBSOLETE_IGNORE=(
