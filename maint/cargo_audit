@@ -20,7 +20,7 @@ IGNORE=(
     --ignore RUSTSEC-2020-0016
 )
 
-cargo audit -D warnings "${IGNORE[@]}"
+${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
 
 
 OBSOLETE_IGNORE=(
