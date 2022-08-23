@@ -207,6 +207,11 @@ where
 /// # ⚠ Stability Warning ⚠
 ///
 /// We may significantly change this so that it is an method in an extension trait.
+//
+// TODO: it would be nice to have an example here, but right now I'm not sure
+// what type (or config setting) we could put in an example that would be natural enough
+// to add clarity.  See
+//  https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/685#note_2829951
 pub fn resolve_option_general<T, ISF, DF>(
     input: Option<Option<&T>>,
     is_sentinel: ISF,
