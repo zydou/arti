@@ -104,7 +104,13 @@ impl Listen {
     ///
     /// Special case: if `port` is zero, specifies no listening.
     pub fn new_localhost(port: u16) -> Listen {
-        Listen(port.try_into().ok().map(ListenItem::Localhost).into_iter().collect_vec())
+        Listen(
+            port.try_into()
+                .ok()
+                .map(ListenItem::Localhost)
+                .into_iter()
+                .collect_vec(),
+        )
     }
 
     /// Create a new `Listen`, possibly specifying listening on a port on localhost

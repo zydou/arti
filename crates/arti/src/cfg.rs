@@ -178,6 +178,7 @@ mod test {
     use arti_client::config::TorClientConfigBuilder;
     use regex::Regex;
     use std::time::Duration;
+    use tor_config::load::ResolutionResults;
 
     use super::*;
 
@@ -208,14 +209,14 @@ mod test {
             // Also we should ideally test that every setting from the config appears here in
             // the file.  Possibly that could be done with some kind of stunt Deserializer,
             // but it's not trivial.
-            let (parsed, unrecognized): (ArtiCombinedConfig, _) =
-                tor_config::resolve_return_unrecognized(cfg).unwrap();
+            let results: ResolutionResults<ArtiCombinedConfig> =
+                tor_config::resolve_return_results(cfg).unwrap();
 
-            assert_eq!(&parsed, &default);
-            assert_eq!(&parsed, &empty_config);
+            assert_eq!(&results.value, &default);
+            assert_eq!(&results.value, &empty_config);
 
-            assert_eq!(unrecognized, &[]);
-            parsed
+            assert_eq!(results.unrecognized, &[]);
+            results.value
         };
 
         let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);

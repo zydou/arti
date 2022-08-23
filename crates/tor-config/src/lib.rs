@@ -106,7 +106,7 @@ pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
-pub use load::{resolve, resolve_ignore_unrecognized, resolve_return_unrecognized};
+pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;
 pub use mut_cfg::MutCfg;
 pub use paste::paste;

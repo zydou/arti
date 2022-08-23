@@ -285,7 +285,7 @@ enum PathEntry {
 fn resolve_inner<T>(
     input: config::Config,
     want_unrecognized: bool,
-) -> Result<(T, Vec<DisfavouredKey>), ConfigResolveError>
+) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -298,9 +298,9 @@ where
         },
     };
 
-    let val = Resolvable::resolve(&mut lc)?;
+    let value = Resolvable::resolve(&mut lc)?;
 
-    let ign = match lc.unrecognized {
+    let unrecognized = match lc.unrecognized {
         UK::AllKeys => panic!("all unrecognized, as if we had processed nothing"),
         UK::These(ign) => ign,
     }
@@ -308,7 +308,10 @@ where
     .filter(|ip| !ip.path.is_empty())
     .collect_vec();
 
-    Ok((val, ign))
+    Ok(ResolutionResults {
+        value,
+        unrecognized,
+    })
 }
 
 /// Deserialize and build overall configuration from config sources
@@ -327,29 +330,43 @@ pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
-    let (val, ign) = resolve_inner(input, true)?;
-    for ign in ign {
+    let ResolutionResults {
+        value,
+        unrecognized,
+    } = resolve_inner(input, true)?;
+    for ign in unrecognized {
         warn!("unrecognized configuration key: {}", &ign);
     }
-    Ok(val)
+    Ok(value)
 }
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
-pub fn resolve_return_unrecognized<T>(
+pub fn resolve_return_results<T>(
     input: config::Config,
-) -> Result<(T, Vec<DisfavouredKey>), ConfigResolveError>
+) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
 {
     resolve_inner(input, true)
 }
 
+/// Results of a successful `resolve_return_disfavoured`
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ResolutionResults<T> {
+    /// The configuration, successfully parsed
+    pub value: T,
+
+    /// Any config keys which were found in the input, but not recognized (and so, ignored)
+    pub unrecognized: Vec<DisfavouredKey>,
+}
+
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_ignore_unrecognized<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_warnings<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
-    Ok(resolve_inner(input, false)?.0)
+    Ok(resolve_inner(input, false)?.value)
 }
 
 impl<T> Resolvable for T
@@ -696,12 +713,17 @@ mod test {
             .build()
             .unwrap();
 
-        let _: (TestConfigA, TestConfigB) = resolve_ignore_unrecognized(cfg.clone()).unwrap();
+        let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(cfg.clone()).unwrap();
 
-        let ((a, b), ign): ((TestConfigA, TestConfigB), _) =
-            resolve_return_unrecognized(cfg).unwrap();
+        let resolved: ResolutionResults<(TestConfigA, TestConfigB)> =
+            resolve_return_results(cfg).unwrap();
+        let (a, b) = resolved.value;
 
-        let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
+        let ign = resolved
+            .unrecognized
+            .into_iter()
+            .map(|ik| ik.to_string())
+            .collect_vec();
 
         assert_eq! { &a, &TestConfigA { a: "hi".into() } };
         assert_eq! { &b, &TestConfigB { b: "".into() } };
@@ -742,15 +764,15 @@ mod test {
             .unwrap();
         {
             // First try "A", then "C".
-            let res1: Result<((TestConfigA, TestConfigC), Vec<DisfavouredKey>), _> =
-                resolve_return_unrecognized(cfg.clone());
+            let res1: Result<ResolutionResults<(TestConfigA, TestConfigC)>, _> =
+                resolve_return_results(cfg.clone());
             assert!(res1.is_err());
             assert!(matches!(res1, Err(ConfigResolveError::Deserialize(_))));
         }
         {
             // Now the other order: first try "C", then "A".
-            let res2: Result<((TestConfigC, TestConfigA), Vec<DisfavouredKey>), _> =
-                resolve_return_unrecognized(cfg.clone());
+            let res2: Result<ResolutionResults<(TestConfigC, TestConfigA)>, _> =
+                resolve_return_results(cfg.clone());
             assert!(res2.is_err());
             assert!(matches!(res2, Err(ConfigResolveError::Deserialize(_))));
         }
