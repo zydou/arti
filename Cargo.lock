@@ -3553,6 +3553,7 @@ dependencies = [
  "directories",
  "dirs",
  "educe",
+ "either",
  "fs-mistrust",
  "itertools",
  "once_cell",
