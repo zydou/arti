@@ -163,9 +163,7 @@ impl Reconfigure {
 ///
 /// # ⚠ Stability Warning ⚠
 ///
-/// We hope to significantly change this so that it is an method in an extension trait.
-/// We may also make it able to support settings where the special "no such thing" value is
-/// not `T::Default`.
+/// We may significantly change this so that it is an method in an extension trait.
 //
 // This is an annoying AOI right now because you have to write things like
 //     #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
@@ -178,10 +176,56 @@ where
     T: Clone + Default + PartialEq,
     DF: FnOnce() -> Option<T>,
 {
+    resolve_option_general(
+        input.as_ref().map(|ov| ov.as_ref()),
+        |v| v == &T::default(),
+        def,
+    )
+}
+
+/// Resolves an `Option<Option<T>>` (in a builder) into an `Option<T>`, more generally
+///
+/// Like `resolve_option`, but:
+///
+///  * Doesn't rely on `T`' being `Default + PartialEq`
+///    to determine whether it's the sentinel value;
+///    instead, taking `is_explicit`.
+///
+///  * Takes `Option<Option<&T>>` which is more general, but less like the usual call sites.
+///
+///  * If the input is `None`, this indicates that the user did not specify a value,
+///    and we therefore use `def` to obtain the default value.
+///
+///  * If the input is `Some(None)`, or `Some(Some(v)) where is_sentinel(v)`,
+///    the user has explicitly specified that this config item should be null/none/nothing,
+///    so we return `None`.
+///
+///  * Otherwise the user provided an actual value, and we return `Some` of it.
+///
+/// See <https://gitlab.torproject.org/tpo/core/arti/-/issues/488>
+///
+/// # ⚠ Stability Warning ⚠
+///
+/// We may significantly change this so that it is an method in an extension trait.
+//
+// TODO: it would be nice to have an example here, but right now I'm not sure
+// what type (or config setting) we could put in an example that would be natural enough
+// to add clarity.  See
+//  https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/685#note_2829951
+pub fn resolve_option_general<T, ISF, DF>(
+    input: Option<Option<&T>>,
+    is_sentinel: ISF,
+    def: DF,
+) -> Option<T>
+where
+    T: Clone,
+    DF: FnOnce() -> Option<T>,
+    ISF: FnOnce(&T) -> bool,
+{
     match input {
         None => def(),
         Some(None) => None,
-        Some(Some(v)) if v == &T::default() => None,
+        Some(Some(v)) if is_sentinel(v) => None,
         Some(Some(v)) => Some(v.clone()),
     }
 }
