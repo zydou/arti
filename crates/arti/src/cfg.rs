@@ -20,6 +20,18 @@ pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-confi
 ///
 /// (When updating, copy `arti-example-config.toml` from the earliest version we want to
 /// be compatible with.)
+//
+// Probably, in the long run, we will want to make this architecture more general: we'll want
+// to have a larger number of examples to test, and we won't want to write a separate constant
+// for each. Probably in that case, we'll want a directory of test examples, and we'll want to
+// traverse the whole directory.
+//
+// Compare C tor, look at conf_examples and conf_failures - each of the subdirectories there is
+// an example configuration situation that we wanted to validate.
+//
+// NB here in Arti the OLDEST_SUPPORTED_CONFIG and the ARTI_EXAMPLE_CONFIG are tested
+// somewhat differently: we test that the current example is *exhaustive*, not just
+// parseable.
 #[cfg(test)]
 const OLDEST_SUPPORTED_CONFIG: &str = concat!(include_str!("./oldest-supported-config.toml"),);
 
@@ -173,6 +185,7 @@ mod test {
 
     #[test]
     fn default_config() {
+        // See comment for OLDEST_SUPPORTED_CONFIG for likely future evolution
         let empty_config = config::Config::builder().build().unwrap();
         let empty_config: ArtiCombinedConfig = tor_config::resolve(empty_config).unwrap();
 
