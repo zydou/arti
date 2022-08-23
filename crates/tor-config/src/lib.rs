@@ -196,7 +196,7 @@ where
 ///  * If the input is `None`, this indicates that the user did not specify a value,
 ///    and we therefore use `def` to obtain the default value.
 ///
-///  * If the input is `Some(None)`, or `Some(Some(v) where is_sentinel(v)`,
+///  * If the input is `Some(None)`, or `Some(Some(v)) where is_sentinel(v)`,
 ///    the user has explicitly specified that this config item should be null/none/nothing,
 ///    so we return `None`.
 ///
