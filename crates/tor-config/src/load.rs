@@ -233,7 +233,7 @@ enum UnrecognizedKeys {
     /// The keys which remain unrecognized by any consumer
     ///
     /// If this is empty, we do not (need to) do any further tracking.
-    These(BTreeSet<UnrecognizedKey>),
+    These(BTreeSet<DisfavouredKey>),
 }
 use UnrecognizedKeys as UK;
 
@@ -247,7 +247,7 @@ impl UnrecognizedKeys {
     }
 
     /// Update in place, intersecting with `other`
-    fn intersect_with(&mut self, other: BTreeSet<UnrecognizedKey>) {
+    fn intersect_with(&mut self, other: BTreeSet<DisfavouredKey>) {
         match self {
             UK::AllKeys => *self = UK::These(other),
             UK::These(self_) => {
@@ -262,12 +262,12 @@ impl UnrecognizedKeys {
 ///
 /// `Display`s in an approximation to TOML format.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct UnrecognizedKey {
+pub struct DisfavouredKey {
     /// Can be empty only before returned from this module
     path: Vec<PathEntry>,
 }
 
-/// Element of an UnrecognizedKey
+/// Element of an DisfavouredKey
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 enum PathEntry {
     /// Array index
@@ -285,7 +285,7 @@ enum PathEntry {
 fn resolve_inner<T>(
     input: config::Config,
     want_unrecognized: bool,
-) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
+) -> Result<(T, Vec<DisfavouredKey>), ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -337,7 +337,7 @@ where
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
 pub fn resolve_return_unrecognized<T>(
     input: config::Config,
-) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
+) -> Result<(T, Vec<DisfavouredKey>), ConfigResolveError>
 where
     T: Resolvable,
 {
@@ -388,8 +388,8 @@ where
     }
 }
 
-/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `UnrecognizedKey`
-fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
+/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `DisfavouredKey`
+fn copy_path(mut path: &serde_ignored::Path) -> DisfavouredKey {
     use serde_ignored::Path as SiP;
     use PathEntry as PE;
 
@@ -407,7 +407,7 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
         path = new_path;
     }
     descend.reverse();
-    UnrecognizedKey { path: descend }
+    DisfavouredKey { path: descend }
 }
 
 /// Computes the intersection, resolving ignorances at different depths
@@ -428,9 +428,9 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
 /// If the inputs are not minimal, the output may not be either
 /// (although `serde_ignored` gives us minimal sets, so that case is not important).
 fn intersect_unrecognized_lists(
-    al: BTreeSet<UnrecognizedKey>,
-    bl: BTreeSet<UnrecognizedKey>,
-) -> BTreeSet<UnrecognizedKey> {
+    al: BTreeSet<DisfavouredKey>,
+    bl: BTreeSet<DisfavouredKey>,
+) -> BTreeSet<DisfavouredKey> {
     //eprintln!("INTERSECT:");
     //for ai in &al { eprintln!("A: {}", ai); }
     //for bi in &bl { eprintln!("B: {}", bi); }
@@ -535,7 +535,7 @@ fn intersect_unrecognized_lists(
     output
 }
 
-impl Display for UnrecognizedKey {
+impl Display for DisfavouredKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use PathEntry as PE;
         if self.path.is_empty() {
@@ -581,9 +581,9 @@ mod test {
     use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
-    fn parse_test_set(l: &[&str]) -> BTreeSet<UnrecognizedKey> {
+    fn parse_test_set(l: &[&str]) -> BTreeSet<DisfavouredKey> {
         l.iter()
-            .map(|s| UnrecognizedKey {
+            .map(|s| DisfavouredKey {
                 path: s
                     .split('.')
                     .map(|s| PathEntry::MapEntry(s.into()))
@@ -645,7 +645,7 @@ mod test {
     #[test]
     fn test_display_key() {
         let chk = |exp, path: &[PathEntry]| {
-            assert_eq! { UnrecognizedKey { path: path.into() }.to_string(), exp };
+            assert_eq! { DisfavouredKey { path: path.into() }.to_string(), exp };
         };
         let me = |s: &str| PathEntry::MapEntry(s.into());
         use PathEntry::ArrayIndex as AI;
@@ -742,14 +742,14 @@ mod test {
             .unwrap();
         {
             // First try "A", then "C".
-            let res1: Result<((TestConfigA, TestConfigC), Vec<UnrecognizedKey>), _> =
+            let res1: Result<((TestConfigA, TestConfigC), Vec<DisfavouredKey>), _> =
                 resolve_return_unrecognized(cfg.clone());
             assert!(res1.is_err());
             assert!(matches!(res1, Err(ConfigResolveError::Deserialize(_))));
         }
         {
             // Now the other order: first try "C", then "A".
-            let res2: Result<((TestConfigC, TestConfigA), Vec<UnrecognizedKey>), _> =
+            let res2: Result<((TestConfigC, TestConfigA), Vec<DisfavouredKey>), _> =
                 resolve_return_unrecognized(cfg.clone());
             assert!(res2.is_err());
             assert!(matches!(res2, Err(ConfigResolveError::Deserialize(_))));
