@@ -157,6 +157,11 @@ pub trait Resolvable: Sized {
     // because that would somehow involve creating `Self` from `ResolveContext`
     // but `ResolveContext` is completely opaque outside this module.
     fn resolve(input: &mut ResolveContext) -> Result<Self, ConfigResolveError>;
+
+    /// Return a list of deprecated config keys, as "."-separated strings
+    fn enumerate_deprecated_keys<F>(f: &mut F)
+    where
+        F: FnMut(&'static [&'static str]);
 }
 
 /// Top-level configuration struct, made from a deserializable builder
@@ -175,6 +180,9 @@ pub trait TopLevel {
     ///
     /// Should satisfy `&'_ Self::Builder: Builder<Built=Self>`
     type Builder: DeserializeOwned;
+
+    /// Deprecated config keys, as "."-separates strings
+    const DEPRECATED_KEYS: &'static [&'static str] = &[];
 }
 
 /// `impl Resolvable for (A,B..) where A: Resolvable, B: Resolvable ...`
@@ -197,6 +205,10 @@ macro_rules! define_for_tuples {
         {
             fn resolve(cfg: &mut ResolveContext) -> Result<Self, ConfigResolveError> {
                 Ok(( $( $A::resolve(cfg)?, )* ))
+            }
+            fn enumerate_deprecated_keys<NF>(f: &mut NF)
+            where NF: FnMut(&'static [&'static str]) {
+                $( $A::enumerate_deprecated_keys(f); )*
             }
         }
 
@@ -258,7 +270,7 @@ impl UnrecognizedKeys {
     }
 }
 
-/// Key in config file(s) unrecognized by all Resolvables we obtained
+/// Key in config file(s) which is disfavoured (unrecognized or deprecated)
 ///
 /// `Display`s in an approximation to TOML format.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -284,14 +296,29 @@ enum PathEntry {
 /// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
     input: config::Config,
-    want_unrecognized: bool,
+    want_disfavoured: bool,
 ) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
 {
+    let mut deprecated = BTreeSet::new();
+
+    if want_disfavoured {
+        T::enumerate_deprecated_keys(&mut |l: &[&str]| {
+            for key in l {
+                match input.get(key) {
+                    Err(_) => {}
+                    Ok(serde::de::IgnoredAny) => {
+                        deprecated.insert(key);
+                    }
+                }
+            }
+        });
+    }
+
     let mut lc = ResolveContext {
         input,
-        unrecognized: if want_unrecognized {
+        unrecognized: if want_disfavoured {
             UK::AllKeys
         } else {
             UK::These(BTreeSet::new())
@@ -308,9 +335,21 @@ where
     .filter(|ip| !ip.path.is_empty())
     .collect_vec();
 
+    let deprecated = deprecated
+        .into_iter()
+        .map(|key| {
+            let path = key
+                .split('.')
+                .map(|e| PathEntry::MapEntry(e.into()))
+                .collect_vec();
+            DisfavouredKey { path }
+        })
+        .collect_vec();
+
     Ok(ResolutionResults {
         value,
         unrecognized,
+        deprecated,
     })
 }
 
@@ -333,7 +372,11 @@ where
     let ResolutionResults {
         value,
         unrecognized,
+        deprecated,
     } = resolve_inner(input, true)?;
+    for depr in deprecated {
+        warn!("deprecated configuration key: {}", &depr);
+    }
     for ign in unrecognized {
         warn!("unrecognized configuration key: {}", &ign);
     }
@@ -359,6 +402,9 @@ pub struct ResolutionResults<T> {
 
     /// Any config keys which were found in the input, but not recognized (and so, ignored)
     pub unrecognized: Vec<DisfavouredKey>,
+
+    /// Any config keys which were found, but have been declared deprecated
+    pub deprecated: Vec<DisfavouredKey>,
 }
 
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
@@ -402,6 +448,13 @@ where
         };
         let built = builder.build()?;
         Ok(built)
+    }
+
+    fn enumerate_deprecated_keys<NF>(f: &mut NF)
+    where
+        NF: FnMut(&'static [&'static str]),
+    {
+        f(T::DEPRECATED_KEYS);
     }
 }
 
@@ -694,10 +747,14 @@ mod test {
     struct TestConfigB {
         #[builder(default)]
         b: String,
+
+        #[builder(default)]
+        old: bool,
     }
     impl_standard_builder! { TestConfigB }
     impl TopLevel for TestConfigB {
         type Builder = TestConfigBBuilder;
+        const DEPRECATED_KEYS: &'static [&'static str] = &["old"];
     }
 
     #[test]
@@ -705,6 +762,7 @@ mod test {
         let test_data = r#"
             wombat = 42
             a = "hi"
+            old = true
         "#;
         let source = config::File::from_str(test_data, config::FileFormat::Toml);
 
@@ -719,15 +777,16 @@ mod test {
             resolve_return_results(cfg).unwrap();
         let (a, b) = resolved.value;
 
-        let ign = resolved
-            .unrecognized
-            .into_iter()
-            .map(|ik| ik.to_string())
-            .collect_vec();
+        let mk_strings =
+            |l: Vec<DisfavouredKey>| l.into_iter().map(|ik| ik.to_string()).collect_vec();
+
+        let ign = mk_strings(resolved.unrecognized);
+        let depr = mk_strings(resolved.deprecated);
 
         assert_eq! { &a, &TestConfigA { a: "hi".into() } };
-        assert_eq! { &b, &TestConfigB { b: "".into() } };
+        assert_eq! { &b, &TestConfigB { b: "".into(), old: true } };
         assert_eq! { ign, &["wombat"] };
+        assert_eq! { depr, &["old"] };
 
         let _ = TestConfigA::builder();
         let _ = TestConfigB::builder();

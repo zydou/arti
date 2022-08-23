@@ -176,6 +176,7 @@ mod test {
 
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
+    use itertools::Itertools;
     use regex::Regex;
     use std::time::Duration;
     use tor_config::load::ResolutionResults;
@@ -328,7 +329,6 @@ mod test {
 
     #[allow(clippy::dbg_macro)]
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
-        use itertools::Itertools;
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
 
@@ -447,11 +447,17 @@ mod test {
 
     #[test]
     fn exhaustive() {
-        exhaustive_1(
-            ARTI_EXAMPLE_CONFIG,
-            // add *old*, obsoleted settings here
-            &[],
+        let mut deprecated = vec![];
+        <(ArtiConfig, TorClientConfig) as tor_config::load::Resolvable>::enumerate_deprecated_keys(
+            &mut |l| {
+                for k in l {
+                    deprecated.push(k.to_string());
+                }
+            },
         );
+        let deprecated = deprecated.iter().map(|s| &**s).collect_vec();
+
+        exhaustive_1(ARTI_EXAMPLE_CONFIG, &deprecated);
 
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
