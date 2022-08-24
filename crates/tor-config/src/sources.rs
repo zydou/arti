@@ -359,6 +359,32 @@ impl FoundConfigFiles<'_> {
     }
 }
 
+/// Does it end in a slash?  (Or some other way of saying this is a directory.)
+fn is_syntactically_directory(p: &Path) -> bool {
+    use std::path::Component as PC;
+
+    match p.components().rev().next() {
+        None => false,
+        Some(PC::Prefix(_)) | Some(PC::RootDir) | Some(PC::CurDir) | Some(PC::ParentDir) => true,
+        Some(PC::Normal(_)) => {
+            // Does it end in a slash?
+            let l = p.components().count();
+
+            // stdlib doesn't let us tell if the thing ends in a path separator.
+            // components() normalises, so doesn't give us an empty component
+            // But, if it ends in a path separator, adding a path component char will
+            // mean adding a component.
+            // This will work regardless of the path separator, on any platform where
+            // paths naming directories are like those for files.
+            // It would even work on some others, eg VMS.
+            let mut appended = OsString::from(p);
+            appended.push("a");
+            let l2 = PathBuf::from(appended).components().count();
+            l2 != l
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -511,5 +537,27 @@ world = \"nonsense\"
             &sources.files,
             &vec![("/etc/loid.toml".into(), MustRead::TolerateAbsence)]
         );
+    }
+
+    #[test]
+    fn dir_syntax() {
+        let chk = |tf, s: &str| assert_eq!(tf, is_syntactically_directory(s.as_ref()), "{:?}", s);
+
+        chk(false, "");
+        chk(false, "1");
+        chk(false, "1/2");
+        chk(false, "/1");
+        chk(false, "/1/2");
+
+        chk(true, "/");
+        chk(true, ".");
+        chk(true, "./");
+        chk(true, "..");
+        chk(true, "../");
+        chk(true, "/");
+        chk(true, "1/");
+        chk(true, "1/2/");
+        chk(true, "/1/");
+        chk(true, "/1/2/");
     }
 }
