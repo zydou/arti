@@ -122,12 +122,22 @@ impl Listen {
 
     /// List the network socket addresses to listen on
     ///
+    /// Each returned item is a list of `SocketAddr`,
+    /// of which *at least one* must be successfully bound.
+    /// It is OK if the others (up to all but one of them)
+    /// fail with `EAFNOSUPPORT` ("Address family not supported").
+    /// This allows handling of support, or non-support,
+    /// for particular address faimilies, eg IPv6 vs IPv4 localhost.
+    ///
     /// Fails if the listen spec involves listening on things other than IP addresses.
     /// (Currently that is not possible.)
     pub fn ip_addrs(
         &self,
-    ) -> Result<impl Iterator<Item = net::SocketAddr> + '_, ListenUnsupported> {
-        Ok(self.0.iter().flat_map(|i| i.iter()))
+    ) -> Result<
+        impl Iterator<Item = impl Iterator<Item = net::SocketAddr> + '_> + '_,
+        ListenUnsupported,
+    > {
+        Ok(self.0.iter().map(|i| i.iter()))
     }
 
     /// Get the localhost port to listen on
@@ -353,7 +363,7 @@ mod test {
         #[allow(clippy::needless_pass_by_value)] // we do this for consistency
         fn chk(
             exp_i: Vec<ListenItem>,
-            exp_addrs: Result<Vec<SocketAddr>, ()>,
+            exp_addrs: Result<Vec<Vec<SocketAddr>>, ()>,
             exp_lpd: Result<Option<u16>, ()>,
             s: &str,
         ) {
@@ -362,7 +372,9 @@ mod test {
             eprintln!("s={:?} ll={:?}", &s, &ll);
             assert_eq!(ll, Listen(exp_i));
             assert_eq!(
-                ll.ip_addrs().map(|a| a.collect_vec()).map_err(|_| ()),
+                ll.ip_addrs()
+                    .map(|a| a.map(|l| l.collect_vec()).collect_vec())
+                    .map_err(|_| ()),
                 exp_addrs
             );
             assert_eq!(ll.localhost_port_deprecated().map_err(|_| ()), exp_lpd);
@@ -382,7 +394,7 @@ mod test {
             );
         };
 
-        let chk_1 = |v: ListenItem, addrs: Vec<SocketAddr>, port, s| {
+        let chk_1 = |v: ListenItem, addrs: Vec<Vec<SocketAddr>>, port, s| {
             chk(
                 vec![v.clone()],
                 Ok(addrs.clone()),
@@ -397,7 +409,7 @@ mod test {
             );
             chk(
                 vec![v, LI::Localhost(23.try_into().unwrap())],
-                Ok([addrs, vec![localhost6(23), localhost4(23)]]
+                Ok([addrs, vec![vec![localhost6(23), localhost4(23)]]]
                     .into_iter()
                     .flatten()
                     .collect()),
@@ -413,13 +425,13 @@ mod test {
 
         chk_1(
             LI::Localhost(42.try_into().unwrap()),
-            vec![localhost6(42), localhost4(42)],
+            vec![vec![localhost6(42), localhost4(42)]],
             Ok(Some(42)),
             "42",
         );
         chk_1(
             LI::General(unspec6(56)),
-            vec![unspec6(56)],
+            vec![vec![unspec6(56)]],
             Err(()),
             r#""[::]:56""#,
         );
