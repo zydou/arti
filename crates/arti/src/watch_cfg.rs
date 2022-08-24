@@ -9,7 +9,7 @@ use std::time::Duration;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
 use notify::Watcher;
-use tor_config::{sources::FoundConfigFiles, ConfigurationSources};
+use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
 
@@ -26,15 +26,14 @@ fn prepare_watcher(
     sources: &ConfigurationSources,
 ) -> anyhow::Result<(FileWatcher, FoundConfigFiles)> {
     let mut watcher = FileWatcher::new(DEBOUNCE_INTERVAL)?;
-    let files = sources.scan()?;
-    for file in files.iter() {
-        if file.was_dir() {
-            watcher.watch_dir(file)?;
-        } else {
-            watcher.watch_file(file)?;
+    let sources = sources.scan()?;
+    for source in sources.iter() {
+        match source {
+            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir)?,
+            ConfigurationSource::File(file) => watcher.watch_file(file)?,
         }
     }
-    Ok((watcher, files))
+    Ok((watcher, sources))
 }
 
 /// Launch a thread to watch our configuration files.

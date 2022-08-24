@@ -133,45 +133,12 @@ pub struct FoundConfigFiles<'srcs> {
 
 /// A configuration source file or directory, found or not found on the filesystem
 #[derive(Debug, Clone)]
-pub struct FoundConfigFile {
+struct FoundConfigFile {
     /// The path of the (putative) object
-    path: PathBuf,
+    source: ConfigurationSource,
 
     /// Were we expecting this to definitely exist
     must_read: MustRead,
-
-    /// What happened when we looked for it
-    ty: FoundType,
-}
-
-/// Was this filesystem object a file or a directory?
-#[derive(Debug, Copy, Clone)]
-enum FoundType {
-    /// File
-    File,
-    /// Directory
-    Dir,
-}
-
-impl FoundConfigFile {
-    /// Get the path
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    /// Was this a directory, when we found it ?
-    pub fn was_dir(&self) -> bool {
-        match self.ty {
-            FoundType::Dir => true,
-            FoundType::File => false,
-        }
-    }
-}
-
-impl AsRef<Path> for FoundConfigFile {
-    fn as_ref(&self) -> &Path {
-        self.path()
-    }
 }
 
 impl ConfigurationSources {
@@ -268,7 +235,7 @@ impl ConfigurationSources {
     pub fn scan(&self) -> Result<FoundConfigFiles, ConfigError> {
         let mut out = vec![];
 
-        for &(ref found, must_read) in &self.files {
+        for &(ref source, must_read) in &self.files {
             let required = must_read == MustRead::MustRead;
 
             // Returns Err(error) if we shuold bail,
@@ -280,7 +247,7 @@ impl ConfigurationSources {
                     Err(ConfigError::Foreign(
                         anyhow::anyhow!(format!(
                             "unable to access config path: {:?}: {}",
-                            &found.as_path(),
+                            &source.as_path(),
                             e
                         ))
                         .into(),
@@ -289,7 +256,7 @@ impl ConfigurationSources {
             };
 
             use ConfigurationSource as CS;
-            match &found {
+            match &source {
                 CS::Dir(found) => {
                     let dir = match fs::read_dir(&found) {
                         Ok(y) => y,
@@ -299,8 +266,7 @@ impl ConfigurationSources {
                         }
                     };
                     out.push(FoundConfigFile {
-                        path: found.clone(),
-                        ty: FoundType::Dir,
+                        source: source.clone(),
                         must_read,
                     });
                     // Rebinding `found` avoids using the directory name by mistake.
@@ -325,16 +291,14 @@ impl ConfigurationSources {
                     }
                     entries.sort();
                     out.extend(entries.into_iter().map(|path| FoundConfigFile {
-                        path,
+                        source: CS::File(path),
                         must_read: MustRead::TolerateAbsence,
-                        ty: FoundType::File,
                     }));
                 }
-                CS::File(found) => {
+                CS::File(_) => {
                     out.push(FoundConfigFile {
-                        path: found.clone(),
+                        source: source.clone(),
                         must_read,
-                        ty: FoundType::File,
                     });
                 }
             }
@@ -351,32 +315,29 @@ impl FoundConfigFiles<'_> {
     /// Iterate over the filesystem objects that the scan found
     //
     // This ought really to be `impl IntoIterator for &Self` but that's awkward without TAIT
-    pub fn iter(&self) -> impl Iterator<Item = &FoundConfigFile> {
-        self.files.iter()
+    pub fn iter(&self) -> impl Iterator<Item = &ConfigurationSource> {
+        self.files.iter().map(|f| &f.source)
     }
 
     /// Add every file and commandline source to `builder`, returning a new
     /// builder.
     fn add_sources(self, mut builder: ConfigBuilder) -> Result<ConfigBuilder, ConfigError> {
-        for FoundConfigFile {
-            path,
-            must_read,
-            ty,
-        } in self.files
-        {
+        for FoundConfigFile { source, must_read } in self.files {
+            use ConfigurationSource as CS;
+
             let required = must_read == MustRead::MustRead;
 
-            match ty {
-                FoundType::File => {}
-                FoundType::Dir => continue,
-            }
+            let file = match source {
+                CS::File(file) => file,
+                CS::Dir(_) => continue,
+            };
 
             match self
                 .sources
                 .mistrust
                 .verifier()
                 .permit_readable()
-                .check(&path)
+                .check(&file)
             {
                 Ok(()) => {}
                 Err(fs_mistrust::Error::NotFound(_)) if !required => {}
@@ -385,7 +346,7 @@ impl FoundConfigFiles<'_> {
 
             // Not going to use File::with_name here, since it doesn't
             // quite do what we want.
-            let f: config::File<_, _> = path.into();
+            let f: config::File<_, _> = file.into();
             builder = builder.add_source(f.format(config::FileFormat::Toml).required(required));
         }
 
@@ -521,7 +482,7 @@ world = \"nonsense\"
         assert_eq!(
             found
                 .iter()
-                .map(|p| p.path().strip_prefix(&td).unwrap().to_str().unwrap())
+                .map(|p| p.as_path().strip_prefix(&td).unwrap().to_str().unwrap())
                 .collect_vec(),
             &["1.toml", "extra.d", "extra.d/2.toml"]
         );
