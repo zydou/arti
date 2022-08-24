@@ -128,6 +128,7 @@ impl Listen {
     /// fail with `EAFNOSUPPORT` ("Address family not supported").
     /// This allows handling of support, or non-support,
     /// for particular address faimilies, eg IPv6 vs IPv4 localhost.
+    /// Other errors (eg, `EADDRINUSE`) should always be treated as serious problems.
     ///
     /// Fails if the listen spec involves listening on things other than IP addresses.
     /// (Currently that is not possible.)
