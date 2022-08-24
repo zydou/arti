@@ -454,7 +454,7 @@ mod test {
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
             // add *new*, not present in old file, settings here
-            &[],
+            &["application.allow_running_as_root"],
         );
     }
 }
