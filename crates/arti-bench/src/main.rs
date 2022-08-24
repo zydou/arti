@@ -63,7 +63,7 @@ use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_socks::tcp::Socks5Stream;
-use tor_config::ConfigurationSources;
+use tor_config::{ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
 use tracing::info;
 
@@ -366,7 +366,12 @@ fn main() -> Result<()> {
     matches
         .values_of_os("arti-config")
         .unwrap_or_default()
-        .for_each(|f| config_sources.push_file(f));
+        .for_each(|f| {
+            config_sources.push_source(
+                ConfigurationSource::from_path(f),
+                tor_config::sources::MustRead::MustRead,
+            );
+        });
 
     // TODO really we ought to get this from the arti configuration, or something.
     // But this is OK for now since we are a benchmarking tool.

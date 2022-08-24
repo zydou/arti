@@ -22,12 +22,12 @@
 //! (This ordering starts watching the files before you read them,
 //! which is necessary to avoid possibly missing changes.)
 
+use std::ffi::OsString;
 use std::{fs, io};
 
 use crate::CmdLine;
 
 use config::ConfigError;
-use tor_basic_utils::IoErrorExt as _;
 
 /// The synchronous configuration builder type we use.
 ///
@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone, Debug, Default)]
 pub struct ConfigurationSources {
     /// List of files to read (in order).
-    files: Vec<(PathBuf, MustRead)>,
+    files: Vec<(ConfigurationSource, MustRead)>,
     /// A list of command-line options to apply after parsing the files.
     options: Vec<String>,
     /// We will check all files we read
@@ -60,6 +60,52 @@ pub enum MustRead {
 
     /// This file must be present and readable.
     MustRead,
+}
+
+/// A configuration file or directory, for use by a `ConfigurationSources`
+///
+/// You can make one out of a `PathBuf`, examining its syntax like `arti` does,
+/// using `ConfigurationSource::from_path`.
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[allow(clippy::exhaustive_enums)] // Callers will need to understand this
+pub enum ConfigurationSource {
+    /// A plain file
+    File(PathBuf),
+
+    /// A directory
+    Dir(PathBuf),
+}
+
+impl ConfigurationSource {
+    /// Interpret a path (or string) as a configuration file or directory spec
+    ///
+    /// If the path syntactically specifies a directory
+    /// (i.e., can be seen to be a directory without accessing the filesystem,
+    /// for example because it ends in a directory separator such as `/`)
+    /// it is treated as specifying a directory.
+    pub fn from_path<P: Into<PathBuf>>(p: P) -> ConfigurationSource {
+        use ConfigurationSource as CS;
+        let p = p.into();
+        if is_syntactically_directory(&p) {
+            CS::Dir(p)
+        } else {
+            CS::File(p)
+        }
+    }
+
+    /// Return a reference to the inner `Path`
+    pub fn as_path(&self) -> &Path {
+        self.as_ref()
+    }
+}
+
+impl AsRef<PathBuf> for ConfigurationSource {
+    fn as_ref(&self) -> &PathBuf {
+        use ConfigurationSource as CS;
+        match self {
+            CS::File(p) | CS::Dir(p) => p,
+        }
+    }
 }
 
 /// Configuration files and directories we found in the filesystem
@@ -146,16 +192,15 @@ impl ConfigurationSources {
     ///
     /// `mistrust` is used to check whether the configuration files have appropriate permissions.
     ///
-    /// Configuration file locations that turn out to be directories,
+    /// `ConfigurationSource::Dir`s
     /// will be scanned for files whose name ends in `.toml`.
     /// All those files (if any) will be read (in lexical order by filename).
-    pub fn from_cmdline<P, F, O>(
-        default_config_files: impl IntoIterator<Item = P>,
+    pub fn from_cmdline<F, O>(
+        default_config_files: impl IntoIterator<Item = ConfigurationSource>,
         config_files_options: impl IntoIterator<Item = F>,
         cmdline_toml_override_options: impl IntoIterator<Item = O>,
     ) -> Self
     where
-        P: Into<PathBuf>,
         F: Into<PathBuf>,
         O: Into<String>,
     {
@@ -164,12 +209,12 @@ impl ConfigurationSources {
         let mut any_files = false;
         for f in config_files_options {
             let f = f.into();
-            cfg_sources.push_file(f);
+            cfg_sources.push_source(ConfigurationSource::from_path(f), MustRead::MustRead);
             any_files = true;
         }
         if !any_files {
             for default in default_config_files {
-                cfg_sources.push_optional_file(default.into());
+                cfg_sources.push_source(default, MustRead::TolerateAbsence);
             }
         }
 
@@ -180,20 +225,14 @@ impl ConfigurationSources {
         cfg_sources
     }
 
-    /// Add `p` to the list of files that we want to read configuration from.
+    /// Add `src` to the list of files or directories that we want to read configuration from.
     ///
     /// Configuration files are loaded and applied in the order that they are
     /// added to this object.
     ///
     /// If the listed file is absent, loading the configuration won't succeed.
-    pub fn push_file(&mut self, p: impl Into<PathBuf>) {
-        self.files.push((p.into(), MustRead::MustRead));
-    }
-
-    /// As `push_file`, but if the listed file can't be loaded, loading the
-    /// configuration can still succeed.
-    pub fn push_optional_file(&mut self, p: impl Into<PathBuf>) {
-        self.files.push((p.into(), MustRead::TolerateAbsence));
+    pub fn push_source(&mut self, src: ConfigurationSource, must_read: MustRead) {
+        self.files.push((src, must_read));
     }
 
     /// Add `s` to the list of overridden options to apply to our configuration.
@@ -241,19 +280,28 @@ impl ConfigurationSources {
                     Err(ConfigError::Foreign(
                         anyhow::anyhow!(format!(
                             "unable to access config path: {:?}: {}",
-                            &found, e
+                            &found.as_path(),
+                            e
                         ))
                         .into(),
                     ))
                 }
             };
 
-            match fs::read_dir(&found) {
-                Ok(dir) => {
+            use ConfigurationSource as CS;
+            match &found {
+                CS::Dir(found) => {
+                    let dir = match fs::read_dir(&found) {
+                        Ok(y) => y,
+                        Err(e) => {
+                            handle_io_error(e)?;
+                            continue;
+                        }
+                    };
                     out.push(FoundConfigFile {
                         path: found.clone(),
-                        must_read,
                         ty: FoundType::Dir,
+                        must_read,
                     });
                     // Rebinding `found` avoids using the directory name by mistake.
                     let mut entries = vec![];
@@ -282,14 +330,13 @@ impl ConfigurationSources {
                         ty: FoundType::File,
                     }));
                 }
-                Err(e) if e.is_not_a_directory() => {
+                CS::File(found) => {
                     out.push(FoundConfigFile {
                         path: found.clone(),
                         must_read,
                         ty: FoundType::File,
                     });
                 }
-                Err(e) => handle_io_error(e)?,
             }
         }
 
@@ -406,7 +453,7 @@ friends = 4242
         let mistrust = fs_mistrust::Mistrust::new_dangerously_trust_everyone();
         let files = files
             .iter()
-            .map(|(p, m)| (p.as_ref().to_owned(), *m))
+            .map(|(p, m)| (ConfigurationSource::from_path(p.as_ref()), *m))
             .collect_vec();
         let options = opts.iter().cloned().collect_vec();
         ConfigurationSources {
@@ -455,9 +502,9 @@ world = \"nonsense\"
     fn dir_with_some() {
         let td = tempdir().unwrap();
         let cf = td.path().join("1.toml");
-        let d = td.path().join("extra.d");
+        let d = td.path().join("extra.d/");
         let df = d.join("2.toml");
-        let xd = td.path().join("nonexistent.d");
+        let xd = td.path().join("nonexistent.d/");
         std::fs::create_dir(&d).unwrap();
         std::fs::write(&cf, EX_TOML).unwrap();
         std::fs::write(&df, EX2_TOML).unwrap();
@@ -511,14 +558,14 @@ world = \"nonsense\"
     fn from_cmdline() {
         // Try one with specified files
         let sources = ConfigurationSources::from_cmdline(
-            ["/etc/loid.toml"],
+            [ConfigurationSource::from_path("/etc/loid.toml")],
             ["/family/yor.toml", "/family/anya.toml"],
             ["decade=1960", "snack=peanuts"],
         );
         let files: Vec<_> = sources
             .files
             .iter()
-            .map(|file| file.0.to_str().unwrap())
+            .map(|file| file.0.as_ref().to_str().unwrap())
             .collect();
         assert_eq!(files, vec!["/family/yor.toml", "/family/anya.toml"]);
         assert_eq!(sources.files[0].1, MustRead::MustRead);
@@ -529,13 +576,16 @@ world = \"nonsense\"
 
         // Try once with default only.
         let sources = ConfigurationSources::from_cmdline(
-            ["/etc/loid.toml"],
+            [ConfigurationSource::from_path("/etc/loid.toml")],
             Vec::<PathBuf>::new(),
             ["decade=1960", "snack=peanuts"],
         );
         assert_eq!(
             &sources.files,
-            &vec![("/etc/loid.toml".into(), MustRead::TolerateAbsence)]
+            &vec![(
+                ConfigurationSource::from_path("/etc/loid.toml"),
+                MustRead::TolerateAbsence
+            )]
         );
     }
 
