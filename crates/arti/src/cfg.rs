@@ -325,6 +325,7 @@ mod test {
         assert_eq!(&config.proxy, proxy);
     }
 
+    #[allow(clippy::dbg_macro)]
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
         use itertools::Itertools;
         use serde_json::Value as JsValue;
