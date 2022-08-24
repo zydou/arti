@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Coding and decoding for the cell types that make up Tor's protocol
 //!
 //! # Overview

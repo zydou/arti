@@ -17,6 +17,7 @@ use crate::doc::routerdesc::RdDigest;
 
 /// A Builder object for creating a RouterStatus and adding it to a
 /// consensus.
+#[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 #[derive(Debug, Clone)]
 pub struct RouterStatusBuilder<D> {
     /// See [`GenericRouterStatus::nickname`].

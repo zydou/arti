@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! High-level functionality for accessing the Tor network as a client.
 //!
 //! # Overview

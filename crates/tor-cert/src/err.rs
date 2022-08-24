@@ -25,6 +25,7 @@ pub enum CertError {
 
 /// An error related to signing or encoding a certificate
 #[cfg(feature = "encode")]
+#[cfg_attr(docsrs, doc(cfg(feature = "encode")))]
 #[derive(Clone, Debug, Error)]
 #[non_exhaustive]
 pub enum CertEncodeError {

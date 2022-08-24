@@ -155,7 +155,7 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
 
     let netparams = Arc::new(NetParameters::default());
 
-    let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &*netparams);
+    let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &netparams);
 
     let (channel, _prov) = chanmgr.get_or_launch(peer_id, (), usage).await.unwrap();
 

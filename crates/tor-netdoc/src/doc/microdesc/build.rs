@@ -18,6 +18,7 @@ use rand::Rng;
 ///
 /// This facility is only enabled when the crate is built with
 /// the `build_docs` feature.
+#[cfg_attr(docsrs, doc(cfg(feature = "build_docs")))]
 #[derive(Debug, Clone)]
 pub struct MicrodescBuilder {
     /// The ntor onion key we'll be using.

@@ -53,6 +53,7 @@ fn codec_err_to_chan(err: CodecError) -> Error {
 }
 
 /// A message telling the channel reactor to do something.
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #[derive(Debug)]
 #[allow(unreachable_pub)] // Only `pub` with feature `testing`; otherwise, visible in crate
 #[allow(clippy::exhaustive_enums)]

@@ -24,3 +24,6 @@ thiserror = "1"
 [dev-dependencies]
 serial_test = "0.8.0"
 static_assertions = "1"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -23,3 +23,6 @@ strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 
 [dev-dependencies]
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

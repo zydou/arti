@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-basic-utils`: Utilities (low-level) for Tor
 //!
 //! Miscellaneous utilities for `tor-*` and `arti-*`.

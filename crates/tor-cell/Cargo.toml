@@ -39,3 +39,6 @@ tor-units = { path = "../tor-units", version = "0.3.1" }
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

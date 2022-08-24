@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-guardmgr`: guard node selection for Tor network clients.
 //!
 //! # Overview

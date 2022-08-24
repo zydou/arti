@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-chanmgr`: Manage a set of channels on the Tor network.
 //!
 //! # Overview

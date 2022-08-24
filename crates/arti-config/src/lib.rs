@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `arti-config`: Removed crate.  (Tools for configuration management in Arti)
 //!
 //! This crate was part of

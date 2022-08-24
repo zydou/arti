@@ -261,11 +261,14 @@ pub struct Signature {
     ///
     /// Currently sha1 and sh256 are recognized.  Here we only support
     /// sha256.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     digestname: String,
     /// Fingerprints of the keys for the authority that made
     /// this signature.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     key_ids: AuthCertKeyIds,
     /// The signature itself.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     signature: Vec<u8>,
 }
 
@@ -279,10 +282,13 @@ pub struct Signature {
 #[derive(Debug, Clone)]
 pub struct SignatureGroup {
     /// The sha256 of the document itself
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     sha256: Option<[u8; 32]>,
     /// The sha1 of the document itself
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     sha1: Option<[u8; 20]>,
     /// The signatures listed on the document.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     signatures: Vec<Signature>,
 }
 
@@ -297,6 +303,7 @@ pub struct SignatureGroup {
 #[derive(Debug, Clone)]
 struct SharedRandVal {
     /// How many authorities revealed shares that contributed to this value.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     n_reveals: u8,
     /// The current random value.
     ///
@@ -304,6 +311,7 @@ struct SharedRandVal {
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     value: Vec<u8>,
 }
 
@@ -322,24 +330,32 @@ struct SharedRandVal {
 struct CommonHeader {
     /// What kind of consensus document is this?  Absent in votes and
     /// in ns-flavored consensuses.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     flavor: ConsensusFlavor,
     /// Over what time is this consensus valid?  (For votes, this is
     /// the time over which the voted-upon consensus should be valid.)
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     lifetime: Lifetime,
     /// List of recommended Tor client versions.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     client_versions: Vec<String>,
     /// List of recommended Tor relay versions.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relay_versions: Vec<String>,
     /// Lists of recommended and required subprotocol versions for clients
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     client_protos: ProtoStatus,
     /// Lists of recommended and required subprotocol versions for relays
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relay_protos: ProtoStatus,
     /// Declared parameters for tunable settings about how to the
     /// network should operator. Some of these adjust timeouts and
     /// whatnot; some features things on and off.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     params: NetParams<i32>,
     /// How long in seconds should voters wait for votes and
     /// signatures (respectively) to propagate?
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     voting_delay: Option<(u32, u32)>,
 }
 
@@ -354,14 +370,18 @@ struct CommonHeader {
 #[derive(Debug, Clone)]
 struct ConsensusHeader {
     /// Header fields common to votes and consensuses
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     hdr: CommonHeader,
     /// What "method" was used to produce this consensus?  (A
     /// consensus method is a version number used by authorities to
     /// upgrade the consensus algorithm.)
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     consensus_method: u32,
     /// Global shared-random value for the previous shared-random period.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     shared_rand_prev: Option<SharedRandVal>,
     /// Global shared-random value for the current shared-random period.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     shared_rand_cur: Option<SharedRandVal>,
 }
 
@@ -378,18 +398,23 @@ struct ConsensusHeader {
 #[derive(Debug, Clone)]
 struct DirSource {
     /// human-readable nickname for this authority.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     nickname: String,
     /// Fingerprint for the _authority_ identity key of this
     /// authority.
     ///
     /// This is the same key as the one that signs the authority's
     /// certificates.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     identity: RsaIdentity,
     /// IP address for the authority
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     ip: net::IpAddr,
     /// HTTP directory port for this authority
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     dir_port: u16,
     /// OR port for this authority.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     or_port: u16,
 }
 
@@ -478,11 +503,14 @@ impl RelayWeight {
 #[derive(Debug, Clone)]
 struct ConsensusVoterInfo {
     /// Contents of the dirsource line about an authority
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     dir_source: DirSource,
     /// Human-readable contact information about the authority
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     contact: String,
     /// Digest of the vote that the authority cast to contribute to
     /// this consensus.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     vote_digest: Vec<u8>,
 }
 
@@ -501,6 +529,7 @@ struct Footer {
     ///
     /// For example, we want to avoid choosing exits for non-exit
     /// roles when overall the proportion of exits is small.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     weights: NetParams<i32>,
 }
 
@@ -546,13 +575,17 @@ pub trait RouterStatus: Sealed {
 #[derive(Debug, Clone)]
 pub struct Consensus<RS> {
     /// Part of the header shared by all consensus types.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     header: ConsensusHeader,
     /// List of voters whose votes contributed to this consensus.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     voters: Vec<ConsensusVoterInfo>,
     /// A list of routerstatus entries for the relays on the network,
     /// with one entry per relay.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     relays: Vec<RS>,
     /// Footer for the consensus object.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     footer: Footer,
 }
 
@@ -1471,13 +1504,16 @@ impl<RS: RouterStatus + ParseRouterStatus> Consensus<RS> {
 pub struct UnvalidatedConsensus<RS> {
     /// The consensus object. We don't want to expose this until it's
     /// validated.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     consensus: Consensus<RS>,
     /// The signatures that need to be validated before we can call
     /// this consensus valid.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     siggroup: SignatureGroup,
     /// The total number of authorities that we believe in.  We need
     /// this information in order to validate the signatures, since it
     /// determines how many signatures we need to find valid in `siggroup`.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     n_authorities: Option<u16>,
 }
 

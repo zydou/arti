@@ -30,3 +30,6 @@ tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
 base64 = "0.13.0"
 hex-literal = "0.3"
 rand = "0.8"
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

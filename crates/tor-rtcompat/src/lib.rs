@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Compatibility between different async runtimes for Arti.
 //!
 //! # Overview

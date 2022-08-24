@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! Tools for generating a stream of structured events, similar to C tor's `ControlPort`.
 
 // @@ begin lint list maintained by maint/add_warning @@

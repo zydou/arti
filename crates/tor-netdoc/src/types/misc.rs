@@ -418,9 +418,9 @@ mod nickname {
     ///
     /// Nicknames are required to be ASCII, alphanumeric, and between 1 and 19
     /// characters inclusive.
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     #[cfg_attr(feature = "dangerous-expose-struct-fields", visibility::make(pub))]
     #[derive(Clone, Debug)]
-
     pub(crate) struct Nickname(tinystr::TinyAsciiStr<MAX_NICKNAME_LEN>);
 
     impl Nickname {

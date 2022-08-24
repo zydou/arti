@@ -325,6 +325,7 @@ mod test {
         assert_eq!(&config.proxy, proxy);
     }
 
+    #[allow(clippy::dbg_macro)]
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
         use itertools::Itertools;
         use serde_json::Value as JsValue;
@@ -454,7 +455,7 @@ mod test {
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
             // add *new*, not present in old file, settings here
-            &[],
+            &["application.allow_running_as_root"],
         );
     }
 }

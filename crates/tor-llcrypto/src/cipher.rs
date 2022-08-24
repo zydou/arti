@@ -7,6 +7,7 @@
 ///
 /// These ciphers implement the `cipher::StreamCipher` trait, so use
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
+#[cfg_attr(docsrs, doc(cfg(all())))]
 #[cfg(not(feature = "with-openssl"))]
 pub mod aes {
     // These implement StreamCipher.
@@ -21,6 +22,7 @@ pub mod aes {
 ///
 /// These ciphers implement the `cipher::StreamCipher` trait, so use
 /// the [`cipher`](https://docs.rs/cipher) crate to access them.
+#[cfg_attr(docsrs, doc(cfg(all())))]
 #[cfg(feature = "with-openssl")]
 pub mod aes {
     use cipher::generic_array::GenericArray;

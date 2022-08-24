@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! # `fs-mistrust`: check whether file permissions are private.
 //!
 //! This crate provides a set of functionality to check the permissions on files

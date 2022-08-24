@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 //! `tor-llcrypto`: Low-level cryptographic implementations for Tor.
 //!
 //! # Overview
