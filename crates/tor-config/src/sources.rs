@@ -53,7 +53,8 @@ pub struct ConfigurationSources {
 /// aren't present. Others (like those specified on the command line) really
 /// need to be there.
 #[derive(Clone, Debug, Copy, Eq, PartialEq)]
-enum MustRead {
+#[allow(clippy::exhaustive_enums)]
+pub enum MustRead {
     /// This file is okay to skip if it isn't present,
     TolerateAbsence,
 
