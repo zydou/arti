@@ -1,5 +1,7 @@
 //! Code to adjust process-related parameters.
 
+use tracing::error;
+
 use crate::ArtiConfig;
 
 /// Set our current maximum-file limit to a large value, if we can.
@@ -48,4 +50,28 @@ pub(crate) fn enable_process_hardening() -> anyhow::Result<()> {
     secmem_proc::harden_process_std_err().context("Problem while hardening process")?;
 
     Ok(())
+}
+
+/// Check that we are not running as "root".
+///
+/// If we are, give an error message, and exit.
+pub(crate) fn exit_if_root() {
+    if running_as_root() {
+        error!(
+            "You are running Arti as root. You don't need to, and \
+             you probably shouldn't. \
+             To run as root anyway, set application.allow_running_as_root."
+        );
+        std::process::exit(1);
+    }
+}
+
+/// Return true if we seem to be running as root.
+fn running_as_root() -> bool {
+    #[cfg(target_family = "unix")]
+    unsafe {
+        libc::geteuid() == 0
+    }
+    #[cfg(not(target_family = "unix"))]
+    false
 }

@@ -20,6 +20,12 @@
 #
 #permit_debugging = false
 
+# If true, then we allow Arti to start even if the current user is root.
+#
+# (By default, we exit if we are running as root, since this is usually a
+# mistake.)
+#allow_running_as_root = false
+
 # Set up the Arti program to run as a proxy.
 [proxy]
 # Default port to use when listening to SOCKS connections.  We always

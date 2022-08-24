@@ -61,6 +61,12 @@ pub struct ApplicationConfig {
     /// whether this option is set or not.
     #[builder(default)]
     pub(crate) permit_debugging: bool,
+
+    /// If true, then we do not exit when we are running as `root`.
+    ///
+    /// This has no effect on Windows.
+    #[builder(default)]
+    pub(crate) allow_running_as_root: bool,
 }
 impl_standard_builder! { ApplicationConfig }
 

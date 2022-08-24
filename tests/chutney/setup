@@ -80,6 +80,13 @@ if [ "$PROXY" = "no" ] ; then
     exit 0
 fi
 
+ARTI_FLAGS=()
+if [ "$(id -u)" = "0" ] ; then
+    # If we are root, then we're probably running from CI.  Tell Arti
+    # that's okay.
+    ARTI_FLAGS+=("-o" "application.allow_running_as_root=true")
+fi
+
 if [ -x ./target/x86_64-unknown-linux-gnu/debug/arti ]; then
 	cmd=./target/x86_64-unknown-linux-gnu/debug/arti
 else
@@ -89,7 +96,8 @@ fi
 
 (
 	set +e
-	"$cmd" proxy -c "${CHUTNEY_PATH}/net/nodes/arti.toml" -d 35353 &
+	"$cmd" proxy -c "${CHUTNEY_PATH}/net/nodes/arti.toml" -d 35353 \
+	       "${ARTI_FLAGS[@]}" &
 	pid=$!
 	echo "pid=$pid" >> tests/chutney/arti.run
 	wait "$pid"

@@ -493,6 +493,10 @@ where
         matches.value_of("loglevel"),
     )?;
 
+    if !config.application().allow_running_as_root {
+        process::exit_if_root();
+    }
+
     #[cfg(feature = "harden")]
     if !config.application().permit_debugging {
         if let Err(e) = process::enable_process_hardening() {
