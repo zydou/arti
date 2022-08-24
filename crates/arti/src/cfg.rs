@@ -2,11 +2,14 @@
 //
 // (Thia module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
+use paste::paste;
+
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
 use arti_client::TorClientConfig;
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::resolve_alternative_specs;
+pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -70,18 +73,70 @@ pub struct ApplicationConfig {
 }
 impl_standard_builder! { ApplicationConfig }
 
+/// Resolves values from `$field_listen` and `$field_port` (compat) into a `Listen`
+///
+/// For `dns` and `proxy`.
+///
+/// Handles defaulting, and normalisation, using `resolve_alternative_specs`
+/// and `Listen::new_localhost_option`.
+///
+/// Broken out into a macro so as to avoid having to state the field name four times,
+/// which is a recipe for programming slips.
+macro_rules! resolve_listen_port {
+    { $self:expr, $field:ident, $def_port:expr } => { paste!{
+        resolve_alternative_specs(
+            [
+                (
+                    concat!(stringify!($field), "_listen"),
+                    $self.[<$field _listen>].clone(),
+                ),
+                (
+                    concat!(stringify!($field), "_port"),
+                    $self.[<$field _port>].map(Listen::new_localhost_optional),
+                ),
+            ],
+            || Listen::new_localhost($def_port),
+        )?
+    } }
+}
+
 /// Configuration for one or more proxy listeners.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
 pub struct ProxyConfig {
-    /// Port to listen on (at localhost) for incoming SOCKS
-    /// connections.
-    #[builder(field(build = r#"tor_config::resolve_option(&self.socks_port, || Some(9150))"#))]
-    pub(crate) socks_port: Option<u16>,
+    /// Addresses to listen on for incoming SOCKS connections.
+    #[builder(field(build = r#"resolve_listen_port!(self, socks, 9150)"#))]
+    pub(crate) socks_listen: Listen,
+
+    /// Port to listen on (at localhost) for incoming SOCKS connections.
+    ///
+    /// This field is deprecated, and will, eventually, be removed.
+    /// Use `socks_listen` instead, which accepts the same values,
+    /// but which will also be able to support more flexible listening in the future.
+    #[builder(
+        setter(strip_option),
+        field(type = "Option<Option<u16>>", build = "()")
+    )]
+    #[builder_setter_attr(deprecated)]
+    pub(crate) socks_port: (),
+
+    /// Addresses to listen on for incoming DNS connections.
+    #[builder(field(build = r#"resolve_listen_port!(self, dns, 0)"#))]
+    pub(crate) dns_listen: Listen,
+
     /// Port to lisen on (at localhost) for incoming DNS connections.
-    #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
-    pub(crate) dns_port: Option<u16>,
+    ///
+    /// This field is deprecated, and will, eventually, be removed.
+    /// Use `dns_listen` instead, which accepts the same values,
+    /// but which will also be able to support more flexible listening in the future.
+    #[builder(
+        setter(strip_option),
+        field(type = "Option<Option<u16>>", build = "()")
+    )]
+    #[builder_setter_attr(deprecated)]
+    pub(crate) dns_port: (),
 }
 impl_standard_builder! { ProxyConfig }
 
@@ -146,6 +201,7 @@ impl_standard_builder! { ArtiConfig }
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
+    const DEPRECATED_KEYS: &'static [&'static str] = &["proxy.socks_port", "proxy.dns_port"];
 }
 
 /// Convenience alias for the config for a whole `arti` program
@@ -254,7 +310,7 @@ mod test {
         let mut bld = ArtiConfig::builder();
         let mut bld_tor = TorClientConfig::builder();
 
-        bld.proxy().socks_port(Some(9999));
+        bld.proxy().socks_listen(Listen::new_localhost(9999));
         bld.logging().console("warn");
 
         bld_tor.tor_network().set_authorities(vec![auth]);
@@ -462,7 +518,11 @@ mod test {
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
             // add *new*, not present in old file, settings here
-            &["application.allow_running_as_root"],
+            &[
+                "application.allow_running_as_root",
+                "proxy.socks_listen",
+                "proxy.dns_listen",
+            ],
         );
     }
 }
