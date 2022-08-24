@@ -147,7 +147,7 @@ impl Listen {
     ///
     /// Fails, giving an unsupported error, if the configuration
     /// isn't just "listen on a single localhost port".
-    pub fn localhost_port_deprecated(&self) -> Result<Option<u16>, ListenUnsupported> {
+    pub fn localhost_port_legacy(&self) -> Result<Option<u16>, ListenUnsupported> {
         use ListenItem as LI;
         Ok(match &*self.0 {
             [] => None,
@@ -378,7 +378,7 @@ mod test {
                     .map_err(|_| ()),
                 exp_addrs
             );
-            assert_eq!(ll.localhost_port_deprecated().map_err(|_| ()), exp_lpd);
+            assert_eq!(ll.localhost_port_legacy().map_err(|_| ()), exp_lpd);
         }
 
         let chk_err = |exp, s: &str| {
