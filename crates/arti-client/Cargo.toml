@@ -60,6 +60,7 @@ educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.4.0", features = ["serde"] }
 futures = "0.3.14"
 humantime-serde = "1.1.1"
+libc = "0.2"
 pin-project = "1"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 safelog = { path = "../safelog", version = "0.1.0" }

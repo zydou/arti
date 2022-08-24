@@ -369,6 +369,13 @@ impl<R: Runtime> TorClient<R> {
         dirmgr_builder: &dyn crate::builder::DirProviderBuilder<R>,
         dirmgr_extensions: tor_dirmgr::config::DirMgrExtensions,
     ) -> StdResult<Self, ErrorDetail> {
+        if crate::util::running_as_setuid() {
+            return Err(tor_error::bad_api_usage!(
+                "Arti does not support running in a setuid or setgid context."
+            )
+            .into());
+        }
+
         let dormant = DormantMode::Normal;
         let dir_cfg = {
             let mut c: tor_dirmgr::DirMgrConfig = config.dir_mgr_config()?;
