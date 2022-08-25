@@ -256,7 +256,7 @@ mod test {
 
         let default = (ArtiConfig::default(), TorClientConfig::default());
 
-        let parses_to_defaults = |example: &str| {
+        let parses_to_defaults = |example: &str, known_unrecognized_options: &[&str]| {
             let cfg = config::Config::builder()
                 .add_source(config::File::from_str(example, config::FileFormat::Toml))
                 .build()
@@ -273,15 +273,39 @@ mod test {
             assert_eq!(&results.value, &default);
             assert_eq!(&results.value, &empty_config);
 
-            assert_eq!(results.unrecognized, &[]);
+            // We serialize the DisfavouredKey entries to strings to compare them against
+            // `known_unrecognized_options`.
+            let unrecognized = results
+                .unrecognized
+                .iter()
+                .map(|k| k.to_string())
+                .collect_vec();
+
+            assert_eq!(&unrecognized, &known_unrecognized_options);
+
             results.value
         };
 
-        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);
-        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG);
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
+        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
 
-        let parsed = parses_to_defaults(&uncomment_example_settings(ARTI_EXAMPLE_CONFIG));
-        let parsed_old = parses_to_defaults(&uncomment_example_settings(OLDEST_SUPPORTED_CONFIG));
+        #[allow(unused_mut)]
+        let mut known_unrecognized_options = vec![];
+
+        #[cfg(target_family = "windows")]
+        known_unrecognized_options.extend([
+            "storage.permissions.trust_group",
+            "storage.permissions.trust_user",
+        ]);
+
+        let parsed = parses_to_defaults(
+            &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
+            &known_unrecognized_options,
+        );
+        let parsed_old = parses_to_defaults(
+            &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
+            &known_unrecognized_options,
+        );
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
