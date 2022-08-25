@@ -737,7 +737,7 @@ impl<R: Runtime> TorClient<R> {
             .get_or_launch_exit_circ(&exit_ports, prefs)
             .await
             .map_err(wrap_err)?;
-        info!("Got a circuit for {}:{}", sensitive(&addr), port);
+        debug!("Got a circuit for {}:{}", sensitive(&addr), port);
 
         let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
         // This timeout is needless but harmless for optimistic streams.
