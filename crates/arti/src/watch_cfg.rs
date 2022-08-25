@@ -1,6 +1,7 @@
 //! Code to watch configuration files for any changes.
 
 use std::collections::HashSet;
+use std::iter;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel as std_channel;
 use std::time::Duration;
@@ -8,14 +9,32 @@ use std::time::Duration;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
 use notify::Watcher;
-use tor_config::ConfigurationSources;
+use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSources};
 use tor_rtcompat::Runtime;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
-/// How long (worst case) should we take to learn about configuration changes?
-const POLL_INTERVAL: Duration = Duration::from_secs(10);
+/// How long to wait after a file is created, before we try to read it.
+const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
+
+/// Find the configuration files and prepare a watcher
+///
+/// For the watching to be reliably effective (race-free), the config must be read
+/// *after* this point, using the returned `FoundConfigFiles`.
+fn prepare_watcher(
+    sources: &ConfigurationSources,
+) -> anyhow::Result<(FileWatcher, FoundConfigFiles)> {
+    let mut watcher = FileWatcher::new(DEBOUNCE_INTERVAL)?;
+    let sources = sources.scan()?;
+    for source in sources.iter() {
+        match source {
+            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir)?,
+            ConfigurationSource::File(file) => watcher.watch_file(file)?,
+        }
+    }
+    Ok((watcher, sources))
+}
 
 /// Launch a thread to watch our configuration files.
 ///
@@ -27,19 +46,21 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = std_channel();
-    let mut watcher = FileWatcher::new(tx, POLL_INTERVAL)?;
+    let (mut watcher, found_files) = prepare_watcher(&sources)?;
 
-    for file in sources.files() {
-        watcher.watch_file(file)?;
-    }
+    // If watching, we must reload the config once right away, because
+    // we have set up the watcher *after* loading it the first time.
+    //
+    // That means we safely drop the found_files without races, since we're going to rescan.
+    drop(found_files);
+    let mut first_reload = iter::once(notify::DebouncedEvent::Rescan);
 
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
         // `arti` application, we probably don't want to have this thread own
         // the FileWatcher.
-        debug!("Waiting for FS events");
-        while let Ok(event) = rx.recv() {
+        debug!("Entering FS event loop");
+        while let Some(event) = first_reload.next().or_else(|| watcher.rx().recv().ok()) {
             if !watcher.event_matched(&event) {
                 // NOTE: Sadly, it's not safe to log in this case.  If the user
                 // has put a configuration file and a logfile in the same
@@ -47,7 +68,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 // every time we log, and fill up the filesystem.
                 continue;
             }
-            while let Ok(_ignore) = rx.try_recv() {
+            while let Ok(_ignore) = watcher.rx().try_recv() {
                 // Discard other events, so that we only reload once.
                 //
                 // We can afford to treat both error cases from try_recv [Empty
@@ -56,7 +77,20 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 // call recv() in the outer loop.
             }
             debug!("FS event {:?}: reloading configuration.", event);
-            match reconfigure(&sources, &original, &client) {
+
+            let (new_watcher, found_files) = match prepare_watcher(&sources) {
+                Ok(y) => y,
+                Err(e) => {
+                    error!(
+                        "FS watch: failed to rescan config and re-establish watch: {}",
+                        e
+                    );
+                    break;
+                }
+            };
+            watcher = new_watcher;
+
+            match reconfigure(found_files, &original, &client) {
                 Ok(exit) => {
                     info!("Successfully reloaded configuration.");
                     if exit {
@@ -81,11 +115,11 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 ///
 /// Return true if we should stop watching for configuration changes.
 fn reconfigure<R: Runtime>(
-    sources: &ConfigurationSources,
+    found_files: FoundConfigFiles<'_>,
     original: &ArtiConfig,
     client: &TorClient<R>,
 ) -> anyhow::Result<bool> {
-    let config = sources.load()?;
+    let config = found_files.load()?;
     let (config, client_config) = tor_config::resolve::<ArtiCombinedConfig>(config)?;
     if config.proxy() != original.proxy() {
         warn!("Can't (yet) reconfigure proxy settings while arti is running.");
@@ -98,21 +132,23 @@ fn reconfigure<R: Runtime>(
     }
     client.reconfigure(&client_config, Reconfigure::WarnOnFailures)?;
 
-    if !config.application().watch_configuration {
-        // Stop watching for configuration changes.
-        return Ok(true);
-    }
     if !config.application().permit_debugging {
         #[cfg(feature = "harden")]
         crate::process::enable_process_hardening()?;
     }
 
+    if !config.application().watch_configuration {
+        // Stop watching for configuration changes.
+        return Ok(true);
+    }
     Ok(false)
 }
 
 /// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
 /// directories in order to learn about changes in some specific files that they
 /// contain.
+///
+/// The wrapper contains the `Watcher` and also the channel for receiving events.
 ///
 /// The `Watcher` implementation in `notify` has a weakness: it gives sensible
 /// results when you're watching directories, but if you start watching
@@ -129,6 +165,8 @@ fn reconfigure<R: Runtime>(
 /// to mess around with `std::sync::mpsc` and filter out the events they want
 /// using `FileWatcher::event_matched`.
 struct FileWatcher {
+    /// The channel we receive events on
+    rx: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
     /// An underlying `notify` watcher that tells us about directory changes.
     watcher: notify::RecommendedWatcher,
     /// The list of directories that we're currently watching.
@@ -139,20 +177,44 @@ struct FileWatcher {
 
 impl FileWatcher {
     /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(
-        tx: std::sync::mpsc::Sender<notify::DebouncedEvent>,
-        interval: Duration,
-    ) -> anyhow::Result<Self> {
+    fn new(interval: Duration) -> anyhow::Result<Self> {
+        let (tx, rx) = std_channel();
         let watcher = notify::watcher(tx, interval)?;
         Ok(Self {
+            rx,
             watcher,
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
         })
     }
 
-    /// Watch a single file (not a directory).  Does nothing if we're already watching that file.
+    /// Access the channel - use for receiving events
+    fn rx(&self) -> &std::sync::mpsc::Receiver<notify::DebouncedEvent> {
+        &self.rx
+    }
+
+    /// Watch a single file (not a directory).
+    ///
+    /// Idempotent: does nothing if we're already watching that file.
     fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        self.watch_just_parents(path.as_ref())?;
+        Ok(())
+    }
+
+    /// Watch a directory (but not any subdirs).
+    ///
+    /// Idempotent.
+    fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        let path = self.watch_just_parents(path.as_ref())?;
+        self.watch_just_abs_dir(&path)
+    }
+
+    /// Watch the parents of `path`.
+    ///
+    /// Returns the absolute path of `path`.
+    ///
+    /// Idempotent.
+    fn watch_just_parents(&mut self, path: &Path) -> anyhow::Result<PathBuf> {
         // Make the path absolute (without necessarily making it canonical).
         //
         // We do this because `notify` reports all of its events in terms of
@@ -160,7 +222,7 @@ impl FileWatcher {
         // relative path, we'd get reports about the absolute paths of the files
         // in that directory.
         let cwd = std::env::current_dir()?;
-        let path = cwd.join(path.as_ref());
+        let path = cwd.join(path);
         debug_assert!(path.is_absolute());
 
         // See what directory we should watch in order to watch this file.
@@ -173,34 +235,45 @@ impl FileWatcher {
             None => path.as_ref(),
         };
 
-        // Start watching this directory, if we're not already watching it.
+        self.watch_just_abs_dir(watch_target)?;
+
+        // Note this file as one that we're watching, so that we can see changes
+        // to it later on.
+        self.watching_files.insert(path.clone());
+
+        Ok(path)
+    }
+
+    /// Watch just this (absolute) directory.
+    ///
+    /// Does not watch any of the parents.
+    ///
+    /// Idempotent.
+    fn watch_just_abs_dir(&mut self, watch_target: &Path) -> anyhow::Result<()> {
         if !self.watching_dirs.contains(watch_target) {
             self.watcher
                 .watch(watch_target, notify::RecursiveMode::NonRecursive)?;
 
             self.watching_dirs.insert(watch_target.into());
         }
-
-        // Note this file as one that we're watching, so that we can see changes
-        // to it later on.
-        self.watching_files.insert(path);
-
         Ok(())
     }
 
     /// Return true if the provided event describes a change affecting one of
     /// the files that we care about.
     fn event_matched(&self, event: &notify::DebouncedEvent) -> bool {
-        let watching = |f| self.watching_files.contains(f);
+        let watching = |f: &_| self.watching_files.contains(f);
+        let watching_or_parent =
+            |f: &Path| watching(f) || f.parent().map(watching).unwrap_or(false);
 
         match event {
             notify::DebouncedEvent::NoticeWrite(f) => watching(f),
             notify::DebouncedEvent::NoticeRemove(f) => watching(f),
-            notify::DebouncedEvent::Create(f) => watching(f),
+            notify::DebouncedEvent::Create(f) => watching_or_parent(f),
             notify::DebouncedEvent::Write(f) => watching(f),
             notify::DebouncedEvent::Chmod(f) => watching(f),
             notify::DebouncedEvent::Remove(f) => watching(f),
-            notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching(f2),
+            notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching_or_parent(f2),
             notify::DebouncedEvent::Rescan => {
                 // We've missed some events: no choice but to reload.
                 true

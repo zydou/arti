@@ -16,6 +16,7 @@ default = ["expand-paths"]
 expand-paths = ["shellexpand", "directories"]
 
 [dependencies]
+anyhow = "1.0.23"
 config = { version = "0.13", default-features = false, features = ["toml"] }
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 directories = { version = "4", optional = true }

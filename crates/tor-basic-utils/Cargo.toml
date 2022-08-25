@@ -22,6 +22,9 @@ rand_chacha = "0.3"
 thiserror = "1"
 void = "1"
 
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", default-features = false }
+
 [dev-dependencies]
 derive_more = "0.99"
 educe = "0.4.6"

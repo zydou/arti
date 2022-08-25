@@ -112,7 +112,7 @@ pub use mut_cfg::MutCfg;
 pub use paste::paste;
 pub use path::{CfgPath, CfgPathError};
 pub use serde;
-pub use sources::ConfigurationSources;
+pub use sources::{ConfigurationSource, ConfigurationSources};
 
 pub use tor_basic_utils::macro_first_nonempty;
 
