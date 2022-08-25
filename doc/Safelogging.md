@@ -20,11 +20,8 @@ Therefore, most of these rules apply to log messages generated at level
 "info" or higher: we expect that "debug" or "trace" logs may be more
 dangerous to share.
 
-> TO DO: Add a warning when logging at severity "debug" or lower?
+> TO DO: Add a warning when logging at severity "debug" or lower? (See #552)
 
-We also expect that persistent logs are more dangerous than ephemeral
-logs.  Therefore, these rules may not apply to logs that are written
-only to a terminal or an application that does not save logs.
 
 
 ## Reasons not to log things
@@ -105,9 +102,9 @@ helpers.)
 
 ## Other ways to mitigate logging
 
-> TO DO: We should recommend that people only use logging mechanisms
-> where old logs are discarded after a not-too-long interval.
+> TO DO: We should recommend that people only use logging mechanisms where
+> old logs are discarded after a not-too-long interval.  (See #550)
 
 > TO DO: When possible, we should discourage logging information with
 > fine-grained time granularity.  (A 1-to-10 second precision is fine for
-> most use cases!)
+> most use cases!)  (See #551)
