@@ -62,7 +62,7 @@ impl_standard_builder! { LoggingConfig }
 /// Return a default tracing filter value for `logging.console`.
 #[allow(clippy::unnecessary_wraps)]
 fn default_console_filter() -> Option<String> {
-    Some("debug".to_owned())
+    Some("info".to_owned())
 }
 
 /// Local type alias, mostly helpful for derive_builder to DTRT

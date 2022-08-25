@@ -46,7 +46,7 @@
 #     trace_filter = "info,tor_proto::channel=trace"
 #
 # For more information, see https://docs.rs/tracing-subscriber/0.2.20/tracing_subscriber/filter/struct.EnvFilter.html
-#console = "debug"
+#console = "info"
 
 # As above, but specify filtering directives for sending trace messages to 
 # the journald logging system.  Empty string means not to use journald.
