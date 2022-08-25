@@ -25,9 +25,8 @@
 use std::ffi::OsString;
 use std::{fs, io};
 
+use crate::err::ConfigError;
 use crate::CmdLine;
-
-use config::ConfigError;
 
 /// The synchronous configuration builder type we use.
 ///
@@ -242,16 +241,13 @@ impl ConfigurationSources {
             // or Ok(()) if we should ignore the error and skip the file.
             let handle_io_error = |e: io::Error| {
                 if e.kind() == io::ErrorKind::NotFound && !required {
-                    Ok(())
+                    Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(ConfigError::Foreign(
-                        anyhow::anyhow!(format!(
-                            "unable to access config path: {:?}: {}",
-                            &source.as_path(),
-                            e
-                        ))
-                        .into(),
-                    ))
+                    Err(foreign_err(anyhow::anyhow!(format!(
+                        "unable to access config path: {:?}: {}",
+                        &source.as_path(),
+                        e
+                    ))))
                 }
             };
 
@@ -341,7 +337,7 @@ impl FoundConfigFiles<'_> {
             {
                 Ok(()) => {}
                 Err(fs_mistrust::Error::NotFound(_)) if !required => {}
-                Err(e) => return Err(ConfigError::Foreign(e.into())),
+                Err(e) => return Err(foreign_err(e)),
             }
 
             // Not going to use File::with_name here, since it doesn't
@@ -363,7 +359,7 @@ impl FoundConfigFiles<'_> {
     pub fn load(self) -> Result<config::Config, ConfigError> {
         let mut builder = config::Config::builder();
         builder = self.add_sources(builder)?;
-        builder.build()
+        Ok(builder.build()?)
     }
 }
 
@@ -391,6 +387,14 @@ fn is_syntactically_directory(p: &Path) -> bool {
             l2 != l
         }
     }
+}
+
+/// Convert an error `E` into a [`ConfigError`](crate::ConfigErr).
+fn foreign_err<E>(err: E) -> crate::ConfigError
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    crate::ConfigError::from(config::ConfigError::Foreign(err.into()))
 }
 
 #[cfg(test)]
@@ -429,7 +433,7 @@ friends = 4242
     fn load_nodefaults<P: AsRef<Path>>(
         files: &[(P, MustRead)],
         opts: &[String],
-    ) -> Result<config::Config, config::ConfigError> {
+    ) -> Result<config::Config, crate::ConfigError> {
         sources_nodefaults(files, opts).load()
     }
 
