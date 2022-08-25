@@ -509,14 +509,17 @@ where
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
             proxy_matches.value_of("socks-port"),
-            config.proxy().socks_port,
+            config.proxy().socks_listen.localhost_port_legacy()?,
         ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => 0,
         };
 
-        let dns_port = match (proxy_matches.value_of("dns-port"), config.proxy().dns_port) {
+        let dns_port = match (
+            proxy_matches.value_of("dns-port"),
+            config.proxy().dns_listen.localhost_port_legacy()?,
+        ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
             (None, Some(s)) => s,
             (None, None) => 0,

@@ -2,11 +2,14 @@
 //
 // (Thia module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
+use paste::paste;
+
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
 use arti_client::TorClientConfig;
-use tor_config::{impl_standard_builder, ConfigBuildError};
+use tor_config::resolve_alternative_specs;
+pub(crate) use tor_config::{impl_standard_builder, ConfigBuildError, Listen};
 
 use crate::{LoggingConfig, LoggingConfigBuilder};
 
@@ -70,18 +73,70 @@ pub struct ApplicationConfig {
 }
 impl_standard_builder! { ApplicationConfig }
 
+/// Resolves values from `$field_listen` and `$field_port` (compat) into a `Listen`
+///
+/// For `dns` and `proxy`.
+///
+/// Handles defaulting, and normalisation, using `resolve_alternative_specs`
+/// and `Listen::new_localhost_option`.
+///
+/// Broken out into a macro so as to avoid having to state the field name four times,
+/// which is a recipe for programming slips.
+macro_rules! resolve_listen_port {
+    { $self:expr, $field:ident, $def_port:expr } => { paste!{
+        resolve_alternative_specs(
+            [
+                (
+                    concat!(stringify!($field), "_listen"),
+                    $self.[<$field _listen>].clone(),
+                ),
+                (
+                    concat!(stringify!($field), "_port"),
+                    $self.[<$field _port>].map(Listen::new_localhost_optional),
+                ),
+            ],
+            || Listen::new_localhost($def_port),
+        )?
+    } }
+}
+
 /// Configuration for one or more proxy listeners.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
 #[builder(build_fn(error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
+#[allow(clippy::option_option)] // Builder port fields: Some(None) = specified to disable
 pub struct ProxyConfig {
-    /// Port to listen on (at localhost) for incoming SOCKS
-    /// connections.
-    #[builder(field(build = r#"tor_config::resolve_option(&self.socks_port, || Some(9150))"#))]
-    pub(crate) socks_port: Option<u16>,
+    /// Addresses to listen on for incoming SOCKS connections.
+    #[builder(field(build = r#"resolve_listen_port!(self, socks, 9150)"#))]
+    pub(crate) socks_listen: Listen,
+
+    /// Port to listen on (at localhost) for incoming SOCKS connections.
+    ///
+    /// This field is deprecated, and will, eventually, be removed.
+    /// Use `socks_listen` instead, which accepts the same values,
+    /// but which will also be able to support more flexible listening in the future.
+    #[builder(
+        setter(strip_option),
+        field(type = "Option<Option<u16>>", build = "()")
+    )]
+    #[builder_setter_attr(deprecated)]
+    pub(crate) socks_port: (),
+
+    /// Addresses to listen on for incoming DNS connections.
+    #[builder(field(build = r#"resolve_listen_port!(self, dns, 0)"#))]
+    pub(crate) dns_listen: Listen,
+
     /// Port to lisen on (at localhost) for incoming DNS connections.
-    #[builder(field(build = r#"tor_config::resolve_option(&self.dns_port, || None)"#))]
-    pub(crate) dns_port: Option<u16>,
+    ///
+    /// This field is deprecated, and will, eventually, be removed.
+    /// Use `dns_listen` instead, which accepts the same values,
+    /// but which will also be able to support more flexible listening in the future.
+    #[builder(
+        setter(strip_option),
+        field(type = "Option<Option<u16>>", build = "()")
+    )]
+    #[builder_setter_attr(deprecated)]
+    pub(crate) dns_port: (),
 }
 impl_standard_builder! { ProxyConfig }
 
@@ -146,6 +201,7 @@ impl_standard_builder! { ArtiConfig }
 
 impl tor_config::load::TopLevel for ArtiConfig {
     type Builder = ArtiConfigBuilder;
+    const DEPRECATED_KEYS: &'static [&'static str] = &["proxy.socks_port", "proxy.dns_port"];
 }
 
 /// Convenience alias for the config for a whole `arti` program
@@ -176,8 +232,11 @@ mod test {
 
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
+    use itertools::{chain, Itertools};
     use regex::Regex;
+    use std::iter;
     use std::time::Duration;
+    use tor_config::load::ResolutionResults;
 
     use super::*;
 
@@ -208,14 +267,14 @@ mod test {
             // Also we should ideally test that every setting from the config appears here in
             // the file.  Possibly that could be done with some kind of stunt Deserializer,
             // but it's not trivial.
-            let (parsed, unrecognized): (ArtiCombinedConfig, _) =
-                tor_config::resolve_return_unrecognized(cfg).unwrap();
+            let results: ResolutionResults<ArtiCombinedConfig> =
+                tor_config::resolve_return_results(cfg).unwrap();
 
-            assert_eq!(&parsed, &default);
-            assert_eq!(&parsed, &empty_config);
+            assert_eq!(&results.value, &default);
+            assert_eq!(&results.value, &empty_config);
 
-            assert_eq!(unrecognized, &[]);
-            parsed
+            assert_eq!(results.unrecognized, &[]);
+            results.value
         };
 
         let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG);
@@ -252,7 +311,7 @@ mod test {
         let mut bld = ArtiConfig::builder();
         let mut bld_tor = TorClientConfig::builder();
 
-        bld.proxy().socks_port(Some(9999));
+        bld.proxy().socks_listen(Listen::new_localhost(9999));
         bld.logging().console("warn");
 
         bld_tor.tor_network().set_authorities(vec![auth]);
@@ -325,9 +384,122 @@ mod test {
         assert_eq!(&config.proxy, proxy);
     }
 
+    /// Comprehensive tests for the various `socks_port` and `dns_port`
+    ///
+    /// The "this isn't set at all, just use the default" cases are tested elsewhere.
+    fn compat_ports_listen(
+        f: &str,
+        get_listen: &dyn Fn(&ArtiConfig) -> &Listen,
+        bld_get_port: &dyn Fn(&ArtiConfigBuilder) -> &Option<Option<u16>>,
+        bld_get_listen: &dyn Fn(&ArtiConfigBuilder) -> &Option<Listen>,
+        setter_port: &dyn Fn(&mut ArtiConfigBuilder, Option<u16>) -> &mut ProxyConfigBuilder,
+        setter_listen: &dyn Fn(&mut ArtiConfigBuilder, Listen) -> &mut ProxyConfigBuilder,
+    ) {
+        let from_toml = |s: &str| -> ArtiConfigBuilder {
+            let cfg: toml::Value = toml::from_str(dbg!(s)).unwrap();
+            let cfg: ArtiConfigBuilder = cfg.try_into().unwrap();
+            cfg
+        };
+
+        let conflicting_cfgs = [
+            format!("proxy.{}_port = 0 \n proxy.{}_listen = 200", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 0", f, f),
+            format!("proxy.{}_port = 100 \n proxy.{}_listen = 200", f, f),
+        ];
+
+        let chk = |cfg: &ArtiConfigBuilder, expected: &Listen| {
+            dbg!(bld_get_listen(cfg), bld_get_port(cfg));
+            let cfg = cfg.build().unwrap();
+            assert_eq!(get_listen(&cfg), expected);
+        };
+
+        let check_setters = |port, expected: &_| {
+            for cfg in chain!(
+                iter::once(ArtiConfig::builder()),
+                conflicting_cfgs.iter().map(|cfg| from_toml(cfg)),
+            ) {
+                for listen in match port {
+                    None => vec![Listen::new_none(), Listen::new_localhost(0)],
+                    Some(port) => vec![Listen::new_localhost(port)],
+                } {
+                    let mut cfg = cfg.clone();
+                    setter_port(&mut cfg, dbg!(port));
+                    setter_listen(&mut cfg, dbg!(listen));
+                    chk(&cfg, expected);
+                }
+            }
+        };
+
+        {
+            let expected = Listen::new_localhost(100);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 100", f));
+            assert_eq!(bld_get_port(&cfg), &Some(Some(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 100", f));
+            assert_eq!(bld_get_listen(&cfg), &Some(Listen::new_localhost(100)));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!(
+                "proxy.{}_port = 100\n proxy.{}_listen = 100",
+                f, f
+            ));
+            chk(&cfg, &expected);
+
+            check_setters(Some(100), &expected);
+        }
+
+        {
+            let expected = Listen::new_none();
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_listen = 0", f));
+            chk(&cfg, &expected);
+
+            let cfg = from_toml(&format!("proxy.{}_port = 0 \n proxy.{}_listen = 0", f, f));
+            chk(&cfg, &expected);
+
+            check_setters(None, &expected);
+        }
+
+        for cfg in &conflicting_cfgs {
+            let cfg = from_toml(cfg);
+            let err = dbg!(cfg.build()).unwrap_err();
+            assert!(err.to_string().contains("specifying different values"));
+        }
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn ports_listen_socks() {
+        compat_ports_listen(
+            "socks",
+            &|cfg| &cfg.proxy.socks_listen,
+            &|bld| &bld.proxy.socks_port,
+            &|bld| &bld.proxy.socks_listen,
+            &|bld, arg| bld.proxy.socks_port(arg),
+            &|bld, arg| bld.proxy.socks_listen(arg),
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn compat_ports_listen_dns() {
+        compat_ports_listen(
+            "dns",
+            &|cfg| &cfg.proxy.dns_listen,
+            &|bld| &bld.proxy.dns_port,
+            &|bld| &bld.proxy.dns_listen,
+            &|bld, arg| bld.proxy.dns_port(arg),
+            &|bld, arg| bld.proxy.dns_listen(arg),
+        );
+    }
+
     #[allow(clippy::dbg_macro)]
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
-        use itertools::Itertools;
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
 
@@ -446,16 +618,26 @@ mod test {
 
     #[test]
     fn exhaustive() {
-        exhaustive_1(
-            ARTI_EXAMPLE_CONFIG,
-            // add *old*, obsoleted settings here
-            &[],
+        let mut deprecated = vec![];
+        <(ArtiConfig, TorClientConfig) as tor_config::load::Resolvable>::enumerate_deprecated_keys(
+            &mut |l| {
+                for k in l {
+                    deprecated.push(k.to_string());
+                }
+            },
         );
+        let deprecated = deprecated.iter().map(|s| &**s).collect_vec();
+
+        exhaustive_1(ARTI_EXAMPLE_CONFIG, &deprecated);
 
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
             // add *new*, not present in old file, settings here
-            &["application.allow_running_as_root"],
+            &[
+                "application.allow_running_as_root",
+                "proxy.socks_listen",
+                "proxy.dns_listen",
+            ],
         );
     }
 }

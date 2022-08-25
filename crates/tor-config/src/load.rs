@@ -157,6 +157,11 @@ pub trait Resolvable: Sized {
     // because that would somehow involve creating `Self` from `ResolveContext`
     // but `ResolveContext` is completely opaque outside this module.
     fn resolve(input: &mut ResolveContext) -> Result<Self, ConfigResolveError>;
+
+    /// Return a list of deprecated config keys, as "."-separated strings
+    fn enumerate_deprecated_keys<F>(f: &mut F)
+    where
+        F: FnMut(&'static [&'static str]);
 }
 
 /// Top-level configuration struct, made from a deserializable builder
@@ -175,6 +180,9 @@ pub trait TopLevel {
     ///
     /// Should satisfy `&'_ Self::Builder: Builder<Built=Self>`
     type Builder: DeserializeOwned;
+
+    /// Deprecated config keys, as "."-separates strings
+    const DEPRECATED_KEYS: &'static [&'static str] = &[];
 }
 
 /// `impl Resolvable for (A,B..) where A: Resolvable, B: Resolvable ...`
@@ -197,6 +205,10 @@ macro_rules! define_for_tuples {
         {
             fn resolve(cfg: &mut ResolveContext) -> Result<Self, ConfigResolveError> {
                 Ok(( $( $A::resolve(cfg)?, )* ))
+            }
+            fn enumerate_deprecated_keys<NF>(f: &mut NF)
+            where NF: FnMut(&'static [&'static str]) {
+                $( $A::enumerate_deprecated_keys(f); )*
             }
         }
 
@@ -233,7 +245,7 @@ enum UnrecognizedKeys {
     /// The keys which remain unrecognized by any consumer
     ///
     /// If this is empty, we do not (need to) do any further tracking.
-    These(BTreeSet<UnrecognizedKey>),
+    These(BTreeSet<DisfavouredKey>),
 }
 use UnrecognizedKeys as UK;
 
@@ -247,7 +259,7 @@ impl UnrecognizedKeys {
     }
 
     /// Update in place, intersecting with `other`
-    fn intersect_with(&mut self, other: BTreeSet<UnrecognizedKey>) {
+    fn intersect_with(&mut self, other: BTreeSet<DisfavouredKey>) {
         match self {
             UK::AllKeys => *self = UK::These(other),
             UK::These(self_) => {
@@ -258,16 +270,16 @@ impl UnrecognizedKeys {
     }
 }
 
-/// Key in config file(s) unrecognized by all Resolvables we obtained
+/// Key in config file(s) which is disfavoured (unrecognized or deprecated)
 ///
 /// `Display`s in an approximation to TOML format.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct UnrecognizedKey {
+pub struct DisfavouredKey {
     /// Can be empty only before returned from this module
     path: Vec<PathEntry>,
 }
 
-/// Element of an UnrecognizedKey
+/// Element of an DisfavouredKey
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 enum PathEntry {
     /// Array index
@@ -284,23 +296,38 @@ enum PathEntry {
 /// Inner function used by all the `resolve_*` family
 fn resolve_inner<T>(
     input: config::Config,
-    want_unrecognized: bool,
-) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
+    want_disfavoured: bool,
+) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
 {
+    let mut deprecated = BTreeSet::new();
+
+    if want_disfavoured {
+        T::enumerate_deprecated_keys(&mut |l: &[&str]| {
+            for key in l {
+                match input.get(key) {
+                    Err(_) => {}
+                    Ok(serde::de::IgnoredAny) => {
+                        deprecated.insert(key);
+                    }
+                }
+            }
+        });
+    }
+
     let mut lc = ResolveContext {
         input,
-        unrecognized: if want_unrecognized {
+        unrecognized: if want_disfavoured {
             UK::AllKeys
         } else {
             UK::These(BTreeSet::new())
         },
     };
 
-    let val = Resolvable::resolve(&mut lc)?;
+    let value = Resolvable::resolve(&mut lc)?;
 
-    let ign = match lc.unrecognized {
+    let unrecognized = match lc.unrecognized {
         UK::AllKeys => panic!("all unrecognized, as if we had processed nothing"),
         UK::These(ign) => ign,
     }
@@ -308,7 +335,22 @@ where
     .filter(|ip| !ip.path.is_empty())
     .collect_vec();
 
-    Ok((val, ign))
+    let deprecated = deprecated
+        .into_iter()
+        .map(|key| {
+            let path = key
+                .split('.')
+                .map(|e| PathEntry::MapEntry(e.into()))
+                .collect_vec();
+            DisfavouredKey { path }
+        })
+        .collect_vec();
+
+    Ok(ResolutionResults {
+        value,
+        unrecognized,
+        deprecated,
+    })
 }
 
 /// Deserialize and build overall configuration from config sources
@@ -327,29 +369,50 @@ pub fn resolve<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
-    let (val, ign) = resolve_inner(input, true)?;
-    for ign in ign {
+    let ResolutionResults {
+        value,
+        unrecognized,
+        deprecated,
+    } = resolve_inner(input, true)?;
+    for depr in deprecated {
+        warn!("deprecated configuration key: {}", &depr);
+    }
+    for ign in unrecognized {
         warn!("unrecognized configuration key: {}", &ign);
     }
-    Ok(val)
+    Ok(value)
 }
 
 /// Deserialize and build overall configuration, reporting unrecognized keys in the return value
-pub fn resolve_return_unrecognized<T>(
+pub fn resolve_return_results<T>(
     input: config::Config,
-) -> Result<(T, Vec<UnrecognizedKey>), ConfigResolveError>
+) -> Result<ResolutionResults<T>, ConfigResolveError>
 where
     T: Resolvable,
 {
     resolve_inner(input, true)
 }
 
+/// Results of a successful `resolve_return_disfavoured`
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ResolutionResults<T> {
+    /// The configuration, successfully parsed
+    pub value: T,
+
+    /// Any config keys which were found in the input, but not recognized (and so, ignored)
+    pub unrecognized: Vec<DisfavouredKey>,
+
+    /// Any config keys which were found, but have been declared deprecated
+    pub deprecated: Vec<DisfavouredKey>,
+}
+
 /// Deserialize and build overall configuration, silently ignoring unrecognized config keys
-pub fn resolve_ignore_unrecognized<T>(input: config::Config) -> Result<T, ConfigResolveError>
+pub fn resolve_ignore_warnings<T>(input: config::Config) -> Result<T, ConfigResolveError>
 where
     T: Resolvable,
 {
-    Ok(resolve_inner(input, false)?.0)
+    Ok(resolve_inner(input, false)?.value)
 }
 
 impl<T> Resolvable for T
@@ -386,10 +449,17 @@ where
         let built = builder.build()?;
         Ok(built)
     }
+
+    fn enumerate_deprecated_keys<NF>(f: &mut NF)
+    where
+        NF: FnMut(&'static [&'static str]),
+    {
+        f(T::DEPRECATED_KEYS);
+    }
 }
 
-/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `UnrecognizedKey`
-fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
+/// Turns a [`serde_ignored::Path`] (which is borrowed) into an owned `DisfavouredKey`
+fn copy_path(mut path: &serde_ignored::Path) -> DisfavouredKey {
     use serde_ignored::Path as SiP;
     use PathEntry as PE;
 
@@ -407,7 +477,7 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
         path = new_path;
     }
     descend.reverse();
-    UnrecognizedKey { path: descend }
+    DisfavouredKey { path: descend }
 }
 
 /// Computes the intersection, resolving ignorances at different depths
@@ -428,9 +498,9 @@ fn copy_path(mut path: &serde_ignored::Path) -> UnrecognizedKey {
 /// If the inputs are not minimal, the output may not be either
 /// (although `serde_ignored` gives us minimal sets, so that case is not important).
 fn intersect_unrecognized_lists(
-    al: BTreeSet<UnrecognizedKey>,
-    bl: BTreeSet<UnrecognizedKey>,
-) -> BTreeSet<UnrecognizedKey> {
+    al: BTreeSet<DisfavouredKey>,
+    bl: BTreeSet<DisfavouredKey>,
+) -> BTreeSet<DisfavouredKey> {
     //eprintln!("INTERSECT:");
     //for ai in &al { eprintln!("A: {}", ai); }
     //for bi in &bl { eprintln!("B: {}", bi); }
@@ -535,7 +605,7 @@ fn intersect_unrecognized_lists(
     output
 }
 
-impl Display for UnrecognizedKey {
+impl Display for DisfavouredKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use PathEntry as PE;
         if self.path.is_empty() {
@@ -581,9 +651,9 @@ mod test {
     use derive_builder::Builder;
     use serde::{Deserialize, Serialize};
 
-    fn parse_test_set(l: &[&str]) -> BTreeSet<UnrecognizedKey> {
+    fn parse_test_set(l: &[&str]) -> BTreeSet<DisfavouredKey> {
         l.iter()
-            .map(|s| UnrecognizedKey {
+            .map(|s| DisfavouredKey {
                 path: s
                     .split('.')
                     .map(|s| PathEntry::MapEntry(s.into()))
@@ -645,7 +715,7 @@ mod test {
     #[test]
     fn test_display_key() {
         let chk = |exp, path: &[PathEntry]| {
-            assert_eq! { UnrecognizedKey { path: path.into() }.to_string(), exp };
+            assert_eq! { DisfavouredKey { path: path.into() }.to_string(), exp };
         };
         let me = |s: &str| PathEntry::MapEntry(s.into());
         use PathEntry::ArrayIndex as AI;
@@ -677,10 +747,14 @@ mod test {
     struct TestConfigB {
         #[builder(default)]
         b: String,
+
+        #[builder(default)]
+        old: bool,
     }
     impl_standard_builder! { TestConfigB }
     impl TopLevel for TestConfigB {
         type Builder = TestConfigBBuilder;
+        const DEPRECATED_KEYS: &'static [&'static str] = &["old"];
     }
 
     #[test]
@@ -688,6 +762,7 @@ mod test {
         let test_data = r#"
             wombat = 42
             a = "hi"
+            old = true
         "#;
         let source = config::File::from_str(test_data, config::FileFormat::Toml);
 
@@ -696,16 +771,22 @@ mod test {
             .build()
             .unwrap();
 
-        let _: (TestConfigA, TestConfigB) = resolve_ignore_unrecognized(cfg.clone()).unwrap();
+        let _: (TestConfigA, TestConfigB) = resolve_ignore_warnings(cfg.clone()).unwrap();
 
-        let ((a, b), ign): ((TestConfigA, TestConfigB), _) =
-            resolve_return_unrecognized(cfg).unwrap();
+        let resolved: ResolutionResults<(TestConfigA, TestConfigB)> =
+            resolve_return_results(cfg).unwrap();
+        let (a, b) = resolved.value;
 
-        let ign = ign.into_iter().map(|ik| ik.to_string()).collect_vec();
+        let mk_strings =
+            |l: Vec<DisfavouredKey>| l.into_iter().map(|ik| ik.to_string()).collect_vec();
+
+        let ign = mk_strings(resolved.unrecognized);
+        let depr = mk_strings(resolved.deprecated);
 
         assert_eq! { &a, &TestConfigA { a: "hi".into() } };
-        assert_eq! { &b, &TestConfigB { b: "".into() } };
+        assert_eq! { &b, &TestConfigB { b: "".into(), old: true } };
         assert_eq! { ign, &["wombat"] };
+        assert_eq! { depr, &["old"] };
 
         let _ = TestConfigA::builder();
         let _ = TestConfigB::builder();
@@ -742,15 +823,15 @@ mod test {
             .unwrap();
         {
             // First try "A", then "C".
-            let res1: Result<((TestConfigA, TestConfigC), Vec<UnrecognizedKey>), _> =
-                resolve_return_unrecognized(cfg.clone());
+            let res1: Result<ResolutionResults<(TestConfigA, TestConfigC)>, _> =
+                resolve_return_results(cfg.clone());
             assert!(res1.is_err());
             assert!(matches!(res1, Err(ConfigResolveError::Deserialize(_))));
         }
         {
             // Now the other order: first try "C", then "A".
-            let res2: Result<((TestConfigC, TestConfigA), Vec<UnrecognizedKey>), _> =
-                resolve_return_unrecognized(cfg.clone());
+            let res2: Result<ResolutionResults<(TestConfigC, TestConfigA)>, _> =
+                resolve_return_results(cfg.clone());
             assert!(res2.is_err());
             assert!(matches!(res2, Err(ConfigResolveError::Deserialize(_))));
         }

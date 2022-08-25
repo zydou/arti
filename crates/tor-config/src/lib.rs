@@ -106,7 +106,8 @@ pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
 pub use err::{ConfigBuildError, ReconfigureError};
-pub use load::{resolve, resolve_ignore_unrecognized, resolve_return_unrecognized};
+pub use itertools::Itertools;
+pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;
 pub use mut_cfg::MutCfg;
 pub use paste::paste;
@@ -229,6 +230,83 @@ where
         Some(Some(v)) if is_sentinel(v) => None,
         Some(Some(v)) => Some(v.clone()),
     }
+}
+
+/// Helper for resolving a config item which can be specified in multiple ways
+///
+/// Useable when a single configuration item can be specified
+/// via multiple (alternative) input fields;
+/// Each input field which is actually present
+/// should be converted to the common output type,
+/// and then passed to this function,
+/// which will handle consistency checks and defaulting.
+///
+/// A common use case is deprecated field name/types.
+/// In that case, the deprecated field names should be added to the appropriate
+/// [`load::TopLevel::DEPRECATED_KEYS`].
+///
+/// `specified` should be an array (or other iterator) of `(key, Option<value>)`
+/// where `key` is the field name and
+/// `value` is that field from the builder,
+/// converted to the common output type `V`.
+///
+/// # Example
+///
+/// ```
+/// use derive_builder::Builder;
+/// use serde::{Deserialize, Serialize};
+/// use tor_config::{impl_standard_builder, ConfigBuildError, Listen, resolve_alternative_specs};
+///
+/// #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+/// #[builder(build_fn(error = "ConfigBuildError"))]
+/// #[builder(derive(Debug, Serialize, Deserialize))]
+/// #[allow(clippy::option_option)]
+/// pub struct ProxyConfig {
+///    /// Addresses to listen on for incoming SOCKS connections.
+///    #[builder(field(build = r#"self.resolve_socks_port()?"#))]
+///    pub(crate) socks_listen: Listen,
+///
+///    /// Port to listen on (at localhost) for incoming SOCKS
+///    /// connections.
+///    #[builder(setter(strip_option), field(type = "Option<Option<u16>>", build = "()"))]
+///    pub(crate) socks_port: (),
+/// }
+/// impl_standard_builder! { ProxyConfig }
+///
+/// impl ProxyConfigBuilder {
+///     fn resolve_socks_port(&self) -> Result<Listen, ConfigBuildError> {
+///         resolve_alternative_specs(
+///             [
+///                 ("socks_listen", self.socks_listen.clone()),
+///                 ("socks_port", self.socks_port.map(Listen::new_localhost_optional)),
+///             ],
+///             || Listen::new_localhost(9150),
+///         )
+///     }
+/// }
+/// ```
+//
+// Testing: this is tested quit exhaustively in the context of the listen/port handling, in
+// crates/arti/src/cfg.rs.
+pub fn resolve_alternative_specs<V, K>(
+    specified: impl IntoIterator<Item = (K, Option<V>)>,
+    default: impl FnOnce() -> V,
+) -> Result<V, ConfigBuildError>
+where
+    K: Into<String>,
+    V: Eq,
+{
+    Ok(specified
+        .into_iter()
+        .filter_map(|(k, v)| Some((k, v?)))
+        .dedup_by(|(_, v1), (_, v2)| v1 == v2)
+        .at_most_one()
+        .map_err(|several| ConfigBuildError::Inconsistent {
+            fields: several.into_iter().map(|(k, _v)| k.into()).collect_vec(),
+            problem: "conflicting fields, specifying different values".into(),
+        })?
+        .map(|(_k, v)| v)
+        .unwrap_or_else(default))
 }
 
 /// Defines standard impls for a struct with a `Builder`, incl `Default`
