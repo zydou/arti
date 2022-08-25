@@ -7,7 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
-use safelog::sensitive;
+use safelog::{sensitive, Sensitive};
 use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
@@ -919,7 +919,7 @@ impl<R: Runtime> TorClient<R> {
             .await
             .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
-                exit_ports: exit_ports.into(),
+                exit_ports: Sensitive::new(exit_ports.into()),
             })?;
         drop(dir); // This decreases the refcount on the netdir.
 
