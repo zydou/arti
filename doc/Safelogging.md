@@ -74,7 +74,7 @@ higher, and may be treated as sensitive at lower levels:
 ## Information that _can_ be sensitive.
 
 This information is often sensitive, and should only be logged at
-"info!" or higher when necessary to make a diagnostic message usable.
+"info" or higher when necessary to make a diagnostic message usable.
 
   * Any single relay. (Traffic-analysis helper.)
   * The local username. (User identity.)
