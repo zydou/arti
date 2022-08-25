@@ -103,6 +103,7 @@ dependencies = [
  "secmem-proc",
  "serde",
  "serde_json",
+ "signal-hook-async-std",
  "tokio",
  "toml",
  "tor-config",
@@ -2989,6 +2990,18 @@ checksum = "a253b5e89e2698464fc26b545c9edceb338e18a89effeeecfea192c3025be29d"
 dependencies = [
  "libc",
  "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook-async-std"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c4aa94397e2023af5b7cff5b8d4785e935cfb77f0e4aab0cae3b26258ace556"
+dependencies = [
+ "async-io",
+ "futures-lite",
+ "libc",
+ "signal-hook",
 ]
 
 [[package]]
