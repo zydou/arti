@@ -390,7 +390,10 @@ impl std::fmt::Display for ResolvePath {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use crate::testing::{self, LinkType};
+    use crate::testing;
+
+    #[cfg(target_family = "unix")]
+    use crate::testing::LinkType;
 
     /// Helper: skip `r` past the first occurrence of the path `p` in a
     /// successful return.
@@ -499,6 +502,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_family = "unix")]
     fn repeats() {
         let d = testing::Dir::new();
         let root = d.canonical_root();
@@ -588,6 +592,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(target_family = "unix")]
     fn looping() {
         let d = testing::Dir::new();
         let root = d.canonical_root();
