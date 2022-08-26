@@ -279,6 +279,8 @@ impl UnrecognizedKeys {
 /// Key in config file(s) which is disfavoured (unrecognized or deprecated)
 ///
 /// `Display`s in an approximation to TOML format.
+/// Use the `to_string()` method to compare an instance of this type with
+/// a string containing a TOML key path.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct DisfavouredKey {
     /// Can be empty only before returned from this module
