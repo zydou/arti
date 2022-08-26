@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use fs_mistrust::anon_home::PathExt as _;
 use tor_error::ErrorKind;
 
 /// A resource that we failed to access or where we found a problem.
@@ -11,13 +12,13 @@ pub(crate) enum Resource {
     #[display(fmt = "persistent storage manager")]
     Manager,
     /// A checked directory.
-    #[display(fmt = "directory {}", "dir.display()")]
+    #[display(fmt = "directory {}", "dir.anonymize_home()")]
     Directory {
         /// The path to the directory.    
         dir: std::path::PathBuf,
     },
     /// A file on disk within our checked directory.
-    #[display(fmt = "{} in {}", "file.display()", "container.display()")]
+    #[display(fmt = "{} in {}", "file.display()", "container.anonymize_home()")]
     File {
         /// The path to the checked directory
         container: std::path::PathBuf,

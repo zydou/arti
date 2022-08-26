@@ -4,6 +4,7 @@ mod clean;
 
 use crate::err::{Action, ErrorSource, Resource};
 use crate::{Error, LockStatus, Result, StateMgr};
+use fs_mistrust::anon_home::PathExt as _;
 use fs_mistrust::CheckedDir;
 use serde::{de::DeserializeOwned, Serialize};
 use std::path::{Path, PathBuf};
@@ -138,9 +139,9 @@ impl FsStateMgr {
     /// Requires that we hold the lock.
     fn clean(&self, now: SystemTime) {
         for fname in clean::files_to_delete(self.inner.statepath.as_path(), now) {
-            info!("Deleting obsolete file {}", fname.display());
+            info!("Deleting obsolete file {}", fname.anonymize_home());
             if let Err(e) = std::fs::remove_file(&fname) {
-                warn!("Unable to delete {}: {}", fname.display(), e);
+                warn!("Unable to delete {}: {}", fname.anonymize_home(), e);
             }
         }
     }

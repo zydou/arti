@@ -5,12 +5,29 @@ use std::{path::PathBuf, sync::Arc};
 
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
+#[cfg(feature = "anon_home")]
+use crate::anon_home::PathExt as _;
+
+// Define a local-only version of anonymize_home so that we can define our errors
+// unconditionally.
+#[cfg(not(feature = "anon_home"))]
+trait PathExt {
+    /// A do-nothing extension function.
+    fn anonymize_home(&self) -> &Path;
+}
+#[cfg(not(feature = "anon_home"))]
+impl PathExt for Path {
+    fn anonymize_home(&self) -> &Path {
+        self
+    }
+}
+
 /// An error returned while checking a path for privacy.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// A target  (or one of its ancestors) was not found.
-    #[error("File or directory {0} not found")]
+    #[error("File or directory {} not found", _0.anonymize_home())]
     NotFound(PathBuf),
 
     /// A target  (or one of its ancestors) had incorrect permissions.
@@ -19,7 +36,8 @@ pub enum Error {
     ///
     /// The first integer contains the current permission bits, and the second
     /// contains the permission bits which were incorrectly set.
-    #[error("Incorrect permissions: {0} is {}; must be {}",
+    #[error("Incorrect permissions: {} is {}; must be {}",
+    _0.anonymize_home(),
             format_access_bits(* .1, '='), format_access_bits(* .2, '-'))]
     BadPermission(PathBuf, u32, u32),
 
@@ -28,7 +46,7 @@ pub enum Error {
     /// Only generated on unix-like systems.
     ///
     /// The provided integer contains the user_id o
-    #[error("Bad owner (UID {1}) on file or directory {0}")]
+    #[error("Bad owner (UID {1}) on file or directory {}", _0.anonymize_home())]
     BadOwner(PathBuf, u32),
 
     /// A target (or one of its ancestors) had the wrong type.
@@ -36,7 +54,7 @@ pub enum Error {
     /// Ordinarily, the target may be anything at all, though you can override
     /// this with [`require_file`](crate::Verifier::require_file) and
     /// [`require_directory`](crate::Verifier::require_directory).
-    #[error("Wrong type of file at {0}")]
+    #[error("Wrong type of file at {}", _0.anonymize_home())]
     BadType(PathBuf),
 
     /// We were unable to inspect the target or one of its ancestors.
@@ -46,7 +64,7 @@ pub enum Error {
     ///
     /// (The `std::io::Error` that caused this problem is wrapped in an `Arc` so
     /// that our own [`Error`] type can implement `Clone`.)
-    #[error("Unable to access {0}")]
+    #[error("Unable to access {}", _0.anonymize_home())]
     CouldNotInspect(PathBuf, #[source] Arc<IoError>),
 
     /// Multiple errors occurred while inspecting the target.
@@ -89,7 +107,7 @@ pub enum Error {
     InvalidSubdirectory,
 
     /// We encountered an error while attempting an IO operation on a file.
-    #[error("IO error on {filename} while attempting to {action}")]
+    #[error("IO error on {} while attempting to {action}", filename.anonymize_home())]
     Io {
         /// The file that we were trying to modify or inspect
         filename: PathBuf,
