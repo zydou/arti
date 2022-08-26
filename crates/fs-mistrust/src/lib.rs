@@ -829,12 +829,21 @@ mod test {
         d.chmod("e/f", 0o777);
         d.link_rel(LinkType::Dir, "a/b/c", "d");
 
-        let m = Mistrust::builder()
-            .trust_no_group_id()
-            // Ignore the permissions on /tmp/whatever-tempdir-gave-us
-            .ignore_prefix(d.canonical_root())
+        let mut b = Mistrust::builder();
+        let m = b
+            .ignore_prefix(d.canonical_root());
+
+        #[cfg(all(
+            target_family = "unix",
+            not(target_os = "ios"),
+            not(target_os = "android")
+        ))]
+        let m = m.trust_no_group_id();
+
+        let m = m
             .build()
             .unwrap();
+
         // /a/b/c should be fine...
         m.check_directory(d.path("a/b/c")).unwrap();
         // /e/f/g should not.
@@ -887,9 +896,18 @@ mod test {
         d.chmod("a", 0o700);
         d.chmod("b", 0o600);
 
-        let m = Mistrust::builder()
-            .ignore_prefix(d.canonical_root())
-            .trust_no_group_id()
+        let mut b = Mistrust::builder();
+        let m = b
+            .ignore_prefix(d.canonical_root());
+
+        #[cfg(all(
+            target_family = "unix",
+            not(target_os = "ios"),
+            not(target_os = "android")
+        ))]
+        let m = m.trust_no_group_id();
+
+        let m = m
             .build()
             .unwrap();
 
@@ -922,9 +940,18 @@ mod test {
         d.chmod("a/b", 0o750);
         d.chmod("a/b/c", 0o640);
 
-        let m = Mistrust::builder()
-            .ignore_prefix(d.canonical_root())
-            .trust_no_group_id()
+        let mut b = Mistrust::builder();
+        let m = b
+            .ignore_prefix(d.canonical_root());
+
+        #[cfg(all(
+            target_family = "unix",
+            not(target_os = "ios"),
+            not(target_os = "android")
+        ))]
+        let m = m.trust_no_group_id();
+
+        let m = m
             .build()
             .unwrap();
 
@@ -951,9 +978,18 @@ mod test {
         d.chmod("a", 0o700);
         d.chmod("a/b", 0o700);
 
-        let m = Mistrust::builder()
-            .ignore_prefix(d.canonical_root())
-            .trust_no_group_id()
+        let mut b = Mistrust::builder();
+        let m = b
+            .ignore_prefix(d.canonical_root());
+
+        #[cfg(all(
+            target_family = "unix",
+            not(target_os = "ios"),
+            not(target_os = "android")
+        ))]
+        let m = m.trust_no_group_id();
+
+        let m = m
             .build()
             .unwrap();
 
