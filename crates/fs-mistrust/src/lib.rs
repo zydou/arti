@@ -815,8 +815,12 @@ impl<'a> Verifier<'a> {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use testing::{Dir, LinkType};
+    use testing::Dir;
 
+    #[cfg(target_family = "unix")]
+    use testing::LinkType;
+
+    #[cfg(target_family = "unix")]
     #[test]
     fn simple_cases() {
         let d = Dir::new();
