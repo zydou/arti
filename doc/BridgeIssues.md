@@ -6,7 +6,7 @@ client-side support for bridges and pluggable transports in Arti.
 
 ## Tor's anticensorship features: a lower-level perspective
 
-Here's what I think you need to know about bridges.
+Here's what you need to know about bridges.
 
 Fundamentally, a "**Bridge**" is a relay that we use as the first hop
 for our circuits _because it is configured by the user_, not because it is
@@ -108,7 +108,7 @@ several ways:
    * When using bridges, we _only use bridges_ as our directory caches:
      never fallback directories.
 
-I suggest that we put all of the client-side bridge and pluggable
+Let's try to  put all of the client-side bridge and pluggable
 transport code behind Cargo features (`bridge-client` and `pt-client`,
 maybe), so that we can disable them for Relays and for
 resource-constrained clients that don't want them.
@@ -116,7 +116,7 @@ resource-constrained clients that don't want them.
 ## Challenges with implementing anticensorship in Arti
 
 Now that we've been through all of that, here are some of the challenges
-and open questions that I think we need to solve as we implement these
+and open questions that we need to solve as we implement these
 anticensorship features in Arti.
 
 ### Problem 1: The directory infrastructure and logic
@@ -203,7 +203,7 @@ and out of keeping with the way we configure everything else.
 
 ## APIs to design
 
-These are some APIs I'll need to sketch out as next steps.
+These are some APIs to sketch out as next steps.
 
 * Extended ChanTarget/CircTarget API
 
