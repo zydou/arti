@@ -11,8 +11,6 @@ use std::{
 
 #[cfg(target_family = "unix")]
 use std::os::unix::{self, fs::PermissionsExt};
-#[cfg(target_family = "windows")]
-use std::os::windows;
 
 /// A temporary directory with convenience functions to build items inside it.
 #[derive(Debug)]
@@ -26,6 +24,7 @@ pub(crate) struct Dir {
 /// When creating a link, are we creating a directory link or a file link?
 ///
 /// (These are the same on Unix, and different on windows.)
+#[cfg(target_family = "unix")]
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum LinkType {
     Dir,
@@ -98,28 +97,22 @@ impl Dir {
     /// Make a relative link from "original" to "link" within this temporary
     /// directory, where `original` is relative
     /// to the directory containing `link`, and `link` is relative to the temporary directory.
+    #[cfg(target_family = "unix")]
     pub(crate) fn link_rel(
         &self,
         link_type: LinkType,
         original: impl AsRef<Path>,
         link: impl AsRef<Path>,
     ) {
-        #[cfg(target_family = "unix")]
         {
             let _ = link_type;
             unix::fs::symlink(original.as_ref(), self.path(link)).expect("Can't symlink");
         }
-
-        #[cfg(target_family = "windows")]
-        match link_type {
-            LinkType::Dir => windows::fs::symlink_dir(original.as_ref(), self.path(link)),
-            LinkType::File => windows::fs::symlink_file(original.as_ref(), self.path(link)),
-        }
-        .expect("Can't symlink");
     }
 
     /// As `link_rel`, but create an absolute link.  `original` is now relative
     /// to the temporary directory.
+    #[cfg(target_family = "unix")]
     pub(crate) fn link_abs(
         &self,
         link_type: LinkType,
