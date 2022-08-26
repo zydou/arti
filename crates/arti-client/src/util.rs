@@ -79,8 +79,8 @@ pub(crate) fn running_as_setuid() -> bool {
 
             // We "sort of" ignore failures: in each case, we insist that both calls succeed,
             // giving the same answer, or both calls fail.  This ought to work well enough.
-            let same_reuid = libc::geteuid() == libc::getuid();
-            let same_regid = libc::getegid() == libc::getgid();
+            let same_reuid = unsafe { libc::geteuid() == libc::getuid() };
+            let same_regid = unsafe { libc::getegid() == libc::getgid() };
             !(same_reuid && same_regid)
         }
     }
