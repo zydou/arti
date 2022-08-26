@@ -97,6 +97,7 @@ use crate::mgr::CircProvenance;
 use crate::preemptive::PreemptiveCircuitPredictor;
 use usage::TargetCircUsage;
 
+use safelog::sensitive as sv;
 pub use tor_guardmgr::{ExternalActivity, FirstHopId};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
@@ -475,7 +476,11 @@ impl<R: Runtime> CircMgr<R> {
                     trace!("Circuit already existed created for {:?}", circs[i]);
                 }
                 Err(e) => {
-                    warn!("Failed to build preemptive circuit {:?}: {}", circs[i], &e);
+                    warn!(
+                        "Failed to build preemptive circuit {:?}: {}",
+                        sv(&circs[i]),
+                        &e
+                    );
                     n_errors += 1;
                 }
             }

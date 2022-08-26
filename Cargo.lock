@@ -3478,6 +3478,7 @@ dependencies = [
  "itertools",
  "postage",
  "rand 0.8.5",
+ "safelog",
  "serde",
  "thiserror",
  "tor-basic-utils",

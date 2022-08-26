@@ -7,7 +7,7 @@
 use crate::address::IntoTorAddr;
 
 use crate::config::{ClientAddrConfig, StreamTimeoutConfig, TorClientConfig};
-use safelog::sensitive;
+use safelog::{sensitive, Sensitive};
 use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
@@ -737,7 +737,7 @@ impl<R: Runtime> TorClient<R> {
             .get_or_launch_exit_circ(&exit_ports, prefs)
             .await
             .map_err(wrap_err)?;
-        info!("Got a circuit for {}:{}", sensitive(&addr), port);
+        debug!("Got a circuit for {}:{}", sensitive(&addr), port);
 
         let stream_future = circ.begin_stream(&addr, port, Some(prefs.stream_parameters()));
         // This timeout is needless but harmless for optimistic streams.
@@ -919,7 +919,7 @@ impl<R: Runtime> TorClient<R> {
             .await
             .map_err(|cause| ErrorDetail::ObtainExitCircuit {
                 cause,
-                exit_ports: exit_ports.into(),
+                exit_ports: Sensitive::new(exit_ports.into()),
             })?;
         drop(dir); // This decreases the refcount on the netdir.
 

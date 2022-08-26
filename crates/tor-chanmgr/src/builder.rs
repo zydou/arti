@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{event::ChanMgrEventSender, Error};
 
+use safelog::sensitive as sv;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
 use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
@@ -94,7 +95,7 @@ async fn connect_to_one<R: Runtime>(
         .map(|(i, a)| {
             let delay = rt.sleep(CONNECTION_DELAY * i as u32);
             delay.then(move |_| {
-                tracing::info!("Connecting to {}", a);
+                tracing::debug!("Connecting to {}", a);
                 rt.connect(a)
                     .map_ok(move |stream| (stream, *a))
                     .map_err(move |e| (e, *a))
@@ -115,7 +116,7 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tracing::warn!("Connection to {} failed: {}", a, e);
+                tracing::warn!("Connection to {} failed: {}", sv(a), e);
                 errors.push((e, a));
             }
         }

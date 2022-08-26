@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use futures::task::SpawnError;
 
+use safelog::Sensitive;
 use thiserror::Error;
 use tor_circmgr::TargetPorts;
 use tor_error::{ErrorKind, HasKind};
@@ -132,7 +133,7 @@ enum ErrorDetail {
     #[error("Failed to obtain exit circuit for ports {exit_ports}")]
     ObtainExitCircuit {
         /// The ports that we wanted a circuit for.
-        exit_ports: TargetPorts,
+        exit_ports: Sensitive<TargetPorts>,
 
         /// What went wrong
         #[source]

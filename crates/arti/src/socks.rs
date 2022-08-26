@@ -10,7 +10,7 @@ use futures::task::SpawnExt;
 use safelog::sensitive;
 use std::io::Result as IoResult;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use arti_client::{ErrorKind, HasKind, StreamPrefs, TorClient};
 use tor_rtcompat::{Runtime, TcpListener};
@@ -165,7 +165,7 @@ where
     // Unpack the socks request and find out where we're connecting to.
     let addr = request.addr().to_string();
     let port = request.port();
-    info!(
+    debug!(
         "Got a socks request: {} {}:{}",
         request.command(),
         sensitive(&addr),
@@ -195,7 +195,7 @@ where
                 Err(e) => return reply_error(&mut socks_w, &request, e).await,
             };
             // Okay, great! We have a connection over the Tor network.
-            info!("Got a stream for {}:{}", sensitive(&addr), port);
+            debug!("Got a stream for {}:{}", sensitive(&addr), port);
 
             // Send back a SOCKS response, telling the client that it
             // successfully connected.
@@ -425,12 +425,14 @@ pub(crate) async fn run_socks_proxy<R: Runtime>(
     // Try to bind to the SOCKS ports.
     for localhost in &localhosts {
         let addr: SocketAddr = (*localhost, socks_port).into();
+        // NOTE: Our logs here displays the local address. We allow this, since
+        // knowing the address is basically essential for diagnostics.
         match runtime.listen(&addr).await {
             Ok(listener) => {
                 info!("Listening on {:?}.", addr);
                 listeners.push(listener);
             }
-            Err(e) => warn!("Can't listen on {:?}: {}", addr, e),
+            Err(e) => warn!("Can't listen on {}: {}", addr, e),
         }
     }
     // We weren't able to bind any ports: There's nothing to do.

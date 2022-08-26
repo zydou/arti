@@ -245,7 +245,7 @@ impl GuardSet {
                 len_pre, len_post
             );
         }
-        info!(
+        debug!(
             n_guards = len_post.0,
             n_confirmed = len_post.2,
             "Guard set loaded."
