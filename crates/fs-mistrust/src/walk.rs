@@ -26,6 +26,39 @@ pub(crate) enum PathType {
     Content,
 }
 
+/// A single piece of a path.
+///
+/// We would use [`std::path::Component`] directly here, but we want an owned
+/// type.
+#[derive(Clone, Debug)]
+struct Component {
+    /// Is this a prefix of a windows path?
+    ///
+    /// We need to keep track of these, because we expect stat() to fail for
+    /// them.
+    #[cfg(target_family = "windows")]
+    is_windows_prefix: bool,
+    /// The textual value of the component.
+    text: OsString,
+}
+
+/// Windows error code that we expect to get when calling stat() on a prefix.
+#[cfg(target_family = "windows")]
+const INVALID_FUNCTION: i32 = 1;
+
+impl<'a> From<std::path::Component<'a>> for Component {
+    fn from(c: std::path::Component<'a>) -> Self {
+        #[cfg(target_family = "windows")]
+        let is_windows_prefix = matches!(c, std::path::Component::Prefix(_));
+        let text = c.as_os_str().to_owned();
+        Component {
+            #[cfg(target_family = "windows")]
+            is_windows_prefix,
+            text,
+        }
+    }
+}
+
 /// An iterator to resolve and canonicalize a filename, imitating the actual
 /// filesystem's lookup behavior.
 ///
@@ -94,10 +127,12 @@ pub(crate) struct ResolvePath {
     /// The parts of the path that we have _not yet resolved_.  The item on the
     /// top of the stack (that is, the end), is the next element that we'd like
     /// to add to `resolved`.
+    ///
+    /// This is in reverse order: later path components at the start of the `Vec` (bottom of stack)
     //
     // TODO: I'd like to have a more efficient representation of this; the
     // current one has a lot of tiny little allocations.
-    stack: Vec<OsString>,
+    stack: Vec<Component>,
 
     /// If true, we have encountered a nonrecoverable error and cannot yield any
     /// more items.
@@ -176,7 +211,7 @@ impl ResolvePath {
         let remainder = if self.stack.is_empty() {
             None
         } else {
-            Some(self.stack.into_iter().rev().collect())
+            Some(self.stack.into_iter().rev().map(|c| c.text).collect())
         };
 
         (self.resolved, remainder)
@@ -189,12 +224,8 @@ impl ResolvePath {
 ///
 /// (This is a separate function rather than a method for borrow-checker
 /// reasons.)
-fn push_prefix(stack: &mut Vec<OsString>, path: &Path) {
-    stack.extend(
-        path.components()
-            .rev()
-            .map(|component| component.as_os_str().to_owned()),
-    );
+fn push_prefix(stack: &mut Vec<Component>, path: &Path) {
+    stack.extend(path.components().rev().map(|component| component.into()));
 }
 
 impl Iterator for ResolvePath {
@@ -235,10 +266,10 @@ impl Iterator for ResolvePath {
 
             // ..and add that component to the our resolved path to see what we
             // should inspect next.
-            let inspecting: std::borrow::Cow<'_, Path> = if next_part == "." {
+            let inspecting: std::borrow::Cow<'_, Path> = if next_part.text == "." {
                 // Do nothing.
                 self.resolved.as_path().into()
-            } else if next_part == ".." {
+            } else if next_part.text == ".." {
                 // We can safely remove the last part of our path: We know it is
                 // canonical, so ".." will not give surprising results.  (If we
                 // are already at the root, "PathBuf::pop" will do nothing.)
@@ -252,7 +283,7 @@ impl Iterator for ResolvePath {
                 // fix that in a minute.
                 //
                 // This is the only thing that can ever make `resolved` longer.
-                self.resolved.join(&next_part).into()
+                self.resolved.join(&next_part.text).into()
             };
 
             // Now "inspecting" is the path we want to look at.  Later in this
@@ -283,6 +314,16 @@ impl Iterator for ResolvePath {
             // Look up the lstat() of the file, to see if it's a symlink.
             let metadata = match inspecting.symlink_metadata() {
                 Ok(m) => m,
+                #[cfg(target_family = "windows")]
+                Err(e)
+                    if next_part.is_windows_prefix
+                        && e.raw_os_error() == Some(INVALID_FUNCTION) =>
+                {
+                    // We expected an error here, and we got one. Skip over this
+                    // path component and look at the next.
+                    self.resolved = inspecting.into_owned();
+                    continue;
+                }
                 Err(e) => {
                     // Oops: can't lstat.  Move the last component back on to the stack, and terminate.
                     self.stack.push(next_part);
