@@ -127,6 +127,8 @@ pub(crate) struct ResolvePath {
     /// The parts of the path that we have _not yet resolved_.  The item on the
     /// top of the stack (that is, the end), is the next element that we'd like
     /// to add to `resolved`.
+    ///
+    /// This is in reverse order: later path components at the start of the `Vec` (bottom of stack)
     //
     // TODO: I'd like to have a more efficient representation of this; the
     // current one has a lot of tiny little allocations.
