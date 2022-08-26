@@ -291,6 +291,8 @@ mod imp;
 ))]
 mod user;
 
+#[cfg(feature = "compact_home")]
+pub mod compact_homedir;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod walk;
