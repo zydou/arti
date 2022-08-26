@@ -108,7 +108,8 @@ several ways:
    * When using bridges, we _only use bridges_ as our directory caches:
      never fallback directories.
 
-Let's try to  put all of the client-side bridge and pluggable
+Let's try to, to the extent possible, to  put all of the client-side
+bridge and pluggable
 transport code behind Cargo features (`bridge-client` and `pt-client`,
 maybe), so that we can disable them for Relays and for
 resource-constrained clients that don't want them.
@@ -195,11 +196,17 @@ We would like to have backward compatibility with Tor's current bridge
 configuration mechanism, which uses a line format something like this:
 
 ```
-bridge TransportId 1.2.3.4:9100 RsaIdentity Param1=Val1 Param2=Val2 ...
+[TransportId] 1.2.3.4:9100 RsaIdentity [Param1=Val1] [Param2=Val2] ...
 ```
 
-We'd also like to avoid making this mandatory forever, since it's crufty
-and out of keeping with the way we configure everything else.
+We need to support this indefinitely, though it has a number of design
+problems, since its usage is established basically everywhere.
+Nonetheless, we may want to look into alternatives, so that we could:
+
+  * Have more identity types
+  * Make addesses optional
+  * Use a type better suited for encoding binary data.
+
 
 ## APIs to design
 
