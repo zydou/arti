@@ -405,6 +405,36 @@ mod test {
         }
     }
 
+    /// Helper: change the prefix on `path` (if any) to a verbatim prefix.
+    ///
+    /// We do this to match the output of `fs::canonicalize` on Windows, for
+    /// testing.
+    ///
+    /// If this function proves to be hard-to-maintain, we should consider
+    /// alternative ways of testing what it provides.
+    fn make_prefix_verbatim(path: PathBuf) -> PathBuf {
+        let mut components = path.components();
+        if let Some(std::path::Component::Prefix(prefix)) = components.next() {
+            use std::path::Prefix as P;
+            let verbatim = match prefix.kind() {
+                P::UNC(server, share) => {
+                    let mut p = OsString::from(r"\\?\UNC\");
+                    p.push(server);
+                    p.push("/");
+                    p.push(share);
+                    p
+                }
+                P::Disk(disk) => format!(r"\\?\{}:", disk as char).into(),
+                _ => return path, // original prefix is fine.
+            };
+            let mut newpath = PathBuf::from(verbatim);
+            newpath.extend(components.map(|c| c.as_os_str()));
+            newpath
+        } else {
+            path // nothing to do.
+        }
+    }
+
     #[test]
     fn simple_path() {
         let d = testing::Dir::new();
@@ -448,6 +478,7 @@ mod test {
             assert_eq!(so_far, p);
         }
         let (canonical, rest) = r.into_result();
+        let canonical = make_prefix_verbatim(canonical);
         assert_eq!(canonical, d.path("a/b/c").canonicalize().unwrap());
         assert!(rest.is_none());
 
