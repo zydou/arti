@@ -105,7 +105,7 @@ pub mod sources;
 pub use cmdline::CmdLine;
 pub use config as config_crate;
 pub use educe;
-pub use err::{ConfigBuildError, ReconfigureError};
+pub use err::{ConfigBuildError, ConfigError, ReconfigureError};
 pub use itertools::Itertools;
 pub use load::{resolve, resolve_ignore_warnings, resolve_return_results};
 pub use misc::*;

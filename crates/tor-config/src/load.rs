@@ -104,11 +104,17 @@ use crate::ConfigBuildError;
 pub enum ConfigResolveError {
     /// Deserialize failed
     #[error("Config contents not as expected")]
-    Deserialize(#[from] config::ConfigError),
+    Deserialize(#[from] crate::ConfigError),
 
     /// Build failed
     #[error("Config semantically incorrect")]
     Build(#[from] ConfigBuildError),
+}
+
+impl From<config::ConfigError> for ConfigResolveError {
+    fn from(err: config::ConfigError) -> Self {
+        crate::ConfigError::from(err).into()
+    }
 }
 
 /// A type that can be built from a builder via a build method
