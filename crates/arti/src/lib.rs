@@ -192,8 +192,6 @@ pub use cfg::{
     ApplicationConfig, ApplicationConfigBuilder, ArtiCombinedConfig, ArtiConfig, ArtiConfigBuilder,
     ProxyConfig, ProxyConfigBuilder, SystemConfig, SystemConfigBuilder, ARTI_EXAMPLE_CONFIG,
 };
-use futures::stream::StreamExt;
-use futures::task::SpawnExt;
 pub use logging::{LoggingConfig, LoggingConfigBuilder};
 
 use arti_client::config::default_config_files;
@@ -264,20 +262,7 @@ async fn run<R: Runtime>(
         .config(client_config)
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
-    if arti_config.application().watch_configuration {
-        watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
-    }
-
-    #[cfg(target_family = "unix")]
-    {
-        // let client = client.clone();
-        let mut sighup_stream = process::sighup_stream()?;
-        runtime.spawn(async move {
-            while let Some(()) = sighup_stream.next().await {
-                info!("SIGHUP!");
-            }
-        })?;
-    }
+    watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
 
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
     if socks_port != 0 {
