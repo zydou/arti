@@ -20,24 +20,6 @@ use crate::{ArtiCombinedConfig, ArtiConfig};
 /// How long to wait after a file is created, before we try to read it.
 const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
-/// Find the configuration files and prepare a watcher
-///
-/// For the watching to be reliably effective (race-free), the config must be read
-/// *after* this point, using the returned `FoundConfigFiles`.
-fn prepare_watcher<'a>(
-    watcher: &mut FileWatcher,
-    sources: &'a ConfigurationSources,
-) -> anyhow::Result<FoundConfigFiles<'a>> {
-    let sources = sources.scan()?;
-    for source in sources.iter() {
-        match source {
-            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir)?,
-            ConfigurationSource::File(file) => watcher.watch_file(file)?,
-        }
-    }
-    Ok(sources)
-}
-
 /// Unwrap first expression or break with the provided error message
 macro_rules! ok_or_break {
     ($e:expr, $msg:expr $(,)?) => {
@@ -51,10 +33,11 @@ macro_rules! ok_or_break {
     };
 }
 
-/// Launch a thread to watch our configuration files.
+/// Launch a thread to reload our configuration files.
 ///
-/// Whenever one or more files in `files` changes, try to reload our
-/// configuration from them and tell TorClient about it.
+/// If current configuration requires it, watch for changes in `sources`
+/// and try to reload our configuration. On unix platforms, also watch
+/// for SIGHUP and reload configuration then.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
@@ -69,8 +52,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // we have set up the watcher *after* loading the config.
         // ignore send error, rx can't be disconnected if we are here
         let _ = tx.send(notify::DebouncedEvent::Rescan);
-        let mut watcher = FileWatcher::new(tx.clone(), DEBOUNCE_INTERVAL)?;
-        prepare_watcher(&mut watcher, &sources)?;
+        let (watcher, _) = FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources)?;
         Some(watcher)
     } else {
         None
@@ -117,15 +99,10 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
             debug!("FS event {:?}: reloading configuration.", event);
 
             let found_files = if watcher.is_some() {
-                let mut new_watcher = ok_or_break!(
-                    FileWatcher::new(tx.clone(), DEBOUNCE_INTERVAL),
-                    "FS watch: failed to create new watcher: {}",
-                );
-                let found_files = ok_or_break!(
-                    prepare_watcher(&mut new_watcher, &sources),
+                let (new_watcher, found_files) = ok_or_break!(
+                    FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
                     "FS watch: failed to rescan config and re-establish watch: {}",
                 );
-
                 watcher = Some(new_watcher);
                 found_files
             } else {
@@ -136,20 +113,18 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                 Ok(watch) => {
                     info!("Successfully reloaded configuration.");
                     if watch && watcher.is_none() {
+                        info!("Starting watching over configuration.");
                         // If watching, we must reload the config once right away, because
                         // we have set up the watcher *after* loading the config.
                         // ignore send error, rx can't be disconnected if we are here
                         let _ = tx.send(notify::DebouncedEvent::Rescan);
-                        let mut new_watcher = ok_or_break!(
-                            FileWatcher::new(tx.clone(), DEBOUNCE_INTERVAL),
-                            "FS watch: failed to restart watching: {}",
-                        );
-                        ok_or_break!(
-                            prepare_watcher(&mut new_watcher, &sources),
-                            "FS watch: failed to rescan configuration: {}",
+                        let (new_watcher, _) = ok_or_break!(
+                            FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
+                            "FS watch: failed to rescan config and re-establish watch: {}",
                         );
                         watcher = Some(new_watcher);
                     } else if !watch && watcher.is_some() {
+                        info!("Stopped watching over configuration.");
                         watcher = None;
                     }
                 }
@@ -234,6 +209,33 @@ impl FileWatcher {
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
         })
+    }
+
+    /// Create a FileWatcher already watching files in `sources`
+    fn new_prepared(
+        tx: Sender<notify::DebouncedEvent>,
+        interval: Duration,
+        sources: &ConfigurationSources,
+    ) -> anyhow::Result<(Self, FoundConfigFiles)> {
+        Self::new(tx, interval).and_then(|mut this| this.prepare(sources).map(|cfg| (this, cfg)))
+    }
+
+    /// Find the configuration files and prepare the watcher
+    ///
+    /// For the watching to be reliably effective (race-free), the config must be read
+    /// *after* this point, using the returned `FoundConfigFiles`.
+    fn prepare<'a>(
+        &mut self,
+        sources: &'a ConfigurationSources,
+    ) -> anyhow::Result<FoundConfigFiles<'a>> {
+        let sources = sources.scan()?;
+        for source in sources.iter() {
+            match source {
+                ConfigurationSource::Dir(dir) => self.watch_dir(dir)?,
+                ConfigurationSource::File(file) => self.watch_file(file)?,
+            }
+        }
+        Ok(sources)
     }
 
     /// Watch a single file (not a directory).
