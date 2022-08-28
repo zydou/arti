@@ -243,11 +243,12 @@ impl ConfigurationSources {
                 if e.kind() == io::ErrorKind::NotFound && !required {
                     Result::<_, crate::ConfigError>::Ok(())
                 } else {
-                    Err(foreign_err(anyhow::anyhow!(format!(
+                    Err(config::ConfigError::Message(format!(
                         "unable to access config path: {:?}: {}",
                         &source.as_path(),
                         e
-                    ))))
+                    ))
+                    .into())
                 }
             };
 

@@ -43,7 +43,7 @@
 //!    but not recognized by *any* of the three config consumers,
 //!
 //! ```
-//! # fn main() -> Result<(), anyhow::Error> {
+//! # fn main() -> Result<(), tor_config::load::ConfigResolveError> {
 //! use derive_builder::Builder;
 //! use tor_config::{impl_standard_builder, resolve, ConfigBuildError, ConfigurationSources};
 //! use tor_config::load::TopLevel;
