@@ -11,8 +11,8 @@ use std::{
 
 #[cfg(target_family = "unix")]
 use std::os::unix::{self, fs::PermissionsExt};
-#[cfg(target_family = "windows")]
-use std::os::windows;
+
+use crate::Mistrust;
 
 /// A temporary directory with convenience functions to build items inside it.
 #[derive(Debug)]
@@ -26,6 +26,7 @@ pub(crate) struct Dir {
 /// When creating a link, are we creating a directory link or a file link?
 ///
 /// (These are the same on Unix, and different on windows.)
+#[cfg(target_family = "unix")]
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum LinkType {
     Dir,
@@ -98,28 +99,26 @@ impl Dir {
     /// Make a relative link from "original" to "link" within this temporary
     /// directory, where `original` is relative
     /// to the directory containing `link`, and `link` is relative to the temporary directory.
+    #[cfg(target_family = "unix")]
     pub(crate) fn link_rel(
         &self,
         link_type: LinkType,
         original: impl AsRef<Path>,
         link: impl AsRef<Path>,
     ) {
-        #[cfg(target_family = "unix")]
         {
             let _ = link_type;
             unix::fs::symlink(original.as_ref(), self.path(link)).expect("Can't symlink");
         }
 
-        #[cfg(target_family = "windows")]
-        match link_type {
-            LinkType::Dir => windows::fs::symlink_dir(original.as_ref(), self.path(link)),
-            LinkType::File => windows::fs::symlink_file(original.as_ref(), self.path(link)),
-        }
-        .expect("Can't symlink");
+        // Windows does support symlinks but it requires elevated privileges. For more information,
+        // please have a look at:
+        // https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/create-symbolic-links
     }
 
     /// As `link_rel`, but create an absolute link.  `original` is now relative
     /// to the temporary directory.
+    #[cfg(target_family = "unix")]
     pub(crate) fn link_abs(
         &self,
         link_type: LinkType,
@@ -145,4 +144,56 @@ impl Dir {
             let (_, _) = (p, mode);
         }
     }
+}
+
+/// A utility type to represent the different operations available for a MistrustBuilder.
+#[derive(Debug)]
+pub(crate) enum MistrustOp<'a> {
+    IgnorePrefix(&'a Path),
+    DangerouslyTrustEveryone(),
+    TrustNoGroupId(),
+
+    #[cfg(target_family = "unix")]
+    TrustAdminOnly(),
+
+    #[cfg(target_family = "unix")]
+    TrustGroup(u32),
+}
+
+/// A convenience function to construct a Mistrust type using a set of given operations.
+pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
+    ops.iter()
+        .fold(&mut Mistrust::builder(), |m, op| {
+            match op {
+                MistrustOp::IgnorePrefix(prefix) => m.ignore_prefix(prefix),
+
+                MistrustOp::DangerouslyTrustEveryone() => m.dangerously_trust_everyone(),
+
+                MistrustOp::TrustNoGroupId() => {
+                    // We call `m.trust_no_group_id()` on platforms where it is available.
+                    // Otherwise, we simply return `m` unmodified here.
+                    #[cfg(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    ))]
+                    return m.trust_no_group_id();
+
+                    #[cfg(not(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    )))]
+                    return m;
+                }
+
+                #[cfg(target_family = "unix")]
+                MistrustOp::TrustAdminOnly() => m.trust_admin_only(),
+
+                #[cfg(target_family = "unix")]
+                MistrustOp::TrustGroup(gid) => m.trust_group(*gid),
+            }
+        })
+        .build()
+        .expect("Unable to build Mistrust object")
 }
