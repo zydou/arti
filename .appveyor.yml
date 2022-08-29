@@ -54,4 +54,4 @@ install:
 build: false
 
 test_script:
-  - cargo test --verbose %cargoflags%
+  - cargo test --verbose -F static-sqlite %cargoflags%
