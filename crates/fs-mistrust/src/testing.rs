@@ -108,6 +108,10 @@ impl Dir {
             let _ = link_type;
             unix::fs::symlink(original.as_ref(), self.path(link)).expect("Can't symlink");
         }
+
+        // Windows does support symlinks but it requires elevated privileges. For more information,
+        // please have a look at:
+        // https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/create-symbolic-links
     }
 
     /// As `link_rel`, but create an absolute link.  `original` is now relative
