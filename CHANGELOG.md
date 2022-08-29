@@ -1,8 +1,120 @@
 ### Notes
 
 This file describes changes in Arti through the current release.  Once Arti
-is more mature, and we start to version crates independently, we may
+is more mature, we may
 switch to using a separate changelog for each crate.
+
+
+# Arti 1.0.0 — 1 September 2022
+
+Arti 1.0.0: SERIOUS BLURB HERE. XXXX
+
+(These notes summarize changes in all crates since Arti 0.6.0.)
+
+XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
+
+### Breaking changes
+
+- Most of the APIs in the [`arti`] crate—the one providing our
+  binary—are now hidden behind an `experimental-api` feature, to mark
+  that they are unstable and unsupported.  If you need to embed `arti`
+  in your application, please use the [`arti-client`] crate instead.
+  ([#530], [!664])
+
+### Breaking changes in lower-level crates
+
+- New `params()` method in the [`NetDirProvider`] trait, to expose the
+  latest parameters even when we don't have a complete directory.
+  ([#528], [!658])
+- Large refactoring on the traits that represent a relay's set
+  of identities, to better support more identity types in the future,
+  and to make sure we can support bridges with unknown Ed25519
+  identities when we implement them. ([#428], [!662])
+- Require that our `TcpStream` types implement `Send`. ([!675])
+
+### New features
+
+- Arti now implements Tor's channel padding feature, to make
+  [netflow logs] less useful for traffic analysis. ([#62], [!657])
+- Use [`zeroize`] more consistently across our code base. This tool
+  clears various sensitive objects before they get dropped, for
+  defense-in-depth against memory exposure. ([#254], [!655])
+- Provide a "process hardening" feature (on by default) that uses
+  [`secmem_proc`] to prevent low-privileged processes from inspecting
+  our memory or our monitoring our execution. This is another
+  defense-in-depth mechanism.  ([#364], [!672])
+- Arti now rejects attempts to run as root.  You can override this with
+  with `application.allow_running_as_root`. ([#523], [!688])
+- Arti now rejects attempts to run in a setuid environment: this is not
+  something we support. ([#523], [!689], [!691])
+- We now support having an `arti.d` directory full of `.toml`
+  configuration files, to be read in sorted order. ([#271], [#474],
+  [#544], [!682], [!697])
+
+### Major bugfixes
+
+- Numerous fixes to our [`fs-mistrust`] crate Andoid and iOS, including
+  some that prevented it from building or working correctly. ([!667])
+- The [`fs-mistrust`] crate now handles Windows prefixes correctly.
+  Previously, it would try to read `C:`, and fail. ([!698])
+
+### Infrastructure
+
+- The `check_licenses` tool now works with the latest version of
+  `cargo-license`. ([!674])
+
+### Documentation
+
+- Our documentation is now much more careful about listing which Cargo
+  features are required for any optional items. ([#541], [!681])
+- Better documentation about our API stability and overall
+  design. ([#522], [#531])
+- Better documentation on the `DONE` stream-close condition. ([!677])
+
+### Cleanups, minor features, and minor bugfixes
+
+- The `dns_port` and `socks_port` options have been renamed to
+  `dns_listen` and `socks_listen`. They now support multiple
+  addresses. Backward compatibility with the old options is
+  retained. ([#502], [!602])
+- Renamed `.inc` files to end with `.rs`, to help analysis
+  tools. ([#381], [!645])
+- Backend support for some cell types that we'll need down the road when
+  we implement onion services. ([!651], [!648])
+- Switch to a new version of [`shellexpand`], with better support for
+  filesystems with non-UTF8 paths. ([!661])
+- Use less storage on disk for descriptors, by expiring them more
+  aggressively. ([#527], [!669])
+- Backend support for RTT estimation, as needed for congestion-based
+  flow-control. ([!525])
+- Running as a DNS proxy can now be disabled at compile-time, by
+  turning off the `dns-proxy` feature. ([#532])
+- When a circuit fails for a reason that was not the fault of the
+  Tor network, we no longer count it against our total number of
+  permitted circuit failures. ([#517], [!676])
+- Tests for older configuration file formats. ([!684])
+- Our default log messages have been cleaned up a bit, to make them
+  more useful. ([!692], [0f133de6b90e799d], [e8fcf2b0383f49a6])
+- We use [`safelog`] in more places, to avoid logging information that
+  could be useful if the logs were stolen or accidentally
+  leaked. ([!687], [!693])
+- Fix a race condition that could prevent us from noticing multiple
+  configuration changes in rapid succession. ([#544],
+  [a7bb3a73b4dfb0e8])
+- Better errors on invalid escapes in our configuration files. (In toml,
+  you can't say `"C:\Users"`; you have to escape it as `"C:\\Users"`.
+  We now try to explain this.) ([#549], [!695])
+- Improve reliability of a `fs-mistrust` test. ([!699])
+
+
+### Testing
+
+- Lengthen a timeout in a `tor-rtcompat` test, to make it more reliable.
+  ([#515], [!644])
+
+### Acknowledgments
+
+
 
 
 # Arti 0.6.0 — 1 August 2022
