@@ -195,5 +195,5 @@ pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
             }
         })
         .build()
-        .unwrap()
+        .expect("Unable to build Mistrust object")
 }
