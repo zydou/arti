@@ -12,6 +12,8 @@ use std::{
 #[cfg(target_family = "unix")]
 use std::os::unix::{self, fs::PermissionsExt};
 
+use crate::Mistrust;
+
 /// A temporary directory with convenience functions to build items inside it.
 #[derive(Debug)]
 pub(crate) struct Dir {
@@ -142,4 +144,56 @@ impl Dir {
             let (_, _) = (p, mode);
         }
     }
+}
+
+/// A utility type to represent the different operations available for a MistrustBuilder.
+#[derive(Debug)]
+pub(crate) enum MistrustOp<'a> {
+    IgnorePrefix(&'a Path),
+    DangerouslyTrustEveryone(),
+    TrustNoGroupId(),
+
+    #[cfg(target_family = "unix")]
+    TrustAdminOnly(),
+
+    #[cfg(target_family = "unix")]
+    TrustGroup(u32),
+}
+
+/// A convenience function to construct a Mistrust type using a set of given operations.
+pub(crate) fn mistrust_build(ops: &[MistrustOp]) -> Mistrust {
+    ops.iter()
+        .fold(&mut Mistrust::builder(), |m, op| {
+            match op {
+                MistrustOp::IgnorePrefix(prefix) => m.ignore_prefix(prefix),
+
+                MistrustOp::DangerouslyTrustEveryone() => m.dangerously_trust_everyone(),
+
+                MistrustOp::TrustNoGroupId() => {
+                    // We call `m.trust_no_group_id()` on platforms where it is available.
+                    // Otherwise, we simply return `m` unmodified here.
+                    #[cfg(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    ))]
+                    return m.trust_no_group_id();
+
+                    #[cfg(not(all(
+                        target_family = "unix",
+                        not(target_os = "ios"),
+                        not(target_os = "android")
+                    )))]
+                    return m;
+                }
+
+                #[cfg(target_family = "unix")]
+                MistrustOp::TrustAdminOnly() => m.trust_admin_only(),
+
+                #[cfg(target_family = "unix")]
+                MistrustOp::TrustGroup(gid) => m.trust_group(*gid),
+            }
+        })
+        .build()
+        .unwrap()
 }
