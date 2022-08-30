@@ -20,6 +20,9 @@ XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
   that they are unstable and unsupported.  If you need to embed `arti`
   in your application, please use the [`arti-client`] crate instead.
   ([#530], [!664])
+- The `default_config_file` function has been replaced with
+  `default_config_files`, since we now have both a default directory and a
+  default file. ([!682])
 
 ### Breaking changes in lower-level crates
 
