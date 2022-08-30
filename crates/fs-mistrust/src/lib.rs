@@ -117,8 +117,9 @@
 //! let my_mistrust = Mistrust::builder()
 //!     // Assume that our home directory and its parents are all well-configured.
 //!     .ignore_prefix("/home/doze/")
-//!     // Assume that a given group will only contain trusted users.
-//!     .trust_group(413)
+//!     // Assume that a given group will only contain trusted users (this feature is only
+//!     // available on Unix-like platforms).
+//!     // .trust_group(413)
 //!     .build()?;
 //! # Ok(())
 //! # }
