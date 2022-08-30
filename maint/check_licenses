@@ -17,6 +17,7 @@ RECOGNIZED_LICENSES=(
     CC0-1.0
     ISC
     MIT
+    Unicode-DFS-2016
     Unlicense
     "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
 )
@@ -30,14 +31,6 @@ NO_LICENSE=(
     # See https://gitlab.torproject.org/tpo/core/arti/-/issues/493 for
     # our related ticket.
     ring
-    # License appears to be "Apache-2.0 OR MIT" but not so specified
-    # in file.  (Its LICENSE file, as coped from the rest of icu4x, is
-    # more like "(Apache-2.0 OR MIT) AND Sort of (Unicode AND ICU) but
-    # only if we used that code."
-    #
-    # See https://github.com/unicode-org/icu4x/issues/1358 for their
-    # attempts to fix that.
-    tinystr
     # License appears to be ISC.
     webpki
 )
