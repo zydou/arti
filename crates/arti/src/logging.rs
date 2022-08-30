@@ -275,6 +275,7 @@ pub(crate) struct LogGuards {
 /// Note that the returned LogGuard must be dropped precisely when the program
 /// quits; they're used to ensure that all the log messages are flushed.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 pub(crate) fn setup_logging(
     config: &LoggingConfig,
     mistrust: &Mistrust,
