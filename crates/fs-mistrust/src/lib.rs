@@ -911,6 +911,7 @@ mod test {
         // TODO: Possibly, make sure that a special file matches neither.
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn readable_ok() {
         let d = Dir::new();
@@ -941,6 +942,7 @@ mod test {
             .unwrap();
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn multiple_errors() {
         let d = Dir::new();
@@ -1071,6 +1073,7 @@ mod test {
         m.make_directory(d.path("a/b/c/d")).unwrap();
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn check_contents() {
         let d = Dir::new();
