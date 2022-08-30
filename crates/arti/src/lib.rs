@@ -171,9 +171,9 @@ pub mod exit;
 #[cfg(feature = "experimental-api")]
 pub mod process;
 #[cfg(feature = "experimental-api")]
-pub mod socks;
+pub mod reload_cfg;
 #[cfg(feature = "experimental-api")]
-pub mod watch_cfg;
+pub mod socks;
 
 #[cfg(all(not(feature = "experimental-api"), feature = "dns-proxy"))]
 mod dns;
@@ -182,9 +182,9 @@ mod exit;
 #[cfg(not(feature = "experimental-api"))]
 mod process;
 #[cfg(not(feature = "experimental-api"))]
-mod socks;
+mod reload_cfg;
 #[cfg(not(feature = "experimental-api"))]
-mod watch_cfg;
+mod socks;
 
 use std::fmt::Write;
 
@@ -262,9 +262,7 @@ async fn run<R: Runtime>(
         .config(client_config)
         .bootstrap_behavior(OnDemand);
     let client = client_builder.create_unbootstrapped()?;
-    if arti_config.application().watch_configuration {
-        watch_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
-    }
+    reload_cfg::watch_for_config_changes(config_sources, arti_config, client.clone())?;
 
     let mut proxy: Vec<PinnedFuture<(Result<()>, &str)>> = Vec::new();
     if socks_port != 0 {

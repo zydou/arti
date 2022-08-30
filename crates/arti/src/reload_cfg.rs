@@ -1,9 +1,8 @@
 //! Code to watch configuration files for any changes.
 
 use std::collections::HashSet;
-use std::iter;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::channel as std_channel;
+use std::sync::mpsc::{channel as std_channel, Sender};
 use std::time::Duration;
 
 use arti_client::config::Reconfigure;
@@ -13,62 +12,83 @@ use tor_config::{sources::FoundConfigFiles, ConfigurationSource, ConfigurationSo
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, warn};
 
+use futures::task::SpawnExt;
+
+use crate::process::sighup_stream;
 use crate::{ArtiCombinedConfig, ArtiConfig};
 
 /// How long to wait after a file is created, before we try to read it.
 const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
-/// Find the configuration files and prepare a watcher
-///
-/// For the watching to be reliably effective (race-free), the config must be read
-/// *after* this point, using the returned `FoundConfigFiles`.
-fn prepare_watcher(
-    sources: &ConfigurationSources,
-) -> anyhow::Result<(FileWatcher, FoundConfigFiles)> {
-    let mut watcher = FileWatcher::new(DEBOUNCE_INTERVAL)?;
-    let sources = sources.scan()?;
-    for source in sources.iter() {
-        match source {
-            ConfigurationSource::Dir(dir) => watcher.watch_dir(dir)?,
-            ConfigurationSource::File(file) => watcher.watch_file(file)?,
+/// Unwrap first expression or break with the provided error message
+macro_rules! ok_or_break {
+    ($e:expr, $msg:expr $(,)?) => {
+        match ($e) {
+            Ok(y) => y,
+            Err(e) => {
+                error!($msg, e);
+                break;
+            }
         }
-    }
-    Ok((watcher, sources))
+    };
 }
 
-/// Launch a thread to watch our configuration files.
+/// Launch a thread to reload our configuration files.
 ///
-/// Whenever one or more files in `files` changes, try to reload our
-/// configuration from them and tell TorClient about it.
+/// If current configuration requires it, watch for changes in `sources`
+/// and try to reload our configuration. On unix platforms, also watch
+/// for SIGHUP and reload configuration then.
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
 pub(crate) fn watch_for_config_changes<R: Runtime>(
     sources: ConfigurationSources,
     original: ArtiConfig,
     client: TorClient<R>,
 ) -> anyhow::Result<()> {
-    let (mut watcher, found_files) = prepare_watcher(&sources)?;
+    let watch_file = original.application().watch_configuration;
 
-    // If watching, we must reload the config once right away, because
-    // we have set up the watcher *after* loading it the first time.
-    //
-    // That means we safely drop the found_files without races, since we're going to rescan.
-    drop(found_files);
-    let mut first_reload = iter::once(notify::DebouncedEvent::Rescan);
+    let (tx, rx) = std_channel();
+    let mut watcher = if watch_file {
+        // If watching, we must reload the config once right away, because
+        // we have set up the watcher *after* loading the config.
+        // ignore send error, rx can't be disconnected if we are here
+        let _ = tx.send(notify::DebouncedEvent::Rescan);
+        let (watcher, _) = FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources)?;
+        Some(watcher)
+    } else {
+        None
+    };
+
+    #[cfg(target_family = "unix")]
+    {
+        use futures::StreamExt;
+
+        let mut sighup_stream = sighup_stream()?;
+        let tx = tx.clone();
+        client.runtime().spawn(async move {
+            while let Some(()) = sighup_stream.next().await {
+                info!("Received SIGHUP");
+                if tx.send(notify::DebouncedEvent::Rescan).is_err() {
+                    warn!("Failed to reload configuration");
+                    break;
+                }
+            }
+        })?;
+    }
 
     std::thread::spawn(move || {
         // TODO: If someday we make this facility available outside of the
         // `arti` application, we probably don't want to have this thread own
         // the FileWatcher.
         debug!("Entering FS event loop");
-        while let Some(event) = first_reload.next().or_else(|| watcher.rx().recv().ok()) {
-            if !watcher.event_matched(&event) {
+        while let Ok(event) = rx.recv() {
+            if !watcher.as_ref().map_or(true, |w| w.event_matched(&event)) {
                 // NOTE: Sadly, it's not safe to log in this case.  If the user
                 // has put a configuration file and a logfile in the same
                 // directory, logging about discarded events will make us log
                 // every time we log, and fill up the filesystem.
                 continue;
             }
-            while let Ok(_ignore) = watcher.rx().try_recv() {
+            while let Ok(_ignore) = rx.try_recv() {
                 // Discard other events, so that we only reload once.
                 //
                 // We can afford to treat both error cases from try_recv [Empty
@@ -78,23 +98,34 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
             }
             debug!("FS event {:?}: reloading configuration.", event);
 
-            let (new_watcher, found_files) = match prepare_watcher(&sources) {
-                Ok(y) => y,
-                Err(e) => {
-                    error!(
-                        "FS watch: failed to rescan config and re-establish watch: {}",
-                        e
-                    );
-                    break;
-                }
+            let found_files = if watcher.is_some() {
+                let (new_watcher, found_files) = ok_or_break!(
+                    FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                );
+                watcher = Some(new_watcher);
+                found_files
+            } else {
+                ok_or_break!(sources.scan(), "FS watch: failed to rescan config: {}",)
             };
-            watcher = new_watcher;
 
             match reconfigure(found_files, &original, &client) {
-                Ok(exit) => {
+                Ok(watch) => {
                     info!("Successfully reloaded configuration.");
-                    if exit {
-                        break;
+                    if watch && watcher.is_none() {
+                        info!("Starting watching over configuration.");
+                        // If watching, we must reload the config once right away, because
+                        // we have set up the watcher *after* loading the config.
+                        // ignore send error, rx can't be disconnected if we are here
+                        let _ = tx.send(notify::DebouncedEvent::Rescan);
+                        let (new_watcher, _) = ok_or_break!(
+                            FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
+                            "FS watch: failed to rescan config and re-establish watch: {}",
+                        );
+                        watcher = Some(new_watcher);
+                    } else if !watch && watcher.is_some() {
+                        info!("Stopped watching over configuration.");
+                        watcher = None;
                     }
                 }
                 Err(e) => warn!("Couldn't reload configuration: {}", e),
@@ -113,7 +144,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
 /// Reload the configuration files, apply the runtime configuration, and
 /// reconfigure the client as much as we can.
 ///
-/// Return true if we should stop watching for configuration changes.
+/// Return true if we should be watching for configuration changes.
 fn reconfigure<R: Runtime>(
     found_files: FoundConfigFiles<'_>,
     original: &ArtiConfig,
@@ -137,11 +168,7 @@ fn reconfigure<R: Runtime>(
         crate::process::enable_process_hardening()?;
     }
 
-    if !config.application().watch_configuration {
-        // Stop watching for configuration changes.
-        return Ok(true);
-    }
-    Ok(false)
+    Ok(config.application().watch_configuration)
 }
 
 /// A wrapper around `notify::RecommendedWatcher` to watch a set of parent
@@ -165,8 +192,6 @@ fn reconfigure<R: Runtime>(
 /// to mess around with `std::sync::mpsc` and filter out the events they want
 /// using `FileWatcher::event_matched`.
 struct FileWatcher {
-    /// The channel we receive events on
-    rx: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
     /// An underlying `notify` watcher that tells us about directory changes.
     watcher: notify::RecommendedWatcher,
     /// The list of directories that we're currently watching.
@@ -177,20 +202,40 @@ struct FileWatcher {
 
 impl FileWatcher {
     /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(interval: Duration) -> anyhow::Result<Self> {
-        let (tx, rx) = std_channel();
+    fn new(tx: Sender<notify::DebouncedEvent>, interval: Duration) -> anyhow::Result<Self> {
         let watcher = notify::watcher(tx, interval)?;
         Ok(Self {
-            rx,
             watcher,
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
         })
     }
 
-    /// Access the channel - use for receiving events
-    fn rx(&self) -> &std::sync::mpsc::Receiver<notify::DebouncedEvent> {
-        &self.rx
+    /// Create a FileWatcher already watching files in `sources`
+    fn new_prepared(
+        tx: Sender<notify::DebouncedEvent>,
+        interval: Duration,
+        sources: &ConfigurationSources,
+    ) -> anyhow::Result<(Self, FoundConfigFiles)> {
+        Self::new(tx, interval).and_then(|mut this| this.prepare(sources).map(|cfg| (this, cfg)))
+    }
+
+    /// Find the configuration files and prepare the watcher
+    ///
+    /// For the watching to be reliably effective (race-free), the config must be read
+    /// *after* this point, using the returned `FoundConfigFiles`.
+    fn prepare<'a>(
+        &mut self,
+        sources: &'a ConfigurationSources,
+    ) -> anyhow::Result<FoundConfigFiles<'a>> {
+        let sources = sources.scan()?;
+        for source in sources.iter() {
+            match source {
+                ConfigurationSource::Dir(dir) => self.watch_dir(dir)?,
+                ConfigurationSource::File(file) => self.watch_file(file)?,
+            }
+        }
+        Ok(sources)
     }
 
     /// Watch a single file (not a directory).

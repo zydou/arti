@@ -75,3 +75,25 @@ fn running_as_root() -> bool {
     #[cfg(not(target_family = "unix"))]
     false
 }
+
+/// Return an async stream that reports an event whenever we get a `SIGHUP`
+/// signal.
+///
+/// Note that the signal-handling backend can coalesce signals; this is normal.
+pub(crate) fn sighup_stream() -> crate::Result<impl futures::Stream<Item = ()>> {
+    cfg_if::cfg_if! {
+        if #[cfg(all(feature="tokio", target_family = "unix"))] {
+            use tokio_crate::signal::unix as s;
+            let mut signal = s::signal(s::SignalKind::hangup())?;
+            Ok(futures::stream::poll_fn(move |ctx| signal.poll_recv(ctx)))
+        } else if #[cfg(all(feature="async-std", target_family = "unix"))] {
+            use signal_hook_async_std as s;
+            use futures::stream::StreamExt as _;
+            let mut signal = s::Signals::new(&[s::consts::signals::SIGHUP])?;
+            Ok(signals.map(|i| i*2))
+        } else {
+            // Not unix or no backend, so we won't ever get a SIGHUP.
+            Ok(futures::stream::pending())
+        }
+    }
+}
