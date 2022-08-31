@@ -54,6 +54,10 @@ example see [`arti_defaults.toml`](./arti_defaults.toml).
   (default)
 * `journald` -- Build with support for logging to the `journald` logging
   backend (available as part of systemd.)
+* `dns-proxy` (default) -- Build with support for proxying certain simple
+  DNS queries over the Tor network.
+* `harden` (default) -- Build with support for hardening the Arti process by
+  disabling debugger attachment and other local memory-inspection vectors.
 
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental
@@ -90,11 +94,18 @@ implementation with another.
 ### Experimental features
 
  Note that the APIs enabled by these features are NOT covered by semantic
- versioning guarantees: we might break them or remove them between patch
+ versioning[^1] guarantees: we might break them or remove them between patch
  versions.
 
+* `experimental-api` -- build with experimental, unstable API support.
+   (Right now, most APIs in the `arti` crate are experimental, since this
+   crate was originally written to run as a binary only.)
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.
+
+[^1]: Remember, semantic versioning is what makes various `cargo` features
+work reliably. To be explicit, if you want `cargo update` to _only_ make
+correct changes, then you cannot enable these features.
 
 ## Limitations
 
