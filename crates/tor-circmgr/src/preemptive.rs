@@ -167,9 +167,10 @@ mod test {
         cfg.set_initial_predicted_ports(vec![]);
         cfg.prediction_lifetime(Duration::from_secs(2));
         let mut predictor = PreemptiveCircuitPredictor::new(cfg.build().unwrap());
-        let more_than_an_hour_ago = Instant::now() - Duration::from_secs(60 * 60 + 1);
+        let now = Instant::now();
+        let three_seconds_ago = now - Duration::from_secs(2 + 1);
 
-        predictor.note_usage(Some(TargetPort::ipv4(2345)), more_than_an_hour_ago);
+        predictor.note_usage(Some(TargetPort::ipv4(2345)), three_seconds_ago);
 
         assert_isoleq!(
             predictor.predict(),
