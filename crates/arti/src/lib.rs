@@ -246,6 +246,7 @@ fn list_enabled_features() -> &'static [&'static str] {
 ///
 /// Currently, might panic if things go badly enough wrong
 #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
 async fn run<R: Runtime>(
     runtime: R,
     socks_port: u16,
