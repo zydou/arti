@@ -6,11 +6,20 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.0.0 — 1 September 2022
 
-Arti 1.0.0: SERIOUS BLURB HERE. XXXX
-
-(These notes summarize changes in all crates since Arti 0.6.0.)
-
 XXXX This is up-to-date as of 77cb5acceb39d7fc0e67693c55619b43923c6cea
+
+
+Arti 1.0.0 adds a final set of security features, clears up some
+portability bugs, and addresses numerous other issues.
+
+With this release, we are now ready to declare Arti *stable*: we are
+relatively confident that Arti has the security features that it
+needs for usage via the `arti` command-line proxy, or embedding via
+the `arti-client` API.
+
+In our next releases, we will focus on adding anticensorship
+features similar to C tor, including support for connecting via
+bridges and pluggable transports.
 
 
 ### Breaking changes
