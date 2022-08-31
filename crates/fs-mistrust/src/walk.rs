@@ -206,7 +206,6 @@ impl ResolvePath {
     /// ended with an error), we return the part that we were able to resolve,
     /// and a path that would need to be joined onto it to reach the intended
     /// destination.
-    #[cfg(test)]
     pub(crate) fn into_result(self) -> (PathBuf, Option<PathBuf>) {
         let remainder = if self.stack.is_empty() {
             None

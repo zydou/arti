@@ -1230,6 +1230,7 @@ dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
  "derive_more",
+ "dirs",
  "educe",
  "libc",
  "once_cell",

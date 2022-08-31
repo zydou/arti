@@ -11,12 +11,16 @@ categories = ["filesystem"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["walkdir"]
+default = ["walkdir", "anon_home"]
+
+anon_home = ["once_cell", "dirs"]
 
 [dependencies]
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive_more = "0.99"
+dirs = { version = "4", optional = true }
 educe = "0.4.6"
+once_cell = { version = "1", optional = true }
 serde = { version = "1.0.103", features = ["derive"], optional = true }
 thiserror = "1"
 walkdir = { version = "2", optional = true }

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::DocSource;
+use fs_mistrust::anon_home::PathExt as _;
 use futures::task::SpawnError;
 use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
@@ -53,7 +54,7 @@ pub enum Error {
     #[error("Unable to access lock file")]
     LockFile(Arc<std::io::Error>),
     /// Error while accessing a file in the store.
-    #[error("Error while {action} cache file {}", fname.display())]
+    #[error("Error while {action} cache file {}", fname.anonymize_home())]
     CacheFile {
         /// What we were doing when we encountered the error.
         action: &'static str,

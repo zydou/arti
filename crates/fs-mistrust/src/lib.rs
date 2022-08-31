@@ -292,6 +292,8 @@ mod imp;
 ))]
 mod user;
 
+#[cfg(feature = "anon_home")]
+pub mod anon_home;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod walk;
