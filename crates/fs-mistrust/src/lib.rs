@@ -117,8 +117,9 @@
 //! let my_mistrust = Mistrust::builder()
 //!     // Assume that our home directory and its parents are all well-configured.
 //!     .ignore_prefix("/home/doze/")
-//!     // Assume that a given group will only contain trusted users.
-//!     .trust_group(413)
+//!     // Assume that a given group will only contain trusted users (this feature is only
+//!     // available on Unix-like platforms).
+//!     // .trust_group(413)
 //!     .build()?;
 //! # Ok(())
 //! # }
@@ -911,6 +912,7 @@ mod test {
         // TODO: Possibly, make sure that a special file matches neither.
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn readable_ok() {
         let d = Dir::new();
@@ -941,6 +943,7 @@ mod test {
             .unwrap();
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn multiple_errors() {
         let d = Dir::new();
@@ -1071,6 +1074,7 @@ mod test {
         m.make_directory(d.path("a/b/c/d")).unwrap();
     }
 
+    #[cfg(target_family = "unix")]
     #[test]
     fn check_contents() {
         let d = Dir::new();
