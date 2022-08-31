@@ -118,11 +118,12 @@ mod test {
     }
 
     fn check_with_home(homedir: &Path) {
-        let arti_conf = homedir.join("here/is/a/path");
+        let arti_conf = homedir.join("here").join("is").join("a").join("path");
+
         #[cfg(target_family = "windows")]
         assert_eq!(
-            arti_conf.compact_home().to_string(),
-            "%UserProfile%\\here/is/a/path"
+            arti_conf.anonymize_home().to_string(),
+            "%UserProfile%\\here\\is\\a\\path"
         );
 
         #[cfg(not(target_family = "windows"))]
