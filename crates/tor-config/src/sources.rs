@@ -390,7 +390,7 @@ fn is_syntactically_directory(p: &Path) -> bool {
     }
 }
 
-/// Convert an error `E` into a [`ConfigError`](crate::ConfigErr).
+/// Convert an error `E` into a [`ConfigError`](crate::ConfigError).
 fn foreign_err<E>(err: E) -> crate::ConfigError
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
