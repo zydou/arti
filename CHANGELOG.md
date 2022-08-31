@@ -1,8 +1,7 @@
 ### Notes
 
 This file describes changes in Arti through the current release.  Once Arti
-is more mature, we may
-switch to using a separate changelog for each crate.
+is more mature, we may switch to using a separate changelog for each crate.
 
 
 # Arti 1.0.0 — 1 September 2022
@@ -11,7 +10,8 @@ Arti 1.0.0: SERIOUS BLURB HERE. XXXX
 
 (These notes summarize changes in all crates since Arti 0.6.0.)
 
-XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
+XXXX This is up-to-date as of 77cb5acceb39d7fc0e67693c55619b43923c6cea
+
 
 ### Breaking changes
 
@@ -53,6 +53,8 @@ XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
 - We now support having an `arti.d` directory full of `.toml`
   configuration files, to be read in sorted order. ([#271], [#474],
   [#544], [!682], [!697])
+- On Unix-like platforms, we now reload our configuration file when we
+  receive a `HUP` signal.  ([#316], [!702])
 
 ### Major bugfixes
 
@@ -65,11 +67,13 @@ XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
 
 - The `check_licenses` tool now works with the latest version of
   `cargo-license`. ([!674])
+- Our continuous integration configuration now has support for building and
+  testing Arti on Windows. ([#450], [!705])
 
 ### Documentation
 
 - Our documentation is now much more careful about listing which Cargo
-  features are required for any optional items. ([#541], [!681])
+  features are required for any optional items. ([#541], [!681], [!706])
 - Better documentation about our API stability and overall
   design. ([#522], [#531])
 - Better documentation on the `DONE` stream-close condition. ([!677])
@@ -108,7 +112,13 @@ XXXX This is up-to-date as of 35c2a5dc62ec5e93a4aa65eefeeb409a246b7a00
   you can't say `"C:\Users"`; you have to escape it as `"C:\\Users"`.
   We now try to explain this.) ([#549], [!695])
 - Improve reliability of a `fs-mistrust` test. ([!699])
-
+- Various tests have been adjusted to work on Windows, or disabled on Windows
+  because they were checking for Unix-only features.  ([#450], [#557],
+  [!696], [!701])
+- When displaying filenames in logs or error messages, we try to
+  replace the user's home directory with `${HOME}` or `%UserProfile%` as
+  appropriate, to reduce the frequency with which the username appears
+  in the logs. ([#555], [!700])
 
 ### Testing
 
