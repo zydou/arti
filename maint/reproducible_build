@@ -12,6 +12,9 @@ if [ $# -eq 0 ]; then
 	echo usage : "$0" '<linux|windows|macos...>'
 	exit 1
 fi
+
+: "${CARGO:=cargo}" # quotes are just to placate shellcheck
+
 linux=""
 windows=""
 macos=""
@@ -48,7 +51,7 @@ mkdir -p /dev/shm/registry /usr/local/cargo/registry
 ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
 cargo_build () {
-	cargo build "$@"
+	$CARGO build "$@"
 }
 cargo_build_arti () {
 	cargo_build -p arti --release --features static "$@"
