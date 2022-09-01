@@ -33,6 +33,21 @@ macro_rules! ok_or_break {
     };
 }
 
+/// Generate a rescan FS event
+// TODO this function should be removed during a future refactoring; see #562
+#[allow(clippy::unnecessary_wraps)]
+fn rescan_event() -> notify::Result<notify::Event> {
+    use notify::event::{EventAttributes, EventKind, Flag};
+
+    let mut attrs = EventAttributes::default();
+    attrs.set_flag(Flag::Rescan);
+    Ok(notify::Event {
+        kind: EventKind::Other,
+        paths: Vec::new(),
+        attrs,
+    })
+}
+
 /// Launch a thread to reload our configuration files.
 ///
 /// If current configuration requires it, watch for changes in `sources`
@@ -51,7 +66,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // If watching, we must reload the config once right away, because
         // we have set up the watcher *after* loading the config.
         // ignore send error, rx can't be disconnected if we are here
-        let _ = tx.send(notify::DebouncedEvent::Rescan);
+        let _ = tx.send(rescan_event());
         let (watcher, _) = FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources)?;
         Some(watcher)
     } else {
@@ -67,7 +82,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         client.runtime().spawn(async move {
             while let Some(()) = sighup_stream.next().await {
                 info!("Received SIGHUP");
-                if tx.send(notify::DebouncedEvent::Rescan).is_err() {
+                if tx.send(rescan_event()).is_err() {
                     warn!("Failed to reload configuration");
                     break;
                 }
@@ -117,7 +132,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                         // If watching, we must reload the config once right away, because
                         // we have set up the watcher *after* loading the config.
                         // ignore send error, rx can't be disconnected if we are here
-                        let _ = tx.send(notify::DebouncedEvent::Rescan);
+                        let _ = tx.send(rescan_event());
                         let (new_watcher, _) = ok_or_break!(
                             FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
                             "FS watch: failed to rescan config and re-establish watch: {}",
@@ -202,8 +217,11 @@ struct FileWatcher {
 
 impl FileWatcher {
     /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(tx: Sender<notify::DebouncedEvent>, interval: Duration) -> anyhow::Result<Self> {
-        let watcher = notify::watcher(tx, interval)?;
+    fn new(tx: Sender<notify::Result<notify::Event>>, interval: Duration) -> anyhow::Result<Self> {
+        let watcher = notify::RecommendedWatcher::new(
+            tx,
+            notify::Config::default().with_poll_interval(interval),
+        )?;
         Ok(Self {
             watcher,
             watching_dirs: HashSet::new(),
@@ -213,7 +231,7 @@ impl FileWatcher {
 
     /// Create a FileWatcher already watching files in `sources`
     fn new_prepared(
-        tx: Sender<notify::DebouncedEvent>,
+        tx: Sender<notify::Result<notify::Event>>,
         interval: Duration,
         sources: &ConfigurationSources,
     ) -> anyhow::Result<(Self, FoundConfigFiles)> {
@@ -306,25 +324,12 @@ impl FileWatcher {
 
     /// Return true if the provided event describes a change affecting one of
     /// the files that we care about.
-    fn event_matched(&self, event: &notify::DebouncedEvent) -> bool {
-        let watching = |f: &_| self.watching_files.contains(f);
-        let watching_or_parent =
-            |f: &Path| watching(f) || f.parent().map(watching).unwrap_or(false);
+    fn event_matched(&self, event: &notify::Result<notify::Event>) -> bool {
+        let watching = |f| self.watching_files.contains(f);
 
         match event {
-            notify::DebouncedEvent::NoticeWrite(f) => watching(f),
-            notify::DebouncedEvent::NoticeRemove(f) => watching(f),
-            notify::DebouncedEvent::Create(f) => watching_or_parent(f),
-            notify::DebouncedEvent::Write(f) => watching(f),
-            notify::DebouncedEvent::Chmod(f) => watching(f),
-            notify::DebouncedEvent::Remove(f) => watching(f),
-            notify::DebouncedEvent::Rename(f1, f2) => watching(f1) || watching_or_parent(f2),
-            notify::DebouncedEvent::Rescan => {
-                // We've missed some events: no choice but to reload.
-                true
-            }
-            notify::DebouncedEvent::Error(_, Some(f)) => watching(f),
-            notify::DebouncedEvent::Error(_, _) => false,
+            Ok(event) => event.need_rescan() || event.paths.iter().any(watching),
+            Err(error) => error.paths.iter().any(watching),
         }
     }
 }
