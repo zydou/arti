@@ -95,8 +95,8 @@ bridges and pluggable transports.
   tools. ([#381], [!645])
 - Backend support for some cell types that we'll need down the road when
   we implement onion services. ([!651], [!648])
-- Switch to a new version of [`shellexpand`], with better support for
-  filesystems with non-UTF8 paths. ([!661])
+- Switch to the once-again-maintained main branch of [`shellexpand`].
+  ([!661])
 - Use less storage on disk for descriptors, by expiring them more
   aggressively. ([#527], [!669])
 - Backend support for RTT estimation, as needed for congestion-based
