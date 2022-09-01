@@ -134,6 +134,13 @@ bridges and pluggable transports.
 
 ### Acknowledgments
 
+Thanks to everyone who has contributed to this release, including
+Alexander Færøy, Arturo Marquez, Dimitris Apostolou, Emptycup, FAMASoon,
+Trinity Pointard, and Yuan Lyu.
+
+Also, our deep thanks to [Zcash Community Grants] for funding the development
+of Arti 1.0.0!
+
 [!525]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/525
 [!602]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/602
 [!644]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/644
@@ -208,6 +215,7 @@ bridges and pluggable transports.
 [`shellexpand`]: https://crates.io/crates/shellexpand
 [`zeroize`]: https://crates.io/crates/zeroize
 [netflow logs]: https://en.wikipedia.org/wiki/NetFlow
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
 
 
 
