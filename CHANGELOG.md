@@ -64,8 +64,9 @@ bridges and pluggable transports.
 
 ### Major bugfixes
 
-- Numerous fixes to our [`fs-mistrust`] crate Andoid and iOS, including
-  some that prevented it from building or working correctly. ([!667])
+- Numerous fixes to our [`fs-mistrust`] crate for Android and iOS,
+  including some that prevented it from building or working correctly.
+  ([!667])
 - The [`fs-mistrust`] crate now handles Windows prefixes correctly.
   Previously, it would try to read `C:`, and fail. ([!698])
 
