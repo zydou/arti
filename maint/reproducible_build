@@ -51,7 +51,7 @@ mkdir -p /dev/shm/registry /usr/local/cargo/registry
 ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
 cargo_build () {
-	$CARGO build "$@"
+	$CARGO build --locked "$@"
 }
 cargo_build_arti () {
 	cargo_build -p arti --release --features static "$@"
