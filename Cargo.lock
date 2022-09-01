@@ -80,7 +80,7 @@ checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
 
 [[package]]
 name = "arti"
-version = "0.6.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "arti",
@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
@@ -188,7 +188,7 @@ version = "0.4.2"
 
 [[package]]
 name = "arti-hyper"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "arti",
@@ -1226,7 +1226,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
@@ -3435,7 +3435,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.3.3"
+version = "0.4.0"
 dependencies = [
  "derive_more",
  "educe",
@@ -3454,7 +3454,7 @@ dependencies = [
 
 [[package]]
 name = "tor-bytes"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "arrayref",
  "bytes",
@@ -3472,7 +3472,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cell"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "arrayref",
  "bitflags",
@@ -3511,7 +3511,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -3554,7 +3554,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "bounded-vec-deque",
@@ -3593,7 +3593,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "config",
  "derive_builder_fork_arti",
@@ -3670,7 +3670,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -3743,7 +3743,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64",
  "derive_builder_fork_arti",
@@ -3777,7 +3777,7 @@ dependencies = [
 
 [[package]]
 name = "tor-linkspec"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64ct",
  "derive_more",
@@ -3793,7 +3793,7 @@ dependencies = [
 
 [[package]]
 name = "tor-llcrypto"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "aes",
  "arrayref",
@@ -3828,7 +3828,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bitflags",
  "derive_builder_fork_arti",
@@ -3857,7 +3857,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdoc"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64ct",
  "bitflags",
@@ -3890,7 +3890,7 @@ dependencies = [
 
 [[package]]
 name = "tor-persist"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "derive_more",
  "fs-mistrust",
@@ -3906,7 +3906,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "arrayref",
  "asynchronous-codec",
@@ -3960,7 +3960,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-io",
  "async-native-tls",
@@ -3980,7 +3980,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "futures",

@@ -30,19 +30,19 @@ httpdate = "1.0"
 itertools = "0.10.1"
 memchr = "2"
 thiserror = "1"
-tor-circmgr = { path = "../tor-circmgr", version = "0.4.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.4.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.3" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.5.0" }
-tor-proto = { path = "../tor-proto", version = "0.5.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.5.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.4" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.5.1" }
+tor-proto = { path = "../tor-proto", version = "0.6.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0" }
 tracing = "0.1.18"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.5.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.4.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.5.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
