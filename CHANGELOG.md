@@ -64,8 +64,9 @@ bridges and pluggable transports.
 
 ### Major bugfixes
 
-- Numerous fixes to our [`fs-mistrust`] crate Andoid and iOS, including
-  some that prevented it from building or working correctly. ([!667])
+- Numerous fixes to our [`fs-mistrust`] crate for Android and iOS,
+  including some that prevented it from building or working correctly.
+  ([!667])
 - The [`fs-mistrust`] crate now handles Windows prefixes correctly.
   Previously, it would try to read `C:`, and fail. ([!698])
 
@@ -94,8 +95,8 @@ bridges and pluggable transports.
   tools. ([#381], [!645])
 - Backend support for some cell types that we'll need down the road when
   we implement onion services. ([!651], [!648])
-- Switch to a new version of [`shellexpand`], with better support for
-  filesystems with non-UTF8 paths. ([!661])
+- Switch to the once-again-maintained main branch of [`shellexpand`].
+  ([!661])
 - Use less storage on disk for descriptors, by expiring them more
   aggressively. ([#527], [!669])
 - Backend support for RTT estimation, as needed for congestion-based
