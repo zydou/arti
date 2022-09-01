@@ -6,9 +6,6 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.0.0 — 1 September 2022
 
-XXXX This is up-to-date as of 77cb5acceb39d7fc0e67693c55619b43923c6cea
-
-
 Arti 1.0.0 adds a final set of security features, clears up some
 portability bugs, and addresses numerous other issues.
 
@@ -136,6 +133,80 @@ bridges and pluggable transports.
 
 ### Acknowledgments
 
+[!525]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/525
+[!602]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/602
+[!644]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/644
+[!645]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/645
+[!648]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/648
+[!651]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/651
+[!655]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/655
+[!657]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/657
+[!658]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/658
+[!661]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/661
+[!662]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/662
+[!664]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/664
+[!667]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/667
+[!669]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/669
+[!672]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/672
+[!674]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/674
+[!675]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/675
+[!676]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/676
+[!677]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/677
+[!681]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/681
+[!682]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/682
+[!684]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/684
+[!687]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/687
+[!688]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/688
+[!689]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/689
+[!691]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/691
+[!692]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/692
+[!693]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/693
+[!695]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/695
+[!696]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/696
+[!697]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/697
+[!698]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/698
+[!699]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/699
+[!700]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/700
+[!701]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/701
+[!702]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/702
+[!705]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/705
+[!706]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/706
+[#62]: https://gitlab.torproject.org/tpo/core/arti/-/issues/62
+[#254]: https://gitlab.torproject.org/tpo/core/arti/-/issues/254
+[#271]: https://gitlab.torproject.org/tpo/core/arti/-/issues/271
+[#316]: https://gitlab.torproject.org/tpo/core/arti/-/issues/316
+[#364]: https://gitlab.torproject.org/tpo/core/arti/-/issues/364
+[#381]: https://gitlab.torproject.org/tpo/core/arti/-/issues/381
+[#428]: https://gitlab.torproject.org/tpo/core/arti/-/issues/428
+[#450]: https://gitlab.torproject.org/tpo/core/arti/-/issues/450
+[#474]: https://gitlab.torproject.org/tpo/core/arti/-/issues/474
+[#502]: https://gitlab.torproject.org/tpo/core/arti/-/issues/502
+[#515]: https://gitlab.torproject.org/tpo/core/arti/-/issues/515
+[#517]: https://gitlab.torproject.org/tpo/core/arti/-/issues/517
+[#522]: https://gitlab.torproject.org/tpo/core/arti/-/issues/522
+[#523]: https://gitlab.torproject.org/tpo/core/arti/-/issues/523
+[#527]: https://gitlab.torproject.org/tpo/core/arti/-/issues/527
+[#528]: https://gitlab.torproject.org/tpo/core/arti/-/issues/528
+[#530]: https://gitlab.torproject.org/tpo/core/arti/-/issues/530
+[#531]: https://gitlab.torproject.org/tpo/core/arti/-/issues/531
+[#532]: https://gitlab.torproject.org/tpo/core/arti/-/issues/532
+[#541]: https://gitlab.torproject.org/tpo/core/arti/-/issues/541
+[#544]: https://gitlab.torproject.org/tpo/core/arti/-/issues/544
+[#549]: https://gitlab.torproject.org/tpo/core/arti/-/issues/549
+[#555]: https://gitlab.torproject.org/tpo/core/arti/-/issues/555
+[#557]: https://gitlab.torproject.org/tpo/core/arti/-/issues/557
+[0f133de6b90e799d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/0f133de6b90e799d37fdcd9dc75f9f94acb6bb6c
+[a7bb3a73b4dfb0e8]: https://gitlab.torproject.org/tpo/core/arti/-/commit/a7bb3a73b4dfb0e8e0f36994de3d31389d4997b9
+[e8fcf2b0383f49a6]: https://gitlab.torproject.org/tpo/core/arti/-/commit/e8fcf2b0383f49a6d927cb094fdc00f766e82580
+[`NetDirProvider`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdir/trait.NetDirProvider.html
+[`arti-client`]: https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html
+[`arti`]: https://tpo.pages.torproject.net/core/doc/rust/arti/index.html
+[`fs-mistrust`]: https://tpo.pages.torproject.net/core/doc/rust/fs_mistrust/index.html
+[`safelog`]: https://tpo.pages.torproject.net/core/doc/rust/safelog/index.html
+[`secmem_proc`]: https://crates.io/crates/secmem-proc
+[`shellexpand`]: https://crates.io/crates/shellexpand
+[`zeroize`]: https://crates.io/crates/zeroize
+[netflow logs]: https://en.wikipedia.org/wiki/NetFlow
 
 
 
