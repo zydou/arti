@@ -107,52 +107,6 @@ link to your forked arti repository at:
 >
 >      https://gitlab.torproject.org/_name_/arti/-/merge_requests
 
-## Using Arti with Torbrowser
-
-A good first step to start hacking on arti might be to hook it up with your
-Tor Browser. Please note that arti is still a work in progress and hence you
-should assume that it **provides no security** at the moment.
-
-To do so, we will launch arti independently from Tor Browser. Build arti with
-`cargo build --release`.  After that launch it with some basic
-configuration parameters:
-
-    $ ./target/release/arti proxy -l debug -p 9150
-
-This will ensure that arti sets its SOCKS port on 9150. Now we need to launch
-Tor Browser and instruct it to use that SOCKS port.
-
-### Linux
-
-    $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 ./start-tor-browser.desktop
-
-### OS X
-
-    $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 /path/to/Tor\ Browser/Contents/MacOS/firefox
-
-### Windows
-
-Create a shortcut with the `Target` set to:
-
-    C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
-    
-and `Start in` set to:
-
-    "C:\path\to\Tor Browser\Browser"
-
-(You may need to adjust the actual path to wherever you have put your Tor
-Browser.)
-
-When you start Tor browser, it will give you a big red error page because
-Arti isn't offering it a control port interface.  But it will still work!
-Try [check.torproject.org](https://check.torproject.org/) to be sure.
-
-The resulting Tor Browser should be using arti.  Note that onion services
-won't work (Arti doesn't have them yet), and neither will any feature
-depending on Tor's control-port protocol.
-
-Enjoy hacking on arti!
-
 ## Where are some good places to start hacking?
 
 You might want to begin by looking around the
@@ -203,3 +157,5 @@ implementation.
 
 When building the docs with `cargo doc`, use `--all-features`, or you may
 find broken links.  (We welcome fixes to links broken with `--all-features`.)
+
+Enjoy hacking on arti!
