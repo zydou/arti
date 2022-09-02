@@ -1,15 +1,6 @@
 //! Types and functions to configure a Tor client.
 //!
 //! Some of these are re-exported from lower-level crates.
-//!
-//! # ⚠ Stability Warning ⚠
-//!
-//! The design of this structure, and of the configuration system for
-//! Arti, is likely to change significantly before the release of Arti
-//! 1.0.0. The layout of options within this structure is also likely
-//! to change. For more information see ticket [#285].
-//!
-//! [#285]: https://gitlab.torproject.org/tpo/core/arti/-/issues/285
 
 use derive_builder::Builder;
 use derive_more::AsRef;

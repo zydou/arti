@@ -12,18 +12,27 @@
 //! programs should use. Most of its functionality is provided by lower-level
 //! crates in Arti.
 //!
-//! ## ⚠ Warnings ⚠
+//! ## Shape of the API, and relationship to other crates
 //!
-//! Note that Arti is a work in progress; although we've tried to write all the
-//! critical security components, you probably shouldn't use Arti in production
-//! until it's a bit more mature.  (That said, now is a _great_ time to try our
-//! Arti on an experimental basis, so you can tell us what we need to fix
-//! between now and the 1.0.0 release.)
+//! The API here is great if you are building an application in async Rust
+//! and want your Tor connections as async streams (`AsyncRead`/`AsyncWrite`).
+//! If you are wanting to make HTTP requests,
+//! look at [arti_hyper](https://tpo.pages.torproject.net/core/doc/rust/arti_hyper/index.html)).
+//!
+//! If you are trying to glue Arti to some other programming language,
+//! right now your best bet is probably to spawn the
+//! [`arti` CLI](https://tpo.pages.torproject.net/core/doc/rust/arti/index.html)
+//! SOCKS proxy,
+//! as a subprocess.
+//! We don't yet offer an API that would be nice to expose via FFI;
+//! we intend to add this in the future.
+//!
+//! ## ⚠ Warnings ⚠
 //!
 //! Also note that the APIs for this crate are not all yet completely stable.
 //! We'll try not to break things without good reason, and we'll follow semantic
 //! versioning when we do, but please expect a certain amount of breakage
-//! between now and 1.0.0.
+//! between now and us declaring `arti-client` 1.x.
 //!
 //! The APIs exposed by lower-level crates in Arti are _even more unstable_;
 //! they will break more often than those from `arti-client`, for less reason.
