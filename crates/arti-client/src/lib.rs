@@ -24,7 +24,8 @@
 //! [`arti` CLI](https://tpo.pages.torproject.net/core/doc/rust/arti/index.html)
 //! SOCKS proxy,
 //! as a subprocess.
-//! We don't yet offer an API that would be nice to expose via FFI.
+//! We don't yet offer an API that would be nice to expose via FFI;
+//! we intend to add this in the future.
 //!
 //! ## ⚠ Warnings ⚠
 //!
