@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel as std_channel, Sender};
-use std::time::Duration;
 
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
@@ -16,9 +15,6 @@ use futures::task::SpawnExt;
 
 use crate::process::sighup_stream;
 use crate::{ArtiCombinedConfig, ArtiConfig};
-
-/// How long to wait after a file is created, before we try to read it.
-const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Unwrap first expression or break with the provided error message
 macro_rules! ok_or_break {
@@ -39,24 +35,9 @@ enum Event {
     /// SIGHUP has been received.
     SigHup,
     /// Some files may have been modified.
-    PathModified(Vec<PathBuf>),
+    FileChanged,
     /// Some filesystem events may have been missed.
     Rescan,
-}
-
-impl From<notify::Result<notify::Event>> for Event {
-    fn from(val: notify::Result<notify::Event>) -> Self {
-        match val {
-            Ok(e) => {
-                if e.need_rescan() {
-                    Event::Rescan
-                } else {
-                    Event::PathModified(e.paths)
-                }
-            }
-            Err(e) => Event::PathModified(e.paths),
-        }
-    }
 }
 
 /// Launch a thread to reload our configuration files.
@@ -78,8 +59,9 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // we have set up the watcher *after* loading the config.
         // ignore send error, rx can't be disconnected if we are here
         let _ = tx.send(Event::Rescan);
-        let (watcher, _) = FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources)?;
-        Some(watcher)
+        let mut watcher = FileWatcher::builder();
+        watcher.prepare(&sources)?;
+        Some(watcher.start_watching(tx.clone())?)
     } else {
         None
     };
@@ -107,13 +89,6 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // the FileWatcher.
         debug!("Entering FS event loop");
         while let Ok(event) = rx.recv() {
-            if !watcher.as_ref().map_or(true, |w| w.event_matched(&event)) {
-                // NOTE: Sadly, it's not safe to log in this case.  If the user
-                // has put a configuration file and a logfile in the same
-                // directory, logging about discarded events will make us log
-                // every time we log, and fill up the filesystem.
-                continue;
-            }
             while let Ok(_ignore) = rx.try_recv() {
                 // Discard other events, so that we only reload once.
                 //
@@ -125,8 +100,13 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
             debug!("FS event {:?}: reloading configuration.", event);
 
             let found_files = if watcher.is_some() {
-                let (new_watcher, found_files) = ok_or_break!(
-                    FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
+                let mut new_watcher = FileWatcher::builder();
+                let found_files = ok_or_break!(
+                    new_watcher.prepare(&sources),
+                    "FS watch: failed to rescan config and re-establish watch: {}",
+                );
+                let new_watcher = ok_or_break!(
+                    new_watcher.start_watching(tx.clone()),
                     "FS watch: failed to rescan config and re-establish watch: {}",
                 );
                 watcher = Some(new_watcher);
@@ -144,8 +124,13 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                         // we have set up the watcher *after* loading the config.
                         // ignore send error, rx can't be disconnected if we are here
                         let _ = tx.send(Event::Rescan);
-                        let (new_watcher, _) = ok_or_break!(
-                            FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
+                        let mut new_watcher = FileWatcher::builder();
+                        let _found_files = ok_or_break!(
+                            new_watcher.prepare(&sources),
+                            "FS watch: failed to rescan config and re-establish watch: {}",
+                        );
+                        let new_watcher = ok_or_break!(
+                            new_watcher.start_watching(tx.clone()),
                             "FS watch: failed to rescan config and re-establish watch: {}",
                         );
                         watcher = Some(new_watcher);
@@ -219,36 +204,33 @@ fn reconfigure<R: Runtime>(
 /// using `FileWatcher::event_matched`.
 struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
+    // this field is kept only so the watcher is not dropped
+    #[allow(dead_code)]
     watcher: notify::RecommendedWatcher,
+}
+
+impl FileWatcher {
+    /// Create a `FileWatcherBuilder`
+    fn builder() -> FileWatcherBuilder {
+        FileWatcherBuilder::new()
+    }
+}
+
+/// Builder used to configure a [`FileWatcher`] before it starts watching for changes.
+struct FileWatcherBuilder {
     /// The list of directories that we're currently watching.
     watching_dirs: HashSet<PathBuf>,
     /// The list of files we actually care about.
     watching_files: HashSet<PathBuf>,
 }
 
-impl FileWatcher {
-    /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(tx: Sender<Event>, interval: Duration) -> anyhow::Result<Self> {
-        let watcher = notify::RecommendedWatcher::new(
-            move |e: notify::Result<notify::Event>| {
-                let _ = tx.send(e.into());
-            },
-            notify::Config::default().with_poll_interval(interval),
-        )?;
-        Ok(Self {
-            watcher,
+impl FileWatcherBuilder {
+    /// Create a `FileWatcherBuilder`
+    fn new() -> Self {
+        FileWatcherBuilder {
             watching_dirs: HashSet::new(),
             watching_files: HashSet::new(),
-        })
-    }
-
-    /// Create a FileWatcher already watching files in `sources`
-    fn new_prepared(
-        tx: Sender<Event>,
-        interval: Duration,
-        sources: &ConfigurationSources,
-    ) -> anyhow::Result<(Self, FoundConfigFiles)> {
-        Self::new(tx, interval).and_then(|mut this| this.prepare(sources).map(|cfg| (this, cfg)))
+        }
     }
 
     /// Find the configuration files and prepare the watcher
@@ -282,7 +264,8 @@ impl FileWatcher {
     /// Idempotent.
     fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
         let path = self.watch_just_parents(path.as_ref())?;
-        self.watch_just_abs_dir(&path)
+        self.watch_just_abs_dir(&path);
+        Ok(())
     }
 
     /// Watch the parents of `path`.
@@ -311,7 +294,7 @@ impl FileWatcher {
             None => path.as_ref(),
         };
 
-        self.watch_just_abs_dir(watch_target)?;
+        self.watch_just_abs_dir(watch_target);
 
         // Note this file as one that we're watching, so that we can see changes
         // to it later on.
@@ -325,24 +308,44 @@ impl FileWatcher {
     /// Does not watch any of the parents.
     ///
     /// Idempotent.
-    fn watch_just_abs_dir(&mut self, watch_target: &Path) -> anyhow::Result<()> {
-        if !self.watching_dirs.contains(watch_target) {
-            self.watcher
-                .watch(watch_target, notify::RecursiveMode::NonRecursive)?;
-
-            self.watching_dirs.insert(watch_target.into());
-        }
-        Ok(())
+    fn watch_just_abs_dir(&mut self, watch_target: &Path) {
+        self.watching_dirs.insert(watch_target.into());
     }
 
-    /// Return true if the provided event describes a change affecting one of
-    /// the files that we care about.
-    fn event_matched(&self, event: &Event) -> bool {
-        let watching = |f| self.watching_files.contains(f);
+    /// Build a `FileWatcher` and start sending events to `tx`
+    fn start_watching(self, tx: Sender<Event>) -> anyhow::Result<FileWatcher> {
+        let event_sender = move |event: notify::Result<notify::Event>| {
+            let watching = |f| self.watching_files.contains(f);
+            // filter events we don't want and map to event code
+            let event = match event {
+                Ok(event) => {
+                    if event.need_rescan() {
+                        Some(Event::Rescan)
+                    } else if event.paths.iter().any(watching) {
+                        Some(Event::FileChanged)
+                    } else {
+                        None
+                    }
+                }
+                Err(error) => {
+                    if error.paths.iter().any(watching) {
+                        Some(Event::FileChanged)
+                    } else {
+                        None
+                    }
+                }
+            };
+            if let Some(event) = event {
+                let _ = tx.send(event);
+            };
+        };
 
-        match event {
-            Event::SigHup | Event::Rescan => true,
-            Event::PathModified(p) => p.iter().any(watching),
+        let mut watcher = notify::RecommendedWatcher::new(event_sender, notify::Config::default())?;
+
+        for dir in self.watching_dirs {
+            watcher.watch(&dir, notify::RecursiveMode::NonRecursive)?;
         }
+
+        Ok(FileWatcher { watcher })
     }
 }
