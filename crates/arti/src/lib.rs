@@ -16,7 +16,7 @@
 //! Note: you might not want to run a conventional web browser this way.
 //! Browsers leak much private information.
 //! To browse the web anonymously,
-//! we recommend using [`Tor Browser`](https://www.torproject.org/download/).
+//! we recommend [using Tor Browser](#using-arti-with-tor-browser).
 //!
 //! Arti is still advancing rapidly; we are adding features and eventually
 //! we hope it will be able to replace C Tor.
@@ -53,10 +53,11 @@
 //! for the Rust APIs [`ApplicationConfigBuilder`] and
 //! [`TorClientConfigBuilder`](arti_client::config::TorClientConfigBuilder).
 //!
-//! # Using Arti with Torbrowser
+//! # Using Arti with Tor Browser
 //! 
 //! A good first step to start hacking on arti might be to hook it up with your
-//! Tor Browser. Please note that arti is still a work in progress and hence you
+//! [Tor Browser](https://www.torproject.org/download/).
+//! Please note that arti is still a work in progress and hence you
 //! should assume that it **provides no security** at the moment.
 //! 
 //! To do so, we will launch arti independently from Tor Browser. Build arti with
