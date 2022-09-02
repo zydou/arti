@@ -33,19 +33,30 @@ macro_rules! ok_or_break {
     };
 }
 
-/// Generate a rescan FS event
-// TODO this function should be removed during a future refactoring; see #562
-#[allow(clippy::unnecessary_wraps)]
-fn rescan_event() -> notify::Result<notify::Event> {
-    use notify::event::{EventAttributes, EventKind, Flag};
+/// Event possibly triggering a configuration reload
+#[derive(Debug)]
+enum Event {
+    /// SIGHUP has been received.
+    SigHup,
+    /// Some files may have been modified.
+    PathModified(Vec<PathBuf>),
+    /// Some filesystem events may have been missed.
+    Rescan,
+}
 
-    let mut attrs = EventAttributes::default();
-    attrs.set_flag(Flag::Rescan);
-    Ok(notify::Event {
-        kind: EventKind::Other,
-        paths: Vec::new(),
-        attrs,
-    })
+impl From<notify::Result<notify::Event>> for Event {
+    fn from(val: notify::Result<notify::Event>) -> Self {
+        match val {
+            Ok(e) => {
+                if e.need_rescan() {
+                    Event::Rescan
+                } else {
+                    Event::PathModified(e.paths)
+                }
+            }
+            Err(e) => Event::PathModified(e.paths),
+        }
+    }
 }
 
 /// Launch a thread to reload our configuration files.
@@ -66,7 +77,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // If watching, we must reload the config once right away, because
         // we have set up the watcher *after* loading the config.
         // ignore send error, rx can't be disconnected if we are here
-        let _ = tx.send(rescan_event());
+        let _ = tx.send(Event::Rescan);
         let (watcher, _) = FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources)?;
         Some(watcher)
     } else {
@@ -82,7 +93,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         client.runtime().spawn(async move {
             while let Some(()) = sighup_stream.next().await {
                 info!("Received SIGHUP");
-                if tx.send(rescan_event()).is_err() {
+                if tx.send(Event::SigHup).is_err() {
                     warn!("Failed to reload configuration");
                     break;
                 }
@@ -132,7 +143,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                         // If watching, we must reload the config once right away, because
                         // we have set up the watcher *after* loading the config.
                         // ignore send error, rx can't be disconnected if we are here
-                        let _ = tx.send(rescan_event());
+                        let _ = tx.send(Event::Rescan);
                         let (new_watcher, _) = ok_or_break!(
                             FileWatcher::new_prepared(tx.clone(), DEBOUNCE_INTERVAL, &sources),
                             "FS watch: failed to rescan config and re-establish watch: {}",
@@ -217,9 +228,11 @@ struct FileWatcher {
 
 impl FileWatcher {
     /// Like `notify::watcher`, but create a FileWatcher instead.
-    fn new(tx: Sender<notify::Result<notify::Event>>, interval: Duration) -> anyhow::Result<Self> {
+    fn new(tx: Sender<Event>, interval: Duration) -> anyhow::Result<Self> {
         let watcher = notify::RecommendedWatcher::new(
-            tx,
+            move |e: notify::Result<notify::Event>| {
+                let _ = tx.send(e.into());
+            },
             notify::Config::default().with_poll_interval(interval),
         )?;
         Ok(Self {
@@ -231,7 +244,7 @@ impl FileWatcher {
 
     /// Create a FileWatcher already watching files in `sources`
     fn new_prepared(
-        tx: Sender<notify::Result<notify::Event>>,
+        tx: Sender<Event>,
         interval: Duration,
         sources: &ConfigurationSources,
     ) -> anyhow::Result<(Self, FoundConfigFiles)> {
@@ -324,12 +337,12 @@ impl FileWatcher {
 
     /// Return true if the provided event describes a change affecting one of
     /// the files that we care about.
-    fn event_matched(&self, event: &notify::Result<notify::Event>) -> bool {
+    fn event_matched(&self, event: &Event) -> bool {
         let watching = |f| self.watching_files.contains(f);
 
         match event {
-            Ok(event) => event.need_rescan() || event.paths.iter().any(watching),
-            Err(error) => error.paths.iter().any(watching),
+            Event::SigHup | Event::Rescan => true,
+            Event::PathModified(p) => p.iter().any(watching),
         }
     }
 }
