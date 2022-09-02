@@ -55,10 +55,8 @@
 //!
 //! # Using Arti with Tor Browser
 //! 
-//! A good first step to start hacking on arti might be to hook it up with your
+//! It is possible to hook up Arti with
 //! [Tor Browser](https://www.torproject.org/download/).
-//! Please note that arti is still a work in progress and hence you
-//! should assume that it **provides no security** at the moment.
 //! 
 //! To do so, we will launch arti independently from Tor Browser. Build arti with
 //! `cargo build --release`.  After that launch it with some basic
