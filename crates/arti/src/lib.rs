@@ -53,7 +53,7 @@
 //! for the Rust APIs [`ApplicationConfigBuilder`] and
 //! [`TorClientConfigBuilder`](arti_client::config::TorClientConfigBuilder).
 //!
-//! ## Using Arti with Torbrowser
+//! # Using Arti with Torbrowser
 //! 
 //! A good first step to start hacking on arti might be to hook it up with your
 //! Tor Browser. Please note that arti is still a work in progress and hence you
@@ -63,28 +63,38 @@
 //! `cargo build --release`.  After that launch it with some basic
 //! configuration parameters:
 //! 
-//!     $ ./target/release/arti proxy -l debug -p 9150
+//! ```text
+//! $ ./target/release/arti proxy -l debug -p 9150
+//! ```
 //! 
 //! This will ensure that arti sets its SOCKS port on 9150. Now we need to launch
 //! Tor Browser and instruct it to use that SOCKS port.
 //! 
 //! ### Linux
 //! 
-//!     $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 ./start-tor-browser.desktop
+//! ```text
+//! $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 ./start-tor-browser.desktop
+//! ```
 //! 
 //! ### OS X
 //! 
-//!     $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 /path/to/Tor\ Browser/Contents/MacOS/firefox
+//! ```text
+//! $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 /path/to/Tor\ Browser/Contents/MacOS/firefox
+//! ```
 //! 
 //! ### Windows
 //! 
 //! Create a shortcut with the `Target` set to:
 //! 
-//!     C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
+//! ```text
+//! C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
+//! ```
 //!     
 //! and `Start in` set to:
 //! 
-//!     "C:\path\to\Tor Browser\Browser"
+//! ```text
+//! "C:\path\to\Tor Browser\Browser"
+//! ```
 //! 
 //! (You may need to adjust the actual path to wherever you have put your Tor
 //! Browser.)
