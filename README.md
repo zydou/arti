@@ -6,8 +6,6 @@ Arti is a project to produce an embeddable, production-quality implementation
 of the [Tor](https://www.torproject.org/) anonymity protocols in the
 [Rust](https://www.rust-lang.org/) programming language.
 
-Arti is **not ready for production use**; [see below](#status) for more information.
-
 ## Links:
 
    * [Official source repository](https://gitlab.torproject.org/tpo/core/arti)
@@ -49,31 +47,31 @@ needlessly hard to understand and improve.
 
 ## <a name="status"></a>Current status
 
-Arti is a work-in-progress.  It can connect to the Tor network, bootstrap a
+Arti can connect to the Tor network, bootstrap a
 view of the Tor directory, and make anonymized connections over the network.
+Now that Arti has reached version 1.0.0, we believe it is suitable for
+actual use to anonymise connections.
 
-We're not _aware_ of any critical security features missing in Arti; but
-however, since Arti is comparatively new software, you should probably be
-cautious about using it in production.
+There are a number of areas (especially at the lower layers) where APIs
+(especially internal APIs) are not stable,
+and are likely to change them.
+Right now that includes the command line interface to the `arti` program.
 
-Now that Arti has reached version 0.1.0, we believe it is suitable for
-_experimental_ embedding within other Rust applications.  We will try to keep
-the API as exposed by the top-level `arti_client` crate more or less stable
-over time.  (We may have to break existing programs from time to time, but we
-will try not to do so without a very good reason. Either way, we will try to
-follow Rust's semantic versioning best practices.)
+And of course it's still very new so there are likely to be bugs.
 
-## Trying it out today
+## Building and using Arti
 
 Arti can act as a SOCKS proxy that uses the Tor network.
+
+We expect to be providing official binaries soon.
+But, for now, you need to obtain a
+[Rust](https://www.rust-lang.org/) development environment,
+and build it yourself.
 
 To try it out, compile and run the `arti` binary using the below. It will open a
 SOCKS proxy on port 9150.
 
     $ cargo run -p arti --release -- proxy
-
-Again, do not use this program yet if you seriously need anonymity, privacy,
-security, or stability.
 
 You can build a binary (but not run it) with:
 
@@ -86,19 +84,23 @@ look at [the troubleshooting guide](doc/TROUBLESHOOTING.md).
 
 ### Custom compile-time options
 
-Arti has a number of configurable [Cargo features](https://doc.rust-lang.org/cargo/reference/features.html) that,
-among other things, can affect which asynchronous runtime to use. Use
+Arti has a number of configurable
+[Cargo features](https://doc.rust-lang.org/cargo/reference/features.html)
+that, among other things, can affect which asynchronous runtime to use.
 
-    $ cargo doc -p arti --open
+See in the
+[Arti crate-level docs](https://tpo.pages.torproject.net/core/doc/rust/arti/index.html#compile-time-features)
+for details.
 
-to view the Arti crate-level docs in your browser, which contain a full list.
+## Using Arti as a library
 
-You can pass these features to Cargo while building with `--features` (note that you might need `--no-default-features`
-in order to not use the default runtime choices, too). For example, to use `async-std` instead of Tokio:
+The `arti` command line utility is built on top of the 
+[`arti_client`](https://tpo.pages.torproject.net/core/doc/rust/arti_client/index.html)
+library (and its dependencies).
 
-    $ cargo run -p arti --no-default-features --features async-std,native-tls -- proxy
-
-Use `target/release/arti --version` to see what features the currently built Arti binary is using.
+That library's API will allow you to
+make connections over the Tor network,
+and obtain streams/sinks useable from async Rust.
 
 ## Minimum supported Rust Version
 
@@ -149,13 +151,13 @@ get our project manager to sign off on them.
 
  * Arti 1.0.0: Initial stable release (Goal: Mid September, 2022??)
    * Target audience: **initial users**
-   * [ ] Stable API
+   * [x] Stable API (mostly)
    * [ ] Stable CLI
-   * [ ] Stable configuration format
-   * [ ] Automatic detection and response of more kinds of network problems
-   * [ ] At least as secure as C Tor
-   * [ ] Client performance similar to C Tor
-   * [ ] More performance work
+   * [x] Stable configuration format
+   * [x] Automatic detection and response of more kinds of network problems
+   * [x] At least as secure as C Tor
+   * [x] Client performance similar to C Tor
+   * [x] More performance work
    * [and more...](https://gitlab.torproject.org/tpo/core/arti/-/milestones/8)
 
  * Arti 1.1.0: Anti-censorship features (Goal: End of October, 2022?)
