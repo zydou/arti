@@ -13,7 +13,7 @@
 //! but you can override this in the configuration.
 //! You can direct programs to connect via that SOCKS port,
 //! and their connections will be anonymized via Tor.
-//! NB you might not want to run a conventional web browser this way.
+//! Note: you might not want to run a conventional web browser this way.
 //! Browsers leak much private information.
 //! To browse the web anonymously,
 //! we recommend using [`Tor Browser`](https://www.torproject.org/download/).
