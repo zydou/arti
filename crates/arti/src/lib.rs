@@ -1,21 +1,25 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
-//! A minimal command line program for connecting to the tor network
+//! A minimal command line program for connecting to the Tor network
 //!
 //! (If you want a more general Tor client library interface, use
 //! [`arti_client`].)
 //!
 //! This crate is the primary command-line interface for
 //! [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to implement
-//! [Tor](https://www.torproject.org/) in Rust. Many other crates in Arti depend
-//! on it.
+//! [Tor](https://www.torproject.org/) in Rust.
 //!
-//! Note that Arti is a work in progress; although we've tried to write all the
-//! critical security components, you probably shouldn't use Arti in production
-//! until it's a bit more mature.
+//! Currently Arti can can run as a simple SOCKS proxy over the Tor network.
+//! It will listen on port 9150 by default,
+//! but you can override this in the configuration.
+//! You can direct programs to connect via that SOCKS port,
+//! and their connections will be anonymized via Tor.
+//! NB you might not want to run a conventional web browser this way.
+//! Browsers leak much private information.
+//! To browse the web anonymously,
+//! we recommend using [`Tor Browser`](https://www.torproject.org/download/).
 //!
-//! More documentation will follow as this program improves.  For now, just know
-//! that it can run as a simple SOCKS proxy over the Tor network. It will listen
-//! on port 9150 by default, but you can override this in the configuration.
+//! Arti is still advancing rapidly; we are adding features and eventually
+//! we hope it will be able to replace C Tor.
 //!
 //! # Command-line interface
 //!
@@ -38,8 +42,16 @@
 //! | macOS   | `~/Library/Application Support/arti/arti.toml`     |
 //! | Windows | `\Users\<USERNAME>\AppData\Roaming\arti\arti.toml` |
 //!
-//! The configuration file is TOML.  (We do not guarantee its stability.) For an
-//! example see [`arti_defaults.toml`](./arti_defaults.toml).
+//! The configuration file is TOML.
+//! For an example see `arti-example-config.toml`
+//! (a copy of which is in the source tree,
+//! and also
+//! [in the Arti repository](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/src/arti-example-config.toml)).
+//! That example config file documents the configuration options.
+//!
+//! More detailed information about for the individual fields is available in the documentation
+//! for the Rust APIs [`ApplicationConfigBuilder`] and
+//! [`TorClientConfigBuilder`](arti_client::config::TorClientConfigBuilder).
 //!
 //! # Compile-time features
 //!
@@ -112,7 +124,7 @@
 //! support yet. There's no anti-censorship support.  You can't be a relay.
 //! There isn't any kind of proxy besides SOCKS.
 //!
-//! See the [README
+//! See the [repository README
 //! file](https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md) for
 //! a more complete list of missing features.
 //!
