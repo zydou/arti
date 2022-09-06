@@ -12,6 +12,9 @@ if [ $# -eq 0 ]; then
 	echo usage : "$0" '<linux|windows|macos...>'
 	exit 1
 fi
+
+: "${CARGO:=cargo}" # quotes are just to placate shellcheck
+
 linux=""
 windows=""
 macos=""
@@ -47,6 +50,13 @@ cd /arti
 mkdir -p /dev/shm/registry /usr/local/cargo/registry
 ln -s /dev/shm/registry /usr/local/cargo/registry/src
 
+cargo_build () {
+	$CARGO build --locked "$@"
+}
+cargo_build_arti () {
+	cargo_build -p arti --release --features static "$@"
+}
+
 ## add missing dependencies
 apk add perl make git musl-dev
 if [ -n "$linux" ]; then
@@ -55,7 +65,7 @@ if [ -n "$linux" ]; then
 	## Build targeting x86_64-unknown-linux-musl to get a static binary
 	## feature "static" enable compiling some C dependencies instead of linking
 	## to system libraries. It is required to get a well behaving result.
-	cargo build -p arti --target x86_64-unknown-linux-musl --release --features static
+	cargo_build_arti --target x86_64-unknown-linux-musl
 	mv /arti/target/x86_64-unknown-linux-musl/release/arti "$here"/arti-linux
 fi
 if [ -n "$windows" ]; then
@@ -64,7 +74,7 @@ if [ -n "$windows" ]; then
 
 	## Same tweaks as for Linux, plus don't insert compilation timestamp into PE headers
 	RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,--no-insert-timestamp" \
-		cargo build -p arti --target x86_64-pc-windows-gnu --release --features static
+		cargo_build_arti --target x86_64-pc-windows-gnu
 	mv /arti/target/x86_64-pc-windows-gnu/release/arti.exe "$here"/arti-windows.exe
 fi
 if [ -n "$macos" ]; then
@@ -99,7 +109,7 @@ EOF
 	PATH="/arti/osxcross/target/bin:$PATH" \
 		CC=o64-clang \
 		CXX=o64-clang++ \
-		cargo build -p arti --target x86_64-apple-darwin --release --features static
+		cargo_build_arti --target x86_64-apple-darwin
 	mv /arti/target/x86_64-apple-darwin/release/arti "$here"/arti-macos
 fi
 
