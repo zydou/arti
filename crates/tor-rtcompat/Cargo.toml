@@ -38,6 +38,7 @@ pin-project = "1"
 rustls-crate = { package = "rustls", version = "0.19", optional = true, features = [
     "dangerous_configuration",
 ] }
+thiserror = "1"
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = [
     "rt",
     "rt-multi-thread",

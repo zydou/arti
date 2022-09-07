@@ -583,7 +583,7 @@ pub(crate) async fn download<R: Runtime>(
                         .duration_since(now)
                         .unwrap_or(Duration::from_secs(0))
                 };
-                schedule.sleep(delay.min(time_until_reset)).await;
+                schedule.sleep(delay.min(time_until_reset)).await?;
 
                 now = upgrade_weak_ref(&dirmgr)?.runtime.wallclock();
                 if now >= reset_time {
