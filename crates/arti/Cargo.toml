@@ -21,6 +21,7 @@ async-std = [
     "tor-rtcompat/async-std",
     "async-ctrlc",
     "once_cell",
+    "signal-hook",
     "signal-hook-async-std",
 ]
 dns-proxy = ["trust-dns-proto"]
@@ -61,6 +62,7 @@ rlimit = "0.8.3"
 safelog = { path = "../safelog", version = "0.1.0" }
 secmem-proc = { version = "0.1.1", optional = true }
 serde = { version = "1.0.103", features = ["derive"] }
+signal-hook = { version = "0.3", optional = true }
 signal-hook-async-std = { version = "0.2", optional = true }
 tokio-crate = { package = "tokio", version = "1.7", optional = true, features = ["signal"] }
 tor-config = { path = "../tor-config", version = "0.6.0" }
