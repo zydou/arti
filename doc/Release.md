@@ -54,3 +54,5 @@
     crate tries to download it.)
 
 7. We tag the repository with arti-v0.0.1
+
+8. Remove all of the semver.md files.
