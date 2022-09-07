@@ -3870,6 +3870,7 @@ dependencies = [
  "native-tls",
  "pin-project",
  "rustls",
+ "thiserror",
  "tokio",
  "tokio-util",
  "x509-signature",

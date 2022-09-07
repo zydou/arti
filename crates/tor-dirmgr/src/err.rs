@@ -145,6 +145,16 @@ impl From<signature::Error> for Error {
     }
 }
 
+impl From<tor_rtcompat::scheduler::SleepError> for Error {
+    fn from(err: tor_rtcompat::scheduler::SleepError) -> Self {
+        use tor_rtcompat::scheduler::SleepError::*;
+        match err {
+            ScheduleDropped => Error::ManagerDropped,
+            e => tor_error::into_internal!("Unexpected sleep error")(e).into(),
+        }
+    }
+}
+
 /// The effect that a given error has on our bootstrapping process
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum BootstrapAction {

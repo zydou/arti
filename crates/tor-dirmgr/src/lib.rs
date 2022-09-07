@@ -581,7 +581,7 @@ impl<R: Runtime> DirMgr<R> {
             } else {
                 std::time::Duration::new(5, 0)
             };
-            schedule.sleep(pause).await;
+            schedule.sleep(pause).await?;
             // TODO: instead of loading the whole thing we should have a
             // database entry that says when the last update was, or use
             // our state functions.
@@ -676,7 +676,7 @@ impl<R: Runtime> DirMgr<R> {
                         let dirmgr = upgrade_weak_ref(&weak)?;
                         dirmgr.note_reset(attempt_id);
                     }
-                    schedule.sleep(delay).await;
+                    schedule.sleep(delay).await?;
                     state = state.reset();
                 } else {
                     info!("Directory is complete.");
@@ -701,7 +701,7 @@ impl<R: Runtime> DirMgr<R> {
 
             let reset_at = state.reset_time();
             match reset_at {
-                Some(t) => schedule.sleep_until_wallclock(t).await,
+                Some(t) => schedule.sleep_until_wallclock(t).await?,
                 None => return Ok(()),
             }
             attempt_id = bootstrap::AttemptId::next();

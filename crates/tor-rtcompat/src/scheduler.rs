@@ -11,6 +11,23 @@ use std::time::{Duration, Instant, SystemTime};
 
 use pin_project::pin_project;
 
+/// An error returned while telling a [`TaskSchedule`] to sleep.
+///
+/// Unlike regular "sleep" functions, the sleep operations on a [`TaskSchedule`]
+/// can fail because there are no [`TaskHandle`]s left.
+///
+/// Note that it is *not* an error if the `sleep` function is interrupted,
+/// cancelled, or  or rescheduled for a later time: See [`TaskSchedule::sleep`]
+/// for more information.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum SleepError {
+    /// The final [`TaskHandle`] for this [`TaskSchedule`] has been dropped: the
+    /// task should exit.
+    #[error("All task handles dropped: task exiting.")]
+    ScheduleDropped,
+}
+
 /// A command sent from task handles to schedule objects.
 #[derive(Copy, Clone)]
 enum SchedulerCommand {
@@ -51,6 +68,9 @@ pub struct TaskSchedule<R: SleepProvider> {
 }
 
 /// A handle used to control a [`TaskSchedule`].
+///
+/// When the final handle is dropped, the computation governed by the
+/// `TaskSchedule` should terminate.
 #[derive(Clone)]
 pub struct TaskHandle {
     /// Sender of scheduler commands to the corresponding schedule.
@@ -101,20 +121,23 @@ impl<R: SleepProvider> TaskSchedule<R> {
     /// timer elapses.  If the associated [`TaskHandle`] is cancelled, then this
     /// method will not return at all, until the schedule is re-activated by
     /// [`TaskHandle::fire`] or [`TaskHandle::fire_at`].
-    pub async fn sleep(&mut self, dur: Duration) {
+    ///
+    /// Finally, if every associated [`TaskHandle`] has been dropped, then this
+    /// method will return an error.
+    pub async fn sleep(&mut self, dur: Duration) -> Result<(), SleepError> {
         self.fire_in(dur);
-        self.next().await;
+        self.next().await.ok_or(SleepError::ScheduleDropped)
     }
 
     /// As
     /// [`sleep_until_wallclock`](crate::SleepProviderExt::sleep_until_wallclock),
     /// but respect messages from this schedule's associated [`TaskHandle`].
-    pub async fn sleep_until_wallclock(&mut self, when: SystemTime) {
+    pub async fn sleep_until_wallclock(&mut self, when: SystemTime) -> Result<(), SleepError> {
         loop {
             let (finished, delay) = crate::timer::calc_next_delay(self.rt.wallclock(), when);
-            self.sleep(delay).await;
+            self.sleep(delay).await?;
             if finished {
-                return;
+                return Ok(());
             }
         }
     }
