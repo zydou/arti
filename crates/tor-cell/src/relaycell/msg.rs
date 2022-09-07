@@ -72,6 +72,9 @@ pub enum RelayMsg {
     /// Establish Rendezvous
     #[cfg(feature = "onion-service")]
     EstablishRendezvous(onion_service::EstablishRendezvous),
+    /// Introduce1
+    #[cfg(feature = "onion-service")]
+    Introduce1(onion_service::Introduce1),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
@@ -123,6 +126,8 @@ impl RelayMsg {
             EstablishIntro(_) => RelayCmd::ESTABLISH_INTRO,
             #[cfg(feature = "onion-service")]
             EstablishRendezvous(_) => RelayCmd::ESTABLISH_RENDEZVOUS,
+            #[cfg(feature = "onion-service")]
+            Introduce1(_) => RelayCmd::INTRODUCE1,
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -160,6 +165,10 @@ impl RelayMsg {
             RelayCmd::ESTABLISH_RENDEZVOUS => RelayMsg::EstablishRendezvous(
                 onion_service::EstablishRendezvous::decode_from_reader(r)?,
             ),
+            #[cfg(feature = "onion-service")]
+            RelayCmd::INTRODUCE1 => {
+                RelayMsg::Introduce1(onion_service::Introduce1::decode_from_reader(r)?)
+            }
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
@@ -192,6 +201,8 @@ impl RelayMsg {
             EstablishIntro(b) => b.encode_onto(w),
             #[cfg(feature = "onion-service")]
             EstablishRendezvous(b) => b.encode_onto(w),
+            #[cfg(feature = "onion-service")]
+            Introduce1(b) => b.encode_onto(w),
             Unrecognized(b) => b.encode_onto(w),
         }
     }
