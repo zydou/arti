@@ -248,6 +248,14 @@ impl HasKind for Bug {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
     // We test this on "important" and "reliable" platforms only.
@@ -276,6 +284,7 @@ mod test {
         assert!(e.0.source.is_none());
 
         let s = e.to_string();
+        dbg!(&s);
 
         assert!(s.starts_with("internal error (bug) at "));
         assert!(s.contains("Couldn't wobble the wobbling device."));
