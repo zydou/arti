@@ -274,6 +274,7 @@ mod test {
     //   https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/509#note_2803085
     #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     #[test]
+    #[inline(never)]
     fn internal_macro_test() {
         let start_of_func = line!();
 
