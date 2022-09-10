@@ -178,7 +178,7 @@ where
         };
         // everybody is family with the adjacent relay.
         let fam_id = [idx ^ 1; 20];
-        let family = hex::encode(&fam_id);
+        let family = hex::encode(fam_id);
 
         let mut md_builder = Microdesc::builder();
         md_builder

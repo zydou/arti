@@ -422,7 +422,7 @@ impl Store for SqliteStore {
                 valid_until,
                 flavor.name(),
                 pending,
-                hex::encode(&sha3_of_signed),
+                hex::encode(sha3_of_signed),
                 h.digeststr
             ],
         )?;

@@ -255,7 +255,7 @@ impl ConfigurationSources {
             use ConfigurationSource as CS;
             match &source {
                 CS::Dir(found) => {
-                    let dir = match fs::read_dir(&found) {
+                    let dir = match fs::read_dir(found) {
                         Ok(y) => y,
                         Err(e) => {
                             handle_io_error(e)?;

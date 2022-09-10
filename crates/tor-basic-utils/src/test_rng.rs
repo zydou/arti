@@ -250,7 +250,7 @@ mod test {
         }
         {
             let seed = *b"hello world. this is a longer st";
-            let mut s = hex::encode(&seed);
+            let mut s = hex::encode(seed);
             assert_eq!(Ok(Config::Seeded(seed)), Config::from_str(&s));
             // we can make it longer, and it just gets truncated.
             s.push_str("aabbccddeeff");
