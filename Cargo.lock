@@ -147,6 +147,7 @@ name = "arti-client"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "cfg-if",
  "derive_builder_fork_arti",
  "derive_more",
  "directories",
