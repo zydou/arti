@@ -106,15 +106,12 @@ fn note_request_outcome<R: Runtime>(
                 return;
             }
         }
-        Err(RequestFailed {
-            source: Some(source),
-            ..
-        }) => (
-            // TODO: Use an @ binding in the pattern once we are on MSRV >=
-            // 1.56.
-            outcome.as_ref().unwrap_err().clone(),
-            source,
-        ),
+        Err(
+            error @ RequestFailed {
+                source: Some(source),
+                ..
+            },
+        ) => (error.clone(), source),
         _ => return,
     };
 
