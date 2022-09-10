@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel as std_channel, Sender};
 
+use anyhow::Context;
 use arti_client::config::Reconfigure;
 use arti_client::TorClient;
 use notify::Watcher;
@@ -15,19 +16,6 @@ use futures::task::SpawnExt;
 
 use crate::process::sighup_stream;
 use crate::{ArtiCombinedConfig, ArtiConfig};
-
-/// Unwrap first expression or break with the provided error message
-macro_rules! ok_or_break {
-    ($e:expr, $msg:expr $(,)?) => {
-        match ($e) {
-            Ok(y) => y,
-            Err(e) => {
-                error!($msg, e);
-                break;
-            }
-        }
-    };
-}
 
 /// Event possibly triggering a configuration reload
 #[derive(Debug)]
@@ -88,61 +76,65 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         // `arti` application, we probably don't want to have this thread own
         // the FileWatcher.
         debug!("Entering FS event loop");
-        while let Ok(event) = rx.recv() {
-            while let Ok(_ignore) = rx.try_recv() {
-                // Discard other events, so that we only reload once.
-                //
-                // We can afford to treat both error cases from try_recv [Empty
-                // and Disconnected] as meaning that we've discarded other
-                // events: if we're disconnected, we'll notice it when we next
-                // call recv() in the outer loop.
-            }
-            debug!("FS event {:?}: reloading configuration.", event);
-
-            let found_files = if watcher.is_some() {
-                let mut new_watcher = FileWatcher::builder();
-                let found_files = ok_or_break!(
-                    new_watcher.prepare(&sources),
-                    "FS watch: failed to rescan config and re-establish watch: {}",
-                );
-                let new_watcher = ok_or_break!(
-                    new_watcher.start_watching(tx.clone()),
-                    "FS watch: failed to rescan config and re-establish watch: {}",
-                );
-                watcher = Some(new_watcher);
-                found_files
-            } else {
-                ok_or_break!(sources.scan(), "FS watch: failed to rescan config: {}",)
-            };
-
-            match reconfigure(found_files, &original, &client) {
-                Ok(watch) => {
-                    info!("Successfully reloaded configuration.");
-                    if watch && watcher.is_none() {
-                        info!("Starting watching over configuration.");
-                        // If watching, we must reload the config once right away, because
-                        // we have set up the watcher *after* loading the config.
-                        // ignore send error, rx can't be disconnected if we are here
-                        let _ = tx.send(Event::Rescan);
-                        let mut new_watcher = FileWatcher::builder();
-                        let _found_files = ok_or_break!(
-                            new_watcher.prepare(&sources),
-                            "FS watch: failed to rescan config and re-establish watch: {}",
-                        );
-                        let new_watcher = ok_or_break!(
-                            new_watcher.start_watching(tx.clone()),
-                            "FS watch: failed to rescan config and re-establish watch: {}",
-                        );
-                        watcher = Some(new_watcher);
-                    } else if !watch && watcher.is_some() {
-                        info!("Stopped watching over configuration.");
-                        watcher = None;
-                    }
+        let mut iife = || -> Result<(), anyhow::Error> {
+            while let Ok(event) = rx.recv() {
+                while let Ok(_ignore) = rx.try_recv() {
+                    // Discard other events, so that we only reload once.
+                    //
+                    // We can afford to treat both error cases from try_recv [Empty
+                    // and Disconnected] as meaning that we've discarded other
+                    // events: if we're disconnected, we'll notice it when we next
+                    // call recv() in the outer loop.
                 }
-                Err(e) => warn!("Couldn't reload configuration: {}", e),
+                debug!("FS event {:?}: reloading configuration.", event);
+
+                let found_files = if watcher.is_some() {
+                    let mut new_watcher = FileWatcher::builder();
+                    let found_files = new_watcher
+                        .prepare(&sources)
+                        .context("FS watch: failed to rescan config and re-establish watch")?;
+                    let new_watcher = new_watcher
+                        .start_watching(tx.clone())
+                        .context("FS watch: failed to rescan config and re-establish watch")?;
+                    watcher = Some(new_watcher);
+                    found_files
+                } else {
+                    sources
+                        .scan()
+                        .context("FS watch: failed to rescan config")?
+                };
+
+                match reconfigure(found_files, &original, &client) {
+                    Ok(watch) => {
+                        info!("Successfully reloaded configuration.");
+                        if watch && watcher.is_none() {
+                            info!("Starting watching over configuration.");
+                            // If watching, we must reload the config once right away, because
+                            // we have set up the watcher *after* loading the config.
+                            // ignore send error, rx can't be disconnected if we are here
+                            let _ = tx.send(Event::Rescan);
+                            let mut new_watcher = FileWatcher::builder();
+                            let _found_files = new_watcher.prepare(&sources).context(
+                                "FS watch: failed to rescan config and re-establish watch: {}",
+                            )?;
+                            let new_watcher = new_watcher.start_watching(tx.clone()).context(
+                                "FS watch: failed to rescan config and re-establish watch: {}",
+                            )?;
+                            watcher = Some(new_watcher);
+                        } else if !watch && watcher.is_some() {
+                            info!("Stopped watching over configuration.");
+                            watcher = None;
+                        }
+                    }
+                    Err(e) => warn!("Couldn't reload configuration: {}", e),
+                }
             }
+            Ok(())
+        };
+        match iife() {
+            Ok(()) => debug!("Thread exiting"),
+            Err(e) => error!("Config reload thred exiting: {}", e),
         }
-        debug!("Thread exiting");
     });
 
     // Dropping the thread handle here means that we don't get any special
