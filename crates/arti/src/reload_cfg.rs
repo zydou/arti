@@ -86,7 +86,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                     // events: if we're disconnected, we'll notice it when we next
                     // call recv() in the outer loop.
                 }
-                debug!("FS event {:?}: reloading configuration.", event);
+                debug!("Config reload event {:?}: reloading configuration.", event);
 
                 let found_files = if watcher.is_some() {
                     let mut new_watcher = FileWatcher::builder();
@@ -133,7 +133,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         };
         match iife() {
             Ok(()) => debug!("Thread exiting"),
-            Err(e) => error!("Config reload thred exiting: {}", e),
+            Err(e) => error!("Config reload thread exiting: {}", e),
         }
     });
 
@@ -226,9 +226,6 @@ impl FileWatcherBuilder {
     }
 
     /// Find the configuration files and prepare the watcher
-    ///
-    /// For the watching to be reliably effective (race-free), the config must be read
-    /// *after* this point, using the returned `FoundConfigFiles`.
     fn prepare<'a>(
         &mut self,
         sources: &'a ConfigurationSources,
@@ -243,7 +240,7 @@ impl FileWatcherBuilder {
         Ok(sources)
     }
 
-    /// Watch a single file (not a directory).
+    /// Add a single file (not a directory) to the list of things to watch.
     ///
     /// Idempotent: does nothing if we're already watching that file.
     fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
@@ -251,7 +248,7 @@ impl FileWatcherBuilder {
         Ok(())
     }
 
-    /// Watch a directory (but not any subdirs).
+    /// Add a directory (but not any subdirs) to the list of things to watch.
     ///
     /// Idempotent.
     fn watch_dir<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
@@ -260,7 +257,7 @@ impl FileWatcherBuilder {
         Ok(())
     }
 
-    /// Watch the parents of `path`.
+    /// Add the parents of `path` to the list of things to watch.
     ///
     /// Returns the absolute path of `path`.
     ///
@@ -295,7 +292,7 @@ impl FileWatcherBuilder {
         Ok(path)
     }
 
-    /// Watch just this (absolute) directory.
+    /// Add just this (absolute) directory to the list of things to watch.
     ///
     /// Does not watch any of the parents.
     ///
@@ -304,7 +301,10 @@ impl FileWatcherBuilder {
         self.watching_dirs.insert(watch_target.into());
     }
 
-    /// Build a `FileWatcher` and start sending events to `tx`
+    /// Build a `FileWatcher` and start sending events to `tx`.
+    ///
+    /// For the watching to be reliably effective (race-free), the config must be read
+    /// *after* this point, using the `FoundConfigFiles` returned by `prepare`.
     fn start_watching(self, tx: Sender<Event>) -> anyhow::Result<FileWatcher> {
         let event_sender = move |event: notify::Result<notify::Event>| {
             let watching = |f| self.watching_files.contains(f);
