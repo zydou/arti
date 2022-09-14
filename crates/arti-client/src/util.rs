@@ -37,10 +37,17 @@ impl<'a, T: StateMgr + 'a> StateMgrUnlockGuard<'a, T> {
 ///
 /// On non-unix platforms, this function always returns false.
 pub(crate) fn running_as_setuid() -> bool {
-    #[cfg(target_family = "unix")]
-    {
-        #[cfg(not(target_os = "macos"))]
-        {
+    cfg_if::cfg_if! {
+        // this is the exhaustive list of os where `getresuid` and `getresgid` are available
+        if #[cfg(any(target_os = "fuchsia",
+                     target_os = "linux",
+                     target_os = "l4re",
+                     target_os = "android",
+                     target_os = "emscripten",
+                     target_os = "freebsd",
+                     target_os = "dragonfly",
+                     target_os = "openbsd",
+                     ))] {
             // Use `libc` to find our real, effective, and saved UIDs and GIDs.
             //
             // On systems with setresuid, a caller can (and people sometimes do)
@@ -63,17 +70,12 @@ pub(crate) fn running_as_setuid() -> bool {
             let same_resuid = resuid.iter().all(|uid| uid == &resuid[0]);
             let same_resgid = resgid.iter().all(|gid| gid == &resgid[0]);
             !(same_resuid && same_resgid)
-        }
-        #[cfg(target_os = "macos")]
-        {
-            // Unaccountably, MacOS lacks setresuid/setresgid, which were invented literally
-            // decades ago to save people navigating the almost-incomprehensible swamp that is
-            // the behaviour of set{,e,re}{u,g}id.
-            //
-            // MacOS does actually *have* the saved set-id - you just can't find out what it is.
-            // I *think* it is even possible to create a situation where ruid==euid != saveduid.
-            // But it is not possible to detect it (other than maybe by experimentally
-            // guessing that saved set-id is zero and trying to seteuid(0) - a bad move).
+        } else if #[cfg(any(target_family = "unix", target_os = "vxworks"))] {
+            // Some unix-like OS lacks setresuid/setresgid, while possibly still having a saved
+            // set-id, which we then can't query. I *think* it is even possible to create a
+            // situation where ruid==euid != saveduid.  But it is not possible to detect it
+            // (other than maybe by experimentally guessing that saved set-id is zero and trying
+            // to seteuid(0) - a bad move).
             //
             // So, use test for euid==ruid instead, which is about the best we can do.
 
@@ -82,10 +84,8 @@ pub(crate) fn running_as_setuid() -> bool {
             let same_reuid = unsafe { libc::geteuid() == libc::getuid() };
             let same_regid = unsafe { libc::getegid() == libc::getgid() };
             !(same_reuid && same_regid)
+        } else {
+            false
         }
-    }
-    #[cfg(not(target_family = "unix"))]
-    {
-        false
     }
 }
