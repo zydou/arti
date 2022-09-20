@@ -159,6 +159,17 @@ impl RsaIdentity {
             Ok(()) => Some(RsaIdentity::from(array)),
         }
     }
+
+    /// Return true if this `RsaIdentity` is composed entirely of zero-valued
+    /// bytes.
+    ///
+    /// Such all-zero values should not be used internally, since they are not
+    /// the ID of any valid key.  Instead, they are used in some places in the
+    /// Tor protocols.
+    pub fn is_zero(&self) -> bool {
+        // We do a constant-time comparison to avoid side-channels.
+        self.id.ct_eq(&[0; RSA_ID_LEN]).into()
+    }
 }
 
 impl From<[u8; 20]> for RsaIdentity {
