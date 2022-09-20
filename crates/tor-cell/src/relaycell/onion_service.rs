@@ -5,7 +5,7 @@
 
 use super::msg;
 use caret::caret_int;
-use tor_bytes::{EncodeError, EncodeResult, Readable, Result, Writeable};
+use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Readable, Result, Writeable};
 use tor_bytes::{Reader, Writer};
 use tor_units::BoundedInt32;
 
@@ -249,5 +249,67 @@ impl msg::Body for EstablishRendezvous {
     }
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write(&self.cookie)
+    }
+}
+
+/// A message sent from client to introduction point.
+#[derive(Debug, Clone)]
+pub struct Introduce1 {
+    /// Introduction point auth key type and the type of
+    /// the MAC used in `handshake_auth`.
+    auth_key_type: AuthKeyType,
+    /// The public introduction point auth key.
+    auth_key: Vec<u8>,
+    /// Up to end of relay payload.
+    encrypted: Vec<u8>,
+}
+
+impl msg::Body for Introduce1 {
+    fn into_message(self) -> msg::RelayMsg {
+        msg::RelayMsg::Introduce1(self)
+    }
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        let legacy_key_id: [u8; 20] = r.extract()?;
+        if legacy_key_id.iter().any(|b| *b != 0_u8) {
+            return Err(BytesError::BadMessage("legacy key id in Introduce1."));
+        }
+        let auth_key_type = r.take_u8()?.into();
+        let auth_key_len = r.take_u16()?;
+        let auth_key = r.take(auth_key_len as usize)?.into();
+        let n_ext = r.take_u8()?;
+        for _ in 0..n_ext {
+            let _ext_type = r.take_u8()?;
+            r.read_nested_u8len(|r| {
+                r.take_rest();
+                Ok(())
+            })?;
+        }
+        let encrypted = r.take_rest().into();
+        Ok(Self {
+            auth_key_type,
+            auth_key,
+            encrypted,
+        })
+    }
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+        w.write_all(&[0_u8; 20]);
+        w.write_u8(self.auth_key_type.get());
+        w.write_u16(u16::try_from(self.auth_key.len()).map_err(|_| EncodeError::BadLengthValue)?);
+        w.write_all(&self.auth_key[..]);
+        // No Introduce1 extension for now.
+        w.write_u8(0_u8);
+        w.write_all(&self.encrypted[..]);
+        Ok(())
+    }
+}
+
+impl Introduce1 {
+    /// All arguments constructor
+    pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        Self {
+            auth_key_type,
+            auth_key,
+            encrypted,
+        }
     }
 }

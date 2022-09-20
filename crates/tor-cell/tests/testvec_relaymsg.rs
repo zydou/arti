@@ -670,7 +670,7 @@ fn test_establish_intro() {
     let sig = vec![0, 1, 2, 3];
     assert_eq!(Into::<u8>::into(cmd), 32);
 
-    // Establish intro with one recognzied extention
+    // Establish intro with one recognzied extension
     let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
     es_intro.set_extension_dos(extension_dos);
     msg(
@@ -682,7 +682,7 @@ fn test_establish_intro() {
         &es_intro.into(),
     );
 
-    // Establish intro with no extention
+    // Establish intro with no extension
     let auth_key = vec![0, 1, 2, 3];
     let sig = vec![0, 1, 2, 3];
     msg(
@@ -694,11 +694,10 @@ fn test_establish_intro() {
         &EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig).into(),
     );
 
-    // Establish intro with one recognzied extention
-    // and one unknown extention
+    // Establish intro with one recognzied extension
+    // and one unknown extension
     let auth_key = vec![0, 1, 2, 3];
     let sig = vec![0, 1, 2, 3];
-
     let extension_dos = EstIntroExtDoS::new(Some(1_i32), Some(2_i32))
         .expect("invalid EST_INTRO_DOS_EXT parameter(s)");
 
@@ -721,6 +720,58 @@ fn test_establish_intro() {
     assert_eq!(actual_bytes, expect_bytes);
 }
 
+#[cfg(feature = "onion-service")]
+#[test]
+fn test_introduce1() {
+    use tor_cell::relaycell::{
+        msg::RelayMsg,
+        onion_service::{AuthKeyType, Introduce1},
+    };
+
+    let cmd = RelayCmd::INTRODUCE1;
+    let auth_key_type = AuthKeyType::ED25519_SHA3_256;
+    let auth_key = vec![0, 1, 2, 3];
+    let encrypted = vec![1, 9, 8, 4];
+    assert_eq!(Into::<u8>::into(cmd), 34);
+
+    // Introduce1 with no extension
+    let intro1 = Introduce1::new(auth_key_type, auth_key, encrypted);
+    msg(
+        cmd,
+        "0000000000000000000000000000000000000000
+         02 0004 00010203
+         00
+         01090804",
+        &intro1.clone().into(),
+    );
+
+    // Introduce1 with unknown extensions
+    let body = "0000000000000000000000000000000000000000
+         02 0004 00010203
+         02 01 01 00 02 01 00
+         01090804";
+    let actual_msg = decode(cmd, &unhex(body)[..]).unwrap();
+    let mut actual_bytes = vec![];
+    let mut expect_bytes = vec![];
+    actual_msg
+        .encode_onto(&mut actual_bytes)
+        .expect("Encode msg onto byte vector");
+    let expected_msg: RelayMsg = intro1.into();
+    expected_msg
+        .encode_onto(&mut expect_bytes)
+        .expect("Encode msg onto byte vector");
+    assert_eq!(actual_bytes, expect_bytes);
+
+    // Introduce1 with legacy key id
+    msg_error(
+        cmd,
+        "1000000000000000000000000000000000000000
+         02 0004 00010203
+         00
+         01090804",
+        BytesError::BadMessage("legacy key id in Introduce1."),
+    );
+}
 // TODO: need to add tests for:
 //    - unrecognized
 //    - data
