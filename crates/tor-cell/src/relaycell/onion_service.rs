@@ -7,6 +7,7 @@ use super::msg;
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Readable, Result, Writeable};
 use tor_bytes::{Reader, Writer};
+use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_units::BoundedInt32;
 
 caret_int! {
@@ -269,8 +270,8 @@ impl msg::Body for Introduce1 {
         msg::RelayMsg::Introduce1(self)
     }
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
-        let legacy_key_id: [u8; 20] = r.extract()?;
-        if legacy_key_id.iter().any(|b| *b != 0_u8) {
+        let legacy_key_id: RsaIdentity = r.extract()?;
+        if !legacy_key_id.is_zero() {
             return Err(BytesError::BadMessage("legacy key id in Introduce1."));
         }
         let auth_key_type = r.take_u8()?.into();
