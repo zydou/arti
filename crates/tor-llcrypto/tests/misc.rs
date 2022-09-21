@@ -63,6 +63,26 @@ fn test_wrong_hex_rsa_ids() {
     assert!(RsaIdentity::from_hex("listen carefully, spider of destiny  -FZ").is_none());
 }
 
+#[test]
+fn test_rsa_is_zero() {
+    use ll::pk::rsa::RsaIdentity;
+    assert!(
+        RsaIdentity::from_hex("0000000000000000000000000000000000000000")
+            .unwrap()
+            .is_zero()
+    );
+    assert!(
+        !RsaIdentity::from_hex("000000000000000000000000000000000000000F")
+            .unwrap()
+            .is_zero()
+    );
+    assert!(
+        !RsaIdentity::from_hex("F000000000000000000000000000000000000000")
+            .unwrap()
+            .is_zero()
+    );
+}
+
 // TODO: Proper tests for RSA keys
 
 #[test]
