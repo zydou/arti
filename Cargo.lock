@@ -3679,7 +3679,9 @@ name = "tor-linkspec"
 version = "0.5.0"
 dependencies = [
  "base64ct",
+ "cfg-if",
  "derive_more",
+ "educe",
  "hex",
  "hex-literal",
  "serde",
