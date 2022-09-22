@@ -498,6 +498,14 @@ impl<R: Runtime> CircMgr<R> {
         }
     }
 
+    /// Return a reference to the associated CircuitBuilder that this CircMgr
+    /// will use to create its circuits.
+    #[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+    #[cfg(feature = "experimental-api")]
+    pub fn builder(&self) -> &build::CircuitBuilder<R> {
+        self.mgr.peek_builder()
+    }
+
     /// If `circ_id` is the unique identifier for a circuit that we're
     /// keeping track of, don't give it out for any future requests.
     pub fn retire_circ(&self, circ_id: &UniqId) {
