@@ -128,25 +128,33 @@ pub enum Dormancy {
     Dormant,
 }
 
-/// How a channel is going to be used
+/// The usage that we have in mind when requesting a channel.
 ///
-/// A channel may be used in multiple ways.  Each time it is (re)used, a separate
-/// ChannelUsage is passed in.
+/// A channel may be used in multiple ways.  Each time a channel is requested
+/// from `ChanMgr` a separate `ChannelUsage` is passed in to tell the `ChanMgr`
+/// how the channel will be used this time.
+///
+/// To be clear, the `ChannelUsage` is aspect of a _request_ for a channel, and
+/// is not an immutable property of the channel itself.
 ///
 /// This type is obtained from a `tor_circmgr::usage::SupportedCircUsage` in
 /// `tor_circmgr::usage`, and it has roughly the same set of variants.
 #[derive(Clone, Debug, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum ChannelUsage {
-    /// Use for BEGINDIR-based non-anonymous directory connections
+    /// Requesting a channel to use for BEGINDIR-based non-anonymous directory
+    /// connections.
     Dir,
 
-    /// Use to transmit user traffic (including exit traffic) over the network.
+    /// Requesting a channel to transmit user traffic (including exit traffic)
+    /// over the network.
     ///
-    /// Includes a circuit being constructed preemptively.
+    /// This includes the case where we are constructing a circuit preemptively,
+    /// and _planning_ to use it for user traffic later on.
     UserTraffic,
 
-    /// For a channel which is not use for circuit(s), or only for useless circuits
+    /// Requesting a channel that the caller does not plan to used at all, or
+    /// which it plans to use only for testing circuits.
     UselessCircuit,
 }
 
