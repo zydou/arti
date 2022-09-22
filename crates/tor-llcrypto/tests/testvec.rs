@@ -352,19 +352,19 @@ fn tv_sha3_256() {
         &hex!("a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a")
     );
 
-    let d = ll::d::Sha3_256::digest(&hex!("e9"));
+    let d = ll::d::Sha3_256::digest(hex!("e9"));
     assert_eq!(
         &d[..],
         &hex!("f0d04dd1e6cfc29a4460d521796852f25d9ef8d28b44ee91ff5b759d72c1e6d6")
     );
 
-    let d = ll::d::Sha3_256::digest(&hex!("d16d978dfbaecf2c8a04090f6eebdb421a5a711137a6"));
+    let d = ll::d::Sha3_256::digest(hex!("d16d978dfbaecf2c8a04090f6eebdb421a5a711137a6"));
     assert_eq!(
         &d[..],
         &hex!("7f497913318defdc60c924b3704b65ada7ca3ba203f23fb918c6fb03d4b0c0da")
     );
 
-    let d = ll::d::Sha3_256::digest(&hex!(
+    let d = ll::d::Sha3_256::digest(hex!(
         "3341ca020d4835838b0d6c8f93aaaebb7af60730d208c85283f6369f1ee27fd96d38f2674f
 316ef9c29c1b6b42dd59ec5236f65f5845a401adceaa4cf5bbd91cac61c21102052634e99faedd6c
 dddcd4426b42b6a372f29a5a5f35f51ce580bb1845a3c7cfcd447d269e8caeb9b320bb731f53fe5c

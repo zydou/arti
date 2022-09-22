@@ -445,7 +445,7 @@ mod test {
         // Try resolving a simple path that exists.
         d.file("a/b/c");
         let mut r = ResolvePath::new(d.path("a/b/c")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let mut so_far = root.to_path_buf();
         for (c, p) in Path::new("a/b/c").components().zip(&mut r) {
             let (p, pt, meta) = p.unwrap();
@@ -465,7 +465,7 @@ mod test {
 
         // Same as above, starting from a relative path to the target.
         let mut r = ResolvePath::new(d.relative_root().join("a/b/c")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let mut so_far = root.to_path_buf();
         for (c, p) in Path::new("a/b/c").components().zip(&mut r) {
             let (p, pt, meta) = p.unwrap();
@@ -486,7 +486,7 @@ mod test {
 
         // Try resolving a simple path that doesn't exist.
         let mut r = ResolvePath::new(d.path("a/xxx/yyy")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let (p, pt, _) = r.next().unwrap().unwrap();
         assert_eq!(p, root.join("a"));
         assert_eq!(pt, PathType::Intermediate);
@@ -510,7 +510,7 @@ mod test {
         // get each given path once.
         d.dir("a/b/c/d");
         let mut r = ResolvePath::new(root.join("a/b/../b/../b/c/../c/d")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let paths: Vec<_> = r.map(|item| item.unwrap().0).collect();
         assert_eq!(
             paths,
@@ -526,7 +526,7 @@ mod test {
         // each path once.
         d.link_rel(LinkType::Dir, "../../", "a/b/c/rel_lnk");
         let mut r = ResolvePath::new(root.join("a/b/c/rel_lnk/b/c/d")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let paths: Vec<_> = r.map(|item| item.unwrap().0).collect();
         assert_eq!(
             paths,
@@ -542,7 +542,7 @@ mod test {
         // Once more, with an absolute symlink.
         d.link_abs(LinkType::Dir, "a", "a/b/c/abs_lnk");
         let mut r = ResolvePath::new(root.join("a/b/c/abs_lnk/b/c/d")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let paths: Vec<_> = r.map(|item| item.unwrap().0).collect();
         assert_eq!(
             paths,
@@ -557,7 +557,7 @@ mod test {
 
         // One more, with multiple links.
         let mut r = ResolvePath::new(root.join("a/b/c/abs_lnk/b/c/rel_lnk/b/c/d")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let paths: Vec<_> = r.map(|item| item.unwrap().0).collect();
         assert_eq!(
             paths,
@@ -575,7 +575,7 @@ mod test {
         let mut r =
             ResolvePath::new(root.join("a/b/c/abs_lnk/b/c/rel_lnk/b/c/rel_lnk/b/c/abs_lnk/b/c/d"))
                 .unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let paths: Vec<_> = r.map(|item| item.unwrap().0).collect();
         assert_eq!(
             paths,
@@ -600,7 +600,7 @@ mod test {
         // This file links to itself.  We should hit our loop detector and barf.
         d.link_rel(LinkType::File, "../../b/c/d", "a/b/c/d");
         let mut r = ResolvePath::new(root.join("a/b/c/d")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a"));
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a/b"));
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a/b/c"));
@@ -615,7 +615,7 @@ mod test {
         d.link_rel(LinkType::Dir, "./f", "a/b/c/e");
         d.link_rel(LinkType::Dir, "./e", "a/b/c/f");
         let mut r = ResolvePath::new(root.join("a/b/c/e/413")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a"));
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a/b"));
         assert_eq!(r.next().unwrap().unwrap().0, root.join("a/b/c"));
@@ -642,16 +642,13 @@ mod test {
         d.chmod("a/b/c/d", 0o000);
 
         let mut r = ResolvePath::new(root.join("a/b/c/d/e/413")).unwrap();
-        skip_past(&mut r, &root);
+        skip_past(&mut r, root);
         let resolvable: Vec<_> = (&mut r)
             .take(4)
             .map(|item| {
                 let (p, _, m) = item.unwrap();
                 (
-                    p.strip_prefix(&root)
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned(),
+                    p.strip_prefix(root).unwrap().to_string_lossy().into_owned(),
                     m.permissions().mode() & 0o777,
                 )
             })

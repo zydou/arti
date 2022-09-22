@@ -530,6 +530,8 @@ mod test {
         let sa4: SocketAddrV4 = "203.0.133.8:81".parse().unwrap();
         let sa6: SocketAddrV6 = "[2001:db8::43]:82".parse().unwrap();
 
+        // This tests impl DangerouslyIntoTorAddr for &T
+        #[allow(clippy::needless_borrow)]
         check(&(ip, 443), "203.0.133.6:443");
         check((ip, 443), "203.0.133.6:443");
         check((ip4, 444), "203.0.133.7:444");

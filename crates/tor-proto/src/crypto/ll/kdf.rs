@@ -71,7 +71,7 @@ impl Kdf for LegacyKdf {
         while result.len() < n_bytes {
             let mut d = Sha1::new();
             Digest::update(&mut d, seed);
-            Digest::update(&mut d, &[k]);
+            Digest::update(&mut d, [k]);
             d.finalize_into(&mut digest_output);
             result.extend_from_slice(&digest_output);
             k += 1;
