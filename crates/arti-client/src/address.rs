@@ -363,25 +363,8 @@ impl DangerouslyIntoTorAddr for SocketAddrV6 {
 /// Check whether `hostname` is a valid hostname or not.
 ///
 /// (Note that IPv6 addresses don't follow these rules.)
-///
-/// TODO: Check whether the rules given here are in fact the same rules
-/// as Tor follows, and whether they conform to anything.
 fn is_valid_hostname(hostname: &str) -> bool {
-    /// Check if we have the valid characters for a hostname
-    fn is_valid_char(byte: u8) -> bool {
-        ((b'a'..=b'z').contains(&byte))
-            || ((b'A'..=b'Z').contains(&byte))
-            || ((b'0'..=b'9').contains(&byte))
-            || byte == b'-'
-            || byte == b'.'
-    }
-
-    !(hostname.bytes().any(|byte| !is_valid_char(byte))
-        || hostname.ends_with('-')
-        || hostname.starts_with('-')
-        || hostname.ends_with('.')
-        || hostname.starts_with('.')
-        || hostname.is_empty())
+    hostname_validator::is_valid(hostname)
 }
 
 #[cfg(test)]

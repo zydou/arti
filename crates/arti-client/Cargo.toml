@@ -60,6 +60,7 @@ directories = "4"
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.5.0", features = ["serde"] }
 futures = "0.3.14"
+hostname-validator = "1.1.1"
 humantime-serde = "1.1.1"
 libc = "0.2"
 pin-project = "1"
