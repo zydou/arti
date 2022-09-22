@@ -101,6 +101,99 @@ impl TransportId {
     }
 }
 
+/// This identifier is used to indicate no transport address.
+const NONE_ADDR: &str = "<none>";
+
+/// An address that an be passed to a transport to tell it where to
+/// connect (typically, to a bridge).
+///
+/// Not every transport accepts all kinds of addresses.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum TransportTargetAddr {
+    /// An IP address and port for a Tor relay.
+    ///
+    /// This is the only address type supported by the BuiltIn transport.
+    IpPort(std::net::SocketAddr),
+    /// A hostname-and-port target address.  Some transports may support this.
+    #[cfg(feature = "pt-client")]
+    HostPort(String, u16),
+    /// A completely absent target address.  Some transports support this.
+    #[cfg(feature = "pt-client")]
+    None,
+}
+
+/// An error from parsing a [`TransportTargetAddr`].
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum TransportAddrError {
+    /// We were compiled without support for addresses of this type.
+    #[error("Not compiled with pluggable transport support.")]
+    NoSupport,
+    /// We cannot parse this address.
+    #[error("Cannot parse {0:?} as an address.")]
+    BadAddress(String),
+}
+
+#[allow(clippy::unnecessary_wraps)]
+impl TransportTargetAddr {
+    /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
+    #[cfg(feature = "pt-client")]
+    fn host_port(host: &str, port: u16) -> Result<Self, TransportAddrError> {
+        Ok(TransportTargetAddr::HostPort(host.to_string(), port))
+    }
+
+    /// Helper: Construct a `None` instance or return a `NoSupport` error.
+    #[cfg(feature = "pt-client")]
+    fn none() -> Result<Self, TransportAddrError> {
+        Ok(TransportTargetAddr::None)
+    }
+
+    /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
+    #[cfg(not(feature = "pt-client"))]
+    fn host_port(_host: &str, _port: u16) -> Result<Self, TransportAddrError> {
+        Err(TransportAddrError::NoSupport)
+    }
+
+    /// Helper: Construct a `None` instance or return a `NoSupport` error.
+    #[cfg(not(feature = "pt-client"))]
+    fn none() -> Result<Self, TransportAddrError> {
+        Err(TransportAddrError::NoSupport)
+    }
+}
+
+impl std::str::FromStr for TransportTargetAddr {
+    type Err = TransportAddrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(addr) = s.parse() {
+            Ok(TransportTargetAddr::IpPort(addr))
+        } else if let Some((name, port)) = s.rsplit_once(':') {
+            let port = port
+                .parse()
+                .map_err(|_| TransportAddrError::BadAddress(s.to_string()))?;
+
+            Self::host_port(name, port)
+        } else if s == NONE_ADDR {
+            Self::none()
+        } else {
+            Err(TransportAddrError::BadAddress(s.to_string()))
+        }
+    }
+}
+
+impl std::fmt::Display for TransportTargetAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransportTargetAddr::IpPort(addr) => write!(f, "{}", addr),
+            #[cfg(feature = "pt-client")]
+            TransportTargetAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
+            #[cfg(feature = "pt-client")]
+            TransportTargetAddr::None => write!(f, "{}", NONE_ADDR),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -156,5 +249,29 @@ mod test {
             TransportId::from_str("12345"),
             Err(TransportIdError::BadId(_))
         ));
+    }
+
+    #[test]
+    #[cfg(feature = "pt-client")]
+    fn addr() {
+        for addr in &["1.2.3.4:555", "[::1]:9999"] {
+            let a: TransportTargetAddr = addr.parse().unwrap();
+            assert_eq!(&a.to_string(), addr);
+        }
+
+        for addr in &["www.example.com:9100", "<none>"] {
+            if cfg!(feature = "pt-client") {
+                let a: TransportTargetAddr = addr.parse().unwrap();
+                assert_eq!(&a.to_string(), addr);
+            } else {
+                let e = TransportTargetAddr::from_str(addr).unwrap_err();
+                assert!(matches!(e, TransportAddrError::NoSupport));
+            }
+        }
+
+        for addr in &["foobar", "<<<>>>"] {
+            let e = TransportTargetAddr::from_str(addr).unwrap_err();
+            assert!(matches!(e, TransportAddrError::BadAddress(_)));
+        }
     }
 }
