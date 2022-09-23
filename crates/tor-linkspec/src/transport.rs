@@ -142,27 +142,34 @@ pub enum PtAddrError {
 #[allow(clippy::unnecessary_wraps)]
 impl PtTargetAddr {
     /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
-    #[cfg(feature = "pt-client")]
+    ///
+    /// (This is a private convenience function, to simplify the `FromStr`
+    /// implementation.)
     fn host_port(host: &str, port: u16) -> Result<Self, PtAddrError> {
-        Ok(PtTargetAddr::HostPort(host.to_string(), port))
+        #[cfg(feature = "pt-client")]
+        {
+            Ok(PtTargetAddr::HostPort(host.to_string(), port))
+        }
+        #[cfg(not(feature = "pt-client"))]
+        {
+            let _ = (host, port);
+            Err(PtAddrError::NoSupport)
+        }
     }
 
     /// Helper: Construct a `None` instance or return a `NoSupport` error.
-    #[cfg(feature = "pt-client")]
+    ///
+    /// (This is a private convenience function, to simplify the `FromStr`
+    /// implementation.)
     fn none() -> Result<Self, PtAddrError> {
-        Ok(PtTargetAddr::None)
-    }
-
-    /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
-    #[cfg(not(feature = "pt-client"))]
-    fn host_port(_host: &str, _port: u16) -> Result<Self, PtAddrError> {
-        Err(PtAddrError::NoSupport)
-    }
-
-    /// Helper: Construct a `None` instance or return a `NoSupport` error.
-    #[cfg(not(feature = "pt-client"))]
-    fn none() -> Result<Self, PtAddrError> {
-        Err(PtAddrError::NoSupport)
+        #[cfg(feature = "pt-client")]
+        {
+            Ok(PtTargetAddr::None)
+        }
+        #[cfg(not(feature = "pt-client"))]
+        {
+            Err(PtAddrError::NoSupport)
+        }
     }
 }
 
