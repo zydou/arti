@@ -60,6 +60,7 @@ impl RelayIds {
 
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
+// TODO pt-client: I believe that this should also implement HasChanMethods.
 #[derive(Debug, Clone)]
 pub struct OwnedChanTarget {
     /// Copy of the addresses from the underlying ChanTarget.

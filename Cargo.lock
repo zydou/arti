@@ -3679,7 +3679,9 @@ name = "tor-linkspec"
 version = "0.5.0"
 dependencies = [
  "base64ct",
+ "cfg-if",
  "derive_more",
+ "educe",
  "hex",
  "hex-literal",
  "serde",
@@ -3855,6 +3857,18 @@ version = "0.3.2"
 dependencies = [
  "caret",
  "thiserror",
+]
+
+[[package]]
+name = "tor-ptmgr"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "tor-chanmgr",
+ "tor-config",
+ "tor-linkspec",
+ "tor-rtcompat",
 ]
 
 [[package]]

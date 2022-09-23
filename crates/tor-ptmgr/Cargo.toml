@@ -1,0 +1,26 @@
+[package]
+name = "tor-ptmgr"
+version = "0.0.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2021"
+rust-version = "1.56"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Manage a set of pluggable transports to circumvent censorship"
+keywords = ["tor", "arti", "censorship"]
+categories = ["network-programming", "cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+[features]
+default = ["tor-channel-factory"]
+tor-channel-factory = []
+
+[dependencies]
+async-trait = "0.1.2"
+futures = "0.3.14"
+tor-chanmgr = { version = "0.6.0", path = "../tor-chanmgr" }
+tor-config = { version = "0.6.0", path = "../tor-config" }
+tor-linkspec = { version = "0.5.0", path = "../tor-linkspec" }
+tor-rtcompat = { version = "0.6.0", path = "../tor-rtcompat" }
+
+[dev-dependencies]

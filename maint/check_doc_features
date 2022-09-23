@@ -40,6 +40,11 @@ additional_required['tor-proto']= [
     ('CreateResponse', 'feature = "testing"'),
 ]
 
+# I was not able to suppress this in any way I could figure out.
+additional_provided['tor-linkspec'] = [
+    ('{PtTarget, PtTargetSettings}', 'feature = "pt-client"'),
+]
+
 # This is detected two times, but only on cfg_attr(docsrs) is enough
 additional_provided['tor-netdoc']= [
     ('Nickname', 'feature = "dangerous-expose-struct-fields"'),
