@@ -82,7 +82,9 @@ mod transport;
 pub use ids::{set::RelayIdSet, RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter};
 pub use ls::LinkSpec;
 pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
-pub use traits::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, HasRelayIdsLegacy};
+pub use traits::{
+    ChanTarget, CircTarget, HasAddrs, HasChanMethods, HasRelayIds, HasRelayIdsLegacy,
+};
 pub use transport::{
     ChannelMethod, TransportAddrError, TransportId, TransportIdError, TransportTargetAddr,
 };

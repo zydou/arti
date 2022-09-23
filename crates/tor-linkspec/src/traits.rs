@@ -4,7 +4,7 @@
 use std::{iter::FusedIterator, net::SocketAddr};
 use tor_llcrypto::pk;
 
-use crate::{RelayIdRef, RelayIdType, RelayIdTypeIter};
+use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
 
 /// Legacy implementation helper for HasRelayIds.
 ///
@@ -135,11 +135,30 @@ pub trait HasAddrs {
     fn addrs(&self) -> &[SocketAddr];
 }
 
+/// An object that can be connected to via [`ChannelMethod`]s.
+pub trait HasChanMethods {
+    /// Return the known ways to contact this
+    // TODO: See notes on HasAddrs above. TODO pt-client: I don't like having
+    // this return a Vec, but I don't see a great alternative. Let's revisit
+    // that.-nickm.
+    fn chan_methods(&self) -> Vec<ChannelMethod>;
+}
+
+// TODO pt-client: _possibly_ we should have a blanket implementation of
+// HasChanMethods for T: HasAddrs, or vice versa.
+//
+// Alternatively, we could merge HasAddrs and HasChanMethods into one trait, and
+// have default implementatoins for addrs() and chan_methods(), each
+// implemented in terms of the other.
+
 /// Information about a Tor relay used to connect to it.
 ///
 /// Anything that implements 'ChanTarget' can be used as the
 /// identity of a relay for the purposes of launching a new
 /// channel.
+//
+// TODO pt-client: I believe that this should also implement HasChanMethods, or
+// possibly implement HasChanMethods _in place of_ HasAddrs. -nickm
 pub trait ChanTarget: HasRelayIds + HasAddrs {}
 
 /// Information about a Tor relay used to extend a circuit to it.
