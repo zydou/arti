@@ -2,8 +2,9 @@
 //!
 //! A "transport" is a mechanism to connect to a relay on the Tor network and
 //! make a `Channel`. Currently, two types of transports exist: the "built-in"
-//! transport, which uses TLS over TCP, and various anti-censorship transports,
-//! which use TLS over other protocols to avoid detection by censors.
+//! transport, which uses TLS over TCP, and various anti-censorship "pluggable
+//! transports", which use TLS over other protocols to avoid detection by
+//! censors.
 
 /// Identify a type of Transport.
 ///
@@ -107,13 +108,13 @@ impl TransportId {
 /// This identifier is used to indicate no transport address.
 const NONE_ADDR: &str = "<none>";
 
-/// An address that an be passed to a transport to tell it where to
+/// An address that an be passed to a pluggable transport to tell it where to
 /// connect (typically, to a bridge).
 ///
 /// Not every transport accepts all kinds of addresses.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum TransportTargetAddr {
+pub enum PtTargetAddr {
     /// An IP address and port for a Tor relay.
     ///
     /// This is the only address type supported by the BuiltIn transport.
@@ -126,10 +127,10 @@ pub enum TransportTargetAddr {
     None,
 }
 
-/// An error from parsing a [`TransportTargetAddr`].
+/// An error from parsing a [`PtTargetAddr`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum TransportAddrError {
+pub enum PtAddrError {
     /// We were compiled without support for addresses of this type.
     #[error("Not compiled with pluggable transport support.")]
     NoSupport,
@@ -139,66 +140,66 @@ pub enum TransportAddrError {
 }
 
 #[allow(clippy::unnecessary_wraps)]
-impl TransportTargetAddr {
+impl PtTargetAddr {
     /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
     #[cfg(feature = "pt-client")]
-    fn host_port(host: &str, port: u16) -> Result<Self, TransportAddrError> {
-        Ok(TransportTargetAddr::HostPort(host.to_string(), port))
+    fn host_port(host: &str, port: u16) -> Result<Self, PtAddrError> {
+        Ok(PtTargetAddr::HostPort(host.to_string(), port))
     }
 
     /// Helper: Construct a `None` instance or return a `NoSupport` error.
     #[cfg(feature = "pt-client")]
-    fn none() -> Result<Self, TransportAddrError> {
-        Ok(TransportTargetAddr::None)
+    fn none() -> Result<Self, PtAddrError> {
+        Ok(PtTargetAddr::None)
     }
 
     /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
     #[cfg(not(feature = "pt-client"))]
-    fn host_port(_host: &str, _port: u16) -> Result<Self, TransportAddrError> {
-        Err(TransportAddrError::NoSupport)
+    fn host_port(_host: &str, _port: u16) -> Result<Self, PtAddrError> {
+        Err(PtAddrError::NoSupport)
     }
 
     /// Helper: Construct a `None` instance or return a `NoSupport` error.
     #[cfg(not(feature = "pt-client"))]
-    fn none() -> Result<Self, TransportAddrError> {
-        Err(TransportAddrError::NoSupport)
+    fn none() -> Result<Self, PtAddrError> {
+        Err(PtAddrError::NoSupport)
     }
 }
 
-impl std::str::FromStr for TransportTargetAddr {
-    type Err = TransportAddrError;
+impl std::str::FromStr for PtTargetAddr {
+    type Err = PtAddrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(addr) = s.parse() {
-            Ok(TransportTargetAddr::IpPort(addr))
+            Ok(PtTargetAddr::IpPort(addr))
         } else if let Some((name, port)) = s.rsplit_once(':') {
             let port = port
                 .parse()
-                .map_err(|_| TransportAddrError::BadAddress(s.to_string()))?;
+                .map_err(|_| PtAddrError::BadAddress(s.to_string()))?;
 
             Self::host_port(name, port)
         } else if s == NONE_ADDR {
             Self::none()
         } else {
-            Err(TransportAddrError::BadAddress(s.to_string()))
+            Err(PtAddrError::BadAddress(s.to_string()))
         }
     }
 }
 
-impl std::fmt::Display for TransportTargetAddr {
+impl std::fmt::Display for PtTargetAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TransportTargetAddr::IpPort(addr) => write!(f, "{}", addr),
+            PtTargetAddr::IpPort(addr) => write!(f, "{}", addr),
             #[cfg(feature = "pt-client")]
-            TransportTargetAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
+            PtTargetAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
             #[cfg(feature = "pt-client")]
-            TransportTargetAddr::None => write!(f, "{}", NONE_ADDR),
+            PtTargetAddr::None => write!(f, "{}", NONE_ADDR),
         }
     }
 }
 
-/// A set of options to be passed along to a transport along with a single
-/// target bridge relay.
+/// A set of options to be passed along to a pluggable transport along with a
+/// single target bridge relay.
 ///
 /// These options typically describe aspects of the targeted bridge relay that
 /// are not included in its address and Tor keys, such as additional
@@ -209,23 +210,23 @@ impl std::fmt::Display for TransportTargetAddr {
 #[cfg(feature = "pt-client")]
 #[derive(Clone, Debug)]
 #[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
-pub struct TransportTargetSettings {
+pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
 }
 
-/// The set of information passed to a transport in order to establish a
-/// connection to a bridge relay.
+/// The set of information passed to the  pluggable transport subsystem in order
+/// to establish a connection to a bridge relay.
 #[derive(Clone, Debug)]
 #[cfg(feature = "pt-client")]
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
-pub struct TransportTarget {
+pub struct PtTarget {
     /// The transport to be used.
     transport: TransportId,
     /// The address of the bridge relay, if any.
-    addr: TransportTargetAddr,
+    addr: PtTargetAddr,
     /// Any additional settings used by the transport.
-    settings: std::sync::Arc<TransportTargetSettings>,
+    settings: std::sync::Arc<PtTargetSettings>,
 }
 
 /// The way to approach a single relay in order to open a channel.
@@ -242,7 +243,7 @@ pub enum ChannelMethod {
 
     /// Connect to a bridge relay via a pluggable transport.
     #[cfg(feature = "pt-client")]
-    Pluggable(TransportTarget),
+    Pluggable(PtTarget),
 }
 
 #[cfg(test)]
@@ -306,23 +307,23 @@ mod test {
     #[cfg(feature = "pt-client")]
     fn addr() {
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
-            let a: TransportTargetAddr = addr.parse().unwrap();
+            let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
         }
 
         for addr in &["www.example.com:9100", "<none>"] {
             if cfg!(feature = "pt-client") {
-                let a: TransportTargetAddr = addr.parse().unwrap();
+                let a: PtTargetAddr = addr.parse().unwrap();
                 assert_eq!(&a.to_string(), addr);
             } else {
-                let e = TransportTargetAddr::from_str(addr).unwrap_err();
-                assert!(matches!(e, TransportAddrError::NoSupport));
+                let e = PtTargetAddr::from_str(addr).unwrap_err();
+                assert!(matches!(e, PtAddrError::NoSupport));
             }
         }
 
         for addr in &["foobar", "<<<>>>"] {
-            let e = TransportTargetAddr::from_str(addr).unwrap_err();
-            assert!(matches!(e, TransportAddrError::BadAddress(_)));
+            let e = PtTargetAddr::from_str(addr).unwrap_err();
+            assert!(matches!(e, PtAddrError::BadAddress(_)));
         }
     }
 }

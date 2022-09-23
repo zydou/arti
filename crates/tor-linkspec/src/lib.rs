@@ -85,9 +85,7 @@ pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
 pub use traits::{
     ChanTarget, CircTarget, HasAddrs, HasChanMethods, HasRelayIds, HasRelayIdsLegacy,
 };
-pub use transport::{
-    ChannelMethod, TransportAddrError, TransportId, TransportIdError, TransportTargetAddr,
-};
+pub use transport::{ChannelMethod, PtAddrError, PtTargetAddr, TransportId, TransportIdError};
 
 #[cfg(feature = "pt-client")]
-pub use transport::{TransportTarget, TransportTargetSettings};
+pub use transport::{PtTarget, PtTargetSettings};
