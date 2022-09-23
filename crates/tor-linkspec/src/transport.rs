@@ -29,6 +29,9 @@ enum Inner {
 }
 
 /// This identifier is used to indicate the built-in transport.
+//
+// Actual pluggable transport names are restricted to the syntax of C identifiers.
+// This string deliberately is not in that syntax so as to avoid clashes.
 const BUILT_IN_ID: &str = "<none>";
 
 impl std::str::FromStr for TransportId {
