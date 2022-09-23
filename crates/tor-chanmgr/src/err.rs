@@ -84,6 +84,10 @@ pub enum Error {
     #[error("Could not identify relay by identity key")]
     MissingId,
 
+    /// Tried to connnect via a transport that we don't support.
+    #[error("No plugin available for the transport {0}")]
+    NoSuchTransport(tor_linkspec::TransportId),
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -110,6 +114,7 @@ impl tor_error::HasKind for Error {
             E::Spawn { cause, .. } => cause.kind(),
             E::Proto { source, .. } => source.kind(),
             E::PendingFailed { .. } => EK::TorAccessFailed,
+            E::NoSuchTransport(_) => EK::InvalidConfig,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
             E::MissingId => EK::BadApiUsage,
             Error::ChannelBuild { .. } => EK::TorAccessFailed,
@@ -141,6 +146,14 @@ impl tor_error::HasRetryTime for Error {
             // This one can't succeed: if the ChanTarget have addresses to begin with,
             // it won't have addresses in the future.
             E::UnusableTarget(_) => RT::Never,
+
+            // This one can't succeed until the bridge, or our set of
+            // transports, is reconfigured.
+            //
+            // TODO pt-client: Double-check this, to make sure that it doesn't
+            // cause us to reject a multi-transport bridge if only one of its
+            // transports fails.
+            E::NoSuchTransport(_) => RT::Never,
 
             // These aren't recoverable at all.
             E::Spawn { .. } | E::MissingId | E::Internal(_) => RT::Never,

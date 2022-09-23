@@ -23,6 +23,14 @@ use void::{ResultVoidExt as _, Void};
 #[cfg(test)]
 mod padding_test;
 
+// TODO pt-client:
+//
+// This map code will no longer work in the bridge setting.  We need to update
+// our internal map of channels, so that we can look them up not only by Ed25519
+// identity, but by RSA identity too.  We also need a way to be able to get a
+// channel only if it matches a specific ChanTarget in its address and transport
+// and keys.
+
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
 /// We make this a separate type instead of just using

@@ -56,6 +56,7 @@ mod builder;
 mod config;
 mod err;
 mod event;
+pub mod factory;
 mod mgr;
 #[cfg(test)]
 mod testing;
@@ -274,6 +275,26 @@ impl<R: Runtime> ChanMgr<R> {
         let _: Option<&tor_error::Bug> = r.as_ref().err();
 
         Ok(r?)
+    }
+
+    /// Replace the channel factory that we use for making regular
+    /// channels to the Tor network.
+    ///
+    /// This method can be used to e.g. tell Arti to use a proxy for
+    /// outgoing connections.
+    pub fn set_default_transport(&self, _factory: impl factory::ChannelFactory) {
+        #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
+        todo!("TODO pt-client: implement this.")
+    }
+
+    /// Replace the transport registry with one that may know about
+    /// more transports.
+    //
+    //  TODO::pt_client (Alternatively, move this functionality into ChanMgr::new?)
+    #[cfg(feature = "pt-client")]
+    pub fn set_transport_registry(&self, _registry: impl factory::TransportRegistry) {
+        #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
+        todo!("TODO pt-client: implement this.")
     }
 
     /// Watch for things that ought to change the configuration of all channels in the client
