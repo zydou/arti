@@ -194,6 +194,54 @@ impl std::fmt::Display for TransportTargetAddr {
     }
 }
 
+/// A set of options to be passed along to a transport along with a single
+/// target bridge relay.
+///
+/// These options typically describe aspects of the targeted bridge relay that
+/// are not included in its address and Tor keys, such as additional
+/// transport-specific keys or parameters.
+///
+/// This type is _not_ for settings that apply to _all_ of the connections over
+/// a transport.
+#[cfg(feature = "pt-client")]
+#[derive(Clone, Debug)]
+#[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
+pub struct TransportTargetSettings {
+    /// A list of (key,value) pairs
+    settings: Vec<(String, String)>,
+}
+
+/// The set of information passed to a transport in order to establish a
+/// connection to a bridge relay.
+#[derive(Clone, Debug)]
+#[cfg(feature = "pt-client")]
+#[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
+pub struct TransportTarget {
+    /// The transport to be used.
+    transport: TransportId,
+    /// The address of the bridge relay, if any.
+    addr: TransportTargetAddr,
+    /// Any additional settings used by the transport.
+    settings: std::sync::Arc<TransportTargetSettings>,
+}
+
+/// The way to approach a single relay in order to open a channel.
+///
+/// For direct connections, this is simply an address.  For connections via a
+/// pluggable transport, this includes information about the transport, and any
+/// address and settings information that transport requires.
+#[derive(Clone, Debug)]
+#[allow(clippy::exhaustive_enums)]
+// TODO pt-client: I am not in love with this enum name --nm.
+pub enum ChannelMethod {
+    /// Connect to the relay directly at a given address.
+    Direct(std::net::SocketAddr),
+
+    /// Connect to a bridge relay via a pluggable transport.
+    #[cfg(feature = "pt-client")]
+    Pluggable(TransportTarget),
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]

@@ -83,4 +83,9 @@ pub use ids::{set::RelayIdSet, RelayId, RelayIdError, RelayIdRef, RelayIdType, R
 pub use ls::LinkSpec;
 pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
 pub use traits::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, HasRelayIdsLegacy};
-pub use transport::{TransportAddrError, TransportId, TransportIdError, TransportTargetAddr};
+pub use transport::{
+    ChannelMethod, TransportAddrError, TransportId, TransportIdError, TransportTargetAddr,
+};
+
+#[cfg(feature = "pt-client")]
+pub use transport::{TransportTarget, TransportTargetSettings};
