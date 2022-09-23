@@ -153,6 +153,8 @@ use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
+#[cfg(feature = "bridge-client")]
+pub mod bridge;
 mod daemon;
 mod dirstatus;
 mod err;
