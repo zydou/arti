@@ -32,6 +32,7 @@ members = [
     "crates/tor-congestion",
     "crates/tor-persist",
     "crates/tor-chanmgr",
+    "crates/tor-ptmgr",
     "crates/tor-guardmgr",
     "crates/tor-circmgr",
     "crates/tor-dirclient",
