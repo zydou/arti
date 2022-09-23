@@ -11,6 +11,9 @@ use tor_linkspec::TransportId;
 pub struct PtMgrConfig {
     /// A list of configured transport binaries.
     transport: Vec<ManagedTransportConfig>,
+    // TODO: Someday we will want to also have support for a directory full of
+    // transports, transports loaded dynamically from an object file, or stuff
+    // like that.
 }
 
 /// A single pluggable transport, to be launched as an external process.

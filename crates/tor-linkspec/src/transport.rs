@@ -139,6 +139,7 @@ pub enum PtAddrError {
     BadAddress(String),
 }
 
+// TODO pt-client: decide whether to inline these.
 #[allow(clippy::unnecessary_wraps)]
 impl PtTargetAddr {
     /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
@@ -217,6 +218,13 @@ impl std::fmt::Display for PtTargetAddr {
 #[cfg(feature = "pt-client")]
 #[derive(Clone, Debug)]
 #[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
+
+// TODO pt-client: I am not sure we will want to keep this type, rather than
+// just inlining it.  I am leaving it as a separate type for now, though, for a
+// few reasons:
+// 1) to avoid confusing it with the parameters passed to a transport when it
+//    starts;
+// 2) to give us some flexibility about the representation.
 pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
