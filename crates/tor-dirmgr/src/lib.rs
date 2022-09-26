@@ -153,6 +153,7 @@ pub trait DirProvider: NetDirProvider {
 
 // NOTE(eta): We can't implement this for Arc<DirMgr<R>> due to trait coherence rules, so instead
 //            there's a blanket impl for Arc<T> in tor-netdir.
+// TODO pt-client: Also implement BridgeDescProvider for DirMgr.
 impl<R: Runtime> NetDirProvider for DirMgr<R> {
     fn netdir(&self, timeliness: Timeliness) -> tor_netdir::Result<Arc<NetDir>> {
         use tor_netdir::Error as NetDirError;

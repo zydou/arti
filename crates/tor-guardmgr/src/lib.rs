@@ -153,6 +153,8 @@ use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
 use tor_rtcompat::Runtime;
 
+#[cfg(feature = "bridge-client")]
+pub mod bridge;
 mod daemon;
 mod dirstatus;
 mod err;
@@ -288,6 +290,11 @@ enum GuardSetSelector {
     /// use when we have a filter that excludes a large fraction of the guards
     /// on the network.
     Restricted,
+    /// The "bridges" guard set is currently in use: we are selecting our guards
+    /// from among the universe of configured bridges.
+    #[cfg(feature = "bridge-client")]
+    #[allow(dead_code)] // TODO pt-client: remove this "allow" once used
+    Bridges,
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
@@ -311,6 +318,7 @@ struct GuardSets {
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
     remaining: HashMap<String, tor_persist::JsonValue>,
+    // TODO pt-client: There must also be a "bridges" GuardSet instance.
 }
 
 /// The key (filename) we use for storing our persistent guard state in the
@@ -321,6 +329,10 @@ struct GuardSets {
 const STORAGE_KEY: &str = "guards";
 
 impl<R: Runtime> GuardMgr<R> {
+    // TODO pt-client: We need a configuration argument on construction, and a
+    // reconfigure function. They need to take a configuration object including
+    // a BridgeList, and the "are bridges on or off" object.
+
     /// Create a new "empty" guard manager and launch its background tasks.
     ///
     /// It won't be able to hand out any guards until
@@ -402,6 +414,18 @@ impl<R: Runtime> GuardMgr<R> {
             ))
             .map_err(|e| GuardMgrError::from_spawn("periodic guard netdir updater", e))?;
         Ok(())
+    }
+
+    /// Configure a new BridgeDescProvider.
+    ///
+    /// TODO pt-client: give this more documentation, like install_netdir_provider has.
+    #[cfg(feature = "bridge-client")]
+    #[allow(clippy::needless_pass_by_value, clippy::missing_panics_doc)]
+    pub fn install_bridge_desc_provider<T>(
+        &self,
+        _provider: Arc<dyn bridge::BridgeDescProvider>,
+    ) -> Result<(), GuardMgrError> {
+        todo!() // TODO pt-client: Implement this and remove the clippy exceptions above.
     }
 
     /// Flush our current guard state to the state manager, if there
@@ -659,6 +683,8 @@ impl GuardSets {
         match self.active_set {
             GuardSetSelector::Default => &self.default,
             GuardSetSelector::Restricted => &self.restricted,
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => todo!(), // TODO pt-client
         }
     }
 
@@ -667,6 +693,8 @@ impl GuardSets {
         match self.active_set {
             GuardSetSelector::Default => &mut self.default,
             GuardSetSelector::Restricted => &mut self.restricted,
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => todo!(), // TODO pt-client
         }
     }
 
@@ -796,6 +824,8 @@ impl GuardMgrInner {
         let offset = match self.guards.active_set {
             GuardSetSelector::Default => -0.05,
             GuardSetSelector::Restricted => 0.05,
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => todo!(), // TODO pt-client
         };
         let threshold = self.params.filter_threshold + offset;
         let new_choice = if frac_permitted < threshold {
@@ -1165,6 +1195,9 @@ impl GuardMgrInner {
 
         // Okay, that didn't work either.  If we were asked for a directory
         // guard, then we may be able to use a fallback.
+        //
+        // TODO pt-client: Actually, we never want to use fallbacks if we are in
+        // bridge mode.
         if usage.kind == GuardUsageKind::OneHopDirectory {
             return self.select_fallback(now);
         }
@@ -1202,6 +1235,9 @@ impl GuardMgrInner {
 
 /// A set of parameters, derived from the consensus document, controlling
 /// the behavior of a guard manager.
+//
+// TODO pt-client: We need to see what Tor does here for these parameters as
+// applied to bridges.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 struct GuardParams {
@@ -1296,6 +1332,9 @@ pub struct FirstHop {
     /// The guard's identities
     id: FirstHopId,
     /// The addresses at which the guard can be contacted.
+    //
+    // TODO pt-client: This needs to be more complex if we are using
+    // pluggable transports!
     orports: Vec<SocketAddr>,
 }
 
@@ -1306,7 +1345,17 @@ impl FirstHop {
     }
     /// Look up this guard in `netdir`.
     pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
+        // TODO pt-client: This should always return "None" for a bridge.
         self.id().get_relay(netdir)
+    }
+
+    /// If possible, return a view of this object that can be used to build a circuit.
+    ///
+    /// TODO pt-client: This will need to return "Some" only for bridges that have
+    /// a bridge descriptor.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn as_circ_target(&self) -> Option<tor_linkspec::OwnedCircTarget> {
+        todo!() // TODO pt-client: Implement
     }
 }
 
