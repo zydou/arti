@@ -96,6 +96,7 @@ pub struct RouterAnnotation {
     visible::StructFields(pub),
     non_exhaustive
 )]
+#[derive(Clone, Debug)]
 pub struct RouterDesc {
     /// Human-readable nickname for this relay.
     ///
