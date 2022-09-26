@@ -182,6 +182,7 @@ impl<'a> ExitPathBuilder<'a> {
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
+                // TODO pt-client: First try as_circ_target; then try get_relay.
                 let guard = guard.get_relay(netdir).ok_or_else(|| {
                     internal!(
                         "Somehow the guardmgr gave us an unlisted guard {:?}!",

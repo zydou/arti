@@ -1345,7 +1345,17 @@ impl FirstHop {
     }
     /// Look up this guard in `netdir`.
     pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
+        // TODO pt-client: This should always return "None" for a bridge.
         self.id().get_relay(netdir)
+    }
+
+    /// If possible, return a view of this object that can be used to build a circuit.
+    ///
+    /// TODO pt-client: This will need to return "Some" only for bridges that have
+    /// a bridge descriptor.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn as_circ_target(&self) -> Option<tor_linkspec::OwnedCircTarget> {
+        todo!() // TODO pt-client: Implement
     }
 }
 
