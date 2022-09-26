@@ -722,12 +722,14 @@ fn test_establish_intro() {
 
 #[cfg(feature = "onion-service")]
 #[test]
-fn test_introduce1() {
+fn test_introduce() {
     use tor_cell::relaycell::{
         msg::RelayMsg,
         onion_service::{AuthKeyType, Introduce1},
     };
 
+    // Testing with Introduce1 only should be sufficient as long as
+    // Introduce1 and Introduce2 share the same inner body
     let cmd = RelayCmd::INTRODUCE1;
     let auth_key_type = AuthKeyType::ED25519_SHA3_256;
     let auth_key = vec![0, 1, 2, 3];

@@ -253,9 +253,55 @@ impl msg::Body for EstablishRendezvous {
     }
 }
 
-/// A message sent from client to introduction point.
 #[derive(Debug, Clone)]
-pub struct Introduce1 {
+/// A message sent from client to introduction point.
+pub struct Introduce1(Introduce);
+
+impl msg::Body for Introduce1 {
+    fn into_message(self) -> msg::RelayMsg {
+        msg::RelayMsg::Introduce1(self)
+    }
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(Self(Introduce::decode_from_reader(r)?))
+    }
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+        self.0.encode_onto(w)
+    }
+}
+
+impl Introduce1 {
+    /// All arguments constructor
+    pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        Self(Introduce::new(auth_key_type, auth_key, encrypted))
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A message sent from introduction point to hidden service host.
+pub struct Introduce2(Introduce);
+
+impl msg::Body for Introduce2 {
+    fn into_message(self) -> msg::RelayMsg {
+        msg::RelayMsg::Introduce2(self)
+    }
+    fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
+        Ok(Self(Introduce::decode_from_reader(r)?))
+    }
+    fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
+        self.0.encode_onto(w)
+    }
+}
+
+impl Introduce2 {
+    /// All arguments constructor
+    pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        Self(Introduce::new(auth_key_type, auth_key, encrypted))
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A message body shared by Introduce1 and Introduce2
+struct Introduce {
     /// Introduction point auth key type and the type of
     /// the MAC used in `handshake_auth`.
     auth_key_type: AuthKeyType,
@@ -265,10 +311,16 @@ pub struct Introduce1 {
     encrypted: Vec<u8>,
 }
 
-impl msg::Body for Introduce1 {
-    fn into_message(self) -> msg::RelayMsg {
-        msg::RelayMsg::Introduce1(self)
+impl Introduce {
+    /// All arguments constructor
+    fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
+        Self {
+            auth_key_type,
+            auth_key,
+            encrypted,
+        }
     }
+    /// Decode an Introduce message body from the given reader
     fn decode_from_reader(r: &mut Reader<'_>) -> Result<Self> {
         let legacy_key_id: RsaIdentity = r.extract()?;
         if !legacy_key_id.is_zero() {
@@ -292,6 +344,7 @@ impl msg::Body for Introduce1 {
             encrypted,
         })
     }
+    /// Encode an Introduce message body onto the given writer
     fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         w.write_all(&[0_u8; 20]);
         w.write_u8(self.auth_key_type.get());
@@ -301,16 +354,5 @@ impl msg::Body for Introduce1 {
         w.write_u8(0_u8);
         w.write_all(&self.encrypted[..]);
         Ok(())
-    }
-}
-
-impl Introduce1 {
-    /// All arguments constructor
-    pub fn new(auth_key_type: AuthKeyType, auth_key: Vec<u8>, encrypted: Vec<u8>) -> Self {
-        Self {
-            auth_key_type,
-            auth_key,
-            encrypted,
-        }
     }
 }
