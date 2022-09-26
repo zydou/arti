@@ -416,6 +416,18 @@ impl<R: Runtime> GuardMgr<R> {
         Ok(())
     }
 
+    /// Configure a new BridgeDescProvider.
+    ///
+    /// TODO pt-client: give this more documentation, like install_netdir_provider has.
+    #[cfg(feature = "bridge-client")]
+    #[allow(clippy::needless_pass_by_value, clippy::missing_panics_doc)]
+    pub fn install_bridge_desc_provider<T>(
+        &self,
+        _provider: Arc<dyn bridge::BridgeDescProvider>,
+    ) -> Result<(), GuardMgrError> {
+        todo!() // TODO pt-client: Implement this and remove the clippy exceptions above.
+    }
+
     /// Flush our current guard state to the state manager, if there
     /// is any unsaved state.
     pub fn store_persistent_state(&self) -> Result<(), GuardMgrError> {

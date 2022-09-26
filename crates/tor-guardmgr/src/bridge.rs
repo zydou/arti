@@ -8,8 +8,10 @@
 //! When a client is configured to use bridges, it uses them in place of its
 //! regular set of guards in building the first hop of its circuits.
 //
-// TODO pt-client: Put this whole module behind a "bridge" feature?
+// TODO pt-client: Should this whole module be in another crate?
 
 mod config;
+mod descs;
 
 pub use config::Bridge;
+pub use descs::{BridgeDescEvent, BridgeDescList, BridgeDescProvider};

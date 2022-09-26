@@ -12,12 +12,12 @@ categories = ["network-programming", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["bridge-client"]
+default = []
 
 # Support for using bridges as a client. Note that this is not the same as
 # other crates' pt-client feature, since here we are not concerned with
 # pluggable transports necessarily.
-bridge-client = []
+bridge-client = ["tor-netdoc/routerdesc"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
