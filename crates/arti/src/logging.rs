@@ -53,6 +53,11 @@ pub struct LoggingConfig {
     /// This can be useful for debugging, but it increases the value of your
     /// logs to an attacker.  Do not turn this on in production unless you have
     /// a good log rotation mechanism.
+    //
+    // TODO: Eventually we might want to make this more complex, and add a
+    // per-log mechanism to turn off unsafe logging. Alternatively, we might do
+    // that by extending the filter syntax implemented by `tracing` to have an
+    // "unsafe" flag on particular lines.
     #[builder_field_attr(serde(default))]
     #[builder(default)]
     log_sensitive_information: bool,
@@ -130,28 +135,6 @@ fn filt_from_opt_str(s: &Option<String>, source: &str) -> Result<Option<Targets>
     })
 }
 
-/// Helper to disable safe-logging when formatting an event to be logged to the
-/// console.
-struct FormatWithSafeLoggingSuppressed<F> {
-    /// An inner formatting type that does the actual formatting.
-    inner: F,
-}
-impl<S, N, F> fmt::FormatEvent<S, N> for FormatWithSafeLoggingSuppressed<F>
-where
-    F: fmt::FormatEvent<S, N>,
-    N: for<'writer> fmt::FormatFields<'writer> + 'static,
-    S: Subscriber + for<'span> tracing_subscriber::registry::LookupSpan<'span>,
-{
-    fn format_event(
-        &self,
-        ctx: &fmt::FmtContext<'_, S, N>,
-        writer: fmt::format::Writer<'_>,
-        event: &tracing::Event<'_>,
-    ) -> std::fmt::Result {
-        safelog::with_safe_logging_suppressed(|| self.inner.format_event(ctx, writer, event))
-    }
-}
-
 /// Try to construct a tracing [`Layer`] for logging to stdout.
 fn console_layer<S>(config: &LoggingConfig, cli: Option<&str>) -> Result<impl Layer<S>>
 where
@@ -161,14 +144,11 @@ where
         .map(|s| filt_from_str_verbose(s, "--log-level command line parameter"))
         .or_else(|| filt_from_opt_str(&config.console, "logging.console").transpose())
         .unwrap_or_else(|| Ok(Targets::from_str("debug").expect("bad default")))?;
-    // We suppress safe logging when formatting messages for the console,
-    // which we assume to be volatile.
-    let format = FormatWithSafeLoggingSuppressed {
-        inner: fmt::format(),
-    };
-    Ok(fmt::Layer::default()
-        .event_format(format)
-        .with_filter(filter))
+    // We used to suppress safe-logging on the console, but we removed that
+    // feature: we cannot be certain that the console really is volatile. Even
+    // if isatty() returns true on the console, we can't be sure that the
+    // terminal isn't saving backlog to disk or something like that.
+    Ok(fmt::Layer::default().with_filter(filter))
 }
 
 /// Try to construct a tracing [`Layer`] for logging to journald, if one is
