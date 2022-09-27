@@ -178,7 +178,7 @@ impl SocksRequest {
     /// Create a SocksRequest with a given set of fields.
     ///
     /// Return an error if the inputs aren't supported or valid.
-    pub(crate) fn new(
+    pub fn new(
         version: SocksVersion,
         cmd: SocksCmd,
         addr: SocksAddr,
@@ -192,6 +192,22 @@ impl SocksRequest {
         }
         if port == 0 && cmd.requires_port() {
             return Err(Error::Syntax);
+        }
+        match &auth {
+            SocksAuth::NoAuth => {}
+            SocksAuth::Socks4(_) => {
+                if version != SocksVersion::V4 {
+                    return Err(Error::Syntax);
+                }
+            }
+            SocksAuth::Username(user, pass) => {
+                if version != SocksVersion::V5
+                    || user.len() > u8::MAX as usize
+                    || pass.len() > u8::MAX as usize
+                {
+                    return Err(Error::Syntax);
+                }
+            }
         }
 
         Ok(SocksRequest {
