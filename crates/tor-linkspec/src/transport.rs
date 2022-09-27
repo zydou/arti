@@ -48,12 +48,35 @@ impl FromStr for PtTransportName {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        #[cfg(feature = "pt-client")]
-        if is_well_formed_id(s) {
-            Ok(PtTransportName(s.to_string()))
+        s.to_string().try_into()
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl TryFrom<String> for PtTransportName {
+    type Error = TransportIdError;
+
+    fn try_from(s: String) -> Result<PtTransportName, Self::Error> {
+        if is_well_formed_id(&s) {
+            Ok(PtTransportName(s))
         } else {
-            Err(TransportIdError::BadId(s.to_string()))
+            Err(TransportIdError::BadId(s))
         }
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl AsRef<str> for PtTransportName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl PtTransportName {
+    /// Return the name as a `String`
+    pub fn into_inner(self) -> String {
+        self.0
     }
 }
 
