@@ -17,9 +17,11 @@ default = []
 experimental = ["bridge-client"]
 
 # Support for using bridges as a client. Note that this is not the same as
-# other crates' pt-client feature, since here we are not concerned with
+# the pt-client feature, since here we are not concerned with
 # pluggable transports necessarily.
 bridge-client = ["tor-netdoc/routerdesc"]
+# Support for pluggable transports.
+pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
