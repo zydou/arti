@@ -1,5 +1,7 @@
 //! Implement the socks handshakes.
 
+#[cfg(feature = "client-handshake")]
+pub(crate) mod client;
 #[cfg(feature = "proxy-handshake")]
 pub(crate) mod proxy;
 
@@ -8,6 +10,12 @@ use std::net::IpAddr;
 use tor_bytes::Result as BytesResult;
 use tor_bytes::{EncodeResult, Error as BytesError, Readable, Reader, Writeable, Writer};
 
+/// Constant for Username/Password-style authentication.
+/// (See RFC 1929)
+const USERNAME_PASSWORD: u8 = 0x02;
+/// Constant for "no authentication".
+const NO_AUTHENTICATION: u8 = 0x00;
+
 /// An action to take in response to a SOCKS handshake message.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -15,7 +23,7 @@ pub struct Action {
     /// If nonzero, this many bytes should be drained from the
     /// client's inputs.
     pub drain: usize,
-    /// If nonempty, this reply should be sent to the client.
+    /// If nonempty, this reply should be sent to the other party.
     pub reply: Vec<u8>,
     /// If true, then this handshake is over, either successfully or not.
     pub finished: bool,

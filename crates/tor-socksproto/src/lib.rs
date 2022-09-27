@@ -104,6 +104,10 @@ pub use handshake::Action;
 #[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
 pub use handshake::proxy::SocksProxyHandshake;
 
+#[cfg(feature = "client-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client-handshake")))]
+pub use handshake::client::SocksClientHandshake;
+
 #[deprecated(since = "0.5.2", note = "Use SocksProxyHandshake instead.")]
 #[cfg(feature = "proxy-handshake")]
 #[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]

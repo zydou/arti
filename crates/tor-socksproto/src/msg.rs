@@ -155,6 +155,15 @@ impl SocksStatus {
             _ => 0x5B,
         }
     }
+    /// Create a status from a SOCKS4 or SOCKS4a reply code.
+    pub(crate) fn from_socks4_status(status: u8) -> Self {
+        match status {
+            0x5A => SocksStatus::SUCCEEDED,
+            0x5B => SocksStatus::GENERAL_FAILURE,
+            0x5C | 0x5D => SocksStatus::NOT_ALLOWED,
+            _ => SocksStatus::GENERAL_FAILURE,
+        }
+    }
 }
 
 impl TryFrom<String> for SocksHostname {

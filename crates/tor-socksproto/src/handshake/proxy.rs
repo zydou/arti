@@ -137,17 +137,12 @@ impl SocksProxyHandshake {
 
     /// Socks5: initial handshake to negotiate authentication method.
     fn s5_initial(&mut self, input: &[u8]) -> Result<Action> {
+        use super::{NO_AUTHENTICATION, USERNAME_PASSWORD};
         let mut r = Reader::from_slice(input);
         let version: SocksVersion = r.take_u8()?.try_into()?;
         if version != SocksVersion::V5 {
             return Err(internal!("called on wrong handshake type {:?}", version).into());
         }
-
-        /// Constant for Username/Password-style authentication.
-        /// (See RFC 1929)
-        const USERNAME_PASSWORD: u8 = 0x02;
-        /// Constant for "no authentication".
-        const NO_AUTHENTICATION: u8 = 0x00;
 
         let nmethods = r.take_u8()?;
         let methods = r.take(nmethods as usize)?;
