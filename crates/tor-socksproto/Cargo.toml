@@ -11,6 +11,10 @@ keywords = ["tor", "arti", "socks"]
 categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
+[features]
+default = ["proxy-handshake"]
+proxy-handshake = []
+
 [dependencies]
 caret = { path = "../caret", version = "0.2.0" }
 thiserror = "1"

@@ -98,7 +98,17 @@ mod handshake;
 mod msg;
 
 pub use err::Error;
-pub use handshake::{Action, SocksHandshake};
+pub use handshake::Action;
+
+#[cfg(feature = "proxy-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
+pub use handshake::proxy::SocksProxyHandshake;
+
+#[deprecated(since = "0.5.2", note = "Use SocksProxyHandshake instead.")]
+#[cfg(feature = "proxy-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
+pub use SocksProxyHandshake as SocksHandshake;
+
 pub use msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
 pub use tor_error::Truncated;
 
