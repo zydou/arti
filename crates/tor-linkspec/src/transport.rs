@@ -6,6 +6,12 @@
 //! transports", which use TLS over other protocols to avoid detection by
 //! censors.
 
+use std::fmt::{self, Display};
+use std::str::FromStr;
+
+#[cfg(feature = "pt-client")]
+use std::sync::Arc;
+
 /// Identify a type of Transport.
 ///
 /// If this crate is compiled with the `pt-client` feature, this type can
@@ -38,7 +44,7 @@ enum Inner {
 pub struct PtTransportName(String);
 
 #[cfg(feature = "pt-client")]
-impl std::str::FromStr for PtTransportName {
+impl FromStr for PtTransportName {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -52,9 +58,9 @@ impl std::str::FromStr for PtTransportName {
 }
 
 #[cfg(feature = "pt-client")]
-impl std::fmt::Display for PtTransportName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
+impl Display for PtTransportName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
     }
 }
 
@@ -64,7 +70,7 @@ impl std::fmt::Display for PtTransportName {
 // This string deliberately is not in that syntax so as to avoid clashes.
 const BUILT_IN_ID: &str = "<none>";
 
-impl std::str::FromStr for TransportId {
+impl FromStr for TransportId {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -83,8 +89,8 @@ impl std::str::FromStr for TransportId {
     }
 }
 
-impl std::fmt::Display for TransportId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for TransportId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Inner::BuiltIn => write!(f, "{}", BUILT_IN_ID),
             #[cfg(feature = "pt-client")]
@@ -202,7 +208,7 @@ impl PtTargetAddr {
     }
 }
 
-impl std::str::FromStr for PtTargetAddr {
+impl FromStr for PtTargetAddr {
     type Err = PtAddrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -222,8 +228,8 @@ impl std::str::FromStr for PtTargetAddr {
     }
 }
 
-impl std::fmt::Display for PtTargetAddr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PtTargetAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PtTargetAddr::IpPort(addr) => write!(f, "{}", addr),
             #[cfg(feature = "pt-client")]
@@ -269,7 +275,7 @@ pub struct PtTarget {
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
-    settings: std::sync::Arc<PtTargetSettings>,
+    settings: Arc<PtTargetSettings>,
 }
 
 /// The way to approach a single relay in order to open a channel.
@@ -293,7 +299,6 @@ pub enum ChannelMethod {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use std::str::FromStr;
 
     #[test]
     fn builtin() {
