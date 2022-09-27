@@ -136,6 +136,7 @@ fn is_well_formed_id(s: &str) -> bool {
     if let Some(first) = bytes.next() {
         (first.is_ascii_alphabetic() || first == b'_')
             && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            && !s.eq_ignore_ascii_case("bridge")
     } else {
         false
     }
@@ -370,6 +371,10 @@ mod test {
 
         assert!(matches!(
             TransportId::from_str("12345"),
+            Err(TransportIdError::BadId(_))
+        ));
+        assert!(matches!(
+            TransportId::from_str("bridge"),
             Err(TransportIdError::BadId(_))
         ));
     }
