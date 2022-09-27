@@ -9,9 +9,6 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
-#[cfg(feature = "pt-client")]
-use std::sync::Arc;
-
 /// Identify a type of Transport.
 ///
 /// If this crate is compiled with the `pt-client` feature, this type can
@@ -274,7 +271,7 @@ impl Display for PtTargetAddr {
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
 #[cfg(feature = "pt-client")]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
 
 // TODO pt-client: I am not sure we will want to keep this type, rather than
@@ -283,6 +280,10 @@ impl Display for PtTargetAddr {
 // 1) to avoid confusing it with the parameters passed to a transport when it
 //    starts;
 // 2) to give us some flexibility about the representation.
+//
+// TODO pt-client: This type ought to validate that the keys do not contain `=`
+//                 and that the keys and values do not contain whitespace.
+// See this spec issue https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
 pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
@@ -299,7 +300,24 @@ pub struct PtTarget {
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
-    settings: Arc<PtTargetSettings>,
+    settings: PtTargetSettings,
+}
+
+#[cfg(feature = "pt-client")]
+impl PtTarget {
+    /// Create a new `PtTarget` (with no settings)
+    pub fn new(transport: PtTransportName, addr: PtTargetAddr) -> Self {
+        PtTarget {
+            transport,
+            addr,
+            settings: Default::default(),
+        }
+    }
+
+    /// Add a setting (to be passed during the SOCKS handshake)
+    pub fn push_setting(&mut self, k: String, v: String) {
+        self.settings.settings.push((k, v));
+    }
 }
 
 /// The way to approach a single relay in order to open a channel.
