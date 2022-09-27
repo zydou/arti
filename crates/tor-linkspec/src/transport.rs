@@ -29,6 +29,35 @@ enum Inner {
     Pluggable(String),
 }
 
+/// Pluggable transport name
+///
+/// The name for a pluggable transport.
+/// The name has been syntax checked.
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[cfg(feature = "pt-client")]
+pub struct PtTransportName(String);
+
+#[cfg(feature = "pt-client")]
+impl std::str::FromStr for PtTransportName {
+    type Err = TransportIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        #[cfg(feature = "pt-client")]
+        if is_well_formed_id(s) {
+            Ok(PtTransportName(s.to_string()))
+        } else {
+            Err(TransportIdError::BadId(s.to_string()))
+        }
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl std::fmt::Display for PtTransportName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
 /// This identifier is used to indicate the built-in transport.
 //
 // Actual pluggable transport names are restricted to the syntax of C identifiers.
@@ -44,10 +73,9 @@ impl std::str::FromStr for TransportId {
         };
 
         #[cfg(feature = "pt-client")]
-        if is_well_formed_id(s) {
-            Ok(TransportId(Inner::Pluggable(s.to_string())))
-        } else {
-            Err(TransportIdError::BadId(s.to_string()))
+        {
+            let name: PtTransportName = s.parse()?;
+            Ok(TransportId(Inner::Pluggable(name.0)))
         }
 
         #[cfg(not(feature = "pt-client"))]
