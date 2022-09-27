@@ -272,7 +272,6 @@ impl Display for PtTargetAddr {
 /// a transport.
 #[cfg(feature = "pt-client")]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
 
 // TODO pt-client: I am not sure we will want to keep this type, rather than
 // just inlining it.  I am leaving it as a separate type for now, though, for a
@@ -317,6 +316,21 @@ impl PtTarget {
     /// Add a setting (to be passed during the SOCKS handshake)
     pub fn push_setting(&mut self, k: String, v: String) {
         self.settings.settings.push((k, v));
+    }
+
+    /// Get the transport name
+    pub fn transport(&self) -> &PtTransportName {
+        &self.transport
+    }
+
+    /// Get the transport target address (or host and port)
+    pub fn addr(&self) -> &PtTargetAddr {
+        &self.addr
+    }
+
+    /// Iterate over the PT setting strings
+    pub fn settings(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.settings.settings.iter().map(|(k, v)| (&**k, &**v))
     }
 }
 
