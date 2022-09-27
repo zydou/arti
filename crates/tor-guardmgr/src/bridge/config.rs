@@ -8,7 +8,7 @@ use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 ///
 /// This object represents a bridge as configured by the user or by software
 /// running on the user's behalf.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 // TODO pt-client: Derive builder and associated config types.
 pub struct Bridge {
     // TODO pt-client: I am not sold on this exact representation for Bridge; it

@@ -271,7 +271,7 @@ impl Display for PtTargetAddr {
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
 #[cfg(feature = "pt-client")]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 #[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
 
 // TODO pt-client: I am not sure we will want to keep this type, rather than
@@ -291,7 +291,7 @@ pub struct PtTargetSettings {
 
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg(feature = "pt-client")]
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
@@ -325,7 +325,7 @@ impl PtTarget {
 /// For direct connections, this is simply an address.  For connections via a
 /// pluggable transport, this includes information about the transport, and any
 /// address and settings information that transport requires.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)]
 // TODO pt-client: I am not in love with this enum name --nm.
 pub enum ChannelMethod {
