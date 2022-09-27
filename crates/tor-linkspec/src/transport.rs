@@ -41,7 +41,6 @@ enum Inner {
 /// The name has been syntax checked.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 #[cfg(feature = "pt-client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
 pub struct PtTransportName(String);
 
 #[cfg(feature = "pt-client")]
