@@ -1,6 +1,7 @@
 //! Configuration logic and types for bridges.
 #![allow(dead_code)] // TODO pt-client: remove.
 
+use std::fmt::{self, Display};
 use std::str::FromStr;
 
 use thiserror::Error;
@@ -186,6 +187,45 @@ impl FromStr for Bridge {
     }
 }
 
+impl Display for Bridge {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Bridge {
+            addrs,
+            rsa_id,
+            ed_id,
+        } = self;
+        let settings = match addrs {
+            ChannelMethod::Direct(a) => {
+                write!(f, "{}", a)?;
+                None
+            }
+
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(target) => {
+                write!(f, "{} {}", target.transport(), target.addr())?;
+                Some(target.settings())
+            }
+        };
+        write!(f, " {}", rsa_id)?;
+        if let Some(ed_id) = ed_id {
+            write!(f, " ed25519:{}", ed_id)?;
+        }
+
+        #[cfg(not(feature = "pt-client"))]
+        let _: Option<()> = settings;
+
+        #[cfg(feature = "pt-client")]
+        for (k, v) in settings.into_iter().flatten() {
+            // TODO pt-client: this fails to properly unparse arbitrary values
+            // The values ought not to be arbitrary, but the spec is not clear.
+            // See the comment on PtTargetSettings.
+            write!(f, " {}={}", k, v)?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
@@ -230,6 +270,9 @@ mod test {
             for s in sl {
                 let got: Bridge = s.parse().expect(s);
                 assert_eq!(got, exp, "{:?}", s);
+
+                let display = got.to_string();
+                assert_eq!(display, sl[0]);
             }
         };
 
