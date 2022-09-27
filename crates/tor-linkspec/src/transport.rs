@@ -32,7 +32,7 @@ enum Inner {
 
     /// A pluggable transport type, specified by its name.
     #[cfg(feature = "pt-client")]
-    Pluggable(String),
+    Pluggable(PtTransportName),
 }
 
 /// Pluggable transport name
@@ -104,7 +104,7 @@ impl FromStr for TransportId {
         #[cfg(feature = "pt-client")]
         {
             let name: PtTransportName = s.parse()?;
-            Ok(TransportId(Inner::Pluggable(name.0)))
+            Ok(TransportId(Inner::Pluggable(name)))
         }
 
         #[cfg(not(feature = "pt-client"))]
