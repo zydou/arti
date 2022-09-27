@@ -88,4 +88,4 @@ pub use traits::{
 pub use transport::{ChannelMethod, PtAddrError, PtTargetAddr, TransportId, TransportIdError};
 
 #[cfg(feature = "pt-client")]
-pub use transport::{PtTarget, PtTargetSettings};
+pub use transport::{PtTarget, PtTargetSettings, PtTransportName};

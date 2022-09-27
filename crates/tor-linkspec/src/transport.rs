@@ -6,6 +6,12 @@
 //! transports", which use TLS over other protocols to avoid detection by
 //! censors.
 
+use std::fmt::{self, Display};
+use std::str::FromStr;
+
+#[cfg(feature = "pt-client")]
+use std::sync::Arc;
+
 /// Identify a type of Transport.
 ///
 /// If this crate is compiled with the `pt-client` feature, this type can
@@ -26,7 +32,59 @@ enum Inner {
 
     /// A pluggable transport type, specified by its name.
     #[cfg(feature = "pt-client")]
-    Pluggable(String),
+    Pluggable(PtTransportName),
+}
+
+/// Pluggable transport name
+///
+/// The name for a pluggable transport.
+/// The name has been syntax checked.
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[cfg(feature = "pt-client")]
+pub struct PtTransportName(String);
+
+#[cfg(feature = "pt-client")]
+impl FromStr for PtTransportName {
+    type Err = TransportIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.to_string().try_into()
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl TryFrom<String> for PtTransportName {
+    type Error = TransportIdError;
+
+    fn try_from(s: String) -> Result<PtTransportName, Self::Error> {
+        if is_well_formed_id(&s) {
+            Ok(PtTransportName(s))
+        } else {
+            Err(TransportIdError::BadId(s))
+        }
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl AsRef<str> for PtTransportName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl PtTransportName {
+    /// Return the name as a `String`
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+#[cfg(feature = "pt-client")]
+impl Display for PtTransportName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
 }
 
 /// This identifier is used to indicate the built-in transport.
@@ -35,7 +93,7 @@ enum Inner {
 // This string deliberately is not in that syntax so as to avoid clashes.
 const BUILT_IN_ID: &str = "<none>";
 
-impl std::str::FromStr for TransportId {
+impl FromStr for TransportId {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -44,10 +102,9 @@ impl std::str::FromStr for TransportId {
         };
 
         #[cfg(feature = "pt-client")]
-        if is_well_formed_id(s) {
-            Ok(TransportId(Inner::Pluggable(s.to_string())))
-        } else {
-            Err(TransportIdError::BadId(s.to_string()))
+        {
+            let name: PtTransportName = s.parse()?;
+            Ok(TransportId(Inner::Pluggable(name)))
         }
 
         #[cfg(not(feature = "pt-client"))]
@@ -55,8 +112,8 @@ impl std::str::FromStr for TransportId {
     }
 }
 
-impl std::fmt::Display for TransportId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for TransportId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Inner::BuiltIn => write!(f, "{}", BUILT_IN_ID),
             #[cfg(feature = "pt-client")]
@@ -79,6 +136,7 @@ fn is_well_formed_id(s: &str) -> bool {
     if let Some(first) = bytes.next() {
         (first.is_ascii_alphabetic() || first == b'_')
             && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
+            && !s.eq_ignore_ascii_case("bridge")
     } else {
         false
     }
@@ -174,7 +232,7 @@ impl PtTargetAddr {
     }
 }
 
-impl std::str::FromStr for PtTargetAddr {
+impl FromStr for PtTargetAddr {
     type Err = PtAddrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -194,8 +252,8 @@ impl std::str::FromStr for PtTargetAddr {
     }
 }
 
-impl std::fmt::Display for PtTargetAddr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PtTargetAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PtTargetAddr::IpPort(addr) => write!(f, "{}", addr),
             #[cfg(feature = "pt-client")]
@@ -237,11 +295,11 @@ pub struct PtTargetSettings {
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
     /// The transport to be used.
-    transport: TransportId,
+    transport: PtTransportName,
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
-    settings: std::sync::Arc<PtTargetSettings>,
+    settings: Arc<PtTargetSettings>,
 }
 
 /// The way to approach a single relay in order to open a channel.
@@ -265,7 +323,6 @@ pub enum ChannelMethod {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use std::str::FromStr;
 
     #[test]
     fn builtin() {
@@ -314,6 +371,10 @@ mod test {
 
         assert!(matches!(
             TransportId::from_str("12345"),
+            Err(TransportIdError::BadId(_))
+        ));
+        assert!(matches!(
+            TransportId::from_str("bridge"),
             Err(TransportIdError::BadId(_))
         ));
     }

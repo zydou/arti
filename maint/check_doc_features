@@ -42,7 +42,7 @@ additional_required['tor-proto']= [
 
 # I was not able to suppress this in any way I could figure out.
 additional_provided['tor-linkspec'] = [
-    ('{PtTarget, PtTargetSettings}', 'feature = "pt-client"'),
+    ('{PtTarget, PtTargetSettings, PtTransportName}', 'feature = "pt-client"'),
 ]
 
 # This is detected two times, but only on cfg_attr(docsrs) is enough
