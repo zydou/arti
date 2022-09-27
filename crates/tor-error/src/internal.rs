@@ -245,7 +245,6 @@ impl HasKind for Bug {
     }
 }
 
-#[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@
