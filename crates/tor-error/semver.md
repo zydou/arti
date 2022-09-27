@@ -1,0 +1,2 @@
+MODIFIED: New LocalProtocolFailed ErrorKind.
+
