@@ -10,10 +10,11 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.3"
+libfuzzer-sys = "0.4"
 
 [dependencies.tor-socksproto]
 path = ".."
+features = ["proxy-handshake", "client-handshake", "arbitrary"]
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -22,5 +23,12 @@ members = ["."]
 [[bin]]
 name = "request"
 path = "fuzz_targets/request.rs"
+test = false
+doc = false
+
+
+[[bin]]
+name = "client"
+path = "fuzz_targets/client.rs"
 test = false
 doc = false

@@ -3,13 +3,17 @@
 use crate::{Error, Result};
 
 use caret::caret_int;
-use std::fmt;
 use std::net::IpAddr;
+use std::{fmt, net::Ipv6Addr};
 
 use tor_error::bad_api_usage;
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::{Arbitrary, Result as ArbitraryResult, Unstructured};
+
 /// A supported SOCKS version.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 #[non_exhaustive]
 pub enum SocksVersion {
     /// Socks v4.
@@ -51,6 +55,20 @@ pub struct SocksRequest {
     auth: SocksAuth,
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for SocksRequest {
+    fn arbitrary(u: &mut Unstructured<'a>) -> ArbitraryResult<Self> {
+        let version = SocksVersion::arbitrary(u)?;
+        let cmd = SocksCmd::arbitrary(u)?;
+        let addr = SocksAddr::arbitrary(u)?;
+        let port = u16::arbitrary(u)?;
+        let auth = SocksAuth::arbitrary(u)?;
+
+        SocksRequest::new(version, cmd, addr, port, auth)
+            .map_err(|_| arbitrary::Error::IncorrectFormat)
+    }
+}
+
 /// An address sent or received as part of a SOCKS handshake
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(clippy::exhaustive_enums)]
@@ -63,12 +81,41 @@ pub enum SocksAddr {
     Ip(IpAddr),
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for SocksAddr {
+    fn arbitrary(u: &mut Unstructured<'a>) -> ArbitraryResult<Self> {
+        use std::net::Ipv4Addr;
+        let b = u8::arbitrary(u)?;
+        Ok(match b % 3 {
+            0 => SocksAddr::Hostname(SocksHostname::arbitrary(u)?),
+            1 => SocksAddr::Ip(IpAddr::V4(Ipv4Addr::arbitrary(u)?)),
+            _ => SocksAddr::Ip(IpAddr::V6(Ipv6Addr::arbitrary(u)?)),
+        })
+    }
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (1, Some(256))
+    }
+}
+
 /// A hostname for use with SOCKS.  It is limited in length.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SocksHostname(String);
 
+#[cfg(feature = "arbitrary")]
+impl<'a> Arbitrary<'a> for SocksHostname {
+    fn arbitrary(u: &mut Unstructured<'a>) -> ArbitraryResult<Self> {
+        String::arbitrary(u)?
+            .try_into()
+            .map_err(|_| arbitrary::Error::IncorrectFormat)
+    }
+    fn size_hint(_depth: usize) -> (usize, Option<usize>) {
+        (0, Some(255))
+    }
+}
+
 /// Provided authentication from a SOCKS handshake
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
 #[non_exhaustive]
 pub enum SocksAuth {
     /// No authentication was provided
@@ -81,6 +128,7 @@ pub enum SocksAuth {
 
 caret_int! {
     /// Command from the socks client telling us what to do.
+    #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
     pub struct SocksCmd(u8) {
         /// Connect to a remote TCP address:port.
         CONNECT = 1,
@@ -102,6 +150,7 @@ caret_int! {
     /// Note that the documentation for these values is kind of scant,
     /// and is limited to what the RFC says.  Note also that SOCKS4
     /// only represents success and failure.
+    #[cfg_attr(feature = "arbitrary", derive(Arbitrary))]
     pub struct SocksStatus(u8) {
         /// RFC 1928: "succeeded"
         SUCCEEDED = 0x00,
