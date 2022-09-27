@@ -294,7 +294,7 @@ pub struct PtTargetSettings {
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
     /// The transport to be used.
-    transport: TransportId,
+    transport: PtTransportName,
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
