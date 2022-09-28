@@ -105,8 +105,12 @@ impl SocksProxyHandshake {
         let cmd: SocksCmd = r.take_u8()?.into();
         let port = r.take_u16()?;
         let ip = r.take_u32()?;
-        let username = r.take_until(0)?.into();
-        let auth = SocksAuth::Socks4(username);
+        let username: Vec<u8> = r.take_until(0)?.into();
+        let auth = if username.is_empty() {
+            SocksAuth::NoAuth
+        } else {
+            SocksAuth::Socks4(username)
+        };
 
         let addr = if ip != 0 && (ip >> 8) == 0 {
             // Socks4a; a hostname is given.
