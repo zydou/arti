@@ -290,3 +290,155 @@ impl SocksClientHandshake {
         Ok(msg)
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list
+
+    use super::*;
+    use crate::msg::SocksCmd;
+    use hex_literal::hex;
+
+    #[test]
+    fn socks4_ok() {
+        let r = SocksRequest::new(
+            SocksVersion::V4,
+            SocksCmd::CONNECT,
+            SocksAddr::Ip("192.0.2.15".parse().unwrap()),
+            443,
+            SocksAuth::NoAuth,
+        )
+        .unwrap();
+        let mut hs = SocksClientHandshake::new(r);
+        let action = hs.handshake(&[]).unwrap().unwrap();
+        assert_eq!(action.drain, 0);
+        assert_eq!(action.reply, hex!("04 01 01BB C000020F 00"));
+        assert_eq!(action.finished, false);
+
+        let action = hs.handshake(&hex!("00 5A 01BB C000020F")).unwrap().unwrap();
+        assert_eq!(action.drain, 8);
+        assert_eq!(action.reply, &[]);
+        assert_eq!(action.finished, true);
+
+        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+    }
+
+    #[test]
+    fn socks4a_ok() {
+        let r = SocksRequest::new(
+            SocksVersion::V4,
+            SocksCmd::CONNECT,
+            SocksAddr::Hostname("www.torproject.org".to_string().try_into().unwrap()),
+            443,
+            SocksAuth::Socks4(b"hello".to_vec()),
+        )
+        .unwrap();
+        let mut hs = SocksClientHandshake::new(r);
+        let action = hs.handshake(&[]).unwrap().unwrap();
+        assert_eq!(action.drain, 0);
+        assert_eq!(
+            action.reply,
+            hex!("04 01 01BB 00000001 68656c6c6f00 7777772e746f7270726f6a6563742e6f726700")
+        );
+        assert_eq!(action.finished, false);
+
+        let action = hs.handshake(&hex!("00 5A 01BB C0000215")).unwrap().unwrap();
+        assert_eq!(action.drain, 8);
+        assert_eq!(action.reply, &[]);
+        assert_eq!(action.finished, true);
+
+        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+    }
+
+    #[test]
+    fn socks5_with_no_auth() {
+        let r = SocksRequest::new(
+            SocksVersion::V5,
+            SocksCmd::CONNECT,
+            SocksAddr::Hostname("www.torproject.org".to_string().try_into().unwrap()),
+            443,
+            SocksAuth::NoAuth,
+        )
+        .unwrap();
+
+        // client begins by proposing authentication types.
+        let mut hs = SocksClientHandshake::new(r);
+        let action = hs.handshake(&[]).unwrap().unwrap();
+        assert_eq!(action.drain, 0);
+        assert_eq!(action.reply, hex!("05 01 00"));
+        assert_eq!(action.finished, false);
+
+        // proxy chooses noauth; client replies with its handshake.
+        let action = hs.handshake(&hex!("0500")).unwrap().unwrap();
+        assert_eq!(action.drain, 2);
+        assert_eq!(
+            action.reply,
+            hex!("05 01 00 03 12 7777772e746f7270726f6a6563742e6f7267 01BB")
+        );
+        assert_eq!(action.finished, false);
+
+        // Proxy says "okay, you're connected."
+        // Client is done.
+        let action = hs
+            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(action.drain, 10);
+        assert_eq!(action.reply, &[]);
+        assert_eq!(action.finished, true);
+        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+    }
+
+    #[test]
+    fn socks5_with_auth_ok() {
+        let r = SocksRequest::new(
+            SocksVersion::V5,
+            SocksCmd::CONNECT,
+            SocksAddr::Hostname("www.torproject.org".to_string().try_into().unwrap()),
+            443,
+            SocksAuth::Username(b"hello".to_vec(), b"world".to_vec()),
+        )
+        .unwrap();
+
+        // client begins by proposing authentication types.
+        let mut hs = SocksClientHandshake::new(r);
+        let action = hs.handshake(&[]).unwrap().unwrap();
+        assert_eq!(action.drain, 0);
+        assert_eq!(action.reply, hex!("05 02 0200"));
+        assert_eq!(action.finished, false);
+
+        // proxy chooses username/password; client replies with "hello"/"world"
+        let action = hs.handshake(&hex!("0502")).unwrap().unwrap();
+        assert_eq!(action.drain, 2);
+        assert_eq!(action.reply, hex!("01 05 68656c6c6f 05 776f726c64"));
+        assert_eq!(action.finished, false);
+
+        // Proxy says "yeah, that's good authentication, go ahead."
+        // Client says what it actually wants.
+        let action = hs.handshake(&hex!("0100")).unwrap().unwrap();
+        assert_eq!(action.drain, 2);
+        assert_eq!(
+            action.reply,
+            hex!("05 01 00 03 12 7777772e746f7270726f6a6563742e6f7267 01BB")
+        );
+        assert_eq!(action.finished, false);
+
+        // Proxy says "okay, you're connected."
+        // Client is done.
+        let action = hs
+            .handshake(&hex!("05 00 00 01 C0000215 01BB"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(action.drain, 10);
+        assert_eq!(action.reply, &[]);
+        assert_eq!(action.finished, true);
+        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+    }
+}

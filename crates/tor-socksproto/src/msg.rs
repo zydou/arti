@@ -39,6 +39,7 @@ impl TryFrom<u8> for SocksVersion {
 /// discard this object immediately: Use it to report success or
 /// failure.
 #[derive(Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct SocksRequest {
     /// Negotiated SOCKS protocol version.
     version: SocksVersion,
