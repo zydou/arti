@@ -50,6 +50,7 @@ use std::fmt;
 
 pub mod futures;
 pub mod iter;
+pub mod n_key_set;
 pub mod retry;
 pub mod test_rng;
 
