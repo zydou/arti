@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["mmap"]
 full = ["routerdesc"]
-experimental = ["experimental-api", "dirfilter"]
+experimental = ["experimental-api", "dirfilter", "bridge-client"]
 bridge-client = ["tor-guardmgr/bridge-client", "routerdesc"]
 
 mmap = ["memmap2"]

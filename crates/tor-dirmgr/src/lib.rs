@@ -24,6 +24,32 @@
 //!
 //! `routerdesc` -- (Incomplete) support for downloading and storing
 //!      router descriptors.
+//!
+//! ## Experimental features
+//!
+//! # Compile-time features
+//!
+//! ## Experimental and unstable features
+//!
+//! Note that the APIs enabled by these features are NOT covered by
+//! semantic versioning[^1] guarantees: we might break them or remove
+//! them between patch versions.
+//!
+//! * `experimental-api`: Add additional non-stable APIs to our public
+//!   interfaces.
+//!
+//! * `dirfilter`: enable an experimental mechanism to modify incoming
+//!   directory informatoin before it is used.
+//!
+//! * `bridge-client`: Provide (as yet unimplented) APIs used to fetch
+//!   and use bridge information.
+//!
+//! * `experimental`: Enable all the above experimental features.
+//!
+//! [^1]: Remember, semantic versioning is what makes various `cargo`
+//! features work reliably. To be explicit: if you want `cargo update`
+//! to _only_ make safe changes, then you cannot enable these
+//! features.
 
 // @@ begin lint list maintained by maint/add_warning @@
 #![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
