@@ -12,6 +12,8 @@ categories = ["network-programming"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
+default = []
+experimental = ["pt-client"]
 pt-client = []
 
 [dependencies]
