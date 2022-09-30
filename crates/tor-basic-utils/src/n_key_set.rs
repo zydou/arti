@@ -314,6 +314,22 @@ $crate::n_key_set::deps::paste!{
             $mapname::new()
         }
     }
+
+    impl $(<$($P),*>)? FromIterator<$V> for $mapname $(<$($P),*>)?
+        where $( $KEY : std::hash::Hash + Eq + Clone , )*  $($($constr)+)?
+    {
+        fn from_iter<T>(iter: T) -> Self
+        where
+            T: IntoIterator<Item = $V>
+        {
+            let iter = iter.into_iter();
+            let mut set = Self::with_capacity(iter.size_hint().0);
+            for value in iter {
+                set.insert(value);
+            }
+            set
+        }
+    }
 }
 };
 
