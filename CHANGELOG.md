@@ -3,6 +3,69 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.0.1 — 3 October  2022
+
+Arti 1.0.1 fixes a few bugs in our previous releases.
+
+This is a fairly small release: Members of our team have spend a lot of
+September at a company meeting, on our vacations, and/or recovering from
+COVID-19. The feature work we have managed to get done is done is
+largely behind-the-scenes preparation for our anticensorship release,
+which we now hope is coming in early November.
+
+UP TO DATE AS OF 1565ea36a06a7c6fa33a2ee2c4faee307b9d4c69
+
+### Breaking changes
+
+- The `Schedcule::sleep()*` functions in `tor-rtcompat` now return a
+  `Result`.  This change was part of the fix for part of [#572].
+
+### New features
+
+- Optionally expose an accessor to get the [`CircuitBuilder`] from a
+  [`CircMgr`]. If you don't mind voiding your semver guarantees,
+  you can enable this accessor with the `experimental-api` feature,
+  and use it to build circuits using paths of your own creation.
+  ([!738])
+- We now apply our "safe logging" feature to the console as well, to
+  avoid exposing sensitive information in our console log. ([#553],
+  [!742])
+
+### Major bugfixes
+
+- Fixed a busy loop that could occur when dropping an Arti client, that
+  would cause Arti to busy-loop and use too much CPU. ([#572], [!725])
+- Fixed compilation when building with [`async-std`]. ([!723])
+
+### Documentation
+
+- Our high-level documentation has significantly tidied and revised for
+  clarity and completeness. ([!717])
+- We've updated our documentation for
+  [how to use Arti with Tor Browser]. ([!719])
+
+### Infrastructure
+
+- Our reproducible builds now use Rust 1.63, and the code to make
+  them has been cleaned up a bit. ([!716])
+
+### Cleanups, minor features, and minor bugfixes
+
+- Fix a test failure that would occur on some platforms depending
+  on their inlining decisions. ([#570], [!727])
+- Better listing of platforms that don't have [`getresuid()`], so
+  that we can compile there without breaking. ([!728])
+- Preliminary back-end support for encoding and decoding
+  some messages in the onion service protocol. ([!714], [!735], [!736])
+- Fixes for various newly implemented [Clippy] warnings. ([!729], [!749])
+- The [`RouterDesc`] type now implements `Clone` and
+  `Debug`. ([571e7f9556adf12d])
+- Preliminary internal API designs for most of the logic needed
+  to implement Tor's anticensorship features.  These APIs are unstable,
+  and mostly not implemented yet, but they give us something to fill in.
+  ([#543], [#558], [!740], [!743], [!748])
+
+
 
 # Arti 1.0.0 — 1 September 2022
 
