@@ -120,11 +120,12 @@ $crate::n_key_set::deps::paste!{
         where $( $KEY : std::hash::Hash + Eq + Clone , )+  $($($constr)+)?
     {
         // The $key fields here are a set of maps from each of the key values to
-        // the position of that value within the Slab..
+        // the position of that value within the Slab.
         //
         // Invariants:
         //    * There is an entry K=>idx in the map `$key` if and only if
         //      values[idx].$accessor() == K.
+        //    * Every value in `values` has at least one key.
         //
         // TODO: Dare we have these HashMaps key based on a reference to V
         // instead? That would create a self-referential structure and require
@@ -293,6 +294,54 @@ $crate::n_key_set::deps::paste!{
                 self.insert(item);
             }
         }
+
+        /// Assert that this set appears to be in an internally consistent state.
+        ///
+        /// This method can be somewhat expensive, and it should never fail unless
+        /// your code has a bug.
+        ///
+        /// # Panics
+        ///
+        /// Panics if it finds bugs in this object, or constraint violations in
+        /// its elements.  See the (type documentation)[Self#Requirements] for a
+        /// list of constraints.
+        $vis fn check_invariants(&self) {
+            #![allow(noop_method_call)] // permit borrow when it does nothing.
+            use std::borrow::Borrow;
+            // Make sure that every entry in the $key map points to a
+            // value with the right value for that $key.
+            $(
+                for (k,idx) in self.$key.iter() {
+                    let val = self.values.get(*idx).expect("Dangling entry in hashmap.");
+                    // Can't use assert_eq!; k might not implement Debug.
+                    assert!(
+                        Some((k).borrow()) ==
+                        $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ),
+                        "Inconsistent key between hashmap and value."
+                    )
+                }
+            )+
+
+            // Make sure that every value has an entry in the $key map that
+            // points to it, for each of its keys.
+            //
+            // This is slightly redundant, but we don't care too much about
+            // efficiency here.
+            for (idx, val) in self.values.iter() {
+                let mut found_any_key = false;
+                $(
+                    if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
+                        found_any_key = true;
+                        assert!(
+                            self.$key.get(k) == Some(&idx),
+                            "Value not found at correct index"
+                        )
+                    }
+                    stringify!($key);
+                )+
+                assert!(found_any_key, "Found a value with no keys.");
+            }
+        }
     }
 
     impl $(<$($P),*>)? Default for $mapname $(<$($P),*>)?
@@ -400,6 +449,7 @@ mod test {
         assert_eq!(replaced, vec![(12, 123), (34, 56)]);
         assert_eq!(set.len(), 3);
         assert_eq!(set.is_empty(), false);
+        set.check_invariants();
 
         // Test our iterators
         let mut all_members: Vec<_> = set.values().collect();
@@ -427,6 +477,7 @@ mod test {
         assert_eq!(set.len(), 9);
         // We don't shrink till we next insert.
         assert_eq!(set.capacity(), cap_orig);
+        set.check_invariants();
 
         assert!(set
             .insert(("A=0".to_string(), "B=0".to_string()))
@@ -436,6 +487,7 @@ mod test {
         for idx in 0..=9 {
             assert!(set.contains_first(&format!("A={}", idx)));
         }
+        set.check_invariants();
     }
 
     #[allow(dead_code)]
