@@ -339,6 +339,18 @@ mod test {
             },
         );
 
+        chk(
+            &[
+                "[2001:db8::42]:123 $0bac39417268b96b9f514e7f63fa6fba1a788955",
+                "[2001:0db8::42]:123 $0bac39417268b96b9f514e7f63fa6fba1a788955",
+            ],
+            Bridge {
+                addrs: mk_direct("[2001:0db8::42]:123"),
+                rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
+                ed_id: None,
+            },
+        );
+
         chk(&[
             "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
             "38.229.33.83:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955",
