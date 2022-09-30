@@ -17,6 +17,37 @@ use tor_linkspec::{PtAddrError, PtTarget, PtTargetAddr};
 ///
 /// This object represents a bridge as configured by the user or by software
 /// running on the user's behalf.
+///
+/// # String representation
+///
+/// Can be parsed from, and represented as, a "bridge line" string,
+/// using the [`FromStr`] and [`Display`] implementations.
+///
+/// The syntax supported is a sequence of words,
+/// separated by ASCII whitespace,
+/// in the following order:
+///
+///  * Optionally, the word `Bridge` (or a case variant thereof).
+///    (`Bridge` is not part of a bridge line, but is ignored here
+///    for convenience when copying a line out of a C Tor `torrc`.)
+///
+///  * Optionally, the name of the pluggable transport to use.
+///    If not supplied, Arti will make the connection directly, itself.
+///
+///  * The `Host:ORPort` to connect to.
+///    `Host` can be an IPv4 address, or an IPv6 address in brackets `[ ]`.
+///    When a pluggable transport is in use, `Host` can also be a hostname;
+///    or
+///    if the transport supports operating without a specified address.
+///    `Host:ORPort` can be omitted and replaced with `-`.
+///
+///  * One or more identity key fingerprints,
+///    each in one of the supported (RSA or ed25519) fingerprint formats.
+///    Currently, supplying an RSA key is required; an ed25519 key is optional.
+///
+///  * When a pluggable transport is in use,
+///    zero or more `key=value` parameters to pass to the transport
+///    (smuggled in the SOCKS handshake, as described in the Tor PT specification).
 #[derive(Debug, Clone, Eq, PartialEq)]
 // TODO pt-client: Derive builder and associated config types.
 pub struct Bridge {
