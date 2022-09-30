@@ -89,32 +89,28 @@ macro_rules! n_key_set {
 } => {
 $crate::n_key_set::deps::paste!{
    $( #[$meta] )*
-    #[doc = concat!("
-        A set of elements of type ", stringify!($V), " whose members can be 
-        accessed by multiple keys.
+    #[doc = concat!(
+        "A set of elements of type ", stringify!($V), " whose members can be accessed by multiple keys.",
+        "\n\nThe keys are:",
+        $( " * `", stringify!($key), "` (`",stringify!($KEY),"`)\n" , )+
+        "\
+The set contains at most one member for any value of a given key.
 
-        The keys are:
-        ",
-        $( " * `", stringify!($key), "` (`",stringify!($ty),"`)\n" , )+
-        "
+# Requirements
 
-        The set contains at most one member for any value of a given key.
+Key types must have consistent `Hash` and `Eq` implementations, as
+they will be used as keys in a `HashSet`.
 
-        # Requirements
+If all keys are optional, then every element in this set
+must have at least one non-None key.
 
-        Key types must have consistent `Hash` and `Eq` implementations, as
-        they will be used as keys in a `HashSet`.
-
-        If all keys are of type `Option<T>`, then every element in this set
-        must have at least one non-None key.
-
-        An element must not change its keys over time through interior
-        mutability.
+An element must not change its keys over time through interior
+mutability.
         
-        # Limitations
+# Limitations
 
-        This could be more efficient in space and time.
-        "
+This could be more efficient in space and time.
+        ",
     )]
     $vis struct $mapname $(<$($P),*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )+  $($($constr)+)?
