@@ -237,7 +237,7 @@ $crate::n_key_set::deps::paste!{
             $(
                 $crate::n_key_set!( @access(value_ref, $key : $KEY $({$($source)+})?) )
                     .map(|key| {
-                        self.$key.insert(key.clone(), new_idx);
+                        self.$key.insert(key.to_owned(), new_idx);
                         some_key_found = true;
                     });
             )*
@@ -474,8 +474,7 @@ mod test {
            // BUG: Apparently Option isn't working right.
            //      lucky: Option<u16> { lucky_number() }
 
-           // BUG: Can't have the accessor return str and the type be String.
-           //      name: String { name() }
+            name: String { name() }
         }
     }
 }
