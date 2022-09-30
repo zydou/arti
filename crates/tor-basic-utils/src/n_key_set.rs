@@ -359,8 +359,17 @@ $crate::n_key_set::deps::paste!{
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     n_key_set! {
+        #[derive(Clone, Debug)]
         struct Tuple2Set<A,B> for (A,B) {
             first: A { .0 },
             second: B { .1 },
@@ -370,10 +379,103 @@ mod test {
     #[test]
     fn basic() {
         let mut set = Tuple2Set::new();
+        assert!(set.is_empty());
+
         set.insert((0_u32, 99_u16));
-        assert!(set.contains_first(&0));
-        assert!(set.contains_second(&99));
-        assert!(!set.contains_first(&99));
-        assert!(!set.contains_second(&0));
+        assert_eq!(set.contains_first(&0), true);
+        assert_eq!(set.contains_second(&99), true);
+        assert_eq!(set.contains_first(&99), false);
+        assert_eq!(set.contains_second(&0), false);
+        assert_eq!(set.by_first(&0), Some(&(0, 99)));
+        assert_eq!(set.by_second(&99), Some(&(0, 99)));
+        assert_eq!(set.by_first(&99), None);
+        assert_eq!(set.by_second(&0), None);
+
+        assert_eq!(set.insert((12, 34)), vec![]);
+        assert_eq!(set.len(), 2);
+        assert!(set.capacity() >= 2);
+        assert_eq!(set.by_first(&0), Some(&(0, 99)));
+        assert_eq!(set.by_first(&12), Some(&(12, 34)));
+        assert_eq!(set.remove_by_second(&99), Some((0, 99)));
+        assert_eq!(set.len(), 1);
+
+        // no overlap in these next few inserts.
+        set.insert((34, 56));
+        set.insert((56, 78));
+        set.insert((78, 90));
+        assert_eq!(set.len(), 4);
+        // This insert replaces (12, 34)
+        assert_eq!(set.insert((12, 123)), vec![(12, 34)]);
+        // This one replaces (12,123) and (34,56).
+        let mut replaced = set.insert((12, 56));
+        replaced.sort();
+        assert_eq!(replaced, vec![(12, 123), (34, 56)]);
+        assert_eq!(set.len(), 3);
+        assert_eq!(set.is_empty(), false);
+
+        // Test our iterators
+        let mut all_members: Vec<_> = set.values().collect();
+        all_members.sort();
+        assert_eq!(all_members, vec![&(12, 56), &(56, 78), &(78, 90)]);
+
+        let mut drained_members: Vec<_> = set.into_values().collect();
+        drained_members.sort();
+        assert_eq!(drained_members, vec![(12, 56), (56, 78), (78, 90)]);
+    }
+
+    #[test]
+    fn retain_and_compact() {
+        let mut set: Tuple2Set<String, String> = (1..=1000)
+            .map(|idx| (format!("A={}", idx), format!("B={}", idx)))
+            .collect();
+
+        assert_eq!(set.len(), 1000);
+        let cap_orig = set.capacity();
+        assert!(cap_orig >= set.len());
+
+        // Retain only the values whose first key is 3 characters long.
+        // That's 9 values out of 1000.
+        set.retain(|(a, _)| a.len() <= 3);
+        assert_eq!(set.len(), 9);
+        // We don't shrink till we next insert.
+        assert_eq!(set.capacity(), cap_orig);
+
+        assert!(set
+            .insert(("A=0".to_string(), "B=0".to_string()))
+            .is_empty());
+        assert!(set.capacity() < cap_orig);
+        assert_eq!(set.len(), 10);
+        for idx in 0..=9 {
+            assert!(set.contains_first(&format!("A={}", idx)));
+        }
+    }
+
+    #[allow(dead_code)]
+    struct Weekday {
+        dow: u8,
+        name: &'static str,
+        lucky_number: Option<u16>,
+    }
+    #[allow(dead_code)]
+    impl Weekday {
+        fn dow(&self) -> &u8 {
+            &self.dow
+        }
+        fn name(&self) -> &str {
+            self.name
+        }
+        fn lucky_number(&self) -> Option<&u16> {
+            self.lucky_number.as_ref()
+        }
+    }
+    n_key_set! {
+        struct WeekdaySet for Weekday {
+            idx: u8 { dow() },
+           // BUG: Apparently Option isn't working right.
+           //      lucky: Option<u16> { lucky_number() }
+
+           // BUG: Can't have the accessor return str and the type be String.
+           //      name: String { name() }
+        }
     }
 }
