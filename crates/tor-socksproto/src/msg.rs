@@ -220,7 +220,13 @@ impl TryFrom<String> for SocksHostname {
     type Error = Error;
     fn try_from(s: String) -> Result<SocksHostname> {
         if s.len() > 255 {
+            // This is only a limitation for Socks 5, but we enforce it in both
+            // cases, for simplicity.
             Err(bad_api_usage!("hostname too long").into())
+        } else if contains_zeros(s.as_bytes()) {
+            // This is only a limitation for Socks 4, but we enforce it in both
+            // cases, for simplicity.
+            Err(Error::Syntax)
         } else {
             Ok(SocksHostname(s))
         }
