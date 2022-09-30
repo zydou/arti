@@ -3934,6 +3934,7 @@ dependencies = [
  "arbitrary",
  "caret",
  "hex-literal",
+ "subtle",
  "thiserror",
  "tor-bytes",
  "tor-error",

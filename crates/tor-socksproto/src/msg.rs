@@ -233,6 +233,43 @@ impl AsRef<str> for SocksHostname {
     }
 }
 
+impl SocksAuth {
+    /// Check whether this authentication is well-formed and compatible with the
+    /// provided SOCKS version.
+    ///
+    /// Return an error if not.
+    fn validate(&self, version: SocksVersion) -> Result<()> {
+        match self {
+            SocksAuth::NoAuth => {}
+            SocksAuth::Socks4(data) => {
+                if version != SocksVersion::V4 || contains_zeros(data) {
+                    return Err(Error::Syntax);
+                }
+            }
+            SocksAuth::Username(user, pass) => {
+                if version != SocksVersion::V5
+                    || user.len() > u8::MAX as usize
+                    || pass.len() > u8::MAX as usize
+                {
+                    return Err(Error::Syntax);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Return true if b contains at least one zero.
+///
+/// Try to run in constant time.
+fn contains_zeros(b: &[u8]) -> bool {
+    use subtle::{Choice, ConstantTimeEq};
+    let c: Choice = b
+        .iter()
+        .fold(Choice::from(0), |seen_any, byte| seen_any | byte.ct_eq(&0));
+    c.unwrap_u8() != 0
+}
+
 impl SocksRequest {
     /// Create a SocksRequest with a given set of fields.
     ///
@@ -252,22 +289,7 @@ impl SocksRequest {
         if port == 0 && cmd.requires_port() {
             return Err(Error::Syntax);
         }
-        match &auth {
-            SocksAuth::NoAuth => {}
-            SocksAuth::Socks4(_) => {
-                if version != SocksVersion::V4 {
-                    return Err(Error::Syntax);
-                }
-            }
-            SocksAuth::Username(user, pass) => {
-                if version != SocksVersion::V5
-                    || user.len() > u8::MAX as usize
-                    || pass.len() > u8::MAX as usize
-                {
-                    return Err(Error::Syntax);
-                }
-            }
-        }
+        auth.validate(version)?;
 
         Ok(SocksRequest {
             version,
@@ -370,5 +392,11 @@ mod test {
             SocksAuth::NoAuth,
         );
         assert!(matches!(e, Err(Error::Syntax)));
+    }
+
+    #[test]
+    fn test_contains_zeros() {
+        assert!(contains_zeros(b"Hello\0world"));
+        assert!(!contains_zeros(b"Hello world"));
     }
 }
