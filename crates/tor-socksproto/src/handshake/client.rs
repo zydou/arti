@@ -221,48 +221,6 @@ impl SocksClientHandshake {
         })
     }
 
-    /// Try to handle a reply from the socks5 proxy to acknowledge our
-    /// username/password authentication, and reply as appropriate.
-    fn handle_v5_username_ack(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
-        let ver = r.take_u8()?;
-        if ver != 1 {
-            return Err(Error::Syntax);
-        }
-        let result = r.take_u8()?;
-        if result != 0 {
-            return Err(Error::AuthRejected);
-        }
-
-        self.state = State::Socks5Wait;
-        Ok(Action {
-            drain: r.consumed(),
-            reply: self.generate_v5_command()?,
-            finished: false,
-        })
-    }
-
-    /// Handle a final socks5 reply.
-    fn handle_v5_final(&mut self, input: &[u8]) -> Result<Action> {
-        let mut r = Reader::from_slice(input);
-        let ver = r.take_u8()?;
-        if ver != 5 {
-            return Err(Error::Syntax);
-        }
-        let status: SocksStatus = r.take_u8()?.into();
-        let _reserved = r.take_u8()?;
-        let addr: SocksAddr = r.extract()?;
-        let port = r.take_u16()?;
-
-        self.state = State::Done;
-        self.reply = Some(SocksReply::new(status, addr, port));
-        Ok(Action {
-            drain: r.consumed(),
-            reply: Vec::new(),
-            finished: true,
-        })
-    }
-
     /// Return a message to perform username/password authentication.
     fn generate_v5_username_auth(&self) -> Result<Vec<u8>> {
         if let SocksAuth::Username(username, pass) = self.request.auth() {
@@ -284,7 +242,32 @@ impl SocksClientHandshake {
         }
     }
 
+    /// Try to handle a reply from the socks5 proxy to acknowledge our
+    /// username/password authentication, and reply as appropriate.
+    fn handle_v5_username_ack(&mut self, input: &[u8]) -> Result<Action> {
+        let mut r = Reader::from_slice(input);
+        let ver = r.take_u8()?;
+        if ver != 1 {
+            return Err(Error::Syntax);
+        }
+        let result = r.take_u8()?;
+        if result != 0 {
+            return Err(Error::AuthRejected);
+        }
+
+        self.state = State::Socks5Wait;
+        Ok(Action {
+            drain: r.consumed(),
+            reply: self.generate_v5_command()?,
+            finished: false,
+        })
+    }
+
     /// Return a message to encode our final socks5 request.
+    ///
+    /// (This can be done either in response getting an ACK for our
+    /// authentication, or in response to being told that we don't need to
+    /// authenticate.)
     fn generate_v5_command(&self) -> Result<Vec<u8>> {
         let mut msg = Vec::new();
         msg.write_u8(5); // version
@@ -295,6 +278,27 @@ impl SocksClientHandshake {
         msg.write_u16(self.request.port());
 
         Ok(msg)
+    }
+
+    /// Handle a final socks5 reply.
+    fn handle_v5_final(&mut self, input: &[u8]) -> Result<Action> {
+        let mut r = Reader::from_slice(input);
+        let ver = r.take_u8()?;
+        if ver != 5 {
+            return Err(Error::Syntax);
+        }
+        let status: SocksStatus = r.take_u8()?.into();
+        let _reserved = r.take_u8()?;
+        let addr: SocksAddr = r.extract()?;
+        let port = r.take_u16()?;
+
+        self.state = State::Done;
+        self.reply = Some(SocksReply::new(status, addr, port));
+        Ok(Action {
+            drain: r.consumed(),
+            reply: Vec::new(),
+            finished: true,
+        })
     }
 }
 
