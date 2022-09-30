@@ -209,10 +209,10 @@ $crate::n_key_set::deps::paste!{
             // First, remove all the elements that have at least one key in common with `value`.
             let mut replaced = Vec::new();
             $(
-                $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
-                    .and_then(|key| self.$key.get(key))
-                    .and_then(|idx| self.values.try_remove(*idx))
-                    .map(|val| replaced.push(val));
+                replaced.extend(
+                    $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
+                        .and_then(|key| self.[<remove_by_$key>](key))
+                );
             )*
 
             // Now insert the new value, and add it to all of the maps.
