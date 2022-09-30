@@ -113,7 +113,9 @@ pub use handshake::client::SocksClientHandshake;
 #[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
 pub use SocksProxyHandshake as SocksHandshake;
 
-pub use msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
+pub use msg::{
+    SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
+};
 pub use tor_error::Truncated;
 
 /// A Result type for the tor_socksproto crate.

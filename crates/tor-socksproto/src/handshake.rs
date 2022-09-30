@@ -93,14 +93,16 @@ mod test_roundtrip {
     #![allow(clippy::unwrap_used)]
     //! <!-- @@ end test lint list
 
-    use crate::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
+    use crate::{
+        SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
+    };
 
     use super::client::SocksClientHandshake;
     use super::proxy::SocksProxyHandshake;
 
     /// Given a socks request, run a complete (successful round) trip, reply with the
     /// the given status code, and return both sides' results.
-    fn run_handshake(request: SocksRequest, status: SocksStatus) -> (SocksRequest, SocksStatus) {
+    fn run_handshake(request: SocksRequest, status: SocksStatus) -> (SocksRequest, SocksReply) {
         let mut client_hs = SocksClientHandshake::new(request);
         let mut proxy_hs = SocksProxyHandshake::new();
         let mut received_request = None;
@@ -117,8 +119,8 @@ mod test_roundtrip {
             let client_action = client_hs.handshake(&last_proxy_msg).unwrap().unwrap();
             assert_eq!(client_action.drain, last_proxy_msg.len());
             if client_action.finished {
-                let received_status = client_hs.into_status();
-                return (received_request.unwrap(), received_status.unwrap());
+                let received_reply = client_hs.into_reply();
+                return (received_request.unwrap(), received_reply.unwrap());
             }
             let client_msg = client_action.reply;
 
@@ -149,7 +151,7 @@ mod test_roundtrip {
     fn test_handshake(request: &SocksRequest, status: SocksStatus) {
         let (request_out, status_out) = run_handshake(request.clone(), status);
         assert_eq!(&request_out, request);
-        assert_eq!(status_out, status);
+        assert_eq!(status_out.status(), status);
     }
 
     #[test]

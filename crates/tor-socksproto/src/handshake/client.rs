@@ -1,13 +1,13 @@
 //! Implementation for a SOCKS client handshake.
 
 use super::{Action, NO_AUTHENTICATION, USERNAME_PASSWORD};
-use crate::msg::{SocksAddr, SocksAuth, SocksRequest, SocksStatus, SocksVersion};
+use crate::msg::{SocksAddr, SocksAuth, SocksReply, SocksRequest, SocksStatus, SocksVersion};
 use crate::{Error, Result, TResult, Truncated};
 
 use tor_bytes::{Reader, Writer};
 use tor_error::{internal, into_internal};
 
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
 /// The client (initiator) side of a SOCKS handshake.
 #[derive(Clone, Debug)]
@@ -17,7 +17,7 @@ pub struct SocksClientHandshake {
     /// Our current state in negotiating that request.
     state: State,
     /// If present, the return message that we received from the proxy.
-    status: Option<SocksStatus>,
+    reply: Option<SocksReply>,
 }
 
 /// An internal state for a `SocksClientHandshake`.
@@ -50,14 +50,14 @@ impl SocksClientHandshake {
         SocksClientHandshake {
             request,
             state: State::Initial,
-            status: None,
+            reply: None,
         }
     }
 
     /// Consume this handshake's state; if it finished successfully,
-    /// return a SocksStatus.
-    pub fn into_status(self) -> Option<SocksStatus> {
-        self.status
+    /// return the [`SocksReply`] that we got from the proxy..
+    pub fn into_reply(self) -> Option<SocksReply> {
+        self.reply
     }
 
     /// Try to advance a SocksProxyHandshake, given some proxy input in
@@ -148,12 +148,15 @@ impl SocksClientHandshake {
             return Err(Error::Syntax);
         }
         let status = r.take_u8()?;
-        // We ignore these.
-        let _port = r.take_u16()?;
-        let _ip = r.take_u32()?;
+        let port = r.take_u16()?;
+        let ip: Ipv4Addr = r.extract()?;
 
         self.state = State::Done;
-        self.status = Some(SocksStatus::from_socks4_status(status));
+        self.reply = Some(SocksReply::new(
+            SocksStatus::from_socks4_status(status),
+            SocksAddr::Ip(ip.into()),
+            port,
+        ));
 
         Ok(Action {
             drain: r.consumed(),
@@ -244,11 +247,11 @@ impl SocksClientHandshake {
         }
         let status: SocksStatus = r.take_u8()?.into();
         let _reserved = r.take_u8()?;
-        let _addr: SocksAddr = r.extract()?;
-        let _port = r.take_u16()?;
+        let addr: SocksAddr = r.extract()?;
+        let port = r.take_u16()?;
 
         self.state = State::Done;
-        self.status = Some(status);
+        self.reply = Some(SocksReply::new(status, addr, port));
         Ok(Action {
             drain: r.consumed(),
             reply: Vec::new(),
@@ -327,7 +330,10 @@ mod test {
         assert_eq!(action.reply, &[]);
         assert_eq!(action.finished, true);
 
-        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+        let reply = hs.into_reply().unwrap();
+        assert_eq!(reply.status(), SocksStatus::SUCCEEDED);
+        assert_eq!(reply.port(), 443);
+        assert_eq!(reply.addr().to_string(), "192.0.2.15");
     }
 
     #[test]
@@ -354,7 +360,10 @@ mod test {
         assert_eq!(action.reply, &[]);
         assert_eq!(action.finished, true);
 
-        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+        let reply = hs.into_reply().unwrap();
+        assert_eq!(reply.status(), SocksStatus::SUCCEEDED);
+        assert_eq!(reply.port(), 443);
+        assert_eq!(reply.addr().to_string(), "192.0.2.21");
     }
 
     #[test]
@@ -393,7 +402,11 @@ mod test {
         assert_eq!(action.drain, 10);
         assert_eq!(action.reply, &[]);
         assert_eq!(action.finished, true);
-        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+
+        let reply = hs.into_reply().unwrap();
+        assert_eq!(reply.status(), SocksStatus::SUCCEEDED);
+        assert_eq!(reply.port(), 443);
+        assert_eq!(reply.addr().to_string(), "192.0.2.21");
     }
 
     #[test]
@@ -439,6 +452,10 @@ mod test {
         assert_eq!(action.drain, 10);
         assert_eq!(action.reply, &[]);
         assert_eq!(action.finished, true);
-        assert_eq!(hs.into_status(), Some(SocksStatus::SUCCEEDED));
+
+        let reply = hs.into_reply().unwrap();
+        assert_eq!(reply.status(), SocksStatus::SUCCEEDED);
+        assert_eq!(reply.port(), 443);
+        assert_eq!(reply.addr().to_string(), "192.0.2.21");
     }
 }

@@ -337,6 +337,48 @@ impl fmt::Display for SocksAddr {
     }
 }
 
+/// The reply from a SOCKS proxy.
+#[derive(Debug, Clone)]
+pub struct SocksReply {
+    /// The provided status code
+    status: SocksStatus,
+    /// The provided address, if any.
+    addr: SocksAddr,
+    /// The provided port.
+    port: u16,
+}
+
+impl SocksReply {
+    /// Create a new SocksReply.
+    pub(crate) fn new(status: SocksStatus, addr: SocksAddr, port: u16) -> Self {
+        Self { status, addr, port }
+    }
+
+    /// Return the status code from this socks reply.
+    pub fn status(&self) -> SocksStatus {
+        self.status
+    }
+
+    /// Return the address from this socks reply.
+    ///
+    /// The semantics of this address depend on the original socks command
+    /// provided; see the SOCKS specification for more information.
+    ///
+    /// Note that some implementations (including Tor) will return `0.0.0.0` or
+    /// `[::]` to indicate "no address given".
+    pub fn addr(&self) -> &SocksAddr {
+        &self.addr
+    }
+
+    /// Return the address from this socks reply.
+    ///
+    /// The semantics of this port depend on the original socks command
+    /// provided; see the SOCKS specification for more information.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
