@@ -162,26 +162,6 @@ $crate::n_key_set::deps::paste!{
             self.$key.get(key).and_then(|idx| self.values.get(*idx))
         }
 
-        /*  Removed: This seems too risky for real life.
-
-        #[doc = concat!("Return a mutable reference to the element whose `", stringify!($key), "` is `key`.
-
-        Return None if there is no such element.
-
-        # Correctness
-
-        This reference must not be used to change the value of any of the resulting
-        element's keys: doing so can invalidate this set.
-        ")]
-        $vis fn [<by_ $key _mut>] <T>(&mut self, $key: &T) -> Option<&mut $V>
-            where $KEY : std::borrow::Borrow<T>,
-                  T: std::hash::Hash + Eq + ?Sized
-        {
-            self.$key.get($key).and_then(|idx| self.values.get_mut(*idx))
-        }
-
-        */
-
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
         $vis fn [<contains_ $key>] <T>(&mut self, $key: &T) -> bool
         where $KEY : std::borrow::Borrow<T>,
