@@ -61,8 +61,12 @@ impl SocksProxyHandshake {
     /// Try to advance a SocksProxyHandshake, given some client input in
     /// `input`.
     ///
-    /// If there isn't enough input, gives a [`Truncated`].  Other
-    /// errors indicate a failure.
+    /// If there isn't enough input, gives a [`Truncated`].
+    /// In this case, *the caller must retain the input*, and pass it to a later
+    /// invocation of `handshake`.  Input should only be regarded as consumed when
+    /// the `Action::drain` field is nonzero.
+    ///
+    /// Other errors (besides `Truncated`) indicate a failure.
     ///
     /// On success, return an Action describing what to tell the client,
     /// and how much of its input to consume.
