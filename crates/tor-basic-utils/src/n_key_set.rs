@@ -44,7 +44,7 @@ pub mod deps {
 ///         // by accessing a given field.
 ///         username: String { .username },
 ///         given_name: String { .given_name },
-///         student_id: Option<u64> { .student_id }
+///         (Option) student_id: u64 { .student_id }
 ///     }
 /// }
 ///
@@ -65,12 +65,13 @@ pub mod deps {
 ///
 /// * `name : type { func() }` - A key whose name is `name` and type is `type`,
 ///   that can be accessed from a given element by calling `element.func()`.
-/// * name : type { .field }` - A key whose name is `name` and type is `type`,
+/// * `name : type { .field }` - A key whose name is `name` and type is `type`,
 ///   that can be accessed from a given element by calling `&element.field`.
 /// * `name : type` - Short for as `name : type { name() }`.
 ///
-/// If the type of a key is given as `Option<type2>`, then the inner `type2` is
-/// treated as the real key type, and the key is treated as optional.
+/// If a key declaration is preceded with `(Option)`, then the
+/// key is treated as optional, and accessor functions are expected to return
+/// `Option<&type>`.
 ///
 /// # Additional features
 ///
@@ -82,7 +83,7 @@ macro_rules! n_key_set {
     $vis:vis struct $mapname:ident $(<$($P:ident),*>)? for $V:ty
     $( where $($constr:tt)+ )?
     {
-        $( $key:ident : $KEY:ty $({ $($source:tt)+ })? ),+
+        $( $(( $($flag:ident)+ ))? $key:ident : $KEY:ty $({ $($source:tt)+ })? ),+
         $(,)?
     }
 } => {
@@ -224,7 +225,7 @@ $crate::n_key_set::deps::paste!{
             // First, remove all the elements that have at least one key in common with `value`.
             let mut replaced = Vec::new();
             $(
-                $crate::n_key_set!( @access(value, $key : $KEY $({$($source)+})?) )
+                $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
                     .and_then(|key| self.$key.get(key))
                     .and_then(|idx| self.values.try_remove(*idx))
                     .map(|val| replaced.push(val));
@@ -235,7 +236,7 @@ $crate::n_key_set::deps::paste!{
             let value_ref = self.values.get(new_idx).expect("we just inserted this");
             let mut some_key_found = false;
             $(
-                $crate::n_key_set!( @access(value_ref, $key : $KEY $({$($source)+})?) )
+                $crate::n_key_set!( @access(value_ref, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
                     .map(|key| {
                         self.$key.insert(key.to_owned(), new_idx);
                         some_key_found = true;
@@ -284,7 +285,7 @@ $crate::n_key_set::deps::paste!{
         fn remove_at(&mut self, idx: usize) -> Option<$V> {
             if let Some(removed) = self.values.try_remove(idx) {
                 $(
-                    if let Some($key) = $crate::n_key_set!( @access(removed, $key : $KEY $({$($source)+})?) ) {
+                    if let Some($key) = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
                         let old_idx = self.$key.remove($key);
                         debug_assert_eq!(old_idx, Some(idx));
                     }
@@ -337,22 +338,22 @@ $crate::n_key_set::deps::paste!{
 // an Option<&TYPE> for that key.  This is the part of the macro
 // that parses key descriptions.
 
-{ @access($ex:expr, $key:ident : Option<$t:ty> ) } => {
+{ @access($ex:expr, (Option) $key:ident : $t:ty ) } => {
     $ex.key()
 };
-{ @access($ex:expr, $key:ident : $t:ty) } => {
+{ @access($ex:expr, () $key:ident : $t:ty) } => {
     Some($ex.key())
 };
-{ @access($ex:expr, $key:ident : Option<$t:ty> { . $field:tt } ) } => {
+{ @access($ex:expr, (Option) $key:ident : $t:ty { . $field:tt } ) } => {
     $ex.$field.as_ref()
 };
-{ @access($ex:expr, $key:ident : $t:ty { . $field:tt } ) } => {
+{ @access($ex:expr, () $key:ident : $t:ty { . $field:tt } ) } => {
    Some(&$ex.$field)
 };
-{ @access($ex:expr, $key:ident : Option<$t:ty> { $func:ident () } ) } => {
+{ @access($ex:expr, (Option) $key:ident : $t:ty { $func:ident () } ) } => {
     $ex.$func()
 };
-{ @access($ex:expr, $key:ident : $t:ty { $func:ident () } ) } => {
+{ @access($ex:expr, () $key:ident : $t:ty { $func:ident () } ) } => {
     Some($ex.$func())
 };
 }
@@ -458,12 +459,14 @@ mod test {
     }
     #[allow(dead_code)]
     impl Weekday {
+        // TODO: I wish this could return u8
         fn dow(&self) -> &u8 {
             &self.dow
         }
         fn name(&self) -> &str {
             self.name
         }
+        // TODO: I wish this could return Option<u16>
         fn lucky_number(&self) -> Option<&u16> {
             self.lucky_number.as_ref()
         }
@@ -471,9 +474,7 @@ mod test {
     n_key_set! {
         struct WeekdaySet for Weekday {
             idx: u8 { dow() },
-           // BUG: Apparently Option isn't working right.
-           //      lucky: Option<u16> { lucky_number() }
-
+            (Option) lucky: u16 { lucky_number() },
             name: String { name() }
         }
     }
