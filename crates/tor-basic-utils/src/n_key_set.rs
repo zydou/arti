@@ -353,7 +353,7 @@ $crate::n_key_set::deps::paste!{
     $ex.$func()
 };
 { @access($ex:expr, $key:ident : $t:ty { $func:ident () } ) } => {
-    Some($ex.$func)
+    Some($ex.$func())
 };
 }
 
