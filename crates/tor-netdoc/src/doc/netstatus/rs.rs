@@ -9,7 +9,7 @@ mod md;
 #[cfg(feature = "ns_consensus")]
 mod ns;
 
-use super::{NetstatusKwd, RelayFlags, RelayWeight};
+use super::{ConsensusFlavor, NetstatusKwd, RelayFlags, RelayWeight};
 use crate::doc;
 use crate::parse::parser::Section;
 use crate::types::misc::*;
@@ -177,10 +177,10 @@ where
     /// Parse a generic routerstatus from a section.
     ///
     /// Requires that the section obeys the right SectionRules,
-    /// matching microdesc_format.
+    /// matching `consensus_flavor`.
     fn from_section(
         sec: &Section<'_, NetstatusKwd>,
-        microdesc_format: bool,
+        consensus_flavor: ConsensusFlavor,
     ) -> Result<GenericRouterStatus<D>> {
         use NetstatusKwd::*;
         // R line
@@ -192,7 +192,11 @@ where
                 .at_pos(r_item.pos())
                 .with_msg("Wrong identity length")
         })?;
-        let skip = if microdesc_format { 0 } else { 1 };
+        // Fields to skip in the "r" line.
+        let n_skip = match consensus_flavor {
+            ConsensusFlavor::Microdesc => 0,
+            ConsensusFlavor::Ns => 1,
+        };
         // We check that the published time is well-formed, but we never use it
         // for anything in a consensus document.
         let _ignore_published: time::SystemTime = {
@@ -200,14 +204,14 @@ where
             // already have a slice that contains both of these arguments.
             // Instead, we could get a slice of arguments: we'd have to add
             // a feature for that.
-            let mut p = r_item.required_arg(2 + skip)?.to_string();
+            let mut p = r_item.required_arg(2 + n_skip)?.to_string();
             p.push(' ');
-            p.push_str(r_item.required_arg(3 + skip)?);
+            p.push_str(r_item.required_arg(3 + n_skip)?);
             p.parse::<Iso8601TimeSp>()?.into()
         };
-        let ipv4addr = r_item.required_arg(4 + skip)?.parse::<net::Ipv4Addr>()?;
-        let or_port = r_item.required_arg(5 + skip)?.parse::<u16>()?;
-        let _ = r_item.required_arg(6 + skip)?.parse::<u16>()?;
+        let ipv4addr = r_item.required_arg(4 + n_skip)?.parse::<net::Ipv4Addr>()?;
+        let or_port = r_item.required_arg(5 + n_skip)?.parse::<u16>()?;
+        let _ = r_item.required_arg(6 + n_skip)?.parse::<u16>()?;
 
         // main address and A lines.
         let a_items = sec.slice(RS_A);
@@ -247,12 +251,13 @@ where
 
         // Try to find the document digest.  This is in different
         // places depending on the kind of consensus we're in.
-        let doc_digest: D = if microdesc_format {
-            // M line
-            let m_item = sec.required(RS_M)?;
-            D::decode(m_item.required_arg(0)?)?
-        } else {
-            D::decode(r_item.required_arg(2)?)?
+        let doc_digest: D = match consensus_flavor {
+            ConsensusFlavor::Microdesc => {
+                // M line
+                let m_item = sec.required(RS_M)?;
+                D::decode(m_item.required_arg(0)?)?
+            }
+            ConsensusFlavor::Ns => D::decode(r_item.required_arg(2)?)?,
         };
 
         Ok(GenericRouterStatus {

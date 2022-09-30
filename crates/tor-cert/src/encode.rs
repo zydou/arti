@@ -57,7 +57,7 @@ impl Writeable for UnrecognizedExt {
                 .map_err(|_| tor_bytes::EncodeError::BadLengthValue)?,
         );
         w.write_u8(self.ext_type.into());
-        let flags = if self.affects_validation { 1 } else { 0 };
+        let flags = u8::from(self.affects_validation);
         w.write_u8(flags);
         w.write_all(&self.body[..]);
         Ok(())

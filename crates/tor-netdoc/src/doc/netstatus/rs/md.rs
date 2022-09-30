@@ -67,7 +67,7 @@ impl ParseRouterStatus for MdConsensusRouterStatus {
     }
 
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<MdConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, true)?;
+        let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Microdesc)?;
         Ok(MdConsensusRouterStatus { rs })
     }
 }
