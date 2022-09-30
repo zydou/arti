@@ -70,7 +70,7 @@ impl ParseRouterStatus for NsConsensusRouterStatus {
     }
 
     fn from_section(sec: &Section<'_, NetstatusKwd>) -> Result<NsConsensusRouterStatus> {
-        let rs = GenericRouterStatus::from_section(sec, false)?;
+        let rs = GenericRouterStatus::from_section(sec, ConsensusFlavor::Ns)?;
         Ok(NsConsensusRouterStatus { rs })
     }
 }
