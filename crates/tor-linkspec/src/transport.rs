@@ -161,7 +161,7 @@ impl TransportId {
 }
 
 /// This identifier is used to indicate no transport address.
-const NONE_ADDR: &str = "<none>";
+const NONE_ADDR: &str = "-";
 
 /// An address that an be passed to a pluggable transport to tell it where to
 /// connect (typically, to a bridge).
@@ -419,7 +419,7 @@ mod test {
             assert_eq!(&a.to_string(), addr);
         }
 
-        for addr in &["www.example.com:9100", "<none>"] {
+        for addr in &["www.example.com:9100", "-"] {
             if cfg!(feature = "pt-client") {
                 let a: PtTargetAddr = addr.parse().unwrap();
                 assert_eq!(&a.to_string(), addr);
