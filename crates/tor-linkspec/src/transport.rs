@@ -9,6 +9,9 @@
 use std::fmt::{self, Display};
 use std::str::FromStr;
 
+#[cfg(feature = "pt-client")]
+use thiserror::Error;
+
 /// Identify a type of Transport.
 ///
 /// If this crate is compiled with the `pt-client` feature, this type can
@@ -302,6 +305,14 @@ pub struct PtTarget {
     settings: PtTargetSettings,
 }
 
+/// Invalid PT parameter setting
+#[cfg(feature = "pt-client")]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PtTargetInvalidSetting {
+    // TODO pt-client: actually check things
+}
+
 #[cfg(feature = "pt-client")]
 impl PtTarget {
     /// Create a new `PtTarget` (with no settings)
@@ -314,8 +325,13 @@ impl PtTarget {
     }
 
     /// Add a setting (to be passed during the SOCKS handshake)
-    pub fn push_setting(&mut self, k: String, v: String) {
-        self.settings.settings.push((k, v));
+    pub fn push_setting(
+        &mut self,
+        k: impl Into<String>,
+        v: impl Into<String>,
+    ) -> Result<(), PtTargetInvalidSetting> {
+        self.settings.settings.push((k.into(), v.into()));
+        Ok(()) // TODO pt-client: check the syntax
     }
 
     /// Get the transport name

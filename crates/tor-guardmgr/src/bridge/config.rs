@@ -11,7 +11,7 @@ use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 #[cfg(feature = "pt-client")]
-use tor_linkspec::{PtAddrError, PtTarget, PtTargetAddr};
+use tor_linkspec::{PtAddrError, PtTarget, PtTargetAddr, PtTargetInvalidSetting};
 
 /// A relay not listed on the main tor network, used for anticensorship.
 ///
@@ -109,6 +109,11 @@ pub enum BridgeParseError {
     #[cfg(feature = "pt-client")]
     #[error("Invalid PT key=value parameters (does not contain an equals sign)")]
     InvalidPtKeyValue,
+
+    /// Invalid pluggable transport setting syntax
+    #[cfg(feature = "pt-client")]
+    #[error("Invalid pluggable transport setting syntax")]
+    InvalidPluggableTransportSetting(#[from] PtTargetInvalidSetting),
 
     /// More than one identity of the same type specified
     #[error("More than one identity of the same type specified, at {0}")]
@@ -221,7 +226,7 @@ impl FromStr for Bridge {
 
             match &mut method {
                 ChannelMethod::Direct(_) => return Err(BPE::DirectParametersNotAllowed),
-                ChannelMethod::Pluggable(t) => t.push_setting(k.into(), v.into()),
+                ChannelMethod::Pluggable(t) => t.push_setting(k, v)?,
             }
         }
 
@@ -299,7 +304,7 @@ mod test {
     fn mk_pt_target(name: &str, addr: PtTargetAddr, params: &[(&str, &str)]) -> ChannelMethod {
         let mut target = PtTarget::new(name.parse().unwrap(), addr);
         for &(k, v) in params {
-            target.push_setting(k.into(), v.into());
+            target.push_setting(k, v).unwrap();
         }
         ChannelMethod::Pluggable(target)
     }
