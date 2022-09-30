@@ -310,7 +310,19 @@ pub struct PtTarget {
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PtTargetInvalidSetting {
-    // TODO pt-client: actually check things
+    /// Currently: the key contains whitespace or `=`
+    ///
+    /// Will probably be generated for a greater variety of values
+    /// when the spec is more nailed down.
+    #[error("key {0:?} has invalid or unspported syntax")]
+    Key(String),
+
+    /// Currently: the value contains whitespace
+    ///
+    /// Will probably be generated for a greater variety of values
+    /// when the spec is more nailed down.
+    #[error("value {0:?} has invalid or unspported syntax")]
+    Value(String),
 }
 
 #[cfg(feature = "pt-client")]
@@ -330,7 +342,20 @@ impl PtTarget {
         k: impl Into<String>,
         v: impl Into<String>,
     ) -> Result<(), PtTargetInvalidSetting> {
-        self.settings.settings.push((k.into(), v.into()));
+        let k = k.into();
+        let v = v.into();
+
+        // Unfortunately the spec is not very clear about the valid syntax.
+        // https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
+        //
+        // For now we reject things that cannot be represented in a bridge line
+        if k.find(|c: char| c == '=' || c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Key(k));
+        }
+        if v.find(|c: char| c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Value(v));
+        }
+        self.settings.settings.push((k, v));
         Ok(()) // TODO pt-client: check the syntax
     }
 

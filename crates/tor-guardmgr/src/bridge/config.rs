@@ -278,9 +278,6 @@ impl Display for Bridge {
 
         #[cfg(feature = "pt-client")]
         for (k, v) in settings.into_iter().flatten() {
-            // TODO pt-client: this fails to properly unparse arbitrary values
-            // The values ought not to be arbitrary, but the spec is not clear.
-            // See the comment on PtTargetSettings.
             write!(f, " {}={}", k, v)?;
         }
 
