@@ -159,7 +159,7 @@ $crate::n_key_set::deps::paste!{
             where $KEY : std::borrow::Borrow<T>,
                   T: std::hash::Hash + Eq + ?Sized
         {
-            self.$key.get(key).and_then(|idx| self.values.get(*idx))
+            self.$key.get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
@@ -178,7 +178,7 @@ $crate::n_key_set::deps::paste!{
             where $KEY : std::borrow::Borrow<T>,
                   T: std::hash::Hash + Eq + ?Sized
         {
-            self.$key.get($key).copied().and_then(|old_idx| self.remove_at(old_idx))
+            self.$key.get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
         }
         )+
 
@@ -196,6 +196,10 @@ $crate::n_key_set::deps::paste!{
         ///
         /// Remove any previous values that shared any keys with `value`, and
         /// return them in a vector.
+        ///
+        /// # Panics
+        ///
+        /// Panics if all the keys are optional, and `value` has no keys at all.
         $vis fn insert(&mut self, value: $V) -> Vec<$V> {
             if self.capacity() > 32 && self.len() < self.capacity() / 4 {
                 // We're have the opportunity to free up a fair amount of space; let's take it.
@@ -224,7 +228,10 @@ $crate::n_key_set::deps::paste!{
             )*
             // If we didn't find any key on the newly added value, that's
             // an invariant violation.
-            debug_assert!(some_key_found);
+            if ! some_key_found {
+                self.values.remove(new_idx); // Restore the set to a correct state.
+                panic!("Tried to add a value with no key!");
+            }
 
             replaced
         }
