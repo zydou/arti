@@ -140,15 +140,24 @@ impl FromStr for Bridge {
 
         let mut s = s.trim().split_ascii_whitespace().peekable();
 
+        // This implements the parsing of bridge lines.
+        // Refer to the specification in the rustdoc comment for `Bridge`.
+
+        //  * Optionally, the word `Bridge` ...
+
         let bridge_word = s.peek().ok_or(BPE::Empty)?;
         if bridge_word.eq_ignore_ascii_case("bridge") {
             s.next();
         }
 
+        //  * Optionally, the name of the pluggable transport to use.
+        //  * The `Host:ORPort` to connect to.
+
         #[cfg_attr(not(feature = "pt-client"), allow(unused_mut))]
         let mut method = {
             let word = s.next().ok_or(BPE::Empty)?;
             if word.contains(':') {
+                // Not a PT name.  Hope it's an address:port.
                 let addr = word.parse()?;
                 ChannelMethod::Direct(addr)
             } else {
@@ -168,10 +177,13 @@ impl FromStr for Bridge {
             }
         };
 
+        //  * One or more identity key fingerprints,
+
         let mut rsa_id = None;
         let mut ed_id = None;
 
         while let Some(word) = s.peek() {
+            // Helper to generate the errors if the same key type is specified more than once
             let check_several = |was_some| {
                 if was_some {
                     Err(BPE::MultipleIdentitiesOfSameType(word.to_string()))
@@ -183,6 +195,7 @@ impl FromStr for Bridge {
             match word.parse() {
                 Err(id_err) => {
                     if word.contains('=') {
+                        // Not a fingerprint, then, but a key=value.
                         break;
                     }
                     return Err(BPE::InvalidIdentityOrParameter(id_err));
@@ -193,6 +206,9 @@ impl FromStr for Bridge {
             }
             s.next();
         }
+
+        //  * When a pluggable transport is in use,
+        //    zero or more `key=value` parameters to pass to the transport
 
         #[cfg(not(feature = "pt-client"))]
         if s.next().is_some() {
@@ -225,6 +241,10 @@ impl Display for Bridge {
             rsa_id,
             ed_id,
         } = self;
+
+        //  * Optionally, the name of the pluggable transport to use.
+        //  * The `Host:ORPort` to connect to.
+
         let settings = match addrs {
             ChannelMethod::Direct(a) => {
                 write!(f, "{}", a)?;
@@ -237,10 +257,16 @@ impl Display for Bridge {
                 Some(target.settings())
             }
         };
+
+        //  * One or more identity key fingerprints,
+
         write!(f, " {}", rsa_id)?;
         if let Some(ed_id) = ed_id {
             write!(f, " ed25519:{}", ed_id)?;
         }
+
+        //  * When a pluggable transport is in use,
+        //    zero or more `key=value` parameters to pass to the transport
 
         #[cfg(not(feature = "pt-client"))]
         let _: Option<()> = settings;
