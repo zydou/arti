@@ -12,7 +12,7 @@ pub mod deps {
 /// Each element can be looked up or removed by any of its keys. The keys
 /// themselves can be any type that supports `Hash`, `Eq`, and `Clone`. Elements
 /// can have multiple keys of the same type: for example, a person can have a
-/// firstname `String` and a lastname `String`.
+/// username `String` and an irc_handle `String`.
 ///
 /// All keys in the set must be unique: if a new element is inserted that has
 /// the same value for any key as a previous element, the old element is
@@ -32,7 +32,7 @@ pub mod deps {
 /// // We declare a person struct with several different fields.
 /// pub struct Person {
 ///     username: String,
-///     given_name: String,
+///     irc_handle: String,
 ///     student_id: Option<u64>,
 ///     favorite_joke: Option<String>,
 /// }
@@ -43,7 +43,7 @@ pub mod deps {
 ///         // here means that the value for the key is returned
 ///         // by accessing a given field.
 ///         username: String { .username },
-///         given_name: String { .given_name },
+///         irc_handle: String { .irc_handle },
 ///         (Option) student_id: u64 { .student_id }
 ///     }
 /// }
@@ -61,7 +61,7 @@ pub mod deps {
 ///
 /// # Key syntax
 ///
-/// You can access the keys of an element in any of several ways.
+/// You can tell the map to access the keys of an element in any of several ways.
 ///
 /// * `name : type { func() }` - A key whose name is `name` and type is `type`,
 ///   that can be accessed from a given element by calling `element.func()`.
@@ -71,11 +71,13 @@ pub mod deps {
 ///
 /// If a key declaration is preceded with `(Option)`, then the
 /// key is treated as optional, and accessor functions are expected to return
-/// `Option<&type>`.
+/// `Option<&Type>`.
 ///
 /// # Additional features
 ///
 /// You can put generic parameters and `where` constraints on your structure.
+/// (Constraints for generic parameters must be specified in `where` clauses,
+/// not where the parameters are introduced.)
 #[macro_export]
 macro_rules! n_key_set {
 {
@@ -92,20 +94,27 @@ $crate::n_key_set::deps::paste!{
     #[doc = concat!(
         "A set of elements of type ", stringify!($V), " whose members can be accessed by multiple keys.",
         "\n\nThe keys are:",
-        $( " * `", stringify!($key), "` (`",stringify!($KEY),"`)\n" , )+
+        $( " * `", stringify!($key), "` (`",stringify!($KEY),"`)\n" ,
+           $(" (", stringify!($($flag)+), ")", )?
+         )+
         "\
+Each member has a value for *each* required key, and up to one value
+for *each* optional key.
 The set contains at most one member for any value of a given key.
 
 # Requirements
 
 Key types must have consistent `Hash` and `Eq` implementations, as
-they will be used as keys in a `HashSet`.
+they will be used as keys in a `HashMap`.
 
 If all keys are optional, then every element in this set
 must have at least one non-None key.
 
 An element must not change its keys over time through interior
 mutability.
+
+⚠️ If *any* of these rules is violated, the consequences are unspecified,
+and could include panics or wrong answers (but not memory-unsafety).
         
 # Limitations
 
