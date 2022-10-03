@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "arti-client"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -190,7 +190,7 @@ version = "0.4.2"
 
 [[package]]
 name = "arti-hyper"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -3417,7 +3417,7 @@ dependencies = [
 
 [[package]]
 name = "tor-chanmgr"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "async-trait",
  "derive_builder_fork_arti",
@@ -3460,7 +3460,7 @@ dependencies = [
 
 [[package]]
 name = "tor-circmgr"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "bounded-vec-deque",
@@ -3549,7 +3549,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirclient"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "async-compression",
  "base64",
@@ -3576,7 +3576,7 @@ dependencies = [
 
 [[package]]
 name = "tor-dirmgr"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -3649,7 +3649,7 @@ dependencies = [
 
 [[package]]
 name = "tor-guardmgr"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "base64",
  "derive_builder_fork_arti",
@@ -3814,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "tor-proto"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "arrayref",
  "asynchronous-codec",
@@ -3868,7 +3868,7 @@ dependencies = [
 
 [[package]]
 name = "tor-ptmgr"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "async-trait",
  "futures",
@@ -3880,7 +3880,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtcompat"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "async-io",
  "async-native-tls",
@@ -3901,7 +3901,7 @@ dependencies = [
 
 [[package]]
 name = "tor-rtmock"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "futures",

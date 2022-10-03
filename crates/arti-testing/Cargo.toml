@@ -1,6 +1,6 @@
 [package]
 name = "arti-testing"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -16,7 +16,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.23"
-arti = { package = "arti", path = "../arti", version = "1.0.0" }
+arti = { package = "arti", path = "../arti", version = "1.0.1" }
 arti-client = { package = "arti-client", path = "../arti-client", version = "0.7.0", features = [
     "dirfilter",
 ] }
