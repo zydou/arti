@@ -7,15 +7,15 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 Arti 1.0.1 fixes a few bugs in our previous releases.
 
-This is a fairly small release: Members of our team have spend a lot of
+This is a fairly small release: Members of our team have spent a lot of
 September at a company meeting, on our vacations, and/or recovering from
-COVID-19. The feature work we have managed to get done is done is
+COVID-19. The feature work we have managed to get done is
 largely behind-the-scenes preparation for our anticensorship release,
 which we now hope is coming in early November.
 
 ### Breaking changes
 
-- The `Schedcule::sleep()*` functions in `tor-rtcompat` now return a
+- The `Schedule::sleep()*` functions in `tor-rtcompat` now return a
   `Result`.  This change was part of the fix for part of [#572].
 
 ### New features
