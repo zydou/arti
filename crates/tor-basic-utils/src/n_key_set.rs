@@ -80,12 +80,17 @@ pub mod deps {
 /// not where the parameters are introduced.)
 ///
 /// If you need to use const generics or lifetimes in your structure, you
-/// need to use square brackets instead of angle brackets. (This is due to
+/// need to use square brackets instead of angle brackets, and specify both the
+/// generic parameters *and* the type that you are implementing. (This is due to
 /// limitations in the Rust macro system.)  For example:
 ///
 /// ```
 /// # use tor_basic_utils::n_key_set;
 /// n_key_set!{
+///     ///
+///     struct['a, const N: usize] ArrayMap2['a, N] for (String, [&'a u32;N]) {
+///          name: String { .0 }
+///     }
 /// }
 /// ```
 #[macro_export]
@@ -100,7 +105,7 @@ macro_rules! n_key_set {
 } => {
 n_key_set!{
     $(#[$meta])*
-    $vis struct $mapname [$($($P),*)?] for $V
+    $vis struct [$($($P),*)?] $mapname [$($($P),*)?] for $V
     $( where $($constr)+ )?
     {
         $( $body )+
@@ -109,7 +114,7 @@ n_key_set!{
 };
 {
         $(#[$meta:meta])*
-        $vis:vis struct $mapname:ident [$($($P:tt)+)?] for $V:ty
+        $vis:vis struct [$($($G:tt)+)?] $mapname:ident [$($($P:tt)+)?] for $V:ty
         $( where $($constr:tt)+ )?
         {
             $( $(( $($flag:ident)+ ))? $key:ident : $KEY:ty $({ $($source:tt)+ })? ),+
@@ -148,7 +153,7 @@ and could include panics or wrong answers (but not memory-unsafety).
 This could be more efficient in space and time.
         ",
     )]
-    $vis struct $mapname $(<$($P)*>)?
+    $vis struct $mapname $(<$($G)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )+  $($($constr)+)?
     {
         // The $key fields here are a set of maps from each of the key values to
@@ -169,7 +174,7 @@ This could be more efficient in space and time.
     }
 
     #[allow(dead_code)] // May be needed if this is not public.
-    impl $(<$($P)*>)? $mapname $(<$($P)*>)?
+    impl $(<$($G)*>)? $mapname $(<$($P)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )+  $($($constr)+)?
     {
         #[doc = concat!("Construct a new ", stringify!($mapname))]
@@ -376,7 +381,7 @@ This could be more efficient in space and time.
         }
     }
 
-    impl $(<$($P)*>)? Default for $mapname $(<$($P)*>)?
+    impl $(<$($G)*>)? Default for $mapname $(<$($P)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )*  $($($constr)+)?
     {
         fn default() -> Self {
@@ -384,7 +389,7 @@ This could be more efficient in space and time.
         }
     }
 
-    impl $(<$($P)*>)? FromIterator<$V> for $mapname $(<$($P)*>)?
+    impl $(<$($G)*>)? FromIterator<$V> for $mapname $(<$($P)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )*  $($($constr)+)?
     {
         fn from_iter<T>(iter: T) -> Self
@@ -551,17 +556,14 @@ mod test {
     }
 
     n_key_set! {
-        struct ArrayMap['a] for (String, [&'a u32;10]) {
+        struct['a] ArrayMap['a] for (String, [&'a u32;10]) {
             name: String { .0 }
         }
     }
 
-    /*
-      BUG: Doesn't work.
     n_key_set! {
-        struct ArrayMap['a, const N:usize] for (String, [&'a u32;N]) {
+        struct['a, const N:usize] ArrayMap2['a, N] for (String, [&'a u32;N]) {
             name: String { .0 }
         }
     }
-    */
 }
