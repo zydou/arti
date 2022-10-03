@@ -152,7 +152,7 @@ pub enum TransportIdError {
     NoSupport,
 
     /// Tried to parse a pluggable transport whose name was not well-formed.
-    #[error("{0:?} is not a valid pluggable transport ID.")]
+    #[error("{0:?} is not a valid pluggable transport ID")]
     BadId(String),
 }
 
