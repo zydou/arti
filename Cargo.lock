@@ -163,6 +163,7 @@ dependencies = [
  "educe",
  "fs-mistrust",
  "futures",
+ "hostname-validator",
  "humantime-serde",
  "libc",
  "once_cell",
@@ -1506,6 +1507,12 @@ checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.5",
 ]
+
+[[package]]
+name = "hostname-validator"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f558a64ac9af88b5ba400d99b579451af0d39c6d360980045b91aac966d705e2"
 
 [[package]]
 name = "http"
