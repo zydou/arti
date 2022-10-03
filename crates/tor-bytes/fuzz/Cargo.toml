@@ -10,7 +10,7 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = { version = "0.4.1" } #, features = ["arbitrary-derive"] }
+libfuzzer-sys = "0.4"
  arbitrary = { version = "1", features = ["derive"] }
 
 [dependencies.tor-bytes]
