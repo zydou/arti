@@ -98,8 +98,24 @@ mod handshake;
 mod msg;
 
 pub use err::Error;
-pub use handshake::{Action, SocksHandshake};
-pub use msg::{SocksAddr, SocksAuth, SocksCmd, SocksRequest, SocksStatus, SocksVersion};
+pub use handshake::Action;
+
+#[cfg(feature = "proxy-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
+pub use handshake::proxy::SocksProxyHandshake;
+
+#[cfg(feature = "client-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client-handshake")))]
+pub use handshake::client::SocksClientHandshake;
+
+#[deprecated(since = "0.5.2", note = "Use SocksProxyHandshake instead.")]
+#[cfg(feature = "proxy-handshake")]
+#[cfg_attr(docsrs, doc(cfg(feature = "proxy-handshake")))]
+pub use SocksProxyHandshake as SocksHandshake;
+
+pub use msg::{
+    SocksAddr, SocksAuth, SocksCmd, SocksReply, SocksRequest, SocksStatus, SocksVersion,
+};
 pub use tor_error::Truncated;
 
 /// A Result type for the tor_socksproto crate.

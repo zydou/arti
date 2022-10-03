@@ -339,6 +339,13 @@ pub enum ErrorKind {
     #[display(fmt = "problem with network or connection")]
     LocalNetworkError,
 
+    /// A problem occurred with a protocol to a local (not anonymized) party.
+    ///
+    /// This is likely a protocol-specific problem, such as bad authentication
+    /// over SOCKS.
+    #[display(fmt = "local authentication refused.")]
+    LocalProtocolFailed,
+
     /// A relay had an identity other than the one we expected.
     ///
     /// This could indicate a MITM attack, but more likely indicates that the

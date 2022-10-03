@@ -110,7 +110,7 @@ where
     // The SOCKS handshake can require multiple round trips (SOCKS5
     // always does) so we we need to run this part of the process in a
     // loop.
-    let mut handshake = tor_socksproto::SocksHandshake::new();
+    let mut handshake = tor_socksproto::SocksProxyHandshake::new();
 
     let (mut socks_r, mut socks_w) = socks_stream.split();
     let mut inbuf = [0_u8; 1024];

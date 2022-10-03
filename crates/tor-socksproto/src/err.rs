@@ -37,6 +37,10 @@ pub enum Error {
     #[error("SOCKS handshake was finished; no need to call this again")]
     AlreadyFinished(tor_error::Bug),
 
+    /// The SOCKS proxy refused our authentication.
+    #[error("SOCKS Authentication failed")]
+    AuthRejected,
+
     /// The program (perhaps this module, perhaps Arti, perhaps the caller) is buggy
     #[error("Bug while handling SOCKS handshake")]
     Bug(#[from] tor_error::Bug),
@@ -57,6 +61,7 @@ impl HasKind for Error {
             }
             E::Syntax | E::Decode(_) | E::BadProtocol(_) => EK::LocalProtocolViolation,
             E::NotImplemented(_) => EK::NotImplemented,
+            E::AuthRejected => EK::LocalProtocolFailed,
             E::AlreadyFinished(e) => e.kind(),
             E::Bug(e) => e.kind(),
         }
