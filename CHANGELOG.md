@@ -13,8 +13,6 @@ COVID-19. The feature work we have managed to get done is done is
 largely behind-the-scenes preparation for our anticensorship release,
 which we now hope is coming in early November.
 
-UP TO DATE AS OF 1565ea36a06a7c6fa33a2ee2c4faee307b9d4c69
-
 ### Breaking changes
 
 - The `Schedcule::sleep()*` functions in `tor-rtcompat` now return a
@@ -64,6 +62,44 @@ UP TO DATE AS OF 1565ea36a06a7c6fa33a2ee2c4faee307b9d4c69
   to implement Tor's anticensorship features.  These APIs are unstable,
   and mostly not implemented yet, but they give us something to fill in.
   ([#543], [#558], [!740], [!743], [!748])
+
+Thanks to everyone who has contributed to this release, including
+Alexander Færøy, Trinity Pointard, and Yuan Lyu.
+
+Also, our deep thanks to [Zcash Community Grants] for funding the development
+of Arti 1.0.0!
+
+[!714]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/714
+[!716]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/716
+[!717]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/717
+[!719]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/719
+[!723]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/723
+[!725]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/725
+[!727]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/727
+[!728]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/728
+[!729]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/729
+[!735]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/735
+[!736]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/736
+[!738]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/738
+[!740]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/740
+[!742]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/742
+[!743]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/743
+[!748]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/748
+[!749]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/749
+[#543]: https://gitlab.torproject.org/tpo/core/arti/-/issues/543
+[#553]: https://gitlab.torproject.org/tpo/core/arti/-/issues/553
+[#558]: https://gitlab.torproject.org/tpo/core/arti/-/issues/558
+[#570]: https://gitlab.torproject.org/tpo/core/arti/-/issues/570
+[#572]: https://gitlab.torproject.org/tpo/core/arti/-/issues/572
+[571e7f9556adf12d]: https://gitlab.torproject.org/tpo/core/arti/-/commit/571e7f9556adf12de8c8189ddbfc78c78a534a74
+[Clippy]: https://github.com/rust-lang/rust-clippy
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`CircMgr`]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/struct.CircMgr.html
+[`CircuitBuilder`]: https://tpo.pages.torproject.net/core/doc/rust/tor_circmgr/build/struct.CircuitBuilder.html
+[`RouterDesc`]: https://tpo.pages.torproject.net/core/doc/rust/tor_netdoc/doc/routerdesc/struct.RouterDesc.html
+[`async-std`]: https://docs.rs/async-std/latest/async_std/
+[`getresuid()`]: https://man7.org/linux/man-pages/man2/getresgid.2.html
+[how to use Arti with Tor Browser]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/crates/arti/README.md#using-arti-with-tor-browser
 
 
 
