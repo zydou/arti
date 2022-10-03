@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mistrust"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "derive_builder_fork_arti",
@@ -3341,7 +3341,7 @@ dependencies = [
 
 [[package]]
 name = "tor-basic-utils"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "derive_more",
  "educe",
@@ -3400,7 +3400,7 @@ dependencies = [
 
 [[package]]
 name = "tor-cert"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "base64",
  "caret",
@@ -3499,7 +3499,7 @@ dependencies = [
 
 [[package]]
 name = "tor-config"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "config",
  "derive_builder_fork_arti",
@@ -3624,7 +3624,7 @@ dependencies = [
 
 [[package]]
 name = "tor-error"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "backtrace",
  "derive_more",
@@ -3736,7 +3736,7 @@ dependencies = [
 
 [[package]]
 name = "tor-netdir"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "bitflags",
  "derive_builder_fork_arti",

@@ -62,9 +62,9 @@ tor-consdiff = { path = "../tor-consdiff", version = "0.3.0" }
 tor-dirclient = { path = "../tor-dirclient", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.6.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.4" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
 tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.5.1" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0" }
 tracing = "0.1.18"
 

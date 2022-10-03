@@ -36,7 +36,7 @@ tor-dirmgr = { package = "tor-dirmgr", path = "../tor-dirmgr", version = "0.7.0"
     "dirfilter",
 ] }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.5.1", features = [
+tor-netdoc = { package = "tor-netdoc", path = "../tor-netdoc", version = "0.5.2", features = [
     "experimental-api",
     "dangerous-expose-struct-fields",
 ] }

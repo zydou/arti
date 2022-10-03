@@ -1,6 +1,6 @@
 [package]
 name = "tor-cell"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -32,8 +32,8 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.5.1" }
 tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.5.0" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.4" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.5.1" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
 tor-units = { path = "../tor-units", version = "0.3.1" }
 
 [dev-dependencies]

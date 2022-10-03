@@ -20,7 +20,7 @@ async-trait = "0.1.2"
 futures = "0.3.14"
 tor-chanmgr = { version = "0.6.0", path = "../tor-chanmgr" }
 tor-config = { version = "0.6.0", path = "../tor-config" }
-tor-linkspec = { version = "0.5.0", path = "../tor-linkspec" }
+tor-linkspec = { version = "0.5.1", path = "../tor-linkspec" }
 tor-rtcompat = { version = "0.6.0", path = "../tor-rtcompat" }
 
 [dev-dependencies]
