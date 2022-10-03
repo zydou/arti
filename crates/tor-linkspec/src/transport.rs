@@ -10,7 +10,7 @@ use std::fmt::{self, Display};
 use std::str::FromStr;
 
 #[cfg(feature = "pt-client")]
-use std::sync::Arc;
+use thiserror::Error;
 
 /// Identify a type of Transport.
 ///
@@ -152,7 +152,7 @@ pub enum TransportIdError {
     NoSupport,
 
     /// Tried to parse a pluggable transport whose name was not well-formed.
-    #[error("{0:?} is not a valid pluggable transport ID.")]
+    #[error("{0:?} is not a valid pluggable transport ID")]
     BadId(String),
 }
 
@@ -164,7 +164,7 @@ impl TransportId {
 }
 
 /// This identifier is used to indicate no transport address.
-const NONE_ADDR: &str = "<none>";
+const NONE_ADDR: &str = "-";
 
 /// An address that an be passed to a pluggable transport to tell it where to
 /// connect (typically, to a bridge).
@@ -274,8 +274,7 @@ impl Display for PtTargetAddr {
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
 #[cfg(feature = "pt-client")]
-#[derive(Clone, Debug)]
-#[allow(dead_code)] // TODO pt-client: we will need to parse and access these values.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 
 // TODO pt-client: I am not sure we will want to keep this type, rather than
 // just inlining it.  I am leaving it as a separate type for now, though, for a
@@ -283,6 +282,10 @@ impl Display for PtTargetAddr {
 // 1) to avoid confusing it with the parameters passed to a transport when it
 //    starts;
 // 2) to give us some flexibility about the representation.
+//
+// TODO pt-client: This type ought to validate that the keys do not contain `=`
+//                 and that the keys and values do not contain whitespace.
+// See this spec issue https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
 pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
@@ -290,7 +293,7 @@ pub struct PtTargetSettings {
 
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg(feature = "pt-client")]
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
@@ -299,7 +302,77 @@ pub struct PtTarget {
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
-    settings: Arc<PtTargetSettings>,
+    settings: PtTargetSettings,
+}
+
+/// Invalid PT parameter setting
+#[cfg(feature = "pt-client")]
+#[derive(Error, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PtTargetInvalidSetting {
+    /// Currently: the key contains whitespace or `=`
+    ///
+    /// Will probably be generated for a greater variety of values
+    /// when the spec is more nailed down.
+    #[error("key {0:?} has invalid or unspported syntax")]
+    Key(String),
+
+    /// Currently: the value contains whitespace
+    ///
+    /// Will probably be generated for a greater variety of values
+    /// when the spec is more nailed down.
+    #[error("value {0:?} has invalid or unspported syntax")]
+    Value(String),
+}
+
+#[cfg(feature = "pt-client")]
+impl PtTarget {
+    /// Create a new `PtTarget` (with no settings)
+    pub fn new(transport: PtTransportName, addr: PtTargetAddr) -> Self {
+        PtTarget {
+            transport,
+            addr,
+            settings: Default::default(),
+        }
+    }
+
+    /// Add a setting (to be passed during the SOCKS handshake)
+    pub fn push_setting(
+        &mut self,
+        k: impl Into<String>,
+        v: impl Into<String>,
+    ) -> Result<(), PtTargetInvalidSetting> {
+        let k = k.into();
+        let v = v.into();
+
+        // Unfortunately the spec is not very clear about the valid syntax.
+        // https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
+        //
+        // For now we reject things that cannot be represented in a bridge line
+        if k.find(|c: char| c == '=' || c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Key(k));
+        }
+        if v.find(|c: char| c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Value(v));
+        }
+        self.settings.settings.push((k, v));
+        Ok(()) // TODO pt-client: check the syntax
+    }
+
+    /// Get the transport name
+    pub fn transport(&self) -> &PtTransportName {
+        &self.transport
+    }
+
+    /// Get the transport target address (or host and port)
+    pub fn addr(&self) -> &PtTargetAddr {
+        &self.addr
+    }
+
+    /// Iterate over the PT setting strings
+    pub fn settings(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.settings.settings.iter().map(|(k, v)| (&**k, &**v))
+    }
 }
 
 /// The way to approach a single relay in order to open a channel.
@@ -307,7 +380,7 @@ pub struct PtTarget {
 /// For direct connections, this is simply an address.  For connections via a
 /// pluggable transport, this includes information about the transport, and any
 /// address and settings information that transport requires.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)]
 // TODO pt-client: I am not in love with this enum name --nm.
 pub enum ChannelMethod {
@@ -387,7 +460,7 @@ mod test {
             assert_eq!(&a.to_string(), addr);
         }
 
-        for addr in &["www.example.com:9100", "<none>"] {
+        for addr in &["www.example.com:9100", "-"] {
             if cfg!(feature = "pt-client") {
                 let a: PtTargetAddr = addr.parse().unwrap();
                 assert_eq!(&a.to_string(), addr);
