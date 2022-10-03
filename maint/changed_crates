@@ -11,7 +11,7 @@ if [ -z "$TAG" ]; then
     exit 1
 fi
 
-for crate in $(cd "${TOP}/crates/" && ls); do
+for crate in $("${TOP}/maint/list_crates"); do
     if git diff --quiet "$TAG..HEAD" "${TOP}/crates/${crate}"; then
 	# echo "$crate: ...:"
 	:
