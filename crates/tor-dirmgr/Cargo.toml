@@ -1,6 +1,6 @@
 [package]
 name = "tor-dirmgr"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -56,16 +56,16 @@ thiserror = "1"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-circmgr = { path = "../tor-circmgr", version = "0.5.0" }
+tor-circmgr = { path = "../tor-circmgr", version = "0.6.0" }
 tor-config = { path = "../tor-config", version = "0.6.0" }
 tor-consdiff = { path = "../tor-consdiff", version = "0.3.0" }
-tor-dirclient = { path = "../tor-dirclient", version = "0.4.0" }
+tor-dirclient = { path = "../tor-dirclient", version = "0.5.0" }
 tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-guardmgr = { path = "../tor-guardmgr", version = "0.6.0" }
+tor-guardmgr = { path = "../tor-guardmgr", version = "0.7.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
 tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
 tracing = "0.1.18"
 
 [dev-dependencies]
@@ -73,8 +73,8 @@ float_eq = "1.0.0"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
 tempfile = "3"
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.5.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.6.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

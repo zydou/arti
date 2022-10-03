@@ -14,7 +14,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [dependencies]
 anyhow = "1.0.23"
 arti = { path = "../arti", version = "1.0.0" }
-arti-client = { package = "arti-client", path = "../arti-client", version = "0.6.0" }
+arti-client = { package = "arti-client", path = "../arti-client", version = "0.7.0" }
 clap = "2.33.0"
 float-ord = "0.3"
 fs-mistrust = { path = "../fs-mistrust", version = "0.5.0" }
@@ -25,7 +25,7 @@ serde_json = "1.0.50"
 tokio = { version = "1.7", features = ["full"] }
 tokio-socks = "0.5"
 tor-config = { path = "../tor-config", version = "0.6.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.6.0", features = ["tokio", "native-tls"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }
 tracing = "0.1.18"
 tracing-subscriber = { version = "0.3.0", features = ["env-filter"] }
 [package.metadata.docs.rs]

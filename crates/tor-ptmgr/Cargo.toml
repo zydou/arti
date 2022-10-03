@@ -1,6 +1,6 @@
 [package]
 name = "tor-ptmgr"
-version = "0.0.0"
+version = "0.1.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.56"
@@ -18,9 +18,9 @@ tor-channel-factory = []
 [dependencies]
 async-trait = "0.1.2"
 futures = "0.3.14"
-tor-chanmgr = { version = "0.6.0", path = "../tor-chanmgr" }
+tor-chanmgr = { version = "0.7.0", path = "../tor-chanmgr" }
 tor-config = { version = "0.6.0", path = "../tor-config" }
 tor-linkspec = { version = "0.5.1", path = "../tor-linkspec" }
-tor-rtcompat = { version = "0.6.0", path = "../tor-rtcompat" }
+tor-rtcompat = { version = "0.7.0", path = "../tor-rtcompat" }
 
 [dev-dependencies]
