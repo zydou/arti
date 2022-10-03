@@ -80,7 +80,7 @@ checksum = "a4c527152e37cf757a3f78aae5a06fbeefdb07ccc535c980a3208ee3060dd544"
 
 [[package]]
 name = "arti"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "arti-bench"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "arti",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "arti-testing"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "arti",
