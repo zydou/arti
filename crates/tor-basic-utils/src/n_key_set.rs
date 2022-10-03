@@ -51,12 +51,12 @@ pub mod deps {
 /// let mut people = PersonSet::new();
 /// people.insert(Person {
 ///     username: "mina".into(),
-///     given_name: "Mina Harker".into(),
+///     irc_handle: "pashMina".into(),
 ///     student_id: None,
 ///     favorite_joke: None
 /// });
 /// assert!(people.by_username("mina").is_some());
-/// assert!(people.by_given_name("Mina Harker").is_some());
+/// assert!(people.by_irc_handle("pashMina").is_some());
 /// ```
 ///
 /// # Key syntax
