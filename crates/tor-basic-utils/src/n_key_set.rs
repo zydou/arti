@@ -162,7 +162,7 @@ This could be more efficient in space and time.
         // TODO: Dare we have these HashMaps key based on a reference to V
         // instead? That would create a self-referential structure and require
         // unsafety.  Probably best to avoid that for now.
-        $($key: std::collections::HashMap<$KEY, usize> , )+
+        $([<$key _map>]: std::collections::HashMap<$KEY, usize> , )+
 
         // A map from the indices to the values.
         values: $crate::n_key_set::deps::Slab<$V>,
@@ -180,7 +180,7 @@ This could be more efficient in space and time.
 
         $vis fn with_capacity(n: usize) -> Self {
             Self {
-                $($key: std::collections::HashMap::with_capacity(n),)*
+                $([<$key _map>]: std::collections::HashMap::with_capacity(n),)*
                 values: $crate::n_key_set::deps::Slab::with_capacity(n),
             }
         }
@@ -192,7 +192,7 @@ This could be more efficient in space and time.
             where $KEY : std::borrow::Borrow<T>,
                   T: std::hash::Hash + Eq + ?Sized
         {
-            self.$key.get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
+            self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
@@ -200,7 +200,7 @@ This could be more efficient in space and time.
         where $KEY : std::borrow::Borrow<T>,
               T: std::hash::Hash + Eq + ?Sized
         {
-            self.$key.get($key).is_some()
+            self.[<$key _map>].get($key).is_some()
         }
 
         #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`.
@@ -211,7 +211,7 @@ This could be more efficient in space and time.
             where $KEY : std::borrow::Borrow<T>,
                   T: std::hash::Hash + Eq + ?Sized
         {
-            self.$key.get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
+            self.[<$key _map>].get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
         }
         )+
 
@@ -255,7 +255,7 @@ This could be more efficient in space and time.
             $(
                 $crate::n_key_set!( @access(value_ref, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
                     .map(|key| {
-                        self.$key.insert(key.to_owned(), new_idx);
+                        self.[<$key _map>].insert(key.to_owned(), new_idx);
                         some_key_found = true;
                     });
             )*
@@ -306,7 +306,7 @@ This could be more efficient in space and time.
             if let Some(removed) = self.values.try_remove(idx) {
                 $(
                     if let Some($key) = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
-                        let old_idx = self.$key.remove($key);
+                        let old_idx = self.[<$key _map>].remove($key);
                         debug_assert_eq!(old_idx, Some(idx));
                     }
                 )*
@@ -343,7 +343,7 @@ This could be more efficient in space and time.
             // Make sure that every entry in the $key map points to a
             // value with the right value for that $key.
             $(
-                for (k,idx) in self.$key.iter() {
+                for (k,idx) in self.[<$key _map>].iter() {
                     let val = self.values.get(*idx).expect("Dangling entry in hashmap.");
                     // Can't use assert_eq!; k might not implement Debug.
                     assert!(
@@ -365,7 +365,7 @@ This could be more efficient in space and time.
                     if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
                         found_any_key = true;
                         assert!(
-                            self.$key.get(k) == Some(&idx),
+                            self.[<$key _map>].get(k) == Some(&idx),
                             "Value not found at correct index"
                         )
                     }
