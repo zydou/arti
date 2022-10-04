@@ -67,7 +67,16 @@ impl<'a> HasRelayIds for BridgeRelayWithDesc<'a> {
 }
 impl<'a> HasAddrs for BridgeRelayWithDesc<'a> {
     fn addrs(&self) -> &[std::net::SocketAddr] {
-        self.0.addrs()
+        // TODO pt-client: This is a tricky case and we'll need to audit the
+        // semantics of HasAddrs.
+        //
+        // The problem is that the addresses this method returns can be _either_
+        // addresses at which the relay resides, and which we use to detect
+        // familyhood (in which case we should return any addresses from the
+        // members of this object), _or_ they can be addresses which we should
+        // try to contact directly to perform the Tor handshake, in which case
+        // this method should return an empty list.
+        &[]
     }
 }
 impl<'a> ChanTarget for BridgeRelayWithDesc<'a> {}
