@@ -190,9 +190,9 @@ This could be more efficient in space and time.
             }
         }
         $(
-        #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.
-        
-        Return None if there is no such element.")]
+        #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.")]
+        ///
+        /// Return None if there is no such element.")]
         $vis fn [<by_ $key>] <BorrowAsKey_>(&self, key: &BorrowAsKey_) -> Option<&$V>
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
@@ -208,9 +208,9 @@ This could be more efficient in space and time.
             self.[<$key _map>].get($key).is_some()
         }
 
-        #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`.
-        
-        Return that element on success, and None if there is no such element.")]
+        #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`")]
+        ///
+        /// Return that element on success, and None if there is no such element.")]
         #[doc=stringify!($key)]
         $vis fn [<remove_by_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> Option<$V>
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
