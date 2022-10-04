@@ -76,8 +76,7 @@ pub mod deps {
 /// # Additional features
 ///
 /// You can put generic parameters and `where` constraints on your structure.
-/// (Constraints for generic parameters must be specified in `where` clauses,
-/// not where the parameters are introduced.)
+/// The `where` clause (if present) must be wrapped in square brackets.
 ///
 /// If you need to use const generics or lifetimes in your structure, you
 /// need to use square brackets instead of angle brackets, and specify both the
@@ -87,8 +86,9 @@ pub mod deps {
 /// ```
 /// # use tor_basic_utils::n_key_set;
 /// n_key_set!{
-///     ///
-///     struct['a, const N: usize] ArrayMap2['a, N] for (String, [&'a u32;N]) {
+///     struct['a, T, const N: usize] ArrayMap2['a, T, N] for (String, [&'a T;N])
+///         [ where T: Clone + 'a ]
+///     {
 ///          name: String { .0 }
 ///     }
 /// }
@@ -98,7 +98,7 @@ macro_rules! n_key_set {
 {
     $(#[$meta:meta])*
     $vis:vis struct $mapname:ident $(<$($P:ident),*>)? for $V:ty
-    $( where $($constr:tt)+ )?
+    $( where [ $($constr:tt)+ ] )?
     {
         $($body:tt)+
     }
@@ -106,7 +106,7 @@ macro_rules! n_key_set {
 n_key_set!{
     $(#[$meta])*
     $vis struct [$($($P),*)?] $mapname [$($($P),*)?] for $V
-    $( where $($constr)+ )?
+    $( [ where $($constr)+ ] )?
     {
         $( $body )+
     }
@@ -115,7 +115,7 @@ n_key_set!{
 {
         $(#[$meta:meta])*
         $vis:vis struct [$($($G:tt)+)?] $mapname:ident [$($($P:tt)+)?] for $V:ty
-        $( where $($constr:tt)+ )?
+        $( [ where $($constr:tt)+ ])?
         {
             $( $(( $($flag:ident)+ ))? $key:ident : $KEY:ty $({ $($source:tt)+ })? ),+
             $(,)?
