@@ -193,17 +193,17 @@ This could be more efficient in space and time.
         #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.
         
         Return None if there is no such element.")]
-        $vis fn [<by_ $key>] <T>(&self, key: &T) -> Option<&$V>
-            where $KEY : std::borrow::Borrow<T>,
-                  T: std::hash::Hash + Eq + ?Sized
+        $vis fn [<by_ $key>] <BorrowAsKey_>(&self, key: &BorrowAsKey_) -> Option<&$V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
-        $vis fn [<contains_ $key>] <T>(&mut self, $key: &T) -> bool
-        where $KEY : std::borrow::Borrow<T>,
-              T: std::hash::Hash + Eq + ?Sized
+        $vis fn [<contains_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> bool
+        where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+              BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get($key).is_some()
         }
@@ -212,9 +212,9 @@ This could be more efficient in space and time.
         
         Return that element on success, and None if there is no such element.")]
         #[doc=stringify!($key)]
-        $vis fn [<remove_by_ $key>] <T>(&mut self, $key: &T) -> Option<$V>
-            where $KEY : std::borrow::Borrow<T>,
-                  T: std::hash::Hash + Eq + ?Sized
+        $vis fn [<remove_by_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> Option<$V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
         }
@@ -404,9 +404,9 @@ This could be more efficient in space and time.
     impl $(<$($G)*>)? FromIterator<$V> for $mapname $(<$($P)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )*  $($($constr)+)?
     {
-        fn from_iter<T>(iter: T) -> Self
+        fn from_iter<IntoIter_>(iter: IntoIter_) -> Self
         where
-            T: IntoIterator<Item = $V>
+            IntoIter_: IntoIterator<Item = $V>
         {
             let iter = iter.into_iter();
             let mut set = Self::with_capacity(iter.size_hint().0);
