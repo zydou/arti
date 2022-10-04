@@ -369,6 +369,17 @@ impl RouterDesc {
             .expect("No ed25519 identity key on identity cert")
     }
 
+    /// Return a reference to the list of subprotocol versions supported by this
+    /// relay.
+    pub fn protocols(&self) -> &tor_protover::Protocols {
+        self.proto.as_ref()
+    }
+
+    /// Return a reference to this relay's Ntor onion key.
+    pub fn ntor_onion_key(&self) -> &ll::pk::curve25519::PublicKey {
+        &self.ntor_onion_key
+    }
+
     /// Helper: tokenize `s`, and divide it into three validated sections.
     fn parse_sections<'a>(
         reader: &mut NetDocReader<'a, RouterKwd>,
