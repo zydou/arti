@@ -19,7 +19,7 @@ experimental = ["bridge-client"]
 # Support for using bridges as a client. Note that this is not the same as
 # the pt-client feature, since here we are not concerned with
 # pluggable transports necessarily.
-bridge-client = ["tor-netdoc/routerdesc"]
+bridge-client = ["tor-netdoc/routerdesc", "tor-protover"]
 # Support for pluggable transports.
 pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 
@@ -51,6 +51,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }                               # for address pattern
 tor-persist = { path = "../tor-persist", version = "0.5.1" }
 tor-proto = { path = "../tor-proto", version = "0.7.0" }
+tor-protover = { path = "../tor-protover", version = "0.3.2", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
 tor-units = { path = "../tor-units", version = "0.3.1" }
 tracing = "0.1.18"

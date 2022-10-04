@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use tor_linkspec::{HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 
 use super::{Bridge, BridgeDesc};
 
@@ -22,10 +22,25 @@ pub struct BridgeRelay {
     desc: Option<BridgeDesc>,
 }
 
+/// A BridgeRelay that is known to have its full information available, and
+/// which is therefore usable for circuits.
+#[derive(Clone, Debug)]
+pub struct BridgeRelayWithDesc<'a>(
+    /// This will _always_ be a bridge relay with a non-None desc.
+    &'a BridgeRelay,
+);
+
 impl BridgeRelay {
     /// Return true if this BridgeRelay has a known descriptor and can be used for relays.
     pub fn has_descriptor(&self) -> bool {
         self.desc.is_some()
+    }
+
+    /// If we have enough information about this relay to build a circuit through it,
+    /// return a BridgeRelayWithDesc for it.
+    // TODO pt-client rename XXXX
+    pub fn for_circuit_usage(&self) -> Option<BridgeRelayWithDesc<'_>> {
+        self.desc.is_some().then(|| BridgeRelayWithDesc(self))
     }
 }
 
@@ -34,5 +49,45 @@ impl HasRelayIds for BridgeRelay {
         self.bridge_line
             .identity(key_type)
             .or_else(|| self.desc.as_ref().and_then(|d| d.identity(key_type)))
+    }
+}
+
+impl HasAddrs for BridgeRelay {
+    fn addrs(&self) -> &[std::net::SocketAddr] {
+        todo!()
+    }
+}
+
+impl ChanTarget for BridgeRelay {}
+
+impl<'a> HasRelayIds for BridgeRelayWithDesc<'a> {
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        self.0.identity(key_type)
+    }
+}
+impl<'a> HasAddrs for BridgeRelayWithDesc<'a> {
+    fn addrs(&self) -> &[std::net::SocketAddr] {
+        self.0.addrs()
+    }
+}
+impl<'a> ChanTarget for BridgeRelayWithDesc<'a> {}
+
+impl<'a> BridgeRelayWithDesc<'a> {
+    /// Return a reference to the BridgeDesc in this reference.
+    fn desc(&self) -> &BridgeDesc {
+        self.0
+            .desc
+            .as_ref()
+            .expect("There was supposed to be a descriptor here")
+    }
+}
+
+impl<'a> CircTarget for BridgeRelayWithDesc<'a> {
+    fn ntor_onion_key(&self) -> &tor_llcrypto::pk::curve25519::PublicKey {
+        self.desc().as_ref().ntor_onion_key()
+    }
+
+    fn protovers(&self) -> &tor_protover::Protocols {
+        self.desc().as_ref().protocols()
     }
 }
