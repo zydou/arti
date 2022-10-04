@@ -3723,6 +3723,7 @@ dependencies = [
  "serde",
  "strum",
  "thiserror",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-llcrypto",
  "tor-protover",
