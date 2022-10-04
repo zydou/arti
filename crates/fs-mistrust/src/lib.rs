@@ -71,7 +71,7 @@ use std::{
 
 pub use dir::CheckedDir;
 pub use disable::GLOBAL_DISABLE_VAR;
-pub use err::Error;
+pub use err::{format_access_bits, Error};
 
 /// A result type as returned by this crate
 pub type Result<T> = std::result::Result<T, Error>;

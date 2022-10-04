@@ -333,6 +333,144 @@ impl From<TorAddrError> for Error {
     }
 }
 
+/// Verbose information about an error, meant to provide detail or justification
+/// for user-facing errors, rather than the normal short message for
+/// developer-facing errors.
+///
+/// User-facing code may attempt to produce this by calling `ErrorHint::try_from(Error)`.
+/// Not all errors may wish to provide verbose messages. Ok(ErrorHint) will be
+/// returned if hinting is supported for the error. Err(()) will be returned otherwise.
+/// Which errors support hinting, and the hint content, has no SemVer warranty and may
+/// change in patch versions without warning. Callers should handle both cases,
+/// falling back on the original error message in case of Err.
+///
+/// Since the internal machinery for constructing and displaying hints may change over time,
+/// no data members are currently exposed. In the future we may wish to offer an unstable
+/// API locked behind a feature, like we do with ErrorDetail.
+#[derive(Clone)]
+pub struct ErrorHint {
+    /// The pieces of the message to display to the user
+    /// Error hints may be fairly complicated in some cases, such as bad permissions
+    /// maintaining a list of parts instead of one big `String` lets us avoid a lot of
+    /// `push_str`s when building incrementally
+    parts: Vec<ErrorHintPart>,
+}
+
+impl ErrorHint {
+    /// construct from supported `fs_mistrust::Error` variants
+    fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Result<ErrorHint, ()> {
+        use fs_mistrust::Error as E;
+        match src {
+            E::BadPermission(buf, bits, badbits) => {
+                Ok(ErrorHint::from_badpermission(buf, *bits, *badbits))
+            }
+            _ => Err(()),
+        }
+    }
+    /// construct from supported `tor_persist::Error` variants
+    fn tryfrom_torpersist(_src: &tor_persist::Error) -> Result<ErrorHint, ()> {
+        Err(())
+    }
+
+    /// inform user of overpermission risks
+    /// provide chmod to fix it, or options to mute the error if they accept the risk
+    fn from_badpermission(buf: &std::path::Path, bits: u32, badbits: u32) -> ErrorHint {
+        let mut parts: Vec<ErrorHintPart> = Vec::with_capacity(1);
+        parts.push(
+            format!(
+                "Permissions are set too permissively on {}: currently {}\n",
+                buf.display(),
+                fs_mistrust::format_access_bits(bits, '=')
+            )
+            .into(),
+        );
+        if 0 != badbits & 0o222 {
+            parts.push(
+                "* Untrusted users could modify its contents and override our behavior.\n".into(),
+            );
+        }
+        if 0 != badbits & 0o444 {
+            parts.push("* Untrusted users could read its contents.\n".into());
+        }
+        parts.push(
+            "You can fix this by further restricting the permissions of your filesystem,\nusing: "
+                .into(),
+        );
+        parts.push(
+            format!(
+                "chmod {} {}\n\n",
+                fs_mistrust::format_access_bits(badbits, '-'),
+                buf.display()
+            )
+            .into(),
+        );
+        parts.push("You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
+            or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.\n".into());
+
+        ErrorHint { parts }
+    }
+}
+
+/// A piece of the message which will be displayed by an ErrorHint
+#[derive(Clone, Debug)]
+enum ErrorHintPart {
+    /// when cloning an error message, or using format!
+    String(String),
+    /// for string literals
+    Str(&'static str),
+}
+
+// boilerplate-y, but there are only 2. we can later fix this with a macro, if we care enough to
+impl From<String> for ErrorHintPart {
+    fn from(src: String) -> ErrorHintPart {
+        ErrorHintPart::String(src)
+    }
+}
+
+impl From<&'static str> for ErrorHintPart {
+    fn from(src: &'static str) -> ErrorHintPart {
+        ErrorHintPart::Str(src)
+    }
+}
+
+impl TryFrom<&Error> for ErrorHint {
+    type Error = ();
+    fn try_from(src: &Error) -> Result<Self, Self::Error> {
+        use tor_circmgr::Error as CircE;
+        use tor_dirmgr::Error as DirE;
+        use tor_guardmgr::GuardMgrError as GuardE;
+        use ErrorDetail as E;
+        match &(*src.detail) {
+            // fs_mistrust errors, possibly nonexhaustive
+            E::DirMgrSetup(DirE::CachePermissions(e)) => ErrorHint::tryfrom_fsmistrust(e),
+            // tor_persist errors, possibly nonexhaustive
+            E::StateMgrSetup(e)
+            | E::StateAccess(e)
+            | E::CircMgrSetup(CircE::State(e))
+            | E::CircMgrSetup(CircE::GuardMgr(GuardE::State(e))) => {
+                ErrorHint::tryfrom_torpersist(e)
+            }
+            _ => Err(()),
+        }
+    }
+}
+
+impl Display for ErrorHint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for part in &self.parts {
+            let _ = write!(
+                f,
+                "{}",
+                match part {
+                    ErrorHintPart::String(s) => s.as_str(),
+                    ErrorHintPart::Str(s) => s,
+                }
+            )?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     // @@ begin test lint list maintained by maint/add_warning @@

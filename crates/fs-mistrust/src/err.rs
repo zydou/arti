@@ -248,7 +248,7 @@ impl std::iter::FromIterator<Error> for Option<Error> {
 /// For example, 0o022, '+' becomes 'g+w,o+w'.
 ///
 /// Used for generating error messages.
-fn format_access_bits(bits: u32, c: char) -> String {
+pub fn format_access_bits(bits: u32, c: char) -> String {
     let mut s = String::new();
 
     for (shift, prefix) in [(6, 'u'), (3, 'g'), (0, 'o')] {
