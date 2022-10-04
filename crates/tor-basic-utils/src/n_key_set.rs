@@ -230,15 +230,14 @@ This could be more efficient in space and time.
             self.values.into_iter().map(|(_, v)| v)
         }
 
-        /// Insert the value `value`.
+        /// Try to insert the value `value`.
         ///
         /// Remove any previous values that shared any keys with `value`, and
-        /// return them in a vector.
+        /// return them in a vector on success.
         ///
-        /// # Panics
-        ///
-        /// Panics if all the keys are optional, and `value` has no keys at all.
-        $vis fn insert(&mut self, value: $V) -> Vec<$V> {
+        /// Return `Err(Error::NoKeys)` if all the keys are optional,
+        /// and `value` has no keys at all.
+        $vis fn try_insert(&mut self, value: $V) -> Result<Vec<$V>, $crate::n_key_set::Error> {
             if self.capacity() > 32 && self.len() < self.capacity() / 4 {
                 // We're have the opportunity to free up a fair amount of space; let's take it.
                 self.compact()
@@ -268,10 +267,23 @@ This could be more efficient in space and time.
             // an invariant violation.
             if ! some_key_found {
                 self.values.remove(new_idx); // Restore the set to a correct state.
-                panic!("Tried to add a value with no key!");
+                return Err($crate::n_key_set::Error::NoKeys);
             }
 
-            replaced
+            Ok(replaced)
+        }
+
+        /// Try to insert the value `value`.
+        ///
+        /// Remove any previous values that shared any keys with `value`, and
+        /// return them in a vector.
+        ///
+        /// # Panics
+        ///
+        /// Panics if all the keys are optional, and `value` has no keys at all.
+        $vis fn insert(&mut self, value: $V) -> Vec<$V> {
+            self.try_insert(value)
+                .expect("Tried to add a value with no key!")
         }
 
         /// Return the number of elements in this container.
@@ -429,6 +441,16 @@ This could be more efficient in space and time.
 { @access($ex:expr, () $key:ident : $t:ty { $func:ident () } ) } => {
     Some($ex.$func())
 };
+}
+
+/// An error returned from an operation on an `n_key_set`.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// We tried to insert a value into a set where all keys were optional, but
+    /// every key on that value was `None`.
+    #[error("Tried to insert a value with no keys")]
+    NoKeys,
 }
 
 #[cfg(test)]
