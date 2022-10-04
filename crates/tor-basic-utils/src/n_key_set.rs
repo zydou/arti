@@ -76,8 +76,7 @@ pub mod deps {
 /// # Additional features
 ///
 /// You can put generic parameters and `where` constraints on your structure.
-/// (Constraints for generic parameters must be specified in `where` clauses,
-/// not where the parameters are introduced.)
+/// The `where` clause (if present) must be wrapped in square brackets.
 ///
 /// If you need to use const generics or lifetimes in your structure, you
 /// need to use square brackets instead of angle brackets, and specify both the
@@ -87,8 +86,9 @@ pub mod deps {
 /// ```
 /// # use tor_basic_utils::n_key_set;
 /// n_key_set!{
-///     ///
-///     struct['a, const N: usize] ArrayMap2['a, N] for (String, [&'a u32;N]) {
+///     struct['a, T, const N: usize] ArrayMap2['a, T, N] for (String, [&'a T;N])
+///         [ where T: Clone + 'a ]
+///     {
 ///          name: String { .0 }
 ///     }
 /// }
@@ -98,7 +98,7 @@ macro_rules! n_key_set {
 {
     $(#[$meta:meta])*
     $vis:vis struct $mapname:ident $(<$($P:ident),*>)? for $V:ty
-    $( where $($constr:tt)+ )?
+    $( where [ $($constr:tt)+ ] )?
     {
         $($body:tt)+
     }
@@ -106,7 +106,7 @@ macro_rules! n_key_set {
 n_key_set!{
     $(#[$meta])*
     $vis struct [$($($P),*)?] $mapname [$($($P),*)?] for $V
-    $( where $($constr)+ )?
+    $( [ where $($constr)+ ] )?
     {
         $( $body )+
     }
@@ -115,7 +115,7 @@ n_key_set!{
 {
         $(#[$meta:meta])*
         $vis:vis struct [$($($G:tt)+)?] $mapname:ident [$($($P:tt)+)?] for $V:ty
-        $( where $($constr:tt)+ )?
+        $( [ where $($constr:tt)+ ])?
         {
             $( $(( $($flag:ident)+ ))? $key:ident : $KEY:ty $({ $($source:tt)+ })? ),+
             $(,)?
@@ -190,31 +190,31 @@ This could be more efficient in space and time.
             }
         }
         $(
-        #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.
-        
-        Return None if there is no such element.")]
-        $vis fn [<by_ $key>] <T>(&self, key: &T) -> Option<&$V>
-            where $KEY : std::borrow::Borrow<T>,
-                  T: std::hash::Hash + Eq + ?Sized
+        #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.")]
+        ///
+        /// Return None if there is no such element.")]
+        $vis fn [<by_ $key>] <BorrowAsKey_>(&self, key: &BorrowAsKey_) -> Option<&$V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
-        $vis fn [<contains_ $key>] <T>(&mut self, $key: &T) -> bool
-        where $KEY : std::borrow::Borrow<T>,
-              T: std::hash::Hash + Eq + ?Sized
+        $vis fn [<contains_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> bool
+        where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+              BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get($key).is_some()
         }
 
-        #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`.
-        
-        Return that element on success, and None if there is no such element.")]
+        #[doc = concat!("Remove the element whose `", stringify!($key), "` is `key`")]
+        ///
+        /// Return that element on success, and None if there is no such element.")]
         #[doc=stringify!($key)]
-        $vis fn [<remove_by_ $key>] <T>(&mut self, $key: &T) -> Option<$V>
-            where $KEY : std::borrow::Borrow<T>,
-                  T: std::hash::Hash + Eq + ?Sized
+        $vis fn [<remove_by_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> Option<$V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
             self.[<$key _map>].get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
         }
@@ -230,15 +230,14 @@ This could be more efficient in space and time.
             self.values.into_iter().map(|(_, v)| v)
         }
 
-        /// Insert the value `value`.
+        /// Try to insert the value `value`.
         ///
         /// Remove any previous values that shared any keys with `value`, and
-        /// return them in a vector.
+        /// return them in a vector on success.
         ///
-        /// # Panics
-        ///
-        /// Panics if all the keys are optional, and `value` has no keys at all.
-        $vis fn insert(&mut self, value: $V) -> Vec<$V> {
+        /// Return `Err(Error::NoKeys)` if all the keys are optional,
+        /// and `value` has no keys at all.
+        $vis fn try_insert(&mut self, value: $V) -> Result<Vec<$V>, $crate::n_key_set::Error> {
             if self.capacity() > 32 && self.len() < self.capacity() / 4 {
                 // We're have the opportunity to free up a fair amount of space; let's take it.
                 self.compact()
@@ -268,10 +267,23 @@ This could be more efficient in space and time.
             // an invariant violation.
             if ! some_key_found {
                 self.values.remove(new_idx); // Restore the set to a correct state.
-                panic!("Tried to add a value with no key!");
+                return Err($crate::n_key_set::Error::NoKeys);
             }
 
-            replaced
+            Ok(replaced)
+        }
+
+        /// Try to insert the value `value`.
+        ///
+        /// Remove any previous values that shared any keys with `value`, and
+        /// return them in a vector.
+        ///
+        /// # Panics
+        ///
+        /// Panics if all the keys are optional, and `value` has no keys at all.
+        $vis fn insert(&mut self, value: $V) -> Vec<$V> {
+            self.try_insert(value)
+                .expect("Tried to add a value with no key!")
         }
 
         /// Return the number of elements in this container.
@@ -392,9 +404,9 @@ This could be more efficient in space and time.
     impl $(<$($G)*>)? FromIterator<$V> for $mapname $(<$($P)*>)?
         where $( $KEY : std::hash::Hash + Eq + Clone , )*  $($($constr)+)?
     {
-        fn from_iter<T>(iter: T) -> Self
+        fn from_iter<IntoIter_>(iter: IntoIter_) -> Self
         where
-            T: IntoIterator<Item = $V>
+            IntoIter_: IntoIterator<Item = $V>
         {
             let iter = iter.into_iter();
             let mut set = Self::with_capacity(iter.size_hint().0);
@@ -429,6 +441,16 @@ This could be more efficient in space and time.
 { @access($ex:expr, () $key:ident : $t:ty { $func:ident () } ) } => {
     Some($ex.$func())
 };
+}
+
+/// An error returned from an operation on an `n_key_set`.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum Error {
+    /// We tried to insert a value into a set where all keys were optional, but
+    /// every key on that value was `None`.
+    #[error("Tried to insert a value with no keys")]
+    NoKeys,
 }
 
 #[cfg(test)]

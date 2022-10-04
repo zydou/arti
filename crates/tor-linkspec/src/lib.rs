@@ -97,7 +97,11 @@ mod owned;
 mod traits;
 mod transport;
 
-pub use ids::{set::RelayIdSet, RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter};
+pub use ids::{
+    by_id::{ByRelayIds, ByRelayIdsError},
+    set::RelayIdSet,
+    RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
+};
 pub use ls::LinkSpec;
 pub use owned::{OwnedChanTarget, OwnedCircTarget, RelayIds};
 pub use traits::{

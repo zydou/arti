@@ -11,6 +11,7 @@ use tor_llcrypto::pk::{
     rsa::{RsaIdentity, RSA_ID_LEN},
 };
 
+pub(crate) mod by_id;
 pub(crate) mod set;
 
 /// The type of a relay identity.
