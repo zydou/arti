@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use thiserror::Error;
 
-use tor_linkspec::ChannelMethod;
+use tor_linkspec::{ChannelMethod, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
@@ -79,6 +79,16 @@ pub struct Bridge {
 // configuration object.
 //
 // (These last two might be part of the same configuration type.)
+
+impl HasRelayIds for Bridge {
+    fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
+        match key_type {
+            RelayIdType::Ed25519 => self.ed_id.as_ref().map(RelayIdRef::Ed25519),
+            RelayIdType::Rsa => Some(RelayIdRef::Rsa(&self.rsa_id)),
+            _ => None,
+        }
+    }
+}
 
 /// Error when parsing a bridge line from a string
 #[derive(Error, Clone, Debug)]
