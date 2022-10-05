@@ -392,6 +392,24 @@ pub enum ChannelMethod {
     Pluggable(PtTarget),
 }
 
+impl ChannelMethod {
+    /// Return the socket address that this method connects to, if there is one.
+    pub fn socket_addr(&self) -> Option<&std::net::SocketAddr> {
+        match self {
+            ChannelMethod::Direct(addr) => Some(addr),
+
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(PtTarget {
+                addr: PtTargetAddr::IpPort(addr),
+                ..
+            }) => Some(addr),
+
+            #[cfg_attr(not(feature = "pt-client"), allow(unreachable_patterns))]
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
