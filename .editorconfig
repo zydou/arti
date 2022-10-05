@@ -4,3 +4,11 @@ root = true
 charset = utf-8
 insert_final_newline = true
 end_of_line = lf
+
+[tests/shadow/shadow.data.template/hosts/**/*{key,cert}*]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset

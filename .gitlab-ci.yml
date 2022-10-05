@@ -160,7 +160,7 @@ build-repro:
     - tpa
     - amd64
 
-integration:
+integration-chutney:
   stage: test
   image: debian:stable-slim
   script:
@@ -176,6 +176,90 @@ integration:
       - benchmark_results.json
   tags:
     - amd64
+
+integration-shadow:
+  variables:
+    JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
+    JOB_SHADOW_BRANCH: "main"
+    JOB_SHADOW_COMMIT: "v2.2.0"
+
+    JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
+    JOB_TGEN_BRANCH: "main"
+    JOB_TGEN_COMMIT: "v1.1.1"
+  stage: test
+  cache:
+    - key: $CI_JOB_NAME-shadow-$JOB_SHADOW_COMMIT
+      paths:
+      - opt/shadow
+    - key: $CI_JOB_NAME-tgen-$JOB_TGEN_COMMIT
+      paths:
+      - opt/tgen
+  image: debian:11-slim
+  script:
+    # We're going to install binaries to $HOME/.local/bin
+    - 'export PATH=$HOME/.local/bin:$PATH'
+
+    - apt-get update
+    - apt-get install -y git tor stow
+    - mkdir -p ~/src
+    - mkdir -p ~/.local
+
+    # Build shadow
+    - |
+      if [ -f opt/shadow/bin/shadow ]
+      then
+        echo "Using shadow binary from cache"
+      else
+        echo "Building shadow"
+        git clone --shallow-since=2021-08-01 -b $JOB_SHADOW_BRANCH $JOB_SHADOW_REPO ~/src/shadow
+        pushd ~/src/shadow
+        git checkout $JOB_SHADOW_COMMIT
+        export CC=gcc CXX=g++ CONTAINER=debian:11-slim BUILDTYPE=release RUSTPROFILE=minimal
+        ci/container_scripts/install_deps.sh
+        ci/container_scripts/install_extra_deps.sh
+        export PATH="$HOME/.cargo/bin:${PATH}"
+        ./setup build --jobs $(nproc) --prefix $CI_PROJECT_DIR/opt/shadow
+        ./setup install
+        popd
+      fi
+    - apt-get install -y libglib2.0-0
+    - stow -d opt -t $HOME/.local shadow
+
+    # Build tgen
+    - |
+      if [ -f opt/tgen/bin/tgen ]
+      then
+        echo "Using tgen binary from cache"
+      else
+        echo "Building tgen"
+        git clone --shallow-since=2022-01-01 -b $JOB_TGEN_BRANCH $JOB_TGEN_REPO ~/src/tgen
+        pushd ~/src/tgen
+        git checkout $JOB_TGEN_COMMIT
+        apt-get install -y cmake gcc libglib2.0-0 libglib2.0-dev libigraph-dev make
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/opt/tgen
+        make --jobs $(nproc)
+        make install
+        popd
+      fi
+    - apt-get install -y libigraph1 libglib2.0-0
+    - stow -d opt -t $HOME/.local tgen
+
+    # Ensure newly installed executables can be found
+    - hash -r
+
+    # Run tests
+    - pushd tests/shadow
+    - ./run.sh
+  artifacts:
+    paths:
+      - tests/shadow
+    when: always
+    expire_in: 1 week
+  tags:
+    - amd64
+    - shadow-small
 
 coverage-aggregated:
   rules:
