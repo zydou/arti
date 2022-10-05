@@ -179,6 +179,13 @@ pub use crate::define_list_builder_helper;
 /// `FnMut(&ThingBuilder) -> Result<Thing, ConfigBuildError>`;
 /// the default is to call `thing_builder.build()`.
 ///
+/// The `#[ serde $serde_attrs:tt ]`, if supplied, replace the serde attribute
+/// `#[serde(transparent)]`.
+/// The transparent attribute is applied by default
+/// to arrange that the serde view of the list is precisely `Option<Vec>`.
+/// If serialisation is done another way, for example with `#[serde(into)]`,
+/// that must be specified here.
+///
 /// `[$generics]` are generics for `$ListBuilder`.
 /// Inline bounds (`T: Debug`) are not supported; use a `where` clause instead.
 /// Due to limitations of `macro_rules`, the parameters must be within `[ ]` rather than `< >`,
@@ -204,11 +211,12 @@ macro_rules! define_list_builder_helper {
         built: $Built:ty = $built:expr;
         default = $default:expr;
         $( item_build: $item_build:expr; )?
+        $(#[ serde $serde_attrs:tt ] )+
     } => {
         #[derive($crate::educe::Educe, Clone, Debug)]
         #[derive($crate::serde::Serialize, $crate::serde::Deserialize)]
         #[educe(Default)]
-        #[serde(transparent)]
+        $(#[ serde $serde_attrs ])+
         $(#[ $docs_and_attrs ])*
         /// Wrapper struct to help derive_builder find the right types and methods
         ///
@@ -272,7 +280,39 @@ macro_rules! define_list_builder_helper {
                 &mut self.$things
             }
         }
-    }
+    };
+
+    // Expand the version without `#[ serde $serde_attrs ]` into a call
+    // which provides `#[serde(transparent)]`.
+    //
+    // We can't use `macro_first_nonempty!` because macro calls cannot be invoked
+    // to generate attributes, only items, expressions, etc.
+    {
+        $(#[ $docs_and_attrs:meta ])*
+        $vis:vis
+        struct $ListBuilder:ident $( [ $($generics:tt)* ] )?
+        $( where [ $($where_clauses:tt)* ] )?
+        {
+            $field_vis:vis $things:ident : [$EntryBuilder:ty] $(,)?
+        }
+        built: $Built:ty = $built:expr;
+        default = $default:expr;
+        $( item_build: $item_build:expr; )?
+    } => {
+        define_list_builder_helper! {
+            $(#[ $docs_and_attrs ])*
+            $vis
+            struct $ListBuilder $( [ $($generics)* ] )?
+            $( where [ $($where_clauses)* ] )?
+            {
+                $field_vis $things : [$EntryBuilder],
+            }
+            built: $Built = $built;
+            default = $default;
+            $( item_build: $item_build; )?
+            #[serde(transparent)]
+        }
+    };
 }
 
 /// Define accessor methods for a configuration item which is a list
