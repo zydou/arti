@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 use safelog::sensitive as sv;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, HasChanMethods, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
@@ -147,7 +147,16 @@ impl<R: Runtime> ChanBuilder<R> {
                 .record_attempt();
         }
 
-        let (stream, addr) = connect_to_one(&self.runtime, target.addrs()).await?;
+        // TODO pt-client: right now this only handles the Direct method.
+        let direct_addrs: Vec<_> = target
+            .chan_methods()
+            .iter()
+            .filter_map(|method| match method {
+                ChannelMethod::Direct(addr) => Some(*addr),
+                _ => None,
+            })
+            .collect();
+        let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
         let using_target = match target.restrict_addr(&addr) {
             Ok(v) => v,
             Err(v) => v,
