@@ -43,10 +43,6 @@ pub(crate) fn enable_process_hardening() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    #[cfg(unix)]
-    rlimit::setrlimit(rlimit::Resource::CORE, 0, 0)
-        .context("Problem while disabling core dumps")?;
-
     secmem_proc::harden_process_std_err().context("Problem while hardening process")?;
 
     Ok(())

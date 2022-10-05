@@ -230,7 +230,6 @@ dependencies = [
  "futures",
  "pin-project",
  "rand 0.8.5",
- "rlimit",
  "serde",
  "tokio",
  "tor-checkable",
