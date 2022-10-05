@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
+use tor_config::impl_standard_builder;
 use tor_llcrypto::pk;
 
 use crate::{
@@ -15,15 +16,30 @@ use crate::{
 /// Note that an object of this type will not necessarily have every type of
 /// identity: it's possible that we don't know all the identities, or that one
 /// of the identity types has become optional.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    derive_builder::Builder,
+)]
+#[builder(derive(Debug))]
 pub struct RelayIds {
     /// Copy of the ed25519 id from the underlying ChanTarget.
     #[serde(rename = "ed25519")]
+    #[builder(default, setter(strip_option))]
     ed_identity: Option<pk::ed25519::Ed25519Identity>,
     /// Copy of the rsa id from the underlying ChanTarget.
     #[serde(rename = "rsa")]
+    #[builder(default, setter(strip_option))]
     rsa_identity: Option<pk::rsa::RsaIdentity>,
 }
+impl_standard_builder! { RelayIds : !Deserialize + !Builder + !Default }
 
 impl HasRelayIds for RelayIds {
     fn identity(&self, key_type: RelayIdType) -> Option<crate::RelayIdRef<'_>> {
@@ -46,6 +62,17 @@ impl RelayIds {
         }
     }
 
+    /// Return an empty set of identities.
+    ///
+    /// This is _not_ a `Default` method, since this is not what you should
+    /// usually construct.
+    pub fn empty() -> Self {
+        Self {
+            ed_identity: None,
+            rsa_identity: None,
+        }
+    }
+
     /// Construct a new `RelayIds` object from another object that implements
     /// [`HasRelayIds`].
     ///
@@ -63,17 +90,36 @@ impl RelayIds {
 
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_builder::Builder)]
+#[builder(derive(Debug))]
 pub struct OwnedChanTarget {
     /// Copy of the addresses from the underlying ChanTarget.
+    #[builder(default)]
     addrs: Vec<SocketAddr>,
     /// Copy of the channel methods from the underlying ChanTarget.
     //
     // TODO: in many cases this will be redundant with addrs; if we allocate a
     // lot of these objects, we might want to handle that.
+    #[builder(default)]
     methods: Vec<ChannelMethod>,
     /// Identities that this relay provides.
+    #[builder(sub_builder)]
     ids: RelayIds,
+}
+impl_standard_builder! { OwnedChanTarget : !Deserialize + !Builder + !Default }
+
+impl OwnedChanTargetBuilder {
+    /// Set the ed25519 identity in this builder to `id`.
+    pub fn ed_identity(&mut self, id: pk::ed25519::Ed25519Identity) -> &mut Self {
+        self.ids().ed_identity(id);
+        self
+    }
+
+    /// Set the RSA identity in this builder to `id`.
+    pub fn rsa_identity(&mut self, id: pk::rsa::RsaIdentity) -> &mut Self {
+        self.ids().rsa_identity(id);
+        self
+    }
 }
 
 impl HasAddrs for OwnedChanTarget {
@@ -99,18 +145,18 @@ impl ChanTarget for OwnedChanTarget {}
 impl OwnedChanTarget {
     /// Construct a new OwnedChanTarget from its parts.
     //
-    // TODO pt-client: Eliminate all non-testing uses of this function, and make
-    // it experimental-api.
+    // TODO pt-client: Deprecate this function.
     pub fn new(
         addrs: Vec<SocketAddr>,
         ed_identity: pk::ed25519::Ed25519Identity,
         rsa_identity: pk::rsa::RsaIdentity,
     ) -> Self {
-        Self {
-            addrs,
-            methods: Vec::new(), // this is incorrect for actual use! TODO pt-client.
-            ids: RelayIds::new(ed_identity, rsa_identity),
-        }
+        OwnedChanTargetBuilder::default()
+            .addrs(addrs)
+            .ed_identity(ed_identity)
+            .rsa_identity(rsa_identity)
+            .build()
+            .expect("We didn't use our own builder correctly")
     }
 
     /// Construct a OwnedChanTarget from a given ChanTarget.
@@ -163,21 +209,23 @@ impl Display for OwnedChanTarget {
 
 /// OwnedCircTarget is a summary of a [`CircTarget`] that owns all its
 /// members.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_builder::Builder)]
+#[builder(derive(Debug))]
 pub struct OwnedCircTarget {
     /// The fields from this object when considered as a ChanTarget.
+    #[builder(sub_builder)]
     chan_target: OwnedChanTarget,
     /// The ntor key to use when extending to this CircTarget
     ntor_onion_key: pk::curve25519::PublicKey,
     /// The subprotocol versions that this CircTarget supports.
     protovers: tor_protover::Protocols,
 }
+impl_standard_builder! { OwnedCircTarget : !Deserialize + !Builder + !Default }
 
 impl OwnedCircTarget {
     /// Construct a new OwnedCircTarget from its parts.
     //
-    // TODO pt-client: Eliminate all non-testing uses of this function, and make
-    // it experimental-api.
+    // TODO pt-client: Deprecate this function.
     pub fn new(
         chan_target: OwnedChanTarget,
         ntor_onion_key: pk::curve25519::PublicKey,
