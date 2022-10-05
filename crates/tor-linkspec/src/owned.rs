@@ -51,17 +51,6 @@ impl HasRelayIds for RelayIds {
 }
 
 impl RelayIds {
-    /// Construct a new RelayIds object with a given pair of identity keys.
-    pub fn new(
-        ed_identity: pk::ed25519::Ed25519Identity,
-        rsa_identity: pk::rsa::RsaIdentity,
-    ) -> Self {
-        Self {
-            ed_identity: Some(ed_identity),
-            rsa_identity: Some(rsa_identity),
-        }
-    }
-
     /// Return an empty set of identities.
     ///
     /// This is _not_ a `Default` method, since this is not what you should
@@ -143,22 +132,6 @@ impl HasRelayIds for OwnedChanTarget {
 impl ChanTarget for OwnedChanTarget {}
 
 impl OwnedChanTarget {
-    /// Construct a new OwnedChanTarget from its parts.
-    //
-    // TODO pt-client: Deprecate this function.
-    pub fn new(
-        addrs: Vec<SocketAddr>,
-        ed_identity: pk::ed25519::Ed25519Identity,
-        rsa_identity: pk::rsa::RsaIdentity,
-    ) -> Self {
-        OwnedChanTargetBuilder::default()
-            .addrs(addrs)
-            .ed_identity(ed_identity)
-            .rsa_identity(rsa_identity)
-            .build()
-            .expect("We didn't use our own builder correctly")
-    }
-
     /// Construct a OwnedChanTarget from a given ChanTarget.
     pub fn from_chan_target<C>(target: &C) -> Self
     where
@@ -218,26 +191,11 @@ pub struct OwnedCircTarget {
     /// The ntor key to use when extending to this CircTarget
     ntor_onion_key: pk::curve25519::PublicKey,
     /// The subprotocol versions that this CircTarget supports.
-    protovers: tor_protover::Protocols,
+    protocols: tor_protover::Protocols,
 }
 impl_standard_builder! { OwnedCircTarget : !Deserialize + !Builder + !Default }
 
 impl OwnedCircTarget {
-    /// Construct a new OwnedCircTarget from its parts.
-    //
-    // TODO pt-client: Deprecate this function.
-    pub fn new(
-        chan_target: OwnedChanTarget,
-        ntor_onion_key: pk::curve25519::PublicKey,
-        protovers: tor_protover::Protocols,
-    ) -> OwnedCircTarget {
-        OwnedCircTarget {
-            chan_target,
-            ntor_onion_key,
-            protovers,
-        }
-    }
-
     /// Construct an OwnedCircTarget from a given CircTarget.
     pub fn from_circ_target<C>(target: &C) -> Self
     where
@@ -248,7 +206,7 @@ impl OwnedCircTarget {
             ntor_onion_key: *target.ntor_onion_key(),
             // TODO: I don't like having to clone here.  Our underlying
             // protovers parsing uses an Arc, IIRC.  Can we expose that here?
-            protovers: target.protovers().clone(),
+            protocols: target.protovers().clone(),
         }
     }
 }
@@ -284,7 +242,7 @@ impl CircTarget for OwnedCircTarget {
         &self.ntor_onion_key
     }
     fn protovers(&self) -> &tor_protover::Protocols {
-        &self.protovers
+        &self.protocols
     }
 }
 
@@ -296,11 +254,12 @@ mod test {
     #[test]
     #[allow(clippy::redundant_clone)]
     fn chan_target() {
-        let ti = OwnedChanTarget::new(
-            vec!["127.0.0.1:11".parse().unwrap()],
-            [42; 32].into(),
-            [45; 20].into(),
-        );
+        let ti = OwnedChanTarget::builder()
+            .addrs(vec!["127.0.0.1:11".parse().unwrap()])
+            .ed_identity([42; 32].into())
+            .rsa_identity([45; 20].into())
+            .build()
+            .unwrap();
 
         let ti2 = OwnedChanTarget::from_chan_target(&ti);
         assert_eq!(ti.addrs(), ti2.addrs());
@@ -313,12 +272,18 @@ mod test {
     #[test]
     #[allow(clippy::redundant_clone)]
     fn circ_target() {
-        let ch = OwnedChanTarget::new(
-            vec!["127.0.0.1:11".parse().unwrap()],
-            [42; 32].into(),
-            [45; 20].into(),
-        );
-        let ct = OwnedCircTarget::new(ch.clone(), [99; 32].into(), "FlowCtrl=7".parse().unwrap());
+        let mut builder = OwnedCircTarget::builder();
+        builder
+            .chan_target()
+            .addrs(vec!["127.0.0.1:11".parse().unwrap()])
+            .ed_identity([42; 32].into())
+            .rsa_identity([45; 20].into());
+        let ct = builder
+            .ntor_onion_key([99; 32].into())
+            .protocols("FlowCtrl=7".parse().unwrap())
+            .build()
+            .unwrap();
+        let ch = ct.chan_target.clone();
 
         assert_eq!(ct.addrs(), ch.addrs());
         assert!(ct.same_relay_ids(&ch));

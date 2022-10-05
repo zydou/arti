@@ -36,7 +36,13 @@ impl GuardId {
     /// Return a new, manually constructed `GuardId`
     #[cfg(test)]
     pub(crate) fn new(ed25519: pk::ed25519::Ed25519Identity, rsa: pk::rsa::RsaIdentity) -> Self {
-        Self(RelayIds::new(ed25519, rsa))
+        Self(
+            RelayIds::builder()
+                .ed_identity(ed25519)
+                .rsa_identity(rsa)
+                .build()
+                .expect("Couldn't build RelayIds"),
+        )
     }
     /// Extract a `GuardId` from a ChanTarget object.
     pub(crate) fn from_relay_ids<T>(target: &T) -> Self

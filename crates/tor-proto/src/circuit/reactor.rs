@@ -781,7 +781,11 @@ impl Reactor {
         params: &CircParameters,
     ) -> Result<()> {
         // Exit now if we have an Ed25519 or RSA identity mismatch.
-        let target = RelayIds::new(ed_identity, pubkey.id);
+        let target = RelayIds::builder()
+            .ed_identity(ed_identity)
+            .rsa_identity(pubkey.id)
+            .build()
+            .expect("Unable to build RelayIds");
         self.channel.check_match(&target)?;
 
         let wrap = Create2Wrap {
@@ -1117,7 +1121,12 @@ impl Reactor {
                     RequireSendmeAuth::No
                 };
 
-                let dummy_peer_id = OwnedChanTarget::new(vec![], [4; 32].into(), [5; 20].into());
+                let dummy_peer_id = OwnedChanTarget::builder()
+                    .ed_identity([4; 32].into())
+                    .rsa_identity([5; 20].into())
+                    .build()
+                    .expect("Could not construct fake hop");
+
                 let fwd = Box::new(DummyCrypto::new(fwd_lasthop));
                 let rev = Box::new(DummyCrypto::new(rev_lasthop));
                 self.add_hop(dummy_peer_id, require_sendme_auth, fwd, rev, &params);

@@ -507,9 +507,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // usually a different situation than "this peer couldn't even
         // identify itself right."
 
-        // TODO: We'll need a different constructor if there are someday
-        // more/different identity keys.
-        let actual_identity = RelayIds::new(*identity_key, rsa_id);
+        let actual_identity = RelayIds::builder()
+            .ed_identity(*identity_key)
+            .rsa_identity(rsa_id)
+            .build()
+            .expect("Unable to build RelayIds");
 
         // We enforce that the relay proved that it has every ID that we wanted:
         // it may also have additional IDs that we didn't ask for.
@@ -846,7 +848,11 @@ pub(super) mod test {
         let unver = make_unverified(certs, runtime.clone());
         let ed = Ed25519Identity::from_bytes(peer_ed).unwrap();
         let rsa = RsaIdentity::from_bytes(peer_rsa).unwrap();
-        let chan = OwnedChanTarget::new(Vec::new(), ed, rsa);
+        let chan = OwnedChanTarget::builder()
+            .ed_identity(ed)
+            .rsa_identity(rsa)
+            .build()
+            .unwrap();
         unver.check_internal(&chan, peer_cert_sha256, when)
     }
 

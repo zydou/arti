@@ -275,6 +275,7 @@ mod test {
     use pk::rsa::RsaIdentity;
     use std::time::{Duration, SystemTime};
     use std::{net::SocketAddr, str::FromStr};
+    use tor_linkspec::ChannelMethod;
     use tor_proto::channel::Channel;
     use tor_rtcompat::{test_with_one_runtime, SleepProviderExt, TcpListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
@@ -291,7 +292,13 @@ mod test {
         let rsa: RsaIdentity = msgs::RSA_ID.into();
         let client_addr = "192.0.2.17".parse().unwrap();
         let tls_cert = msgs::X509_CERT.into();
-        let target = OwnedChanTarget::new(vec![orport], ed, rsa);
+        let target = OwnedChanTarget::builder()
+            .addrs(vec![orport])
+            .methods(vec![ChannelMethod::Direct(orport)])
+            .ed_identity(ed)
+            .rsa_identity(rsa)
+            .build()
+            .unwrap();
         let now = SystemTime::UNIX_EPOCH + Duration::new(msgs::NOW, 0);
 
         test_with_one_runtime!(|rt| async move {

@@ -669,7 +669,11 @@ where
 fn fake_channel_details() -> Arc<ChannelDetails> {
     let unique_id = UniqId::new();
     let unused_since = OptTimestamp::new();
-    let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
+    let peer_id = OwnedChanTarget::builder()
+        .ed_identity([6_u8; 32].into())
+        .rsa_identity([10_u8; 20].into())
+        .build()
+        .expect("Couldn't construct peer id");
 
     Arc::new(ChannelDetails {
         unique_id,
@@ -743,9 +747,21 @@ pub(crate) mod test {
     fn check_match() {
         let chan = fake_channel(fake_channel_details());
 
-        let t1 = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
-        let t2 = OwnedChanTarget::new(vec![], [0x1; 32].into(), [0x3; 20].into());
-        let t3 = OwnedChanTarget::new(vec![], [0x3; 32].into(), [0x2; 20].into());
+        let t1 = OwnedChanTarget::builder()
+            .ed_identity([6; 32].into())
+            .rsa_identity([10; 20].into())
+            .build()
+            .unwrap();
+        let t2 = OwnedChanTarget::builder()
+            .ed_identity([1; 32].into())
+            .rsa_identity([3; 20].into())
+            .build()
+            .unwrap();
+        let t3 = OwnedChanTarget::builder()
+            .ed_identity([3; 32].into())
+            .rsa_identity([2; 20].into())
+            .build()
+            .unwrap();
 
         assert!(chan.check_match(&t1).is_ok());
         assert!(chan.check_match(&t2).is_err());

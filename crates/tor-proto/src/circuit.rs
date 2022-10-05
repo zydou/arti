@@ -703,11 +703,18 @@ mod test {
 
     /// return an example OwnedCircTarget that can get used for an ntor handshake.
     fn example_target() -> OwnedCircTarget {
-        OwnedCircTarget::new(
-            OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into()),
-            hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
-            "FlowCtrl=1".parse().unwrap(),
-        )
+        let mut builder = OwnedCircTarget::builder();
+        builder
+            .chan_target()
+            .ed_identity([6; 32].into())
+            .rsa_identity([10; 20].into());
+        builder
+            .ntor_onion_key(
+                hex!("395cb26b83b3cd4b91dba9913e562ae87d21ecdd56843da7ca939a6a69001253").into(),
+            )
+            .protocols("FlowCtrl=1".parse().unwrap())
+            .build()
+            .unwrap()
     }
     fn example_ntor_key() -> crate::crypto::handshake::ntor::NtorSecretKey {
         crate::crypto::handshake::ntor::NtorSecretKey::new(

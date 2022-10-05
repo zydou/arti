@@ -1663,9 +1663,21 @@ mod test {
         assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
         assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
 
-        let pair_13_13 = RelayIds::new([13; 32].into(), [13; 20].into());
-        let pair_14_14 = RelayIds::new([14; 32].into(), [14; 20].into());
-        let pair_14_99 = RelayIds::new([14; 32].into(), [99; 20].into());
+        let pair_13_13 = RelayIds::builder()
+            .ed_identity([13; 32].into())
+            .rsa_identity([13; 20].into())
+            .build()
+            .unwrap();
+        let pair_14_14 = RelayIds::builder()
+            .ed_identity([14; 32].into())
+            .rsa_identity([14; 20].into())
+            .build()
+            .unwrap();
+        let pair_14_99 = RelayIds::builder()
+            .ed_identity([14; 32].into())
+            .rsa_identity([99; 20].into())
+            .build()
+            .unwrap();
 
         let r = netdir.by_ids(&pair_13_13);
         assert!(r.is_none());
