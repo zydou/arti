@@ -5,7 +5,10 @@ use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use tor_llcrypto::pk;
 
-use crate::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
+use crate::{
+    ChanTarget, ChannelMethod, CircTarget, HasAddrs, HasChanMethods, HasRelayIds, RelayIdRef,
+    RelayIdType,
+};
 
 /// RelayIds is an owned copy of the set of known identities of a relay.
 ///
@@ -60,11 +63,15 @@ impl RelayIds {
 
 /// OwnedChanTarget is a summary of a [`ChanTarget`] that owns all of its
 /// members.
-// TODO pt-client: I believe that this should also implement HasChanMethods.
 #[derive(Debug, Clone)]
 pub struct OwnedChanTarget {
     /// Copy of the addresses from the underlying ChanTarget.
     addrs: Vec<SocketAddr>,
+    /// Copy of the channel methods from the underlying ChanTarget.
+    //
+    // TODO: in many cases this will be redundant with addrs; if we allocate a
+    // lot of these objects, we might want to handle that.
+    methods: Vec<ChannelMethod>,
     /// Identities that this relay provides.
     ids: RelayIds,
 }
@@ -72,6 +79,12 @@ pub struct OwnedChanTarget {
 impl HasAddrs for OwnedChanTarget {
     fn addrs(&self) -> &[SocketAddr] {
         &self.addrs[..]
+    }
+}
+
+impl HasChanMethods for OwnedChanTarget {
+    fn chan_methods(&self) -> Vec<ChannelMethod> {
+        self.methods.clone()
     }
 }
 
@@ -85,7 +98,9 @@ impl ChanTarget for OwnedChanTarget {}
 
 impl OwnedChanTarget {
     /// Construct a new OwnedChanTarget from its parts.
-    // TODO: Put this function behind a feature.
+    //
+    // TODO pt-client: Eliminate all non-testing uses of this function, and make
+    // it experimental-api.
     pub fn new(
         addrs: Vec<SocketAddr>,
         ed_identity: pk::ed25519::Ed25519Identity,
@@ -93,6 +108,7 @@ impl OwnedChanTarget {
     ) -> Self {
         Self {
             addrs,
+            methods: Vec::new(), // this is incorrect for actual use! TODO pt-client.
             ids: RelayIds::new(ed_identity, rsa_identity),
         }
     }
@@ -104,6 +120,7 @@ impl OwnedChanTarget {
     {
         OwnedChanTarget {
             addrs: target.addrs().to_vec(),
+            methods: target.chan_methods(),
             ids: RelayIds::from_relay_ids(target),
         }
     }
@@ -111,10 +128,14 @@ impl OwnedChanTarget {
     /// Construct a new OwnedChanTarget containing _only_ the provided `addr`.
     ///
     /// If `addr` is not an address of this `ChanTarget`, return the original OwnedChanTarget.
+    //
+    // TODO pt-client: this method no longer makes any sense, and needs to get replaced with one
+    // that works by ChanMethod.
     pub fn restrict_addr(&self, addr: &SocketAddr) -> Result<Self, Self> {
         if self.addrs.contains(addr) {
             Ok(OwnedChanTarget {
                 addrs: vec![*addr],
+                methods: self.methods.clone(),
                 ids: self.ids.clone(),
             })
         } else {
@@ -154,7 +175,9 @@ pub struct OwnedCircTarget {
 
 impl OwnedCircTarget {
     /// Construct a new OwnedCircTarget from its parts.
-    // TODO: Put this function behind a feature.
+    //
+    // TODO pt-client: Eliminate all non-testing uses of this function, and make
+    // it experimental-api.
     pub fn new(
         chan_target: OwnedChanTarget,
         ntor_onion_key: pk::curve25519::PublicKey,
@@ -198,6 +221,11 @@ impl HasAddrs for OwnedCircTarget {
 impl HasRelayIds for OwnedCircTarget {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         self.chan_target.identity(key_type)
+    }
+}
+impl HasChanMethods for OwnedCircTarget {
+    fn chan_methods(&self) -> Vec<ChannelMethod> {
+        self.chan_target.chan_methods()
     }
 }
 

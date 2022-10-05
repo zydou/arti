@@ -70,7 +70,9 @@ mod weight;
 pub mod testnet;
 
 use static_assertions::const_assert;
-use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::{
+    ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
+};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
@@ -1198,6 +1200,7 @@ impl<'a> HasRelayIds for UncheckedRelay<'a> {
     }
 }
 
+impl<'a> DirectChanMethodsHelper for Relay<'a> {}
 impl<'a> ChanTarget for Relay<'a> {}
 
 impl<'a> tor_linkspec::CircTarget for Relay<'a> {

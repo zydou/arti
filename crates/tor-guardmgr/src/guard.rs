@@ -702,6 +702,8 @@ impl tor_linkspec::HasRelayIds for Guard {
     }
 }
 
+impl tor_linkspec::DirectChanMethodsHelper for Guard {}
+
 impl tor_linkspec::ChanTarget for Guard {}
 
 /// A reason for permanently disabling a guard.
