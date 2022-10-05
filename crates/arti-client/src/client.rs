@@ -18,7 +18,12 @@ use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
 use tor_proto::stream::{DataStream, IpVersionPreference, StreamParameters};
-use tor_rtcompat::{PreferredRuntime, Runtime, SleepProviderExt};
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
+use tor_rtcompat::PreferredRuntime;
+use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use educe::Educe;
 use futures::lock::Mutex as AsyncMutex;
@@ -303,6 +308,10 @@ impl StreamPrefs {
     // TODO: Add some way to be IPFlexible, and require exit to support both.
 }
 
+#[cfg(all(
+    any(feature = "native-tls", feature = "rustls"),
+    any(feature = "async-std", feature = "tokio")
+))]
 impl TorClient<PreferredRuntime> {
     /// Bootstrap a connection to the Tor network, using the provided `config`.
     ///
