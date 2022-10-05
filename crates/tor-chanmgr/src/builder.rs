@@ -189,7 +189,7 @@ impl<R: Runtime> ChanBuilder<R> {
 
         // 2. Set up the channel.
         let mut builder = ChannelBuilder::new();
-        builder.set_declared_addr(addr);
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(addr));
         let chan = builder
             .launch(
                 tls,

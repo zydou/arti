@@ -277,12 +277,12 @@ impl Sink<ChanCell> for Channel {
 /// Structure for building and launching a Tor channel.
 #[derive(Default)]
 pub struct ChannelBuilder {
-    /// If present, a description of the address we're trying to connect to,
-    /// to be used in log messages.
+    /// If present, a description of the the address we're trying to connect to,
+    /// and the way in which we are trying to connect to it.
     ///
-    /// TODO: at some point, check this against the addresses in the
-    /// netinfo cell too.
-    target: Option<std::net::SocketAddr>,
+    /// TODO: at some point, check this against the addresses in the netinfo
+    /// cell too.
+    target: Option<tor_linkspec::ChannelMethod>,
 }
 
 impl ChannelBuilder {
@@ -291,12 +291,19 @@ impl ChannelBuilder {
         ChannelBuilder::default()
     }
 
-    /// Set the declared target address of this channel.
-    ///
-    /// Note that nothing enforces the correctness of this address: it
-    /// doesn't have to match the real address target of the TLS
-    /// stream.  For now it is only used for logging.
+    /// Set the declared target method of this channel to correspond to a direct
+    /// connection to a given socket address.
+    #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
     pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
+        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(target));
+    }
+
+    /// Set the declared target method of this channel.
+    ///
+    /// Note that nothing enforces the correctness of this method: it
+    /// doesn't have to match the real method used to create the TLS
+    /// stream.
+    pub fn set_declared_method(&mut self, target: tor_linkspec::ChannelMethod) {
         self.target = Some(target);
     }
 
@@ -725,7 +732,9 @@ pub(crate) mod test {
     fn chanbuilder() {
         let rt = PreferredRuntime::create().unwrap();
         let mut builder = ChannelBuilder::default();
-        builder.set_declared_addr("127.0.0.1:9001".parse().unwrap());
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(
+            "127.0.0.1:9001".parse().unwrap(),
+        ));
         let tls = MsgBuf::new(&b""[..]);
         let _outbound = builder.launch(tls, rt);
     }
