@@ -12,6 +12,8 @@
 
 mod config;
 mod descs;
+mod relay;
 
 pub use config::Bridge;
-pub use descs::{BridgeDescEvent, BridgeDescList, BridgeDescProvider};
+pub use descs::{BridgeDesc, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
+pub use relay::BridgeRelay;

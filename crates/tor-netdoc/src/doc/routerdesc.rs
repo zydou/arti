@@ -41,6 +41,7 @@ use crate::types::policy::*;
 use crate::types::version::TorVersion;
 use crate::{doc, AllowAnnotations, Error, ParseErrorKind as EK, Result};
 
+use ll::pk::ed25519::Ed25519Identity;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 use std::{net, time};
@@ -129,10 +130,14 @@ pub struct RouterDesc {
     /// signing key)
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     identity_cert: tor_cert::Ed25519Cert,
-    /// RSA identity for this relay. (Deprecated; never use this without
+    /// RSA identity key for this relay. (Deprecated; never use this without
     /// the ed25519 identity as well).
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    rsa_identity: ll::pk::rsa::PublicKey,
+    rsa_identity_key: ll::pk::rsa::PublicKey,
+    /// RSA identity key for this relay. (Deprecated; never use this without
+    /// the ed25519 identity as well).
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
+    rsa_identity: ll::pk::rsa::RsaIdentity,
     /// Key for extending a circuit to this relay using the ntor protocol.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     ntor_onion_key: ll::pk::curve25519::PublicKey,
@@ -352,6 +357,29 @@ const ROUTER_EXPIRY_SECONDS: u64 = 5 * 86400;
 const ROUTER_PRE_VALIDITY_SECONDS: u64 = 86400;
 
 impl RouterDesc {
+    /// Return a reference to this relay's RSA identity.
+    pub fn rsa_identity(&self) -> &RsaIdentity {
+        &self.rsa_identity
+    }
+
+    /// Return a reference to this relay's Ed25519 identity.
+    pub fn ed_identity(&self) -> &Ed25519Identity {
+        self.identity_cert
+            .signing_key()
+            .expect("No ed25519 identity key on identity cert")
+    }
+
+    /// Return a reference to the list of subprotocol versions supported by this
+    /// relay.
+    pub fn protocols(&self) -> &tor_protover::Protocols {
+        self.proto.as_ref()
+    }
+
+    /// Return a reference to this relay's Ntor onion key.
+    pub fn ntor_onion_key(&self) -> &ll::pk::curve25519::PublicKey {
+        &self.ntor_onion_key
+    }
+
     /// Helper: tokenize `s`, and divide it into three validated sections.
     fn parse_sections<'a>(
         reader: &mut NetDocReader<'a, RouterKwd>,
@@ -453,12 +481,13 @@ impl RouterDesc {
         }
 
         // Legacy RSA identity
-        let rsa_identity: ll::pk::rsa::PublicKey = body
+        let rsa_identity_key: ll::pk::rsa::PublicKey = body
             .required(SIGNING_KEY)?
             .parse_obj::<RsaPublic>("RSA PUBLIC KEY")?
             .check_len_eq(1024)?
             .check_exponent(65537)?
             .into();
+        let rsa_identity = rsa_identity_key.to_rsa_identity();
 
         let ed_sig = sig.required(ROUTER_SIG_ED25519)?;
         let rsa_sig = sig.required(ROUTER_SIGNATURE)?;
@@ -498,7 +527,7 @@ impl RouterDesc {
             let sig = rsa_sig.obj("SIGNATURE")?;
             // TODO: we need to accept prefixes here. COMPAT BLOCKER.
 
-            ll::pk::rsa::ValidatableRsaSignature::new(&rsa_identity, &sig, &d)
+            ll::pk::rsa::ValidatableRsaSignature::new(&rsa_identity_key, &sig, &d)
         };
 
         // router nickname ipv4addr orport socksport dirport
@@ -562,7 +591,7 @@ impl RouterDesc {
             let cc_tok = body.required(ONION_KEY_CROSSCERT)?;
             let cc_val = cc_tok.obj("CROSSCERT")?;
             let mut signed = Vec::new();
-            signed.extend(rsa_identity.to_rsa_identity().as_bytes());
+            signed.extend(rsa_identity.as_bytes());
             signed.extend(identity_cert.peek_signing_key().as_bytes());
             ll::pk::rsa::ValidatableRsaSignature::new(&tap_onion_key, &cc_val, &signed)
         };
@@ -587,7 +616,7 @@ impl RouterDesc {
         // fingerprint: check for consistency with RSA identity.
         if let Some(fp_tok) = body.get(FINGERPRINT) {
             let fp: RsaIdentity = fp_tok.args_as_str().parse::<SpFingerprint>()?.into();
-            if fp != rsa_identity.to_rsa_identity() {
+            if fp != rsa_identity {
                 return Err(EK::BadArgument
                     .at_pos(fp_tok.pos())
                     .with_msg("fingerprint does not match RSA identity"));
@@ -606,7 +635,7 @@ impl RouterDesc {
                 // canonical family shared by all of the members of this family.
                 // If the family is empty, there's no point in adding our own ID
                 // to it, and doing so would only waste memory.
-                family.push(rsa_identity.to_rsa_identity());
+                family.push(rsa_identity);
             }
             family.intern()
         };
@@ -701,6 +730,7 @@ impl RouterDesc {
             uptime,
             published,
             identity_cert,
+            rsa_identity_key,
             rsa_identity,
             ntor_onion_key,
             tap_onion_key,
