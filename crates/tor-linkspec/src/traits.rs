@@ -128,7 +128,15 @@ impl<'a, T: HasRelayIds + ?Sized> FusedIterator for RelayIdIter<'a, T> {}
 
 /// An object that represents a host on the network with known IP addresses.
 pub trait HasAddrs {
-    /// Return the addresses at which you can connect to this server.
+    /// Return the addresses listed for this server.
+    ///
+    /// NOTE that these addresses are not necessarily ones that we should
+    /// connect to directly!  They can be useful for telling where a server is
+    /// located, or whether it is "close" to another server, but without knowing
+    /// the associated protocols you cannot use these to launch a connection.
+    ///
+    /// To see how to _connect_ to a relay, use [`HasChanMethods::chan_methods`]
+    //
     // TODO: This is a questionable API. I'd rather return an iterator
     // of addresses or references to addresses, but both of those options
     // make defining the right associated types rather tricky.
@@ -144,22 +152,29 @@ pub trait HasChanMethods {
     fn chan_methods(&self) -> Vec<ChannelMethod>;
 }
 
-// TODO pt-client: _possibly_ we should have a blanket implementation of
-// HasChanMethods for T: HasAddrs, or vice versa.
+/// Implement `HasChanMethods` for an object with `HasAddr` whose addresses
+/// _all_ represent a host we can connect to by a direct Tor connection at its
+/// IP addresses.
 //
-// Alternatively, we could merge HasAddrs and HasChanMethods into one trait, and
-// have default implementatoins for addrs() and chan_methods(), each
-// implemented in terms of the other.
+// TODO pt-client: We should decide whether this is a good name. Maybe the name
+// should instead suggest that we _only_ have direct methods?
+pub trait DirectChanMethodsHelper: HasAddrs {}
+
+impl<D: DirectChanMethodsHelper> HasChanMethods for D {
+    fn chan_methods(&self) -> Vec<ChannelMethod> {
+        self.addrs()
+            .iter()
+            .map(|a| ChannelMethod::Direct(*a))
+            .collect()
+    }
+}
 
 /// Information about a Tor relay used to connect to it.
 ///
 /// Anything that implements 'ChanTarget' can be used as the
 /// identity of a relay for the purposes of launching a new
 /// channel.
-//
-// TODO pt-client: I believe that this should also implement HasChanMethods, or
-// possibly implement HasChanMethods _in place of_ HasAddrs. -nickm
-pub trait ChanTarget: HasRelayIds + HasAddrs {}
+pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethods {}
 
 /// Information about a Tor relay used to extend a circuit to it.
 ///
@@ -172,8 +187,10 @@ pub trait CircTarget: ChanTarget {
     // doing so correctly would require default associated types.
     fn linkspecs(&self) -> Vec<crate::LinkSpec> {
         let mut result: Vec<_> = self.identities().map(|id| id.to_owned().into()).collect();
-        for addr in self.addrs().iter() {
-            result.push(addr.into());
+        for method in self.chan_methods().iter() {
+            if let ChannelMethod::Direct(addr) = method {
+                result.push(addr.into());
+            }
         }
         result
     }
@@ -203,6 +220,7 @@ mod test {
             &self.addrs[..]
         }
     }
+    impl DirectChanMethodsHelper for Example {}
     impl HasRelayIdsLegacy for Example {
         fn ed_identity(&self) -> &pk::ed25519::Ed25519Identity {
             &self.ed_id

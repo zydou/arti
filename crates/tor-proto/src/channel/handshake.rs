@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use tor_bytes::Reader;
-use tor_linkspec::{ChanTarget, OwnedChanTarget, RelayIds};
+use tor_linkspec::{ChanTarget, ChannelMethod, OwnedChanTargetBuilder, RelayIds};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
@@ -47,8 +47,8 @@ pub struct OutboundClientHandshake<
     /// connection won't be secure.)
     tls: T,
 
-    /// Declared target for this stream, if any.
-    target_addr: Option<SocketAddr>,
+    /// Declared target method for this channel, if any.
+    target_method: Option<ChannelMethod>,
 
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
@@ -66,8 +66,8 @@ pub struct UnverifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     tls: CellFrame<T>,
     /// The certs cell that we got from the relay.
     certs_cell: msg::Certs,
-    /// Declared target for this stream, if any.
-    target_addr: Option<SocketAddr>,
+    /// Declared target method for this channel, if any.
+    target_method: Option<ChannelMethod>,
     /// The netinfo cell that we got from the relay.
     #[allow(dead_code)] // Relays will need this.
     netinfo_cell: msg::Netinfo,
@@ -94,8 +94,8 @@ pub struct VerifiedChannel<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S
     link_protocol: u16,
     /// The Source+Sink on which we're reading and writing cells.
     tls: CellFrame<T>,
-    /// Declared target for this stream, if any.
-    target_addr: Option<SocketAddr>,
+    /// Declared target method for this stream, if any.
+    target_method: Option<ChannelMethod>,
     /// Logging identifier for this stream.  (Used for logging only.)
     unique_id: UniqId,
     /// Validated Ed25519 identity for this peer.
@@ -122,10 +122,10 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
     OutboundClientHandshake<T, S>
 {
     /// Construct a new OutboundClientHandshake.
-    pub(crate) fn new(tls: T, target_addr: Option<SocketAddr>, sleep_prov: S) -> Self {
+    pub(crate) fn new(tls: T, target_method: Option<ChannelMethod>, sleep_prov: S) -> Self {
         Self {
             tls,
-            target_addr,
+            target_method,
             unique_id: UniqId::new(),
             sleep_prov,
         }
@@ -145,8 +145,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
             Error::HandshakeIoErr(Arc::new(err))
         }
 
-        match self.target_addr {
-            Some(addr) => debug!("{}: starting Tor handshake with {}", self.unique_id, addr),
+        match &self.target_method {
+            Some(method) => debug!(
+                "{}: starting Tor handshake with {:?}",
+                self.unique_id, method
+            ),
             None => debug!("{}: starting Tor handshake", self.unique_id),
         }
         trace!("{}: sending versions", self.unique_id);
@@ -286,7 +289,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider>
                     certs_cell,
                     netinfo_cell,
                     clock_skew,
-                    target_addr: self.target_addr,
+                    target_method: self.target_method.take(),
                     unique_id: self.unique_id,
                     sleep_prov: self.sleep_prov.clone(),
                 })
@@ -504,9 +507,11 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
         // usually a different situation than "this peer couldn't even
         // identify itself right."
 
-        // TODO: We'll need a different constructor if there are someday
-        // more/different identity keys.
-        let actual_identity = RelayIds::new(*identity_key, rsa_id);
+        let actual_identity = RelayIds::builder()
+            .ed_identity(*identity_key)
+            .rsa_identity(rsa_id)
+            .build()
+            .expect("Unable to build RelayIds");
 
         // We enforce that the relay proved that it has every ID that we wanted:
         // it may also have additional IDs that we didn't ask for.
@@ -537,7 +542,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Unver
             link_protocol: self.link_protocol,
             tls: self.tls,
             unique_id: self.unique_id,
-            target_addr: self.target_addr,
+            target_method: self.target_method,
             ed25519_id: *identity_key,
             rsa_id,
             clock_skew: self.clock_skew,
@@ -562,7 +567,17 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
         // time to be no earlier than _that_ timestamp.
         crate::note_incoming_traffic();
         trace!("{}: Sending netinfo cell.", self.unique_id);
-        let netinfo = msg::Netinfo::for_client(self.target_addr.as_ref().map(SocketAddr::ip));
+
+        // We do indeed want the real IP here, regardless of whether the
+        // ChannelMethod is Direct connection or not.  The role of the IP in a
+        // NETINFO cell is to tell our peer what address we believe they had, so
+        // that they can better notice MITM attacks and such.
+        let peer_ip = self
+            .target_method
+            .as_ref()
+            .and_then(ChannelMethod::declared_peer_addr)
+            .map(SocketAddr::ip);
+        let netinfo = msg::Netinfo::for_client(peer_ip);
         self.tls
             .send(netinfo.into())
             .await
@@ -575,11 +590,18 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
 
         let (tls_sink, tls_stream) = self.tls.split();
 
-        let peer_id = OwnedChanTarget::new(
-            self.target_addr.into_iter().collect(),
-            self.ed25519_id,
-            self.rsa_id,
-        );
+        let mut peer_builder = OwnedChanTargetBuilder::default();
+        if let Some(target_method) = self.target_method {
+            if let Some(addr) = target_method.declared_peer_addr() {
+                peer_builder.addrs(vec![*addr]);
+            }
+            peer_builder.methods(vec![target_method]);
+        }
+        let peer_id = peer_builder
+            .ed_identity(self.ed25519_id)
+            .rsa_identity(self.rsa_id)
+            .build()
+            .expect("OwnedChanTarget builder failed");
 
         Ok(super::Channel::new(
             self.link_protocol,
@@ -604,6 +626,7 @@ pub(super) mod test {
     use crate::channel::codec::test::MsgBuf;
     use crate::Result;
     use tor_cell::chancell::msg;
+    use tor_linkspec::OwnedChanTarget;
     use tor_rtcompat::{PreferredRuntime, Runtime};
 
     const VERSIONS: &[u8] = &hex!("0000 07 0006 0003 0004 0005");
@@ -800,7 +823,7 @@ pub(super) mod test {
             certs_cell: certs,
             netinfo_cell,
             clock_skew,
-            target_addr: None,
+            target_method: None,
             unique_id: UniqId::new(),
             sleep_prov: runtime,
         }
@@ -825,7 +848,11 @@ pub(super) mod test {
         let unver = make_unverified(certs, runtime.clone());
         let ed = Ed25519Identity::from_bytes(peer_ed).unwrap();
         let rsa = RsaIdentity::from_bytes(peer_rsa).unwrap();
-        let chan = OwnedChanTarget::new(Vec::new(), ed, rsa);
+        let chan = OwnedChanTarget::builder()
+            .ed_identity(ed)
+            .rsa_identity(rsa)
+            .build()
+            .unwrap();
         unver.check_internal(&chan, peer_cert_sha256, when)
     }
 
@@ -1051,7 +1078,7 @@ pub(super) mod test {
                 link_protocol: 4,
                 tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
                 unique_id: UniqId::new(),
-                target_addr: Some(peer_addr),
+                target_method: Some(ChannelMethod::Direct(peer_addr)),
                 ed25519_id,
                 rsa_id,
                 clock_skew: ClockSkew::None,

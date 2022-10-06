@@ -70,7 +70,9 @@ mod weight;
 pub mod testnet;
 
 use static_assertions::const_assert;
-use tor_linkspec::{ChanTarget, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::{
+    ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
+};
 use tor_llcrypto as ll;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::microdesc::{MdDigest, Microdesc};
@@ -1198,6 +1200,7 @@ impl<'a> HasRelayIds for UncheckedRelay<'a> {
     }
 }
 
+impl<'a> DirectChanMethodsHelper for Relay<'a> {}
 impl<'a> ChanTarget for Relay<'a> {}
 
 impl<'a> tor_linkspec::CircTarget for Relay<'a> {
@@ -1660,9 +1663,21 @@ mod test {
         assert_eq!(r.rs.rsa_identity().as_bytes(), &[13; 20]);
         assert!(netdir.rsa_id_is_listed(&[13; 20].into()));
 
-        let pair_13_13 = RelayIds::new([13; 32].into(), [13; 20].into());
-        let pair_14_14 = RelayIds::new([14; 32].into(), [14; 20].into());
-        let pair_14_99 = RelayIds::new([14; 32].into(), [99; 20].into());
+        let pair_13_13 = RelayIds::builder()
+            .ed_identity([13; 32].into())
+            .rsa_identity([13; 20].into())
+            .build()
+            .unwrap();
+        let pair_14_14 = RelayIds::builder()
+            .ed_identity([14; 32].into())
+            .rsa_identity([14; 20].into())
+            .build()
+            .unwrap();
+        let pair_14_99 = RelayIds::builder()
+            .ed_identity([14; 32].into())
+            .rsa_identity([99; 20].into())
+            .build()
+            .unwrap();
 
         let r = netdir.by_ids(&pair_13_13);
         assert!(r.is_none());

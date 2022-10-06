@@ -3716,6 +3716,7 @@ version = "0.5.1"
 dependencies = [
  "base64ct",
  "cfg-if",
+ "derive_builder_fork_arti",
  "derive_more",
  "educe",
  "hex",
@@ -3725,6 +3726,7 @@ dependencies = [
  "thiserror",
  "tor-basic-utils",
  "tor-bytes",
+ "tor-config",
  "tor-llcrypto",
  "tor-protover",
 ]

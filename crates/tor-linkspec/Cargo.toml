@@ -19,6 +19,7 @@ pt-client = []
 [dependencies]
 base64ct = "1.5.1"
 cfg-if = "1.0.0"
+derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99"
 educe = "0.4.6"
 hex = "0.4"
@@ -27,6 +28,7 @@ strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.1" }
 tor-bytes = { path = "../tor-bytes", version = "0.5.1" }
+tor-config = { path = "../tor-config", version = "0.6.1" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
 tor-protover = { path = "../tor-protover", version = "0.3.0" }
 

@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 use safelog::sensitive as sv;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{HasAddrs, HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, HasChanMethods, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
@@ -147,7 +147,16 @@ impl<R: Runtime> ChanBuilder<R> {
                 .record_attempt();
         }
 
-        let (stream, addr) = connect_to_one(&self.runtime, target.addrs()).await?;
+        // TODO pt-client: right now this only handles the Direct method.
+        let direct_addrs: Vec<_> = target
+            .chan_methods()
+            .iter()
+            .filter_map(|method| match method {
+                ChannelMethod::Direct(addr) => Some(*addr),
+                _ => None,
+            })
+            .collect();
+        let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
         let using_target = match target.restrict_addr(&addr) {
             Ok(v) => v,
             Err(v) => v,
@@ -189,7 +198,7 @@ impl<R: Runtime> ChanBuilder<R> {
 
         // 2. Set up the channel.
         let mut builder = ChannelBuilder::new();
-        builder.set_declared_addr(addr);
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(addr));
         let chan = builder
             .launch(
                 tls,
@@ -275,6 +284,7 @@ mod test {
     use pk::rsa::RsaIdentity;
     use std::time::{Duration, SystemTime};
     use std::{net::SocketAddr, str::FromStr};
+    use tor_linkspec::ChannelMethod;
     use tor_proto::channel::Channel;
     use tor_rtcompat::{test_with_one_runtime, SleepProviderExt, TcpListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
@@ -291,7 +301,13 @@ mod test {
         let rsa: RsaIdentity = msgs::RSA_ID.into();
         let client_addr = "192.0.2.17".parse().unwrap();
         let tls_cert = msgs::X509_CERT.into();
-        let target = OwnedChanTarget::new(vec![orport], ed, rsa);
+        let target = OwnedChanTarget::builder()
+            .addrs(vec![orport])
+            .methods(vec![ChannelMethod::Direct(orport)])
+            .ed_identity(ed)
+            .rsa_identity(rsa)
+            .build()
+            .unwrap();
         let now = SystemTime::UNIX_EPOCH + Duration::new(msgs::NOW, 0);
 
         test_with_one_runtime!(|rt| async move {

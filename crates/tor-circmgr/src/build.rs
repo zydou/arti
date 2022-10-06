@@ -812,11 +812,24 @@ mod test {
 
     /// Testing only: create a bogus circuit target
     fn circ_t(id: Ed25519Identity) -> OwnedCircTarget {
-        OwnedCircTarget::new(chan_t(id), [0x33; 32].into(), "".parse().unwrap())
+        let mut builder = OwnedCircTarget::builder();
+        builder
+            .chan_target()
+            .ed_identity(id)
+            .rsa_identity([0x20; 20].into());
+        builder
+            .ntor_onion_key([0x33; 32].into())
+            .protocols("".parse().unwrap())
+            .build()
+            .unwrap()
     }
     /// Testing only: create a bogus channel target
     fn chan_t(id: Ed25519Identity) -> OwnedChanTarget {
-        OwnedChanTarget::new(vec![], id, [0x20; 20].into())
+        OwnedChanTarget::builder()
+            .ed_identity(id)
+            .rsa_identity([0x20; 20].into())
+            .build()
+            .unwrap()
     }
 
     async fn run_builder_test<R: Runtime>(

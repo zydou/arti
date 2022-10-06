@@ -392,6 +392,30 @@ pub enum ChannelMethod {
     Pluggable(PtTarget),
 }
 
+impl ChannelMethod {
+    /// Return the advertised socket address that this method connects to, if
+    /// there is one.
+    ///
+    /// NOTE that this is not necessarily an address to which you can open a
+    /// TCP connection! If this `ChannelMethod` is using a non-`Direct`
+    /// transport, then this address will be interpreted by that transport's
+    /// implementation.
+    pub fn declared_peer_addr(&self) -> Option<&std::net::SocketAddr> {
+        match self {
+            ChannelMethod::Direct(addr) => Some(addr),
+
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(PtTarget {
+                addr: PtTargetAddr::IpPort(addr),
+                ..
+            }) => Some(addr),
+
+            #[cfg_attr(not(feature = "pt-client"), allow(unreachable_patterns))]
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]

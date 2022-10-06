@@ -277,12 +277,12 @@ impl Sink<ChanCell> for Channel {
 /// Structure for building and launching a Tor channel.
 #[derive(Default)]
 pub struct ChannelBuilder {
-    /// If present, a description of the address we're trying to connect to,
-    /// to be used in log messages.
+    /// If present, a description of the the address we're trying to connect to,
+    /// and the way in which we are trying to connect to it.
     ///
-    /// TODO: at some point, check this against the addresses in the
-    /// netinfo cell too.
-    target: Option<std::net::SocketAddr>,
+    /// TODO: at some point, check this against the addresses in the netinfo
+    /// cell too.
+    target: Option<tor_linkspec::ChannelMethod>,
 }
 
 impl ChannelBuilder {
@@ -291,12 +291,19 @@ impl ChannelBuilder {
         ChannelBuilder::default()
     }
 
-    /// Set the declared target address of this channel.
-    ///
-    /// Note that nothing enforces the correctness of this address: it
-    /// doesn't have to match the real address target of the TLS
-    /// stream.  For now it is only used for logging.
+    /// Set the declared target method of this channel to correspond to a direct
+    /// connection to a given socket address.
+    #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
     pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
+        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(target));
+    }
+
+    /// Set the declared target method of this channel.
+    ///
+    /// Note that nothing enforces the correctness of this method: it
+    /// doesn't have to match the real method used to create the TLS
+    /// stream.
+    pub fn set_declared_method(&mut self, target: tor_linkspec::ChannelMethod) {
         self.target = Some(target);
     }
 
@@ -662,7 +669,11 @@ where
 fn fake_channel_details() -> Arc<ChannelDetails> {
     let unique_id = UniqId::new();
     let unused_since = OptTimestamp::new();
-    let peer_id = OwnedChanTarget::new(vec![], [6_u8; 32].into(), [10_u8; 20].into());
+    let peer_id = OwnedChanTarget::builder()
+        .ed_identity([6_u8; 32].into())
+        .rsa_identity([10_u8; 20].into())
+        .build()
+        .expect("Couldn't construct peer id");
 
     Arc::new(ChannelDetails {
         unique_id,
@@ -725,7 +736,9 @@ pub(crate) mod test {
     fn chanbuilder() {
         let rt = PreferredRuntime::create().unwrap();
         let mut builder = ChannelBuilder::default();
-        builder.set_declared_addr("127.0.0.1:9001".parse().unwrap());
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(
+            "127.0.0.1:9001".parse().unwrap(),
+        ));
         let tls = MsgBuf::new(&b""[..]);
         let _outbound = builder.launch(tls, rt);
     }
@@ -734,9 +747,21 @@ pub(crate) mod test {
     fn check_match() {
         let chan = fake_channel(fake_channel_details());
 
-        let t1 = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
-        let t2 = OwnedChanTarget::new(vec![], [0x1; 32].into(), [0x3; 20].into());
-        let t3 = OwnedChanTarget::new(vec![], [0x3; 32].into(), [0x2; 20].into());
+        let t1 = OwnedChanTarget::builder()
+            .ed_identity([6; 32].into())
+            .rsa_identity([10; 20].into())
+            .build()
+            .unwrap();
+        let t2 = OwnedChanTarget::builder()
+            .ed_identity([1; 32].into())
+            .rsa_identity([3; 20].into())
+            .build()
+            .unwrap();
+        let t3 = OwnedChanTarget::builder()
+            .ed_identity([3; 32].into())
+            .rsa_identity([2; 20].into())
+            .build()
+            .unwrap();
 
         assert!(chan.check_match(&t1).is_ok());
         assert!(chan.check_match(&t2).is_err());

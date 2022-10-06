@@ -16,6 +16,7 @@ use crate::ids::FallbackId;
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
 use tor_config::{define_list_builder_accessors, impl_standard_builder, list_builder::VecBuilder};
+use tor_linkspec::DirectChanMethodsHelper;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 
@@ -127,5 +128,7 @@ impl tor_linkspec::HasRelayIdsLegacy for FallbackDir {
         &self.rsa_identity
     }
 }
+
+impl DirectChanMethodsHelper for FallbackDir {}
 
 impl tor_linkspec::ChanTarget for FallbackDir {}

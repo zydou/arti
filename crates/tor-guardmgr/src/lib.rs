@@ -1378,6 +1378,7 @@ impl tor_linkspec::HasRelayIds for FirstHop {
         self.id.identity(key_type)
     }
 }
+impl tor_linkspec::DirectChanMethodsHelper for FirstHop {}
 impl tor_linkspec::ChanTarget for FirstHop {}
 
 /// The purpose for which we plan to use a guard.

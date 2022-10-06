@@ -489,7 +489,11 @@ pub(crate) mod test {
         let (send1, recv1) = mpsc::channel(32);
         let (send2, recv2) = mpsc::channel(32);
         let unique_id = UniqId::new();
-        let dummy_target = OwnedChanTarget::new(vec![], [6; 32].into(), [10; 20].into());
+        let dummy_target = OwnedChanTarget::builder()
+            .ed_identity([6; 32].into())
+            .rsa_identity([10; 20].into())
+            .build()
+            .unwrap();
         let send1 = send1.sink_map_err(|e| {
             trace!("got sink error: {}", e);
             CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
