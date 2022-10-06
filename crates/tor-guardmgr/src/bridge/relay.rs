@@ -6,7 +6,8 @@ use tor_linkspec::{ChanTarget, CircTarget, HasAddrs, HasRelayIds, RelayIdRef, Re
 
 use super::{Bridge, BridgeDesc};
 
-/// The information about a Bridge that is necessary to connect to it and relay traffic.
+/// The information about a Bridge that is necessary to connect to it and send
+/// it traffic.
 #[derive(Clone, Debug)]
 
 pub struct BridgeRelay {
@@ -23,7 +24,11 @@ pub struct BridgeRelay {
 }
 
 /// A BridgeRelay that is known to have its full information available, and
-/// which is therefore usable for circuits.
+/// which is therefore usable for multi-hop circuits.
+///
+/// (All bridges can be used for single-hop circuits, but we need to know the
+/// bridge's descriptor in order to construct proper multi-hop circuits
+/// with forward secrecy through it.)
 #[derive(Clone, Debug)]
 pub struct BridgeRelayWithDesc<'a>(
     /// This will _always_ be a bridge relay with a non-None desc.

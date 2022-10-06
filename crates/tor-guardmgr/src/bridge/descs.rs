@@ -18,6 +18,10 @@ use tor_netdoc::doc::routerdesc::RouterDesc;
 #[derive(Clone, Debug)]
 pub struct BridgeDesc {
     /// The inner descriptor.
+    ///
+    /// NOTE: This is wrapped in an `Arc<>` because we expect to pass BridgeDesc
+    /// around a bit and clone it frequently.  If that doesn't actually happen,
+    /// we can remove the Arc here.
     desc: Arc<RouterDesc>,
 }
 
