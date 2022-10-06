@@ -57,6 +57,8 @@ pub struct Bridge {
     //
     /// Address and transport via which the bridge can be reached, and
     /// the parameters for those transports.
+    ///
+    /// Restriction: This `addrs` may NOT contain more than one address.
     addrs: ChannelMethod,
 
     /// The RSA identity of the bridge.
@@ -220,7 +222,7 @@ impl FromStr for Bridge {
                     word: word.to_string(),
                     addr_error,
                 })?;
-                ChannelMethod::Direct(addr)
+                ChannelMethod::Direct(vec![addr])
             } else {
                 #[cfg(not(feature = "pt-client"))]
                 return Err(BPE::PluggableTransportsNotSupported {
@@ -333,7 +335,11 @@ impl Display for Bridge {
 
         let settings = match addrs {
             ChannelMethod::Direct(a) => {
-                write!(f, "{}", a)?;
+                if a.len() == 1 {
+                    write!(f, "{}", a[0])?;
+                } else {
+                    panic!("Somehow created a Bridge config with multiple addrs.");
+                }
                 None
             }
 
@@ -388,7 +394,7 @@ mod test {
     }
 
     fn mk_direct(s: &str) -> ChannelMethod {
-        ChannelMethod::Direct(s.parse().unwrap())
+        ChannelMethod::Direct(vec![s.parse().unwrap()])
     }
 
     fn mk_rsa(s: &str) -> RsaIdentity {

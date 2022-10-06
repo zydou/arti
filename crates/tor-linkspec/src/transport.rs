@@ -383,18 +383,20 @@ impl PtTarget {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[allow(clippy::exhaustive_enums)]
 // TODO pt-client: I am not in love with this enum name --nm.
+// TODO pt-client: Maybe "ContactMethod" would be better?
 pub enum ChannelMethod {
-    /// Connect to the relay directly at a given address.
-    Direct(std::net::SocketAddr),
+    /// Connect to the relay directly at one of several addresses.
+    Direct(Vec<std::net::SocketAddr>),
 
+    // TODO pt-client: We may want to have a third variant for "Direct" with a
+    // single address. Maybe?
     /// Connect to a bridge relay via a pluggable transport.
     #[cfg(feature = "pt-client")]
     Pluggable(PtTarget),
 }
 
 impl ChannelMethod {
-    /// Return the advertised socket address that this method connects to, if
-    /// there is one.
+    /// Return an advertised socket address that this method connects to.
     ///
     /// NOTE that this is not necessarily an address to which you can open a
     /// TCP connection! If this `ChannelMethod` is using a non-`Direct`
@@ -402,7 +404,7 @@ impl ChannelMethod {
     /// implementation.
     pub fn declared_peer_addr(&self) -> Option<&std::net::SocketAddr> {
         match self {
-            ChannelMethod::Direct(addr) => Some(addr),
+            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(&addr[0]),
 
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(PtTarget {

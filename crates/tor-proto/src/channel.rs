@@ -295,7 +295,7 @@ impl ChannelBuilder {
     /// connection to a given socket address.
     #[deprecated(note = "use set_declared_method instead", since = "0.7.1")]
     pub fn set_declared_addr(&mut self, target: std::net::SocketAddr) {
-        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(target));
+        self.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![target]));
     }
 
     /// Set the declared target method of this channel.
@@ -736,9 +736,9 @@ pub(crate) mod test {
     fn chanbuilder() {
         let rt = PreferredRuntime::create().unwrap();
         let mut builder = ChannelBuilder::default();
-        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(
-            "127.0.0.1:9001".parse().unwrap(),
-        ));
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec!["127.0.0.1:9001"
+            .parse()
+            .unwrap()]));
         let tls = MsgBuf::new(&b""[..]);
         let _outbound = builder.launch(tls, rt);
     }

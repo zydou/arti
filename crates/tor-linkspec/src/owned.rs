@@ -7,7 +7,7 @@ use tor_config::impl_standard_builder;
 use tor_llcrypto::pk;
 
 use crate::{
-    ChanTarget, ChannelMethod, CircTarget, HasAddrs, HasChanMethods, HasRelayIds, RelayIdRef,
+    ChanTarget, ChannelMethod, CircTarget, HasAddrs, HasChanMethod, HasRelayIds, RelayIdRef,
     RelayIdType,
 };
 
@@ -89,8 +89,8 @@ pub struct OwnedChanTarget {
     //
     // TODO: in many cases this will be redundant with addrs; if we allocate a
     // lot of these objects, we might want to handle that.
-    #[builder(default)]
-    methods: Vec<ChannelMethod>,
+    #[builder(default = "self.make_method()")]
+    method: ChannelMethod,
     /// Identities that this relay provides.
     #[builder(sub_builder)]
     ids: RelayIds,
@@ -109,6 +109,11 @@ impl OwnedChanTargetBuilder {
         self.ids().rsa_identity(id);
         self
     }
+
+    /// Helper: make a channel method if none was specified.
+    fn make_method(&self) -> ChannelMethod {
+        ChannelMethod::Direct(self.addrs.clone().unwrap_or_default())
+    }
 }
 
 impl HasAddrs for OwnedChanTarget {
@@ -117,9 +122,9 @@ impl HasAddrs for OwnedChanTarget {
     }
 }
 
-impl HasChanMethods for OwnedChanTarget {
-    fn chan_methods(&self) -> Vec<ChannelMethod> {
-        self.methods.clone()
+impl HasChanMethod for OwnedChanTarget {
+    fn chan_method(&self) -> ChannelMethod {
+        self.method.clone()
     }
 }
 
@@ -139,7 +144,7 @@ impl OwnedChanTarget {
     {
         OwnedChanTarget {
             addrs: target.addrs().to_vec(),
-            methods: target.chan_methods(),
+            method: target.chan_method(),
             ids: RelayIds::from_relay_ids(target),
         }
     }
@@ -154,7 +159,7 @@ impl OwnedChanTarget {
         if self.addrs.contains(addr) {
             Ok(OwnedChanTarget {
                 addrs: vec![*addr],
-                methods: self.methods.clone(),
+                method: self.method.clone(),
                 ids: self.ids.clone(),
             })
         } else {
@@ -229,9 +234,9 @@ impl HasRelayIds for OwnedCircTarget {
         self.chan_target.identity(key_type)
     }
 }
-impl HasChanMethods for OwnedCircTarget {
-    fn chan_methods(&self) -> Vec<ChannelMethod> {
-        self.chan_target.chan_methods()
+impl HasChanMethod for OwnedCircTarget {
+    fn chan_method(&self) -> ChannelMethod {
+        self.chan_target.chan_method()
     }
 }
 

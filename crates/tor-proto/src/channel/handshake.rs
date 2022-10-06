@@ -595,7 +595,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
             if let Some(addr) = target_method.declared_peer_addr() {
                 peer_builder.addrs(vec![*addr]);
             }
-            peer_builder.methods(vec![target_method]);
+            peer_builder.method(target_method);
         }
         let peer_id = peer_builder
             .ed_identity(self.ed25519_id)
@@ -1078,7 +1078,7 @@ pub(super) mod test {
                 link_protocol: 4,
                 tls: futures_codec::Framed::new(MsgBuf::new(&b""[..]), ChannelCodec::new(4)),
                 unique_id: UniqId::new(),
-                target_method: Some(ChannelMethod::Direct(peer_addr)),
+                target_method: Some(ChannelMethod::Direct(vec![peer_addr])),
                 ed25519_id,
                 rsa_id,
                 clock_skew: ClockSkew::None,

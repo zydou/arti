@@ -105,7 +105,7 @@ pub use ids::{
 pub use ls::LinkSpec;
 pub use owned::{OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget, RelayIds};
 pub use traits::{
-    ChanTarget, CircTarget, DirectChanMethodsHelper, HasAddrs, HasChanMethods, HasRelayIds,
+    ChanTarget, CircTarget, DirectChanMethodsHelper, HasAddrs, HasChanMethod, HasRelayIds,
     HasRelayIdsLegacy,
 };
 pub use transport::{ChannelMethod, PtAddrError, PtTargetAddr, TransportId, TransportIdError};
