@@ -238,6 +238,9 @@ mod test {
     #![allow(clippy::unwrap_used)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+    // Saves adding many individual #[cfg], or a sub-module
+    #![cfg_attr(not(feature = "pt-client"), allow(dead_code))]
+
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
     use itertools::{chain, Itertools};
@@ -701,5 +704,123 @@ mod test {
                 "proxy.dns_listen",
             ],
         );
+    }
+
+    #[cfg(feature = "pt-client")]
+    #[test]
+    fn bridges() {
+        let mut examples = ExampleSectionLines::new("bridges");
+        examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
+
+        let compare = {
+            let mut examples = examples.clone();
+            examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
+            examples.uncomment();
+
+            let parsed: TorClientConfig = examples.resolve();
+
+            // Now we fish oiut the lines ourselves as a double-check
+            // We must strip off the bridges = ''' and ''' lines.
+            examples.lines.remove(0);
+            examples.lines.remove(examples.lines.len() - 1);
+            examples.expect_lines(3);
+
+            let mut built = TorClientConfig::builder();
+            for l in &examples.lines {
+                built.bridges().bridges().push(l.trim().parse().expect(l));
+            }
+            let built = built.build().unwrap();
+
+            assert_eq!(&parsed, &built);
+            built
+        };
+
+        {
+            examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
+            examples.uncomment();
+            let parsed: TorClientConfig = examples.resolve();
+            assert_eq!(&parsed, &compare);
+        }
+    }
+
+    /// Helper for fishing out parts of the config file and uncommenting them
+    ///
+    /// This can be used to find part of the config file by ad-hoc regexp matching,
+    /// uncomment it, and parse it.  This is useful as part of a test to check
+    /// that we can parse more complex config.
+    #[derive(Debug, Clone)]
+    struct ExampleSectionLines {
+        section: String,
+        lines: Vec<String>,
+    }
+
+    type NarrowInstruction<'s> = (&'s str, bool);
+    const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
+
+    impl ExampleSectionLines {
+        fn new(section: &str) -> Self {
+            let section = format!("[{}]", section);
+
+            let mut first = Some(());
+            let lines = ARTI_EXAMPLE_CONFIG
+                .lines()
+                .skip_while(|l| l != &section)
+                .take_while(|l| first.take().is_some() || !l.starts_with("["))
+                .map(|l| l.to_string())
+                .collect_vec();
+
+            ExampleSectionLines { section, lines }
+        }
+
+        fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
+            let find_index = |(re, include), adjust: [isize; 2]| {
+                if (re, include) == NARROW_NONE {
+                    return None;
+                }
+
+                let re = Regex::new(re).expect(re);
+                let i = self
+                    .lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, l)| re.is_match(l))
+                    .map(|(i, _)| i);
+                let i = i.clone().exactly_one().unwrap_or_else(|_| {
+                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
+                });
+
+                let adjust = adjust[usize::from(include)];
+                let i = (i as isize + adjust) as usize;
+                Some(i)
+            };
+
+            eprint!("narrow {:?} {:?}: ", start, end);
+            let start = find_index(start, [1, 0]).unwrap_or(0);
+            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
+            eprintln!("{:?} {:?}", start, end);
+            // don't tolerate empty
+            assert!(start < end, "empty, from {:#?}", &self.lines);
+            self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
+        }
+
+        fn expect_lines(&self, n: usize) {
+            assert_eq!(self.lines.len(), n);
+        }
+
+        fn uncomment(&mut self) {
+            for l in &mut self.lines {
+                *l = l.strip_prefix('#').expect(l).to_string();
+            }
+        }
+
+        fn parse(&self) -> config::Config {
+            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            let c: toml::Value = toml::from_str(&s).expect(&s);
+            config::Config::try_from(&c).expect(&s)
+        }
+
+        fn resolve<R: tor_config::load::Resolvable>(&self) -> R {
+            tor_config::load::resolve(self.parse()).unwrap()
+        }
     }
 }
