@@ -171,6 +171,11 @@ mod util;
 pub use err::{GuardMgrError, PickGuardError};
 pub use events::ClockSkewEvents;
 pub use filter::GuardFilter;
+// TODO nightly: Remove this "allow" once
+// https://github.com/rust-lang/rust/issues/102352 is solved.
+//
+// See arti#589.
+#[allow(unreachable_pub)]
 pub use ids::FirstHopId;
 pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
