@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use directories::{BaseDirs, ProjectDirs};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "expand-paths")]
+use std::borrow::Cow;
 
 use tor_error::{ErrorKind, HasKind};
 
@@ -21,6 +23,8 @@ use tor_error::{ErrorKind, HasKind};
 ///     data" space.
 ///   * `ARTI_LOCAL_DATA`: an arti-specific directory in the user's "local
 ///     data" space.
+///   * `PROGRAM_DIR`: the directory of the currently executing binary.
+///     See documentation for [`std::env::current_exe`] for security notes.
 ///   * `USER_HOME`: the user's home directory.
 ///
 /// These variables are implemented using the `directories` crate, and
@@ -68,6 +72,9 @@ pub enum CfgPathError {
     /// We couldn't construct a BaseDirs object.
     #[error("Can't construct base directories to resolve a path element")]
     NoBaseDirs,
+    /// We couldn't find our current binary path.
+    #[error("Can't find the path to the current binary")]
+    NoProgramPath,
     /// We couldn't convert a variable to UTF-8.
     ///
     /// (This is due to a limitation in the shellexpand crate, which should
@@ -86,6 +93,7 @@ impl HasKind for CfgPathError {
         match self {
             E::UnknownVar(_) | E::InvalidString(_) => EK::InvalidConfig,
             E::NoProjectDirs | E::NoBaseDirs => EK::NoHomeDirectory,
+            E::NoProgramPath => EK::InvalidConfig,
             E::BadUtf8(_) => {
                 // Arguably, this should be a new "unsupported config"  type,
                 // since it isn't truly "invalid" to have a string with bad UTF8
@@ -167,14 +175,30 @@ fn get_home() -> Option<&'static Path> {
     base_dirs().ok().map(BaseDirs::home_dir)
 }
 
+/// Shellexpand helper: return the directory holding the the currently executing program.
+#[cfg(feature = "expand-paths")]
+fn get_program_dir() -> Result<Option<String>, CfgPathError> {
+    let binary = std::env::current_exe().map_err(|_| CfgPathError::NoProgramPath)?;
+    binary
+        .parent()
+        .map(|parent| {
+            parent
+                .to_str()
+                .map(str::to_owned)
+                .ok_or_else(|| CfgPathError::BadUtf8("PROGRAM_DIR".to_owned()))
+        })
+        .transpose()
+}
+
 /// Shellexpand helper: Expand a shell variable if we can.
 #[cfg(feature = "expand-paths")]
-fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
+fn get_env(var: &str) -> Result<Option<Cow<'static, str>>, CfgPathError> {
     let path = match var {
         "ARTI_CACHE" => project_dirs()?.cache_dir(),
         "ARTI_CONFIG" => project_dirs()?.config_dir(),
         "ARTI_SHARED_DATA" => project_dirs()?.data_dir(),
         "ARTI_LOCAL_DATA" => project_dirs()?.data_local_dir(),
+        "PROGRAM_DIR" => return Ok(get_program_dir()?.map(Cow::from)),
         "USER_HOME" => base_dirs()?.home_dir(),
         _ => return Err(CfgPathError::UnknownVar(var.to_owned())),
     };
@@ -182,7 +206,7 @@ fn get_env(var: &str) -> Result<Option<&'static str>, CfgPathError> {
     match path.to_str() {
         // Note that we never return Ok(None) -- an absent variable is
         // always an error.
-        Some(s) => Ok(Some(s)),
+        Some(s) => Ok(Some(s.into())),
         // Note that this error is necessary because shellexpand
         // doesn't currently handle OsStr.  In the future, that might
         // change.
@@ -436,5 +460,21 @@ mod test_serde {
             |input| rmp_serde::to_vec(&input),
             |mpack| rmp_serde::from_slice(mpack),
         );
+    }
+
+    #[test]
+    #[cfg(feature = "expand-paths")]
+    fn program_dir() {
+        let p = CfgPath::new("${PROGRAM_DIR}/foo".to_string());
+
+        let mut this_binary = std::env::current_exe().unwrap();
+        this_binary.pop();
+        this_binary.push("foo");
+        let expanded = match p.path() {
+            Err(CfgPathError::BadUtf8(_)) => return, // Can't test this. :(
+            other => other,
+        }
+        .unwrap();
+        assert_eq!(expanded, this_binary);
     }
 }
