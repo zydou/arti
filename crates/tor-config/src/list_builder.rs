@@ -130,6 +130,14 @@
 //! assert_eq!{ builder.build().unwrap().values, &[27, 12] }
 //! ```
 
+use std::fmt::Display;
+use std::str::FromStr;
+
+use educe::Educe;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
 pub use crate::define_list_builder_accessors;
 pub use crate::define_list_builder_helper;
 
@@ -416,6 +424,205 @@ define_list_builder_helper! {
     default = vec![];
     item_build: |item| Ok(item.clone());
 }
+
+/// Configuration item specifiable as a list of strings, or a single multi-line string
+///
+/// If a list of strings is supplied, they are each parsed with `FromStr`.
+/// If a single string is supplied, it is split into lines, and `#`-comments
+/// and blank lines and whitespace are stripped, and then each line is parsed.
+///
+/// For use with `sub_builder` and [`define_list_builder_helper`],
+/// with `#[serde(try_from)]` and `#[serde(into)]`.
+///
+/// # Example
+///
+/// ```
+/// use derive_builder::Builder;
+/// use serde::{Deserialize, Serialize};
+/// use tor_config::{ConfigBuildError, MultilineListBuilder};
+/// use tor_config::convert_helper_via_multi_line_list_builder;
+/// use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+/// use tor_config::impl_standard_builder;
+///
+/// # fn generate_random<T: Default>() -> T { Default::default() }
+///
+/// #[derive(Debug, Clone, Builder, Eq, PartialEq)]
+/// #[builder(build_fn(error = "ConfigBuildError"))]
+/// #[builder(derive(Debug, Serialize, Deserialize))]
+/// #[non_exhaustive]
+/// pub struct LotteryConfig {
+///     /// What numbers should win the lottery?  Setting this is lottery fraud.
+///     #[builder(sub_builder, setter(custom))]
+///     #[builder_field_attr(serde(default))]
+///     winners: LotteryNumberList,
+/// }
+/// impl_standard_builder! { LotteryConfig }
+///
+/// /// List of lottery winners
+/// //
+/// // This type alias arranges that we can put `LotteryNumberList` in `LotteryConfig`
+/// // and have derive_builder put a `LotteryNumberListBuilder` in `LotteryConfigBuilder`.
+/// pub type LotteryNumberList = Vec<u16>;
+///
+/// define_list_builder_helper! {
+///     struct LotteryNumberListBuilder {
+///         numbers: [u16],
+///     }
+///     built: LotteryNumberList = numbers;
+///     default = generate_random();
+///     item_build: |number| Ok(*number);
+///     #[serde(try_from="MultilineListBuilder")]
+///     #[serde(into="MultilineListBuilder")]
+/// }
+///
+/// convert_helper_via_multi_line_list_builder! {
+///     struct LotteryNumberListBuilder {
+///         numbers: [u16],
+///     }
+/// }
+///
+/// define_list_builder_accessors! {
+///     struct LotteryConfigBuilder {
+///         pub winners: [u16],
+///     }
+/// }
+///
+/// let lc: LotteryConfigBuilder = toml::from_str(r#"winners = ["1","2","3"]"#).unwrap();
+/// let lc = lc.build().unwrap();
+/// assert_eq!{ lc.winners, [1,2,3] }
+///
+/// let lc = r#"
+/// winners = '''
+///   ## Enny tells us this is the ticket they bought:
+///
+///   4
+///   5
+///   6
+/// '''
+/// "#;
+/// let lc: LotteryConfigBuilder = toml::from_str(lc).unwrap();
+/// let lc = lc.build().unwrap();
+/// assert_eq!{ lc.winners, [4,5,6] }
+/// ```
+#[derive(Clone, Debug, Educe, Serialize, Deserialize)]
+#[serde(untagged)]
+#[educe(Default)]
+#[non_exhaustive]
+pub enum MultilineListBuilder {
+    /// Config key not present
+    #[educe(Default)]
+    Unspecified,
+
+    /// Config key was a string which is to be parsed line-by-line
+    String(String),
+
+    /// Config key was a list of the strings to be parsed
+    List(Vec<String>),
+}
+
+/// Error from trying to parse a MultilineListBuilder as a list of particular items
+///
+/// Usually, this error is generated during deserialization.
+#[derive(Error, Debug, Clone)]
+#[error("multi-line string, line/item {item_number}: could not parse {line:?}: {error}")]
+#[non_exhaustive]
+pub struct MultilineListBuilderError<E: std::error::Error + Clone + Send + Sync> {
+    /// The line number (in the multi-line text string) that could not be parsed
+    ///
+    /// Starting at 1.
+    item_number: usize,
+
+    /// The line that could not be parsed
+    line: String,
+
+    /// The parse error from `FromStr`
+    ///
+    /// This is not a `source` because we want to include it in the `Display`
+    /// implementation so that serde errors are useful.
+    error: E,
+}
+
+impl<I> From<Option<Vec<I>>> for MultilineListBuilder
+where
+    I: Display,
+{
+    fn from(list: Option<Vec<I>>) -> Self {
+        use MultilineListBuilder as MlLB;
+        match list {
+            None => MlLB::Unspecified,
+            Some(list) => MlLB::List(list.into_iter().map(|i| i.to_string()).collect()),
+        }
+    }
+}
+
+impl<I> TryInto<Option<Vec<I>>> for MultilineListBuilder
+where
+    I: FromStr,
+    I::Err: std::error::Error + Clone + Send + Sync,
+{
+    type Error = MultilineListBuilderError<I::Err>;
+    fn try_into(self) -> Result<Option<Vec<I>>, Self::Error> {
+        use MultilineListBuilder as MlLB;
+
+        /// Helper for parsing each line of `iter` and collecting the results
+        fn parse_collect<'s, I>(
+            iter: impl Iterator<Item = (usize, &'s str)>,
+        ) -> Result<Option<Vec<I>>, MultilineListBuilderError<I::Err>>
+        where
+            I: FromStr,
+            I::Err: std::error::Error + Clone + Send + Sync,
+        {
+            Ok(Some(
+                iter.map(|(i, l)| {
+                    l.parse().map_err(|error| MultilineListBuilderError {
+                        item_number: i,
+                        line: l.to_owned(),
+                        error,
+                    })
+                })
+                .try_collect()?,
+            ))
+        }
+
+        Ok(match self {
+            MlLB::Unspecified => None,
+            MlLB::List(list) => parse_collect(list.iter().map(|s| s.as_ref()).enumerate())?,
+            MlLB::String(s) => parse_collect(
+                s.lines()
+                    .enumerate()
+                    .map(|(i, l)| (i, l.trim()))
+                    .filter(|(_, l)| !(l.starts_with('#') || l.is_empty())),
+            )?,
+        })
+    }
+}
+
+/// Implement `TryFrom<MultilineListBuilder>` and `Into<MultilineListBuilder>` for $Builder.
+///
+/// The input syntax is the `struct` part of that for `define_list_builder_helper`.
+/// `$EntryBuilder` must implement `FromStr`.
+//
+// This is a macro because a helper trait to enable blanket impl would have to provide
+// access to `$things`, defeating much of the point.
+#[macro_export]
+macro_rules! convert_helper_via_multi_line_list_builder { {
+    struct $ListBuilder:ident { $things:ident: [$EntryBuilder:ty] $(,)? }
+} => {
+    impl std::convert::TryFrom<$crate::MultilineListBuilder> for $ListBuilder {
+        type Error = $crate::MultilineListBuilderError<<$EntryBuilder as std::str::FromStr>::Err>;
+
+        fn try_from(mllb: $crate::MultilineListBuilder)
+                    -> std::result::Result<$ListBuilder, Self::Error> {
+            Ok($ListBuilder { $things: mllb.try_into()? })
+        }
+    }
+
+    impl From<$ListBuilder> for MultilineListBuilder {
+        fn from(lb: $ListBuilder) -> MultilineListBuilder {
+            lb.$things.into()
+        }
+    }
+} }
 
 #[cfg(test)]
 mod test {
