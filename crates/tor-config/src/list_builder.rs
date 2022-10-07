@@ -386,7 +386,7 @@ define_list_builder_helper! {
     /// ```
     /// use derive_builder::Builder;
     /// use serde::{Deserialize, Serialize};
-    /// use tor_config::{ConfigBuildError};
+    /// use tor_config::ConfigBuildError;
     /// use tor_config::{define_list_builder_accessors, list_builder::VecBuilder};
     /// use std::net::SocketAddr;
     ///
