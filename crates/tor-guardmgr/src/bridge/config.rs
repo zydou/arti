@@ -223,7 +223,9 @@ impl FromStr for Bridge {
                 ChannelMethod::Direct(addr)
             } else {
                 #[cfg(not(feature = "pt-client"))]
-                return Err(BPE::PluggableTransportsNotSupported);
+                return Err(BPE::PluggableTransportsNotSupported {
+                    word: word.to_string(),
+                });
 
                 #[cfg(feature = "pt-client")]
                 {
