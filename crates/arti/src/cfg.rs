@@ -295,24 +295,30 @@ mod test {
         };
 
         #[allow(unused_mut)]
-        let mut known_unrecognized_options = vec![];
+        let mut known_unrecognized_options_all = vec![];
+
+        #[allow(unused_mut)]
+        let mut known_unrecognized_options_new = vec![];
 
         #[cfg(target_family = "windows")]
-        known_unrecognized_options.extend([
+        known_unrecognized_options_all.extend([
             "storage.permissions.trust_group",
             "storage.permissions.trust_user",
         ]);
+
+        // The unrecognized options in new are those that are only new, plus those in all
+        known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
 
         let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
         let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
 
         let parsed = parses_to_defaults(
             &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
-            &known_unrecognized_options,
+            &known_unrecognized_options_new,
         );
         let parsed_old = parses_to_defaults(
             &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
-            &known_unrecognized_options,
+            &known_unrecognized_options_all,
         );
 
         let built_default = (
