@@ -306,9 +306,6 @@ mod test {
             "storage.permissions.trust_user",
         ]);
 
-        // TODO pt-client
-        known_unrecognized_options_new.extend(["bridges"]);
-
         // The unrecognized options in new are those that are only new, plus those in all
         known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
 
@@ -699,6 +696,7 @@ mod test {
             // add *new*, not present in old file, settings here
             &[
                 "application.allow_running_as_root",
+                "bridges",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
             ],

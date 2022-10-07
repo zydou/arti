@@ -11,8 +11,16 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 pub use tor_chanmgr::{ChannelConfig, ChannelConfigBuilder};
+pub use tor_config::convert_helper_via_multi_line_list_builder;
 pub use tor_config::impl_standard_builder;
+pub use tor_config::list_builder::{MultilineListBuilder, MultilineListBuilderError};
+pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
+pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
+
+#[cfg(feature = "bridge-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
+pub use tor_guardmgr::bridge::{Bridge, BridgeParseError};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -190,6 +198,76 @@ impl StorageConfig {
     }
 }
 
+/// Configuration for bridges and pluggable transports
+//
+// TODO pt-client: This type is too high up the stack:
+// It is likely that this type will want to move much lower down in the crate
+// stack so that (eg) guardmgr can actually do something useful with the `BridgeList`
+// and resolve the situation with `enabled` and so on.
+//
+// Possibly guardmgr will want to take an `Arc<dyn AsRef<BridgesConfig>>` or something;
+// that would enable passing it an "extract" from the config without actually copying it.
+//
+// We leave this as an empty struct even when bridge support is disabled,
+// as otherwise the default config file would generate an unknown section warning.
+#[derive(Debug, Clone, Builder, Eq, PartialEq)]
+#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(derive(Debug, Serialize, Deserialize))]
+#[non_exhaustive]
+#[builder_struct_attr(non_exhaustive)] // This struct can be empty.
+pub struct BridgesConfig {
+    /// Should we use configured bridges?
+    ///
+    /// The default (`Auto`) is to use bridges if they are configured.
+    /// `false` means to not use even configured bridges.
+    /// `true` means to insist on the use of bridges;
+    /// if none are configured, that's then an error.
+    #[cfg(feature = "bridge-client")]
+    #[builder(default)]
+    pub(crate) enabled: BoolOrAuto,
+
+    /// Configured list of bridges (possibly via pluggable transports)
+    #[cfg(feature = "bridge-client")]
+    #[builder(sub_builder, setter(custom))]
+    #[builder_field_attr(serde(default))]
+    bridges: BridgeList,
+}
+#[cfg(feature = "bridge-client")]
+impl_standard_builder! { BridgesConfig }
+
+/// List of configured bridges, as found in the built configuration
+//
+// This type alias arranges that we can put `BridgeList` in `BridgesConfig`
+// and have derive_builder put a `BridgeListBuilder` in `BridgesConfigBuilder`.
+#[cfg(feature = "bridge-client")]
+pub type BridgeList = Vec<Bridge>;
+
+#[cfg(feature = "bridge-client")]
+define_list_builder_helper! {
+    struct BridgeListBuilder {
+        bridges: [Bridge],
+    }
+    built: BridgeList = bridges;
+    default = vec![];
+    item_build: |bridge| Ok(bridge.clone());
+    #[serde(try_from="MultilineListBuilder")]
+    #[serde(into="MultilineListBuilder")]
+}
+
+#[cfg(feature = "bridge-client")]
+convert_helper_via_multi_line_list_builder! {
+    struct BridgeListBuilder {
+        bridges: [Bridge],
+    }
+}
+
+#[cfg(feature = "bridge-client")]
+define_list_builder_accessors! {
+    struct BridgesConfigBuilder {
+        pub bridges: [Bridge],
+    }
+}
+
 /// A configuration used to bootstrap a [`TorClient`](crate::TorClient).
 ///
 /// In order to connect to the Tor network, Arti needs to know a few
@@ -257,6 +335,11 @@ pub struct TorClientConfig {
     )]
     #[builder_field_attr(serde(default))]
     pub(crate) override_net_params: tor_netdoc::doc::netstatus::NetParams<i32>,
+
+    /// Information about bridges, pluggable transports, and so on
+    #[builder(sub_builder)]
+    #[builder_field_attr(serde(default))]
+    pub(crate) bridges: BridgesConfig,
 
     /// Information about how to build paths through the network.
     #[builder(sub_builder)]
