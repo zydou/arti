@@ -294,9 +294,6 @@ mod test {
             results.value
         };
 
-        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
-        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
-
         #[allow(unused_mut)]
         let mut known_unrecognized_options = vec![];
 
@@ -305,6 +302,9 @@ mod test {
             "storage.permissions.trust_group",
             "storage.permissions.trust_user",
         ]);
+
+        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
+        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
 
         let parsed = parses_to_defaults(
             &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
