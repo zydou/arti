@@ -114,6 +114,27 @@
 #     ignore_prefix = "/home/"
 #ignore_prefix = ""
 
+# Bridges (for anticensorship support)
+[bridges]
+
+# Should we use configured bridges?
+#     If set to false, we will ignore the configured bridges.
+#     If set to "auto", we will use any bridges that are configured.
+#     If set to true, bridges must be configured and will be used.
+#enabled = "auto"
+
+# What bridges (including pluggable transports) to use:
+#  bridges = [ 
+#      "<IP>:<ORPort> <fingerprint> [<fingerprint> ...]",
+#      "<transport> <host>:<ORPort>|- <fingerprint> [...] [<key>=<val> ...]",
+# ]
+# You may specify all the bridge lines in one multi-line string:
+#  bridges = '''
+#  <IP>:<ORPort> <fingerprint> [<fingerprint>...],
+#  <transport> <host>:<ORPort>|- <fingerprint> [...] [<key>=<val> ...],
+#  '''
+#bridges = []
+
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.
