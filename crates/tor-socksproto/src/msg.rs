@@ -3,8 +3,11 @@
 use crate::{Error, Result};
 
 use caret::caret_int;
+use std::fmt;
 use std::net::IpAddr;
-use std::{fmt, net::Ipv6Addr};
+
+#[cfg(feature = "arbitrary")]
+use std::net::Ipv6Addr;
 
 use tor_error::bad_api_usage;
 
@@ -206,6 +209,7 @@ impl SocksStatus {
         }
     }
     /// Create a status from a SOCKS4 or SOCKS4a reply code.
+    #[cfg(feature = "client-handshake")]
     pub(crate) fn from_socks4_status(status: u8) -> Self {
         match status {
             0x5A => SocksStatus::SUCCEEDED,
@@ -356,6 +360,7 @@ pub struct SocksReply {
 
 impl SocksReply {
     /// Create a new SocksReply.
+    #[cfg(feature = "client-handshake")]
     pub(crate) fn new(status: SocksStatus, addr: SocksAddr, port: u16) -> Self {
         Self { status, addr, port }
     }
