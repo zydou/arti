@@ -309,8 +309,23 @@ mod test {
         // The unrecognized options in new are those that are only new, plus those in all
         known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
 
-        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
-        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
+        let unrecognized_sections = |options| {
+            let options: &[&str] = options;
+            options
+                .iter()
+                .cloned()
+                .filter(|o| !o.contains("."))
+                .collect_vec()
+        };
+
+        let _ = parses_to_defaults(
+            ARTI_EXAMPLE_CONFIG,
+            &unrecognized_sections(&known_unrecognized_options_new),
+        );
+        let _ = parses_to_defaults(
+            OLDEST_SUPPORTED_CONFIG,
+            &unrecognized_sections(&known_unrecognized_options_all),
+        );
 
         let parsed = parses_to_defaults(
             &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
