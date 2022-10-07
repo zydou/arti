@@ -330,21 +330,27 @@ mod test {
             &unrecognized_sections(&known_unrecognized_options_all),
         );
 
-        let parsed = parses_to_defaults(
-            &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
-            &known_unrecognized_options_new,
-        );
-        let parsed_old = parses_to_defaults(
-            &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
-            &known_unrecognized_options_all,
-        );
-
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
             TorClientConfigBuilder::default().build().unwrap(),
         );
-        assert_eq!(&parsed, &built_default);
-        assert_eq!(&parsed_old, &built_default);
+
+        // This cfg will need to be expanded whenever we add features which have
+        // example config that can't be parsed if the feature isn't eanbled.
+        if cfg!(feature = "pt-client") {
+            let parsed = parses_to_defaults(
+                &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
+                &known_unrecognized_options_new,
+            );
+            let parsed_old = parses_to_defaults(
+                &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
+                &known_unrecognized_options_all,
+            );
+
+            assert_eq!(&parsed, &built_default);
+            assert_eq!(&parsed_old, &built_default);
+        }
+
         assert_eq!(&default, &built_default);
     }
 
