@@ -643,9 +643,11 @@ mod test {
             .map(|(path, m)| format!("    config key {:?}: {}", path, m))
             .collect_vec();
 
+        // If this assert fails, it might be because in `fn exhaustive`, below,
+        // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
         assert! { problems.is_empty(),
-        "example config exhaustiveness check failed for {:?}:\n{}\n",
-        example_file, problems.join("\n")}
+        "example config exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
+                  problems.join("\n"), example_file}
     }
 
     #[test]
