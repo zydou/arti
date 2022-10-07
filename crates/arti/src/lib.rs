@@ -159,6 +159,8 @@
 //!  versioning[^1] guarantees: we might break them or remove them between patch
 //!  versions.
 //!
+//! * `bridge-client` -- Build with (as yet unimplemented) support for bridges
+//! * `pt-client` -- Build with (as yet unimplemented) support for pluggable transports
 //! * `experimental-api` -- build with experimental, unstable API support.
 //!    (Right now, most APIs in the `arti` crate are experimental, since this
 //!    crate was originally written to run as a binary only.)

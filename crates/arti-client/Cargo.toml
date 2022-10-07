@@ -22,8 +22,10 @@ default = ["tokio", "native-tls"]
 full = ["tokio", "async-std", "native-tls", "tor-rtcompat/full", "tor-proto/full", "tor-netdoc/full", "tor-dirmgr/full"]
 
 async-std = ["tor-rtcompat/async-std"]
+bridge-client = ["tor-guardmgr/bridge-client"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
+pt-client = ["bridge-client", "tor-guardmgr/pt-client"]
 rustls = ["tor-rtcompat/rustls"]
 
 static = ["static-sqlite", "static-native-tls"]
@@ -38,9 +40,11 @@ accel-openssl = ["tor-llcrypto/with-openssl"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = [
+    "bridge-client",
     "dirfilter",
     "experimental-api",
     "error_detail",
+    "pt-client",
     "tor-proto/experimental",
     "tor-cell/experimental",
     "tor-checkable/experimental",

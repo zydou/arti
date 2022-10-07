@@ -24,11 +24,13 @@ async-std = [
     "signal-hook",
     "signal-hook-async-std",
 ]
+bridge-client = ["arti-client/bridge-client"]
 dns-proxy = ["trust-dns-proto"]
-experimental-api = ["visibility"]
+experimental-api = ["bridge-client", "pt-client", "visibility"]
 harden = ["secmem-proc"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]
+pt-client = ["bridge-client", "arti-client/pt-client"]
 rustls = ["arti-client/rustls", "tor-rtcompat/rustls"]
 static = ["static-sqlite", "static-native-tls"]
 static-sqlite = ["arti-client/static-sqlite"]
