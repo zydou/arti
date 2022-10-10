@@ -9,7 +9,7 @@ This crate is the primary command-line interface for
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to implement
 [Tor](https://www.torproject.org/) in Rust.
 
-Currently Arti can can run as a simple SOCKS proxy over the Tor network.
+Currently Arti can run as a simple SOCKS proxy over the Tor network.
 It will listen on port 9150 by default,
 but you can override this in the configuration.
 You can direct programs to connect via that SOCKS port,
