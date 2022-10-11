@@ -73,7 +73,7 @@ impl From<BoolOrAuto> for BoolOrAutoSerde {
 /// Boolean or `"auto"` configuration is invalid
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
-#[error(r#"Invalid value, respected boolean or "auto""#)]
+#[error(r#"Invalid value, expected boolean or "auto""#)]
 pub struct InvalidBoolOrAuto {}
 
 impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
