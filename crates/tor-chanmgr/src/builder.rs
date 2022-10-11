@@ -49,7 +49,7 @@ impl<R: Runtime> ChanBuilder<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> crate::mgr::ChannelFactory for ChanBuilder<R> {
+impl<R: Runtime> crate::mgr::AbstractChannelFactory for ChanBuilder<R> {
     type Channel = tor_proto::channel::Channel;
     type BuildSpec = OwnedChanTarget;
 
@@ -274,7 +274,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::{
-        mgr::{AbstractChannel, ChannelFactory},
+        mgr::{AbstractChannel, AbstractChannelFactory},
         Result,
     };
     use pk::ed25519::Ed25519Identity;
