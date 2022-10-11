@@ -32,7 +32,7 @@ use tor_error::{ErrorKind, HasKind};
 /// hood. (Some of those overrides are based on environment variables.)
 /// For more information, see that crate's documentation.
 ///
-/// Alternatively, a `CfgPath` can contain literal `PathBuf`, which will not be expaneded.
+/// Alternatively, a `CfgPath` can contain literal `PathBuf`, which will not be expanded.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct CfgPath(PathInner);
@@ -128,7 +128,7 @@ impl CfgPath {
         }
     }
 
-    /// If the `CfgPath` is a string that should be expaneded, return the (unexpanded) string,
+    /// If the `CfgPath` is a string that should be expanded, return the (unexpanded) string,
     ///
     /// Before use, this string would have be to expanded.  So if you want a path to actually use,
     /// call `path` instead.
