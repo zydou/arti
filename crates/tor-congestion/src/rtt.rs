@@ -380,7 +380,12 @@ mod test {
         }
     }
 
+    // TODO RTT: this test is disabled for now because it does not work on
+    // platforms where the granularity of Duration is greater than 1 nanosecond.
+    //
+    // See #574 for more information.
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore)]
     fn rtt_test_vectors() {
         let (mut estimator, _) = make_estimator();
         let now = Instant::now();
