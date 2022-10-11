@@ -3,7 +3,7 @@
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use tor_linkspec::{ChanTarget, OwnedChanTarget, TransportId};
+use tor_linkspec::{OwnedChanTarget, TransportId};
 use tor_proto::channel::Channel;
 use tor_rtcompat::Runtime;
 
@@ -19,7 +19,7 @@ pub trait ChannelFactory {
     //
     // TODO pt-client: How does this handle multiple addresses? Do we
     // parallelize here, or at a higher level?
-    fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel>;
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel>;
 }
 
 /// A more convenient API for defining transports.  This type's role is to let
@@ -33,6 +33,7 @@ pub trait ChannelFactory {
 // TODO pt-client: I originally had this parameterized on a Runtime.  But I
 // think instead we should have individual TransportHelper implementations be
 // parameterized on a Runtime.
+#[async_trait]
 pub trait TransportHelper {
     /// The type of the resulting stream.
     type Stream: AsyncRead + AsyncWrite + Send + Sync + 'static;
@@ -45,17 +46,21 @@ pub trait TransportHelper {
     //
     // TODO pt-client: We could make the address an associated type: would that
     // help anything?
-    fn connect(&self, target: &impl ChanTarget) -> crate::Result<(OwnedChanTarget, Self::Stream)>;
+    async fn connect(
+        &self,
+        target: &OwnedChanTarget,
+    ) -> crate::Result<(OwnedChanTarget, Self::Stream)>;
 }
 
 // We define an implementation so that every TransportHelper
 // can be wrapped as a ChannelFactory...
+#[async_trait]
 impl<H> ChannelFactory for H
 where
-    H: TransportHelper,
+    H: TransportHelper + Sync,
 {
-    fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
-        let _stream = self.connect(target)?;
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
+        let _stream = self.connect(target).await?;
 
         // Now do the logic from
         // `tor_chanmgr::builder::ChanBuilder::build_channel_no_timeout`:
@@ -80,9 +85,13 @@ pub struct DefaultChannelFactory<R: Runtime> {
     #[allow(dead_code)] // TODO pt-client: this will be removed.
     runtime: R,
 }
+#[async_trait]
 impl<R: Runtime> TransportHelper for DefaultChannelFactory<R> {
     type Stream = R::TcpStream;
-    fn connect(&self, _target: &impl ChanTarget) -> crate::Result<(OwnedChanTarget, Self::Stream)> {
+    async fn connect(
+        &self,
+        _target: &OwnedChanTarget,
+    ) -> crate::Result<(OwnedChanTarget, Self::Stream)> {
         // Call connect_one() as in `build_channel_no_timeout`.
 
         // TODO pt-client: This is another place where we need to figure out
@@ -95,13 +104,12 @@ impl<R: Runtime> TransportHelper for DefaultChannelFactory<R> {
 }
 
 /// An object that knows about one or more ChannelFactories.
-#[async_trait]
 pub trait TransportRegistry {
     /// Return a ChannelFactory that can make connections via a chosen
     /// transport, if we know one.
     //
     // TODO pt-client: This might need to return an Arc instead of a reference
-    async fn get_factory(&self, transport: &TransportId) -> Option<&dyn ChannelFactory>;
+    fn get_factory(&self, transport: &TransportId) -> Option<&(dyn ChannelFactory + Sync)>;
 }
 
 // TODO pt-client: implement a DefaultTransportRegistry that returns a
