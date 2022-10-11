@@ -719,7 +719,7 @@ mod test {
 
             let parsed: TorClientConfig = examples.resolve();
 
-            // Now we fish oiut the lines ourselves as a double-check
+            // Now we fish out the lines ourselves as a double-check
             // We must strip off the bridges = ''' and ''' lines.
             examples.lines.remove(0);
             examples.lines.remove(examples.lines.len() - 1);
