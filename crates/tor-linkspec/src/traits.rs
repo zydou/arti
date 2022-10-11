@@ -188,6 +188,7 @@ pub trait CircTarget: ChanTarget {
     fn linkspecs(&self) -> Vec<crate::LinkSpec> {
         let mut result: Vec<_> = self.identities().map(|id| id.to_owned().into()).collect();
         for method in self.chan_methods().iter() {
+            #[allow(irrefutable_let_patterns)] // TODO pt-client
             if let ChannelMethod::Direct(addr) = method {
                 result.push(addr.into());
             }

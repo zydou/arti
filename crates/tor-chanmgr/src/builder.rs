@@ -153,6 +153,7 @@ impl<R: Runtime> ChanBuilder<R> {
             .iter()
             .filter_map(|method| match method {
                 ChannelMethod::Direct(addr) => Some(*addr),
+                #[allow(unreachable_patterns)] // TODO pt-client
                 _ => None,
             })
             .collect();
