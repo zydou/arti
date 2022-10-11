@@ -3,7 +3,7 @@
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use tor_linkspec::{OwnedChanTarget, TransportId};
+use tor_linkspec::{HasChanMethod, OwnedChanTarget, TransportId};
 use tor_proto::channel::Channel;
 use tor_rtcompat::Runtime;
 
@@ -114,3 +114,25 @@ pub trait TransportRegistry {
 
 // TODO pt-client: implement a DefaultTransportRegistry that returns a
 // DefaultChannelFactory for TransportId::Builtin, and nothing otherwise.
+
+/// Helper type: Wrap a `TransportRegistry` so that it can be used as a
+/// `ChannelFactory`.
+///
+/// (This has to be a new type, or else the blanket implementation of
+/// `ChannelFactory` for `TransportHelper` would conflict.)
+#[derive(Clone, Debug)]
+pub(crate) struct RegistryAsFactory<R: TransportRegistry>(R);
+
+#[async_trait]
+impl<R: TransportRegistry + Sync> ChannelFactory for RegistryAsFactory<R> {
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
+        let method = target.chan_method();
+        let id = method.transport_id();
+        let factory = self
+            .0
+            .get_factory(&id)
+            .ok_or(crate::Error::NoSuchTransport(id))?;
+
+        factory.connect_via_transport(target).await
+    }
+}
