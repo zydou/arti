@@ -111,7 +111,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// get one if it exists.
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
-    mgr: mgr::AbstractChanMgr<builder::ChanBuilder<R>>,
+    mgr: mgr::AbstractChanMgr<builder::ChanBuilder<R, builder::DefaultTransport<R>>>,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
@@ -189,7 +189,8 @@ impl<R: Runtime> ChanMgr<R> {
         netparams: &NetParameters,
     ) -> Self {
         let (sender, receiver) = event::channel();
-        let builder = builder::ChanBuilder::new(runtime, sender);
+        let transport = builder::DefaultTransport::new(runtime.clone());
+        let builder = builder::ChanBuilder::new(runtime, transport, sender);
         let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
             mgr,

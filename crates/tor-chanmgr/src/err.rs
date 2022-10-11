@@ -7,7 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{internal, ErrorKind};
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::{ChanTarget, OwnedChanTarget, PtTargetAddr};
 use tor_proto::ClockSkew;
 
 /// An error returned by a channel manager.
@@ -46,10 +46,10 @@ pub enum Error {
     },
 
     /// Network IO error or TLS error
-    #[error("Network IO error, or TLS error, in {action}, talking to {peer}")]
+    #[error("Network IO error, or TLS error, in {action}, talking to {peer:?}")]
     Io {
         /// Who we were talking to
-        peer: SocketAddr,
+        peer: Option<PtTargetAddr>,
 
         /// What we were doing
         action: &'static str,
