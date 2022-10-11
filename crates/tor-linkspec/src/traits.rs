@@ -184,6 +184,7 @@ pub trait CircTarget: ChanTarget {
     // doing so correctly would require default associated types.
     fn linkspecs(&self) -> Vec<crate::LinkSpec> {
         let mut result: Vec<_> = self.identities().map(|id| id.to_owned().into()).collect();
+        #[allow(irrefutable_let_patterns)]
         if let ChannelMethod::Direct(addrs) = self.chan_method() {
             result.extend(addrs.into_iter().map(crate::LinkSpec::from));
         }
