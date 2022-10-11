@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 use safelog::sensitive as sv;
 use std::time::Duration;
 use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{ChannelMethod, HasChanMethods, HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{ChannelMethod, HasChanMethod, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TcpProvider, TlsProvider};
@@ -148,15 +148,11 @@ impl<R: Runtime> ChanBuilder<R> {
         }
 
         // TODO pt-client: right now this only handles the Direct method.
-        let direct_addrs: Vec<_> = target
-            .chan_methods()
-            .iter()
-            .filter_map(|method| match method {
-                ChannelMethod::Direct(addr) => Some(*addr),
-                #[allow(unreachable_patterns)] // TODO pt-client
-                _ => None,
-            })
-            .collect();
+        let direct_addrs: Vec<_> = match target.chan_method() {
+            ChannelMethod::Direct(addrs) => addrs,
+            #[allow(unreachable_patterns)] // TODO pt-client
+            _ => vec![], // TODO pt-client
+        };
         let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
         let using_target = match target.restrict_addr(&addr) {
             Ok(v) => v,
@@ -199,7 +195,7 @@ impl<R: Runtime> ChanBuilder<R> {
 
         // 2. Set up the channel.
         let mut builder = ChannelBuilder::new();
-        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(addr));
+        builder.set_declared_method(tor_linkspec::ChannelMethod::Direct(vec![addr]));
         let chan = builder
             .launch(
                 tls,
@@ -304,7 +300,7 @@ mod test {
         let tls_cert = msgs::X509_CERT.into();
         let target = OwnedChanTarget::builder()
             .addrs(vec![orport])
-            .methods(vec![ChannelMethod::Direct(orport)])
+            .method(ChannelMethod::Direct(vec![orport]))
             .ed_identity(ed)
             .rsa_identity(rsa)
             .build()

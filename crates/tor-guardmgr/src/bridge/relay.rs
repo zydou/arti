@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use tor_linkspec::{
-    ChanTarget, CircTarget, HasAddrs, HasChanMethods, HasRelayIds, RelayIdRef, RelayIdType,
+    ChanTarget, CircTarget, HasAddrs, HasChanMethod, HasRelayIds, RelayIdRef, RelayIdType,
 };
 
 use super::{Bridge, BridgeDesc};
@@ -65,8 +65,8 @@ impl HasAddrs for BridgeRelay {
     }
 }
 
-impl HasChanMethods for BridgeRelay {
-    fn chan_methods(&self) -> Vec<tor_linkspec::ChannelMethod> {
+impl HasChanMethod for BridgeRelay {
+    fn chan_method(&self) -> tor_linkspec::ChannelMethod {
         todo!()
     }
 }
@@ -92,8 +92,8 @@ impl<'a> HasAddrs for BridgeRelayWithDesc<'a> {
         &[]
     }
 }
-impl<'a> HasChanMethods for BridgeRelayWithDesc<'a> {
-    fn chan_methods(&self) -> Vec<tor_linkspec::ChannelMethod> {
+impl<'a> HasChanMethod for BridgeRelayWithDesc<'a> {
+    fn chan_method(&self) -> tor_linkspec::ChannelMethod {
         todo!()
     }
 }
