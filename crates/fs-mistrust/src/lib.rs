@@ -1,6 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 #![doc = include_str!("../README.md")]
-
 // TODO: Stuff to add before this crate is ready....
 //  - Test the absolute heck out of it.
 
