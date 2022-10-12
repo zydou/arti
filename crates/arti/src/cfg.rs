@@ -247,7 +247,7 @@ mod test {
     use regex::Regex;
     use std::iter;
     use std::time::Duration;
-    use tor_config::load::ResolutionResults;
+    use tor_config::load::{ConfigResolveError, ResolutionResults};
 
     use super::*;
 
@@ -717,7 +717,7 @@ mod test {
             examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
             examples.uncomment();
 
-            let parsed: TorClientConfig = examples.resolve();
+            let parsed: TorClientConfig = examples.resolve().unwrap();
 
             // Now we fish out the lines ourselves as a double-check
             // We must strip off the bridges = ''' and ''' lines.
@@ -738,7 +738,7 @@ mod test {
         {
             examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
             examples.uncomment();
-            let parsed: TorClientConfig = examples.resolve();
+            let parsed: TorClientConfig = examples.resolve().unwrap();
             assert_eq!(&parsed, &compare);
         }
     }
@@ -819,8 +819,8 @@ mod test {
             config::Config::try_from(&c).expect(&s)
         }
 
-        fn resolve<R: tor_config::load::Resolvable>(&self) -> R {
-            tor_config::load::resolve(self.parse()).unwrap()
+        fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
+            tor_config::load::resolve(self.parse())
         }
     }
 }
