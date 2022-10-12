@@ -12,7 +12,6 @@
   * cargo upgrade --dry-run --workspace --skip-compatible
   * ./maint/cargo_audit
   * ./maint/check_licenses
-  * ./maint/readmes
 
     (Note that not all of the above will make changes on their own; you'll
     need to understand the output and decide what to do.)
