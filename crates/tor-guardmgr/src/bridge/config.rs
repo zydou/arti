@@ -49,7 +49,7 @@ use tor_linkspec::{PtAddrError, PtTarget, PtTargetAddr, PtTargetInvalidSetting};
 ///    zero or more `key=value` parameters to pass to the transport
 ///    (smuggled in the SOCKS handshake, as described in the Tor PT specification).
 #[derive(Debug, Clone, Eq, PartialEq)]
-// TODO pt-client: Derive builder and associated config types.
+// TODO pt-client: Derive builder and associated config types.  See ticket #604.
 pub struct Bridge {
     // TODO pt-client: I am not sold on this exact representation for Bridge; it
     // needs to be something like this, but not necessarily this exact set of
