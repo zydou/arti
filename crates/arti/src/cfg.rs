@@ -709,6 +709,14 @@ mod test {
     #[cfg(feature = "pt-client")]
     #[test]
     fn bridges() {
+        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| {
+            examples
+        };
+        let resolve_examples = |examples: &ExampleSectionLines| -> TorClientConfig {
+            let examples = filter_examples(examples.clone());
+            examples.resolve().unwrap()
+        };
+
         let mut examples = ExampleSectionLines::new("bridges");
         examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
 
@@ -717,7 +725,7 @@ mod test {
             examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
             examples.uncomment();
 
-            let parsed: TorClientConfig = examples.resolve().unwrap();
+            let parsed = resolve_examples(&examples);
 
             // Now we fish out the lines ourselves as a double-check
             // We must strip off the bridges = ''' and ''' lines.
@@ -725,20 +733,24 @@ mod test {
             examples.lines.remove(examples.lines.len() - 1);
             examples.expect_lines(3);
 
-            let mut built = TorClientConfig::builder();
-            for l in &examples.lines {
-                built.bridges().bridges().push(l.trim().parse().expect(l));
-            }
-            let built = built.build().unwrap();
+            {
+                let examples = filter_examples(examples);
+                let mut built = TorClientConfig::builder();
+                for l in &examples.lines {
+                    built.bridges().bridges().push(l.trim().parse().expect(l));
+                }
+                let built = built.build().unwrap();
 
-            assert_eq!(&parsed, &built);
-            built
+                assert_eq!(&parsed, &built);
+            }
+
+            parsed
         };
 
         {
             examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
             examples.uncomment();
-            let parsed: TorClientConfig = examples.resolve().unwrap();
+            let parsed = resolve_examples(&examples);
             assert_eq!(&parsed, &compare);
         }
     }
