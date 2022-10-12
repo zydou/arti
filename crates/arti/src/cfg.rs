@@ -711,8 +711,21 @@ mod test {
 
     #[test]
     fn bridges() {
+        // We make assumptions about the contents of `arti-example-config.toml` !
+        //
+        // 1. There are nontrivial, non-default examples of `bridges.bridges`.
+        // 2. These are in the `[bridges]` section, after a line `# For example:`
+        // 3. There's precisely one ``` example, with conventional TOML formatting.
+        // 4. There's precisely one [ ] example, with conventional TOML formatting.
+        // 5. Both these examples specify the same set of bridges.
+        // 6. There are three bridges.
+        // 7. Lines starting with a digit or `[` are direct bridges; others are PT.
+        //
+        // Below, we annotate with `[1]` etc. where these assumptions are made.
+
         // Filter examples that we don't want to test in this configuration
         let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| {
+            // [7], filter out the PTs
             if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
                 let looks_like_addr =
                     |l: &str| l.starts_with(|c: char| c.is_ascii_digit() || c == '[');
@@ -723,6 +736,7 @@ mod test {
         };
 
         let resolve_examples = |examples: &ExampleSectionLines| -> TorClientConfig {
+            // [7], check that the PT bridge is properly rejected
             #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
             {
                 use std::error::Error as StdError;
@@ -741,10 +755,12 @@ mod test {
             examples.resolve().unwrap()
         };
 
+        // [1], [2], narrow to just the nontrivial, non-default, examples
         let mut examples = ExampleSectionLines::new("bridges");
         examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
 
         let compare = {
+            // [3], narrow to the multi-line string
             let mut examples = examples.clone();
             examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
             examples.uncomment();
@@ -755,8 +771,10 @@ mod test {
             // We must strip off the bridges = ''' and ''' lines.
             examples.lines.remove(0);
             examples.lines.remove(examples.lines.len() - 1);
+            // [6], check we got the number of examples we expected
             examples.expect_lines(3);
 
+            // If we have the bridge API, try parsing each line and using the API to insert it
             #[cfg(feature = "bridge-client")]
             {
                 let examples = filter_examples(examples);
@@ -772,6 +790,7 @@ mod test {
             parsed
         };
 
+        // [4], [5], narrow to the [ ] section, parse again, and compare
         {
             examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
             examples.uncomment();
