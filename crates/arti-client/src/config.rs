@@ -20,7 +20,7 @@ pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSourc
 
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
-pub use tor_guardmgr::bridge::{Bridge, BridgeParseError};
+pub use tor_guardmgr::bridge::{BridgeConfig, BridgeParseError};
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -240,12 +240,12 @@ impl_standard_builder! { BridgesConfig }
 // This type alias arranges that we can put `BridgeList` in `BridgesConfig`
 // and have derive_builder put a `BridgeListBuilder` in `BridgesConfigBuilder`.
 #[cfg(feature = "bridge-client")]
-pub type BridgeList = Vec<Bridge>;
+pub type BridgeList = Vec<BridgeConfig>;
 
 #[cfg(feature = "bridge-client")]
 define_list_builder_helper! {
     struct BridgeListBuilder {
-        bridges: [Bridge],
+        bridges: [BridgeConfig],
     }
     built: BridgeList = bridges;
     default = vec![];
@@ -257,14 +257,14 @@ define_list_builder_helper! {
 #[cfg(feature = "bridge-client")]
 convert_helper_via_multi_line_list_builder! {
     struct BridgeListBuilder {
-        bridges: [Bridge],
+        bridges: [BridgeConfig],
     }
 }
 
 #[cfg(feature = "bridge-client")]
 define_list_builder_accessors! {
     struct BridgesConfigBuilder {
-        pub bridges: [Bridge],
+        pub bridges: [BridgeConfig],
     }
 }
 

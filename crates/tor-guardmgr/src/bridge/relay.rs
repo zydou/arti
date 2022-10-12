@@ -6,7 +6,7 @@ use tor_linkspec::{
     ChanTarget, CircTarget, HasAddrs, HasChanMethod, HasRelayIds, RelayIdRef, RelayIdType,
 };
 
-use super::{Bridge, BridgeDesc};
+use super::{BridgeConfig, BridgeDesc};
 
 /// The information about a Bridge that is necessary to connect to it and send
 /// it traffic.
@@ -17,7 +17,7 @@ pub struct BridgeRelay {
     ///
     /// This is _always_ necessary, since it without it we can't know whether
     /// any pluggable transports are needed.
-    bridge_line: Arc<Bridge>,
+    bridge_line: Arc<BridgeConfig>,
 
     /// A descriptor for the bridge.
     ///
