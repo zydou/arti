@@ -149,10 +149,6 @@ impl tor_error::HasRetryTime for Error {
 
             // This one can't succeed until the bridge, or our set of
             // transports, is reconfigured.
-            //
-            // TODO pt-client: Double-check this, to make sure that it doesn't
-            // cause us to reject a multi-transport bridge if only one of its
-            // transports fails.
             E::NoSuchTransport(_) => RT::Never,
 
             // These aren't recoverable at all.

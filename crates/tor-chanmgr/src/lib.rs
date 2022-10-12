@@ -313,16 +313,19 @@ impl<R: Runtime> ChanMgr<R> {
     /// This method can be used to e.g. tell Arti to use a proxy for
     /// outgoing connections.
     pub fn set_default_transport(&self, _factory: impl factory::ChannelFactory) {
+        // TODO pt-client: Perhaps we actually want to remove this and have it
+        // be part of the constructor?  The only way to actually implement it is
+        // to make the channel factory in AbstractChanMgr mutable, which seels a
+        // little ugly.  Do we ever want to change this on a _running_ ChanMgr?
         #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
         todo!("TODO pt-client: implement this.")
     }
 
     /// Replace the transport registry with one that may know about
     /// more transports.
-    //
-    //  TODO::pt_client (Alternatively, move this functionality into ChanMgr::new?)
     #[cfg(feature = "pt-client")]
     pub fn set_transport_registry(&self, _registry: impl factory::TransportRegistry) {
+        // TODO pt-client: See set_default_transport above.
         #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
         todo!("TODO pt-client: implement this.")
     }
