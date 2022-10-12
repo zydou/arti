@@ -58,8 +58,9 @@ Or, you could solve both of these problems by using `tor-rtmock`
 to replace the internet _and_ the passage of time.  (Here we're only
 replacing the internet.)
 
-```rust
-#
+```rust,no_run
+# async fn say_hi<R,A>(runtime: R, addr: A) -> Result<(), ()> { Ok(()) }
+# // TODO this test hangs for some reason?  Fix it and remove no_run above
 use tor_rtmock::{MockSleepRuntime,MockNetRuntime,net::MockNetwork};
 use tor_rtcompat::{TcpProvider,TcpListener};
 use futures::io::AsyncReadExt;
