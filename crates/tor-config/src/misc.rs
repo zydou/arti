@@ -14,6 +14,84 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString, IntoStaticStr};
 
+/// Boolean, but with additional `"auto"` option
+//
+// This slightly-odd interleaving of derives and attributes stops rustfmt doing a daft thing
+#[derive(Clone, Copy, Hash, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[allow(clippy::exhaustive_enums)] // we will add variants very rarely if ever
+#[derive(Serialize, Deserialize)]
+#[serde(try_from = "BoolOrAutoSerde", into = "BoolOrAutoSerde")]
+#[derive(Educe)]
+#[educe(Default)]
+pub enum BoolOrAuto {
+    #[educe(Default)]
+    /// Automatic
+    Auto,
+    /// Explicitly specified
+    Explicit(bool),
+}
+
+impl BoolOrAuto {
+    /// Returns the explicitly set boolean value, or `None`
+    ///
+    /// ```
+    /// use tor_config::BoolOrAuto;
+    ///
+    /// fn calculate_default() -> bool { //...
+    /// # false }
+    /// let bool_or_auto: BoolOrAuto = // ...
+    /// # Default::default();
+    /// let _: bool = bool_or_auto.as_bool().unwrap_or_else(|| calculate_default());
+    /// ```
+    pub fn as_bool(self) -> Option<bool> {
+        match self {
+            BoolOrAuto::Auto => None,
+            BoolOrAuto::Explicit(v) => Some(v),
+        }
+    }
+}
+
+/// How we (de) serialize a [`BoolOrAuto`]
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum BoolOrAutoSerde {
+    /// String (in snake case)
+    String(Cow<'static, str>),
+    /// bool
+    Bool(bool),
+}
+
+impl From<BoolOrAuto> for BoolOrAutoSerde {
+    fn from(boa: BoolOrAuto) -> BoolOrAutoSerde {
+        use BoolOrAutoSerde as BoAS;
+        boa.as_bool()
+            .map(BoAS::Bool)
+            .unwrap_or_else(|| BoAS::String("auto".into()))
+    }
+}
+
+/// Boolean or `"auto"` configuration is invalid
+#[derive(thiserror::Error, Debug, Clone)]
+#[non_exhaustive]
+#[error(r#"Invalid value, expected boolean or "auto""#)]
+pub struct InvalidBoolOrAuto {}
+
+impl TryFrom<BoolOrAutoSerde> for BoolOrAuto {
+    type Error = InvalidBoolOrAuto;
+
+    fn try_from(pls: BoolOrAutoSerde) -> Result<BoolOrAuto, Self::Error> {
+        use BoolOrAuto as BoA;
+        use BoolOrAutoSerde as BoAS;
+        Ok(match pls {
+            BoAS::Bool(v) => BoA::Explicit(v),
+            BoAS::String(s) if s == "false" => BoA::Explicit(false),
+            BoAS::String(s) if s == "true" => BoA::Explicit(true),
+            BoAS::String(s) if s == "auto" => BoA::Auto,
+            _ => return Err(InvalidBoolOrAuto {}),
+        })
+    }
+}
+
 /// Padding enablement - rough amount of padding requested
 ///
 /// Padding is cover traffic, used to help mitigate traffic analysis,
@@ -313,6 +391,7 @@ mod test {
     #![allow(clippy::dbg_macro)]
     #![allow(clippy::print_stderr)]
     #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
@@ -320,10 +399,39 @@ mod test {
     #[derive(Debug, Deserialize, Serialize)]
     struct TestConfigFile {
         #[serde(default)]
+        something_enabled: BoolOrAuto,
+
+        #[serde(default)]
         padding: PaddingLevel,
 
         #[serde(default)]
         listen: Option<Listen>,
+    }
+
+    #[test]
+    fn bool_or_auto() {
+        use BoolOrAuto as BoA;
+
+        let chk = |pl, s| {
+            let tc: TestConfigFile = toml::from_str(s).expect(s);
+            assert_eq!(pl, tc.something_enabled, "{:?}", s);
+        };
+
+        chk(BoA::Auto, "");
+        chk(BoA::Auto, r#"something_enabled = "auto""#);
+        chk(BoA::Explicit(true), r#"something_enabled = true"#);
+        chk(BoA::Explicit(true), r#"something_enabled = "true""#);
+        chk(BoA::Explicit(false), r#"something_enabled = false"#);
+        chk(BoA::Explicit(false), r#"something_enabled = "false""#);
+
+        let chk_e = |s| {
+            let tc: Result<TestConfigFile, _> = toml::from_str(s);
+            let _ = tc.expect_err(s);
+        };
+
+        chk_e(r#"something_enabled = 1"#);
+        chk_e(r#"something_enabled = "unknown""#);
+        chk_e(r#"something_enabled = "True""#);
     }
 
     #[test]

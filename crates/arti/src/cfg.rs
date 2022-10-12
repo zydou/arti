@@ -234,8 +234,12 @@ mod test {
     #![allow(clippy::dbg_macro)]
     #![allow(clippy::print_stderr)]
     #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    // Saves adding many individual #[cfg], or a sub-module
+    #![cfg_attr(not(feature = "pt-client"), allow(dead_code))]
 
     use arti_client::config::dir;
     use arti_client::config::TorClientConfigBuilder;
@@ -243,7 +247,7 @@ mod test {
     use regex::Regex;
     use std::iter;
     use std::time::Duration;
-    use tor_config::load::ResolutionResults;
+    use tor_config::load::{ConfigResolveError, ResolutionResults};
 
     use super::*;
 
@@ -293,33 +297,63 @@ mod test {
             results.value
         };
 
-        let _ = parses_to_defaults(ARTI_EXAMPLE_CONFIG, &[]);
-        let _ = parses_to_defaults(OLDEST_SUPPORTED_CONFIG, &[]);
+        #[allow(unused_mut)]
+        let mut known_unrecognized_options_all = vec![];
 
         #[allow(unused_mut)]
-        let mut known_unrecognized_options = vec![];
+        let mut known_unrecognized_options_new = vec![];
 
         #[cfg(target_family = "windows")]
-        known_unrecognized_options.extend([
+        known_unrecognized_options_all.extend([
             "storage.permissions.trust_group",
             "storage.permissions.trust_user",
         ]);
 
-        let parsed = parses_to_defaults(
-            &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
-            &known_unrecognized_options,
+        // Additionalk cfg blocks will need to be added whenever we add features
+        // which have example config, since if the feature isn't enabled,
+        // those keys are ignored (unrecognized).
+
+        #[cfg(not(feature = "pt-client"))]
+        known_unrecognized_options_new.extend(["bridges.bridges", "bridges.enabled"]);
+
+        // The unrecognized options in new are those that are only new, plus those in all
+        known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
+
+        let unrecognized_sections = |options| {
+            let options: &[&str] = options;
+            options
+                .iter()
+                .cloned()
+                .filter(|o| !o.contains("."))
+                .collect_vec()
+        };
+
+        let _ = parses_to_defaults(
+            ARTI_EXAMPLE_CONFIG,
+            &unrecognized_sections(&known_unrecognized_options_new),
         );
-        let parsed_old = parses_to_defaults(
-            &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
-            &known_unrecognized_options,
+        let _ = parses_to_defaults(
+            OLDEST_SUPPORTED_CONFIG,
+            &unrecognized_sections(&known_unrecognized_options_all),
         );
 
         let built_default = (
             ArtiConfigBuilder::default().build().unwrap(),
             TorClientConfigBuilder::default().build().unwrap(),
         );
+
+        let parsed = parses_to_defaults(
+            &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
+            &known_unrecognized_options_new,
+        );
+        let parsed_old = parses_to_defaults(
+            &uncomment_example_settings(OLDEST_SUPPORTED_CONFIG),
+            &known_unrecognized_options_all,
+        );
+
         assert_eq!(&parsed, &built_default);
         assert_eq!(&parsed_old, &built_default);
+
         assert_eq!(&default, &built_default);
     }
 
@@ -642,9 +676,11 @@ mod test {
             .map(|(path, m)| format!("    config key {:?}: {}", path, m))
             .collect_vec();
 
+        // If this assert fails, it might be because in `fn exhaustive`, below,
+        // a newly-defined config item has not been added to the list for OLDEST_SUPPORTED_CONFIG.
         assert! { problems.is_empty(),
-        "example config exhaustiveness check failed for {:?}:\n{}\n",
-        example_file, problems.join("\n")}
+        "example config exhaustiveness check failed: {}\n-----8<-----\n{}\n-----8<-----\n",
+                  problems.join("\n"), example_file}
     }
 
     #[test]
@@ -666,9 +702,181 @@ mod test {
             // add *new*, not present in old file, settings here
             &[
                 "application.allow_running_as_root",
+                "bridges",
                 "proxy.socks_listen",
                 "proxy.dns_listen",
             ],
         );
+    }
+
+    #[test]
+    fn bridges() {
+        // We make assumptions about the contents of `arti-example-config.toml` !
+        //
+        // 1. There are nontrivial, non-default examples of `bridges.bridges`.
+        // 2. These are in the `[bridges]` section, after a line `# For example:`
+        // 3. There's precisely one ``` example, with conventional TOML formatting.
+        // 4. There's precisely one [ ] example, with conventional TOML formatting.
+        // 5. Both these examples specify the same set of bridges.
+        // 6. There are three bridges.
+        // 7. Lines starting with a digit or `[` are direct bridges; others are PT.
+        //
+        // Below, we annotate with `[1]` etc. where these assumptions are made.
+
+        // Filter examples that we don't want to test in this configuration
+        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| {
+            // [7], filter out the PTs
+            if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
+                let looks_like_addr =
+                    |l: &str| l.starts_with(|c: char| c.is_ascii_digit() || c == '[');
+                examples.lines.retain(|l| looks_like_addr(l));
+            }
+
+            examples
+        };
+
+        let resolve_examples = |examples: &ExampleSectionLines| -> TorClientConfig {
+            // [7], check that the PT bridge is properly rejected
+            #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
+            {
+                use std::error::Error as StdError;
+
+                let err = examples.resolve::<TorClientConfig>().unwrap_err();
+                let err: Box<dyn StdError> = Box::new(err);
+                let err = tor_error::Report(&err).to_string();
+                assert!(
+                    err.contains("support disabled in cargo features"),
+                    "wrong message, got {}",
+                    err
+                );
+            }
+
+            let examples = filter_examples(examples.clone());
+            examples.resolve().unwrap()
+        };
+
+        // [1], [2], narrow to just the nontrivial, non-default, examples
+        let mut examples = ExampleSectionLines::new("bridges");
+        examples.narrow((r#"^# For example:"#, true), NARROW_NONE);
+
+        let compare = {
+            // [3], narrow to the multi-line string
+            let mut examples = examples.clone();
+            examples.narrow((r#"^#  bridges = '''"#, true), (r#"^#  '''"#, true));
+            examples.uncomment();
+
+            let parsed = resolve_examples(&examples);
+
+            // Now we fish out the lines ourselves as a double-check
+            // We must strip off the bridges = ''' and ''' lines.
+            examples.lines.remove(0);
+            examples.lines.remove(examples.lines.len() - 1);
+            // [6], check we got the number of examples we expected
+            examples.expect_lines(3);
+
+            // If we have the bridge API, try parsing each line and using the API to insert it
+            #[cfg(feature = "bridge-client")]
+            {
+                let examples = filter_examples(examples);
+                let mut built = TorClientConfig::builder();
+                for l in &examples.lines {
+                    built.bridges().bridges().push(l.trim().parse().expect(l));
+                }
+                let built = built.build().unwrap();
+
+                assert_eq!(&parsed, &built);
+            }
+
+            parsed
+        };
+
+        // [4], [5], narrow to the [ ] section, parse again, and compare
+        {
+            examples.narrow((r#"^#  bridges = \["#, true), (r#"^#  \]"#, true));
+            examples.uncomment();
+            let parsed = resolve_examples(&examples);
+            assert_eq!(&parsed, &compare);
+        }
+    }
+
+    /// Helper for fishing out parts of the config file and uncommenting them
+    ///
+    /// This can be used to find part of the config file by ad-hoc regexp matching,
+    /// uncomment it, and parse it.  This is useful as part of a test to check
+    /// that we can parse more complex config.
+    #[derive(Debug, Clone)]
+    struct ExampleSectionLines {
+        section: String,
+        lines: Vec<String>,
+    }
+
+    type NarrowInstruction<'s> = (&'s str, bool);
+    const NARROW_NONE: NarrowInstruction<'static> = ("?<none>", false);
+
+    impl ExampleSectionLines {
+        fn new(section: &str) -> Self {
+            let section = format!("[{}]", section);
+
+            let mut first = Some(());
+            let lines = ARTI_EXAMPLE_CONFIG
+                .lines()
+                .skip_while(|l| l != &section)
+                .take_while(|l| first.take().is_some() || !l.starts_with("["))
+                .map(|l| l.to_string())
+                .collect_vec();
+
+            ExampleSectionLines { section, lines }
+        }
+
+        fn narrow(&mut self, start: NarrowInstruction, end: NarrowInstruction) {
+            let find_index = |(re, include), adjust: [isize; 2]| {
+                if (re, include) == NARROW_NONE {
+                    return None;
+                }
+
+                let re = Regex::new(re).expect(re);
+                let i = self
+                    .lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, l)| re.is_match(l))
+                    .map(|(i, _)| i);
+                let i = i.clone().exactly_one().unwrap_or_else(|_| {
+                    panic!("RE={:?} I={:#?} L={:#?}", re, i.collect_vec(), &self.lines)
+                });
+
+                let adjust = adjust[usize::from(include)];
+                let i = (i as isize + adjust) as usize;
+                Some(i)
+            };
+
+            eprint!("narrow {:?} {:?}: ", start, end);
+            let start = find_index(start, [1, 0]).unwrap_or(0);
+            let end = find_index(end, [0, 1]).unwrap_or(self.lines.len());
+            eprintln!("{:?} {:?}", start, end);
+            // don't tolerate empty
+            assert!(start < end, "empty, from {:#?}", &self.lines);
+            self.lines = self.lines.drain(..).take(end).skip(start).collect_vec();
+        }
+
+        fn expect_lines(&self, n: usize) {
+            assert_eq!(self.lines.len(), n);
+        }
+
+        fn uncomment(&mut self) {
+            for l in &mut self.lines {
+                *l = l.strip_prefix('#').expect(l).to_string();
+            }
+        }
+
+        fn parse(&self) -> config::Config {
+            let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            let c: toml::Value = toml::from_str(&s).expect(&s);
+            config::Config::try_from(&c).expect(&s)
+        }
+
+        fn resolve<R: tor_config::load::Resolvable>(&self) -> Result<R, ConfigResolveError> {
+            tor_config::load::resolve(self.parse())
+        }
     }
 }

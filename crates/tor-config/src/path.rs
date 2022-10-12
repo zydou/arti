@@ -338,6 +338,7 @@ mod test_serde {
     #![allow(clippy::dbg_macro)]
     #![allow(clippy::print_stderr)]
     #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 

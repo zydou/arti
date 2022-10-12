@@ -114,6 +114,39 @@
 #     ignore_prefix = "/home/"
 #ignore_prefix = ""
 
+# Bridges (for anticensorship support)
+[bridges]
+
+# Should we use configured bridges?
+#     If set to false, we will ignore the configured bridges.
+#     If set to "auto", we will use any bridges that are configured.
+#     If set to true, bridges must be configured and will be used.
+#enabled = "auto"
+
+# What bridges (including pluggable transports) to use, in this syntax:
+#  bridges = [ 
+#      "<IP>:<ORPort> <fingerprint> [<fingerprint> ...]",
+#      "<transport> <host>:<ORPort>|- <fingerprint> [...] [<key>=<val> ...]",
+#  ]
+#
+# For example:
+#  bridges = [ 
+#      "192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956",
+#      "[2001:db8::3150]:8080 $0bac39417268b96b9f514e7f63fa6fb1aa788957",
+#      "obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1",
+#  ]
+#
+# You may specify all the bridge lines in one multi-line string:
+#  bridges = '''
+#  192.0.2.83:80 $0bac39417268b96b9f514ef763fa6fba1a788956
+#  [2001:db8::3150]:8080 $0bac39417268b96b9f514e7f63fa6fb1aa788957
+#  obfs4 bridge.example.net:80 $0bac39417268b69b9f514e7f63fa6fba1a788958 ed25519:dGhpcyBpcyBbpmNyZWRpYmx5IHNpbGx5ISEhISEhISA iat-mode=1
+#  '''
+#
+# (Note that these are just examples, not real bridges - they will not work.)
+#
+#bridges = []
+
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.
