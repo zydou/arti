@@ -36,7 +36,7 @@ where
     /// Asynchronous runtime for TLS, TCP, spawning, and timeouts.
     runtime: R,
     /// Used to update our bootstrap reporting status.
-    event_sender: Mutex<ChanMgrEventSender>,
+    event_sender: Arc<Mutex<ChanMgrEventSender>>,
     /// The transport object that we use to construct streams.
     transport: H,
     /// Object to build TLS connections.
@@ -48,12 +48,16 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub(crate) fn new(runtime: R, transport: H, event_sender: ChanMgrEventSender) -> Self {
+    pub(crate) fn new(
+        runtime: R,
+        transport: H,
+        event_sender: Arc<Mutex<ChanMgrEventSender>>,
+    ) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
-            event_sender: Mutex::new(event_sender),
+            event_sender,
             tls_connector,
         }
     }
@@ -432,7 +436,7 @@ mod test {
             // Create the channel builder that we want to test.
             let (snd, _rcv) = crate::event::channel();
             let transport = DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport, snd);
+            let builder = ChanBuilder::new(client_rt, transport, Arc::new(Mutex::new(snd)));
 
             let (r1, r2): (Result<Channel>, Result<LocalStream>) = futures::join!(
                 async {
