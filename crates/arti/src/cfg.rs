@@ -309,6 +309,13 @@ mod test {
             "storage.permissions.trust_user",
         ]);
 
+        // Additionalk cfg blocks will need to be added whenever we add features
+        // which have example config, since if the feature isn't enabled,
+        // those keys are ignored (unrecognized).
+
+        #[cfg(not(feature = "pt-client"))]
+        known_unrecognized_options_new.extend(["bridges.bridges", "bridges.enabled"]);
+
         // The unrecognized options in new are those that are only new, plus those in all
         known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
 
@@ -335,9 +342,7 @@ mod test {
             TorClientConfigBuilder::default().build().unwrap(),
         );
 
-        // This cfg will need to be expanded whenever we add features which have
-        // example config that can't be parsed if the feature isn't eanbled.
-        if cfg!(feature = "pt-client") {
+        {
             let parsed = parses_to_defaults(
                 &uncomment_example_settings(ARTI_EXAMPLE_CONFIG),
                 &known_unrecognized_options_new,
@@ -706,13 +711,34 @@ mod test {
         );
     }
 
-    #[cfg(feature = "pt-client")]
     #[test]
     fn bridges() {
+        // Filter examples that we don't want to test in this configuration
         let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| {
+            if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
+                let looks_like_addr =
+                    |l: &str| l.starts_with(|c: char| c.is_ascii_digit() || c == '[');
+                examples.lines.retain(|l| looks_like_addr(l));
+            }
+
             examples
         };
+
         let resolve_examples = |examples: &ExampleSectionLines| -> TorClientConfig {
+            #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
+            {
+                use std::error::Error as StdError;
+
+                let err = examples.resolve::<TorClientConfig>().unwrap_err();
+                let err: Box<dyn StdError> = Box::new(err);
+                let err = tor_error::Report(&err).to_string();
+                assert!(
+                    err.contains("support disabled in cargo features"),
+                    "wrong message, got {}",
+                    err
+                );
+            }
+
             let examples = filter_examples(examples.clone());
             examples.resolve().unwrap()
         };
@@ -733,6 +759,7 @@ mod test {
             examples.lines.remove(examples.lines.len() - 1);
             examples.expect_lines(3);
 
+            #[cfg(feature = "bridge-client")]
             {
                 let examples = filter_examples(examples);
                 let mut built = TorClientConfig::builder();
