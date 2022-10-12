@@ -1,6 +1,8 @@
 //! Traits and code to define different mechanisms for building Channels to
 //! different kinds of targets.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, TransportId};
@@ -134,5 +136,19 @@ impl<R: TransportRegistry + Sync> ChannelFactory for RegistryAsFactory<R> {
             .ok_or(crate::Error::NoSuchTransport(id))?;
 
         factory.connect_via_transport(target).await
+    }
+}
+
+#[async_trait]
+impl<'a> ChannelFactory for Arc<(dyn ChannelFactory + Send + Sync + 'a)> {
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
+        self.as_ref().connect_via_transport(target).await
+    }
+}
+
+#[async_trait]
+impl<'a> ChannelFactory for Box<(dyn ChannelFactory + Send + Sync + 'a)> {
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
+        self.as_ref().connect_via_transport(target).await
     }
 }

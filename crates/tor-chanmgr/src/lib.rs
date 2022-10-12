@@ -79,6 +79,7 @@ mod mgr;
 mod testing;
 
 use educe::Educe;
+use factory::ChannelFactory;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -111,12 +112,14 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// get one if it exists.
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
-    mgr: mgr::AbstractChanMgr<
-        builder::TimeoutChannelFactory<R, builder::ChanBuilder<R, builder::DefaultTransport<R>>>,
-    >,
+    mgr: mgr::AbstractChanMgr<Box<dyn ChannelFactory + Send + Sync + 'static>>,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
+
+    /// This currently isn't actually used, but we're keeping a PhantomData here
+    /// since probably we'll want it again, sooner or later.
+    runtime: std::marker::PhantomData<fn(R) -> R>,
 }
 
 /// Description of how we got a channel.
@@ -189,15 +192,20 @@ impl<R: Runtime> ChanMgr<R> {
         config: &ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
-    ) -> Self {
+    ) -> Self
+    where
+        R: 'static,
+    {
         let (sender, receiver) = event::channel();
         let transport = builder::DefaultTransport::new(runtime.clone());
         let builder = builder::ChanBuilder::new(runtime.clone(), transport, sender);
         let builder = builder::TimeoutChannelFactory::new(runtime, builder);
+        let builder: Box<dyn ChannelFactory + Send + Sync + 'static> = Box::new(builder);
         let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
+            runtime: std::marker::PhantomData,
         }
     }
 
