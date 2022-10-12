@@ -63,7 +63,7 @@ To do so, we will launch arti independently from Tor Browser. Build arti with
 `cargo build --release`.  After that launch it with some basic
 configuration parameters:
 
-```
+```text
 $ ./target/release/arti proxy -l debug -p 9150
 ```
 
@@ -72,13 +72,13 @@ Tor Browser and instruct it to use that SOCKS port.
 
 #### Linux
 
-```
+```text
 $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 ./start-tor-browser.desktop
 ```
 
 #### OS X
 
-```
+```text
 $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\ Browser/Contents/MacOS/firefox
 ```
 
@@ -86,13 +86,13 @@ $ TOR_SKIP_LAUNCH=1 TOR_SOCKS_PORT=9150 TOR_SKIP_CONTROLPORTTEST=1 /path/to/Tor\
 
 Create a shortcut with the `Target` set to:
 
-```
+```text
 C:\Windows\System32\cmd.exe /c "SET TOR_SKIP_LAUNCH=1&& SET TOR_SOCKS_PORT=9150&& TOR_SKIP_CONTROLPORTTEST=1&& START /D ^"C:\path\to\Tor Browser\Browser^" firefox.exe"
 ```
 
 and `Start in` set to:
 
-```
+```text
 "C:\path\to\Tor Browser\Browser"
 ```
 
