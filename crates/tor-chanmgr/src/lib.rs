@@ -1,38 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
-//! `tor-chanmgr`: Manage a set of channels on the Tor network.
-//!
-//! # Overview
-//!
-//! This crate is part of
-//! [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to
-//! implement [Tor](https://www.torproject.org/) in Rust.
-//!
-//! In Tor, a channel is a connection to a Tor relay.  It can be
-//! direct via TLS, or indirect via TLS over a pluggable transport.
-//! (For now, only direct channels are supported.)
-//!
-//! Since a channel can be used for more than one circuit, it's
-//! important to reuse channels when possible.  This crate implements
-//! a [`ChanMgr`] type that can be used to create channels on demand,
-//! and return existing channels when they already exist.
-//! # Compile-time features
-//!
-//! ## Experimental and unstable features
-//!
-//!  Note that the APIs enabled by these features are NOT covered by
-//!  semantic versioning[^1] guarantees: we might break them or remove
-//!  them between patch versions.
-//!
-//! * `pt-client` -- Build with (as yet unimplemented) APIs to support
-//!   pluggable transports.
-//!
-//! * `experimental` -- Build with all experimental features above.
-//!
-//! [^1]: Remember, semantic versioning is what makes various `cargo`
-//! features work reliably. To be explicit: if you want `cargo update`
-//! to _only_ make safe changes, then you cannot enable these
-//! features.
-
+#![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
 #![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]

@@ -53,7 +53,7 @@ This state gets persisted to the locations specified in the
 (This method requires you to initialize the client in an `async fn`.
 Consider using the builder method, below, if that doesn't work for you.)
 
-```rust
+```rust,ignore
 // The client configuration describes how to connect to the Tor network,
 // and what directories to use for storing persistent state.
 let config = TorClientConfig::default();
@@ -74,7 +74,7 @@ bootstrap (or having to use an `await`). This can be done by making a
 The returned client can be made to bootstrap when it is first used (the
 default), or not; see [`BootstrapBehavior`] for more details.
 
-```rust
+```rust,ignore
 // Specifying `BootstrapBehavior::OnDemand` means the client will automatically
 // bootstrap when it is used. `Manual` exists if you'd rather have full control.
 let tor_client = TorClient::builder()
@@ -93,7 +93,7 @@ those traits if the `tokio` crate feature is enabled.
 
 ### Example: making connections over Tor
 
-```rust
+```rust,ignore
 #
 // Initiate a connection over Tor to example.com, port 80.
 let mut stream = tor_client.connect(("example.com", 80)).await?;

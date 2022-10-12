@@ -1,12 +1,5 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
-//! `tor-error` -- Support for error handling in Tor and Arti
-//!
-//! Primarily, this crate provides the [`ErrorKind`] enum,
-//! and associated [`HasKind`] trait.
-//!
-//! There is also some other miscellany, supporting error handling in
-//! crates higher up the dependency stack.
-
+#![doc = include_str!("../README.md")]
 // @@ begin lint list maintained by maint/add_warning @@
 #![cfg_attr(not(ci_arti_stable), allow(renamed_and_removed_lints))]
 #![cfg_attr(not(ci_arti_nightly), allow(unknown_lints))]
