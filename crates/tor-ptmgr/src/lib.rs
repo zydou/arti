@@ -40,7 +40,6 @@ pub mod config;
 
 use config::PtMgrConfig;
 
-use async_trait::async_trait;
 #[cfg(feature = "tor-channel-factory")]
 use tor_chanmgr::factory::ChannelFactory;
 use tor_linkspec::TransportId;
@@ -84,7 +83,6 @@ impl<R: Runtime> PtMgr<R> {
 
 #[cfg(feature = "tor-channel-factory")]
 #[allow(clippy::missing_panics_doc)]
-#[async_trait]
 impl<R: Runtime> tor_chanmgr::factory::TransportRegistry for PtMgr<R> {
     // There is going to be a lot happening "under the hood" here.
     //
@@ -108,7 +106,7 @@ impl<R: Runtime> tor_chanmgr::factory::TransportRegistry for PtMgr<R> {
     // Maybe, we should shut down transports that haven't been used
     // for a long time.
 
-    async fn get_factory(&self, transport: &TransportId) -> Option<&dyn ChannelFactory> {
+    fn get_factory(&self, transport: &TransportId) -> Option<&(dyn ChannelFactory + Sync)> {
         let _ = transport;
         let _ = &self.runtime;
         todo!("TODO pt-client")

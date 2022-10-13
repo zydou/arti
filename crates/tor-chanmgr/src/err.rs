@@ -7,7 +7,7 @@ use futures::task::SpawnError;
 use thiserror::Error;
 
 use tor_error::{internal, ErrorKind};
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::{ChanTarget, OwnedChanTarget, PtTargetAddr};
 use tor_proto::ClockSkew;
 
 /// An error returned by a channel manager.
@@ -46,10 +46,10 @@ pub enum Error {
     },
 
     /// Network IO error or TLS error
-    #[error("Network IO error, or TLS error, in {action}, talking to {peer}")]
+    #[error("Network IO error, or TLS error, in {action}, talking to {peer:?}")]
     Io {
         /// Who we were talking to
-        peer: SocketAddr,
+        peer: Option<PtTargetAddr>,
 
         /// What we were doing
         action: &'static str,
@@ -149,10 +149,6 @@ impl tor_error::HasRetryTime for Error {
 
             // This one can't succeed until the bridge, or our set of
             // transports, is reconfigured.
-            //
-            // TODO pt-client: Double-check this, to make sure that it doesn't
-            // cause us to reject a multi-transport bridge if only one of its
-            // transports fails.
             E::NoSuchTransport(_) => RT::Never,
 
             // These aren't recoverable at all.

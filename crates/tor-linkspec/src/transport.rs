@@ -122,6 +122,13 @@ impl Display for TransportId {
     }
 }
 
+#[cfg(feature = "pt-client")]
+impl From<PtTransportName> for TransportId {
+    fn from(name: PtTransportName) -> Self {
+        TransportId(Inner::Pluggable(name))
+    }
+}
+
 /// Return true if `s` is a well-formed transport ID.
 ///
 /// According to the specification, a well-formed transport ID follows the same
@@ -414,6 +421,32 @@ impl ChannelMethod {
 
             #[cfg_attr(not(feature = "pt-client"), allow(unreachable_patterns))]
             _ => None,
+        }
+    }
+
+    /// Return a PtTargetAddr that this ChannelMethod uses.
+    pub fn target_addr(&self) -> Option<PtTargetAddr> {
+        match self {
+            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(PtTargetAddr::IpPort(addr[0])),
+
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(PtTarget { addr, .. }) => Some(addr.clone()),
+
+            _ => None,
+        }
+    }
+
+    /// Return true if this is a method for a direct connection.
+    pub fn is_direct(&self) -> bool {
+        matches!(self, ChannelMethod::Direct(_))
+    }
+
+    /// Return an identifier for the Transport to be used by this `ChannelMethod`.
+    pub fn transport_id(&self) -> TransportId {
+        match self {
+            ChannelMethod::Direct(_) => TransportId::default(),
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(target) => target.transport().clone().into(),
         }
     }
 }

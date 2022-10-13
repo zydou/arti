@@ -52,9 +52,13 @@ pub(crate) trait AbstractChannel: Clone {
     fn engage_padding_activities(&self);
 }
 
-/// Trait to describe how channels are created.
+/// Trait to describe how channels-like objects are created.
+///
+/// This differs from [`ChannelFactory`](crate::factory::ChannelFactory) in that
+/// it's a purely crate-internal type that we use to decouple the
+/// AbstractChanMgr code from actual "what is a channel" concerns.
 #[async_trait]
-pub(crate) trait ChannelFactory {
+pub(crate) trait AbstractChannelFactory {
     /// The type of channel that this factory can build.
     type Channel: AbstractChannel;
     /// Type that explains how to build a channel.
@@ -69,16 +73,15 @@ pub(crate) trait ChannelFactory {
     async fn build_channel(&self, target: &Self::BuildSpec) -> Result<Self::Channel>;
 }
 
-/// A type- and network-agnostic implementation for
-/// [`ChanMgr`](crate::ChanMgr).
+/// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).
 ///
-/// This type does the work of keeping track of open channels and
-/// pending channel requests, launching requests as needed, waiting
-/// for pending requests, and so forth.
+/// This type does the work of keeping track of open channels and pending
+/// channel requests, launching requests as needed, waiting for pending
+/// requests, and so forth.
 ///
-/// The actual job of launching connections is deferred to a ChannelFactory
-/// type.
-pub(crate) struct AbstractChanMgr<CF: ChannelFactory> {
+/// The actual job of launching connections is deferred to an
+/// `AbstractChannelFactory` type.
+pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     /// A 'connector' object that we use to create channels.
     connector: CF,
 
@@ -94,7 +97,7 @@ type Pending<C> = Shared<oneshot::Receiver<Result<C>>>;
 /// fail to complete it).
 type Sending<C> = oneshot::Sender<Result<C>>;
 
-impl<CF: ChannelFactory> AbstractChanMgr<CF> {
+impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
     pub(crate) fn new(
         connector: CF,
@@ -133,7 +136,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// progress, wait for it to succeed or fail.
     pub(crate) async fn get_or_launch(
         &self,
-        ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
+        ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
         usage: ChannelUsage,
     ) -> Result<(CF::Channel, ChanProvenance)> {
@@ -152,7 +155,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     /// Get a channel whose identity is `ident` - internal implementation
     async fn get_or_launch_internal(
         &self,
-        ident: <<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
+        ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
@@ -329,7 +332,7 @@ impl<CF: ChannelFactory> AbstractChanMgr<CF> {
     #[cfg(test)]
     pub(crate) fn get_nowait(
         &self,
-        ident: &<<CF as ChannelFactory>::Channel as AbstractChannel>::Ident,
+        ident: &<<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
     ) -> Option<CF::Channel> {
         use map::ChannelState::*;
         match self.channels.get(ident) {
@@ -417,7 +420,7 @@ mod test {
     }
 
     #[async_trait]
-    impl<RT: Runtime> ChannelFactory for FakeChannelFactory<RT> {
+    impl<RT: Runtime> AbstractChannelFactory for FakeChannelFactory<RT> {
         type Channel = FakeChannel;
         type BuildSpec = (u32, char);
 

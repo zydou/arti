@@ -25,7 +25,7 @@ use tor_linkspec::HasRelayIds;
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
 
-use crate::mgr::{AbstractChanMgr, ChannelFactory};
+use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;
 
 use PaddingLevel as PL;
@@ -119,7 +119,7 @@ struct FakeChannelFactory {
 }
 
 #[async_trait]
-impl ChannelFactory for FakeChannelFactory {
+impl AbstractChannelFactory for FakeChannelFactory {
     type Channel = Channel;
     type BuildSpec = ();
 
