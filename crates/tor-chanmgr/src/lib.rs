@@ -199,8 +199,7 @@ impl<R: Runtime> ChanMgr<R> {
         let (sender, receiver) = event::channel();
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let transport = builder::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime.clone(), transport, sender);
-        let builder = builder::TimeoutChannelFactory::new(runtime, builder);
+        let builder = builder::ChanBuilder::new(runtime, transport, sender);
         let builder: Box<dyn ChannelFactory + Send + Sync + 'static> = Box::new(builder);
         let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
