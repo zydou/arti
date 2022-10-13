@@ -44,6 +44,7 @@ pub mod factory;
 mod mgr;
 #[cfg(test)]
 mod testing;
+pub mod transport;
 
 use educe::Educe;
 use factory::ChannelFactory;
@@ -165,7 +166,7 @@ impl<R: Runtime> ChanMgr<R> {
     {
         let (sender, receiver) = event::channel();
         let sender = Arc::new(std::sync::Mutex::new(sender));
-        let transport = builder::DefaultTransport::new(runtime.clone());
+        let transport = transport::DefaultTransport::new(runtime.clone());
         let builder = builder::ChanBuilder::new(runtime, transport, sender);
         let builder: Box<dyn ChannelFactory + Send + Sync + 'static> = Box::new(builder);
         let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
