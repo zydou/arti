@@ -664,6 +664,15 @@ where
     Ok(())
 }
 
+impl HasRelayIds for Channel {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.details.peer_id.identity(key_type)
+    }
+}
+
 /// Make some fake channel details (for testing only!)
 #[cfg(any(test, feature = "testing"))]
 fn fake_channel_details() -> Arc<ChannelDetails> {
