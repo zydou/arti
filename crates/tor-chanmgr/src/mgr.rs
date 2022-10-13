@@ -204,16 +204,6 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                         let action = Action::Wait(pending.clone());
                         (oldstate, action)
                     }
-                    Some(Poisoned(_)) => {
-                        // We should never be able to see this state; this
-                        // is a bug.
-                        (
-                            None,
-                            Action::Return(Err(Error::Internal(internal!(
-                                "Found a poisoned entry"
-                            )))),
-                        )
-                    }
                     None => {
                         // No channel.  Move to the Building
                         // state and launch a new channel.

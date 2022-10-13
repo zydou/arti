@@ -5,7 +5,7 @@ use std::time::Duration;
 use super::{AbstractChannel, Pending};
 use crate::{ChannelConfig, Dormancy, Error, Result};
 
-use std::collections::{hash_map, HashMap};
+use std::collections::HashMap;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use tor_cell::chancell::msg::PaddingNegotiate;
@@ -70,13 +70,6 @@ struct Inner<C: AbstractChannel> {
     dormancy: Dormancy,
 }
 
-/// Structure that can only be constructed from within this module.
-/// Used to make sure that only we can construct ChannelState::Poisoned.
-pub(crate) struct Priv {
-    /// (This field is private)
-    _unused: (),
-}
-
 /// The state of a channel (or channel build attempt) within a map.
 pub(crate) enum ChannelState<C> {
     /// An open channel.
@@ -87,11 +80,6 @@ pub(crate) enum ChannelState<C> {
     Open(OpenEntry<C>),
     /// A channel that's getting built.
     Building(Pending<C>),
-    /// A temporary invalid state.
-    ///
-    /// We insert this into the map temporarily as a placeholder in
-    /// `change_state()`.
-    Poisoned(Priv),
 }
 
 /// An open channel entry.
@@ -106,12 +94,12 @@ pub(crate) struct OpenEntry<C> {
 impl<C: Clone> ChannelState<C> {
     /// Create a new shallow copy of this ChannelState.
     #[cfg(test)]
+    #[allow(clippy::unnecessary_wraps)]
     fn clone_ref(&self) -> Result<Self> {
         use ChannelState::*;
         match self {
             Open(ent) => Ok(Open(ent.clone())),
             Building(pending) => Ok(Building(pending.clone())),
-            Poisoned(_) => Err(Error::Internal(internal!("Poisoned state in channel map"))),
         }
     }
 
@@ -192,9 +180,6 @@ impl<C: AbstractChannel> ChannelState<C> {
                 } else {
                     Err(Error::Internal(internal!("Identity mismatch")))
                 }
-            }
-            ChannelState::Poisoned(_) => {
-                Err(Error::Internal(internal!("Poisoned state in channel map")))
             }
             ChannelState::Building(_) => Ok(()),
         }
@@ -304,7 +289,6 @@ impl<C: AbstractChannel> ChannelMap<C> {
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut inner = self.inner.lock()?;
         inner.channels.retain(|_, state| match state {
-            ChannelState::Poisoned(_) => false,
             ChannelState::Open(ent) => ent.channel.is_usable(),
             ChannelState::Building(_) => true,
         });
@@ -329,32 +313,22 @@ impl<C: AbstractChannel> ChannelMap<C> {
     where
         F: FnOnce(Option<ChannelState<C>>) -> (Option<ChannelState<C>>, V),
     {
-        use hash_map::Entry::*;
         let mut inner = self.inner.lock()?;
-        let entry = inner.channels.entry(ident.clone());
-        match entry {
-            Occupied(mut occupied) => {
-                // Temporarily replace the entry for this identity with
-                // a poisoned entry.
-                let mut oldent = ChannelState::Poisoned(Priv { _unused: () });
-                std::mem::swap(occupied.get_mut(), &mut oldent);
+        let old_status = inner.channels.remove(ident);
+        match old_status {
+            Some(oldent) => {
                 let (newval, output) = func(Some(oldent));
-                match newval {
-                    Some(mut newent) => {
-                        newent.check_ident(ident)?;
-                        std::mem::swap(occupied.get_mut(), &mut newent);
-                    }
-                    None => {
-                        occupied.remove();
-                    }
+                if let Some(newent) = newval {
+                    newent.check_ident(ident)?;
+                    inner.channels.insert(ident.clone(), newent);
                 };
                 Ok(output)
             }
-            Vacant(vacant) => {
+            None => {
                 let (newval, output) = func(None);
                 if let Some(newent) = newval {
                     newent.check_ident(ident)?;
-                    vacant.insert(newent);
+                    inner.channels.insert(ident.clone(), newent);
                 }
                 Ok(output)
             }
@@ -416,7 +390,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         for channel in inner.channels.values_mut() {
             let channel = match channel {
                 CS::Open(OpenEntry { channel, .. }) => channel,
-                CS::Building(_) | CS::Poisoned(_) => continue,
+                CS::Building(_) => continue,
             };
             // Ignore error (which simply means the channel is closed or gone)
             let _ = channel.reparameterize(update.clone());
@@ -759,7 +733,7 @@ mod test {
         // Try replacing Some with invalid entry (mismatched ID)
         let e = map.change_state(&b'G', |state| (Some(ch("Wobbledy")), (state, "Hi")));
         assert!(matches!(e, Err(Error::Internal(_))));
-        assert!(matches!(map.get(&b'G'), Err(Error::Internal(_))));
+        assert!(matches!(map.get(&b'G'), Ok(None)));
     }
 
     #[test]
