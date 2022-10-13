@@ -39,7 +39,7 @@ This crate is structured around four key types:
 
 * [`Reader`]: A view of a byte slice, from which data can be decoded.
 * [`Writer`]: Trait to represent a growable buffer of bytes.
-  (Vec<u8> and [`bytes::BytesMut`] implement this.)
+  (`Vec<u8>` and [`bytes::BytesMut`] implement this.)
 * [`Writeable`]: Trait for an object that can be encoded onto a [`Writer`]
 * [`Readable`]: Trait for an object that can be decoded from a [`Reader`].
 
