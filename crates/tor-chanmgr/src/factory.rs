@@ -11,9 +11,16 @@ use tor_proto::channel::Channel;
 
 pub use registry::TransportRegistry;
 
-/// An object that knows how to build Channels to ChanTargets.
+/// An object that knows how to build `Channels` to `ChanTarget`s.
 ///
 /// This trait must be object-safe.
+///
+/// Every [`ChanMgr`](crate::ChanMgr) has a `ChannelFactory` that it uses to
+/// construct all of its channels.
+///
+/// A `ChannelFactory` can be implemented in terms of a
+/// [`TransportHelper`](crate::transport::TransportHelper), by wrapping it in a
+/// `ChanBuilder`.
 #[async_trait]
 pub trait ChannelFactory {
     /// Open an authenticated channel to `target`.
@@ -21,9 +28,10 @@ pub trait ChannelFactory {
     /// This method does does not necessarily handle retries or timeouts,
     /// although some of its implementations may.
     ///
-    /// This method does not necessarily handle every kind of transport.
-    /// If the caller provides a target with the wrong [`TransportId`], this
-    /// method should return [`Error::NoSuchTransport`].
+    /// This method does not necessarily handle every kind of transport. If the
+    /// caller provides a target with an unsupported
+    /// [`TransportId`](tor_linkspec::TransportId), this method should return
+    /// [`Error::NoSuchTransport`](crate::Error::NoSuchTransport).
     async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel>;
 }
 

@@ -1,4 +1,4 @@
-//! Implement a concrete type to build channels.
+//! Implement a concrete type to build channels over a transport.
 
 use std::io;
 use std::sync::{Arc, Mutex};
@@ -19,8 +19,16 @@ use futures::task::SpawnExt;
 
 /// TLS-based channel builder.
 ///
-/// This is a separate type so that we can keep our channel management
-/// code network-agnostic.
+/// This is a separate type so that we can keep our channel management code
+/// network-agnostic.
+///
+/// It uses a provided `TransportHelper` type to make a connection (possibly
+/// directly over TCP, and possibly over some other protocol).  It then
+/// negotiates TLS over that connection, and negotiates a Tor channel over that
+/// TLS session.
+///
+/// This channel builder does not retry on failure, but it _does_ implement a
+/// time-out.
 pub(crate) struct ChanBuilder<R: Runtime, H: TransportHelper>
 where
     R: tor_rtcompat::TlsProvider<H::Stream>,
