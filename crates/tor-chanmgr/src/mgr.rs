@@ -12,6 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
+use tor_linkspec::HasRelayIds;
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
@@ -20,7 +21,7 @@ mod map;
 /// Trait to describe as much of a
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
-pub(crate) trait AbstractChannel: Clone {
+pub(crate) trait AbstractChannel: Clone + HasRelayIds {
     /// Identity type for the other side of the channel.
     type Ident: Hash + Eq + Clone;
     /// Return this channel's identity.
@@ -343,6 +344,7 @@ mod test {
     use std::sync::Arc;
     use std::time::Duration;
     use tor_error::bad_api_usage;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
     use crate::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
@@ -354,6 +356,7 @@ mod test {
     #[derive(Clone, Debug)]
     struct FakeChannel {
         ident: u32,
+        ed_ident: Ed25519Identity,
         mood: char,
         closing: Arc<AtomicBool>,
         detect_reuse: Arc<char>,
@@ -387,6 +390,18 @@ mod test {
         fn engage_padding_activities(&self) {}
     }
 
+    impl HasRelayIds for FakeChannel {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            match key_type {
+                tor_linkspec::RelayIdType::Ed25519 => Some((&self.ed_ident).into()),
+                _ => None,
+            }
+        }
+    }
+
     impl FakeChannel {
         fn start_closing(&self) {
             self.closing.store(true, Ordering::SeqCst);
@@ -417,6 +432,11 @@ mod test {
         async fn build_channel(&self, target: &Self::BuildSpec) -> Result<FakeChannel> {
             yield_now().await;
             let (ident, mood) = *target;
+            let ed_ident = {
+                let mut bytes = [0; 32];
+                bytes[0..4].copy_from_slice(&ident.to_be_bytes());
+                bytes.into()
+            };
             match mood {
                 // "X" means never connect.
                 '❌' | '🔥' => return Err(Error::UnusableTarget(bad_api_usage!("emoji"))),
@@ -428,6 +448,7 @@ mod test {
             }
             Ok(FakeChannel {
                 ident,
+                ed_ident,
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
                 detect_reuse: Default::default(),

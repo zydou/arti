@@ -559,6 +559,7 @@ mod test {
 
     use super::*;
     use std::sync::Arc;
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
@@ -572,6 +573,7 @@ mod test {
     #[derive(Eq, PartialEq, Clone, Debug)]
     struct FakeChannel {
         ident: &'static str,
+        ed_ident: Ed25519Identity,
         usable: bool,
         unused_duration: Option<u64>,
         params_update: Option<Arc<ChannelPaddingInstructionsUpdates>>,
@@ -596,9 +598,26 @@ mod test {
         }
         fn engage_padding_activities(&self) {}
     }
+    impl tor_linkspec::HasRelayIds for FakeChannel {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            match key_type {
+                tor_linkspec::RelayIdType::Ed25519 => Some((&self.ed_ident).into()),
+                _ => None,
+            }
+        }
+    }
+    /// Get a fake ed25519 identity from the first byte of a string.
+    fn str_to_ed(s: &str) -> Ed25519Identity {
+        let byte = s.as_bytes()[0];
+        [byte; 32].into()
+    }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
             ident,
+            ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration: None,
             params_update: None,
@@ -615,6 +634,7 @@ mod test {
     ) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
             ident,
+            ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration,
             params_update: None,
@@ -627,6 +647,7 @@ mod test {
     fn closed(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
             ident,
+            ed_ident: str_to_ed(ident),
             usable: false,
             unused_duration: None,
             params_update: None,
