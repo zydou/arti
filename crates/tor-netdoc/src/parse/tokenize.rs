@@ -281,7 +281,7 @@ fn tag_keyword_ok(s: &str) -> bool {
     s.split(' ').all(|w| keyword_ok(w, false))
 }
 
-/// When used as an Iterator, returns a sequence of Result<Item>.
+/// When used as an Iterator, returns a sequence of `Result<Item>`.
 impl<'a, K: Keyword> Iterator for NetDocReaderBase<'a, K> {
     type Item = Result<Item<'a, K>>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -534,7 +534,7 @@ impl<'a, 'b, K: Keyword> MaybeItem<'a, 'b, K> {
     }
 }
 
-/// Extension trait for Result<Item> -- makes it convenient to implement
+/// Extension trait for `Result<Item>` -- makes it convenient to implement
 /// PauseAt predicates
 pub(crate) trait ItemResult<K: Keyword> {
     /// Return true if this is an ok result with an annotation.

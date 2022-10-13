@@ -1,4 +1,4 @@
-//! Define a wrapper for Vec<u8> that will act as Writer, but zeroize its
+//! Define a wrapper for `Vec<u8>` that will act as Writer, but zeroize its
 //! contents on drop or reallocation.
 
 use crate::Writer;

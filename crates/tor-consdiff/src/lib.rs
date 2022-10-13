@@ -409,8 +409,8 @@ impl<'a> DiffCommand<'a> {
     }
 }
 
-/// Iterator that wraps a line iterator and returns a sequence
-/// Result<DiffCommand>.
+/// Iterator that wraps a line iterator and returns a sequence of
+/// `Result<DiffCommand>`.
 ///
 /// This iterator forces the commands to affect the file in reverse order,
 /// so that we can use the O(n) algorithm for applying these diffs.

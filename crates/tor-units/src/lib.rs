@@ -295,9 +295,9 @@ impl<const H: i32, const L: i32> TryFrom<i32> for Percentage<BoundedInt32<H, L>>
 )]
 /// This type represents an integer number of milliseconds.
 ///
-/// The underlying type should usually implement TryInto<u64>.
+/// The underlying type should usually implement `TryInto<u64>`.
 pub struct IntegerMilliseconds<T> {
-    /// Interior Value. Should Implement TryInto<u64> to be useful.
+    /// Interior Value. Should implement `TryInto<u64>` to be useful.
     value: T,
 }
 
@@ -353,9 +353,9 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerMilliseconds<BoundedInt
 )]
 /// This type represents an integer number of seconds.
 ///
-/// The underlying type should usually implement TryInto<u64>.
+/// The underlying type should usually implement `TryInto<u64>`.
 pub struct IntegerSeconds<T> {
-    /// Interior Value. Should Implement TryInto<u64> to be useful.
+    /// Interior Value. Should implement `TryInto<u64>` to be useful.
     value: T,
 }
 
@@ -407,9 +407,9 @@ impl<const H: i32, const L: i32> TryFrom<i32> for IntegerSeconds<BoundedInt32<H,
 #[derive(Copy, Clone, From, FromStr, Display, Debug, PartialEq, Eq, Ord, PartialOrd)]
 /// This type represents an integer number of days.
 ///
-/// The underlying type should usually implement TryInto<u64>.
+/// The underlying type should usually implement `TryInto<u64>`.
 pub struct IntegerDays<T> {
-    /// Interior Value. Should Implement TryInto<u64> to be useful.
+    /// Interior Value. Should Implement `TryInto<u64>` to be useful.
     value: T,
 }
 

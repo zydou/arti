@@ -135,7 +135,7 @@ pub trait HasAddrs {
     /// located, or whether it is "close" to another server, but without knowing
     /// the associated protocols you cannot use these to launch a connection.
     ///
-    /// To see how to _connect_ to a relay, use [`HasChanMethods::chan_methods`]
+    /// To see how to _connect_ to a relay, use [`HasChanMethod::chan_method`]
     //
     // TODO: This is a questionable API. I'd rather return an iterator
     // of addresses or references to addresses, but both of those options

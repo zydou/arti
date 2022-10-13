@@ -11,10 +11,7 @@ use crate::WriteableOnce;
 
 /// A byte-oriented trait for writing to small arrays.
 ///
-/// Unlike std::io::Write, this trait's methods are not allowed to
-/// fail.  It's not for IO.
-///
-/// Most code will want to use the fact that Vec<u8> implements this trait.
+/// Most code will want to use the fact that `Vec<u8>` implements this trait.
 /// To define a new implementation, just define the write_all method.
 ///
 /// # Examples
