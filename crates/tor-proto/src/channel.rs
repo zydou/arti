@@ -476,7 +476,7 @@ impl Channel {
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(&mut self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
+    pub fn reparameterize(&self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
         let mut mutable = self
             .details
             .mutable
