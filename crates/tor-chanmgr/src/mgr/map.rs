@@ -11,6 +11,8 @@ use std::sync::Arc;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
+use tor_linkspec::HasRelayIds;
+use tor_linkspec::RelayIds;
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
@@ -79,7 +81,7 @@ pub(crate) enum ChannelState<C> {
     /// yielding it to the user.
     Open(OpenEntry<C>),
     /// A channel that's getting built.
-    Building(Pending<C>),
+    Building(PendingEntry<C>),
 }
 
 /// An open channel entry.
@@ -89,6 +91,35 @@ pub(crate) struct OpenEntry<C> {
     pub(crate) channel: C,
     /// The maximum unused duration allowed for this channel.
     pub(crate) max_unused_duration: Duration,
+}
+
+/// An entry for a not-yet-build channel
+#[derive(Clone)]
+pub(crate) struct PendingEntry<C> {
+    /// The keys of the relay to which we're trying to open a channel.
+    pub(crate) ids: RelayIds,
+
+    /// A future we can clone and listen on to learn when this channel attempt
+    /// is successful or failed.
+    ///
+    /// This entry will be removed from the map (and possibly replaced with an
+    /// `OpenEntry`) _before_ this future becomes ready.
+    pub(crate) pending: Pending<C>,
+}
+
+impl<C> HasRelayIds for ChannelState<C>
+where
+    C: HasRelayIds,
+{
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        match self {
+            ChannelState::Open(OpenEntry { channel, .. }) => channel.identity(key_type),
+            ChannelState::Building(PendingEntry { ids, .. }) => ids.identity(key_type),
+        }
+    }
 }
 
 impl<C: Clone> ChannelState<C> {

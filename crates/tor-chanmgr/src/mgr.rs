@@ -12,7 +12,7 @@ use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
 use tor_error::internal;
-use tor_linkspec::HasRelayIds;
+use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
@@ -120,10 +120,13 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C: Clone>(&self) -> (map::ChannelState<C>, Sending<C>) {
+    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (map::ChannelState<C>, Sending<C>) {
         let (snd, rcv) = oneshot::channel();
-        let shared = rcv.shared();
-        (map::ChannelState::Building(shared), snd)
+        let pending = rcv.shared();
+        (
+            map::ChannelState::Building(map::PendingEntry { ids, pending }),
+            snd,
+        )
     }
 
     /// Get a channel whose identity is `ident`.
@@ -142,6 +145,8 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         usage: ChannelUsage,
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use ChannelUsage as CU;
+
+        // TODO pt-client: This is not yet used.
 
         let chan = self.get_or_launch_internal(ident, target).await?;
 
@@ -179,6 +184,8 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         // TODO(nickm): It would be neat to use tor_retry instead.
         let mut last_err = None;
 
+        let ids = RelayIds::from_relay_ids(&target);
+
         for _ in 0..N_ATTEMPTS {
             // First, see what state we're in, and what we should do
             // about it.
@@ -196,19 +203,19 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                         } else {
                             // Unusable channel.  Move to the Building
                             // state and launch a new channel.
-                            let (newstate, send) = self.setup_launch();
+                            let (newstate, send) = self.setup_launch(ids.clone());
                             let action = Action::Launch(send);
                             (Some(newstate), action)
                         }
                     }
-                    Some(Building(ref pending)) => {
+                    Some(Building(map::PendingEntry { ref pending, .. })) => {
                         let action = Action::Wait(pending.clone());
                         (oldstate, action)
                     }
                     None => {
                         // No channel.  Move to the Building
                         // state and launch a new channel.
-                        let (newstate, send) = self.setup_launch();
+                        let (newstate, send) = self.setup_launch(ids.clone());
                         let action = Action::Launch(send);
                         (Some(newstate), action)
                     }
