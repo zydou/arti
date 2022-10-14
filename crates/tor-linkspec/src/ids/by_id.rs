@@ -52,9 +52,121 @@ impl<H: HasRelayIds> ByRelayIds<H> {
         self.by_id(any_id)
             .filter(|val| val.has_all_relay_ids_from(key))
     }
+
+    /// Return a reference to every element in this set that shares _any_ ID
+    /// with `key`.
+    ///
+    /// No element is returned more than once.
+    pub fn all_overlapping<T>(&self, key: &T) -> Vec<&H>
+    where
+        T: HasRelayIds,
+    {
+        use by_address::ByAddress;
+        use std::collections::HashSet;
+
+        let mut items: HashSet<ByAddress<&H>> = HashSet::new();
+
+        for ident in key.identities() {
+            if let Some(found) = self.by_id(ident) {
+                items.insert(ByAddress(found));
+            }
+        }
+
+        items.into_iter().map(|by_addr| by_addr.0).collect()
+    }
 }
 
 // TODO MSRV: Remove this `allow` once we no longer get a false positive
 // for it on our MSRV.  1.56 is affected; 1.60 is not.
 #[allow(unreachable_pub)]
 pub use tor_basic_utils::n_key_set::Error as ByRelayIdsError;
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use crate::{RelayIds, RelayIdsBuilder};
+
+    #[test]
+    fn lookup() {
+        let rsa1: RsaIdentity = (*b"12345678901234567890").into();
+        let rsa2: RsaIdentity = (*b"abcefghijklmnopqrstu").into();
+        let rsa3: RsaIdentity = (*b"abcefghijklmnopQRSTU").into();
+        let ed1: Ed25519Identity = (*b"12345678901234567890123456789012").into();
+        let ed2: Ed25519Identity = (*b"abcefghijklmnopqrstuvwxyzABCDEFG").into();
+        let ed3: Ed25519Identity = (*b"abcefghijklmnopqrstuvwxyz1234567").into();
+
+        let keys1 = RelayIdsBuilder::default()
+            .rsa_identity(rsa1)
+            .ed_identity(ed1)
+            .build()
+            .unwrap();
+
+        let keys2 = RelayIdsBuilder::default()
+            .rsa_identity(rsa2)
+            .ed_identity(ed2)
+            .build()
+            .unwrap();
+
+        let mut set = ByRelayIds::new();
+        set.insert(keys1.clone());
+        set.insert(keys2.clone());
+
+        // Try by_id
+        assert_eq!(set.by_id(&rsa1), Some(&keys1));
+        assert_eq!(set.by_id(&ed1), Some(&keys1));
+        assert_eq!(set.by_id(&rsa2), Some(&keys2));
+        assert_eq!(set.by_id(&ed2), Some(&keys2));
+        assert_eq!(set.by_id(&rsa3), None);
+        assert_eq!(set.by_id(&ed3), None);
+
+        // Try exact lookup
+        assert_eq!(set.by_all_ids(&keys1), Some(&keys1));
+        assert_eq!(set.by_all_ids(&keys2), Some(&keys2));
+        {
+            let search = RelayIdsBuilder::default()
+                .rsa_identity(rsa1)
+                .build()
+                .unwrap();
+            assert_eq!(set.by_all_ids(&search), Some(&keys1));
+        }
+        {
+            let search = RelayIdsBuilder::default()
+                .rsa_identity(rsa1)
+                .ed_identity(ed2)
+                .build()
+                .unwrap();
+            assert_eq!(set.by_all_ids(&search), None);
+        }
+
+        // Try looking for overlap
+        assert_eq!(set.all_overlapping(&keys1), vec![&keys1]);
+        assert_eq!(set.all_overlapping(&keys2), vec![&keys2]);
+        {
+            let search = RelayIdsBuilder::default()
+                .rsa_identity(rsa1)
+                .ed_identity(ed2)
+                .build()
+                .unwrap();
+            let answer = set.all_overlapping(&search);
+            assert_eq!(answer.len(), 2);
+            assert!(answer.contains(&&keys1));
+            assert!(answer.contains(&&keys2));
+        }
+        {
+            let search = RelayIdsBuilder::default()
+                .rsa_identity(rsa2)
+                .build()
+                .unwrap();
+            assert_eq!(set.all_overlapping(&search), vec![&keys2]);
+        }
+        {
+            let search = RelayIdsBuilder::default()
+                .rsa_identity(rsa3)
+                .build()
+                .unwrap();
+            assert_eq!(set.all_overlapping(&search), Vec::<&RelayIds>::new());
+        }
+    }
+}
