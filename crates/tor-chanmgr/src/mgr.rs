@@ -63,7 +63,7 @@ pub(crate) trait AbstractChannelFactory {
     /// The type of channel that this factory can build.
     type Channel: AbstractChannel;
     /// Type that explains how to build a channel.
-    type BuildSpec;
+    type BuildSpec: HasRelayIds;
 
     /// Construct a new channel to the destination described at `target`.
     ///
@@ -424,19 +424,38 @@ mod test {
         )
     }
 
+    #[derive(Clone, Debug)]
+    struct FakeBuildSpec(u32, char, Ed25519Identity);
+
+    impl HasRelayIds for FakeBuildSpec {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            match key_type {
+                tor_linkspec::RelayIdType::Ed25519 => Some((&self.2).into()),
+                _ => None,
+            }
+        }
+    }
+
+    /// Helper to make a fake Ed identity from a u32.
+    fn u32_to_ed(n: u32) -> Ed25519Identity {
+        let mut bytes = [0; 32];
+        bytes[0..4].copy_from_slice(&n.to_be_bytes());
+        bytes.into()
+    }
+
     #[async_trait]
     impl<RT: Runtime> AbstractChannelFactory for FakeChannelFactory<RT> {
         type Channel = FakeChannel;
-        type BuildSpec = (u32, char);
+        type BuildSpec = FakeBuildSpec;
 
         async fn build_channel(&self, target: &Self::BuildSpec) -> Result<FakeChannel> {
             yield_now().await;
-            let (ident, mood) = *target;
-            let ed_ident = {
-                let mut bytes = [0; 32];
-                bytes[0..4].copy_from_slice(&ident.to_be_bytes());
-                bytes.into()
-            };
+            let FakeBuildSpec(ident, mood, id) = *target;
+            let ed_ident = u32_to_ed(ident);
+            assert_eq!(ed_ident, id);
             match mood {
                 // "X" means never connect.
                 '❌' | '🔥' => return Err(Error::UnusableTarget(bad_api_usage!("emoji"))),
@@ -461,9 +480,9 @@ mod test {
     fn connect_one_ok() {
         test_with_one_runtime!(|runtime| async {
             let mgr = new_test_abstract_chanmgr(runtime);
-            let target = (413, '!');
+            let target = FakeBuildSpec(413, '!', u32_to_ed(413));
             let chan1 = mgr
-                .get_or_launch(413, target, CU::UserTraffic)
+                .get_or_launch(413, target.clone(), CU::UserTraffic)
                 .await
                 .unwrap()
                 .0;
@@ -486,7 +505,7 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
 
             // This is set up to always fail.
-            let target = (999, '❌');
+            let target = FakeBuildSpec(999, '❌', u32_to_ed(999));
             let res1 = mgr.get_or_launch(999, target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
@@ -504,12 +523,12 @@ mod test {
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
-                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
-                mgr.get_or_launch(3, (3, 'b'), CU::UserTraffic),
-                mgr.get_or_launch(44, (44, 'a'), CU::UserTraffic),
-                mgr.get_or_launch(44, (44, 'b'), CU::UserTraffic),
-                mgr.get_or_launch(86, (86, '❌'), CU::UserTraffic),
-                mgr.get_or_launch(86, (86, '🔥'), CU::UserTraffic),
+                mgr.get_or_launch(3, FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(3, FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(44, FakeBuildSpec(44, 'a', u32_to_ed(44)), CU::UserTraffic),
+                mgr.get_or_launch(44, FakeBuildSpec(44, 'b', u32_to_ed(44)), CU::UserTraffic),
+                mgr.get_or_launch(86, FakeBuildSpec(86, '❌', u32_to_ed(86)), CU::UserTraffic),
+                mgr.get_or_launch(86, FakeBuildSpec(86, '🔥', u32_to_ed(86)), CU::UserTraffic),
             );
             let ch3a = ch3a.unwrap();
             let ch3b = ch3b.unwrap();
@@ -533,9 +552,9 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
-                mgr.get_or_launch(3, (3, 'a'), CU::UserTraffic),
-                mgr.get_or_launch(4, (4, 'a'), CU::UserTraffic),
-                mgr.get_or_launch(5, (5, 'a'), CU::UserTraffic),
+                mgr.get_or_launch(3, FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(4, FakeBuildSpec(4, 'a', u32_to_ed(4)), CU::UserTraffic),
+                mgr.get_or_launch(5, FakeBuildSpec(5, 'a', u32_to_ed(5)), CU::UserTraffic),
             );
 
             let ch3 = ch3.unwrap().0;
@@ -546,7 +565,7 @@ mod test {
             ch5.start_closing();
 
             let ch3_new = mgr
-                .get_or_launch(3, (3, 'b'), CU::UserTraffic)
+                .get_or_launch(3, FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic)
                 .await
                 .unwrap()
                 .0;
