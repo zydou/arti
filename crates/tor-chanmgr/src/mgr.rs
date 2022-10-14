@@ -1,6 +1,6 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::map::OpenEntry;
+use crate::mgr::map::{OpenEntry, PendingEntry};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use async_trait::async_trait;
@@ -41,7 +41,7 @@ pub(crate) trait AbstractChannel: Clone + HasRelayIds {
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
     fn reparameterize(
-        &mut self,
+        &self,
         updates: Arc<ChannelPaddingInstructionsUpdates>,
     ) -> tor_proto::Result<()>;
 
@@ -161,7 +161,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     /// Get a channel whose identity is `ident` - internal implementation
     async fn get_or_launch_internal(
         &self,
-        ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
+        _ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
@@ -184,52 +184,108 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         // TODO(nickm): It would be neat to use tor_retry instead.
         let mut last_err = None;
 
-        let ids = RelayIds::from_relay_ids(&target);
-
         for _ in 0..N_ATTEMPTS {
-            // First, see what state we're in, and what we should do
-            // about it.
-            let action = self
-                .channels
-                .change_state(&ident, |oldstate| match oldstate {
-                    Some(Open(ref ent)) => {
-                        if ent.channel.is_usable() {
-                            // Good channel. Return it.
-                            let action = Action::Return(Ok((
-                                ent.channel.clone(),
+            // For each attempt, we _first_ look at the state of the channel map
+            // to decide on an `Action`, and _then_ we execute that action.
+
+            // First, see what state we're in, and what we should do about it.
+            //
+            // TODO: Possibly, we should extract this code into a separate
+            // function, to be tested independently.
+            let action: Result<Action<_>> = self.channels.with_channels(|channel_map| {
+                match channel_map.by_all_ids(&target) {
+                    Some(Open(OpenEntry { channel, .. })) => {
+                        if channel.is_usable() {
+                            // This entry is a perfect match for the target
+                            // keys: we'll return the open entry.
+                            return Ok(Action::Return(Ok((
+                                channel.clone(),
                                 ChanProvenance::Preexisting,
-                            )));
-                            (oldstate, action)
+                            ))));
                         } else {
-                            // Unusable channel.  Move to the Building
-                            // state and launch a new channel.
-                            let (newstate, send) = self.setup_launch(ids.clone());
-                            let action = Action::Launch(send);
-                            (Some(newstate), action)
+                            // This entry was a perfect match for the target,
+                            // but it is no longer usable! We launch a new
+                            // connection to this target, and wait on that.
+                            let (new_state, send) =
+                                self.setup_launch(RelayIds::from_relay_ids(&target));
+                            channel_map.try_insert(new_state)?;
+
+                            return Ok(Action::Launch(send));
                         }
                     }
-                    Some(Building(map::PendingEntry { ref pending, .. })) => {
-                        let action = Action::Wait(pending.clone());
-                        (oldstate, action)
+                    Some(Building(PendingEntry { pending, .. })) => {
+                        // This entry is a perfect match for the target
+                        // keys: we'll return the pending entry. (We don't
+                        // know for sure if it will match once it completes,
+                        // since we might discover additional keys beyond
+                        // those listed for this pending entry.)
+                        return Ok(Action::Wait(pending.clone()));
                     }
-                    None => {
-                        // No channel.  Move to the Building
-                        // state and launch a new channel.
-                        let (newstate, send) = self.setup_launch(ids.clone());
-                        let action = Action::Launch(send);
-                        (Some(newstate), action)
+                    _ => {}
+                }
+                // Okay, we don't have an exact match.  But we might have one or more _partial_ matches?
+                let overlapping = channel_map.all_overlapping(&target);
+                if overlapping.iter().any(
+                    |entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()),
+                ) {
+                    // At least one *open, usable* channel has been negotiated
+                    // that overlaps only partially with our target: it has
+                    // proven itself to have _one_ of our target identities, but
+                    // not all.
+                    //
+                    // Because this channel exists, we know that our target
+                    // cannot succeed, since relays are not allowed to share
+                    // _any_ identities.
+                    return Ok(Action::Return(Err(Error::IdentityConflict)));
+                } else if let Some(first_building) = overlapping
+                    .iter()
+                    .find(|entry| matches!(entry, Building(_)))
+                {
+                    // There is at least one *in-progress* channel that has at
+                    // least one identity in common with our target, but it does
+                    // not have _all_ the identities we want.
+                    //
+                    // If it succeeds, we might find that we can use it; or we
+                    // might find out that it is not suitable.  So we'll wait
+                    // for it, and see what happens.
+                    //
+                    // TODO: This approach will _not_ be sufficient once  we are
+                    // implementing relays, and some of our channels are created
+                    // in response to client requests.
+                    match first_building {
+                        Open(_) => unreachable!(),
+                        Building(PendingEntry { pending, .. }) => {
+                            return Ok(Action::Wait(pending.clone()))
+                        }
                     }
-                })?;
+                }
 
-            // Now we act based on the channel.
-            match action {
+                // Great, nothing interfered at all.
+                let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(&target));
+                channel_map.try_insert(new_state)?;
+                Ok(Action::Launch(send))
+            })?;
+
+            // We are done deciding on our Action! It's time act based on the
+            // Action that we chose.
+            match action? {
                 // Easy case: we have an error or a channel to return.
                 Action::Return(v) => {
                     return v;
                 }
                 // There's an in-progress channel.  Wait for it.
                 Action::Wait(pend) => match pend.await {
-                    Ok(Ok(chan)) => return Ok((chan, ChanProvenance::NewlyCreated)),
+                    Ok(Ok(chan)) => {
+                        // We were waiting for a channel, and it succeeded.  But
+                        // it might have gotten more identities while
+                        // negotiating than it had when it was launched, or it might
+                        // have failed to get all the identities we want. Check for this.
+                        if chan.has_all_relay_ids_from(&target) {
+                            return Ok((chan, ChanProvenance::NewlyCreated));
+                        } else {
+                            last_err = Some(Error::IdentityConflict);
+                        }
+                    }
                     Ok(Err(e)) => {
                         last_err = Some(e);
                     }
@@ -240,11 +296,33 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                 },
                 // We need to launch a channel.
                 Action::Launch(send) => match self.connector.build_channel(&target).await {
-                    Ok(mut chan) => {
+                    // TODO: Perhaps we should extract this code into a separate
+                    // function.
+                    Ok(chan) => {
                         // The channel got built: remember it, tell the
                         // others, and return it.
-                        self.channels
-                            .replace_with_params(ident.clone(), |channels_params| {
+                        let status: Result<CF::Channel> = self.channels.with_channels_and_params(
+                            |channel_map, channels_params| {
+                                match channel_map.remove_exact(&target) {
+                                    Some(Building(_)) => {
+                                        // We successfully removed our pending
+                                        // action. great!  Fall through and add
+                                        // the channel we just built.
+                                    }
+                                    None => {
+                                        // Something removed our entry from the list.
+                                        return Err(Error::IdentityConflict);
+                                    }
+                                    Some(ent @ Open(_)) => {
+                                        // Oh no. Something else built an entry
+                                        // here, and replaced us.  Put that
+                                        // something back.
+                                        channel_map.insert(ent);
+
+                                        return Err(Error::IdentityConflict);
+                                    }
+                                }
+
                                 // This isn't great.  We context switch to the newly-created
                                 // channel just to tell it how and whether to do padding.  Ideally
                                 // we would pass the params at some suitable point during
@@ -258,28 +336,53 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                                     chan.reparameterize(update.into())
                                         .map_err(|_| internal!("failure on new channel"))?;
                                 }
-                                Ok(Open(OpenEntry {
+                                let new_entry = Open(OpenEntry {
                                     channel: chan.clone(),
                                     max_unused_duration: Duration::from_secs(
                                         rand::thread_rng().gen_range(180..270),
                                     ),
-                                }))
-                            })?;
+                                });
+                                channel_map.insert(new_entry);
+                                Ok(chan)
+                            },
+                        )?;
                         // It's okay if all the receivers went away:
                         // that means that nobody was waiting for this channel.
-                        let _ignore_err = send.send(Ok(chan.clone()));
-                        return Ok((chan, ChanProvenance::NewlyCreated));
+                        let _ignore_err = send.send(status.clone());
+
+                        match status {
+                            Ok(chan) => {
+                                return Ok((chan, ChanProvenance::NewlyCreated));
+                            }
+                            Err(e) => last_err = Some(e),
+                        }
                     }
                     Err(e) => {
                         // The channel failed. Make it non-pending, tell the
                         // others, and set the error.
-                        self.channels.remove(&ident)?;
+                        self.channels.with_channels(|channel_map| {
+                            match channel_map.remove_exact(&target) {
+                                Some(Building(_)) | None => {
+                                    // We successfully removed our pending
+                                    // action, or somebody else did.
+                                }
+                                Some(ent @ Open(_)) => {
+                                    // Oh no. Something else built an entry
+                                    // here, and replaced us.  Put that
+                                    // something back.
+                                    channel_map.insert(ent);
+                                }
+                            }
+                        })?;
+
                         // (As above)
                         let _ignore_err = send.send(Err(e.clone()));
                         last_err = Some(e);
                     }
                 },
             }
+
+            // End of this attempt. We will try again...
         }
 
         Err(last_err.unwrap_or_else(|| Error::Internal(internal!("no error was set!?"))))
@@ -328,15 +431,17 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     /// Test only: return the current open usable channel with a given
     /// `ident`, if any.
     #[cfg(test)]
-    pub(crate) fn get_nowait(
-        &self,
-        ident: &<<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
-    ) -> Option<CF::Channel> {
+    pub(crate) fn get_nowait<'a, T>(&self, ident: T) -> Option<CF::Channel>
+    where
+        T: Into<tor_linkspec::RelayIdRef<'a>>,
+    {
         use map::ChannelState::*;
-        match self.channels.get(ident) {
-            Ok(Some(Open(ref ent))) if ent.channel.is_usable() => Some(ent.channel.clone()),
-            _ => None,
-        }
+        self.channels
+            .with_channels(|channel_map| match channel_map.by_id(ident) {
+                Some(Open(ref ent)) if ent.channel.is_usable() => Some(ent.channel.clone()),
+                _ => None,
+            })
+            .expect("Poisoned lock")
     }
 }
 
@@ -367,7 +472,7 @@ mod test {
         mood: char,
         closing: Arc<AtomicBool>,
         detect_reuse: Arc<char>,
-        last_params: Option<ChannelPaddingInstructionsUpdates>,
+        // last_params: Option<ChannelPaddingInstructionsUpdates>,
     }
 
     impl PartialEq for FakeChannel {
@@ -388,10 +493,10 @@ mod test {
             None
         }
         fn reparameterize(
-            &mut self,
-            updates: Arc<ChannelPaddingInstructionsUpdates>,
+            &self,
+            _updates: Arc<ChannelPaddingInstructionsUpdates>,
         ) -> tor_proto::Result<()> {
-            self.last_params = Some((*updates).clone());
+            // *self.last_params.lock().unwrap() = Some((*updates).clone());
             Ok(())
         }
         fn engage_padding_activities(&self) {}
@@ -478,7 +583,7 @@ mod test {
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
                 detect_reuse: Default::default(),
-                last_params: None,
+                // last_params: None,
             })
         }
     }
@@ -501,7 +606,7 @@ mod test {
 
             assert_eq!(chan1, chan2);
 
-            let chan3 = mgr.get_nowait(&413).unwrap();
+            let chan3 = mgr.get_nowait(&u32_to_ed(413)).unwrap();
             assert_eq!(chan1, chan3);
         });
     }
@@ -516,7 +621,7 @@ mod test {
             let res1 = mgr.get_or_launch(999, target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
-            let chan3 = mgr.get_nowait(&999);
+            let chan3 = mgr.get_nowait(&u32_to_ed(999));
             assert!(chan3.is_none());
         });
     }
@@ -581,9 +686,9 @@ mod test {
 
             mgr.remove_unusable_entries().unwrap();
 
-            assert!(mgr.get_nowait(&3).is_some());
-            assert!(mgr.get_nowait(&4).is_some());
-            assert!(mgr.get_nowait(&5).is_none());
+            assert!(mgr.get_nowait(&u32_to_ed(3)).is_some());
+            assert!(mgr.get_nowait(&u32_to_ed(4)).is_some());
+            assert!(mgr.get_nowait(&u32_to_ed(5)).is_none());
         });
     }
 }

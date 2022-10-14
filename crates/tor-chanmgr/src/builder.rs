@@ -221,10 +221,10 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
         self.duration_unused()
     }
     fn reparameterize(
-        &mut self,
+        &self,
         updates: Arc<ChannelPaddingInstructionsUpdates>,
     ) -> tor_proto::Result<()> {
-        self.reparameterize(updates)
+        tor_proto::channel::Channel::reparameterize(self, updates)
     }
     fn engage_padding_activities(&self) {
         self.engage_padding_activities();
