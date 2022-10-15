@@ -214,18 +214,9 @@ impl<R: Runtime> ChanMgr<R> {
         target: &T,
         usage: ChannelUsage,
     ) -> Result<(Channel, ChanProvenance)> {
-        // TODO(nickm): We will need to change the way that we index our map
-        // when we eventually support channels that are _not_ primarily
-        // identified by their ed25519 key.  That could be in the distant future
-        // when we make Ed25519 keys optional: But more likely it will be when
-        // we implement bridges.
-        let ed_identity = target.ed_identity().ok_or(Error::MissingId)?;
         let targetinfo = OwnedChanTarget::from_chan_target(target);
 
-        let (chan, provenance) = self
-            .mgr
-            .get_or_launch(*ed_identity, targetinfo, usage)
-            .await?;
+        let (chan, provenance) = self.mgr.get_or_launch(targetinfo, usage).await?;
         // Double-check the match to make sure that the RSA identity is
         // what we wanted too.
         chan.check_match(target)

@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
 use rand::Rng;
-use std::hash::Hash;
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,10 +21,6 @@ mod map;
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
 /// needs to use.
 pub(crate) trait AbstractChannel: Clone + HasRelayIds {
-    /// Identity type for the other side of the channel.
-    type Ident: Hash + Eq + Clone;
-    /// Return this channel's identity.
-    fn ident(&self) -> &Self::Ident;
     /// Return true if this channel is usable.
     ///
     /// A channel might be unusable because it is closed, because it has
@@ -129,18 +124,17 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         )
     }
 
-    /// Get a channel whose identity is `ident`.
+    /// Get a channel corresponding to the identities of `target`.
     ///
     /// If a usable channel exists with that identity, return it.
     ///
     /// If no such channel exists already, and none is in progress,
-    /// launch a new request using `target`, which must match `ident`.
+    /// launch a new request using `target`.
     ///
     /// If no such channel exists already, but we have one that's in
     /// progress, wait for it to succeed or fail.
     pub(crate) async fn get_or_launch(
         &self,
-        ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
         usage: ChannelUsage,
     ) -> Result<(CF::Channel, ChanProvenance)> {
@@ -148,7 +142,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 
         // TODO pt-client: This is not yet used.
 
-        let chan = self.get_or_launch_internal(ident, target).await?;
+        let chan = self.get_or_launch_internal(target).await?;
 
         match usage {
             CU::Dir | CU::UselessCircuit => {}
@@ -161,7 +155,6 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     /// Get a channel whose identity is `ident` - internal implementation
     async fn get_or_launch_internal(
         &self,
-        _ident: <<CF as AbstractChannelFactory>::Channel as AbstractChannel>::Ident,
         target: CF::BuildSpec,
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
@@ -467,7 +460,6 @@ mod test {
 
     #[derive(Clone, Debug)]
     struct FakeChannel {
-        ident: u32,
         ed_ident: Ed25519Identity,
         mood: char,
         closing: Arc<AtomicBool>,
@@ -482,10 +474,6 @@ mod test {
     }
 
     impl AbstractChannel for FakeChannel {
-        type Ident = u32;
-        fn ident(&self) -> &u32 {
-            &self.ident
-        }
         fn is_usable(&self) -> bool {
             !self.closing.load(Ordering::SeqCst)
         }
@@ -578,7 +566,6 @@ mod test {
                 _ => {}
             }
             Ok(FakeChannel {
-                ident,
                 ed_ident,
                 mood,
                 closing: Arc::new(AtomicBool::new(false)),
@@ -594,15 +581,11 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
             let target = FakeBuildSpec(413, '!', u32_to_ed(413));
             let chan1 = mgr
-                .get_or_launch(413, target.clone(), CU::UserTraffic)
+                .get_or_launch(target.clone(), CU::UserTraffic)
                 .await
                 .unwrap()
                 .0;
-            let chan2 = mgr
-                .get_or_launch(413, target, CU::UserTraffic)
-                .await
-                .unwrap()
-                .0;
+            let chan2 = mgr.get_or_launch(target, CU::UserTraffic).await.unwrap().0;
 
             assert_eq!(chan1, chan2);
 
@@ -618,7 +601,7 @@ mod test {
 
             // This is set up to always fail.
             let target = FakeBuildSpec(999, '❌', u32_to_ed(999));
-            let res1 = mgr.get_or_launch(999, target, CU::UserTraffic).await;
+            let res1 = mgr.get_or_launch(target, CU::UserTraffic).await;
             assert!(matches!(res1, Err(Error::UnusableTarget(_))));
 
             let chan3 = mgr.get_nowait(&u32_to_ed(999));
@@ -635,12 +618,12 @@ mod test {
             // concurrently. Right now it seems that they don't actually
             // interact.
             let (ch3a, ch3b, ch44a, ch44b, ch86a, ch86b) = join!(
-                mgr.get_or_launch(3, FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
-                mgr.get_or_launch(3, FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic),
-                mgr.get_or_launch(44, FakeBuildSpec(44, 'a', u32_to_ed(44)), CU::UserTraffic),
-                mgr.get_or_launch(44, FakeBuildSpec(44, 'b', u32_to_ed(44)), CU::UserTraffic),
-                mgr.get_or_launch(86, FakeBuildSpec(86, '❌', u32_to_ed(86)), CU::UserTraffic),
-                mgr.get_or_launch(86, FakeBuildSpec(86, '🔥', u32_to_ed(86)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(44, 'a', u32_to_ed(44)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(44, 'b', u32_to_ed(44)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(86, '❌', u32_to_ed(86)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(86, '🔥', u32_to_ed(86)), CU::UserTraffic),
             );
             let ch3a = ch3a.unwrap();
             let ch3b = ch3b.unwrap();
@@ -664,9 +647,9 @@ mod test {
             let mgr = new_test_abstract_chanmgr(runtime);
 
             let (ch3, ch4, ch5) = join!(
-                mgr.get_or_launch(3, FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
-                mgr.get_or_launch(4, FakeBuildSpec(4, 'a', u32_to_ed(4)), CU::UserTraffic),
-                mgr.get_or_launch(5, FakeBuildSpec(5, 'a', u32_to_ed(5)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(3, 'a', u32_to_ed(3)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(4, 'a', u32_to_ed(4)), CU::UserTraffic),
+                mgr.get_or_launch(FakeBuildSpec(5, 'a', u32_to_ed(5)), CU::UserTraffic),
             );
 
             let ch3 = ch3.unwrap().0;
@@ -677,7 +660,7 @@ mod test {
             ch5.start_closing();
 
             let ch3_new = mgr
-                .get_or_launch(3, FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic)
+                .get_or_launch(FakeBuildSpec(3, 'b', u32_to_ed(3)), CU::UserTraffic)
                 .await
                 .unwrap()
                 .0;

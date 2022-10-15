@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::{AbstractChannel, Pending};
-use crate::{ChannelConfig, Dormancy, Error, Result};
+use crate::{ChannelConfig, Dormancy, Result};
 
 use std::result::Result as StdResult;
 use std::sync::Arc;
@@ -195,22 +195,6 @@ impl NetParamsExtract {
 }
 
 impl<C: AbstractChannel> ChannelState<C> {
-    /// Return an error if `ident`is definitely not a matching
-    /// matching identity for this state.
-    #[allow(dead_code)] // TODO: remove this.
-    fn check_ident(&self, ident: &C::Ident) -> Result<()> {
-        match self {
-            ChannelState::Open(ent) => {
-                if ent.channel.ident() == ident {
-                    Ok(())
-                } else {
-                    Err(Error::Internal(internal!("Identity mismatch")))
-                }
-            }
-            ChannelState::Building(_) => Ok(()),
-        }
-    }
-
     /// Return true if a channel is ready to expire.
     /// Update `expire_after` if a smaller duration than
     /// the given value is required to expire this channel.
@@ -542,17 +526,12 @@ mod test {
 
     #[derive(Clone, Debug)]
     struct FakeChannel {
-        ident: &'static str,
         ed_ident: Ed25519Identity,
         usable: bool,
         unused_duration: Option<u64>,
         params_update: Arc<Mutex<Option<Arc<ChannelPaddingInstructionsUpdates>>>>,
     }
     impl AbstractChannel for FakeChannel {
-        type Ident = u8;
-        fn ident(&self) -> &Self::Ident {
-            &self.ident.as_bytes()[0]
-        }
         fn is_usable(&self) -> bool {
             self.usable
         }
@@ -586,7 +565,6 @@ mod test {
     }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
             ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration: None,
@@ -603,7 +581,6 @@ mod test {
         unused_duration: Option<u64>,
     ) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
             ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration,
@@ -616,7 +593,6 @@ mod test {
     }
     fn closed(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
             ed_ident: str_to_ed(ident),
             usable: false,
             unused_duration: None,

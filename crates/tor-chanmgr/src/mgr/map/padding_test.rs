@@ -162,10 +162,7 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
 
     let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &netparams);
 
-    let (channel, _prov) = chanmgr
-        .get_or_launch(peer_id, relay_ids, usage)
-        .await
-        .unwrap();
+    let (channel, _prov) = chanmgr.get_or_launch(relay_ids, usage).await.unwrap();
 
     CaseContext {
         channel,
