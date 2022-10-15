@@ -284,7 +284,7 @@ impl<'de> serde::Deserialize<'de> for RelayId {
         // TODO(nickm): maybe allow bytes when dealing with non-human-readable
         // formats.
         use serde::de::Error as _;
-        let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
+        let s = <std::borrow::Cow<'_, str> as serde::Deserialize>::deserialize(deserializer)?;
         s.parse()
             .map_err(|e: RelayIdError| D::Error::custom(e.to_string()))
     }
