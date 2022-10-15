@@ -60,7 +60,7 @@ pub enum RelayId {
 }
 
 /// A reference to a single relay identity.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Display, From, derive_more::TryInto)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Display, From, derive_more::TryInto)]
 #[non_exhaustive]
 pub enum RelayIdRef<'a> {
     /// An Ed25519 identity.
