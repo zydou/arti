@@ -15,7 +15,10 @@ use std::{
 /// A [`TlsProvider`] that uses `rustls`.
 ///
 /// It supports wrapping any reasonable stream type that implements `AsyncRead` + `AsyncWrite`.
-#[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std"))))
+)]
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct RustlsProvider {
