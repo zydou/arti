@@ -6,7 +6,7 @@ use thiserror::Error;
 use tor_error::{ErrorKind, HasKind};
 
 /// An error that occurs while negotiating a SOCKS handshake.
-#[derive(Error, Debug)]
+#[derive(Clone, Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
     /// The SOCKS client didn't implement SOCKS correctly.
