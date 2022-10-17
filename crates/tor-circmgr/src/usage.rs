@@ -10,6 +10,7 @@ use tracing::debug;
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
+use tor_linkspec::OwnedChanTarget;
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
@@ -157,6 +158,9 @@ pub(crate) enum TargetCircUsage {
         /// The number of exit circuits needed for a port
         circs: usize,
     },
+    /// Use for BEGINDIR-based non-anonymous directory connections to a particular target,
+    /// and therefore to a specific relay (which need not be in any netdir).
+    DirSpecificTarget(OwnedChanTarget),
 }
 
 /// The purposes for which a circuit is usable.
@@ -177,6 +181,9 @@ pub(crate) enum SupportedCircUsage {
     },
     /// This circuit is not suitable for any usage.
     NoUsage,
+    /// Use only for BEGINDIR-based non-anonymous directory connections
+    /// to a particular target (which may not be in the netdir).
+    DirSpecificTarget(OwnedChanTarget),
 }
 
 impl TargetCircUsage {
@@ -249,6 +256,11 @@ impl TargetCircUsage {
                 };
 
                 Ok((path, usage, mon, usable))
+            }
+            TargetCircUsage::DirSpecificTarget(target) => {
+                let path = TorPath::new_one_hop_owned(target);
+                let usage = SupportedCircUsage::DirSpecificTarget(target.clone());
+                Ok((path, usage, None, None))
             }
         }
     }
@@ -361,7 +373,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         use ChannelUsage as CU;
         use SupportedCircUsage as SCU;
         match self {
-            SCU::Dir => CU::Dir,
+            SCU::Dir | SCU::DirSpecificTarget(_) => CU::Dir,
             SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
         }
