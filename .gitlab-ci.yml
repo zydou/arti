@@ -42,7 +42,6 @@ rust-checks:
   stage: build
   image: rust:latest
   script:
-    - apt-get update && apt-get install -y python3-toml python-is-python3
     - rustup show
     - rustup component add rustfmt
     - ./maint/via-cargo-install-in-ci cargo-audit cargo-sort cargo-license
@@ -51,7 +50,6 @@ rust-checks:
     - ./maint/cargo_audit
     - ./maint/cargo_sort
     - ./maint/check_tree
-    - ./maint/matrix_test
   cache:
     paths:
       - cargo-audit
@@ -262,6 +260,14 @@ integration-shadow:
   tags:
     - amd64
     - shadow-small
+
+matrix-test:
+  stage: test
+  image: rust:latest
+  script:
+    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - ./maint/matrix_test
+
 
 coverage-aggregated:
   rules:
