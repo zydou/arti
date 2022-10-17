@@ -46,7 +46,8 @@ struct Inner<C: AbstractChannel> {
 
     // TODO: The subsequent fields really do not belong in structure called
     // `ChannelMap`. These, plus the actual map, should probably be in a
-    // structure called "MgrState" behind a Mutex of its own.
+    // structure called "MgrState", and that structure should be the thing that
+    // is put behind a Mutex.
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
