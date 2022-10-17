@@ -304,14 +304,18 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                                     }
                                     None => {
                                         // Something removed our entry from the list.
+                                        // Time to retry.
+                                        //
+                                        // (This return is inside the closure.)
                                         return Err(Error::IdentityConflict);
                                     }
                                     Some(ent @ Open(_)) => {
                                         // Oh no. Something else built an entry
                                         // here, and replaced us.  Put that
-                                        // something back.
-                                        channel_map.insert(ent);
+                                        // something back, and retry.
 
+                                        channel_map.insert(ent);
+                                        // (This return is inside the closure.)
                                         return Err(Error::IdentityConflict);
                                     }
                                 }
