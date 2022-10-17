@@ -87,7 +87,7 @@ pub(crate) enum ChannelState<C> {
     /// yielding it to the user.
     Open(OpenEntry<C>),
     /// A channel that's getting built.
-    Building(PendingEntry<C>),
+    Building(PendingEntry),
 }
 
 /// An open channel entry.
@@ -101,7 +101,7 @@ pub(crate) struct OpenEntry<C> {
 
 /// An entry for a not-yet-build channel
 #[derive(Clone)]
-pub(crate) struct PendingEntry<C> {
+pub(crate) struct PendingEntry {
     /// The keys of the relay to which we're trying to open a channel.
     pub(crate) ids: RelayIds,
 
@@ -110,7 +110,7 @@ pub(crate) struct PendingEntry<C> {
     ///
     /// This entry will be removed from the map (and possibly replaced with an
     /// `OpenEntry`) _before_ this future becomes ready.
-    pub(crate) pending: Pending<C>,
+    pub(crate) pending: Pending,
 }
 
 impl<C> HasRelayIds for ChannelState<C>

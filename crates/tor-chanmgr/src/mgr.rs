@@ -87,11 +87,11 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
 
 /// Type alias for a future that we wait on to see when a pending
 /// channel is done or failed.
-type Pending<C> = Shared<oneshot::Receiver<Result<C>>>;
+type Pending = Shared<oneshot::Receiver<Result<()>>>;
 
-/// Type alias for the sender we notify when we complete a channel (or
-/// fail to complete it).
-type Sending<C> = oneshot::Sender<Result<C>>;
+/// Type alias for the sender we notify when we complete a channel (or fail to
+/// complete it).
+type Sending = oneshot::Sender<Result<()>>;
 
 impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
@@ -115,7 +115,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (map::ChannelState<C>, Sending<C>) {
+    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (map::ChannelState<C>, Sending) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         (
@@ -159,56 +159,76 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     ) -> Result<(CF::Channel, ChanProvenance)> {
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
+        let mut attempts_so_far = 0;
+        let mut final_attempt = false;
+        let mut provenance = ChanProvenance::Preexisting;
 
         // TODO(nickm): It would be neat to use tor_retry instead.
         let mut last_err = None;
 
-        for _ in 0..N_ATTEMPTS {
+        while attempts_so_far < N_ATTEMPTS || final_attempt {
+            attempts_so_far += 1;
+
             // For each attempt, we _first_ look at the state of the channel map
             // to decide on an `Action`, and _then_ we execute that action.
 
             // First, see what state we're in, and what we should do about it.
-            let action = self.choose_action(&target)?;
+            let action = self.choose_action(&target, final_attempt)?;
 
             // We are done deciding on our Action! It's time act based on the
             // Action that we chose.
             match action {
+                // If this happens, we were trying to make one final check of our state, but
+                // we would have had to make additional attempts.
+                None => {
+                    if !final_attempt {
+                        return Err(Error::Internal(internal!(
+                            "No action returned while not on final attempt"
+                        )));
+                    }
+                    break;
+                }
                 // Easy case: we have an error or a channel to return.
-                Action::Return(v) => {
-                    return v;
+                Some(Action::Return(v)) => {
+                    return v.map(|chan| (chan, provenance));
                 }
                 // There's an in-progress channel.  Wait for it.
-                Action::Wait(pend) => match pend.await {
-                    Ok(Ok(chan)) => {
-                        // We were waiting for a channel, and it succeeded.  But
-                        // it might have gotten more identities while
-                        // negotiating than it had when it was launched, or it might
-                        // have failed to get all the identities we want. Check for this.
-                        if chan.has_all_relay_ids_from(&target) {
-                            return Ok((chan, ChanProvenance::NewlyCreated));
-                        } else {
-                            last_err = Some(Error::IdentityConflict);
+                Some(Action::Wait(pend)) => {
+                    match pend.await {
+                        Ok(Ok(())) => {
+                            // We were waiting for a channel, and it succeeded, or it
+                            // got cancelled.  But it might have gotten more
+                            // identities while negotiating than it had when it was
+                            // launched, or it might have failed to get all the
+                            // identities we want. Check for this.
+                            final_attempt = true;
+                            provenance = ChanProvenance::NewlyCreated;
+                        }
+                        Ok(Err(e)) => {
+                            last_err = Some(e);
+                        }
+                        Err(_) => {
+                            last_err =
+                                Some(Error::Internal(internal!("channel build task disappeared")));
                         }
                     }
-                    Ok(Err(e)) => {
-                        last_err = Some(e);
-                    }
-                    Err(_) => {
-                        last_err =
-                            Some(Error::Internal(internal!("channel build task disappeared")));
-                    }
-                },
+                }
                 // We need to launch a channel.
-                Action::Launch(send) => {
+                Some(Action::Launch(send)) => {
                     let outcome = self.connector.build_channel(&target).await;
                     let status = self.handle_build_outcome(&target, outcome);
+
                     // It's okay if all the receivers went away:
                     // that means that nobody was waiting for this channel.
-                    let _ignore_err = send.send(status.clone());
+                    let _ignore_err = send.send(status.clone().map(|_| ()));
 
                     match status {
-                        Ok(chan) => {
+                        Ok(Some(chan)) => {
                             return Ok((chan, ChanProvenance::NewlyCreated));
+                        }
+                        Ok(None) => {
+                            final_attempt = true;
+                            provenance = ChanProvenance::NewlyCreated;
                         }
                         Err(e) => last_err = Some(e),
                     }
@@ -222,8 +242,18 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     }
 
     /// Helper: based on our internal state, decide which action to take when
-    /// asked for a channel.
-    fn choose_action(&self, target: &CF::BuildSpec) -> Result<Action<CF::Channel>> {
+    /// asked for a channel, and update our internal state accordingly.
+    ///
+    /// If `final_attempt` is true, then we will not pick any action that does
+    /// not result in an immediate result. If we would pick such an action, we
+    /// instead return `Ok(None)`.  (We could instead have the caller detect
+    /// such actions, but it's less efficient to construct them, insert them,
+    /// and immediately revert them.)
+    fn choose_action(
+        &self,
+        target: &CF::BuildSpec,
+        final_attempt: bool,
+    ) -> Result<Option<Action<CF::Channel>>> {
         use map::ChannelState::*;
         self.channels.with_channels(|channel_map| {
             match channel_map.by_all_ids(target) {
@@ -231,10 +261,10 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                     if channel.is_usable() {
                         // This entry is a perfect match for the target keys:
                         // we'll return the open entry.
-                        return Ok(Action::Return(Ok((
-                            channel.clone(),
-                            ChanProvenance::Preexisting,
-                        ))));
+                        return Ok(Some(Action::Return(Ok(channel.clone()))));
+                    } else if final_attempt {
+                        // We don't launch an attempt in this case.
+                        return Ok(None);
                     } else {
                         // This entry was a perfect match for the target, but it
                         // is no longer usable! We launch a new connection to
@@ -242,7 +272,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                         let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
                         channel_map.try_insert(new_state)?;
 
-                        return Ok(Action::Launch(send));
+                        return Ok(Some(Action::Launch(send)));
                     }
                 }
                 Some(Building(PendingEntry { pending, .. })) => {
@@ -251,7 +281,11 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                     // will match once it completes, since we might discover
                     // additional keys beyond those listed for this pending
                     // entry.)
-                    return Ok(Action::Wait(pending.clone()));
+                    if final_attempt {
+                        // We don't launch an attempt in this case.
+                        return Ok(None);
+                    }
+                    return Ok(Some(Action::Wait(pending.clone())));
                 }
                 _ => {}
             }
@@ -268,7 +302,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                 // Because this channel exists, we know that our target cannot
                 // succeed, since relays are not allowed to share _any_
                 // identities.
-                return Ok(Action::Return(Err(Error::IdentityConflict)));
+                return Ok(Some(Action::Return(Err(Error::IdentityConflict))));
             } else if let Some(first_building) = overlapping
                 .iter()
                 .find(|entry| matches!(entry, Building(_)))
@@ -287,25 +321,37 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                 match first_building {
                     Open(_) => unreachable!(),
                     Building(PendingEntry { pending, .. }) => {
-                        return Ok(Action::Wait(pending.clone()))
+                        if final_attempt {
+                            // We don't wait in this case.
+                            return Ok(None);
+                        }
+                        return Ok(Some(Action::Wait(pending.clone())));
                     }
                 }
+            }
+
+            if final_attempt {
+                // We don't launch an attempt in this case.
+                return Ok(None);
             }
 
             // Great, nothing interfered at all.
             let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
             channel_map.try_insert(new_state)?;
-            Ok(Action::Launch(send))
+            Ok(Some(Action::Launch(send)))
         })?
     }
 
     /// We just tried to build a channel: Handle the outcome and decide what to
     /// do.
+    ///
+    /// Return `Ok(None)` if we have a transient error that we expect will be
+    /// cleaned up by one final call to `choose_action`.
     fn handle_build_outcome(
         &self,
         target: &CF::BuildSpec,
         outcome: Result<CF::Channel>,
-    ) -> Result<CF::Channel> {
+    ) -> Result<Option<CF::Channel>> {
         use map::ChannelState::*;
         match outcome {
             Ok(chan) => {
@@ -322,9 +368,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                             None => {
                                 // Something removed our entry from the list.
                                 // Time to retry.
-                                //
-                                // (This return is inside the closure.)
-                                return Err(Error::IdentityConflict);
+                                return Ok(None);
                             }
                             Some(ent @ Open(_)) => {
                                 // Oh no. Something else built an entry
@@ -332,8 +376,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                                 // something back, and retry.
 
                                 channel_map.insert(ent);
-                                // (This return is inside the closure.)
-                                return Err(Error::IdentityConflict);
+                                return Ok(None);
                             }
                         }
 
@@ -357,7 +400,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                             ),
                         });
                         channel_map.insert(new_entry);
-                        Ok(chan)
+                        Ok(Some(chan))
                     })?
             }
             Err(e) => {
@@ -443,12 +486,12 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 enum Action<C> {
     /// We found no channel.  We're going to launch a new one,
     /// then tell everybody about it.
-    Launch(Sending<C>),
+    Launch(Sending),
     /// We found an in-progress attempt at making a channel.
     /// We're going to wait for it to finish.
-    Wait(Pending<C>),
+    Wait(Pending),
     /// We found a usable channel.  We're going to return it.
-    Return(Result<(C, ChanProvenance)>),
+    Return(Result<C>),
 }
 
 #[cfg(test)]
