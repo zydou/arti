@@ -159,18 +159,6 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use map::ChannelState::*;
 
-        /// Possible actions that we'll decide to take based on the
-        /// channel's initial state.
-        enum Action<C> {
-            /// We found no channel.  We're going to launch a new one,
-            /// then tell everybody about it.
-            Launch(Sending<C>),
-            /// We found an in-progress attempt at making a channel.
-            /// We're going to wait for it to finish.
-            Wait(Pending<C>),
-            /// We found a usable channel.  We're going to return it.
-            Return(Result<(C, ChanProvenance)>),
-        }
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
 
@@ -185,83 +173,11 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
             //
             // TODO: Possibly, we should extract this code into a separate
             // function, to be tested independently.
-            let action: Result<Action<_>> = self.channels.with_channels(|channel_map| {
-                match channel_map.by_all_ids(&target) {
-                    Some(Open(OpenEntry { channel, .. })) => {
-                        if channel.is_usable() {
-                            // This entry is a perfect match for the target
-                            // keys: we'll return the open entry.
-                            return Ok(Action::Return(Ok((
-                                channel.clone(),
-                                ChanProvenance::Preexisting,
-                            ))));
-                        } else {
-                            // This entry was a perfect match for the target,
-                            // but it is no longer usable! We launch a new
-                            // connection to this target, and wait on that.
-                            let (new_state, send) =
-                                self.setup_launch(RelayIds::from_relay_ids(&target));
-                            channel_map.try_insert(new_state)?;
-
-                            return Ok(Action::Launch(send));
-                        }
-                    }
-                    Some(Building(PendingEntry { pending, .. })) => {
-                        // This entry is a perfect match for the target
-                        // keys: we'll return the pending entry. (We don't
-                        // know for sure if it will match once it completes,
-                        // since we might discover additional keys beyond
-                        // those listed for this pending entry.)
-                        return Ok(Action::Wait(pending.clone()));
-                    }
-                    _ => {}
-                }
-                // Okay, we don't have an exact match.  But we might have one or more _partial_ matches?
-                let overlapping = channel_map.all_overlapping(&target);
-                if overlapping.iter().any(
-                    |entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()),
-                ) {
-                    // At least one *open, usable* channel has been negotiated
-                    // that overlaps only partially with our target: it has
-                    // proven itself to have _one_ of our target identities, but
-                    // not all.
-                    //
-                    // Because this channel exists, we know that our target
-                    // cannot succeed, since relays are not allowed to share
-                    // _any_ identities.
-                    return Ok(Action::Return(Err(Error::IdentityConflict)));
-                } else if let Some(first_building) = overlapping
-                    .iter()
-                    .find(|entry| matches!(entry, Building(_)))
-                {
-                    // There is at least one *in-progress* channel that has at
-                    // least one identity in common with our target, but it does
-                    // not have _all_ the identities we want.
-                    //
-                    // If it succeeds, we might find that we can use it; or we
-                    // might find out that it is not suitable.  So we'll wait
-                    // for it, and see what happens.
-                    //
-                    // TODO: This approach will _not_ be sufficient once  we are
-                    // implementing relays, and some of our channels are created
-                    // in response to client requests.
-                    match first_building {
-                        Open(_) => unreachable!(),
-                        Building(PendingEntry { pending, .. }) => {
-                            return Ok(Action::Wait(pending.clone()))
-                        }
-                    }
-                }
-
-                // Great, nothing interfered at all.
-                let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(&target));
-                channel_map.try_insert(new_state)?;
-                Ok(Action::Launch(send))
-            })?;
+            let action = self.choose_action(&target)?;
 
             // We are done deciding on our Action! It's time act based on the
             // Action that we chose.
-            match action? {
+            match action {
                 // Easy case: we have an error or a channel to return.
                 Action::Return(v) => {
                     return v;
@@ -385,6 +301,84 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         Err(last_err.unwrap_or_else(|| Error::Internal(internal!("no error was set!?"))))
     }
 
+    /// Helper: based on our internal state, decide which action to take when
+    /// asked for a channel.
+    fn choose_action(&self, target: &CF::BuildSpec) -> Result<Action<CF::Channel>> {
+        use map::ChannelState::*;
+        self.channels.with_channels(|channel_map| {
+            match channel_map.by_all_ids(target) {
+                Some(Open(OpenEntry { channel, .. })) => {
+                    if channel.is_usable() {
+                        // This entry is a perfect match for the target keys:
+                        // we'll return the open entry.
+                        return Ok(Action::Return(Ok((
+                            channel.clone(),
+                            ChanProvenance::Preexisting,
+                        ))));
+                    } else {
+                        // This entry was a perfect match for the target, but it
+                        // is no longer usable! We launch a new connection to
+                        // this target, and wait on that.
+                        let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
+                        channel_map.try_insert(new_state)?;
+
+                        return Ok(Action::Launch(send));
+                    }
+                }
+                Some(Building(PendingEntry { pending, .. })) => {
+                    // This entry is a perfect match for the target keys: we'll
+                    // return the pending entry. (We don't know for sure if it
+                    // will match once it completes, since we might discover
+                    // additional keys beyond those listed for this pending
+                    // entry.)
+                    return Ok(Action::Wait(pending.clone()));
+                }
+                _ => {}
+            }
+            // Okay, we don't have an exact match.  But we might have one or more _partial_ matches?
+            let overlapping = channel_map.all_overlapping(target);
+            if overlapping
+                .iter()
+                .any(|entry| matches!(entry, Open(OpenEntry{ channel, ..}) if channel.is_usable()))
+            {
+                // At least one *open, usable* channel has been negotiated that
+                // overlaps only partially with our target: it has proven itself
+                // to have _one_ of our target identities, but not all.
+                //
+                // Because this channel exists, we know that our target cannot
+                // succeed, since relays are not allowed to share _any_
+                // identities.
+                return Ok(Action::Return(Err(Error::IdentityConflict)));
+            } else if let Some(first_building) = overlapping
+                .iter()
+                .find(|entry| matches!(entry, Building(_)))
+            {
+                // There is at least one *in-progress* channel that has at least
+                // one identity in common with our target, but it does not have
+                // _all_ the identities we want.
+                //
+                // If it succeeds, we might find that we can use it; or we might
+                // find out that it is not suitable.  So we'll wait for it, and
+                // see what happens.
+                //
+                // TODO: This approach will _not_ be sufficient once  we are
+                // implementing relays, and some of our channels are created in
+                // response to client requests.
+                match first_building {
+                    Open(_) => unreachable!(),
+                    Building(PendingEntry { pending, .. }) => {
+                        return Ok(Action::Wait(pending.clone()))
+                    }
+                }
+            }
+
+            // Great, nothing interfered at all.
+            let (new_state, send) = self.setup_launch(RelayIds::from_relay_ids(target));
+            channel_map.try_insert(new_state)?;
+            Ok(Action::Launch(send))
+        })?
+    }
+
     /// Update the netdir
     pub(crate) fn update_netparams(
         &self,
@@ -440,6 +434,18 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
             })
             .expect("Poisoned lock")
     }
+}
+
+/// Possible actions that we'll decide to take when asked for a channel.
+enum Action<C> {
+    /// We found no channel.  We're going to launch a new one,
+    /// then tell everybody about it.
+    Launch(Sending<C>),
+    /// We found an in-progress attempt at making a channel.
+    /// We're going to wait for it to finish.
+    Wait(Pending<C>),
+    /// We found a usable channel.  We're going to return it.
+    Return(Result<(C, ChanProvenance)>),
 }
 
 #[cfg(test)]
