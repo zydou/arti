@@ -133,3 +133,122 @@ impl<'de> serde::Deserialize<'de> for RelayIdSet {
         deserializer.deserialize_seq(IdSetVisitor)
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+
+    use super::*;
+    use hex_literal::hex;
+    use serde_test::{assert_tokens, Token};
+
+    #[test]
+    fn basic_usage() {
+        #![allow(clippy::cognitive_complexity)]
+        let rsa1 = RsaIdentity::from(hex!("42656c6f7665642c207768617420617265206e61"));
+        let rsa2 = RsaIdentity::from(hex!("6d657320627574206169723f43686f6f73652074"));
+        let rsa3 = RsaIdentity::from(hex!("686f752077686174657665722073756974732074"));
+
+        let ed1 = Ed25519Identity::from(hex!(
+            "6865206c696e653a43616c6c206d652053617070686f2c2063616c6c206d6520"
+        ));
+        let ed2 = Ed25519Identity::from(hex!(
+            "43686c6f7269732c2043616c6c206d65204c616c6167652c206f7220446f7269"
+        ));
+        let ed3 = Ed25519Identity::from(hex!(
+            "732c204f6e6c792c206f6e6c792c2063616c6c206d65207468696e652e000000"
+        ));
+
+        let mut set = RelayIdSet::new();
+        assert_eq!(set.is_empty(), true);
+        assert_eq!(set.len(), 0);
+
+        set.insert(rsa1);
+        set.insert(rsa2);
+        set.insert(ed1);
+
+        assert_eq!(set.is_empty(), false);
+        assert_eq!(set.len(), 3);
+        assert_eq!(set.contains(&rsa1), true);
+        assert_eq!(set.contains(&rsa2), true);
+        assert_eq!(set.contains(&rsa3), false);
+        assert_eq!(set.contains(&ed1), true);
+        assert_eq!(set.contains(&ed2), false);
+        assert_eq!(set.contains(&ed3), false);
+
+        let contents: HashSet<_> = set.iter().collect();
+        assert_eq!(contents.len(), set.len());
+        assert!(contents.contains(&RelayIdRef::from(&rsa1)));
+        assert!(contents.contains(&RelayIdRef::from(&rsa2)));
+        assert!(contents.contains(&RelayIdRef::from(&ed1)));
+
+        assert_eq!(set.remove(&ed2), false);
+        assert_eq!(set.remove(&ed1), true);
+        assert_eq!(set.remove(&rsa3), false);
+        assert_eq!(set.remove(&rsa1), true);
+        assert_eq!(set.is_empty(), false);
+        assert_eq!(set.len(), 1);
+        assert_eq!(set.contains(&ed1), false);
+        assert_eq!(set.contains(&rsa1), false);
+        assert_eq!(set.contains(&rsa2), true);
+
+        let contents2: Vec<_> = set.iter().collect();
+        assert_eq!(contents2, vec![RelayIdRef::from(&rsa2)]);
+
+        let set2: RelayIdSet = set.iter().map(|id| id.to_owned()).collect();
+        assert_eq!(set, set2);
+
+        let mut set3 = RelayIdSet::new();
+        set3.extend(set.iter().map(|id| id.to_owned()));
+        assert_eq!(set2, set3);
+    }
+
+    #[test]
+    fn serde_empty() {
+        let set = RelayIdSet::new();
+
+        assert_tokens(&set, &[Token::Seq { len: Some(0) }, Token::SeqEnd]);
+    }
+
+    #[test]
+    fn serde_singleton_rsa() {
+        let mut set = RelayIdSet::new();
+        set.insert(RsaIdentity::from(hex!(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        )));
+
+        assert_tokens(
+            &set,
+            &[
+                Token::Seq { len: Some(1) },
+                Token::Str("$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                Token::SeqEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn serde_singleton_ed25519() {
+        let mut set = RelayIdSet::new();
+        set.insert(Ed25519Identity::from(hex!(
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        )));
+
+        assert_tokens(
+            &set,
+            &[
+                Token::Seq { len: Some(1) },
+                Token::String("ed25519:u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7s"),
+                Token::SeqEnd,
+            ],
+        );
+    }
+}
