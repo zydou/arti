@@ -157,8 +157,6 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         &self,
         target: CF::BuildSpec,
     ) -> Result<(CF::Channel, ChanProvenance)> {
-        use map::ChannelState::*;
-
         /// How many times do we try?
         const N_ATTEMPTS: usize = 2;
 
@@ -170,9 +168,6 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
             // to decide on an `Action`, and _then_ we execute that action.
 
             // First, see what state we're in, and what we should do about it.
-            //
-            // TODO: Possibly, we should extract this code into a separate
-            // function, to be tested independently.
             let action = self.choose_action(&target)?;
 
             // We are done deciding on our Action! It's time act based on the
@@ -204,95 +199,20 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                     }
                 },
                 // We need to launch a channel.
-                Action::Launch(send) => match self.connector.build_channel(&target).await {
-                    // TODO: Perhaps we should extract this code into a separate
-                    // function.
-                    Ok(chan) => {
-                        // The channel got built: remember it, tell the
-                        // others, and return it.
-                        let status: Result<CF::Channel> = self.channels.with_channels_and_params(
-                            |channel_map, channels_params| {
-                                match channel_map.remove_exact(&target) {
-                                    Some(Building(_)) => {
-                                        // We successfully removed our pending
-                                        // action. great!  Fall through and add
-                                        // the channel we just built.
-                                    }
-                                    None => {
-                                        // Something removed our entry from the list.
-                                        // Time to retry.
-                                        //
-                                        // (This return is inside the closure.)
-                                        return Err(Error::IdentityConflict);
-                                    }
-                                    Some(ent @ Open(_)) => {
-                                        // Oh no. Something else built an entry
-                                        // here, and replaced us.  Put that
-                                        // something back, and retry.
+                Action::Launch(send) => {
+                    let outcome = self.connector.build_channel(&target).await;
+                    let status = self.handle_build_outcome(&target, outcome);
+                    // It's okay if all the receivers went away:
+                    // that means that nobody was waiting for this channel.
+                    let _ignore_err = send.send(status.clone());
 
-                                        channel_map.insert(ent);
-                                        // (This return is inside the closure.)
-                                        return Err(Error::IdentityConflict);
-                                    }
-                                }
-
-                                // This isn't great.  We context switch to the newly-created
-                                // channel just to tell it how and whether to do padding.  Ideally
-                                // we would pass the params at some suitable point during
-                                // building.  However, that would involve the channel taking a
-                                // copy of the params, and that must happen in the same channel
-                                // manager lock acquisition span as the one where we insert the
-                                // channel into the table so it will receive updates.  I.e.,
-                                // here.
-                                let update = channels_params.initial_update();
-                                if let Some(update) = update {
-                                    chan.reparameterize(update.into())
-                                        .map_err(|_| internal!("failure on new channel"))?;
-                                }
-                                let new_entry = Open(OpenEntry {
-                                    channel: chan.clone(),
-                                    max_unused_duration: Duration::from_secs(
-                                        rand::thread_rng().gen_range(180..270),
-                                    ),
-                                });
-                                channel_map.insert(new_entry);
-                                Ok(chan)
-                            },
-                        )?;
-                        // It's okay if all the receivers went away:
-                        // that means that nobody was waiting for this channel.
-                        let _ignore_err = send.send(status.clone());
-
-                        match status {
-                            Ok(chan) => {
-                                return Ok((chan, ChanProvenance::NewlyCreated));
-                            }
-                            Err(e) => last_err = Some(e),
+                    match status {
+                        Ok(chan) => {
+                            return Ok((chan, ChanProvenance::NewlyCreated));
                         }
+                        Err(e) => last_err = Some(e),
                     }
-                    Err(e) => {
-                        // The channel failed. Make it non-pending, tell the
-                        // others, and set the error.
-                        self.channels.with_channels(|channel_map| {
-                            match channel_map.remove_exact(&target) {
-                                Some(Building(_)) | None => {
-                                    // We successfully removed our pending
-                                    // action, or somebody else did.
-                                }
-                                Some(ent @ Open(_)) => {
-                                    // Oh no. Something else built an entry
-                                    // here, and replaced us.  Put that
-                                    // something back.
-                                    channel_map.insert(ent);
-                                }
-                            }
-                        })?;
-
-                        // (As above)
-                        let _ignore_err = send.send(Err(e.clone()));
-                        last_err = Some(e);
-                    }
-                },
+                }
             }
 
             // End of this attempt. We will try again...
@@ -377,6 +297,89 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
             channel_map.try_insert(new_state)?;
             Ok(Action::Launch(send))
         })?
+    }
+
+    /// We just tried to build a channel: Handle the outcome and decide what to
+    /// do.
+    fn handle_build_outcome(
+        &self,
+        target: &CF::BuildSpec,
+        outcome: Result<CF::Channel>,
+    ) -> Result<CF::Channel> {
+        use map::ChannelState::*;
+        match outcome {
+            Ok(chan) => {
+                // The channel got built: remember it, tell the
+                // others, and return it.
+                self.channels
+                    .with_channels_and_params(|channel_map, channels_params| {
+                        match channel_map.remove_exact(target) {
+                            Some(Building(_)) => {
+                                // We successfully removed our pending
+                                // action. great!  Fall through and add
+                                // the channel we just built.
+                            }
+                            None => {
+                                // Something removed our entry from the list.
+                                // Time to retry.
+                                //
+                                // (This return is inside the closure.)
+                                return Err(Error::IdentityConflict);
+                            }
+                            Some(ent @ Open(_)) => {
+                                // Oh no. Something else built an entry
+                                // here, and replaced us.  Put that
+                                // something back, and retry.
+
+                                channel_map.insert(ent);
+                                // (This return is inside the closure.)
+                                return Err(Error::IdentityConflict);
+                            }
+                        }
+
+                        // This isn't great.  We context switch to the newly-created
+                        // channel just to tell it how and whether to do padding.  Ideally
+                        // we would pass the params at some suitable point during
+                        // building.  However, that would involve the channel taking a
+                        // copy of the params, and that must happen in the same channel
+                        // manager lock acquisition span as the one where we insert the
+                        // channel into the table so it will receive updates.  I.e.,
+                        // here.
+                        let update = channels_params.initial_update();
+                        if let Some(update) = update {
+                            chan.reparameterize(update.into())
+                                .map_err(|_| internal!("failure on new channel"))?;
+                        }
+                        let new_entry = Open(OpenEntry {
+                            channel: chan.clone(),
+                            max_unused_duration: Duration::from_secs(
+                                rand::thread_rng().gen_range(180..270),
+                            ),
+                        });
+                        channel_map.insert(new_entry);
+                        Ok(chan)
+                    })?
+            }
+            Err(e) => {
+                // The channel failed. Make it non-pending, tell the
+                // others, and set the error.
+                self.channels.with_channels(|channel_map| {
+                    match channel_map.remove_exact(target) {
+                        Some(Building(_)) | None => {
+                            // We successfully removed our pending
+                            // action, or somebody else did.
+                        }
+                        Some(ent @ Open(_)) => {
+                            // Oh no. Something else built an entry
+                            // here, and replaced us.  Put that
+                            // something back.
+                            channel_map.insert(ent);
+                        }
+                    }
+                })?;
+                Err(e)
+            }
+        }
     }
 
     /// Update the netdir
