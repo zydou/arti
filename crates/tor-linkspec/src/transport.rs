@@ -321,14 +321,14 @@ pub enum PtTargetInvalidSetting {
     ///
     /// Will probably be generated for a greater variety of values
     /// when the spec is more nailed down.
-    #[error("key {0:?} has invalid or unspported syntax")]
+    #[error("key {0:?} has invalid or unsupported syntax")]
     Key(String),
 
     /// Currently: the value contains whitespace
     ///
     /// Will probably be generated for a greater variety of values
     /// when the spec is more nailed down.
-    #[error("value {0:?} has invalid or unspported syntax")]
+    #[error("value {0:?} has invalid or unsupported syntax")]
     Value(String),
 }
 
