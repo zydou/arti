@@ -19,13 +19,16 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use futures::{AsyncReadExt, AsyncWriteExt};
-use tor_error::internal;
-use tor_linkspec::PtTargetAddr;
+use tor_error::{bad_api_usage, internal};
+use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget, PtTargetAddr};
 use tor_rtcompat::TcpProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
 };
+
+use super::TransportHelper;
 
 /// Information about what proxy protocol to use, and how to use it.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,6 +70,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
 
     let (target_addr, target_port): (tor_socksproto::SocksAddr, u16) = match target {
         PtTargetAddr::IpPort(a) => (SocksAddr::Ip(a.ip()), a.port()),
+        #[cfg(feature = "pt-client")]
         PtTargetAddr::HostPort(host, port) => (
             SocksAddr::Hostname(
                 host.clone()
@@ -75,6 +79,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
             ),
             *port,
         ),
+        #[cfg(feature = "pt-client")]
         PtTargetAddr::None => (SocksAddr::Ip(NO_ADDR), 1),
         _ => return Err(ProxyError::UnrecognizedAddr),
     };
@@ -149,7 +154,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
 /// An error that occurs while negotiating a connection with a proxy.
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub(crate) enum ProxyError {
+pub enum ProxyError {
     /// We had an IO error while talking to the proxy
     #[error("Problem while communicating with proxy")]
     ProxyIo(#[source] Arc<std::io::Error>),
@@ -211,5 +216,234 @@ impl tor_error::HasKind for ProxyError {
             E::ExtraneousData => EK::NotImplemented,
             E::SocksError(_) => EK::LocalProtocolFailed,
         }
+    }
+}
+
+impl tor_error::HasRetryTime for ProxyError {
+    fn retry_time(&self) -> tor_error::RetryTime {
+        use tor_error::RetryTime as RT;
+        use ProxyError as E;
+        use SocksStatus as S;
+        match self {
+            E::ProxyIo(_) => RT::AfterWaiting,
+            E::InvalidSocksAddr(_) => RT::Never,
+            E::UnrecognizedAddr => RT::Never,
+            E::InvalidSocksRequest(_) => RT::Never,
+            E::SocksProto(_) => RT::AfterWaiting,
+            E::Bug(_) => RT::Never,
+            E::ExtraneousData => RT::Never,
+            E::SocksError(e) => match *e {
+                S::CONNECTION_REFUSED
+                | S::GENERAL_FAILURE
+                | S::HOST_UNREACHABLE
+                | S::NETWORK_UNREACHABLE
+                | S::TTL_EXPIRED => RT::AfterWaiting,
+                _ => RT::Never,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "pt-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
+/// An object that connects to an external pluggable transport via a proxy.
+#[derive(Clone, Debug)]
+pub struct ExternalProxyPlugin<R> {
+    /// The runtime to use for connections.
+    runtime: R,
+    /// The location of the proxy.
+    proxy_addr: SocketAddr,
+}
+
+#[cfg(feature = "pt-client")]
+#[async_trait]
+impl<R: TcpProvider + Send + Sync> TransportHelper for ExternalProxyPlugin<R> {
+    type Stream = R::TcpStream;
+
+    async fn connect(
+        &self,
+        target: &OwnedChanTarget,
+    ) -> crate::Result<(OwnedChanTarget, R::TcpStream)> {
+        let pt_target = match target.chan_method() {
+            ChannelMethod::Direct(_) => {
+                return Err(crate::Error::UnusableTarget(bad_api_usage!(
+                    "Used pluggable transport for a TCP connection."
+                )))
+            }
+            ChannelMethod::Pluggable(target) => target,
+        };
+
+        let protocol = settings_to_protocol(encode_settings(pt_target.settings()))?;
+
+        Ok((
+            target.clone(),
+            connect_via_proxy(&self.runtime, &self.proxy_addr, &protocol, pt_target.addr()).await?,
+        ))
+    }
+}
+
+/// Encode the PT settings from `IT` in a format that a pluggable transport can use.
+#[cfg(feature = "pt-client")]
+fn encode_settings<'a, IT>(settings: IT) -> String
+where
+    IT: Iterator<Item = (&'a str, &'a str)>,
+{
+    /// Escape a character in the way expected by pluggable transports.
+    ///
+    /// This escape machinery is a mirror of that in the standard library.
+    enum EscChar {
+        /// Return a backslash then a character.
+        Backslash(char),
+        /// Return a character.
+        Literal(char),
+        /// Return nothing.
+        Done,
+    }
+    impl EscChar {
+        /// Create an iterator to escape one character.
+        fn new(ch: char) -> Self {
+            match ch {
+                '\\' | ';' | '=' => EscChar::Backslash(ch),
+                _ => EscChar::Literal(ch),
+            }
+        }
+    }
+    impl Iterator for EscChar {
+        type Item = char;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match *self {
+                EscChar::Backslash(ch) => {
+                    *self = EscChar::Literal(ch);
+                    Some('\\')
+                }
+                EscChar::Literal(ch) => {
+                    *self = EscChar::Done;
+                    Some(ch)
+                }
+                EscChar::Done => None,
+            }
+        }
+    }
+
+    /// escape a key or value string.
+    fn esc(s: &str) -> impl Iterator<Item = char> + '_ {
+        s.chars().flat_map(EscChar::new)
+    }
+
+    let mut result = String::new();
+    for (k, v) in settings {
+        result.extend(esc(k));
+        result.push('=');
+        result.extend(esc(v));
+        result.push(';');
+    }
+    result.pop(); // remove the final ';' if any. Yes this is ugly.
+
+    result
+}
+
+/// Transform a string into a representation that can be sent as SOCKS
+/// authentication.
+#[cfg(feature = "pt-client")]
+fn settings_to_protocol(s: String) -> Result<Protocol, ProxyError> {
+    let mut bytes: Vec<_> = s.into();
+    Ok(if bytes.is_empty() {
+        Protocol::Socks(SocksVersion::V5, SocksAuth::NoAuth)
+    } else if bytes.len() <= 255 {
+        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, vec![]))
+    } else if bytes.len() <= (255 * 2) {
+        let password = bytes.split_off(255);
+        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, password))
+    } else if !bytes.contains(&0) {
+        Protocol::Socks(SocksVersion::V4, SocksAuth::Socks4(bytes))
+    } else {
+        return Err(ProxyError::InvalidSocksRequest(
+            tor_socksproto::Error::NotImplemented(
+                "long settings lists with internal NUL bytes".into(),
+            ),
+        ));
+    })
+}
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[cfg(feature = "pt-client")]
+    #[test]
+    fn setting_encoding() {
+        fn check(settings: Vec<(&str, &str)>, expected: &str) {
+            assert_eq!(encode_settings(settings.into_iter()), expected);
+        }
+
+        // Easy cases, no escapes.
+        check(vec![], "");
+        check(vec![("hello", "world")], "hello=world");
+        check(
+            vec![("hey", "verden"), ("hello", "world")],
+            "hey=verden;hello=world",
+        );
+        check(
+            vec![("hey", "verden"), ("hello", "world"), ("selv", "tak")],
+            "hey=verden;hello=world;selv=tak",
+        );
+
+        check(
+            vec![("semi;colon", "equals=sign")],
+            r"semi\;colon=equals\=sign",
+        );
+        check(
+            vec![("semi;colon", "equals=sign"), ("also", "back\\slash")],
+            r"semi\;colon=equals\=sign;also=back\\slash",
+        );
+    }
+
+    #[cfg(feature = "pt-client")]
+    #[test]
+    fn split_settings() {
+        use SocksVersion::*;
+        let long_string = "examplestrg".to_owned().repeat(50);
+        assert_eq!(long_string.len(), 550);
+        let s = |a, b| settings_to_protocol(long_string[a..b].to_owned()).unwrap();
+        let v = |a, b| long_string.as_bytes()[a..b].to_vec();
+
+        assert_eq!(s(0, 0), Protocol::Socks(V5, SocksAuth::NoAuth));
+        assert_eq!(
+            s(0, 50),
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 50), vec![]))
+        );
+        assert_eq!(
+            s(0, 255),
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), vec![]))
+        );
+        assert_eq!(
+            s(0, 256),
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), v(255, 256)))
+        );
+        assert_eq!(
+            s(0, 300),
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), v(255, 300)))
+        );
+        assert_eq!(
+            s(0, 510),
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), v(255, 510)))
+        );
+        // This one needs to use socks4, or it won't fit. :P
+        assert_eq!(s(0, 511), Protocol::Socks(V4, SocksAuth::Socks4(v(0, 511))));
+
+        // Small requests with "0" bytes work fine...
+        assert_eq!(
+            settings_to_protocol("\0".to_owned()).unwrap(),
+            Protocol::Socks(V5, SocksAuth::Username(vec![0], vec![]))
+        );
+        assert_eq!(
+            settings_to_protocol("\0".to_owned().repeat(510)).unwrap(),
+            Protocol::Socks(V5, SocksAuth::Username(vec![0; 255], vec![0; 255]))
+        );
+
+        // Huge requests with "0" simply can't be encoded.
+        assert!(settings_to_protocol("\0".to_owned().repeat(511)).is_err());
     }
 }
