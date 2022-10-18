@@ -176,11 +176,11 @@ impl From<&NetParameters> for NetParamsExtract {
 }
 
 impl NetParamsExtract {
-    /// Return the padding timer prameter low end, for reduced-ness `reduced`, as a `u32`
+    /// Return the padding timer parameter low end, for reduced-ness `reduced`, as a `u32`
     fn pad_low(&self, reduced: bool) -> IntegerMilliseconds<u32> {
         self.pad_get(reduced, 0)
     }
-    /// Return the padding timer prameter high end, for reduced-ness `reduced`, as a `u32`
+    /// Return the padding timer parameter high end, for reduced-ness `reduced`, as a `u32`
     fn pad_high(&self, reduced: bool) -> IntegerMilliseconds<u32> {
         self.pad_get(reduced, 1)
     }

@@ -40,7 +40,7 @@ them between patch versions.
   interfaces.
 
 * `dirfilter`: enable an experimental mechanism to modify incoming
-  directory informatoin before it is used.
+  directory information before it is used.
 
 * `bridge-client`: Provide (as yet unimplented) APIs used to fetch
   and use bridge information.
