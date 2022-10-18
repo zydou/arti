@@ -96,6 +96,11 @@ pub enum Error {
     #[error("No plugin available for the transport {0}")]
     NoSuchTransport(tor_linkspec::TransportId),
 
+    /// An attempt to open a channel failed because it was cancelled or
+    /// superseded by another request or configuration change.
+    #[error("Channel request cancelled or superseded")]
+    RequestCancelled,
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -132,7 +137,8 @@ impl tor_error::HasKind for Error {
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
             E::MissingId => EK::BadApiUsage,
             E::IdentityConflict => EK::TorAccessFailed,
-            Error::ChannelBuild { .. } => EK::TorAccessFailed,
+            E::ChannelBuild { .. } => EK::TorAccessFailed,
+            E::RequestCancelled => EK::TransientFailure,
         }
     }
 }
@@ -168,6 +174,8 @@ impl tor_error::HasRetryTime for Error {
             // This one can't succeed until the bridge, or our set of
             // transports, is reconfigured.
             E::NoSuchTransport(_) => RT::Never,
+
+            E::RequestCancelled => RT::Never,
 
             // These aren't recoverable at all.
             E::Spawn { .. } | E::MissingId | E::Internal(_) => RT::Never,

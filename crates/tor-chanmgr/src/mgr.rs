@@ -203,6 +203,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                             // identities we want. Check for this.
                             final_attempt = true;
                             provenance = ChanProvenance::NewlyCreated;
+                            last_err.get_or_insert(Error::RequestCancelled);
                         }
                         Ok(Err(e)) => {
                             last_err = Some(e);
@@ -229,6 +230,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                         Ok(None) => {
                             final_attempt = true;
                             provenance = ChanProvenance::NewlyCreated;
+                            last_err.get_or_insert(Error::RequestCancelled);
                         }
                         Err(e) => last_err = Some(e),
                     }
