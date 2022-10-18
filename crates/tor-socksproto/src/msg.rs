@@ -202,6 +202,7 @@ impl SocksCmd {
 
 impl SocksStatus {
     /// Convert this status into a value for use with SOCKS4 or SOCKS4a.
+    #[cfg(feature = "proxy-handshake")]
     pub(crate) fn into_socks4_status(self) -> u8 {
         match self {
             SocksStatus::SUCCEEDED => 0x5A,
