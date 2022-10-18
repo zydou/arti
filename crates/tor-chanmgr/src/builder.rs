@@ -9,8 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 
 use std::time::Duration;
 use tor_error::internal;
-use tor_linkspec::{HasChanMethod, HasRelayIds, OwnedChanTarget};
-use tor_llcrypto::pk;
+use tor_linkspec::{HasChanMethod, OwnedChanTarget};
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
 
@@ -208,12 +207,6 @@ where
 }
 
 impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
-    type Ident = pk::ed25519::Ed25519Identity;
-    fn ident(&self) -> &Self::Ident {
-        self.target()
-            .ed_identity()
-            .expect("This channel had an Ed25519 identity when we created it, but now it doesn't!?")
-    }
     fn is_usable(&self) -> bool {
         !self.is_closing()
     }
@@ -221,10 +214,10 @@ impl crate::mgr::AbstractChannel for tor_proto::channel::Channel {
         self.duration_unused()
     }
     fn reparameterize(
-        &mut self,
+        &self,
         updates: Arc<ChannelPaddingInstructionsUpdates>,
     ) -> tor_proto::Result<()> {
-        self.reparameterize(updates)
+        tor_proto::channel::Channel::reparameterize(self, updates)
     }
     fn engage_padding_activities(&self) {
         self.engage_padding_activities();
@@ -239,11 +232,11 @@ mod test {
         mgr::{AbstractChannel, AbstractChannelFactory},
         Result,
     };
-    use pk::ed25519::Ed25519Identity;
-    use pk::rsa::RsaIdentity;
     use std::net::SocketAddr;
     use std::time::{Duration, SystemTime};
-    use tor_linkspec::ChannelMethod;
+    use tor_linkspec::{ChannelMethod, HasRelayIds, RelayIdType};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
+    use tor_llcrypto::pk::rsa::RsaIdentity;
     use tor_proto::channel::Channel;
     use tor_rtcompat::{test_with_one_runtime, TcpListener};
     use tor_rtmock::{io::LocalStream, net::MockNetwork, MockSleepRuntime};
@@ -316,7 +309,7 @@ mod test {
             );
 
             let chan = r1.unwrap();
-            assert_eq!(chan.ident(), &ed);
+            assert_eq!(chan.identity(RelayIdType::Ed25519), Some((&ed).into()));
             assert!(chan.is_usable());
             // In theory, time could pass here, so we can't just use
             // "assert_eq!(dur_unused, dur_unused2)".

@@ -48,7 +48,10 @@ pub use ids::{
     RelayId, RelayIdError, RelayIdRef, RelayIdType, RelayIdTypeIter,
 };
 pub use ls::LinkSpec;
-pub use owned::{OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget, RelayIds};
+pub use owned::{
+    OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget, OwnedCircTargetBuilder, RelayIds,
+    RelayIdsBuilder,
+};
 pub use traits::{
     ChanTarget, CircTarget, DirectChanMethodsHelper, HasAddrs, HasChanMethod, HasRelayIds,
     HasRelayIdsLegacy,

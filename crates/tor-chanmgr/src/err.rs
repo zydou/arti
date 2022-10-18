@@ -79,14 +79,27 @@ pub enum Error {
 
     /// A relay did not have the set of identity keys that we expected.
     ///
-    /// (Currently, `tor-chanmgr` only works to manage channels with a known
-    /// expected Ed25519 identity.)
+    /// (Currently, `tor-chanmgr` only works on relays that have at least
+    /// one recognized identity key.)
     #[error("Could not identify relay by identity key")]
     MissingId,
+
+    /// A succesful relay channel had one of the identity keys we wanted,
+    /// but not the other(s).
+    ///
+    /// This means that (assuming the relay is well behaved), we will not
+    /// find the ID combination we want.
+    #[error("Relay identity keys were only a partial match for what we wanted.")]
+    IdentityConflict,
 
     /// Tried to connnect via a transport that we don't support.
     #[error("No plugin available for the transport {0}")]
     NoSuchTransport(tor_linkspec::TransportId),
+
+    /// An attempt to open a channel failed because it was cancelled or
+    /// superseded by another request or configuration change.
+    #[error("Channel request cancelled or superseded")]
+    RequestCancelled,
 
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
@@ -96,6 +109,12 @@ pub enum Error {
 impl<T> From<std::sync::PoisonError<T>> for Error {
     fn from(_: std::sync::PoisonError<T>) -> Error {
         Error::Internal(internal!("Thread failed while holding lock"))
+    }
+}
+
+impl From<tor_linkspec::ByRelayIdsError> for Error {
+    fn from(_: tor_linkspec::ByRelayIdsError) -> Self {
+        Error::MissingId
     }
 }
 
@@ -117,7 +136,9 @@ impl tor_error::HasKind for Error {
             E::NoSuchTransport(_) => EK::InvalidConfig,
             E::UnusableTarget(_) | E::Internal(_) => EK::Internal,
             E::MissingId => EK::BadApiUsage,
-            Error::ChannelBuild { .. } => EK::TorAccessFailed,
+            E::IdentityConflict => EK::TorAccessFailed,
+            E::ChannelBuild { .. } => EK::TorAccessFailed,
+            E::RequestCancelled => EK::TransientFailure,
         }
     }
 }
@@ -147,9 +168,14 @@ impl tor_error::HasRetryTime for Error {
             // it won't have addresses in the future.
             E::UnusableTarget(_) => RT::Never,
 
+            // This can't succeed until the relay is reconfigured.
+            E::IdentityConflict => RT::Never,
+
             // This one can't succeed until the bridge, or our set of
             // transports, is reconfigured.
             E::NoSuchTransport(_) => RT::Never,
+
+            E::RequestCancelled => RT::Never,
 
             // These aren't recoverable at all.
             E::Spawn { .. } | E::MissingId | E::Internal(_) => RT::Never,

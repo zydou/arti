@@ -476,7 +476,7 @@ impl Channel {
     /// Reparameterise (update parameters; reconfigure)
     ///
     /// Returns `Err` if the channel was closed earlier
-    pub fn reparameterize(&mut self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
+    pub fn reparameterize(&self, params: Arc<ChannelPaddingInstructionsUpdates>) -> Result<()> {
         let mut mutable = self
             .details
             .mutable
@@ -662,6 +662,15 @@ where
         }
     }
     Ok(())
+}
+
+impl HasRelayIds for Channel {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.details.peer_id.identity(key_type)
+    }
 }
 
 /// Make some fake channel details (for testing only!)

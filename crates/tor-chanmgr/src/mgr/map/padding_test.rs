@@ -21,7 +21,7 @@ use itertools::{zip_eq, Itertools};
 
 use tor_cell::chancell::msg::PaddingNegotiateCmd;
 use tor_config::PaddingLevel;
-use tor_linkspec::HasRelayIds;
+use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::NetDir;
 use tor_proto::channel::{Channel, CtrlMsg};
 
@@ -121,7 +121,7 @@ struct FakeChannelFactory {
 #[async_trait]
 impl AbstractChannelFactory for FakeChannelFactory {
     type Channel = Channel;
-    type BuildSpec = ();
+    type BuildSpec = tor_linkspec::RelayIds;
 
     async fn build_channel(&self, _target: &Self::BuildSpec) -> Result<Self::Channel> {
         Ok(self.channel.clone())
@@ -152,13 +152,17 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
 
     let (channel, recv) = Channel::new_fake();
     let peer_id = channel.target().ed_identity().unwrap().clone();
+    let relay_ids = RelayIds::builder()
+        .ed_identity(peer_id.clone())
+        .build()
+        .unwrap();
     let factory = FakeChannelFactory { channel };
 
     let netparams = Arc::new(NetParameters::default());
 
     let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &netparams);
 
-    let (channel, _prov) = chanmgr.get_or_launch(peer_id, (), usage).await.unwrap();
+    let (channel, _prov) = chanmgr.get_or_launch(relay_ids, usage).await.unwrap();
 
     CaseContext {
         channel,

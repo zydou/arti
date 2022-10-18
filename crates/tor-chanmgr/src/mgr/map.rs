@@ -3,14 +3,16 @@
 use std::time::Duration;
 
 use super::{AbstractChannel, Pending};
-use crate::{ChannelConfig, Dormancy, Error, Result};
+use crate::{ChannelConfig, Dormancy, Result};
 
-use std::collections::{hash_map, HashMap};
 use std::result::Result as StdResult;
 use std::sync::Arc;
 use tor_cell::chancell::msg::PaddingNegotiate;
 use tor_config::PaddingLevel;
 use tor_error::{internal, into_internal};
+use tor_linkspec::ByRelayIds;
+use tor_linkspec::HasRelayIds;
+use tor_linkspec::RelayIds;
 use tor_netdir::{params::NetParameters, params::CHANNEL_PADDING_TIMEOUT_UPPER_BOUND};
 use tor_proto::channel::padding::Parameters as PaddingParameters;
 use tor_proto::channel::padding::ParametersBuilder as PaddingParametersBuilder;
@@ -22,14 +24,6 @@ use void::{ResultVoidExt as _, Void};
 
 #[cfg(test)]
 mod padding_test;
-
-// TODO pt-client:
-//
-// This map code will no longer work in the bridge setting.  We need to update
-// our internal map of channels, so that we can look them up not only by Ed25519
-// identity, but by RSA identity too.  We also need a way to be able to get a
-// channel only if it matches a specific ChanTarget in its address and transport
-// and keys.
 
 /// A map from channel id to channel state, plus necessary auxiliary state
 ///
@@ -48,8 +42,12 @@ struct Inner<C: AbstractChannel> {
     ///
     /// (Danger: this uses a blocking mutex close to async code.  This mutex
     /// must never be held while an await is happening.)
-    channels: HashMap<C::Ident, ChannelState<C>>,
+    channels: ByRelayIds<ChannelState<C>>,
 
+    // TODO: The subsequent fields really do not belong in structure called
+    // `ChannelMap`. These, plus the actual map, should probably be in a
+    // structure called "MgrState", and that structure should be the thing that
+    // is put behind a Mutex.
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
@@ -70,14 +68,17 @@ struct Inner<C: AbstractChannel> {
     dormancy: Dormancy,
 }
 
-/// Structure that can only be constructed from within this module.
-/// Used to make sure that only we can construct ChannelState::Poisoned.
-pub(crate) struct Priv {
-    /// (This field is private)
-    _unused: (),
-}
-
 /// The state of a channel (or channel build attempt) within a map.
+///
+/// A ChannelState can be Open (representing a fully negotiated channel) or
+/// Building (representing a pending attempt to build a channel). Both states
+/// have a set of RelayIds, but these RelayIds represent slightly different
+/// things:
+///  * On a Building channel, the set of RelayIds is all the identities that we
+///    require the peer to have. (The peer may turn out to have _more_
+///    identities than this.)
+///  * On an Open channel, the set of RelayIds is all the identities that
+///    we were able to successfully authenticate for the peer.
 pub(crate) enum ChannelState<C> {
     /// An open channel.
     ///
@@ -86,12 +87,7 @@ pub(crate) enum ChannelState<C> {
     /// yielding it to the user.
     Open(OpenEntry<C>),
     /// A channel that's getting built.
-    Building(Pending<C>),
-    /// A temporary invalid state.
-    ///
-    /// We insert this into the map temporarily as a placeholder in
-    /// `change_state()`.
-    Poisoned(Priv),
+    Building(PendingEntry),
 }
 
 /// An open channel entry.
@@ -103,24 +99,42 @@ pub(crate) struct OpenEntry<C> {
     pub(crate) max_unused_duration: Duration,
 }
 
-impl<C: Clone> ChannelState<C> {
-    /// Create a new shallow copy of this ChannelState.
-    #[cfg(test)]
-    fn clone_ref(&self) -> Result<Self> {
-        use ChannelState::*;
+/// An entry for a not-yet-build channel
+#[derive(Clone)]
+pub(crate) struct PendingEntry {
+    /// The keys of the relay to which we're trying to open a channel.
+    pub(crate) ids: RelayIds,
+
+    /// A future we can clone and listen on to learn when this channel attempt
+    /// is successful or failed.
+    ///
+    /// This entry will be removed from the map (and possibly replaced with an
+    /// `OpenEntry`) _before_ this future becomes ready.
+    pub(crate) pending: Pending,
+}
+
+impl<C> HasRelayIds for ChannelState<C>
+where
+    C: HasRelayIds,
+{
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
         match self {
-            Open(ent) => Ok(Open(ent.clone())),
-            Building(pending) => Ok(Building(pending.clone())),
-            Poisoned(_) => Err(Error::Internal(internal!("Poisoned state in channel map"))),
+            ChannelState::Open(OpenEntry { channel, .. }) => channel.identity(key_type),
+            ChannelState::Building(PendingEntry { ids, .. }) => ids.identity(key_type),
         }
     }
+}
 
+impl<C: Clone> ChannelState<C> {
     /// For testing: either give the Open channel inside this state,
     /// or panic if there is none.
     #[cfg(test)]
-    fn unwrap_open(&mut self) -> &mut C {
+    fn unwrap_open(&self) -> &C {
         match self {
-            ChannelState::Open(ent) => &mut ent.channel,
+            ChannelState::Open(ent) => &ent.channel,
             _ => panic!("Not an open channel"),
         }
     }
@@ -182,24 +196,6 @@ impl NetParamsExtract {
 }
 
 impl<C: AbstractChannel> ChannelState<C> {
-    /// Return an error if `ident`is definitely not a matching
-    /// matching identity for this state.
-    fn check_ident(&self, ident: &C::Ident) -> Result<()> {
-        match self {
-            ChannelState::Open(ent) => {
-                if ent.channel.ident() == ident {
-                    Ok(())
-                } else {
-                    Err(Error::Internal(internal!("Identity mismatch")))
-                }
-            }
-            ChannelState::Poisoned(_) => {
-                Err(Error::Internal(internal!("Poisoned state in channel map")))
-            }
-            ChannelState::Building(_) => Ok(()),
-        }
-    }
-
     /// Return true if a channel is ready to expire.
     /// Update `expire_after` if a smaller duration than
     /// the given value is required to expire this channel.
@@ -240,7 +236,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
         ChannelMap {
             inner: std::sync::Mutex::new(Inner {
-                channels: HashMap::new(),
+                channels: ByRelayIds::new(),
                 config,
                 channels_params,
                 dormancy,
@@ -248,117 +244,50 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
-    /// Return the channel state for the given identity, if any.
-    #[cfg(test)]
-    pub(crate) fn get(&self, ident: &C::Ident) -> Result<Option<ChannelState<C>>> {
-        let inner = self.inner.lock()?;
-        inner
-            .channels
-            .get(ident)
-            .map(ChannelState::clone_ref)
-            .transpose()
-    }
-
-    /// Replace the channel state for `ident` with `newval`, and return the
-    /// previous value if any.
-    #[cfg(test)]
-    pub(crate) fn replace(
-        &self,
-        ident: C::Ident,
-        newval: ChannelState<C>,
-    ) -> Result<Option<ChannelState<C>>> {
-        newval.check_ident(&ident)?;
-        let mut inner = self.inner.lock()?;
-        Ok(inner.channels.insert(ident, newval))
-    }
-
-    /// Replace the channel state for `ident` with the return value from `func`,
-    /// and return the previous value if any.
+    /// Run a function on the `ByRelayIds` that implements this map.
     ///
-    /// Passes a snapshot of the current global channels parameters to `func`.
-    /// If those parameters are copied by `func` into an [`AbstractChannel`]
-    /// `func` must ensure that that `AbstractChannel` is returned,
-    /// so that it will be properly registered and receive params updates.
-    pub(crate) fn replace_with_params<F>(
-        &self,
-        ident: C::Ident,
-        func: F,
-    ) -> Result<Option<ChannelState<C>>>
+    /// This function grabs a mutex over the map: do not provide slow function.
+    ///
+    /// We provide this function rather than exposing the channels set directly,
+    /// to make sure that the calling code doesn't await while holding the lock.
+    pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
-        F: FnOnce(&ChannelPaddingInstructions) -> Result<ChannelState<C>>,
+        F: FnOnce(&mut ByRelayIds<ChannelState<C>>) -> T,
     {
         let mut inner = self.inner.lock()?;
-        let newval = func(&inner.channels_params)?;
-        newval.check_ident(&ident)?;
-        Ok(inner.channels.insert(ident, newval))
+        Ok(func(&mut inner.channels))
     }
 
-    /// Remove and return the state for `ident`, if any.
-    pub(crate) fn remove(&self, ident: &C::Ident) -> Result<Option<ChannelState<C>>> {
+    /// Run a function on the `ByRelayIds` that implements this map.
+    ///
+    /// This function grabs a mutex over the map: do not provide slow function.
+    ///
+    /// We provide this function rather than exposing the channels set directly,
+    /// to make sure that the calling code doesn't await while holding the lock.
+    pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
+    where
+        F: FnOnce(&mut ByRelayIds<ChannelState<C>>, &ChannelPaddingInstructions) -> T,
+    {
         let mut inner = self.inner.lock()?;
-        Ok(inner.channels.remove(ident))
+        // We need this silly destructuring syntax so that we don't seem to be
+        // borrowing the structure mutably and immutably at the same time.
+        let Inner {
+            ref mut channels,
+            ref channels_params,
+            ..
+        } = &mut *inner;
+        Ok(func(channels, channels_params))
     }
 
     /// Remove every unusable state from the map.
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut inner = self.inner.lock()?;
-        inner.channels.retain(|_, state| match state {
-            ChannelState::Poisoned(_) => false,
+        inner.channels.retain(|state| match state {
             ChannelState::Open(ent) => ent.channel.is_usable(),
             ChannelState::Building(_) => true,
         });
         Ok(())
-    }
-
-    /// Replace the state whose identity is `ident` with a new state.
-    ///
-    /// The provided function `func` is invoked on the old state (if
-    /// any), and must return a tuple containing an optional new
-    /// state, and an arbitrary return value for this function.
-    ///
-    /// Because `func` is run while holding the lock on this object,
-    /// it should be fast and nonblocking.  In return, you can be sure
-    /// that it's running atomically with respect to other accessors
-    /// of this map.
-    ///
-    /// If `func` panics, or if it returns a channel with a different
-    /// identity, this position in the map will be become unusable and
-    /// future accesses to that position may fail.
-    pub(crate) fn change_state<F, V>(&self, ident: &C::Ident, func: F) -> Result<V>
-    where
-        F: FnOnce(Option<ChannelState<C>>) -> (Option<ChannelState<C>>, V),
-    {
-        use hash_map::Entry::*;
-        let mut inner = self.inner.lock()?;
-        let entry = inner.channels.entry(ident.clone());
-        match entry {
-            Occupied(mut occupied) => {
-                // Temporarily replace the entry for this identity with
-                // a poisoned entry.
-                let mut oldent = ChannelState::Poisoned(Priv { _unused: () });
-                std::mem::swap(occupied.get_mut(), &mut oldent);
-                let (newval, output) = func(Some(oldent));
-                match newval {
-                    Some(mut newent) => {
-                        newent.check_ident(ident)?;
-                        std::mem::swap(occupied.get_mut(), &mut newent);
-                    }
-                    None => {
-                        occupied.remove();
-                    }
-                };
-                Ok(output)
-            }
-            Vacant(vacant) => {
-                let (newval, output) = func(None);
-                if let Some(newent) = newval {
-                    newent.check_ident(ident)?;
-                    vacant.insert(newent);
-                }
-                Ok(output)
-            }
-        }
     }
 
     /// Reconfigure all channels as necessary
@@ -413,10 +342,10 @@ impl<C: AbstractChannel> ChannelMap<C> {
         };
         let update = Arc::new(update);
 
-        for channel in inner.channels.values_mut() {
+        for channel in inner.channels.values() {
             let channel = match channel {
                 CS::Open(OpenEntry { channel, .. }) => channel,
-                CS::Building(_) | CS::Poisoned(_) => continue,
+                CS::Building(_) => continue,
             };
             // Ignore error (which simply means the channel is closed or gone)
             let _ = channel.reparameterize(update.clone());
@@ -434,7 +363,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .lock()
             .expect("Poisoned lock")
             .channels
-            .retain(|_id, chan| !chan.ready_to_expire(&mut ret));
+            .retain(|chan| !chan.ready_to_expire(&mut ret));
         ret
     }
 }
@@ -584,7 +513,8 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
+    use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
     fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
@@ -595,18 +525,14 @@ mod test {
         )
     }
 
-    #[derive(Eq, PartialEq, Clone, Debug)]
+    #[derive(Clone, Debug)]
     struct FakeChannel {
-        ident: &'static str,
+        ed_ident: Ed25519Identity,
         usable: bool,
         unused_duration: Option<u64>,
-        params_update: Option<Arc<ChannelPaddingInstructionsUpdates>>,
+        params_update: Arc<Mutex<Option<Arc<ChannelPaddingInstructionsUpdates>>>>,
     }
     impl AbstractChannel for FakeChannel {
-        type Ident = u8;
-        fn ident(&self) -> &Self::Ident {
-            &self.ident.as_bytes()[0]
-        }
         fn is_usable(&self) -> bool {
             self.usable
         }
@@ -614,20 +540,36 @@ mod test {
             self.unused_duration.map(Duration::from_secs)
         }
         fn reparameterize(
-            &mut self,
+            &self,
             update: Arc<ChannelPaddingInstructionsUpdates>,
         ) -> tor_proto::Result<()> {
-            self.params_update = Some(update);
+            *self.params_update.lock().unwrap() = Some(update);
             Ok(())
         }
         fn engage_padding_activities(&self) {}
     }
+    impl tor_linkspec::HasRelayIds for FakeChannel {
+        fn identity(
+            &self,
+            key_type: tor_linkspec::RelayIdType,
+        ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+            match key_type {
+                tor_linkspec::RelayIdType::Ed25519 => Some((&self.ed_ident).into()),
+                _ => None,
+            }
+        }
+    }
+    /// Get a fake ed25519 identity from the first byte of a string.
+    fn str_to_ed(s: &str) -> Ed25519Identity {
+        let byte = s.as_bytes()[0];
+        [byte; 32].into()
+    }
     fn ch(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
+            ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration: None,
-            params_update: None,
+            params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -640,10 +582,10 @@ mod test {
         unused_duration: Option<u64>,
     ) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
+            ed_ident: str_to_ed(ident),
             usable: true,
             unused_duration,
-            params_update: None,
+            params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -652,10 +594,10 @@ mod test {
     }
     fn closed(ident: &'static str) -> ChannelState<FakeChannel> {
         let channel = FakeChannel {
-            ident,
+            ed_ident: str_to_ed(ident),
             usable: false,
             unused_duration: None,
-            params_update: None,
+            params_update: Arc::new(Mutex::new(None)),
         };
         ChannelState::Open(OpenEntry {
             channel,
@@ -664,106 +606,30 @@ mod test {
     }
 
     #[test]
-    fn simple_ops() {
-        let map = new_test_channel_map();
-        use ChannelState::Open;
-
-        assert!(map.replace(b'h', ch("hello")).unwrap().is_none());
-        assert!(map.replace(b'w', ch("wello")).unwrap().is_none());
-
-        match map.get(&b'h') {
-            Ok(Some(Open(ent))) if ent.channel.ident == "hello" => {}
-            _ => panic!(),
-        }
-
-        assert!(map.get(&b'W').unwrap().is_none());
-
-        match map.replace(b'h', ch("hebbo")) {
-            Ok(Some(Open(ent))) if ent.channel.ident == "hello" => {}
-            _ => panic!(),
-        }
-
-        assert!(map.remove(&b'Z').unwrap().is_none());
-        match map.remove(&b'h') {
-            Ok(Some(Open(ent))) if ent.channel.ident == "hebbo" => {}
-            _ => panic!(),
-        }
-    }
-
-    #[test]
-    fn rmv_unusable() {
+    fn rmv_unusable() -> Result<()> {
         let map = new_test_channel_map();
 
-        map.replace(b'm', closed("machen")).unwrap();
-        map.replace(b'f', ch("feinen")).unwrap();
-        map.replace(b'w', closed("wir")).unwrap();
-        map.replace(b'F', ch("Fug")).unwrap();
+        map.with_channels(|map| {
+            map.insert(closed("machen"));
+            map.insert(ch("feinen"));
+            map.insert(closed("wir"));
+            map.insert(ch("Fug"));
+        })?;
 
         map.remove_unusable().unwrap();
 
-        assert!(map.get(&b'm').unwrap().is_none());
-        assert!(map.get(&b'w').unwrap().is_none());
-        assert!(map.get(&b'f').unwrap().is_some());
-        assert!(map.get(&b'F').unwrap().is_some());
+        map.with_channels(|map| {
+            assert!(map.by_id(&str_to_ed("m")).is_none());
+            assert!(map.by_id(&str_to_ed("w")).is_none());
+            assert!(map.by_id(&str_to_ed("f")).is_some());
+            assert!(map.by_id(&str_to_ed("F")).is_some());
+        })?;
+
+        Ok(())
     }
 
     #[test]
-    fn change() {
-        let map = new_test_channel_map();
-
-        map.replace(b'w', ch("wir")).unwrap();
-        map.replace(b'm', ch("machen")).unwrap();
-        map.replace(b'f', ch("feinen")).unwrap();
-        map.replace(b'F', ch("Fug")).unwrap();
-
-        //  Replace Some with Some.
-        let (old, v) = map
-            .change_state(&b'F', |state| (Some(ch("FUG")), (state, 99_u8)))
-            .unwrap();
-        assert_eq!(old.unwrap().unwrap_open().ident, "Fug");
-        assert_eq!(v, 99);
-        assert_eq!(map.get(&b'F').unwrap().unwrap().unwrap_open().ident, "FUG");
-
-        // Replace Some with None.
-        let (old, v) = map
-            .change_state(&b'f', |state| (None, (state, 123_u8)))
-            .unwrap();
-        assert_eq!(old.unwrap().unwrap_open().ident, "feinen");
-        assert_eq!(v, 123);
-        assert!(map.get(&b'f').unwrap().is_none());
-
-        // Replace None with Some.
-        let (old, v) = map
-            .change_state(&b'G', |state| (Some(ch("Geheimnisse")), (state, "Hi")))
-            .unwrap();
-        assert!(old.is_none());
-        assert_eq!(v, "Hi");
-        assert_eq!(
-            map.get(&b'G').unwrap().unwrap().unwrap_open().ident,
-            "Geheimnisse"
-        );
-
-        // Replace None with None
-        let (old, v) = map
-            .change_state(&b'Q', |state| (None, (state, "---")))
-            .unwrap();
-        assert!(old.is_none());
-        assert_eq!(v, "---");
-        assert!(map.get(&b'Q').unwrap().is_none());
-
-        // Try replacing None with invalid entry (with mismatched ID)
-        let e = map.change_state(&b'P', |state| (Some(ch("Geheimnisse")), (state, "Hi")));
-        assert!(matches!(e, Err(Error::Internal(_))));
-        assert!(matches!(map.get(&b'P'), Ok(None)));
-
-        // Try replacing Some with invalid entry (mismatched ID)
-        let e = map.change_state(&b'G', |state| (Some(ch("Wobbledy")), (state, "Hi")));
-        assert!(matches!(e, Err(Error::Internal(_))));
-        assert!(matches!(map.get(&b'G'), Err(Error::Internal(_))));
-    }
-
-    #[test]
-    fn reparameterise_via_netdir() {
+    fn reparameterise_via_netdir() -> Result<()> {
         let map = new_test_channel_map();
 
         // Set some non-default parameters so that we can tell when an update happens
@@ -781,16 +647,19 @@ mod test {
             )
             .finish();
 
-        assert!(map.replace(b't', ch("track")).unwrap().is_none());
+        map.with_channels(|map| {
+            map.insert(ch("track"));
+        })?;
 
         let netdir = tor_netdir::testnet::construct_netdir()
             .unwrap_if_sufficient()
             .unwrap();
         let netdir = Arc::new(netdir);
 
-        let with_ch = |f: &dyn Fn(&mut FakeChannel)| {
-            let mut inner = map.inner.lock().unwrap();
-            let ch = inner.channels.get_mut(&b't').unwrap().unwrap_open();
+        let with_ch = |f: &dyn Fn(&FakeChannel)| {
+            let inner = map.inner.lock().unwrap();
+            let ch = inner.channels.by_ed25519(&str_to_ed("t"));
+            let ch = ch.unwrap().unwrap_open();
             f(ch);
         };
 
@@ -798,7 +667,7 @@ mod test {
         map.reconfigure_general(None, None, netdir.clone()).unwrap();
         with_ch(&|ch| {
             assert_eq!(
-                format!("{:?}", ch.params_update.take().unwrap()),
+                format!("{:?}", ch.params_update.lock().unwrap().take().unwrap()),
                 // evade field visibility by (ab)using Debug impl
                 "ChannelPaddingInstructionsUpdates { padding_enable: None, \
                     padding_parameters: Some(Parameters { \
@@ -811,54 +680,65 @@ mod test {
 
         eprintln!("-- process a default netdir again, which should *not* send an update --");
         map.reconfigure_general(None, None, netdir).unwrap();
-        with_ch(&|ch| assert_eq!(ch.params_update, None));
+        with_ch(&|ch| assert!(ch.params_update.lock().unwrap().is_none()));
+
+        Ok(())
     }
 
     #[test]
-    fn expire_channels() {
+    fn expire_channels() -> Result<()> {
         let map = new_test_channel_map();
 
         // Channel that has been unused beyond max duration allowed is expired
-        map.replace(
-            b'w',
-            ch_with_details("wello", Duration::from_secs(180), Some(181)),
-        )
-        .unwrap();
+        map.with_channels(|map| {
+            map.insert(ch_with_details(
+                "wello",
+                Duration::from_secs(180),
+                Some(181),
+            ))
+        })?;
 
         // Minimum value of max unused duration is 180 seconds
         assert_eq!(180, map.expire_channels().as_secs());
-        assert!(map.get(&b'w').unwrap().is_none());
+        map.with_channels(|map| {
+            assert!(map.by_ed25519(&str_to_ed("w")).is_none());
+        })?;
 
         let map = new_test_channel_map();
 
         // Channel that has been unused for shorter than max unused duration
-        map.replace(
-            b'w',
-            ch_with_details("wello", Duration::from_secs(180), Some(120)),
-        )
-        .unwrap();
+        map.with_channels(|map| {
+            map.insert(ch_with_details(
+                "wello",
+                Duration::from_secs(180),
+                Some(120),
+            ));
 
-        map.replace(
-            b'y',
-            ch_with_details("yello", Duration::from_secs(180), Some(170)),
-        )
-        .unwrap();
+            map.insert(ch_with_details(
+                "yello",
+                Duration::from_secs(180),
+                Some(170),
+            ));
 
-        // Channel that has been unused beyond max duration allowed is expired
-        map.replace(
-            b'g',
-            ch_with_details("gello", Duration::from_secs(180), Some(181)),
-        )
-        .unwrap();
+            // Channel that has been unused beyond max duration allowed is expired
+            map.insert(ch_with_details(
+                "gello",
+                Duration::from_secs(180),
+                Some(181),
+            ));
 
-        // Closed channel should be retained
-        map.replace(b'h', closed("hello")).unwrap();
+            // Closed channel should be retained
+            map.insert(closed("hello"));
+        })?;
 
         // Return duration until next channel expires
         assert_eq!(10, map.expire_channels().as_secs());
-        assert!(map.get(&b'w').unwrap().is_some());
-        assert!(map.get(&b'y').unwrap().is_some());
-        assert!(map.get(&b'h').unwrap().is_some());
-        assert!(map.get(&b'g').unwrap().is_none());
+        map.with_channels(|map| {
+            assert!(map.by_ed25519(&str_to_ed("w")).is_some());
+            assert!(map.by_ed25519(&str_to_ed("y")).is_some());
+            assert!(map.by_ed25519(&str_to_ed("h")).is_some());
+            assert!(map.by_ed25519(&str_to_ed("g")).is_none());
+        })?;
+        Ok(())
     }
 }
