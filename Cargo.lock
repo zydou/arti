@@ -3712,6 +3712,7 @@ dependencies = [
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",
+ "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
