@@ -238,7 +238,7 @@ impl Listen {
 /// [`Listen`] configuration specified something not supported by application code
 #[derive(thiserror::Error, Debug, Clone)]
 #[non_exhaustive]
-#[error("Unsupported listening configration")]
+#[error("Unsupported listening configuration")]
 pub struct ListenUnsupported {}
 
 /// One item in the `Listen`

@@ -84,7 +84,7 @@ pub enum Error {
     #[error("Could not identify relay by identity key")]
     MissingId,
 
-    /// A succesful relay channel had one of the identity keys we wanted,
+    /// A successful relay channel had one of the identity keys we wanted,
     /// but not the other(s).
     ///
     /// This means that (assuming the relay is well behaved), we will not
@@ -92,7 +92,7 @@ pub enum Error {
     #[error("Relay identity keys were only a partial match for what we wanted.")]
     IdentityConflict,
 
-    /// Tried to connnect via a transport that we don't support.
+    /// Tried to connect via a transport that we don't support.
     #[error("No plugin available for the transport {0}")]
     NoSuchTransport(tor_linkspec::TransportId),
 

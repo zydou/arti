@@ -204,7 +204,7 @@ problems, since its usage is established basically everywhere.
 Nonetheless, we may want to look into alternatives, so that we could:
 
   * Have more identity types
-  * Make addesses optional
+  * Make addresses optional
   * Use a type better suited for encoding binary data.
 
 

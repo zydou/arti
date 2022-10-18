@@ -107,7 +107,7 @@ fn padding_parameters_calculation() {
     };
 
     let bogus_netdir = make_bogus_netdir(&[
-        // for testing low > hight
+        // for testing low > high
         ("nf_ito_low", ADJ_REDUCED_MS[1] as _),
         ("nf_ito_high", ADJ_REDUCED_MS[0] as _),
     ]);

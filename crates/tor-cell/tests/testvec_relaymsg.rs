@@ -670,7 +670,7 @@ fn test_establish_intro() {
     let sig = vec![0, 1, 2, 3];
     assert_eq!(Into::<u8>::into(cmd), 32);
 
-    // Establish intro with one recognzied extension
+    // Establish intro with one recognised extension
     let mut es_intro = EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig);
     es_intro.set_extension_dos(extension_dos);
     msg(
@@ -694,7 +694,7 @@ fn test_establish_intro() {
         &EstablishIntro::new(auth_key_type, auth_key, handshake_auth, sig).into(),
     );
 
-    // Establish intro with one recognzied extension
+    // Establish intro with one recognised extension
     // and one unknown extension
     let auth_key = vec![0, 1, 2, 3];
     let sig = vec![0, 1, 2, 3];
