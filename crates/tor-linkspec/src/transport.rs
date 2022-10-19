@@ -277,7 +277,6 @@ pub struct PtTargetSettings {
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
     /// The transport to be used.
     transport: PtTransportName,
