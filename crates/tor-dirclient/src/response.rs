@@ -69,12 +69,16 @@ impl DirResponse {
     }
 
     /// Return the output from this response.
-    pub fn output(&self) -> &[u8] {
+    ///
+    /// Returns some output, even if the response indicates truncation or an error.
+    pub fn output_unchecked(&self) -> &[u8] {
         &self.output
     }
 
     /// Consume this DirResponse and return the output in it.
-    pub fn into_output(self) -> Vec<u8> {
+    ///
+    /// Returns some output, even if the response indicates truncation or an error.
+    pub fn into_output_unchecked(self) -> Vec<u8> {
         self.output
     }
 

@@ -698,9 +698,9 @@ mod test {
         assert!(!response.is_partial());
         assert!(response.error().is_none());
         assert!(response.source().is_none());
-        let out_ref = response.output();
+        let out_ref = response.output_unchecked();
         assert_eq!(out_ref, b"This is where the descs would go.");
-        let out = response.into_output();
+        let out = response.into_output_unchecked();
         assert_eq!(&out, b"This is where the descs would go.");
 
         Ok(())
@@ -733,8 +733,8 @@ mod test {
         assert_eq!(response.status_code(), 200);
         assert!(response.error().is_some());
         assert!(response.is_partial());
-        assert!(response.output().len() < 37 * 2);
-        assert!(response.output().starts_with(b"One fish"));
+        assert!(response.output_unchecked().len() < 37 * 2);
+        assert!(response.output_unchecked().starts_with(b"One fish"));
     }
 
     #[test]

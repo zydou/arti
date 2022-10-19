@@ -440,7 +440,7 @@ async fn download_attempt<R: Runtime>(
     let mut n_errors = 0;
     for (client_req, dir_response) in fetched {
         let source = dir_response.source().map(Clone::clone);
-        let text = match String::from_utf8(dir_response.into_output())
+        let text = match String::from_utf8(dir_response.into_output_unchecked())
             .map_err(Error::BadUtf8FromDirectory)
         {
             Ok(t) => t,
