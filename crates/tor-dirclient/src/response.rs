@@ -7,7 +7,7 @@ use crate::RequestError;
 
 /// A successful (or at any rate, well-formed) response to a directory
 /// request.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DirResponse {
     /// An HTTP status code.
     status: u16,
