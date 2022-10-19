@@ -1,8 +1,5 @@
 general:
-  # FIXME: this is currently set carefully to just after transfers are expected
-  # to finish, but before arti spends a lot of time spinning CPU waiting for
-  # circuits to time out. Should diagnose and fix the spin.
-  stop_time: 27 min
+  stop_time: 30 min
 network:
   graph:
     type: gml
