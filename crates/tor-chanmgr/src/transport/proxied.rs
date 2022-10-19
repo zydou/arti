@@ -246,7 +246,8 @@ impl tor_error::HasRetryTime for ProxyError {
 
 #[cfg(feature = "pt-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "pt-client")))]
-/// An object that connects to an external pluggable transport via a proxy.
+/// An object that connects to a Tor bridge via an external pluggable transport
+/// that provides a proxy.
 #[derive(Clone, Debug)]
 pub struct ExternalProxyPlugin<R> {
     /// The runtime to use for connections.
