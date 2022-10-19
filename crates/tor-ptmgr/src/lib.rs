@@ -37,6 +37,8 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 pub mod config;
+pub mod err;
+pub mod ipc;
 
 use config::PtMgrConfig;
 
