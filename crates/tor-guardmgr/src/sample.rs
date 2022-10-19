@@ -906,7 +906,7 @@ mod test {
         // calculation of collision probability at the end of this function is
         // too tricky.
         let netdir = tor_netdir::testnet::construct_custom_netdir(|idx, builder| {
-            // Give every node eequal bandwidth.
+            // Give every node equal bandwidth.
             builder.rs.weight(RelayWeight::Measured(1000));
             // The default network has 40 relays, and the first 10 are
             // not Guard by default.
