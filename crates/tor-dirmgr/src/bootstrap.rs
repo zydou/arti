@@ -86,7 +86,7 @@ fn note_request_outcome<R: Runtime>(
     circmgr: &CircMgr<R>,
     outcome: &tor_dirclient::Result<tor_dirclient::DirResponse>,
 ) {
-    use tor_dirclient::Error::RequestFailed;
+    use tor_dirclient::{Error::RequestFailed, RequestFailedError};
     // Extract an error and a source from this outcome, if there is one.
     //
     // This is complicated because DirResponse can encapsulate the notion of
@@ -96,10 +96,10 @@ fn note_request_outcome<R: Runtime>(
         Ok(req) => {
             if let (Some(e), Some(source)) = (req.error(), req.source()) {
                 (
-                    RequestFailed {
+                    RequestFailed(RequestFailedError {
                         error: e.clone(),
                         source: Some(source.clone()),
-                    },
+                    }),
                     source,
                 )
             } else {
@@ -107,10 +107,10 @@ fn note_request_outcome<R: Runtime>(
             }
         }
         Err(
-            error @ RequestFailed {
+            error @ RequestFailed(RequestFailedError {
                 source: Some(source),
                 ..
-            },
+            }),
         ) => (error.clone(), source),
         _ => return,
     };
