@@ -198,26 +198,6 @@ pub enum PtAddrError {
     BadAddress(String),
 }
 
-// TODO pt-client: decide whether to inline these.
-#[allow(clippy::unnecessary_wraps)]
-impl PtTargetAddr {
-    /// Helper: Construct a `HostPort` instance or return a `NoSupport` error.
-    ///
-    /// (This is a private convenience function, to simplify the `FromStr`
-    /// implementation.)
-    fn host_port(host: &str, port: u16) -> Result<Self, PtAddrError> {
-        Ok(PtTargetAddr::HostPort(host.to_string(), port))
-    }
-
-    /// Helper: Construct a `None` instance or return a `NoSupport` error.
-    ///
-    /// (This is a private convenience function, to simplify the `FromStr`
-    /// implementation.)
-    fn none() -> Result<Self, PtAddrError> {
-        Ok(PtTargetAddr::None)
-    }
-}
-
 impl FromStr for PtTargetAddr {
     type Err = PtAddrError;
 
@@ -229,9 +209,9 @@ impl FromStr for PtTargetAddr {
                 .parse()
                 .map_err(|_| PtAddrError::BadAddress(s.to_string()))?;
 
-            Self::host_port(name, port)
+            Ok(Self::HostPort(name.to_string(), port))
         } else if s == NONE_ADDR {
-            Self::none()
+            Ok(Self::None)
         } else {
             Err(PtAddrError::BadAddress(s.to_string()))
         }
