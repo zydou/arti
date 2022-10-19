@@ -145,7 +145,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     }
 
     if n_read != 0 {
-        return Err(ProxyError::ExtraneousData);
+        return Err(ProxyError::UnexpectedData);
     }
 
     Ok(stream)
@@ -189,8 +189,8 @@ pub enum ProxyError {
     /// prevent bugs.
     ///
     /// We could someday remove this limitation.
-    #[error("Received extraneous data from peer")]
-    ExtraneousData,
+    #[error("Received unexpected early data from peer")]
+    UnexpectedData,
 
     /// The proxy told us that our attempt failed.
     #[error("SOCKS proxy reported an error: {0}")]
@@ -213,7 +213,7 @@ impl tor_error::HasKind for ProxyError {
             E::UnrecognizedAddr => EK::NotImplemented,
             E::SocksProto(_) => EK::LocalProtocolViolation,
             E::Bug(e) => e.kind(),
-            E::ExtraneousData => EK::NotImplemented,
+            E::UnexpectedData => EK::NotImplemented,
             E::SocksError(_) => EK::LocalProtocolFailed,
         }
     }
@@ -231,7 +231,7 @@ impl tor_error::HasRetryTime for ProxyError {
             E::InvalidSocksRequest(_) => RT::Never,
             E::SocksProto(_) => RT::AfterWaiting,
             E::Bug(_) => RT::Never,
-            E::ExtraneousData => RT::Never,
+            E::UnexpectedData => RT::Never,
             E::SocksError(e) => match *e {
                 S::CONNECTION_REFUSED
                 | S::GENERAL_FAILURE
