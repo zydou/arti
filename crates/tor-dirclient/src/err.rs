@@ -105,6 +105,10 @@ pub enum RequestError {
     /// microdescriptors or certificates.
     #[error("We didn't have any objects to request")]
     EmptyRequest,
+
+    /// HTTP status code indicates a not completely successful request
+    #[error("HTTP status code {0}")]
+    HttpStatus(u16),
 }
 
 impl From<TimeoutError> for RequestError {
@@ -182,6 +186,7 @@ impl HasKind for RequestError {
             E::ContentEncoding(_) => EK::TorProtocolViolation,
             E::TooMuchClockSkew => EK::TorDirectoryError,
             E::EmptyRequest => EK::Internal,
+            E::HttpStatus(_) => EK::TorDirectoryError,
         }
     }
 }
