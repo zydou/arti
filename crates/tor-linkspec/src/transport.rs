@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use std::slice;
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::HasAddrs;
@@ -42,7 +43,17 @@ enum Inner {
 ///
 /// The name for a pluggable transport.
 /// The name has been syntax checked.
-#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    Hash,
+    serde_with::DeserializeFromStr,
+    serde_with::SerializeDisplay,
+)]
+
 pub struct PtTransportName(String);
 
 impl FromStr for PtTransportName {
@@ -173,7 +184,9 @@ const NONE_ADDR: &str = "-";
 /// connect (typically, to a bridge).
 ///
 /// Not every transport accepts all kinds of addresses.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Hash, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
+)]
 #[non_exhaustive]
 pub enum PtTargetAddr {
     /// An IP address and port for a Tor relay.
@@ -237,8 +250,7 @@ impl Display for PtTargetAddr {
 ///
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 // TODO pt-client: I am not sure we will want to keep this type, rather than
 // just inlining it.  I am leaving it as a separate type for now, though, for a
 // few reasons:
@@ -249,6 +261,7 @@ impl Display for PtTargetAddr {
 // TODO pt-client: This type ought to validate that the keys do not contain `=`
 //                 and that the keys and values do not contain whitespace.
 // See this spec issue https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
+#[serde(transparent)]
 pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
@@ -256,13 +269,14 @@ pub struct PtTargetSettings {
 
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PtTarget {
     /// The transport to be used.
     transport: PtTransportName,
     /// The address of the bridge relay, if any.
     addr: PtTargetAddr,
     /// Any additional settings used by the transport.
+    #[serde(default)]
     settings: PtTargetSettings,
 }
 
