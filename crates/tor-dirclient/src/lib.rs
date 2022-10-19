@@ -98,10 +98,12 @@ where
     let begin_timeout = Duration::from_secs(5);
     let source = SourceInfo::from_circuit(&circuit);
 
-    let wrap_err = |error| Error::RequestFailed(RequestFailedError {
-        source: Some(source.clone()),
-        error,
-    });
+    let wrap_err = |error| {
+        Error::RequestFailed(RequestFailedError {
+            source: Some(source.clone()),
+            error,
+        })
+    };
 
     req.check_circuit(&circuit).map_err(wrap_err)?;
 
@@ -159,10 +161,12 @@ where
     S: AsyncRead + AsyncWrite + Send + Unpin,
     SP: SleepProvider,
 {
-    let wrap_err = |error| Error::RequestFailed(RequestFailedError {
-        source: source.clone(),
-        error,
-    });
+    let wrap_err = |error| {
+        Error::RequestFailed(RequestFailedError {
+            source: source.clone(),
+            error,
+        })
+    };
 
     let partial_ok = req.partial_docs_ok();
     let maxlen = req.max_response_len();
@@ -640,10 +644,12 @@ mod test {
                 async {
                     // Run the download function.
                     let r = download(&rt, &req, &mut s1, None).await;
-                    s1.close().await.map_err(|error| Error::RequestFailed(RequestFailedError {
-                        source: None,
-                        error: error.into(),
-                    }))?;
+                    s1.close().await.map_err(|error| {
+                        Error::RequestFailed(RequestFailedError {
+                            source: None,
+                            error: error.into(),
+                        })
+                    })?;
                     r
                 },
                 async {
