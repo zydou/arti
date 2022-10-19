@@ -302,9 +302,10 @@ where
     }
     impl EscChar {
         /// Create an iterator to escape one character.
-        fn new(ch: char) -> Self {
+        fn new(ch: char, in_key: bool) -> Self {
             match ch {
-                '\\' | ';' | '=' => EscChar::Backslash(ch),
+                '\\' | ';' => EscChar::Backslash(ch),
+                '=' if in_key => EscChar::Backslash(ch),
                 _ => EscChar::Literal(ch),
             }
         }
@@ -328,15 +329,15 @@ where
     }
 
     /// escape a key or value string.
-    fn esc(s: &str) -> impl Iterator<Item = char> + '_ {
-        s.chars().flat_map(EscChar::new)
+    fn esc(s: &str, in_key: bool) -> impl Iterator<Item = char> + '_ {
+        s.chars().flat_map(move |c| EscChar::new(c, in_key))
     }
 
     let mut result = String::new();
     for (k, v) in settings {
-        result.extend(esc(k));
+        result.extend(esc(k, true));
         result.push('=');
-        result.extend(esc(v));
+        result.extend(esc(v, false));
         result.push(';');
     }
     result.pop(); // remove the final ';' if any. Yes this is ugly.
@@ -393,11 +394,15 @@ mod test {
 
         check(
             vec![("semi;colon", "equals=sign")],
-            r"semi\;colon=equals\=sign",
+            r"semi\;colon=equals=sign",
+        );
+        check(
+            vec![("equals=sign", "semi;colon")],
+            r"equals\=sign=semi\;colon",
         );
         check(
             vec![("semi;colon", "equals=sign"), ("also", "back\\slash")],
-            r"semi\;colon=equals\=sign;also=back\\slash",
+            r"semi\;colon=equals=sign;also=back\\slash",
         );
     }
 
