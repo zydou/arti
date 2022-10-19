@@ -11,7 +11,6 @@ use std::net::SocketAddr;
 use std::slice;
 use std::str::FromStr;
 
-#[cfg(feature = "pt-client")]
 use thiserror::Error;
 
 use crate::HasAddrs;
@@ -44,10 +43,8 @@ enum Inner {
 /// The name for a pluggable transport.
 /// The name has been syntax checked.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
-#[cfg(feature = "pt-client")]
 pub struct PtTransportName(String);
 
-#[cfg(feature = "pt-client")]
 impl FromStr for PtTransportName {
     type Err = TransportIdError;
 
@@ -56,7 +53,6 @@ impl FromStr for PtTransportName {
     }
 }
 
-#[cfg(feature = "pt-client")]
 impl TryFrom<String> for PtTransportName {
     type Error = TransportIdError;
 
@@ -69,14 +65,12 @@ impl TryFrom<String> for PtTransportName {
     }
 }
 
-#[cfg(feature = "pt-client")]
 impl AsRef<str> for PtTransportName {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-#[cfg(feature = "pt-client")]
 impl PtTransportName {
     /// Return the name as a `String`
     pub fn into_inner(self) -> String {
@@ -84,7 +78,6 @@ impl PtTransportName {
     }
 }
 
-#[cfg(feature = "pt-client")]
 impl Display for PtTransportName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
@@ -138,7 +131,6 @@ impl From<PtTransportName> for TransportId {
 /// According to the specification, a well-formed transport ID follows the same
 /// rules as a C99 identifier: It must follow the regular expression
 /// `[a-zA-Z_][a-zA-Z0-9_]*`.
-#[cfg(feature = "pt-client")]
 fn is_well_formed_id(s: &str) -> bool {
     // It's okay to use a bytes iterator, since non-ascii strings are not
     // allowed.
@@ -189,10 +181,8 @@ pub enum PtTargetAddr {
     /// This is the only address type supported by the BuiltIn transport.
     IpPort(std::net::SocketAddr),
     /// A hostname-and-port target address.  Some transports may support this.
-    #[cfg(feature = "pt-client")]
     HostPort(String, u16),
     /// A completely absent target address.  Some transports support this.
-    #[cfg(feature = "pt-client")]
     None,
 }
 
@@ -216,15 +206,7 @@ impl PtTargetAddr {
     /// (This is a private convenience function, to simplify the `FromStr`
     /// implementation.)
     fn host_port(host: &str, port: u16) -> Result<Self, PtAddrError> {
-        #[cfg(feature = "pt-client")]
-        {
-            Ok(PtTargetAddr::HostPort(host.to_string(), port))
-        }
-        #[cfg(not(feature = "pt-client"))]
-        {
-            let _ = (host, port);
-            Err(PtAddrError::NoSupport)
-        }
+        Ok(PtTargetAddr::HostPort(host.to_string(), port))
     }
 
     /// Helper: Construct a `None` instance or return a `NoSupport` error.
@@ -232,14 +214,7 @@ impl PtTargetAddr {
     /// (This is a private convenience function, to simplify the `FromStr`
     /// implementation.)
     fn none() -> Result<Self, PtAddrError> {
-        #[cfg(feature = "pt-client")]
-        {
-            Ok(PtTargetAddr::None)
-        }
-        #[cfg(not(feature = "pt-client"))]
-        {
-            Err(PtAddrError::NoSupport)
-        }
+        Ok(PtTargetAddr::None)
     }
 }
 
@@ -267,9 +242,7 @@ impl Display for PtTargetAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PtTargetAddr::IpPort(addr) => write!(f, "{}", addr),
-            #[cfg(feature = "pt-client")]
             PtTargetAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
-            #[cfg(feature = "pt-client")]
             PtTargetAddr::None => write!(f, "{}", NONE_ADDR),
         }
     }
@@ -284,7 +257,6 @@ impl Display for PtTargetAddr {
 ///
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
-#[cfg(feature = "pt-client")]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 
 // TODO pt-client: I am not sure we will want to keep this type, rather than
@@ -305,7 +277,6 @@ pub struct PtTargetSettings {
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg(feature = "pt-client")]
 #[allow(dead_code)] // TODO pt-client: Needs functions to access and construct
 pub struct PtTarget {
     /// The transport to be used.
@@ -317,7 +288,6 @@ pub struct PtTarget {
 }
 
 /// Invalid PT parameter setting
-#[cfg(feature = "pt-client")]
 #[derive(Error, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PtTargetInvalidSetting {
@@ -336,7 +306,6 @@ pub enum PtTargetInvalidSetting {
     Value(String),
 }
 
-#[cfg(feature = "pt-client")]
 impl PtTarget {
     /// Create a new `PtTarget` (with no settings)
     pub fn new(transport: PtTransportName, addr: PtTargetAddr) -> Self {
@@ -459,7 +428,6 @@ impl HasAddrs for PtTargetAddr {
     fn addrs(&self) -> &[SocketAddr] {
         match self {
             PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
-            #[cfg(feature = "pt-client")]
             PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
         }
     }
@@ -536,7 +504,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "pt-client")]
     fn addr() {
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
             let a: PtTargetAddr = addr.parse().unwrap();
@@ -547,15 +514,9 @@ mod test {
         }
 
         for addr in &["www.example.com:9100", "-"] {
-            if cfg!(feature = "pt-client") {
-                let a: PtTargetAddr = addr.parse().unwrap();
-                assert_eq!(&a.to_string(), addr);
-
-                assert_eq!(a.addrs(), &[]);
-            } else {
-                let e = PtTargetAddr::from_str(addr).unwrap_err();
-                assert!(matches!(e, PtAddrError::NoSupport));
-            }
+            let a: PtTargetAddr = addr.parse().unwrap();
+            assert_eq!(&a.to_string(), addr);
+            assert_eq!(a.addrs(), &[]);
         }
 
         for addr in &["foobar", "<<<>>>"] {

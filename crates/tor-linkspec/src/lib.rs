@@ -57,6 +57,4 @@ pub use traits::{
     HasRelayIdsLegacy,
 };
 pub use transport::{ChannelMethod, PtAddrError, PtTargetAddr, TransportId, TransportIdError};
-
-#[cfg(feature = "pt-client")]
 pub use transport::{PtTarget, PtTargetInvalidSetting, PtTargetSettings, PtTransportName};
