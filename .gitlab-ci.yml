@@ -259,7 +259,7 @@ integration-shadow:
     expire_in: 1 week
   tags:
     - amd64
-    - shadow-small
+    - tpa
 
 coverage-aggregated:
   rules:
