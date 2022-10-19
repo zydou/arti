@@ -6,6 +6,8 @@ use tor_linkspec::RelayIds;
 #[cfg(test)]
 use tor_llcrypto::pk;
 
+use crate::GuardSetSelector;
+
 /// An identifier for a fallback directory cache.
 ///
 /// This is a separate type from GuardId and FirstHopId to avoid confusion
@@ -59,7 +61,7 @@ impl GuardId {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum FirstHopIdInner {
     /// Identifies a guard.
-    Guard(GuardId),
+    Guard(GuardSetSelector, GuardId),
     /// Identifies a fallback.
     Fallback(FallbackId),
 }
@@ -76,11 +78,6 @@ pub(crate) enum FirstHopIdInner {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FirstHopId(pub(crate) FirstHopIdInner);
 
-impl From<GuardId> for FirstHopId {
-    fn from(id: GuardId) -> Self {
-        Self(FirstHopIdInner::Guard(id))
-    }
-}
 impl From<FallbackId> for FirstHopId {
     fn from(id: FallbackId) -> Self {
         Self(FirstHopIdInner::Fallback(id))
@@ -93,7 +90,7 @@ impl AsRef<RelayIds> for FirstHopId {
     /// whether this identifies a guard or a fallback.
     fn as_ref(&self) -> &RelayIds {
         match &self.0 {
-            FirstHopIdInner::Guard(id) => id.as_ref(),
+            FirstHopIdInner::Guard(_, id) => id.as_ref(),
             FirstHopIdInner::Fallback(id) => id.as_ref(),
         }
     }
@@ -114,5 +111,10 @@ impl FirstHopId {
     // We have to define this function so it'll be public.
     pub fn get_relay<'a>(&self, netdir: &'a tor_netdir::NetDir) -> Option<tor_netdir::Relay<'a>> {
         netdir.by_ids(self)
+    }
+
+    /// Construct a FirstHopId for a guard in a given sample.
+    pub(crate) fn in_sample(sample: GuardSetSelector, id: GuardId) -> Self {
+        Self(FirstHopIdInner::Guard(sample, id))
     }
 }

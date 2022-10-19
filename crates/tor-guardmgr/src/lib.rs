@@ -191,7 +191,7 @@ struct GuardMgrInner {
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
-#[derive(Clone, Debug, Eq, PartialEq, Educe)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Educe, strum::EnumIter)]
 #[educe(Default)]
 enum GuardSetSelector {
     /// The default guard set is currently in use: that's the one that we use
@@ -211,8 +211,7 @@ enum GuardSetSelector {
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct GuardSets {
     /// Which set of guards is currently in use?
     #[serde(skip)]
@@ -227,6 +226,11 @@ struct GuardSets {
     /// A guard set to use when we have a restrictive filter.
     #[serde(default)]
     restricted: GuardSet,
+
+    /// A guard set sampled from our configured bridges.
+    #[serde(default)]
+    #[cfg(feature = "bridge-client")]
+    bridges: GuardSet,
 
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
@@ -499,7 +503,10 @@ impl<R: Runtime> GuardMgr<R> {
         inner.pending.insert(request_id, pending_request);
 
         match &guard.id.0 {
-            FirstHopIdInner::Guard(id) => inner.guards.active_guards_mut().record_attempt(id, now),
+            FirstHopIdInner::Guard(sample, id) => {
+                inner.guards.guards_mut(sample).record_attempt(id, now);
+            }
+
             FirstHopIdInner::Fallback(_) => {
                 // We don't record attempts for fallbacks; we only care when
                 // they have failed.
@@ -520,12 +527,11 @@ impl<R: Runtime> GuardMgr<R> {
         let ids = inner.lookup_ids(identity);
         for id in ids {
             match &id.0 {
-                FirstHopIdInner::Guard(id) => {
-                    inner.guards.active_guards_mut().record_failure(
-                        id,
-                        Some(external_failure),
-                        now,
-                    );
+                FirstHopIdInner::Guard(sample, id) => {
+                    inner
+                        .guards
+                        .guards_mut(sample)
+                        .record_failure(id, Some(external_failure), now);
                 }
                 FirstHopIdInner::Fallback(id) => {
                     if external_failure == ExternalActivity::DirCache {
@@ -593,28 +599,43 @@ impl GuardSets {
     /// complex filter types, and for bridge relays. Those will use separate
     /// `GuardSet` instances, and this accessor will choose the right one.)
     fn active_guards(&self) -> &GuardSet {
-        match self.active_set {
+        self.guards(&self.active_set)
+    }
+
+    /// Return the set of guards corresponding to the provided selector.
+    fn guards(&self, selector: &GuardSetSelector) -> &GuardSet {
+        match selector {
             GuardSetSelector::Default => &self.default,
             GuardSetSelector::Restricted => &self.restricted,
             #[cfg(feature = "bridge-client")]
-            GuardSetSelector::Bridges => todo!(), // TODO pt-client
+            GuardSetSelector::Bridges => &self.bridges,
         }
     }
 
     /// Return a mutable reference to the currently active set of guards.
     fn active_guards_mut(&mut self) -> &mut GuardSet {
-        match self.active_set {
+        self.guards_mut(&self.active_set.clone())
+    }
+
+    /// Return a mutable reference to the set of guards corresponding to the
+    /// provided selector.
+    fn guards_mut(&mut self, selector: &GuardSetSelector) -> &mut GuardSet {
+        match selector {
             GuardSetSelector::Default => &mut self.default,
             GuardSetSelector::Restricted => &mut self.restricted,
             #[cfg(feature = "bridge-client")]
-            GuardSetSelector::Bridges => todo!(), // TODO pt-client
+            GuardSetSelector::Bridges => &mut self.bridges,
         }
     }
 
     /// Update all non-persistent state for the guards in this object with the
     /// state in `other`.
-    fn copy_status_from(&mut self, other: GuardSets) {
-        self.default.copy_status_from(other.default);
+    fn copy_status_from(&mut self, mut other: GuardSets) {
+        use strum::IntoEnumIterator;
+        for sample in GuardSetSelector::iter() {
+            self.guards_mut(&sample)
+                .copy_status_from(std::mem::take(other.guards_mut(&sample)));
+        }
     }
 }
 
@@ -818,7 +839,7 @@ impl GuardMgrInner {
                 let observation = skew::SkewObservation { skew, when: now };
 
                 match &guard_id.0 {
-                    FirstHopIdInner::Guard(id) => {
+                    FirstHopIdInner::Guard(_, id) => {
                         self.guards.active_guards_mut().record_skew(id, observation);
                     }
                     FirstHopIdInner::Fallback(id) => {
@@ -844,7 +865,7 @@ impl GuardMgrInner {
                     // We don't record any other kind of circuit activity if we
                     // took the entry from the fallback list.
                 }
-                (GuardStatus::Success, FirstHopIdInner::Guard(id)) => {
+                (GuardStatus::Success, FirstHopIdInner::Guard(sample, id)) => {
                     // If we had gone too long without any net activity when we
                     // gave out this guard, and now we're seeing a circuit
                     // succeed, tell the primary guards that they might be
@@ -854,7 +875,7 @@ impl GuardMgrInner {
                     }
 
                     // The guard succeeded.  Tell the GuardSet.
-                    self.guards.active_guards_mut().record_success(
+                    self.guards.guards_mut(sample).record_success(
                         id,
                         &self.params,
                         None,
@@ -873,19 +894,19 @@ impl GuardMgrInner {
                         self.waiting.push(pending);
                     }
                 }
-                (GuardStatus::Failure, FirstHopIdInner::Guard(id)) => {
+                (GuardStatus::Failure, FirstHopIdInner::Guard(sample, id)) => {
                     self.guards
-                        .active_guards_mut()
+                        .guards_mut(sample)
                         .record_failure(id, None, runtime.now());
                     pending.reply(false);
                 }
-                (GuardStatus::AttemptAbandoned, FirstHopIdInner::Guard(id)) => {
-                    self.guards.active_guards_mut().record_attempt_abandoned(id);
+                (GuardStatus::AttemptAbandoned, FirstHopIdInner::Guard(sample, id)) => {
+                    self.guards.guards_mut(sample).record_attempt_abandoned(id);
                     pending.reply(false);
                 }
-                (GuardStatus::Indeterminate, FirstHopIdInner::Guard(id)) => {
+                (GuardStatus::Indeterminate, FirstHopIdInner::Guard(sample, id)) => {
                     self.guards
-                        .active_guards_mut()
+                        .guards_mut(sample)
                         .record_indeterminate_result(id);
                     pending.reply(false);
                 }
@@ -923,8 +944,8 @@ impl GuardMgrInner {
     {
         for id in self.lookup_ids(identity) {
             match &id.0 {
-                FirstHopIdInner::Guard(id) => {
-                    self.guards.active_guards_mut().record_success(
+                FirstHopIdInner::Guard(sample, id) => {
+                    self.guards.guards_mut(sample).record_success(
                         id,
                         &self.params,
                         Some(external_activity),
@@ -965,7 +986,7 @@ impl GuardMgrInner {
     /// a circuit is usable.
     fn guard_usability_status(&self, pending: &PendingRequest, now: Instant) -> Option<bool> {
         match &pending.guard_id().0 {
-            FirstHopIdInner::Guard(id) => self.guards.active_guards().circ_usability_status(
+            FirstHopIdInner::Guard(sample, id) => self.guards.guards(sample).circ_usability_status(
                 id,
                 pending.usage(),
                 &self.params,
@@ -1040,11 +1061,14 @@ impl GuardMgrInner {
     where
         T: tor_linkspec::HasRelayIds + ?Sized,
     {
+        use strum::IntoEnumIterator;
         let mut vec = Vec::with_capacity(2);
 
         let id = ids::GuardId::from_relay_ids(identity);
-        if self.guards.active_guards().contains(&id) {
-            vec.push(id.into());
+        for sample in GuardSetSelector::iter() {
+            if self.guards.guards(&sample).contains(&id) {
+                vec.push(FirstHopId(FirstHopIdInner::Guard(sample, id.clone())));
+            }
         }
 
         let id = ids::FallbackId::from_relay_ids(identity);
@@ -1125,9 +1149,10 @@ impl GuardMgrInner {
         usage: &GuardUsage,
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
+        let active_set = &self.guards.active_set;
         self.guards
-            .active_guards()
-            .pick_guard(usage, &self.params, now)
+            .guards(active_set)
+            .pick_guard(active_set, usage, &self.params, now)
     }
 
     /// Helper: Select a fallback directory.
