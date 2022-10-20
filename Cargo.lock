@@ -3731,6 +3731,7 @@ dependencies = [
  "hex-literal",
  "serde",
  "serde_test",
+ "serde_with",
  "strum",
  "thiserror",
  "tor-basic-utils",
