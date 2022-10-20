@@ -50,7 +50,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
-use tor_linkspec::{RelayId, RelayIdSet};
+use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
@@ -91,7 +91,7 @@ pub use skew::SkewEstimate;
 use pending::{PendingRequest, RequestId};
 use sample::GuardSet;
 
-use crate::ids::FirstHopIdInner;
+use crate::ids::{FirstHopIdInner, GuardId};
 
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
@@ -498,16 +498,23 @@ impl<R: Runtime> GuardMgr<R> {
                 false
             };
 
-        let pending_request =
-            pending::PendingRequest::new(guard.id.clone(), usage, usable_sender, net_has_been_down);
+        let pending_request = pending::PendingRequest::new(
+            guard.first_hop_id(),
+            usage,
+            usable_sender,
+            net_has_been_down,
+        );
         inner.pending.insert(request_id, pending_request);
 
-        match &guard.id.0 {
-            FirstHopIdInner::Guard(sample, id) => {
-                inner.guards.guards_mut(sample).record_attempt(id, now);
+        match &guard.sample {
+            Some(sample) => {
+                let guard_id = GuardId::from_relay_ids(&guard);
+                inner
+                    .guards
+                    .guards_mut(sample)
+                    .record_attempt(&guard_id, now);
             }
-
-            FirstHopIdInner::Fallback(_) => {
+            None => {
                 // We don't record attempts for fallbacks; we only care when
                 // they have failed.
             }
@@ -1268,42 +1275,78 @@ impl TryFrom<&NetParameters> for GuardParams {
 }
 
 /// Representation of a guard or fallback, as returned by [`GuardMgr::select_guard()`].
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct FirstHop {
-    /// The guard's identities
-    id: FirstHopId,
-    /// The addresses at which the guard can be contacted.
-    //
-    // TODO pt-client: This needs to be more complex if we are using
-    // pluggable transports!
-    orports: Vec<SocketAddr>,
+    /// The sample from which this guard was taken, or `None` if this is a fallback.
+    sample: Option<GuardSetSelector>,
+    /// Information about connecting to (or through) this guard.
+    inner: FirstHopInner,
+}
+/// The enumeration inside a FirstHop that holds information about how to
+/// connect to (and possibly through) a guard or fallback.
+#[derive(Debug, Clone)]
+enum FirstHopInner {
+    /// We have enough information to connect to a guard.
+    Chan(OwnedChanTarget),
+    /// We have enough information to connect to a guards _and_ to build
+    /// multihop circuits through it.
+    #[allow(dead_code)] // TODO pt-client
+    Circ(OwnedCircTarget),
 }
 
 impl FirstHop {
-    /// Return the identities of this guard.
-    pub fn id(&self) -> &FirstHopId {
-        &self.id
+    /// Return a new [`FirstHopId`] for this `FirstHop`.
+    fn first_hop_id(&self) -> FirstHopId {
+        match &self.sample {
+            Some(sample) => {
+                let guard_id = GuardId::from_relay_ids(self);
+                FirstHopId::in_sample(sample.clone(), guard_id)
+            }
+            None => {
+                let fallback_id = crate::ids::FallbackId::from_relay_ids(self);
+                FirstHopId::from(fallback_id)
+            }
+        }
     }
+
     /// Look up this guard in `netdir`.
     pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
-        // TODO pt-client: This should always return "None" for a bridge.
-        self.id().get_relay(netdir)
+        match self.sample {
+            #[cfg(feature = "bridge-client")]
+            // Always return "None" for a bridge, since it isn't in a netdir.
+            Some(GuardSetSelector::Bridges) => None,
+            // Otherwise ask the netdir.
+            _ => netdir.by_ids(self),
+        }
     }
 
     /// If possible, return a view of this object that can be used to build a circuit.
     ///
     /// TODO pt-client: This will need to return "Some" only for bridges that have
     /// a bridge descriptor.
-    #[allow(clippy::missing_panics_doc)]
-    pub fn as_circ_target(&self) -> Option<tor_linkspec::OwnedCircTarget> {
-        todo!() // TODO pt-client: Implement
+    pub fn as_circ_target(&self) -> Option<&OwnedCircTarget> {
+        match &self.inner {
+            FirstHopInner::Chan(_) => None,
+            FirstHopInner::Circ(ct) => Some(ct),
+        }
+    }
+
+    /// Return a view of this as an OwnedChanTarget.
+    fn chan_target_mut(&mut self) -> &mut OwnedChanTarget {
+        match &mut self.inner {
+            FirstHopInner::Chan(ct) => ct,
+            FirstHopInner::Circ(ct) => ct.chan_target_mut(),
+        }
     }
 }
 
 // This is somewhat redundant with the implementations in crate::guard::Guard.
 impl tor_linkspec::HasAddrs for FirstHop {
     fn addrs(&self) -> &[SocketAddr] {
-        &self.orports[..]
+        match &self.inner {
+            FirstHopInner::Chan(ct) => ct.addrs(),
+            FirstHopInner::Circ(ct) => ct.addrs(),
+        }
     }
 }
 impl tor_linkspec::HasRelayIds for FirstHop {
@@ -1311,10 +1354,20 @@ impl tor_linkspec::HasRelayIds for FirstHop {
         &self,
         key_type: tor_linkspec::RelayIdType,
     ) -> Option<tor_linkspec::RelayIdRef<'_>> {
-        self.id.identity(key_type)
+        match &self.inner {
+            FirstHopInner::Chan(ct) => ct.identity(key_type),
+            FirstHopInner::Circ(ct) => ct.identity(key_type),
+        }
     }
 }
-impl tor_linkspec::DirectChanMethodsHelper for FirstHop {}
+impl tor_linkspec::HasChanMethod for FirstHop {
+    fn chan_method(&self) -> tor_linkspec::ChannelMethod {
+        match &self.inner {
+            FirstHopInner::Chan(ct) => ct.chan_method(),
+            FirstHopInner::Circ(ct) => ct.chan_method(),
+        }
+    }
+}
 impl tor_linkspec::ChanTarget for FirstHop {}
 
 /// The purpose for which we plan to use a guard.
@@ -1470,7 +1523,7 @@ mod test {
             // Since the guard was confirmed, we should get the same one this time!
             let usage = GuardUsage::default();
             let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
-            assert_eq!(id2, id);
+            assert!(id2.same_relay_ids(&id));
         });
     }
 
@@ -1497,12 +1550,12 @@ mod test {
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
 
-            assert!(id1 != id2);
+            assert!(!id1.same_relay_ids(&id2));
 
             // Now we should get two sampled guards. They should be different.
             let (id3, mon3, usable3) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
             let (id4, mon4, usable4) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
-            assert!(id3 != id4);
+            assert!(!id3.same_relay_ids(&id4));
 
             let (u3, u4) = futures::join!(
                 async {

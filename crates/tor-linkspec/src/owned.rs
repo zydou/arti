@@ -149,22 +149,10 @@ impl OwnedChanTarget {
         }
     }
 
-    /// Construct a new OwnedChanTarget containing _only_ the provided `addr`.
+    /// Return a mutable reference to this [`OwnedChanTarget`]'s [`ChannelMethod`]
     ///
-    /// If `addr` is not an address of this `ChanTarget`, return the original OwnedChanTarget.
-    //
-    // TODO pt-client: this method no longer makes any sense, and needs to get replaced with one
-    // that works by ChanMethod.
-    pub fn restrict_addr(&self, addr: &SocketAddr) -> Result<Self, Self> {
-        if self.addrs.contains(addr) {
-            Ok(OwnedChanTarget {
-                addrs: vec![*addr],
-                method: self.method.clone(),
-                ids: self.ids.clone(),
-            })
-        } else {
-            Err(self.clone())
-        }
+    pub fn chan_method_mut(&mut self) -> &mut ChannelMethod {
+        &mut self.method
     }
 }
 
@@ -213,6 +201,11 @@ impl OwnedCircTarget {
             // protovers parsing uses an Arc, IIRC.  Can we expose that here?
             protocols: target.protovers().clone(),
         }
+    }
+
+    /// Return a mutable view of this OwnedCircTarget as an [`OwnedChanTarget`].
+    pub fn chan_target_mut(&mut self) -> &mut OwnedChanTarget {
+        &mut self.chan_target
     }
 }
 

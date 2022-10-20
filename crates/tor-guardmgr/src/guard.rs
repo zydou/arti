@@ -14,7 +14,7 @@ use crate::dirstatus::DirStatus;
 use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
-use crate::{ExternalActivity, FirstHopId, GuardSetSelector, GuardUsageKind};
+use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
 use tor_linkspec::{HasAddrs, HasRelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
@@ -665,8 +665,11 @@ impl Guard {
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
     pub(crate) fn get_external_rep(&self, selection: GuardSetSelector) -> crate::FirstHop {
         crate::FirstHop {
-            id: FirstHopId::in_sample(selection, self.id.clone()),
-            orports: self.orports.clone(),
+            sample: Some(selection),
+            // TODO pt-client: might have a bridge descriptor.
+            inner: crate::FirstHopInner::Chan(tor_linkspec::OwnedChanTarget::from_chan_target(
+                self,
+            )),
         }
     }
 
@@ -792,6 +795,7 @@ impl CircHistory {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::ids::FirstHopId;
     use tor_linkspec::{HasRelayIds, RelayId};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
