@@ -1,6 +1,6 @@
 //! Code for building paths to an exit relay.
 
-use super::TorPath;
+use super::{MaybeOwnedRelay, TorPath};
 use crate::{DirInfo, Error, PathConfig, Result, TargetPort};
 use rand::Rng;
 use std::time::SystemTime;
@@ -77,7 +77,7 @@ impl<'a> ExitPathBuilder<'a> {
         &self,
         rng: &mut R,
         netdir: &'a NetDir,
-        guard: Option<&Relay<'a>>,
+        guard: Option<&MaybeOwnedRelay<'a>>,
         config: SubnetConfig,
     ) -> Result<Relay<'a>> {
         let mut can_share = FilterCount::default();
@@ -182,13 +182,21 @@ impl<'a> ExitPathBuilder<'a> {
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
                 let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
-                // TODO pt-client: First try as_circ_target; then try get_relay.
-                let guard = guard.get_relay(netdir).ok_or_else(|| {
-                    internal!(
-                        "Somehow the guardmgr gave us an unlisted guard {:?}!",
-                        guard
-                    )
-                })?;
+                let guard = if let Some(ct) = guard.as_circ_target() {
+                    // This is a bridge; we will not look for it in the network directory.
+                    MaybeOwnedRelay::from(ct.clone())
+                } else {
+                    // Look this up in the network directory: we expect to find a relay.
+                    guard
+                        .get_relay(netdir)
+                        .ok_or_else(|| {
+                            internal!(
+                                "Somehow the guardmgr gave us an unlisted guard {:?}!",
+                                guard
+                            )
+                        })?
+                        .into()
+                };
                 if !path_is_fully_random {
                     // We were given a specific exit relay to use, and
                     // the choice of exit relay might be forced by
@@ -203,21 +211,27 @@ impl<'a> ExitPathBuilder<'a> {
             None => {
                 let mut can_share = FilterCount::default();
                 let mut correct_usage = FilterCount::default();
+                let chosen_exit = chosen_exit.map(|relay| MaybeOwnedRelay::from(relay.clone()));
                 let entry = netdir
                     .pick_relay(rng, WeightRole::Guard, |r| {
-                        can_share.count(relays_can_share_circuit_opt(r, chosen_exit, subnet_config))
-                            && correct_usage.count(r.is_flagged_guard())
+                        can_share.count(relays_can_share_circuit_opt(
+                            r,
+                            chosen_exit.as_ref(),
+                            subnet_config,
+                        )) && correct_usage.count(r.is_flagged_guard())
                     })
                     .ok_or(Error::NoPath {
                         role: "entry relay",
                         can_share,
                         correct_usage,
                     })?;
-                (entry, None, None)
+                (MaybeOwnedRelay::from(entry), None, None)
             }
         };
 
-        let exit = self.pick_exit(rng, netdir, Some(&guard), subnet_config)?;
+        let exit: MaybeOwnedRelay = self
+            .pick_exit(rng, netdir, Some(&guard), subnet_config)?
+            .into();
 
         let mut can_share = FilterCount::default();
         let mut correct_usage = FilterCount::default();
@@ -235,7 +249,11 @@ impl<'a> ExitPathBuilder<'a> {
             })?;
 
         Ok((
-            TorPath::new_multihop(vec![guard, middle, exit]),
+            TorPath::new_multihop_from_maybe_owned(vec![
+                guard,
+                MaybeOwnedRelay::from(middle),
+                exit,
+            ]),
             mon,
             usable,
         ))
@@ -243,12 +261,29 @@ impl<'a> ExitPathBuilder<'a> {
 }
 
 /// Returns true if both relays can appear together in the same circuit.
-fn relays_can_share_circuit(a: &Relay<'_>, b: &Relay<'_>, subnet_config: SubnetConfig) -> bool {
-    !a.in_same_family(b) && !a.in_same_subnet(b, &subnet_config)
+fn relays_can_share_circuit(
+    a: &Relay<'_>,
+    b: &MaybeOwnedRelay<'_>,
+    subnet_config: SubnetConfig,
+) -> bool {
+    if let MaybeOwnedRelay::Relay(r) = b {
+        if a.in_same_family(r) {
+            return false;
+        };
+        // TODO: When bridge families are finally implemented (likely via
+        // proposal `321-happy-families.md`), we should move family
+        // functionality into CircTarget.
+    }
+
+    !subnet_config.any_addrs_in_same_subnet(a, b)
 }
 
 /// Helper: wraps relays_can_share_circuit but takes an option.
-fn relays_can_share_circuit_opt(r1: &Relay<'_>, r2: Option<&Relay<'_>>, c: SubnetConfig) -> bool {
+fn relays_can_share_circuit_opt(
+    r1: &Relay<'_>,
+    r2: Option<&MaybeOwnedRelay<'_>>,
+    c: SubnetConfig,
+) -> bool {
     match r2 {
         Some(r2) => relays_can_share_circuit(r1, r2, c),
         None => true,
@@ -260,7 +295,7 @@ mod test {
     #![allow(clippy::unwrap_used)]
     #![allow(clippy::clone_on_copy)]
     use super::*;
-    use crate::path::{assert_same_path_when_owned, OwnedPath, TorPathInner};
+    use crate::path::{assert_same_path_when_owned, MaybeOwnedRelay, OwnedPath, TorPathInner};
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
@@ -269,7 +304,22 @@ mod test {
     use tor_netdir::testnet;
     use tor_rtcompat::SleepProvider;
 
-    fn assert_exit_path_ok(relays: &[Relay<'_>]) {
+    impl<'a> MaybeOwnedRelay<'a> {
+        fn can_share_circuit(
+            &self,
+            other: &MaybeOwnedRelay<'_>,
+            subnet_config: SubnetConfig,
+        ) -> bool {
+            match self {
+                MaybeOwnedRelay::Relay(r) => relays_can_share_circuit(r, other, subnet_config),
+                MaybeOwnedRelay::Owned(r) => {
+                    !subnet_config.any_addrs_in_same_subnet(r.as_ref(), other)
+                }
+            }
+        }
+    }
+
+    fn assert_exit_path_ok(relays: &[MaybeOwnedRelay<'_>]) {
         assert_eq!(relays.len(), 3);
 
         // TODO: Eventually assert that r1 has Guard, once we enforce that.
@@ -283,9 +333,9 @@ mod test {
         assert!(!r2.same_relay_ids(r3));
 
         let subnet_config = SubnetConfig::default();
-        assert!(relays_can_share_circuit(r1, r2, subnet_config));
-        assert!(relays_can_share_circuit(r1, r3, subnet_config));
-        assert!(relays_can_share_circuit(r2, r3, subnet_config));
+        assert!(r1.can_share_circuit(r2, subnet_config));
+        assert!(r2.can_share_circuit(r3, subnet_config));
+        assert!(r1.can_share_circuit(r3, subnet_config));
     }
 
     #[test]
@@ -307,7 +357,10 @@ mod test {
 
             if let TorPathInner::Path(p) = path.inner {
                 assert_exit_path_ok(&p[..]);
-                let exit = &p[2];
+                let exit = match &p[2] {
+                    MaybeOwnedRelay::Relay(r) => r,
+                    MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
+                };
                 assert!(exit.ipv4_policy().allows_port(1119));
             } else {
                 panic!("Generated the wrong kind of path");
@@ -348,7 +401,10 @@ mod test {
             assert_same_path_when_owned(&path);
             if let TorPathInner::Path(p) = path.inner {
                 assert_exit_path_ok(&p[..]);
-                let exit = &p[2];
+                let exit = match &p[2] {
+                    MaybeOwnedRelay::Relay(r) => r,
+                    MaybeOwnedRelay::Owned(_) => panic!("Didn't asked for an owned target!"),
+                };
                 assert!(exit.policies_allow_some_port());
             } else {
                 panic!("Generated the wrong kind of path");
