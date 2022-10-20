@@ -408,11 +408,6 @@ impl ChannelMethod {
         }
     }
 
-    /// TODO nickm: REMOVE this.
-    pub fn declared_peer_addr(&self) -> Option<&std::net::SocketAddr> {
-        self.socket_addrs().and_then(|s| s.get(0))
-    }
-
     /// Return a PtTargetAddr that this ChannelMethod uses.
     pub fn target_addr(&self) -> Option<PtTargetAddr> {
         match self {
