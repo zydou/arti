@@ -2,11 +2,13 @@
 #![allow(dead_code)] // TODO pt-client: remove.
 
 use std::fmt::{self, Display};
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 use thiserror::Error;
 
-use tor_linkspec::{ChannelMethod, HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
+use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
@@ -91,6 +93,20 @@ impl HasRelayIds for BridgeConfig {
         }
     }
 }
+
+impl HasChanMethod for BridgeConfig {
+    fn chan_method(&self) -> ChannelMethod {
+        self.addrs.clone()
+    }
+}
+
+impl HasAddrs for BridgeConfig {
+    fn addrs(&self) -> &[SocketAddr] {
+        self.addrs.addrs()
+    }
+}
+
+impl ChanTarget for BridgeConfig {}
 
 /// Error when parsing a bridge line from a string
 #[derive(Error, Clone, Debug)]

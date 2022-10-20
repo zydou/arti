@@ -7,10 +7,14 @@
 //! censors.
 
 use std::fmt::{self, Display};
+use std::net::SocketAddr;
+use std::slice;
 use std::str::FromStr;
 
 #[cfg(feature = "pt-client")]
 use thiserror::Error;
+
+use crate::HasAddrs;
 
 /// Identify a type of Transport.
 ///
@@ -451,6 +455,26 @@ impl ChannelMethod {
     }
 }
 
+impl HasAddrs for PtTargetAddr {
+    fn addrs(&self) -> &[SocketAddr] {
+        match self {
+            PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
+            #[cfg(feature = "pt-client")]
+            PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
+        }
+    }
+}
+
+impl HasAddrs for ChannelMethod {
+    fn addrs(&self) -> &[SocketAddr] {
+        match self {
+            ChannelMethod::Direct(addrs) => addrs,
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(pt) => pt.addr.addrs(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
@@ -517,12 +541,17 @@ mod test {
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
             let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
+
+            let sa: SocketAddr = addr.parse().unwrap();
+            assert_eq!(a.addrs(), &[sa]);
         }
 
         for addr in &["www.example.com:9100", "-"] {
             if cfg!(feature = "pt-client") {
                 let a: PtTargetAddr = addr.parse().unwrap();
                 assert_eq!(&a.to_string(), addr);
+
+                assert_eq!(a.addrs(), &[]);
             } else {
                 let e = PtTargetAddr::from_str(addr).unwrap_err();
                 assert!(matches!(e, PtAddrError::NoSupport));
