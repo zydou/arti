@@ -3,10 +3,11 @@
 //! Here we need to keep track of which bridge descriptors we need, and inform
 //! the directory manager of them.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::bridge::BridgeConfig;
 use futures::stream::BoxStream;
-use tor_linkspec::OwnedChanTarget;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::routerdesc::RouterDesc;
 
@@ -66,7 +67,10 @@ pub trait BridgeDescProvider {
     ///
     /// Bridges outside of this set will not have their descriptors updated,
     /// and will not be revealed in the BridgeDescList.
-    fn set_bridges(&self, bridges: &[OwnedChanTarget]);
+    //
+    // Possibly requiring a slice of owned Arc<BridgeConfig> here will involve too much copying.
+    // But this isn't on the fast path, we hope.
+    fn set_bridges(&self, bridges: &[Arc<BridgeConfig>]);
 }
 
 /// An event describing a change in a `BridgeDescList`.
@@ -80,5 +84,10 @@ pub enum BridgeDescEvent {
     NewDesc,
 }
 
+/// An error caused while fetching bridge descriptors
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BridgeDescError {}
+
 /// A set of bridge descriptors, managed and modified by a BridgeDescProvider.
-pub type BridgeDescList = tor_linkspec::ByRelayIds<BridgeDesc>;
+pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, BridgeDescError>>;

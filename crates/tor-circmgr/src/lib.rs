@@ -38,7 +38,7 @@
 
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
-use tor_linkspec::ChanTarget;
+use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
@@ -415,6 +415,21 @@ impl<R: Runtime> CircMgr<R> {
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Return a circuit to a specific relay, suitable for using for directory downloads.
+    ///
+    /// This could be used, for example, to download a descriptor for a bridge.
+    pub async fn get_or_launch_dir_bridge<T: Into<OwnedChanTarget>>(
+        &self,
+        target: T,
+    ) -> Result<ClientCirc> {
+        self.expire_circuits();
+        let usage = TargetCircUsage::DirSpecificTarget(target.into());
+        self.mgr
+            .get_or_launch(&usage, DirInfo::Nothing)
+            .await
+            .map(|(c, _)| c)
     }
 
     /// Launch circuits preemptively, using the preemptive circuit predictor's
