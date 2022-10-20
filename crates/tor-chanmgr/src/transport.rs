@@ -5,8 +5,14 @@ use futures::{AsyncRead, AsyncWrite};
 use tor_linkspec::OwnedChanTarget;
 
 pub(crate) mod default;
+pub(crate) mod proxied;
 
 pub(crate) use default::DefaultTransport;
+
+#[cfg(feature = "pt-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental-api")))]
+pub use proxied::ExternalProxyPlugin;
+pub use proxied::ProxyError;
 
 /// A convenient API for defining transports for use in Tor and elsewhere.
 ///

@@ -3477,6 +3477,7 @@ dependencies = [
  "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
+ "tor-socksproto",
  "tor-units",
  "tracing",
  "void",
