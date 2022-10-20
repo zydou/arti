@@ -107,8 +107,9 @@ impl SubnetConfig {
         }
     }
 
-    /// Are two addresses in the same subnet according to this configuration
-    fn addrs_in_same_subnet(&self, a: &IpAddr, b: &IpAddr) -> bool {
+    /// Return true if the two addresses in the same subnet, according to this
+    /// configuration.
+    pub fn addrs_in_same_subnet(&self, a: &IpAddr, b: &IpAddr) -> bool {
         match (a, b) {
             (IpAddr::V4(a), IpAddr::V4(b)) => {
                 let bits = self.subnets_family_v4;
@@ -130,6 +131,20 @@ impl SubnetConfig {
             }
             _ => false,
         }
+    }
+
+    /// Return true if any of the addresses in `a` shares a subnet with any of
+    /// the addresses in `b`, according to this configuration.
+    pub fn any_addrs_in_same_subnet<T, U>(&self, a: &T, b: &U) -> bool
+    where
+        T: tor_linkspec::HasAddrs,
+        U: tor_linkspec::HasAddrs,
+    {
+        a.addrs().iter().any(|aa| {
+            b.addrs()
+                .iter()
+                .any(|bb| self.addrs_in_same_subnet(&aa.ip(), &bb.ip()))
+        })
     }
 }
 
@@ -1061,12 +1076,7 @@ impl<'a> Relay<'a> {
     /// prefix, or if they have IPv6 addresses with the same
     /// `subnets_family_v6`-bit prefix.
     pub fn in_same_subnet<'b>(&self, other: &Relay<'b>, subnet_config: &SubnetConfig) -> bool {
-        self.rs.orport_addrs().any(|addr| {
-            other
-                .rs
-                .orport_addrs()
-                .any(|other| subnet_config.addrs_in_same_subnet(&addr.ip(), &other.ip()))
-        })
+        subnet_config.any_addrs_in_same_subnet(self, other)
     }
     /// Return true if both relays are in the same family.
     ///
