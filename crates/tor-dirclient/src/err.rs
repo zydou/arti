@@ -18,15 +18,21 @@ pub enum Error {
     CircMgr(#[from] tor_circmgr::Error),
 
     /// An error that has occurred after we have contacted a directory cache and made a circuit to it.
-    #[error("Error fetching directory information{}", FromSource(.source))]
-    RequestFailed {
-        /// The source that gave us this error.
-        source: Option<SourceInfo>,
+    #[error("Error fetching directory information")]
+    RequestFailed(#[from] RequestFailedError),
+}
 
-        /// The underlying error that occurred.
-        #[source]
-        error: RequestError,
-    },
+/// An error that has occurred after we have contacted a directory cache and made a circuit to it.
+#[derive(Error, Debug, Clone)]
+#[allow(clippy::exhaustive_structs)] // TODO should not be exhaustive
+#[error("Request failed{}", FromSource(.source))]
+pub struct RequestFailedError {
+    /// The source that gave us this error.
+    pub source: Option<SourceInfo>,
+
+    /// The underlying error that occurred.
+    #[source]
+    pub error: RequestError,
 }
 
 /// Helper type to display an optional source of directory information.
@@ -99,6 +105,10 @@ pub enum RequestError {
     /// microdescriptors or certificates.
     #[error("We didn't have any objects to request")]
     EmptyRequest,
+
+    /// HTTP status code indicates a not completely successful request
+    #[error("HTTP status code {0}")]
+    HttpStatus(u16),
 }
 
 impl From<TimeoutError> for RequestError {
@@ -127,7 +137,7 @@ impl Error {
         // actually _not_ dump the circuit under all circumstances.
         match self {
             Error::CircMgr(_) => true, // should be unreachable.
-            Error::RequestFailed { error, .. } => error.should_retire_circ(),
+            Error::RequestFailed(RequestFailedError { error, .. }) => error.should_retire_circ(),
         }
     }
 
@@ -138,10 +148,10 @@ impl Error {
     pub fn cache_ids(&self) -> Vec<&OwnedChanTarget> {
         match &self {
             Error::CircMgr(e) => e.peers(),
-            Error::RequestFailed {
+            Error::RequestFailed(RequestFailedError {
                 source: Some(source),
                 ..
-            } => vec![source.cache_id()],
+            }) => vec![source.cache_id()],
             _ => Vec::new(),
         }
     }
@@ -176,6 +186,7 @@ impl HasKind for RequestError {
             E::ContentEncoding(_) => EK::TorProtocolViolation,
             E::TooMuchClockSkew => EK::TorDirectoryError,
             E::EmptyRequest => EK::Internal,
+            E::HttpStatus(_) => EK::TorDirectoryError,
         }
     }
 }
@@ -185,7 +196,7 @@ impl HasKind for Error {
         use Error as E;
         match self {
             E::CircMgr(e) => e.kind(),
-            E::RequestFailed { error, .. } => error.kind(),
+            E::RequestFailed(RequestFailedError { error, .. }) => error.kind(),
         }
     }
 }

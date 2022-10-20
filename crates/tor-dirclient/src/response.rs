@@ -3,11 +3,11 @@
 use tor_linkspec::OwnedChanTarget;
 use tor_proto::circuit::{ClientCirc, UniqId};
 
-use crate::RequestError;
+use crate::{RequestError, RequestFailedError};
 
 /// A successful (or at any rate, well-formed) response to a directory
 /// request.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DirResponse {
     /// An HTTP status code.
     status: u16,
@@ -69,18 +69,52 @@ impl DirResponse {
     }
 
     /// Return the output from this response.
-    pub fn output(&self) -> &[u8] {
+    ///
+    /// Returns some output, even if the response indicates truncation or an error.
+    pub fn output_unchecked(&self) -> &[u8] {
         &self.output
     }
 
+    /// Return the output from this response, if it was successful and complete.
+    pub fn output(&self) -> Result<&[u8], RequestFailedError> {
+        self.check_ok()?;
+        Ok(self.output_unchecked())
+    }
+
     /// Consume this DirResponse and return the output in it.
-    pub fn into_output(self) -> Vec<u8> {
+    ///
+    /// Returns some output, even if the response indicates truncation or an error.
+    pub fn into_output_unchecked(self) -> Vec<u8> {
         self.output
+    }
+
+    /// Consume this DirResponse and return the output, if it was successful and complete.
+    pub fn into_output(self) -> Result<Vec<u8>, RequestFailedError> {
+        self.check_ok()?;
+        Ok(self.into_output_unchecked())
     }
 
     /// Return the source information about this response.
     pub fn source(&self) -> Option<&SourceInfo> {
         self.source.as_ref()
+    }
+
+    /// Check if this request was successful and complete.
+    fn check_ok(&self) -> Result<(), RequestFailedError> {
+        let wrap_err = |error| {
+            Err(RequestFailedError {
+                error,
+                source: self.source.clone(),
+            })
+        };
+        if let Some(error) = &self.error {
+            return wrap_err(error.clone());
+        }
+        assert!(!self.is_partial(), "partial but no error?");
+        if self.status_code() != 200 {
+            return wrap_err(RequestError::HttpStatus(self.status_code()));
+        }
+        Ok(())
     }
 }
 
@@ -102,5 +136,54 @@ impl SourceInfo {
     /// Return information about the peer from which we received this info.
     pub fn cache_id(&self) -> &OwnedChanTarget {
         &self.cache_id
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    #[test]
+    fn errors() {
+        let mut response = DirResponse::new(200, None, vec![b'Y'], None);
+
+        assert_eq!(response.output().unwrap(), b"Y");
+        assert_eq!(response.clone().into_output().unwrap(), b"Y");
+
+        let expect_error = |response: &DirResponse, error: RequestError| {
+            let error = RequestFailedError {
+                error,
+                source: None,
+            };
+            let error = format!("{:?}", error);
+
+            assert_eq!(error, format!("{:?}", response.output().unwrap_err()));
+            assert_eq!(
+                error,
+                format!("{:?}", response.clone().into_output().unwrap_err())
+            );
+        };
+
+        let with_error = |response: &DirResponse| {
+            let mut response = response.clone();
+            response.error = Some(RequestError::DirTimeout);
+            expect_error(&response, RequestError::DirTimeout);
+        };
+
+        with_error(&response);
+
+        response.status = 404;
+        expect_error(&response, RequestError::HttpStatus(404));
+
+        with_error(&response);
     }
 }

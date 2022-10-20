@@ -60,7 +60,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::info;
 
-pub use err::{Error, RequestError};
+pub use err::{Error, RequestError, RequestFailedError};
 pub use response::{DirResponse, SourceInfo};
 
 /// Type for results returned in this crate.
@@ -98,9 +98,11 @@ where
     let begin_timeout = Duration::from_secs(5);
     let source = SourceInfo::from_circuit(&circuit);
 
-    let wrap_err = |error| Error::RequestFailed {
-        source: Some(source.clone()),
-        error,
+    let wrap_err = |error| {
+        Error::RequestFailed(RequestFailedError {
+            source: Some(source.clone()),
+            error,
+        })
     };
 
     req.check_circuit(&circuit).map_err(wrap_err)?;
@@ -159,9 +161,11 @@ where
     S: AsyncRead + AsyncWrite + Send + Unpin,
     SP: SleepProvider,
 {
-    let wrap_err = |error| Error::RequestFailed {
-        source: source.clone(),
-        error,
+    let wrap_err = |error| {
+        Error::RequestFailed(RequestFailedError {
+            source: source.clone(),
+            error,
+        })
     };
 
     let partial_ok = req.partial_docs_ok();
@@ -640,9 +644,11 @@ mod test {
                 async {
                     // Run the download function.
                     let r = download(&rt, &req, &mut s1, None).await;
-                    s1.close().await.map_err(|error| Error::RequestFailed {
-                        source: None,
-                        error: error.into(),
+                    s1.close().await.map_err(|error| {
+                        Error::RequestFailed(RequestFailedError {
+                            source: None,
+                            error: error.into(),
+                        })
                     })?;
                     r
                 },
@@ -698,9 +704,9 @@ mod test {
         assert!(!response.is_partial());
         assert!(response.error().is_none());
         assert!(response.source().is_none());
-        let out_ref = response.output();
+        let out_ref = response.output_unchecked();
         assert_eq!(out_ref, b"This is where the descs would go.");
-        let out = response.into_output();
+        let out = response.into_output_unchecked();
         assert_eq!(&out, b"This is where the descs would go.");
 
         Ok(())
@@ -733,8 +739,8 @@ mod test {
         assert_eq!(response.status_code(), 200);
         assert!(response.error().is_some());
         assert!(response.is_partial());
-        assert!(response.output().len() < 37 * 2);
-        assert!(response.output().starts_with(b"One fish"));
+        assert!(response.output_unchecked().len() < 37 * 2);
+        assert!(response.output_unchecked().starts_with(b"One fish"));
     }
 
     #[test]
@@ -754,10 +760,10 @@ mod test {
 
         assert!(matches!(
             response,
-            Err(Error::RequestFailed {
+            Err(Error::RequestFailed(RequestFailedError {
                 error: RequestError::TruncatedHeaders,
                 ..
-            })
+            }))
         ));
 
         // Try a completely empty response.
@@ -767,10 +773,10 @@ mod test {
 
         assert!(matches!(
             response,
-            Err(Error::RequestFailed {
+            Err(Error::RequestFailed(RequestFailedError {
                 error: RequestError::TruncatedHeaders,
                 ..
-            })
+            }))
         ));
     }
 
@@ -784,10 +790,10 @@ mod test {
         assert!(response.as_ref().unwrap_err().should_retire_circ());
         assert!(matches!(
             response,
-            Err(Error::RequestFailed {
+            Err(Error::RequestFailed(RequestFailedError {
                 error: RequestError::HttparseError(_),
                 ..
-            })
+            }))
         ));
     }
 
