@@ -2,7 +2,7 @@
 
 use derive_more::AsRef;
 use serde::{Deserialize, Serialize};
-use tor_linkspec::RelayIds;
+use tor_linkspec::{HasRelayIds, RelayIds};
 #[cfg(test)]
 use tor_llcrypto::pk;
 
@@ -23,6 +23,15 @@ impl FallbackId {
         T: tor_linkspec::HasRelayIds + ?Sized,
     {
         Self(RelayIds::from_relay_ids(target))
+    }
+}
+
+impl HasRelayIds for FallbackId {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.0.identity(key_type)
     }
 }
 

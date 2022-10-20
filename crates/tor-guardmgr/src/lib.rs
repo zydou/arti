@@ -1165,8 +1165,11 @@ impl GuardMgrInner {
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let filt = self.guards.active_guards().filter();
 
-        let fallback = self.fallbacks.choose(&mut rand::thread_rng(), now, filt)?;
-        let fallback = filt.modify_hop(fallback.clone())?;
+        let fallback = self
+            .fallbacks
+            .choose(&mut rand::thread_rng(), now, filt)?
+            .as_guard();
+        let fallback = filt.modify_hop(fallback)?;
         Ok((sample::ListKind::Fallback, fallback))
     }
 }
