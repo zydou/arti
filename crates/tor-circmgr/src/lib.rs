@@ -38,10 +38,13 @@
 
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
-use tor_linkspec::{ChanTarget, OwnedChanTarget};
+use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
+
+#[cfg(feature = "specific-relay")]
+use tor_linkspec::OwnedChanTarget;
 
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -420,7 +423,9 @@ impl<R: Runtime> CircMgr<R> {
     /// Return a circuit to a specific relay, suitable for using for directory downloads.
     ///
     /// This could be used, for example, to download a descriptor for a bridge.
-    pub async fn get_or_launch_dir_bridge<T: Into<OwnedChanTarget>>(
+    #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
+    #[cfg(feature = "specific-relay")]
+    pub async fn get_or_launch_dir_specific<T: Into<OwnedChanTarget>>(
         &self,
         target: T,
     ) -> Result<ClientCirc> {

@@ -377,6 +377,7 @@ fn settings_to_protocol(s: String) -> Result<Protocol, ProxyError> {
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
+    #[allow(unused_imports)]
     use super::*;
 
     #[cfg(feature = "pt-client")]

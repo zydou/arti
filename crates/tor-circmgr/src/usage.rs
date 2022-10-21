@@ -10,10 +10,12 @@ use tracing::debug;
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
 use tor_chanmgr::ChannelUsage;
 use tor_guardmgr::{GuardMgr, GuardMonitor, GuardUsable};
-use tor_linkspec::OwnedChanTarget;
 use tor_netdir::Relay;
 use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
+
+#[cfg(feature = "specific-relay")]
+use tor_linkspec::OwnedChanTarget;
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
@@ -160,6 +162,7 @@ pub(crate) enum TargetCircUsage {
     },
     /// Use for BEGINDIR-based non-anonymous directory connections to a particular target,
     /// and therefore to a specific relay (which need not be in any netdir).
+    #[cfg(feature = "specific-relay")]
     DirSpecificTarget(OwnedChanTarget),
 }
 
@@ -183,6 +186,7 @@ pub(crate) enum SupportedCircUsage {
     NoUsage,
     /// Use only for BEGINDIR-based non-anonymous directory connections
     /// to a particular target (which may not be in the netdir).
+    #[cfg(feature = "specific-relay")]
     DirSpecificTarget(OwnedChanTarget),
 }
 
@@ -257,6 +261,7 @@ impl TargetCircUsage {
 
                 Ok((path, usage, mon, usable))
             }
+            #[cfg(feature = "specific-relay")]
             TargetCircUsage::DirSpecificTarget(target) => {
                 let path = TorPath::new_one_hop_owned(target);
                 let usage = SupportedCircUsage::DirSpecificTarget(target.clone());
@@ -373,7 +378,9 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         use ChannelUsage as CU;
         use SupportedCircUsage as SCU;
         match self {
-            SCU::Dir | SCU::DirSpecificTarget(_) => CU::Dir,
+            SCU::Dir => CU::Dir,
+            #[cfg(feature = "specific-relay")]
+            SCU::DirSpecificTarget(_) => CU::Dir,
             SCU::Exit { .. } => CU::UserTraffic,
             SCU::NoUsage => CU::UselessCircuit,
         }
