@@ -27,6 +27,10 @@ them between patch versions.
 * `experimental-api`: Add additional non-stable APIs to our public
   interfaces.
 
+* `specific-relay`: Support for connecting to a relay via
+   specifically provided connection instructions, rather than
+   using information from a Tor network directory.
+
 * `experimental`: Enable all the above experimental features.
 
 [^1]: Remember, semantic versioning is what makes various `cargo`
