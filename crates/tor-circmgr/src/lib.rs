@@ -420,7 +420,7 @@ impl<R: Runtime> CircMgr<R> {
     /// Return a circuit to a specific relay, suitable for using for directory downloads.
     ///
     /// This could be used, for example, to download a descriptor for a bridge.
-    pub async fn get_or_launch_dir_bridge<T: Into<OwnedChanTarget>>(
+    pub async fn get_or_launch_dir_specific<T: Into<OwnedChanTarget>>(
         &self,
         target: T,
     ) -> Result<ClientCirc> {
