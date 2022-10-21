@@ -16,10 +16,4 @@ anticipate those needs.  If a client request can be satisfied with
 an existing circuit, it should return that circuit instead of
 constructing a new one.
 
-## Limitations
-
-But for now, this `tor-circmgr` code is extremely preliminary; its
-data structures are all pretty bad, and it's likely that the API
-is wrong too.
-
 License: MIT OR Apache-2.0
