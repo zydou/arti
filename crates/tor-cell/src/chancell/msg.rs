@@ -707,8 +707,8 @@ impl Readable for Netinfo {
     fn take_from(r: &mut Reader<'_>) -> Result<Self> {
         let timestamp = r.take_u32()?;
         let their_addr = take_one_netinfo_addr(r)?.filter(|a| !a.is_unspecified());
-        let mut my_addr = Vec::new();
         let my_n_addrs = r.take_u8()?;
+        let mut my_addr = Vec::with_capacity(my_n_addrs as usize);
         for _ in 0..my_n_addrs {
             if let Some(a) = take_one_netinfo_addr(r)? {
                 my_addr.push(a);
