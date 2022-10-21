@@ -1086,8 +1086,8 @@ impl Body for AuthChallenge {
             .try_into()
             .map_err(|_| EncodeError::BadLengthValue)?;
         w.write_u16(n_methods);
-        for m in &self.methods {
-            w.write_u16(*m);
+        for m in self.methods {
+            w.write_u16(m);
         }
         Ok(())
     }
