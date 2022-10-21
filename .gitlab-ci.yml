@@ -261,6 +261,14 @@ integration-shadow:
     - amd64
     - tpa
 
+matrix-test:
+  stage: test
+  image: rust:latest
+  script:
+    - apt-get update && apt-get install -y python3-toml python-is-python3
+    - ./maint/matrix_test
+
+
 coverage-aggregated:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

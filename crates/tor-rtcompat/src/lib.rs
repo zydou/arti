@@ -63,9 +63,9 @@ pub use timer::{SleepProviderExt, Timeout, TimeoutError};
 pub mod tls {
     pub use crate::traits::{CertifiedConn, TlsConnector};
 
-    #[cfg(feature = "native-tls")]
+    #[cfg(all(feature = "native-tls", any(feature = "tokio", feature = "async-std")))]
     pub use crate::impls::native_tls::NativeTlsProvider;
-    #[cfg(feature = "rustls")]
+    #[cfg(all(feature = "rustls", any(feature = "tokio", feature = "async-std")))]
     pub use crate::impls::rustls::RustlsProvider;
 }
 

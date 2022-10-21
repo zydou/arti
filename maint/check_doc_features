@@ -17,6 +17,8 @@ additional_provided['tor-rtcompat'] = [
     ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
     ('PreferredRuntime', 'feature = "native-tls"'),
     ('PreferredRuntime', 'all(feature = "rustls", not(feature = "native-tls"))'),
+    ('NativeTlsProvider', 'all(feature = "native-tls", any(feature = "tokio", feature = "async-std"))'),
+    ('RustlsProvider', 'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))'),
 ]
 
 # Sha1 is present both ways
