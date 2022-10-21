@@ -218,9 +218,9 @@ impl Readable for VPadding {
     }
 }
 
-/// helper -- declare a fixed-width cell where a fixed number of bytes
-/// matter and the rest are ignored
-macro_rules! fixed_len {
+/// helper -- declare a fixed-width cell for handshake commands, in which
+/// a fixed number of bytes matter and the rest are ignored
+macro_rules! fixed_len_handshake {
     {
         $(#[$meta:meta])*
         $name:ident , $cmd:ident, $len:ident
@@ -268,7 +268,7 @@ const FAST_C_HANDSHAKE_LEN: usize = 20;
 /// Number of bytes used for a CRATE_FAST handshake response
 const FAST_S_HANDSHAKE_LEN: usize = 20 + 20;
 
-fixed_len! {
+fixed_len_handshake! {
     /// A Create message creates a circuit, using the TAP handshake.
     ///
     /// TAP is an obsolete handshake based on RSA-1024 and DH-1024.
@@ -279,14 +279,14 @@ fixed_len! {
     /// service protocol.
     Create, CREATE, TAP_C_HANDSHAKE_LEN
 }
-fixed_len! {
+fixed_len_handshake! {
     /// A Created message responds to a Created message, using the TAP
     /// handshake.
     ///
     /// TAP is an obsolete handshake based on RSA-1024 and DH-1024.
     Created, CREATED, TAP_S_HANDSHAKE_LEN
 }
-fixed_len! {
+fixed_len_handshake! {
     /// A CreateFast message creates a circuit using no public-key crypto.
     ///
     /// CreateFast is safe only when used on an already-secure TLS
@@ -306,7 +306,7 @@ impl CreateFast {
         &self.handshake
     }
 }
-fixed_len! {
+fixed_len_handshake! {
     /// A CreatedFast message responds to a CreateFast message
     ///
     /// Relays send this message back to indicate that the CrateFast handshake
