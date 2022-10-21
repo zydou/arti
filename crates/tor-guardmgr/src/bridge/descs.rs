@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::bridge::BridgeConfig;
+use dyn_clone::DynClone;
 use futures::stream::BoxStream;
+use tor_error::{HasKind, HasRetryTime};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::routerdesc::RouterDesc;
 
@@ -85,9 +87,21 @@ pub enum BridgeDescEvent {
 }
 
 /// An error caused while fetching bridge descriptors
-#[derive(Clone, Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum BridgeDescError {}
+///
+/// Note that when this appears in `BridgeDescList`, as returned by `BridgeDescManager`,
+/// the fact that this is `HasRetryTime` does *not* mean the caller should retry.
+/// Retries will be handled by the `BridgeDescManager`.
+/// The `HasRetryTime` impl can be used as a guide to
+/// whether the situation is likely to improve soon.
+///
+/// Does *not* include the information about which bridge we were trying to
+/// get a descriptor for.
+pub trait BridgeDescError:
+    std::error::Error + DynClone + HasKind + HasRetryTime + Send + Sync + 'static
+{
+}
+
+dyn_clone::clone_trait_object!(BridgeDescError);
 
 /// A set of bridge descriptors, managed and modified by a BridgeDescProvider.
-pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, BridgeDescError>>;
+pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn BridgeDescError>>>;

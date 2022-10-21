@@ -3689,6 +3689,7 @@ dependencies = [
  "base64",
  "derive_builder_fork_arti",
  "derive_more",
+ "dyn-clone",
  "educe",
  "float_eq",
  "futures",
