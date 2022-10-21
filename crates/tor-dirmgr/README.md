@@ -26,10 +26,6 @@ reading large directory objects from disk.
 `routerdesc` -- (Incomplete) support for downloading and storing
      router descriptors.
 
-### Experimental features
-
-## Compile-time features
-
 ### Experimental and unstable features
 
 Note that the APIs enabled by these features are NOT covered by
