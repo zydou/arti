@@ -14,8 +14,9 @@ use caret::caret_int;
 /// The amount of data sent in a fixed-length cell.
 ///
 /// Historically, this was set at 509 bytes so that cells would be
-/// 512 bytes long once commands and circuit IDs were added.  But now
-/// circuit IDs are longer, so cells are 514 bytes.
+/// 512 bytes long once commands and circuit IDs were added.  But since
+/// protocol version 4, circuit IDs are 2 bytes longer, so cells are
+/// now 514 bytes.
 pub const CELL_DATA_LEN: usize = 509;
 
 /// A cell body considered as a raw array of bytes
@@ -23,7 +24,7 @@ pub type RawCellBody = [u8; CELL_DATA_LEN];
 
 /// Channel-local identifier for a circuit.
 ///
-/// A circuit ID can be 2 or 4 bytes long; on modern versions of the Tor
+/// A circuit ID can be 2 or 4 bytes long; since version 4 of the Tor
 /// protocol, it's 4 bytes long.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct CircId(u32);
@@ -115,7 +116,8 @@ impl ChanCmd {
     pub fn is_var_cell(self) -> bool {
         // Version 1 of the channel protocol had no variable-length
         // cells, but that's obsolete.  In version 2, only the VERSIONS
-        // cell was variable-length.
+        // cell was variable-length.  Since version 3, all cells having
+        // a command value >= 128 are variable-length.
         self == ChanCmd::VERSIONS || self.0 >= 128_u8
     }
     /// Return what kind of circuit ID this command expects.
