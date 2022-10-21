@@ -200,6 +200,27 @@ This could be more efficient in space and time.
             self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
+        #[doc = concat!("Return a mutable reference to the element whose `", stringify!($key), "` is `key`.")]
+        ///
+        /// Return None if there is no such element.
+        ///
+        /// # Safety
+        ///
+        /// This function can put this set into an inconsistent state if the
+        /// mutable reference is used to change any of the keys. Doing this does
+        /// not risk Rust safety violations (such as undefined behavior), but it
+        /// may nonetheless make your program incorrect by causing other
+        /// functions on this object to panic or give incorrect results.
+        ///
+        /// If you cannot prove to yourself that this won't happen, then you
+        /// should use `modify_by_*` instead.
+        $vis unsafe fn [<by_ $key _mut>] <BorrowAsKey_>(&mut self, key: &BorrowAsKey_) -> Option<&mut $V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
+        {
+            self.[<$key _map>].get(key).map(|idx| self.values.get_mut(*idx).expect("inconsistent state"))
+        }
+
         #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
         $vis fn [<contains_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> bool
         where $KEY : std::borrow::Borrow<BorrowAsKey_>,
