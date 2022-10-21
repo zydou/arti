@@ -645,8 +645,6 @@ fn take_one_netinfo_addr(r: &mut Reader<'_>) -> Result<Option<IpAddr>> {
             bytes.copy_from_slice(abody);
             Ok(Some(IpAddr::V6(bytes.into())))
         }
-        (0x04, _) => Ok(None),
-        (0x06, _) => Ok(None),
         (_, _) => Ok(None),
     }
 }
