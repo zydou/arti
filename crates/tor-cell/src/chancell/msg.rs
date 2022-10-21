@@ -265,7 +265,7 @@ pub(crate) const TAP_S_HANDSHAKE_LEN: usize = 128 + 20;
 
 /// Number of bytes used for a CREATE_FAST handshake by the initiator
 const FAST_C_HANDSHAKE_LEN: usize = 20;
-/// Number of bytes used for a CRATE_FAST handshake response
+/// Number of bytes used for a CREATE_FAST handshake response
 const FAST_S_HANDSHAKE_LEN: usize = 20 + 20;
 
 fixed_len_handshake! {
@@ -448,7 +448,7 @@ pub struct Relay {
     /// The contents of the relay cell as encoded for transfer.
     ///
     /// TODO(nickm): It's nice that this is boxed, since we don't want to copy
-    /// cell data all over the place. But unfortunately, a there are some other
+    /// cell data all over the place. But unfortunately, there are some other
     /// places where we _don't_ Box things that we should, and more copies than
     /// necessary happen. We should refactor our data handling until we're mostly
     /// moving around pointers rather than copying data;  see ticket #7.
@@ -543,7 +543,7 @@ caret_int! {
     pub struct DestroyReason(u8) {
         /// No reason given.
         ///
-        /// (This is the only reason that clients send.
+        /// This is the only reason that clients send.
         NONE = 0,
         /// Protocol violation
         PROTOCOL = 1,
