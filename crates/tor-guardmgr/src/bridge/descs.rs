@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::bridge::BridgeConfig;
+use dyn_clone::DynClone;
 use futures::stream::BoxStream;
 use tor_error::{HasKind, HasRetryTime};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
@@ -96,9 +97,11 @@ pub enum BridgeDescEvent {
 /// Does *not* include the information about which bridge we were trying to
 /// get a descriptor for.
 pub trait BridgeDescError:
-    std::error::Error + HasKind + HasRetryTime + Send + Sync + 'static
+    std::error::Error + DynClone + HasKind + HasRetryTime + Send + Sync + 'static
 {
 }
+
+dyn_clone::clone_trait_object!(BridgeDescError);
 
 /// A set of bridge descriptors, managed and modified by a BridgeDescProvider.
 pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn BridgeDescError>>>;
