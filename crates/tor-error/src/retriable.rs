@@ -130,6 +130,7 @@ pub trait HasRetryTime {
     fn abs_retry_time<F>(&self, now: Instant, choose_delay: F) -> AbsRetryTime
     where
         F: FnOnce() -> Duration,
+        Self: Sized,
     {
         self.retry_time().absolute(now, choose_delay)
     }
