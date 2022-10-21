@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# This script is meant to preserve and restore CI artifacts so they can be passed from job to job.
+# See arti!786 for why it is done this way, and what could be done better.
+
+set -eu
+
+PREFIX="artifacts"
+
+if [ "$1" = "-u" ]; then
+	mv "$PREFIX/"* .
+	exit 0
+else
+	for path in "$@"
+	do
+		DIR=$(dirname "$path")
+		mkdir -p "$PREFIX/$DIR"
+		cp -al "$path" "$PREFIX/$path"
+	done
+fi
+
