@@ -19,16 +19,22 @@ use std::{
     sync::Arc,
 };
 
-use async_trait::async_trait;
 use futures::{AsyncReadExt, AsyncWriteExt};
-use tor_error::{bad_api_usage, internal};
-use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget, PtTargetAddr};
+use tor_error::internal;
+use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::TcpProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
 };
 
+#[cfg(feature = "pt-client")]
 use super::TransportHelper;
+#[cfg(feature = "pt-client")]
+use async_trait::async_trait;
+#[cfg(feature = "pt-client")]
+use tor_error::bad_api_usage;
+#[cfg(feature = "pt-client")]
+use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 
 /// Information about what proxy protocol to use, and how to use it.
 #[derive(Clone, Debug, Eq, PartialEq)]
