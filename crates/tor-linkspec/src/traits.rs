@@ -92,8 +92,14 @@ pub trait HasRelayIds {
         })
     }
 
-    /// Compare this object to another HasRelayIds, in a (somewhat) arbitrary
-    /// sorting order.
+    /// Compare this object to another HasRelayIds.
+    ///
+    /// Objects are sorted by Ed25519 identities, with ties decided by RSA
+    /// identities. An absent identity of a given type is sorted before a
+    /// present identity of that type.
+    ///
+    /// If additional identities are added in the future, they may taken into
+    /// consideration before _or_ after the current identity types.
     fn cmp_by_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> std::cmp::Ordering {
         use strum::IntoEnumIterator;
         for key_type in RelayIdType::iter() {
@@ -368,6 +374,11 @@ mod test {
             b(None, Some(rsa1)),
             b(None, Some(rsa2)),
             b(None, Some(rsa3)),
+        ]);
+        assert_sorted(&[
+            b(None, Some(rsa1)),
+            b(Some(ed1), None),
+            b(Some(ed1), Some(rsa1)),
         ]);
     }
 }
