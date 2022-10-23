@@ -23,6 +23,9 @@ pub struct TorPath<'a> {
 /// Non-public helper type to represent the different kinds of Tor path.
 ///
 /// (This is a separate type to avoid exposing its details to the user.)
+///
+/// NOTE: This type should NEVER be visible outside of path.rs and its
+/// sub-modules.
 enum TorPathInner<'a> {
     /// A single-hop path for use with a directory cache, when a relay is
     /// known.
@@ -38,15 +41,18 @@ enum TorPathInner<'a> {
 
 /// Identifier for a a relay that could be either known from a NetDir, or
 /// specified as an OwnedCircTarget.
+///
+/// NOTE: This type should NEVER be visible outside of path.rs and its
+/// sub-modules.
 #[derive(Clone)]
 enum MaybeOwnedRelay<'a> {
     /// A relay from the netdir.
     Relay(Relay<'a>),
     /// An owned description of a relay.
     //
-    // TODO: I don't love boxing this, but it fixes a warning about variant
-    // sizes and is probably not the worst thing we could do.  OTOH, we could
-    // probably afford to use an Arc here and in guardmgr?
+    // TODO pt-client: I don't love boxing this, but it fixes a warning about
+    // variant sizes and is probably not the worst thing we could do.  OTOH, we
+    // could probably afford to use an Arc here and in guardmgr?
     //
     // TODO pt-client: Try using an Arc.
     Owned(Box<OwnedCircTarget>),
