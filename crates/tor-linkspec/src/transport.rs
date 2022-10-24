@@ -250,7 +250,7 @@ impl Display for PtTargetAddr {
 ///
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
 // TODO pt-client: I am not sure we will want to keep this type, rather than
 // just inlining it.  I am leaving it as a separate type for now, though, for a
 // few reasons:
@@ -269,7 +269,7 @@ pub struct PtTargetSettings {
 
 /// The set of information passed to the  pluggable transport subsystem in order
 /// to establish a connection to a bridge relay.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct PtTarget {
     /// The transport to be used.
     transport: PtTransportName,
@@ -374,7 +374,7 @@ impl PtTarget {
 /// For direct connections, this is simply an address.  For connections via a
 /// pluggable transport, this includes information about the transport, and any
 /// address and settings information that transport requires.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(clippy::exhaustive_enums)]
 // TODO pt-client: I am not in love with this enum name --nm.
 // TODO pt-client: Maybe "ContactMethod" would be better?
