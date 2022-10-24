@@ -64,6 +64,15 @@ impl GuardId {
     }
 }
 
+impl HasRelayIds for GuardId {
+    fn identity(
+        &self,
+        key_type: tor_linkspec::RelayIdType,
+    ) -> Option<tor_linkspec::RelayIdRef<'_>> {
+        self.0.identity(key_type)
+    }
+}
+
 /// Implementation type held inside of FirstHopId.
 ///
 /// This exists as a separate type from FirstHopId because Rust requires that a pub enum's variants are all public.
