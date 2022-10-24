@@ -200,7 +200,8 @@ This could be more efficient in space and time.
             self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
-        #[doc = concat!("Return a mutable reference to the element whose `", stringify!($key), "` is `key`.")]
+        #[doc = concat!("Return a mutable reference to the element whose `", stringify!($key),
+                        "` is `key`.")]
         ///
         /// Return None if there is no such element.
         ///
@@ -214,14 +215,20 @@ This could be more efficient in space and time.
         ///
         /// If you cannot prove to yourself that this won't happen, then you
         /// should use `modify_by_*` instead.
-        $vis unsafe fn [<by_ $key _mut>] <BorrowAsKey_>(&mut self, key: &BorrowAsKey_) -> Option<&mut $V>
+        $vis unsafe fn [<by_ $key _mut>] <BorrowAsKey_>(
+            &mut self,
+            key: &BorrowAsKey_
+        ) -> Option<&mut $V>
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
-            self.[<$key _map>].get(key).map(|idx| self.values.get_mut(*idx).expect("inconsistent state"))
+            self.[<$key _map>]
+                .get(key)
+                .map(|idx| self.values.get_mut(*idx).expect("inconsistent state"))
         }
 
-        #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
+        #[doc = concat!("Return true if this set contains an element whose `", stringify!($key),
+                        "` is `key`.")]
         $vis fn [<contains_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> bool
         where $KEY : std::borrow::Borrow<BorrowAsKey_>,
               BorrowAsKey_: std::hash::Hash + Eq + ?Sized
@@ -237,11 +244,15 @@ This could be more efficient in space and time.
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
-            self.[<$key _map>].get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
+            self.[<$key _map>]
+                .get($key)
+                .copied()
+                .map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
         }
 
 
-        #[doc = concat!("Modify the element with the given value for `", stringify!($key), " by applying `func` to it.")]
+        #[doc = concat!("Modify the element with the given value for `", stringify!($key),
+                        " by applying `func` to it.")]
         ///
         /// `func` is allowed to change the keys for this value.  All indices
         /// are updated to refer to the new keys.  If the new keys conflict with
@@ -253,7 +264,10 @@ This could be more efficient in space and time.
         ///
         /// Note that because this function needs to copy all key values and check whether
         /// they have changed, it is not terribly efficient.
-        $vis fn [<modify_by_$key>] <BorrowAsKey_, F_>(&mut self, $key: &BorrowAsKey_, func: F_) -> Vec<$V>
+        $vis fn [<modify_by_$key>] <BorrowAsKey_, F_>(
+            &mut self,
+            $key: &BorrowAsKey_,
+            func: F_) -> Vec<$V>
         where
             $KEY : std::borrow::Borrow<BorrowAsKey_>,
             BorrowAsKey_: std::hash::Hash + Eq + ?Sized,
@@ -295,7 +309,7 @@ This could be more efficient in space and time.
             $(
                 replaced.extend(
                     $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
-                        .and_then(|key| self.[<remove_by_$key>](key))
+                    .and_then(|key| self.[<remove_by_$key>](key))
                 );
             )*
 
@@ -369,10 +383,11 @@ This could be more efficient in space and time.
         fn remove_at(&mut self, idx: usize) -> Option<$V> {
             if let Some(removed) = self.values.try_remove(idx) {
                 $(
-                    if let Some($key) = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
-                        let old_idx = self.[<$key _map>].remove($key);
-                        assert_eq!(old_idx, Some(idx));
-                    }
+                let $key = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) );
+                if let Some($key) = $key {
+                    let old_idx = self.[<$key _map>].remove($key);
+                    assert_eq!(old_idx, Some(idx));
+                }
                 )*
                 Some(removed)
             } else {
@@ -410,7 +425,9 @@ This could be more efficient in space and time.
             $(
                 let [<new_$key>] = $crate::n_key_set!( @access( value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) ;
             )+
-            let keys_changed = $( [<orig_$key>].as_ref().map(std::borrow::Borrow::borrow) != [<new_$key>] )||+ ;
+            let keys_changed = $(
+                 [<orig_$key>].as_ref().map(std::borrow::Borrow::borrow) != [<new_$key>]
+            )||+ ;
 
             if keys_changed {
                 let found_any_keys = $( [<new_$key>].is_some() )||+ ;
@@ -492,14 +509,14 @@ This could be more efficient in space and time.
             for (idx, val) in self.values.iter() {
                 let mut found_any_key = false;
                 $(
-                    if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
-                        found_any_key = true;
-                        assert!(
-                            self.[<$key _map>].get(k) == Some(&idx),
-                            "Value not found at correct index"
-                        )
-                    }
-                    stringify!($key);
+                if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
+                    found_any_key = true;
+                    assert!(
+                        self.[<$key _map>].get(k) == Some(&idx),
+                        "Value not found at correct index"
+                    )
+                }
+                stringify!($key);
                 )+
                 assert!(found_any_key, "Found a value with no keys.");
             }
