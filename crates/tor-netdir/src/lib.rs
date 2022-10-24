@@ -54,11 +54,13 @@ use tor_netdoc::doc::netstatus::{self, MdConsensus, RouterStatus};
 use tor_netdoc::types::policy::PortPolicy;
 
 use futures::stream::BoxStream;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::ops::Deref;
 use std::sync::Arc;
+use strum::{EnumCount, EnumIter};
 use tracing::warn;
 
 pub use err::Error;
@@ -261,8 +263,11 @@ pub struct NetDir {
 
 /// An event that a [`NetDirProvider`] can broadcast to indicate that a change in
 /// the status of its directory.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumIter, EnumCount, IntoPrimitive, TryFromPrimitive,
+)]
 #[non_exhaustive]
+#[repr(u16)]
 pub enum DirEvent {
     /// A new consensus has been received, and has enough information to be
     /// used.

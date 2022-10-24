@@ -95,6 +95,9 @@ pub use storage::DocumentText;
 pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
 pub use tor_netdir::Timeliness;
 
+/// Re-export of `strum` crate for use by an internal macro
+use strum;
+
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 

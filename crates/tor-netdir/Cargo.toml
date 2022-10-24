@@ -33,10 +33,12 @@ derive_more = "0.99"
 futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 hex-literal = { version = "0.3", optional = true }
+num_enum = "0.5"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"
 static_assertions = "1"
+strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-config = { path = "../tor-config", version = "0.6.0" }
