@@ -2,6 +2,7 @@
 //! that Tor can connect to, directly or indirectly.
 
 use std::{iter::FusedIterator, net::SocketAddr};
+use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
 use crate::{ChannelMethod, OwnedChanTarget, RelayIdRef, RelayIdType, RelayIdTypeIter};
@@ -61,6 +62,11 @@ pub trait HasRelayIds {
         self.identity(id.id_type()).map(|my_id| my_id == id) == Some(true)
     }
 
+    /// Return true if this object has any known identity.
+    fn has_any_identity(&self) -> bool {
+        RelayIdType::iter().any(|id_type| self.identity(id_type).is_some())
+    }
+
     /// Return true if this object has exactly the same relay IDs as `other`.
     //
     // TODO: Once we make it so particular identity key types are optional, we
@@ -101,7 +107,6 @@ pub trait HasRelayIds {
     /// If additional identities are added in the future, they may taken into
     /// consideration before _or_ after the current identity types.
     fn cmp_by_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> std::cmp::Ordering {
-        use strum::IntoEnumIterator;
         for key_type in RelayIdType::iter() {
             let ordering = Ord::cmp(&self.identity(key_type), &other.identity(key_type));
             if ordering.is_ne() {
