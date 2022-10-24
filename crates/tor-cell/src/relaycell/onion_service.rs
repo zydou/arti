@@ -194,7 +194,7 @@ impl msg::Body for EstablishIntro {
         }
 
         w.write_all(&self.handshake_auth[..]);
-        w.write_u16(self.sig.len() as u16);
+        w.write_u16(u16::try_from(self.sig.len()).map_err(|_| EncodeError::BadLengthValue)?);
         w.write_all(&self.sig[..]);
         Ok(())
     }
