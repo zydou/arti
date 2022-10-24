@@ -51,10 +51,8 @@ impl<R: Runtime> crate::transport::TransportHelper for DefaultTransport<R> {
         };
 
         let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
-        let using_target = match target.restrict_addr(&addr) {
-            Ok(v) => v,
-            Err(v) => v,
-        };
+        let mut using_target = target.clone();
+        let _ignore = using_target.chan_method_mut().retain_addrs(|a| a == &addr);
 
         Ok((using_target, stream))
     }

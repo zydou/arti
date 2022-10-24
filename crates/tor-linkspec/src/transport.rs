@@ -346,6 +346,27 @@ impl PtTarget {
     pub fn settings(&self) -> impl Iterator<Item = (&str, &str)> {
         self.settings.settings.iter().map(|(k, v)| (&**k, &**v))
     }
+
+    /// Return all the advertized socket addresses to which this target may
+    /// connect.
+    ///
+    /// Returns `Some(&[])` if there is no way to connect to this target, and
+    /// `None` if this target does not use `SocketAddr` to connect
+    ///
+    /// NOTE that these are not necessarily an address to which you can open a
+    /// TCP connection! The address will be interpreted by the implementation of
+    /// this pluggable transport.
+
+    pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
+        match self {
+            PtTarget {
+                addr: PtTargetAddr::IpPort(addr),
+                ..
+            } => Some(std::slice::from_ref(addr)),
+
+            _ => None,
+        }
+    }
 }
 
 /// The way to approach a single relay in order to open a channel.
@@ -369,24 +390,21 @@ pub enum ChannelMethod {
 }
 
 impl ChannelMethod {
-    /// Return an advertised socket address that this method connects to.
+    /// Return all the advertized socket addresses to which this method may connect.
     ///
-    /// NOTE that this is not necessarily an address to which you can open a
+    /// Returns `Some(&[])` if there is no way to connect to this target, and
+    /// `None` if this target does not use `SocketAddr` to connect
+    ///
+    /// NOTE that these are not necessarily an address to which you can open a
     /// TCP connection! If this `ChannelMethod` is using a non-`Direct`
     /// transport, then this address will be interpreted by that transport's
     /// implementation.
-    pub fn declared_peer_addr(&self) -> Option<&std::net::SocketAddr> {
+    pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
         match self {
-            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(&addr[0]),
+            ChannelMethod::Direct(addr) => Some(addr.as_ref()),
 
             #[cfg(feature = "pt-client")]
-            ChannelMethod::Pluggable(PtTarget {
-                addr: PtTargetAddr::IpPort(addr),
-                ..
-            }) => Some(addr),
-
-            #[cfg_attr(not(feature = "pt-client"), allow(unreachable_patterns))]
-            _ => None,
+            ChannelMethod::Pluggable(t) => t.socket_addrs(),
         }
     }
 
@@ -415,6 +433,51 @@ impl ChannelMethod {
             ChannelMethod::Pluggable(target) => target.transport().clone().into(),
         }
     }
+
+    ///
+    /// Change this `ChannelMethod` by removing every socket address that
+    /// does not satisfy `pred`.
+    ///
+    /// `Hostname` and `None` addresses are never removed.
+    ///
+    /// Return an error if we have removed every address.
+    pub fn retain_addrs<P>(&mut self, pred: P) -> Result<(), RetainAddrsError>
+    where
+        P: Fn(&std::net::SocketAddr) -> bool,
+    {
+        #[cfg(feature = "pt-client")]
+        use PtTargetAddr as Pt;
+
+        match self {
+            ChannelMethod::Direct(d) if d.is_empty() => {}
+            ChannelMethod::Direct(d) => {
+                d.retain(pred);
+                if d.is_empty() {
+                    return Err(RetainAddrsError::NoAddrsLeft);
+                }
+            }
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(PtTarget { addr, .. }) => match addr {
+                Pt::IpPort(a) => {
+                    if !pred(a) {
+                        *addr = Pt::None;
+                        return Err(RetainAddrsError::NoAddrsLeft);
+                    }
+                }
+                Pt::HostPort(_, _) => {}
+                Pt::None => {}
+            },
+        }
+        Ok(())
+    }
+}
+
+/// An error that occurred while filtering addresses from a ChanMethod.
+#[derive(Clone, Debug, thiserror::Error)]
+pub enum RetainAddrsError {
+    /// We removed all of the addresses from this method.
+    #[error("All addresses were removed.")]
+    NoAddrsLeft,
 }
 
 impl HasAddrs for PtTargetAddr {

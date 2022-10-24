@@ -3701,6 +3701,7 @@ dependencies = [
  "rand 0.8.5",
  "retain_mut",
  "serde",
+ "strum",
  "thiserror",
  "tor-basic-utils",
  "tor-config",

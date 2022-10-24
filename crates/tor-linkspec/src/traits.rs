@@ -91,6 +91,25 @@ pub trait HasRelayIds {
             }
         })
     }
+
+    /// Compare this object to another HasRelayIds.
+    ///
+    /// Objects are sorted by Ed25519 identities, with ties decided by RSA
+    /// identities. An absent identity of a given type is sorted before a
+    /// present identity of that type.
+    ///
+    /// If additional identities are added in the future, they may taken into
+    /// consideration before _or_ after the current identity types.
+    fn cmp_by_relay_ids<T: HasRelayIds + ?Sized>(&self, other: &T) -> std::cmp::Ordering {
+        use strum::IntoEnumIterator;
+        for key_type in RelayIdType::iter() {
+            let ordering = Ord::cmp(&self.identity(key_type), &other.identity(key_type));
+            if ordering.is_ne() {
+                return ordering;
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
 }
 
 impl<T: HasRelayIdsLegacy> HasRelayIds for T {
@@ -211,7 +230,7 @@ mod test {
     use super::*;
     use hex_literal::hex;
     use std::net::IpAddr;
-    use tor_llcrypto::pk;
+    use tor_llcrypto::pk::{self, ed25519::Ed25519Identity, rsa::RsaIdentity};
 
     struct Example {
         addrs: Vec<SocketAddr>,
@@ -302,5 +321,64 @@ mod test {
             specs[3],
             LinkSpec::OrPort("::1".parse::<IpAddr>().unwrap(), 909)
         );
+    }
+
+    #[test]
+    fn cmp_by_ids() {
+        use crate::RelayIds;
+        use std::cmp::Ordering;
+        fn b(ed: Option<Ed25519Identity>, rsa: Option<RsaIdentity>) -> RelayIds {
+            let mut b = RelayIds::builder();
+            if let Some(ed) = ed {
+                b.ed_identity(ed);
+            }
+            if let Some(rsa) = rsa {
+                b.rsa_identity(rsa);
+            }
+            b.build().unwrap()
+        }
+        // Assert that v is strictly ascending.
+        fn assert_sorted(v: &[RelayIds]) {
+            for slice in v.windows(2) {
+                assert_eq!(slice[0].cmp_by_relay_ids(&slice[1]), Ordering::Less);
+                assert_eq!(slice[1].cmp_by_relay_ids(&slice[0]), Ordering::Greater);
+                assert_eq!(slice[0].cmp_by_relay_ids(&slice[0]), Ordering::Equal);
+            }
+        }
+
+        let ed1 = hex!("0a54686973206973207468652043656e7472616c205363727574696e697a6572").into();
+        let ed2 = hex!("6962696c69747920746f20656e666f72636520616c6c20746865206c6177730a").into();
+        let ed3 = hex!("73736564207965740a497420697320616c736f206d7920726573706f6e736962").into();
+        let rsa1 = hex!("2e2e2e0a4974206973206d7920726573706f6e73").into();
+        let rsa2 = hex!("5468617420686176656e2774206265656e207061").into();
+        let rsa3 = hex!("696c69747920746f20616c65727420656163680a").into();
+
+        assert_sorted(&[
+            b(Some(ed1), None),
+            b(Some(ed2), None),
+            b(Some(ed3), None),
+            b(Some(ed3), Some(rsa1)),
+        ]);
+        assert_sorted(&[
+            b(Some(ed1), Some(rsa3)),
+            b(Some(ed2), Some(rsa2)),
+            b(Some(ed3), Some(rsa1)),
+            b(Some(ed3), Some(rsa2)),
+        ]);
+        assert_sorted(&[
+            b(Some(ed1), Some(rsa1)),
+            b(Some(ed1), Some(rsa2)),
+            b(Some(ed1), Some(rsa3)),
+        ]);
+        assert_sorted(&[
+            b(None, Some(rsa1)),
+            b(None, Some(rsa2)),
+            b(None, Some(rsa3)),
+        ]);
+        assert_sorted(&[
+            b(None, Some(rsa1)),
+            b(Some(ed1), None),
+            b(Some(ed1), Some(rsa1)),
+        ]);
     }
 }

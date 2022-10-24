@@ -14,7 +14,7 @@ use crate::dirstatus::DirStatus;
 use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
-use crate::{ExternalActivity, FirstHopId, GuardUsageKind};
+use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
 use tor_linkspec::{HasAddrs, HasRelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
@@ -442,9 +442,10 @@ impl Guard {
         // not.
         let listed_as_guard = match self.listed_in(netdir) {
             Some(true) => {
-                let id: FirstHopId = self.id.clone().into();
                 // Definitely listed.
-                let relay = id.get_relay(netdir).expect("Couldn't get a listed relay?!");
+                let relay = netdir
+                    .by_ids(&self.id.0)
+                    .expect("Couldn't get a listed relay?!");
                 // Update address information.
                 self.orports = relay.addrs().into();
                 // Check whether we can currently use it as a directory cache.
@@ -662,10 +663,13 @@ impl Guard {
     }
 
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
-    pub(crate) fn get_external_rep(&self) -> crate::FirstHop {
+    pub(crate) fn get_external_rep(&self, selection: GuardSetSelector) -> crate::FirstHop {
         crate::FirstHop {
-            id: self.id.clone().into(),
-            orports: self.orports.clone(),
+            sample: Some(selection),
+            // TODO pt-client: might have a bridge descriptor.
+            inner: crate::FirstHopInner::Chan(tor_linkspec::OwnedChanTarget::from_chan_target(
+                self,
+            )),
         }
     }
 
@@ -791,6 +795,7 @@ impl CircHistory {
 mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
+    use crate::ids::FirstHopId;
     use tor_linkspec::{HasRelayIds, RelayId};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
@@ -820,7 +825,7 @@ mod test {
         let g = basic_guard();
 
         assert_eq!(g.guard_id(), &id);
-        assert!(g.same_relay_ids(&FirstHopId::from(id)));
+        assert!(g.same_relay_ids(&FirstHopId::in_sample(GuardSetSelector::Default, id)));
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
         assert_eq!(g.reachable(), Reachable::Unknown);
         assert_eq!(g.reachable(), Reachable::default());
@@ -1024,7 +1029,7 @@ mod test {
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
-        let id: FirstHopId = guard22.id.clone().into();
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
         let r = id.get_relay(&netdir).unwrap();
         assert!(r.same_relay_ids(&relay22));
 
@@ -1038,7 +1043,7 @@ mod test {
             vec![],
             now,
         );
-        let id: FirstHopId = guard255.id.clone().into();
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id.clone());
         assert!(id.get_relay(&netdir).is_none());
         assert!(guard255.get_weight(&netdir).is_none());
     }
@@ -1088,7 +1093,7 @@ mod test {
 
         // Try a guard that is in netdir, but not netdir2.
         let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
-        let id22: FirstHopId = guard22.id.clone().into();
+        let id22: FirstHopId = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
         let relay22 = id22.get_relay(&netdir).unwrap();
         assert_eq!(guard22.listed_in(&netdir), Some(true));
         guard22.update_from_netdir(&netdir);

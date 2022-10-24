@@ -8,10 +8,10 @@
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::skew::SkewObservation;
-use crate::FirstHop;
 use crate::{
     ids::GuardId, ExternalActivity, GuardParams, GuardUsage, GuardUsageKind, PickGuardError,
 };
+use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_netdir::{NetDir, Relay};
 
@@ -43,7 +43,7 @@ use tracing::{debug, info};
 /// guards come first in preference order.  Then come the non-primary
 /// confirmed guards, in their confirmed order.  Finally come the
 /// non-primary, non-confirmed guards, in their sampled order.
-#[derive(Default, Debug, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(from = "GuardSample")]
 pub(crate) struct GuardSet {
     /// Map from identities to guards, for every guard in this sample.
@@ -757,8 +757,15 @@ impl GuardSet {
     ///
     /// On success, returns the kind of guard that we got, and its filtered
     /// representation in a form suitable for use as a first hop.
+    ///
+    /// Label the returned guard as having come from `sample_id`.
+    //
+    // NOTE (nickm): I wish that we didn't have to take sample_id as an input,
+    // but the alternative would be storing it as a member of `GuardSet`, which
+    // makes things very complicated.
     pub(crate) fn pick_guard(
         &self,
+        sample_id: &GuardSetSelector,
         usage: &GuardUsage,
         params: &GuardParams,
         now: Instant,
@@ -767,7 +774,7 @@ impl GuardSet {
         let first_hop = self
             .get(&id)
             .expect("Somehow selected a guard we don't know!")
-            .get_external_rep();
+            .get_external_rep(sample_id.clone());
         let first_hop = self.active_filter.modify_hop(first_hop)?;
 
         Ok((list_kind, first_hop))
@@ -950,7 +957,7 @@ mod test {
 
             // make sure all the guards are okay.
             for (g, guard) in &guards.guards {
-                let id: FirstHopId = g.clone().into();
+                let id = FirstHopId::in_sample(GuardSetSelector::Default, g.clone());
                 let relay = id.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
