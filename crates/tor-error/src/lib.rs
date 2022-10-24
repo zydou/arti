@@ -47,8 +47,8 @@ pub use report::*;
 mod retriable;
 pub use retriable::*;
 
-mod truncated;
-pub use truncated::*;
+mod misc;
+pub use misc::*;
 
 /// Classification of an error arising from Arti's Tor operations
 ///

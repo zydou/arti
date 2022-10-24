@@ -1,4 +1,4 @@
-//! Declare the "Truncated" error type.
+//! Miscellaneous straightforward error structs for particular situations
 
 /// Error type indicating that an input was incomplete, and could not be
 /// processed.
