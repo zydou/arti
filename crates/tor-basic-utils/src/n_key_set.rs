@@ -192,7 +192,7 @@ This could be more efficient in space and time.
         $(
         #[doc = concat!("Return a reference to the element whose `", stringify!($key), "` is `key`.")]
         ///
-        /// Return None if there is no such element.")]
+        /// Return None if there is no such element.
         $vis fn [<by_ $key>] <BorrowAsKey_>(&self, key: &BorrowAsKey_) -> Option<&$V>
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
@@ -200,7 +200,35 @@ This could be more efficient in space and time.
             self.[<$key _map>].get(key).map(|idx| self.values.get(*idx).expect("inconsistent state"))
         }
 
-        #[doc = concat!("Return true if this set contains an element whose `", stringify!($key), "` is `key`.")]
+        #[doc = concat!("Return a mutable reference to the element whose `", stringify!($key),
+                        "` is `key`.")]
+        ///
+        /// Return None if there is no such element.
+        ///
+        /// # Safety
+        ///
+        /// This function can put this set into an inconsistent state if the
+        /// mutable reference is used to change any of the keys. Doing this does
+        /// not risk Rust safety violations (such as undefined behavior), but it
+        /// may nonetheless make your program incorrect by causing other
+        /// functions on this object to panic or give incorrect results.
+        ///
+        /// If you cannot prove to yourself that this won't happen, then you
+        /// should use `modify_by_*` instead.
+        $vis unsafe fn [<by_ $key _mut>] <BorrowAsKey_>(
+            &mut self,
+            key: &BorrowAsKey_
+        ) -> Option<&mut $V>
+            where $KEY : std::borrow::Borrow<BorrowAsKey_>,
+                  BorrowAsKey_: std::hash::Hash + Eq + ?Sized
+        {
+            self.[<$key _map>]
+                .get(key)
+                .map(|idx| self.values.get_mut(*idx).expect("inconsistent state"))
+        }
+
+        #[doc = concat!("Return true if this set contains an element whose `", stringify!($key),
+                        "` is `key`.")]
         $vis fn [<contains_ $key>] <BorrowAsKey_>(&mut self, $key: &BorrowAsKey_) -> bool
         where $KEY : std::borrow::Borrow<BorrowAsKey_>,
               BorrowAsKey_: std::hash::Hash + Eq + ?Sized
@@ -216,7 +244,40 @@ This could be more efficient in space and time.
             where $KEY : std::borrow::Borrow<BorrowAsKey_>,
                   BorrowAsKey_: std::hash::Hash + Eq + ?Sized
         {
-            self.[<$key _map>].get($key).copied().map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
+            self.[<$key _map>]
+                .get($key)
+                .copied()
+                .map(|old_idx| self.remove_at(old_idx).expect("inconsistent state"))
+        }
+
+
+        #[doc = concat!("Modify the element with the given value for `", stringify!($key),
+                        " by applying `func` to it.")]
+        ///
+        /// `func` is allowed to change the keys for this value.  All indices
+        /// are updated to refer to the new keys.  If the new keys conflict with
+        /// any previous values, those values are replaced and returned in a
+        /// vector.
+        ///
+        /// If `func` causes the value to have no keys at all, then the value
+        /// itself is also removed and returned in the result vector.
+        ///
+        /// Note that because this function needs to copy all key values and check whether
+        /// they have changed, it is not terribly efficient.
+        $vis fn [<modify_by_$key>] <BorrowAsKey_, F_>(
+            &mut self,
+            $key: &BorrowAsKey_,
+            func: F_) -> Vec<$V>
+        where
+            $KEY : std::borrow::Borrow<BorrowAsKey_>,
+            BorrowAsKey_: std::hash::Hash + Eq + ?Sized,
+            F_: FnOnce(&mut $V)
+        {
+            if let Some(idx) = self.[<$key _map>].get($key) {
+                self.modify_at(*idx, func)
+            } else {
+                Vec::new()
+            }
         }
         )+
 
@@ -248,7 +309,7 @@ This could be more efficient in space and time.
             $(
                 replaced.extend(
                     $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
-                        .and_then(|key| self.[<remove_by_$key>](key))
+                    .and_then(|key| self.[<remove_by_$key>](key))
                 );
             )*
 
@@ -322,14 +383,83 @@ This could be more efficient in space and time.
         fn remove_at(&mut self, idx: usize) -> Option<$V> {
             if let Some(removed) = self.values.try_remove(idx) {
                 $(
-                    if let Some($key) = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
-                        let old_idx = self.[<$key _map>].remove($key);
-                        debug_assert_eq!(old_idx, Some(idx));
-                    }
+                let $key = $crate::n_key_set!( @access(removed, ($($($flag)+)?) $key : $KEY $({$($source)+})?) );
+                if let Some($key) = $key {
+                    let old_idx = self.[<$key _map>].remove($key);
+                    assert_eq!(old_idx, Some(idx));
+                }
                 )*
                 Some(removed)
             } else {
                 None
+            }
+        }
+
+        /// Change the value at `idx` by applying `func` to it.
+        ///
+        /// `func` is allowed to change the keys for this value.  All indices
+        /// are updated to refer to the new keys.  If the new keys conflict with
+        /// any previous values, those values are replaced and returned in a
+        /// vector.
+        ///
+        /// If `func` causes the value to have no keys at all, then the value
+        /// itself is also removed and returned in the result vector.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `idx` is not present in this set.
+        fn modify_at<F_>(&mut self, idx: usize, func: F_) -> Vec<$V>
+        where
+            F_: FnOnce(&mut $V)
+        {
+            let value = self.values.get_mut(idx).expect("invalid index");
+            $(
+            let [<orig_$key>] = $crate::n_key_set!( @access(value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) )
+                .map(|elt| elt.to_owned()) ;
+            )+
+
+            func(value);
+
+            // Check whether any keys have changed, and whether there still are
+            // any keys.
+            $(
+                let [<new_$key>] = $crate::n_key_set!( @access( value, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) ;
+            )+
+            let keys_changed = $(
+                 [<orig_$key>].as_ref().map(std::borrow::Borrow::borrow) != [<new_$key>]
+            )||+ ;
+
+            if keys_changed {
+                let found_any_keys = $( [<new_$key>].is_some() )||+ ;
+
+                // Remove this value from every place that it was before.
+                //
+                // We can't use remove_at, since we have changed the keys in the
+                // value: we have to remove them manually from each index
+                // instead.
+                $(
+                    if let Some(orig) = [<orig_ $key>] {
+                        let removed = self.[<$key _map>].remove(&orig);
+                        assert_eq!(removed, Some(idx));
+                    }
+                )+
+                // Remove the value from its previous place in the index.  (This
+                // results in an extra copy when we call insert(), but if we
+                // didn't do it, we'd need to reimplement `insert()`.)
+                let removed = self.values.remove(idx);
+                if found_any_keys {
+                    // This item belongs: put it back and return the vector of
+                    // whatever was replaced.j
+                    self.insert(removed)
+                } else {
+                    // This item does not belong any longer, since all its keys
+                    // were removed.
+                    vec![removed]
+                }
+            } else {
+                // We did not change any keys, so we know we have not replaced
+                // any items.
+                vec![]
             }
         }
 
@@ -379,14 +509,14 @@ This could be more efficient in space and time.
             for (idx, val) in self.values.iter() {
                 let mut found_any_key = false;
                 $(
-                    if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
-                        found_any_key = true;
-                        assert!(
-                            self.[<$key _map>].get(k) == Some(&idx),
-                            "Value not found at correct index"
-                        )
-                    }
-                    stringify!($key);
+                if let Some(k) = $crate::n_key_set!( @access(val, ($($($flag)+)?) $key : $KEY $({$($source)+})?) ) {
+                    found_any_key = true;
+                    assert!(
+                        self.[<$key _map>].get(k) == Some(&idx),
+                        "Value not found at correct index"
+                    )
+                }
+                stringify!($key);
                 )+
                 assert!(found_any_key, "Found a value with no keys.");
             }
@@ -547,6 +677,31 @@ mod test {
         for idx in 0..=9 {
             assert!(set.contains_first(&format!("A={}", idx)));
         }
+        set.check_invariants();
+    }
+
+    #[test]
+    fn modify_value() {
+        let mut set: Tuple2Set<i32, i32> = (1..=100).map(|idx| (idx, idx * idx)).collect();
+        set.check_invariants();
+
+        let v = set.modify_by_first(&30, |elt| elt.1 = 256);
+        set.check_invariants();
+        // one element was replaced.
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0], (16, 256));
+        assert_eq!(set.by_second(&256).unwrap(), &(30, 256));
+        assert_eq!(set.by_first(&30).unwrap(), &(30, 256));
+
+        let v = set.modify_by_first(&30, |elt| *elt = (-100, -100));
+        set.check_invariants();
+        // no elements were replaced.
+        assert_eq!(v.len(), 0);
+        assert_eq!(set.by_first(&30), None);
+        assert_eq!(set.by_second(&256), None);
+        assert_eq!(set.by_first(&-100).unwrap(), &(-100, -100));
+        assert_eq!(set.by_second(&-100).unwrap(), &(-100, -100));
+
         set.check_invariants();
     }
 
