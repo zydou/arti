@@ -88,11 +88,6 @@ pub(crate) enum FirstHopIdInner {
 /// directory.
 ///
 /// (This is implemented internally using all of the guard's known identities.)
-///
-/// TODO(nickm): we may want a fuzzier match for this type in the future in our
-/// maps, if we ever learn about more identity types.  Right now we don't
-/// recognize two `FirstHopId`s as "the same" if one has more IDs than the
-/// other, even if all the IDs that they do have are the same.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct FirstHopId(pub(crate) FirstHopIdInner);
 

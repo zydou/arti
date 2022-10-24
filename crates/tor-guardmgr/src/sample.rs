@@ -13,6 +13,7 @@ use crate::{
 };
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
+use tor_linkspec::{ByRelayIds, HasRelayIds};
 use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
@@ -47,21 +48,20 @@ use tracing::{debug, info};
 #[serde(from = "GuardSample")]
 pub(crate) struct GuardSet {
     /// Map from identities to guards, for every guard in this sample.
-    guards: HashMap<GuardId, Guard>,
+    guards: ByRelayIds<Guard>,
     /// Identities of all the guards in the sample, in sample order.
     ///
-    /// This contains the same elements as `self.guards.keys()`, and
-    /// only exists to define an ordering on the guards.
+    /// This contains the same elements as the keys of `guards`
     sample: Vec<GuardId>,
     /// Identities of all the confirmed guards in the sample, in
     /// confirmed order.
     ///
-    /// This contains a subset of the values in `self.guards.keys()`.
+    /// This contains a subset of the values in `sample`.
     confirmed: Vec<GuardId>,
     /// Identities of all the primary guards, in preference order
     /// (from best to worst).
     ///
-    /// This contains a subset of the values in `self.guards.keys()`.
+    /// This contains a subset of the values in `sample`.
     primary: Vec<GuardId>,
     /// Currently active filter that restricts which guards we can use.
     ///
@@ -126,21 +126,34 @@ impl GuardSet {
         )
     }
 
-    /// Remove all elements from this `GuardSet` that ought to be
-    /// referenced by another element, but which are not.
+    /// Remove all elements from this `GuardSet` that ought to be referenced by
+    /// another element, but which are not.
     ///
-    /// This method only removes corrupted elements; it doesn't add or
-    /// fix anything.  It won't do anything if the `GuardSet` is
-    /// well-formed.
+    /// This method only removes corrupted elements and updates IDs in the ID
+    /// list; it doesn't add or fix anything.  It won't do anything if the
+    /// `GuardSet` is well-formed.
     fn fix_consistency(&mut self) {
+        /// Remove every element of `id_list` that does not belong to some guard
+        /// in `guards`, and update the others to have any extra identities
+        /// listed in `guards`.
+        fn fix_id_list(guards: &ByRelayIds<Guard>, id_list: &mut Vec<GuardId>) {
+            // TODO: Use Vec::retain_mut when our MSRV >= 1.61
+            #![allow(deprecated)]
+            use retain_mut::RetainMut;
+            RetainMut::retain_mut(id_list, |id| match guards.by_all_ids(id) {
+                Some(guard) => {
+                    *id = guard.guard_id().clone();
+                    true
+                }
+                None => false,
+            });
+        }
+
         let sample_set: HashSet<_> = self.sample.iter().collect();
-        self.guards
-            .retain(|id, g| g.guard_id() == id && sample_set.contains(id));
-        let guards = &self.guards; // avoid borrow issues
-                                   // TODO: We should potentially de-duplicate these.
-        self.sample.retain(|id| guards.contains_key(id));
-        self.confirmed.retain(|id| guards.contains_key(id));
-        self.primary.retain(|id| guards.contains_key(id));
+        self.guards.retain(|g| sample_set.contains(g.guard_id()));
+        fix_id_list(&self.guards, &mut self.sample);
+        fix_id_list(&self.guards, &mut self.confirmed);
+        fix_id_list(&self.guards, &mut self.primary);
     }
 
     /// Assert that this `GuardSet` is internally consistent.
@@ -153,9 +166,9 @@ impl GuardSet {
         assert_eq!(len_pre, len_post);
     }
 
-    /// Return the guard whose id is `id`, if any.
+    /// Return the guard that has every identity in `id`, if any.
     pub(crate) fn get(&self, id: &GuardId) -> Option<&Guard> {
-        self.guards.get(id)
+        self.guards.by_all_ids(id)
     }
 
     /// Replace the filter used by this `GuardSet` with `filter`.
@@ -173,7 +186,7 @@ impl GuardSet {
         let filt = &self.active_filter;
         self.primary.retain(|id| {
             guards
-                .get(id)
+                .by_all_ids(id)
                 .map(|g| g.usable() && filt.permits(g))
                 .unwrap_or(false)
         });
@@ -188,15 +201,16 @@ impl GuardSet {
 
     /// Copy non-persistent status from every guard shared with `other`.
     pub(crate) fn copy_status_from(&mut self, mut other: GuardSet) {
-        let mut old_guards = HashMap::new();
-        std::mem::swap(&mut old_guards, &mut self.guards);
+        // XXXX TODO pt-client document ID issues.
+        let old_guards = std::mem::take(&mut self.guards);
         self.guards = old_guards
-            .into_iter()
-            .map(|(id, guard)| {
-                if let Some(other_guard) = other.guards.remove(&id) {
-                    (id, guard.copy_status_from(other_guard))
+            .into_values()
+            .map(|guard| {
+                let id = guard.guard_id();
+                if let Some(other_guard) = other.guards.remove_by_all_ids(id) {
+                    guard.copy_status_from(other_guard)
                 } else {
-                    (id, guard)
+                    guard
                 }
             })
             .collect();
@@ -208,7 +222,7 @@ impl GuardSet {
         let guards = self
             .sample
             .iter()
-            .map(|id| Cow::Borrowed(self.guards.get(id).expect("Inconsistent state")))
+            .map(|id| Cow::Borrowed(self.guards.by_all_ids(id).expect("Inconsistent state")))
             .collect();
 
         GuardSample {
@@ -220,11 +234,11 @@ impl GuardSet {
 
     /// Reconstruct a guard state from its serialized representation.
     fn from_state(state: GuardSample<'_>) -> Self {
-        let mut guards = HashMap::new();
+        let mut guards = ByRelayIds::new();
         let mut sample = Vec::new();
         for guard in state.guards {
             sample.push(guard.guard_id().clone());
-            guards.insert(guard.guard_id().clone(), guard.into_owned());
+            guards.insert(guard.into_owned());
         }
         let confirmed = state.confirmed.into_owned();
         let primary = Vec::new();
@@ -258,17 +272,21 @@ impl GuardSet {
         guard_set
     }
 
-    /// Return true if `relay` is a member of this set.
+    /// Check whether `relay` is a member of this set.
     fn contains_relay(&self, relay: &Relay<'_>) -> bool {
+        // XXXX TODO pt-client: fix next.
         // Note: Could implement Borrow instead, but I don't think it'll
         // matter.
         let id = GuardId::from_relay_ids(relay);
         self.contains(&id)
     }
 
-    /// Return true if `id` is a member of this set.
+    /// Return true if `id` is definitely a member of this set.
     pub(crate) fn contains(&self, id: &GuardId) -> bool {
-        self.guards.contains_key(id)
+        // XXXX TODO pt-client: fix next.
+
+        // (This could be yes/no/maybe.)
+        self.guards.by_all_ids(id).is_some()
     }
 
     /// If there are not enough filter-permitted usable guards in this
@@ -409,12 +427,12 @@ impl GuardSet {
     /// Does nothing if it is already a guard.
     fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
         let id = GuardId::from_relay_ids(relay);
-        if self.guards.contains_key(&id) {
+        if self.guards.by_all_ids(&id).is_some() {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
         let guard = Guard::from_relay(relay, now, params);
-        self.guards.insert(id.clone(), guard);
+        self.guards.insert(guard);
         self.sample.push(id);
         self.primary_guards_invalidated = true;
     }
@@ -425,7 +443,10 @@ impl GuardSet {
         self.primary
             .iter()
             .filter(|id| {
-                let g = self.guards.get(id).expect("Inconsistent guard state");
+                let g = self
+                    .guards
+                    .by_all_ids(*id)
+                    .expect("Inconsistent guard state");
                 g.listed_in(dir).is_none()
             })
             .count()
@@ -434,9 +455,16 @@ impl GuardSet {
     /// Update the status of every guard  in this sample from a network
     /// directory.
     pub(crate) fn update_status_from_netdir(&mut self, dir: &NetDir) {
-        for g in self.guards.values_mut() {
-            g.update_from_netdir(dir);
-        }
+        let old_guards = std::mem::take(&mut self.guards);
+        self.guards = old_guards
+            .into_values()
+            .map(|mut guard| {
+                guard.update_from_netdir(dir);
+                guard
+            })
+            .collect();
+        // Call "fix consistency", in case any guards got a new ID.
+        self.fix_consistency();
     }
 
     /// Re-build the list of primary guards.
@@ -469,7 +497,10 @@ impl GuardSet {
             .unique()
             // We only consider usable guards that the filter allows.
             .filter_map(|id| {
-                let g = self.guards.get(id).expect("Inconsistent guard state");
+                let g = self
+                    .guards
+                    .by_all_ids(id)
+                    .expect("Inconsistent guard state");
                 if g.usable() && self.active_filter.permits(g) {
                     Some(id.clone())
                 } else {
@@ -486,9 +517,9 @@ impl GuardSet {
 
         // Clear exploratory_circ_pending for all primary guards.
         for id in &self.primary {
-            if let Some(guard) = self.guards.get_mut(id) {
+            self.guards.modify_by_all_ids(id, |guard| {
                 guard.note_exploratory_circ(false);
-            }
+            });
         }
 
         // TODO: Recalculate retry times, perhaps, since we may have changed
@@ -503,11 +534,11 @@ impl GuardSet {
     pub(crate) fn expire_old_guards(&mut self, params: &GuardParams, now: SystemTime) {
         self.assert_consistency();
         let n_pre = self.guards.len();
-        self.guards.retain(|_, g| !g.is_expired(params, now));
-        let guards = &self.guards; // to avoid borrowing issue
-        self.sample.retain(|id| guards.contains_key(id));
-        self.confirmed.retain(|id| guards.contains_key(id));
-        self.primary.retain(|id| guards.contains_key(id));
+        self.guards.retain(|g| !g.is_expired(params, now));
+        let guards = &self.guards;
+        self.sample.retain(|id| guards.by_all_ids(id).is_some());
+        self.confirmed.retain(|id| guards.by_all_ids(id).is_some());
+        self.primary.retain(|id| guards.by_all_ids(id).is_some());
         self.assert_consistency();
 
         if self.guards.len() < n_pre {
@@ -521,7 +552,10 @@ impl GuardSet {
     /// is not known to be Unreachable.
     fn reachable_sample_ids(&self) -> impl Iterator<Item = &GuardId> {
         self.sample.iter().filter(move |id| {
-            let g = self.guards.get(id).expect("Inconsistent guard state");
+            let g = self
+                .guards
+                .by_all_ids(*id)
+                .expect("Inconsistent guard state");
             g.reachable() != Reachable::Unreachable
         })
     }
@@ -547,21 +581,30 @@ impl GuardSet {
     /// Like `preference_order_ids`, but yields `&Guard` instead of `&GuardId`.
     fn preference_order(&self) -> impl Iterator<Item = (ListKind, &Guard)> + '_ {
         self.preference_order_ids()
-            .filter_map(move |(p, id)| self.guards.get(id).map(|g| (p, g)))
+            .filter_map(move |(p, id)| self.guards.by_all_ids(id).map(|g| (p, g)))
     }
 
-    /// Return true if `guard_id` is the identity for a primary guard.
+    /// Return true if `guard_id` is an identity for a primary guard.
     fn guard_is_primary(&self, guard_id: &GuardId) -> bool {
+        // (This could be yes/no/maybe.)
+
         // This is O(n), but the list is short.
-        self.primary.contains(guard_id)
+        self.primary
+            .iter()
+            .any(|p| p.has_all_relay_ids_from(guard_id))
     }
 
     /// For every guard that has been marked as `Unreachable` for too long,
     /// mark it as `Unknown`.
     pub(crate) fn consider_all_retries(&mut self, now: Instant) {
-        for guard in self.guards.values_mut() {
-            guard.consider_retry(now);
-        }
+        let old_guards = std::mem::take(&mut self.guards);
+        self.guards = old_guards
+            .into_values()
+            .map(|mut guard| {
+                guard.consider_retry(now);
+                guard
+            })
+            .collect();
     }
 
     /// Return the earliest time at which any guard will be retriable.
@@ -575,9 +618,8 @@ impl GuardSet {
     /// Mark every `Unreachable` primary guard as `Unknown`.
     pub(crate) fn mark_primary_guards_retriable(&mut self) {
         for id in &self.primary {
-            if let Some(g) = self.guards.get_mut(id) {
-                g.mark_retriable();
-            }
+            self.guards
+                .modify_by_all_ids(id, |guard| guard.mark_retriable());
         }
     }
 
@@ -586,28 +628,33 @@ impl GuardSet {
     pub(crate) fn all_primary_guards_are_unreachable(&mut self) -> bool {
         self.primary
             .iter()
-            .flat_map(|id| self.guards.get(id))
+            .flat_map(|id| self.guards.by_all_ids(id))
             .all(|g| g.reachable() == Reachable::Unreachable)
     }
 
     /// Mark every `Unreachable` guard as `Unknown`.
     pub(crate) fn mark_all_guards_retriable(&mut self) {
-        for g in self.guards.values_mut() {
-            g.mark_retriable();
-        }
+        let old_guards = std::mem::take(&mut self.guards);
+        self.guards = old_guards
+            .into_values()
+            .map(|mut guard| {
+                guard.mark_retriable();
+                guard
+            })
+            .collect();
     }
 
     /// Record that an attempt has begun to use the guard with
     /// `guard_id`.
     pub(crate) fn record_attempt(&mut self, guard_id: &GuardId, now: Instant) {
         let is_primary = self.guard_is_primary(guard_id);
-        if let Some(guard) = self.guards.get_mut(guard_id) {
+        self.guards.modify_by_all_ids(guard_id, |guard| {
             guard.record_attempt(now);
 
             if !is_primary {
                 guard.note_exploratory_circ(true);
             }
-        }
+        });
     }
 
     /// Record that an attempt to use the guard with `guard_id` has just
@@ -623,20 +670,18 @@ impl GuardSet {
         now: SystemTime,
     ) {
         self.assert_consistency();
-        if let Some(guard) = self.guards.get_mut(guard_id) {
-            match how {
-                Some(external) => guard.record_external_success(external),
-                None => {
-                    let newly_confirmed = guard.record_success(now, params);
+        self.guards.modify_by_all_ids(guard_id, |guard| match how {
+            Some(external) => guard.record_external_success(external),
+            None => {
+                let newly_confirmed = guard.record_success(now, params);
 
-                    if newly_confirmed == NewlyConfirmed::Yes {
-                        self.confirmed.push(guard_id.clone());
-                        self.primary_guards_invalidated = true;
-                    }
+                if newly_confirmed == NewlyConfirmed::Yes {
+                    self.confirmed.push(guard_id.clone());
+                    self.primary_guards_invalidated = true;
                 }
             }
-            self.assert_consistency();
-        }
+        });
+        self.assert_consistency();
     }
 
     /// Record that an attempt to use the guard with `guard_id` has just failed.
@@ -649,37 +694,33 @@ impl GuardSet {
     ) {
         // TODO use instant uniformly for in-process, and systemtime for storage?
         let is_primary = self.guard_is_primary(guard_id);
-        if let Some(guard) = self.guards.get_mut(guard_id) {
-            match how {
-                Some(external) => guard.record_external_failure(external, now),
-                None => guard.record_failure(now, is_primary),
-            }
-        }
+        self.guards.modify_by_all_ids(guard_id, |guard| match how {
+            Some(external) => guard.record_external_failure(external, now),
+            None => guard.record_failure(now, is_primary),
+        });
     }
 
     /// Record that an attempt to use the guard with `guard_id` has
     /// just been abandoned, without learning whether it succeeded or failed.
     pub(crate) fn record_attempt_abandoned(&mut self, guard_id: &GuardId) {
-        if let Some(guard) = self.guards.get_mut(guard_id) {
-            guard.note_exploratory_circ(false);
-        }
+        self.guards
+            .modify_by_all_ids(guard_id, |guard| guard.note_exploratory_circ(false));
     }
 
     /// Record that an attempt to use the guard with `guard_id` has
     /// just failed in a way that we could not definitively attribute to
     /// the guard.
     pub(crate) fn record_indeterminate_result(&mut self, guard_id: &GuardId) {
-        if let Some(guard) = self.guards.get_mut(guard_id) {
+        self.guards.modify_by_all_ids(guard_id, |guard| {
             guard.note_exploratory_circ(false);
             guard.record_indeterminate_result();
-        }
+        });
     }
 
     /// Record that a given guard has told us about clock skew.
     pub(crate) fn record_skew(&mut self, guard_id: &GuardId, observation: SkewObservation) {
-        if let Some(guard) = self.guards.get_mut(guard_id) {
-            guard.note_skew(observation);
-        }
+        self.guards
+            .modify_by_all_ids(guard_id, |guard| guard.note_skew(observation));
     }
 
     /// Return an iterator over all stored clock skew observations.
@@ -956,8 +997,8 @@ mod test {
             guards.assert_consistency();
 
             // make sure all the guards are okay.
-            for (g, guard) in &guards.guards {
-                let id = FirstHopId::in_sample(GuardSetSelector::Default, g.clone());
+            for guard in guards.guards.values() {
+                let id = FirstHopId::in_sample(GuardSetSelector::Default, guard.guard_id().clone());
                 let relay = id.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
@@ -1007,11 +1048,19 @@ mod test {
         assert_eq!(&guards2.confirmed, &guards.confirmed);
         assert_eq!(&guards2.confirmed, &[id1]);
         assert_eq!(
-            guards.guards.keys().collect::<HashSet<_>>(),
-            guards2.guards.keys().collect::<HashSet<_>>()
+            guards
+                .guards
+                .values()
+                .map(Guard::guard_id)
+                .collect::<HashSet<_>>(),
+            guards2
+                .guards
+                .values()
+                .map(Guard::guard_id)
+                .collect::<HashSet<_>>()
         );
-        for (k, g) in &guards.guards {
-            let g2 = guards2.guards.get(k).unwrap();
+        for g in guards.guards.values() {
+            let g2 = guards2.guards.by_all_ids(g.guard_id()).unwrap();
             assert_eq!(format!("{:?}", g), format!("{:?}", g2));
         }
     }
@@ -1376,14 +1425,22 @@ mod test {
         // Now make a new set of unrelated guards, and make sure that copying
         // from it doesn't change the membership of guards1.
         let mut guards3 = GuardSet::default();
-        let g1_set: HashSet<_> = guards1.guards.keys().map(Clone::clone).collect();
+        let g1_set: HashSet<_> = guards1
+            .guards
+            .values()
+            .map(|g| g.guard_id().clone())
+            .collect();
         let mut g3_set: HashSet<_> = HashSet::new();
         for _ in 0..4 {
             // There is roughly a 1-in-5000 chance of getting the same set
             // twice, so we loop until that doesn't happen.
             guards3.extend_sample_as_needed(SystemTime::now(), &params, &netdir);
             guards3.select_primary_guards(&params);
-            g3_set = guards3.guards.keys().map(Clone::clone).collect();
+            g3_set = guards3
+                .guards
+                .values()
+                .map(|g| g.guard_id().clone())
+                .collect();
 
             // There is roughly a 1-in-5000 chance of getting the same set twice, so
             if g1_set == g3_set {
@@ -1395,7 +1452,11 @@ mod test {
         assert_ne!(g1_set, g3_set);
         // Do the copy; make sure that the membership is unchanged.
         guards1.copy_status_from(guards3);
-        let g1_set_new: HashSet<_> = guards1.guards.keys().map(Clone::clone).collect();
+        let g1_set_new: HashSet<_> = guards1
+            .guards
+            .values()
+            .map(|g| g.guard_id().clone())
+            .collect();
         assert_eq!(g1_set, g1_set_new);
     }
 }
