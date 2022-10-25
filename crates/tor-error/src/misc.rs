@@ -1,4 +1,6 @@
-//! Declare the "Truncated" error type.
+//! Miscellaneous straightforward error structs for particular situations
+
+use thiserror::Error;
 
 /// Error type indicating that an input was incomplete, and could not be
 /// processed.
@@ -9,8 +11,8 @@
 ///
 /// Don't return this error type for parsing errors that _can't_ be recovered
 /// from by reading more data.
-#[derive(Clone, Debug, Default, thiserror::Error, derive_more::Display)]
-#[display(fmt = "Incomplete data; more input needed")]
+#[derive(Clone, Debug, Default, Error)]
+#[error("Incomplete data; more input needed")]
 #[non_exhaustive]
 pub struct Truncated;
 
