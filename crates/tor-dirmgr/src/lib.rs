@@ -36,6 +36,11 @@
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// This clippy lint produces a false positive on `use strum`, below.
+// Attempting to apply the lint to just the use statement fails to suppress
+// this lint and instead produces another lint about a useless clippy attribute.
+#![allow(clippy::single_component_path_imports)]
+
 pub mod authority;
 mod bootstrap;
 pub mod config;
@@ -94,6 +99,9 @@ pub use event::{DirBlockage, DirBootstrapEvents, DirBootstrapStatus};
 pub use storage::DocumentText;
 pub use tor_guardmgr::fallback::{FallbackDir, FallbackDirBuilder};
 pub use tor_netdir::Timeliness;
+
+/// Re-export of `strum` crate for use by an internal macro
+use strum;
 
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
