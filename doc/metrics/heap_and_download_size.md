@@ -15,6 +15,17 @@ As we do so, we will ensure our methodology remains reproducible, so
 that we can show how much of our changed size is an artifact of our
 methodology, and how much of it is real improvements or regressions.
 
+## Configuration files
+
+Please make sure your `~/.arti-testing.toml` file contains the following:
+
+```toml
+[storage]
+
+cache_dir = "${USER_HOME}/.arti_testing/cache"
+state_dir = "${USER_HOME}/.arti_testing/state"
+```
+
 ## Memory usage
 
 We're looking specifically at non-mapped memory: That is, heap memory
@@ -35,8 +46,8 @@ storage implementation than they are for our data paths, but that is
 reasonable for now: Directory size accounts for the largest portion of
 client heap usage right now.
 
-To run these tests, we clear our arti-testing cache directory, and run
-the following command _twice_.  (The first time will download the
+To run these tests, we clear our `${USER_HOME}/.arti-testing/cache` directory,
+and run the following command _twice_.  (The first time will download the
 directory, the second will use the cache.)
 
 ```
@@ -50,6 +61,20 @@ The results for 20 July 2022 were:
 ```
 Bootstrapping: 20.3 MiB
 Cached: 14.7 MiB
+```
+
+The results for 30 September 2022 were (Arti: 0d985b0d):
+
+```
+Bootstrapping: 18.9 MiB
+Cached: 14.4 MiB
+```
+
+The results for 25 October 2022 were (Arti: 547d476e0e):
+
+```
+Bootstrapping: 18.2 MiB
+Cached: 13.6 MiB
 ```
 
 To simulate (almost) the same process with C Tor, run Tor under `massif`
@@ -67,6 +92,20 @@ The results for 20 July 2022 were:
 ```
 Bootstrapping: 18.8 MiB
 Cached: 21.9 MiB
+```
+
+The results for 30 September 2022 were (Tor: 18b5630a7c):
+
+```
+Bootstrapping: 18.5 MiB
+Cached: 21.4 MiB
+```
+
+The results for 25 October 2022 were (Tor: 2033cc7b5e):
+
+```
+Bootstrapping: 18.4 MiB
+Cached: 19.9 MiB
 ```
 
 (This does not yet take into account making a request, but again, the
@@ -151,6 +190,17 @@ Result as of 20 July 2022:
    "arti.gz": 4076384 bytes
 ```
 
+Results for 30 September 2022 were (Arti: 0d985b0d):
+
+```
+   "arti.gz": 3918795 bytes
+```
+
+Results as of 25 October 2022 (Arti: 547d476e0e):
+
+```
+   "arti.gz": 3937197 bytes
+```
 
 ### Process with C Tor
 
@@ -175,9 +225,22 @@ with Tor: These aren't part of the download size on most Unix-like
 operating systems, but they do have to be downloaded on Android,
 Windows, and OSX.
 
-Current result (20 July 2022)
+Result (20 July 2022)
+
 ```
 3646863 bytes
+```
+
+Results (30 September 2022) with Tor: 18b5630a7c:
+
+```
+3647161 bytes
+```
+
+Results (25 October 2022) with Tor: 2033cc7b5e:
+
+```
+3648355 bytes
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
@@ -211,3 +274,14 @@ savings in Arti if as we find initial low-hanging fruit to eliminate,
 and some regressions as we add more missing features.  I do not think we
 will achieve a smaller download than C _on Android_ without major
 engineering.
+
+## Methodologies
+
+We use the Valgrind tool, massif, to extract heap information over the
+execution duration of the program. We use the `massif-visualizer` tool to
+extract peak values from the massif results.
+
+Since there is variance in these results that are outside of our control here,
+such as difference between paths through the Tor network, it is important that
+when running these tests that you run the experiments multiple times and take
+the median value.
