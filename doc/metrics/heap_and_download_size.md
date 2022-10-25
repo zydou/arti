@@ -213,11 +213,10 @@ Result (20 July 2022)
 3646863 bytes
 ```
 
-Results (25 October 2022)
+Results (25 October 2022) with Tor: 2033cc7b5e:
 
 ```
-XXX(ahf): Nick, can I get you to fill out this one? I cannot reproduce the
-numbers locally and I suspect you have a much newer Clang than I do.
+3648355 bytes
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
