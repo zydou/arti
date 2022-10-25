@@ -15,6 +15,17 @@ As we do so, we will ensure our methodology remains reproducible, so
 that we can show how much of our changed size is an artifact of our
 methodology, and how much of it is real improvements or regressions.
 
+## Configuration files
+
+Please make sure your `~/.arti-testing.toml` file contains the following:
+
+```toml
+[storage]
+
+cache_dir = "${USER_HOME}/.arti_testing/cache"
+state_dir = "${USER_HOME}/.arti_testing/state"
+```
+
 ## Memory usage
 
 We're looking specifically at non-mapped memory: That is, heap memory
@@ -35,8 +46,8 @@ storage implementation than they are for our data paths, but that is
 reasonable for now: Directory size accounts for the largest portion of
 client heap usage right now.
 
-To run these tests, we clear our arti-testing cache directory, and run
-the following command _twice_.  (The first time will download the
+To run these tests, we clear our `${USER_HOME}/.arti-testing/cache` directory,
+and run the following command _twice_.  (The first time will download the
 directory, the second will use the cache.)
 
 ```
@@ -50,6 +61,13 @@ The results for 20 July 2022 were:
 ```
 Bootstrapping: 20.3 MiB
 Cached: 14.7 MiB
+```
+
+The results for 25 October 2022 were (Arti: 547d476e0e):
+
+```
+Bootstrapping: 18.2 MiB
+Cached: 13.6 MiB
 ```
 
 To simulate (almost) the same process with C Tor, run Tor under `massif`
@@ -67,6 +85,13 @@ The results for 20 July 2022 were:
 ```
 Bootstrapping: 18.8 MiB
 Cached: 21.9 MiB
+```
+
+The results for 25 October 2022 were (Tor: 2033cc7b5e):
+
+```
+Bootstrapping: 18.4 MiB
+Cached: 19.9 MiB
 ```
 
 (This does not yet take into account making a request, but again, the
@@ -151,6 +176,13 @@ Result as of 20 July 2022:
    "arti.gz": 4076384 bytes
 ```
 
+Results as of 25 October 2022 (Arti: 547d476e0e):
+
+```
+   "arti.gz": 3937197 bytes
+```
+
+This means Arti is around 3.41% smaller than in July 2022.
 
 ### Process with C Tor
 
@@ -175,9 +207,17 @@ with Tor: These aren't part of the download size on most Unix-like
 operating systems, but they do have to be downloaded on Android,
 Windows, and OSX.
 
-Current result (20 July 2022)
+Result (20 July 2022)
+
 ```
 3646863 bytes
+```
+
+Results (25 October 2022)
+
+```
+XXX(ahf): Nick, can I get you to fill out this one? I cannot reproduce the
+numbers locally and I suspect you have a much newer Clang than I do.
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
