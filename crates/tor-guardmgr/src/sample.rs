@@ -278,12 +278,24 @@ impl GuardSet {
         self.guards.all_overlapping(relay).is_empty()
     }
 
-    /// Return true if `id` is definitely a member of this set.
-    pub(crate) fn contains(&self, id: &GuardId) -> bool {
-        // XXXX TODO pt-client: fix next.
-
-        // (This could be yes/no/maybe.)
-        self.guards.by_all_ids(id).is_some()
+    /// Return `Ok(true)` if `id` is definitely a member of this set, and
+    /// `Ok(false)` if it is definitely not a member.  
+    ///
+    /// If we cannot tell, it's because there is a guard in this sample that has
+    /// a _subset_ of the IDs in `id`. In that case, we return
+    /// `Err(guard_ident)`, where `guard_ident`  is the identity of that guard.
+    pub(crate) fn contains(&self, id: &GuardId) -> Result<bool, &GuardId> {
+        let overlapping = self.guards.all_overlapping(id);
+        match &overlapping[..] {
+            [singleton] => {
+                if singleton.has_all_relay_ids_from(id) {
+                    Ok(true)
+                } else {
+                    Err(singleton.guard_id())
+                }
+            }
+            _ => Ok(false),
+        }
     }
 
     /// If there are not enough filter-permitted usable guards in this
