@@ -272,13 +272,10 @@ impl GuardSet {
         guard_set
     }
 
-    /// Check whether `relay` is a member of this set.
-    fn contains_relay(&self, relay: &Relay<'_>) -> bool {
-        // XXXX TODO pt-client: fix next.
-        // Note: Could implement Borrow instead, but I don't think it'll
-        // matter.
-        let id = GuardId::from_relay_ids(relay);
-        self.contains(&id)
+    /// Return false if `relay` (or some other relay that shares an ID with it)
+    /// is a member if this set.
+    fn can_add_relay(&self, relay: &Relay<'_>) -> bool {
+        self.guards.all_overlapping(relay).is_empty()
     }
 
     /// Return true if `id` is definitely a member of this set.
@@ -385,7 +382,7 @@ impl GuardSet {
                 filter_ok
                     && relay.is_flagged_guard()
                     && relay.is_dir_cache()
-                    && !self.contains_relay(relay)
+                    && self.can_add_relay(relay)
             },
         );
 
@@ -1002,7 +999,7 @@ mod test {
                 let relay = id.get_relay(&netdir).unwrap();
                 assert!(relay.is_flagged_guard());
                 assert!(relay.is_dir_cache());
-                assert!(guards.contains_relay(&relay));
+                assert!(guards.guards.by_all_ids(&relay).is_some());
                 {
                     assert!(!guard.is_expired(&params, SystemTime::now()));
                 }
