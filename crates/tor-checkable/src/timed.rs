@@ -85,11 +85,6 @@ impl<T> TimerangeBound<T> {
     ///
     /// The caller takes responsibility for making sure that the bounds are
     /// actually checked.
-    ///
-    /// This is an experimental API. Using it voids your stability guarantees.
-    /// It is only available when this crate is compiled with the
-    /// `experimental-api` feature.
-    #[cfg(feature = "experimental-api")]
     pub fn dangerously_into_parts(self) -> (T, (Bound<time::SystemTime>, Bound<time::SystemTime>)) {
         (
             self.obj,
@@ -106,11 +101,6 @@ impl<T> TimerangeBound<T> {
     /// The caller takes responsibility for making sure that nothing is actually
     /// done with the inner object that would rely on the bounds being correct, until
     /// the bounds are (eventually) checked.
-    ///
-    /// This is an experimental API. Using it voids your stability guarantees.
-    /// It is only available when this crate is compiled with the
-    /// `experimental-api` feature.
-    #[cfg(feature = "experimental-api")]
     pub fn dangerously_peek(&self) -> &T {
         &self.obj
     }
