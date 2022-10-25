@@ -63,6 +63,13 @@ Bootstrapping: 20.3 MiB
 Cached: 14.7 MiB
 ```
 
+The results for 30 September 2022 were (Arti: 0d985b0d):
+
+```
+Bootstrapping: 18.9 MiB
+Cached: 14.4 MiB
+```
+
 The results for 25 October 2022 were (Arti: 547d476e0e):
 
 ```
@@ -85,6 +92,13 @@ The results for 20 July 2022 were:
 ```
 Bootstrapping: 18.8 MiB
 Cached: 21.9 MiB
+```
+
+The results for 30 September 2022 were (Tor: 18b5630a7c):
+
+```
+Bootstrapping: 18.5 MiB
+Cached: 21.4 MiB
 ```
 
 The results for 25 October 2022 were (Tor: 2033cc7b5e):
@@ -176,13 +190,17 @@ Result as of 20 July 2022:
    "arti.gz": 4076384 bytes
 ```
 
+Results for 30 September 2022 were (Arti: 0d985b0d):
+
+```
+   "arti.gz": 3918795 bytes
+```
+
 Results as of 25 October 2022 (Arti: 547d476e0e):
 
 ```
    "arti.gz": 3937197 bytes
 ```
-
-This means Arti is around 3.41% smaller than in July 2022.
 
 ### Process with C Tor
 
@@ -211,6 +229,12 @@ Result (20 July 2022)
 
 ```
 3646863 bytes
+```
+
+Results (30 September 2022) with Tor: 18b5630a7c:
+
+```
+3647161 bytes
 ```
 
 Results (25 October 2022) with Tor: 2033cc7b5e:
