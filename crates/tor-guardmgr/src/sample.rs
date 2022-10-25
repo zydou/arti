@@ -200,14 +200,42 @@ impl GuardSet {
     }
 
     /// Copy non-persistent status from every guard shared with `other`.
+    ///
+    /// This is used as part of our reload process when we don't own our state
+    /// files, and we're reloading in order to find out what the other Arti
+    /// instance thinks the guards are. At that point, `self` is the set of
+    /// guards that we just loaded from state, and `other` is our old guards,
+    /// which we are using only for their status information.
     pub(crate) fn copy_status_from(&mut self, mut other: GuardSet) {
-        // XXXX TODO pt-client document ID issues.
         let old_guards = std::mem::take(&mut self.guards);
         self.guards = old_guards
             .into_values()
             .map(|guard| {
                 let id = guard.guard_id();
-                if let Some(other_guard) = other.guards.remove_by_all_ids(id) {
+                // We insist on a superset of identities here, which carries
+                // some risk of misidentification if:
+                //   * We don't own our state
+                //   * We have discovered an additional ID for this guard.
+                //   * The state-owning Arti instance has not discovered that
+                //     ID, AND has not discovered any conflicting ID.
+                //   * That ID is not in fact correct.
+                //
+                // This shouldn't be too likely in reality, however, and the
+                // impact is limited to us applying our assumptions about
+                // whether a guard is up or down to an incorrect guard.
+                //
+                // TODO relay: A relay should never be able to reach this code,
+                // since it should insist on knowing its state.
+                let other_id = match other.contains(id) {
+                    Ok(true) => Some(id),
+                    Err(less_specific) => Some(less_specific),
+                    Ok(false) => None,
+                };
+
+                if let Some(other_guard) = other_id
+                    .cloned()
+                    .and_then(|oid| other.guards.remove_by_all_ids(&oid))
+                {
                     guard.copy_status_from(other_guard)
                 } else {
                     guard
