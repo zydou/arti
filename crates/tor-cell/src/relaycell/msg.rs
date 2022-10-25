@@ -46,7 +46,7 @@ pub enum RelayMsg {
     Extended2(Extended2),
     /// Partially close a circuit
     Truncate,
-    /// Tell the client the a circuit has been partially closed
+    /// Tell the client that a circuit has been partially closed
     Truncated(Truncated),
     /// Used for padding
     Drop,
@@ -454,7 +454,7 @@ caret_int! {
         MISC = 1,
         /// Couldn't look up hostname.
         RESOLVEFAILED = 2,
-        /// Remote host refused connection *
+        /// Remote host refused connection.
         CONNECTREFUSED = 3,
         /// Closing a stream because of an exit-policy violation.
         EXITPOLICY = 4,
