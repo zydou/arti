@@ -25,6 +25,9 @@ use tor_basic_utils::skip_fmt;
 use tor_netdir::DirEvent;
 use tor_netdoc::doc::netstatus;
 
+#[cfg(feature = "bridge-client")]
+use tor_guardmgr::bridge::BridgeDescEvent;
+
 use crate::bootstrap::AttemptId;
 
 /// A trait to indicate something that can be published with [`FlagPublisher`].
@@ -110,6 +113,9 @@ macro_rules! impl_FlagEvent { { $ty:ident } => { paste!{
 } } }
 
 impl_FlagEvent! { DirEvent }
+
+#[cfg(feature = "bridge-client")]
+impl_FlagEvent! { BridgeDescEvent }
 
 /// A publisher that broadcasts flag-level events to multiple subscribers.
 ///
