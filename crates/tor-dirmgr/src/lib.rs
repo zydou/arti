@@ -36,6 +36,11 @@
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+// This clippy lint produces a false positive on `use strum`, below.
+// Attempting to apply the lint to just the use statement fails to suppress
+// this lint and instead produces another lint about a useless clippy attribute.
+#![allow(clippy::single_component_path_imports)]
+
 pub mod authority;
 mod bootstrap;
 pub mod config;
