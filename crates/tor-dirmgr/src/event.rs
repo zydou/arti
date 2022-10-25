@@ -169,6 +169,12 @@ pub(crate) struct FlagListener<F> {
     inner: Arc<Inner<F>>,
 }
 
+impl<F: FlagEvent> Default for FlagPublisher<F> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<F: FlagEvent> FlagPublisher<F> {
     /// Construct a new FlagPublisher.
     pub(crate) fn new() -> Self {
