@@ -76,14 +76,26 @@ pub trait BridgeDescProvider {
 }
 
 /// An event describing a change in a `BridgeDescList`.
+///
+/// Currently changes are always reported as `BridgeDescEvent::SomethingChanged`.
+///
+/// In the future, as an optimisation, more fine-grained information may be provided.
+/// Unrecognized variants should be handled the same way as `SomethingChanged`.
+/// (So right now, it is not necessary to match on the variant at all.)
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum BridgeDescEvent {
-    /// A new descriptor has arrived
-    //
-    // TODO: (Should we do anything to indicate which one? If so, we
-    // won't be able to use a flag-based publisher.)
-    NewDesc,
+    /// Some change occurred to the set of descriptors
+    ///
+    /// The return value from [`bridges()`](BridgeDescProvider::bridges)
+    /// may have changed.
+    ///
+    /// The nature of the change is not specified; it might affect multiple descriptors,
+    /// and include multiple different kinds of change.
+    ///
+    /// This event may also be generated spuriously, if nothing has changed,
+    /// but this will usually be avoided for performance reasons.
+    SomethingChanged,
 }
 
 /// An error caused while fetching bridge descriptors
