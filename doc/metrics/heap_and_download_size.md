@@ -250,3 +250,14 @@ savings in Arti if as we find initial low-hanging fruit to eliminate,
 and some regressions as we add more missing features.  I do not think we
 will achieve a smaller download than C _on Android_ without major
 engineering.
+
+## Methodologies
+
+We use the Valgrind tool, massif, to extract heap information over the
+execution duration of the program. We use the `massif-visualizer` tool to
+extract peak values from the massif results.
+
+Since there is variance in these results that are outside of our control here,
+such as difference between paths through the Tor network, it is important that
+when running these tests that you run the experiments multiple times and take
+the median value.
