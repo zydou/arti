@@ -650,7 +650,7 @@ fn take_one_netinfo_addr(r: &mut Reader<'_>) -> Result<Option<IpAddr>> {
 }
 impl Netinfo {
     /// Construct a new Netinfo to be sent by a client.
-    pub fn for_client(their_addr: Option<IpAddr>) -> Self {
+    pub fn from_client(their_addr: Option<IpAddr>) -> Self {
         Netinfo {
             timestamp: 0, // clients don't report their timestamps.
             their_addr,
@@ -658,7 +658,7 @@ impl Netinfo {
         }
     }
     /// Construct a new Netinfo to be sent by a relay
-    pub fn for_relay<V>(timestamp: u32, their_addr: Option<IpAddr>, my_addrs: V) -> Self
+    pub fn from_relay<V>(timestamp: u32, their_addr: Option<IpAddr>, my_addrs: V) -> Self
     where
         V: Into<Vec<IpAddr>>,
     {

@@ -243,14 +243,14 @@ fn test_netinfo() {
     fbody(
         cmd,
         "00000000 04 04 7F000001 00",
-        &msg::Netinfo::for_client(Some(localhost)).into(),
+        &msg::Netinfo::from_client(Some(localhost)).into(),
     );
 
     // example relay netinfo
     fbody(
         cmd,
         "5F6F80E1 04 04 7F000001 01 04 04 7F000001",
-        &msg::Netinfo::for_relay(0x5f6f80e1, Some(localhost), &[localhost][..]).into(),
+        &msg::Netinfo::from_relay(0x5f6f80e1, Some(localhost), &[localhost][..]).into(),
     );
 
     // example ipv6 relay netinfo
@@ -261,7 +261,7 @@ fn test_netinfo() {
          02
          04 04 7F000001
          06 10 00000000000000000000000000000001",
-        &msg::Netinfo::for_relay(
+        &msg::Netinfo::from_relay(
             0x5f6f859c,
             Some(localhost_v6),
             &[localhost, localhost_v6][..],
@@ -280,14 +280,14 @@ fn test_netinfo() {
         false,
     );
     let expect: msg::ChanMsg =
-        msg::Netinfo::for_relay(0x5f6f859c, None, &[localhost_v6][..]).into();
+        msg::Netinfo::from_relay(0x5f6f859c, None, &[localhost_v6][..]).into();
     assert_eq!(format!("{:?}", netinfo), format!("{:?}", expect));
 
     // Zero-valued their_address are None (hand-generated from above)
     fbody(
         cmd,
         "00000000 04 04 00000000 00",
-        &msg::Netinfo::for_client(None).into(),
+        &msg::Netinfo::from_client(None).into(),
     );
 }
 

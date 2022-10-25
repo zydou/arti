@@ -578,7 +578,7 @@ impl<T: AsyncRead + AsyncWrite + Send + Unpin + 'static, S: SleepProvider> Verif
             .and_then(ChannelMethod::socket_addrs)
             .and_then(|addrs| addrs.get(0))
             .map(SocketAddr::ip);
-        let netinfo = msg::Netinfo::for_client(peer_ip);
+        let netinfo = msg::Netinfo::from_client(peer_ip);
         self.tls
             .send(netinfo.into())
             .await
@@ -816,7 +816,7 @@ pub(super) mod test {
         R: Runtime,
     {
         let localhost = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
-        let netinfo_cell = msg::Netinfo::for_client(Some(localhost));
+        let netinfo_cell = msg::Netinfo::from_client(Some(localhost));
         let clock_skew = ClockSkew::None;
         UnverifiedChannel {
             link_protocol: 4,
