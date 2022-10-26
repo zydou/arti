@@ -455,6 +455,35 @@ impl FromIterator<RdDigest> for RouterDescRequest {
     }
 }
 
+/// A request for the descriptor of whatever relay we are making the request to
+#[derive(Debug, Clone, Default)]
+#[cfg(feature = "routerdesc")]
+#[non_exhaustive]
+pub struct RoutersOwnDescRequest {}
+
+#[cfg(feature = "routerdesc")]
+impl RoutersOwnDescRequest {
+    /// Construct a new request.
+    pub fn new() -> Self {
+        RoutersOwnDescRequest::default()
+    }
+}
+
+#[cfg(feature = "routerdesc")]
+impl Requestable for RoutersOwnDescRequest {
+    fn make_request(&self) -> Result<http::Request<()>> {
+        let uri = "/tor/server/authority.z";
+        let req = http::Request::builder().method("GET").uri(uri);
+        let req = add_common_headers(req);
+
+        Ok(req.body(())?)
+    }
+
+    fn partial_docs_ok(&self) -> bool {
+        false
+    }
+}
+
 /// List the encodings we accept
 fn encodings() -> String {
     let mut encodings = "deflate, identity".to_string();

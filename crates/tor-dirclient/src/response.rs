@@ -1,5 +1,7 @@
 //! Define a response type for directory requests.
 
+use std::str;
+
 use tor_linkspec::OwnedChanTarget;
 use tor_proto::circuit::{ClientCirc, UniqId};
 
@@ -79,6 +81,21 @@ impl DirResponse {
     pub fn output(&self) -> Result<&[u8], RequestFailedError> {
         self.check_ok()?;
         Ok(self.output_unchecked())
+    }
+
+    /// Return this the output from this response, as a string,
+    /// if it was successful and complete and valid UTF-8.
+    pub fn output_string(&self) -> Result<&str, RequestFailedError> {
+        let output = self.output()?;
+        let s = str::from_utf8(output).map_err(|_| RequestFailedError {
+            // For RequestError::Utf8Encoding We need a `String::FromUtf8Error`
+            // (which contains an owned copy of the bytes).
+            error: String::from_utf8(output.to_owned())
+                .expect_err("was bad, now good")
+                .into(),
+            source: self.source.clone(),
+        })?;
+        Ok(s)
     }
 
     /// Consume this DirResponse and return the output in it.

@@ -191,12 +191,18 @@ impl HasKind for RequestError {
     }
 }
 
+impl HasKind for RequestFailedError {
+    fn kind(&self) -> ErrorKind {
+        self.error.kind()
+    }
+}
+
 impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use Error as E;
         match self {
             E::CircMgr(e) => e.kind(),
-            E::RequestFailed(RequestFailedError { error, .. }) => error.kind(),
+            E::RequestFailed(e) => e.kind(),
         }
     }
 }

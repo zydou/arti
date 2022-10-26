@@ -150,6 +150,10 @@ fn should_retire_circ(result: &Result<DirResponse>) -> bool {
 ///
 /// This function doesn't close the stream; you may want to do that
 /// yourself.
+///
+/// The only error variant returned is [`Error::RequestFailed`].
+// TODO: should the error return type change to `RequestFailedError`?
+// If so, that would simplify some code in_dirmgr::bridgedesc.
 pub async fn download<R, S, SP>(
     runtime: &SP,
     req: &R,
