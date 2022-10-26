@@ -262,7 +262,7 @@ impl<'a> Reader<'a> {
     ///
     /// On failure, consumes nothing.
     pub fn extract_n<E: Readable>(&mut self, n: usize) -> Result<Vec<E>> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(n);
         let off_orig = self.off;
         for _ in 0..n {
             match E::take_from(self) {
