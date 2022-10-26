@@ -48,6 +48,64 @@ use tracing::{debug, info};
 #[serde(from = "GuardSample")]
 pub(crate) struct GuardSet {
     /// Map from identities to guards, for every guard in this sample.
+    ///
+    /// The key for each entry is a set of identities which we have
+    /// good (trustworthy-enough) reason to link together.
+    ///
+    /// When we connect to a guard we require it to demonstrate
+    /// that it has *all* of these identities;
+    /// and we do pinning, so that we note down the other identities we discover it has,
+    /// with the intent that we will require them in future.
+    ///
+    /// ### Sources of linkage:
+    ///
+    ///  * If we connect to a relay and it proves a set of identities,
+    ///    that necessarily will include at least the ones we have already.
+    ///    We can add any other identities we have discovered.
+    ///    Justification: the owners of the old ids have made a statement
+    ///    (via the connection protocols) that these other ids are also theirs,
+    ///    and should be required in future.
+    ///
+    ///  * If we obtain a (full) descriptor for a relay, and check the
+    ///    self-signatures by all the identities we have already,
+    ///    we can add any other identities listed in the descriptor.
+    ///    Justification: the owners of the old ids have made an explicit statement
+    ///    that these other ids are also theirs,
+    ///    and should be required in future.
+    ///
+    ///  * For a relay in the netdir, if the netdir links some ids together,
+    ///    we can combine the entries.
+    ///    Justification: the netdir is authoritative for netdir-based relays.
+    ///
+    ///  * For a configured bridge, if our configuration links some identities,
+    ///    we must insist on all those identities.
+    ///    So we combine them.
+    ///
+    /// ### Handling of conflicting entries:
+    ///
+    /// `ByRelayIds` will implicitly delete conflicting entries,
+    /// simply forgetting about them.
+    /// This is OK for netdir relays, since we do not expect this to occur in practice.
+    ///
+    /// For bridges, conflicts may in fact occur,
+    /// since bridge lines are not issued by a single authority,
+    /// and should be afforded limited trust.
+    ///
+    ///  * If the configuration contains bridge lines that mutually conflict,
+    ///    affected bridge lines should be disregarded,
+    ///    or the configuration rejected.
+    ///
+    ///  * If the configuration contains information which is inconsistent with
+    ///    our past experience, we should discard the past experiences which
+    ///    aren't reconcilable with the configuration.
+    ///
+    ///  * We may discover a linkage which demonstrates that the configuration
+    ///    is wrong: for example, two bridge lines for identities X and Y,
+    ///    but in fact there is only one bridge with both identities.
+    ///    In this situation it is OK to effectively disregard some the configuration
+    ///    entries which are at variance with reality, maybe with a warning,
+    ///    but keeping at least one of every usable id set (actually existing bridge)
+    ///    would be good.
     guards: ByRelayIds<Guard>,
     /// Identities of all the guards in the sample, in sample order.
     ///
