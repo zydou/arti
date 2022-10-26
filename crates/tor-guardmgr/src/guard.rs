@@ -15,7 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
-use tor_linkspec::{HasAddrs, HasRelayIds, RelayIds};
+use tor_linkspec::{ChannelMethod, HasAddrs, HasRelayIds, PtTarget, RelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -91,9 +91,21 @@ pub(crate) struct Guard {
     /// The identity keys for this guard.
     id: GuardId,
 
-    /// The most recently seen addresses for making OR connections to this
-    /// guard.
+    /// The most recently seen addresses for this guard.  If `pt_targets` is
+    /// empty, these are the addresses we use for making OR connections to this
+    /// guard directly.
     orports: Vec<SocketAddr>,
+
+    /// Any `PtTarget` instances that we know about for connecting to this guard
+    /// over a pluggable transport.
+    ///
+    /// If this is empty, then this guard only supports direct connections.
+    ///
+    /// (Currently, this is always empty, or a singleton.  If we find more than
+    /// one, we only look at the first. It is a vector only for forward
+    /// compatibility.)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pt_targets: Vec<PtTarget>,
 
     /// When, approximately, did we first add this guard to our sample?
     #[serde(with = "humantime_serde")]
@@ -225,15 +237,22 @@ impl Guard {
         Self::new(
             GuardId::from_relay_ids(relay),
             relay.addrs().into(),
+            None,
             added_at,
         )
     }
 
     /// Return a new, manually constructed [`Guard`].
-    fn new(id: GuardId, orports: Vec<SocketAddr>, added_at: SystemTime) -> Self {
+    fn new(
+        id: GuardId,
+        orports: Vec<SocketAddr>,
+        pt_target: Option<PtTarget>,
+        added_at: SystemTime,
+    ) -> Self {
         Guard {
             id,
             orports,
+            pt_targets: pt_target.into_iter().collect(),
             added_at,
             added_by: CrateId::this_crate(),
             disabled: None,
@@ -324,6 +343,7 @@ impl Guard {
         Guard {
             // All other persistent fields are taken from `self`.
             id: self.id,
+            pt_targets: self.pt_targets,
             orports: self.orports,
             added_at: self.added_at,
             added_by: self.added_by,
@@ -731,7 +751,17 @@ impl tor_linkspec::HasRelayIds for Guard {
     }
 }
 
-impl tor_linkspec::DirectChanMethodsHelper for Guard {}
+impl tor_linkspec::HasChanMethod for Guard {
+    fn chan_method(&self) -> ChannelMethod {
+        match &self.pt_targets[..] {
+            #[cfg(feature = "pt-client")]
+            [first, ..] => ChannelMethod::Pluggable(first.clone()),
+            #[cfg(not(feature = "pt-client"))]
+            [_first, ..] => ChannelMethod::Direct(vec![]), // can't connect to this; no pt support.
+            [] => ChannelMethod::Direct(self.orports.clone()),
+        }
+    }
+}
 
 impl tor_linkspec::ChanTarget for Guard {}
 
@@ -838,7 +868,7 @@ mod test {
         let id = basic_id();
         let ports = vec!["127.0.0.7:7777".parse().unwrap()];
         let added = SystemTime::now();
-        Guard::new(id, ports, added)
+        Guard::new(id, ports, None, added)
     }
 
     #[test]
@@ -1066,6 +1096,7 @@ mod test {
         let guard255 = Guard::new(
             GuardId::new([255; 32].into(), [255; 20].into()),
             vec![],
+            None,
             now,
         );
         let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id.clone());
@@ -1105,6 +1136,7 @@ mod test {
         let mut guard255 = Guard::new(
             GuardId::new([255; 32].into(), [255; 20].into()),
             vec!["8.8.8.8:53".parse().unwrap()],
+            None,
             now,
         );
         assert_eq!(guard255.unlisted_since, None);
@@ -1117,7 +1149,12 @@ mod test {
         assert!(!guard255.orports.is_empty());
 
         // Try a guard that is in netdir, but not netdir2.
-        let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
+        let mut guard22 = Guard::new(
+            GuardId::new([22; 32].into(), [22; 20].into()),
+            vec![],
+            None,
+            now,
+        );
         let id22: FirstHopId = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
         let relay22 = id22.get_relay(&netdir).unwrap();
         assert_eq!(guard22.listed_in(&netdir), Some(true));
@@ -1134,7 +1171,12 @@ mod test {
         assert!(!guard22.microdescriptor_missing);
 
         // Now see what happens for a guard that's in the consensus, but missing an MD.
-        let mut guard23 = Guard::new(GuardId::new([23; 32].into(), [23; 20].into()), vec![], now);
+        let mut guard23 = Guard::new(
+            GuardId::new([23; 32].into(), [23; 20].into()),
+            vec![],
+            None,
+            now,
+        );
         assert_eq!(guard23.listed_in(&netdir2), Some(true));
         assert_eq!(guard23.listed_in(&netdir3), None);
         guard23.update_from_netdir(&netdir3);
