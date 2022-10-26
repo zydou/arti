@@ -1,7 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_netdir::{NetDir, RelayWeight};
 
 use educe::Educe;
 use serde::{Deserialize, Serialize};
@@ -716,14 +715,6 @@ impl Guard {
         }
     }
 
-    /// Return the weight of this guard (if any) according to `dir`.
-    ///
-    /// We use this information to decide whether we are about to sample
-    /// too much of the network as guards.
-    pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(self.id.0.rsa_identity()?, tor_netdir::WeightRole::Guard)
-    }
-
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
     pub(crate) fn get_external_rep(&self, selection: GuardSetSelector) -> crate::FirstHop {
         crate::FirstHop {
@@ -1101,13 +1092,9 @@ mod test {
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
-        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id);
         let r = id.get_relay(&netdir).unwrap();
         assert!(r.same_relay_ids(&relay22));
-
-        // Can we check on the guard's weight?
-        let w = guard22.get_weight(&netdir).unwrap();
-        assert_eq!(w, 3000.into());
 
         // Now try a guard that isn't in the netdir.
         let guard255 = Guard::new(
@@ -1116,9 +1103,8 @@ mod test {
             None,
             now,
         );
-        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id.clone());
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id);
         assert!(id.get_relay(&netdir).is_none());
-        assert!(guard255.get_weight(&netdir).is_none());
     }
 
     #[test]
