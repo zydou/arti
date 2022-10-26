@@ -3950,12 +3950,20 @@ dependencies = [
 name = "tor-ptmgr"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "derive_builder_fork_arti",
  "futures",
+ "thiserror",
+ "tokio",
  "tor-chanmgr",
  "tor-config",
+ "tor-error",
  "tor-linkspec",
  "tor-rtcompat",
+ "tor-socksproto",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
