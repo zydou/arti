@@ -5,6 +5,8 @@
 // - allow use of BridgeList in place of NetDir, possibly via a trait implemented by both.
 // - allow Guard to be constructed from a Bridge rather than a Relay
 
+mod candidate;
+
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::skew::SkewObservation;
@@ -23,6 +25,8 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
 use tracing::{debug, info};
+
+pub(crate) use candidate::{CandidateStatus, Universe};
 
 /// A set of sampled guards, along with various orderings on subsets
 /// of the sample.
@@ -532,7 +536,7 @@ impl GuardSet {
         self.guards = old_guards
             .into_values()
             .map(|mut guard| {
-                guard.update_from_netdir(dir);
+                guard.update_from_universe(dir);
                 guard
             })
             .collect();
