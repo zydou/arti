@@ -137,7 +137,7 @@ pub(crate) struct Guard {
     /// True if this guard is listed in the latest consensus, but we don't
     /// have a microdescriptor for it.
     #[serde(skip)]
-    microdescriptor_missing: bool,
+    dir_info_missing: bool,
 
     /// When did we last give out this guard in response to a request?
     #[serde(skip)]
@@ -267,7 +267,7 @@ impl Guard {
             disabled: None,
             confirmed_at: None,
             unlisted_since: None,
-            microdescriptor_missing: false,
+            dir_info_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             retry_at: None,
@@ -368,7 +368,7 @@ impl Guard {
             reachable: other.reachable,
             is_dir_cache: other.is_dir_cache,
             exploratory_circ_pending: other.exploratory_circ_pending,
-            microdescriptor_missing: other.microdescriptor_missing,
+            dir_info_missing: other.dir_info_missing,
             circ_history: other.circ_history,
             suspicious_behavior_warned: other.suspicious_behavior_warned,
             dir_status: other.dir_status,
@@ -458,7 +458,7 @@ impl Guard {
             GuardUsageKind::Data => {
                 // We need a "definitely listed" guard to build a multihop
                 // circuit.
-                if self.microdescriptor_missing {
+                if self.dir_info_missing {
                     return false;
                 }
             }
@@ -511,14 +511,14 @@ impl Guard {
             None => {
                 // We can't tell if this is listed: The RSA id is present, but
                 // the microdescriptor is missing so we don't know the Ed25519 ID.
-                self.microdescriptor_missing = true;
+                self.dir_info_missing = true;
                 return;
             }
         };
 
         // We got a definite answer, so we aren't missing a microdesc for this
         // guard.
-        self.microdescriptor_missing = false;
+        self.dir_info_missing = false;
 
         if listed_as_guard {
             // Definitely listed, so clear unlisted_since.
@@ -951,7 +951,7 @@ mod test {
         assert!(g.conforms_to_usage(&dir_usage));
 
         let mut g2 = g.clone();
-        g2.microdescriptor_missing = true;
+        g2.dir_info_missing = true;
         assert!(!g2.conforms_to_usage(&data_usage));
         assert!(g2.conforms_to_usage(&dir_usage));
 
@@ -1177,7 +1177,7 @@ mod test {
             Some(netdir2.lifetime().valid_after())
         );
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
-        assert!(!guard22.microdescriptor_missing);
+        assert!(!guard22.dir_info_missing);
 
         // Now see what happens for a guard that's in the consensus, but missing an MD.
         let mut guard23 = Guard::new(
@@ -1189,7 +1189,7 @@ mod test {
         assert_eq!(guard23.listed_in(&netdir2), Some(true));
         assert_eq!(guard23.listed_in(&netdir3), None);
         guard23.update_from_netdir(&netdir3);
-        assert!(guard23.microdescriptor_missing);
+        assert!(guard23.dir_info_missing);
         assert!(guard23.is_dir_cache);
     }
 
