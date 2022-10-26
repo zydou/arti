@@ -122,19 +122,14 @@ fn parse_one_value(from: &str) -> Result<(String, &str), &'static str> {
         // FIXME(eta): This currently doesn't parse octal escape codes, even though the spec says
         //             we should. That's finicky, though, and probably not used.
         let mut ret = String::new();
-        let mut char_indices = from.char_indices();
+        let mut chars = from.chars();
+        assert_eq!(chars.next(), Some('"')); // discard "
         loop {
-            let (idx, ch) = char_indices
-                .next()
-                .ok_or("ran out of input parsing CString")?;
-            if idx == 0 {
-                continue; // ignore first quote
-            }
+            let ch = chars.next().ok_or("ran out of input parsing CString")?;
             match ch {
-                '\\' => match char_indices
+                '\\' => match chars
                     .next()
                     .ok_or("encountered trailing backslash in CString")?
-                    .1
                 {
                     'n' => ret.push('\n'),
                     'r' => ret.push('\r'),
@@ -146,7 +141,7 @@ fn parse_one_value(from: &str) -> Result<(String, &str), &'static str> {
                 _ => ret.push(ch),
             }
         }
-        (ret, char_indices.as_str())
+        (ret, chars.as_str())
     } else {
         // Simple: just find the space
         let space = from.find(' ').unwrap_or(from.len());
