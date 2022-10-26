@@ -385,7 +385,7 @@ impl<R: Runtime> GuardMgr<R> {
         inner
             .guards
             .active_guards_mut()
-            .missing_primary_microdescriptors(netdir)
+            .n_primary_without_dir_info(netdir)
             == 0
     }
 
@@ -722,7 +722,7 @@ impl GuardMgrInner {
             if self
                 .guards
                 .active_guards_mut()
-                .missing_primary_microdescriptors(netdir)
+                .n_primary_without_dir_info(netdir)
                 > 0
             {
                 // We are missing primary guard descriptors, so we shouldn't update our guard
@@ -731,7 +731,7 @@ impl GuardMgrInner {
             }
             self.guards
                 .active_guards_mut()
-                .update_status_from_netdir(netdir);
+                .update_status_from_dir(netdir);
             self.guards
                 .active_guards_mut()
                 .extend_sample_as_needed(now, &self.params, netdir);

@@ -514,9 +514,9 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
-    /// Return the number of our primary guards are missing their
-    /// microdescriptors in `dir`.
-    pub(crate) fn missing_primary_microdescriptors(&mut self, dir: &NetDir) -> usize {
+    /// Return the number of our primary guards are missing directory
+    /// information in [`universe`].
+    pub(crate) fn n_primary_without_dir_info<U: Universe>(&mut self, universe: &U) -> usize {
         self.primary
             .iter()
             .filter(|id| {
@@ -524,14 +524,13 @@ impl GuardSet {
                     .guards
                     .by_all_ids(*id)
                     .expect("Inconsistent guard state");
-                g.listed_in(dir).is_none()
+                g.listed_in(universe).is_none()
             })
             .count()
     }
 
-    /// Update the status of every guard  in this sample from a network
-    /// directory.
-    pub(crate) fn update_status_from_netdir(&mut self, dir: &NetDir) {
+    /// Update the status of every guard  in this sample from a given source.
+    pub(crate) fn update_status_from_dir<U: Universe>(&mut self, dir: &U) {
         let old_guards = std::mem::take(&mut self.guards);
         self.guards = old_guards
             .into_values()
@@ -1450,7 +1449,7 @@ mod test {
             .pick_guard_id(&usage, &params, Instant::now())
             .unwrap();
         guards.record_success(&p_id1, &params, None, SystemTime::now());
-        assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
+        assert_eq!(guards.n_primary_without_dir_info(&netdir), 0);
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|_idx, bld| {
@@ -1463,7 +1462,7 @@ mod test {
         .unwrap_if_sufficient()
         .unwrap();
 
-        assert_eq!(guards.missing_primary_microdescriptors(&netdir2), 1);
+        assert_eq!(guards.n_primary_without_dir_info(&netdir2), 1);
     }
 
     #[test]
