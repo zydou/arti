@@ -504,7 +504,7 @@ impl GuardSet {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
-        let guard = Guard::from_relay(relay, now, params);
+        let guard = Guard::from_chan_target(relay, now, params);
         self.guards.insert(guard);
         self.sample.push(id);
         self.primary_guards_invalidated = true;

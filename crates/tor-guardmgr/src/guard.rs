@@ -1,7 +1,7 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_netdir::{NetDir, Relay, RelayWeight};
+use tor_netdir::{NetDir, RelayWeight};
 
 use educe::Educe;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
-use tor_linkspec::{ChannelMethod, HasAddrs, HasRelayIds, PtTarget, RelayIds};
+use tor_linkspec::{ChanTarget, ChannelMethod, HasAddrs, HasRelayIds, PtTarget, RelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -223,21 +223,30 @@ pub(crate) enum NewlyConfirmed {
 }
 
 impl Guard {
-    /// Create a new unused [`Guard`] from a [`Relay`].
+    /// Create a new unused [`Guard`] from a [`ChanTarget`].
     ///
     /// This function doesn't check whether the provided relay is a
     /// suitable guard node or not: that's up to the caller to decide.
-    pub(crate) fn from_relay(relay: &Relay<'_>, now: SystemTime, params: &GuardParams) -> Self {
+    pub(crate) fn from_chan_target<T>(relay: &T, now: SystemTime, params: &GuardParams) -> Self
+    where
+        T: ChanTarget,
+    {
         let added_at = randomize_time(
             &mut rand::thread_rng(),
             now,
             params.lifetime_unconfirmed / 10,
         );
 
+        let pt_target = match relay.chan_method() {
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(pt) => Some(pt),
+            _ => None,
+        };
+
         Self::new(
             GuardId::from_relay_ids(relay),
             relay.addrs().into(),
-            None,
+            pt_target,
             added_at,
         )
     }
@@ -1079,7 +1088,7 @@ mod test {
 
         // Construct a guard from a relay from the netdir.
         let relay22 = netdir.by_id(&Ed25519Identity::from([22; 32])).unwrap();
-        let guard22 = Guard::from_relay(&relay22, now, &params);
+        let guard22 = Guard::from_chan_target(&relay22, now, &params);
         assert!(guard22.same_relay_ids(&relay22));
         assert!(Some(guard22.added_at) <= Some(now));
 
