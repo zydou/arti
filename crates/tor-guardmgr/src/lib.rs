@@ -641,7 +641,9 @@ impl GuardSets {
         use strum::IntoEnumIterator;
         for sample in GuardSetSelector::iter() {
             self.guards_mut(&sample)
-                .copy_status_from(std::mem::take(other.guards_mut(&sample)));
+                .copy_ephemeral_status_into_newly_loaded_state(std::mem::take(
+                    other.guards_mut(&sample),
+                ));
         }
     }
 }
@@ -1055,7 +1057,11 @@ impl GuardMgrInner {
     }
 
     /// Return every currently extant FirstHopId for a guard or fallback
-    /// directory matching the provided keys.
+    /// directory matching (or possibly matching) the provided keys.
+    ///
+    /// An identity is _possibly matching_ if it contains some of the IDs in the
+    /// provided identity, and it has no _contradictory_ identities, but it does
+    /// not necessarily contain _all_ of those identities.
     ///
     /// # TODO
     ///
@@ -1064,6 +1070,10 @@ impl GuardMgrInner {
     /// doesn't know whether its circuit came from a guard or a fallback.  To
     /// solve that, we'll need CircMgr to record and report which one it was
     /// using, which will take some more plumbing.
+    ///
+    /// TODO relay: we will have to make the change above when we implement
+    /// relays; otherwise, it would be possible for an attacker to exploit it to
+    /// mislead us about our guard status.
     fn lookup_ids<T>(&self, identity: &T) -> Vec<FirstHopId>
     where
         T: tor_linkspec::HasRelayIds + ?Sized,
@@ -1073,9 +1083,12 @@ impl GuardMgrInner {
 
         let id = ids::GuardId::from_relay_ids(identity);
         for sample in GuardSetSelector::iter() {
-            if self.guards.guards(&sample).contains(&id) {
-                vec.push(FirstHopId(FirstHopIdInner::Guard(sample, id.clone())));
-            }
+            let guard_id = match self.guards.guards(&sample).contains(&id) {
+                Ok(true) => &id,
+                Err(other) => other,
+                Ok(false) => continue,
+            };
+            vec.push(FirstHopId(FirstHopIdInner::Guard(sample, guard_id.clone())));
         }
 
         let id = ids::FallbackId::from_relay_ids(identity);

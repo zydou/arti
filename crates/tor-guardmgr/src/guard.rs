@@ -15,7 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
-use tor_linkspec::{HasAddrs, HasRelayIds};
+use tor_linkspec::{HasAddrs, HasRelayIds, RelayIds};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -68,24 +68,28 @@ impl CrateId {
 
 /// A single guard node, as held by the guard manager.
 ///
-/// A Guard is a Tor relay that clients use for the first hop of their
-/// circuits.  It doesn't need to be a relay that's currently on the
-/// network (that is, one that we could represent as a [`Relay`]):
-/// guards might be temporarily unlisted.
+/// A Guard is a Tor relay that clients use for the first hop of their circuits.
+/// It doesn't need to be a relay that's currently on the network (that is, one
+/// that we could represent as a [`Relay`]): guards might be temporarily
+/// unlisted.
 ///
-/// Some fields in guards are persistent; others are reset with every
-/// process.
+/// Some fields in guards are persistent; others are reset with every process.
+///
+/// # Identity
+///
+/// Every guard has at least one `RelayId`.  A guard may _gain_ identities over
+/// time, as we learn more about it, but it should never _lose_ or _change_ its
+/// identities of a given type.
 ///
 /// # TODO
 ///
-/// This structure uses [`Instant`] to represent non-persistent points
-/// in time, and [`SystemTime`] to represent points in time that need
-/// to be persistent.  That's possibly undesirable; maybe we should
-/// come up with a better solution.
+/// This structure uses [`Instant`] to represent non-persistent points in time,
+/// and [`SystemTime`] to represent points in time that need to be persistent.
+/// That's possibly undesirable; maybe we should come up with a better solution.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Guard {
     /// The identity keys for this guard.
-    id: GuardId, // TODO: Maybe refactor this out as redundant someday.
+    id: GuardId,
 
     /// The most recently seen addresses for making OR connections to this
     /// guard.
@@ -298,12 +302,27 @@ impl Guard {
 
     /// Copy all _non-persistent_ status from `other` to self.
     ///
-    /// Requires that the two `Guard`s have the same ID.
-    pub(crate) fn copy_status_from(self, other: Guard) -> Guard {
-        debug_assert_eq!(self.id, other.id);
+    /// We do this when we were not the owner of our persistent state, and we
+    /// have just reloaded it (as `self`), but we have some ephemeral knowledge
+    /// about this guard (as `other`).
+    ///
+    /// You should not invent new uses for this function; instead we should come
+    /// up with alternatives.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the identities in `self` are not exactly the same as the
+    /// identities in `other`.
+    pub(crate) fn copy_ephemeral_status_into_newly_loaded_state(self, other: Guard) -> Guard {
+        // It is not safe to copy failure information unless these identities
+        // are a superset of those in `other`; but it is not safe to copy success
+        // information unless these identities are a subset of those in `other`.
+        //
+        // To simplify matters, we just insist that the identities have to be the same.
+        assert!(self.same_relay_ids(&other));
 
         Guard {
-            // All persistent fields are taken from `self`.
+            // All other persistent fields are taken from `self`.
             id: self.id,
             orports: self.orports,
             added_at: self.added_at,
@@ -428,14 +447,17 @@ impl Guard {
         netdir.ids_listed(&self.id.0)
     }
 
-    /// Change this guard's status based on a newly received or newly
-    /// updated [`NetDir`].
+    /// Change this guard's status based on a newly received or newly updated
+    /// [`NetDir`].
     ///
-    /// A guard may become "listed" or "unlisted": a listed guard is
-    /// one that appears in the consensus with the Guard flag.
+    /// A guard may become "listed" or "unlisted": a listed guard is one that
+    /// appears in the consensus with the Guard flag.
     ///
-    /// Additionally, a guard's orports may change, if the directory
-    /// lists a new address for the relay.
+    /// A guard may acquire additional identities if we learned them from the
+    /// netdir.
+    ///
+    /// Additionally, a guard's orports may change, if the directory lists a new
+    /// address for the relay.
     pub(crate) fn update_from_netdir(&mut self, netdir: &NetDir) {
         // This is a tricky check, since if we're missing a microdescriptor
         // for the RSA id, we won't know whether the ed25519 id is listed or
@@ -450,6 +472,9 @@ impl Guard {
                 self.orports = relay.addrs().into();
                 // Check whether we can currently use it as a directory cache.
                 self.is_dir_cache = relay.is_dir_cache();
+                // Update our IDs: the Relay will have strictly more.
+                assert!(relay.has_all_relay_ids_from(self));
+                self.id = GuardId(RelayIds::from_relay_ids(&relay));
 
                 relay.is_flagged_guard()
             }

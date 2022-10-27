@@ -51,6 +51,20 @@ impl<H: HasRelayIds> ByRelayIds<H> {
         }
     }
 
+    /// Modify the value in this set (if any) that has the key `key`.
+    ///
+    /// Return values are as for [`modify_by_ed25519`](Self::modify_by_ed25519)
+    pub fn modify_by_id<'a, T, F>(&mut self, key: T, func: F) -> Vec<H>
+    where
+        T: Into<RelayIdRef<'a>>,
+        F: FnOnce(&mut H),
+    {
+        match key.into() {
+            RelayIdRef::Ed25519(ed) => self.modify_by_ed25519(ed, func),
+            RelayIdRef::Rsa(rsa) => self.modify_by_rsa(rsa, func),
+        }
+    }
+
     /// Return the value in this set (if any) that has _all_ the relay IDs
     /// that `key` does.
     ///
@@ -62,6 +76,26 @@ impl<H: HasRelayIds> ByRelayIds<H> {
         let any_id = key.identities().next()?;
         self.by_id(any_id)
             .filter(|val| val.has_all_relay_ids_from(key))
+    }
+
+    /// Modify the value in this set (if any) that has _all_ the relay IDs
+    /// that `key` does.
+    ///
+    /// Return values are as for [`modify_by_ed25519`](Self::modify_by_ed25519)
+    pub fn modify_by_all_ids<T, F>(&mut self, key: &T, func: F) -> Vec<H>
+    where
+        T: HasRelayIds,
+        F: FnOnce(&mut H),
+    {
+        let any_id = match key.identities().next() {
+            Some(id) => id,
+            None => return Vec::new(),
+        };
+        self.modify_by_id(any_id, |val| {
+            if val.has_all_relay_ids_from(key) {
+                func(val);
+            }
+        })
     }
 
     /// Remove the single value in this set (if any) that has _exactly the same_
@@ -82,6 +116,23 @@ impl<H: HasRelayIds> ByRelayIds<H> {
         }
     }
 
+    /// Remove the single value in this set (if any) that has all the same relay ids that
+    /// relay IDs that `key` does.
+    pub fn remove_by_all_ids<T>(&mut self, key: &T) -> Option<H>
+    where
+        T: HasRelayIds,
+    {
+        let any_id = key.identities().next()?;
+        if self
+            .by_id(any_id)
+            .filter(|ent| ent.has_all_relay_ids_from(key))
+            .is_some()
+        {
+            self.remove_by_id(any_id)
+        } else {
+            None
+        }
+    }
     /// Return a reference to every element in this set that shares _any_ ID
     /// with `key`.
     ///
