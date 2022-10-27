@@ -188,8 +188,8 @@ impl GuardSet {
     /// another element, but which are not.
     ///
     /// This method only removes corrupted elements and updates IDs in the ID
-    /// list; it doesn't add or fix anything.  It won't do anything if the
-    /// `GuardSet` is well-formed.
+    /// list (possibly adding new IDs); it doesn't add guards or other data.
+    /// It won't do anything if the `GuardSet` is well-formed.
     fn fix_consistency(&mut self) {
         /// Remove every element of `id_list` that does not belong to some guard
         /// in `guards`, and update the others to have any extra identities
