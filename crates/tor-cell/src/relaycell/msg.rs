@@ -400,8 +400,9 @@ impl Data {
 
     /// Construct a new data cell from a provided vector of bytes.
     ///
-    /// The vector _must_ have fewer than [`Data::MAXLEN`] bytes.
+    /// The vector _must_ not have more than [`Data::MAXLEN`] bytes.
     fn new_unchecked(body: Vec<u8>) -> Self {
+        debug_assert!(body.len() <= Data::MAXLEN);
         Data { body }
     }
 }
