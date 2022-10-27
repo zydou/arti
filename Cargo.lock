@@ -3730,6 +3730,7 @@ dependencies = [
  "humantime 2.1.0",
  "humantime-serde",
  "itertools",
+ "num_enum",
  "pin-project",
  "postage",
  "rand 0.8.5",

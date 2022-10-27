@@ -9,6 +9,8 @@ use std::sync::Arc;
 use crate::bridge::BridgeConfig;
 use dyn_clone::DynClone;
 use futures::stream::BoxStream;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use strum::{EnumCount, EnumIter};
 use tor_error::{HasKind, HasRetryTime};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 use tor_netdoc::doc::routerdesc::RouterDesc;
@@ -82,8 +84,11 @@ pub trait BridgeDescProvider {
 /// In the future, as an optimisation, more fine-grained information may be provided.
 /// Unrecognized variants should be handled the same way as `SomethingChanged`.
 /// (So right now, it is not necessary to match on the variant at all.)
-#[derive(Debug, Clone)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumIter, EnumCount, IntoPrimitive, TryFromPrimitive,
+)]
 #[non_exhaustive]
+#[repr(u16)]
 pub enum BridgeDescEvent {
     /// Some change occurred to the set of descriptors
     ///
