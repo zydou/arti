@@ -1,0 +1,50 @@
+router idun2 51.68.172.83 9001 0 0
+identity-ed25519
+-----BEGIN ED25519 CERT-----
+AQQABrknAdj5BeHBAd0mq1KD3ABvDzpBvUD0zU88DASbkRuV0WiaAQAgBADPc8aR
+rUUolIsrKFMKy7SVCxKvpGrcdFAni+Bah1WZHnac5JP3LnPc2/0G7dTSlSTeBk5k
+XqIySdIqtfYbW0kQinA0PaxDzzX5g1q3CclY9lNTAglR5fP71kunXh7ntwk=
+-----END ED25519 CERT-----
+master-key-ed25519 z3PGka1FKJSLKyhTCsu0lQsSr6Rq3HRQJ4vgWodVmR4
+platform Tor 0.4.2.6 on Linux
+proto Cons=1-2 Desc=1-2 DirCache=1-2 HSDir=1-2 HSIntro=3-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 Relay=1-2 Padding=2 FlowCtrl=1
+published 2020-03-18 19:18:16
+fingerprint EB6E FB27 F29A C951 1A42 46D7 ABE1 AFAB FB41 6FF1
+uptime 1828391
+bandwidth 10485760 10485760 9974201
+extra-info-digest 28677C752F1AF039207D5877B685B15D15ACF6F1 wsoqSuYZOFJDNdGfGOJD22rmNt6X8dSXS8VztNcUkZU
+onion-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAN53gdx526paqFkIyK1vpga34Et8OgtXrt/aBScyUeExJ1i9XEYdVM4y
+0CJ/NudyIn1GCJ3Xr5DP16Z32X5epVwiCXuJDmbH3ByzNQ6WZMM/GdzRy78zl3wh
+hWCJBVMNIk+rkeCzvuLJ1CdmBZUU4Aofbawp4sJTw4ORL2WST2RhAgMBAAE=
+-----END RSA PUBLIC KEY-----
+signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAL2lNU5OSvQXr4CHiRhhNEbuZb9bT9fOCK7Z7UslXl7uvi5OMEwG/djD
+AxzenKrCtEByNosISbjCBfkum8+rQfTSWWpL2/8VedBW7TNSzFM5A8TcH9KvdERi
+jsXIYsqGaKsV7hpY+0kAy/n4a2DPj3YmiEWN77aanrBGHxikIpqrAgMBAAE=
+-----END RSA PUBLIC KEY-----
+onion-key-crosscert
+-----BEGIN CROSSCERT-----
+j0OTQmRYDf4sdV0MGhsvNe0RyqOOGDjtNP7F4Y/nYXWt2NFLmjHH9oFlmoszeG9I
+PDyK3uhzXBhwk0gcE1nKPfGPbxJr9PMO0hKXW6CYsrTfXbAHwX0gXGx0VO5e7/te
+8WvPiKJIUacelgDE9/xrd0IGlM5EX7oLdCbHCG5Ore8=
+-----END CROSSCERT-----
+ntor-onion-key-crosscert 0
+-----BEGIN ED25519 CERT-----
+AQoABrn8Ac9zxpGtRSiUiysoUwrLtJULEq+katx0UCeL4FqHVZkeAChJs8SuYrpx
+Z3bkcrJPYXRNPccdjAQHAIyLD1LcjcNTLnPuYjwjqexXe+v7D4nPdct2mIyVGOVn
+idq3RPrhVAo=
+-----END ED25519 CERT-----
+hidden-service-dir
+contact idun654[at]protonmail(dot)com
+ntor-onion-key NX3OZ1Di3YRJrcmGcx9qMTUEtyeAHzBX26i3bzNCLlk=
+reject *:*
+router-sig-ed25519 tu/1Eue9uFHfycx0/GNclSbjRh2KgaGtlCmc8DMO8sM/wxRLizNVndrBUSESjC3DA+HGsnSHPk0v6+HTzptOBw
+router-signature
+-----BEGIN SIGNATURE-----
+JwKZf7boV3DjfFWrGFYVKUuaFWktozmkJZhq/reki0Qsh00ZWA9Ud9alZ8h6mOmK
+GpkoP/wgh089xbHi0h+3XpGGNkUC6hvHTBVOJZZdkl30shzOuN1T3cXkn2PeWewQ
+OUjGwpTnnsWfbV8Ybmnmc767mmkrLVyf5FdMs0F0OBE=
+-----END SIGNATURE-----
