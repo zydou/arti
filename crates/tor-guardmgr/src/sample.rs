@@ -679,7 +679,7 @@ impl GuardSet {
             .filter_map(move |(p, id)| self.guards.by_all_ids(id).map(|g| (p, g)))
     }
 
-    /// Return true if `guard_id` is an identity for a primary guard.
+    /// Return true if `guard_id` is an identity subset for any primary guard in this set.
     fn guard_is_primary(&self, guard_id: &GuardId) -> bool {
         // (This could be yes/no/maybe.)
 
