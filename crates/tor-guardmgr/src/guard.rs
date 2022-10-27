@@ -302,12 +302,24 @@ impl Guard {
 
     /// Copy all _non-persistent_ status from `other` to self.
     ///
+    /// We do this when we were not the owner of our persistent state, and we
+    /// have just reloaded it (as `self`), but we have some ephemeral knowledge
+    /// about this guard (as `other`).
+    ///
+    /// You should not invent new uses for this function; instead we should come
+    /// up with alternatives.
+    ///
     /// # Panics
     ///
-    /// Panics if the identities in `self` are not a superset of the identities
-    /// in `other`.
-    pub(crate) fn copy_status_from(self, other: Guard) -> Guard {
-        assert!(self.has_all_relay_ids_from(&other));
+    /// Panics if the identities in `self` are not exactly the same as the
+    /// identities in `other`.
+    pub(crate) fn copy_ephemeral_status_into_newly_loaded_state(self, other: Guard) -> Guard {
+        // It is not safe to copy failure information unless these identities
+        // are a superset of those in `other`; but it is not safe to copy success
+        // information unless these identities are a subset of those in `other`.
+        //
+        // To simplify matters, we just insist that the identities have to be the same.
+        assert!(self.same_relay_ids(&other));
 
         Guard {
             // All other persistent fields are taken from `self`.

@@ -264,37 +264,15 @@ impl GuardSet {
     /// instance thinks the guards are. At that point, `self` is the set of
     /// guards that we just loaded from state, and `other` is our old guards,
     /// which we are using only for their status information.
-    pub(crate) fn copy_status_from(&mut self, mut other: GuardSet) {
+    pub(crate) fn copy_ephemeral_status_into_newly_loaded_state(&mut self, mut other: GuardSet) {
         let old_guards = std::mem::take(&mut self.guards);
         self.guards = old_guards
             .into_values()
             .map(|guard| {
                 let id = guard.guard_id();
-                // We insist on a superset of identities here, which carries
-                // some risk of misidentification if:
-                //   * We don't own our state
-                //   * We have discovered an additional ID for this guard.
-                //   * The state-owning Arti instance has not discovered that
-                //     ID, AND has not discovered any conflicting ID.
-                //   * That ID is not in fact correct.
-                //
-                // This shouldn't be too likely in reality, however, and the
-                // impact is limited to us applying our assumptions about
-                // whether a guard is up or down to an incorrect guard.
-                //
-                // TODO relay: A relay should never be able to reach this code,
-                // since it should insist on knowing its state.
-                let other_id = match other.contains(id) {
-                    Ok(true) => Some(id),
-                    Err(less_specific) => Some(less_specific),
-                    Ok(false) => None,
-                };
 
-                if let Some(other_guard) = other_id
-                    .cloned()
-                    .and_then(|oid| other.guards.remove_by_all_ids(&oid))
-                {
-                    guard.copy_status_from(other_guard)
+                if let Some(other_guard) = other.guards.remove_exact(id) {
+                    guard.copy_ephemeral_status_into_newly_loaded_state(other_guard)
                 } else {
                     guard
                 }
@@ -1507,7 +1485,7 @@ mod test {
         guards2.record_failure(&id2, None, Instant::now());
 
         // Copy status: make sure non-persistent status changed, and  persistent didn't.
-        guards1.copy_status_from(guards2);
+        guards1.copy_ephemeral_status_into_newly_loaded_state(guards2);
         {
             let g1 = guards1.get(&id1).unwrap();
             let g2 = guards1.get(&id2).unwrap();
@@ -1546,7 +1524,7 @@ mod test {
         }
         assert_ne!(g1_set, g3_set);
         // Do the copy; make sure that the membership is unchanged.
-        guards1.copy_status_from(guards3);
+        guards1.copy_ephemeral_status_into_newly_loaded_state(guards3);
         let g1_set_new: HashSet<_> = guards1
             .guards
             .values()

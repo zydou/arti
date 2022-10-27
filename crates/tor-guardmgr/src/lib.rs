@@ -641,7 +641,9 @@ impl GuardSets {
         use strum::IntoEnumIterator;
         for sample in GuardSetSelector::iter() {
             self.guards_mut(&sample)
-                .copy_status_from(std::mem::take(other.guards_mut(&sample)));
+                .copy_ephemeral_status_into_newly_loaded_state(std::mem::take(
+                    other.guards_mut(&sample),
+                ));
         }
     }
 }
