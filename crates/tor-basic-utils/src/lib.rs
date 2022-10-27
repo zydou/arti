@@ -36,7 +36,9 @@
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+use std::collections::BinaryHeap;
 use std::fmt;
+use std::mem;
 
 pub mod futures;
 pub mod iter;
@@ -96,6 +98,26 @@ impl IoErrorExt for std::io::Error {
                     ERROR_DIRECTORY
                 },
             )
+    }
+}
+
+// ----------------------------------------------------------------------
+
+/// Implementation of `BinaryHeap::retain` that doesn't require Nightly
+pub trait BinaryHeapExt<T> {
+    /// Remove all elements for which `f` returns `false`
+    ///
+    /// Performance is not great right now - the algorithm is `O(n*log(n))`
+    /// where `n` is the number of elements in the heap (not the number removed).
+    ///
+    /// The name is `retain_ext` to avoid a name collision with the unstable function,
+    /// which would require the use of UFCS and make this unergonomic.
+    fn retain_ext<F: FnMut(&T) -> bool>(&mut self, f: F);
+}
+impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
+    fn retain_ext<F: FnMut(&T) -> bool>(&mut self, f: F) {
+        let items = mem::take(self).into_iter();
+        *self = items.filter(f).collect();
     }
 }
 
