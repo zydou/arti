@@ -72,8 +72,8 @@ impl CrateId {
 ///
 /// A Guard is a Tor relay that clients use for the first hop of their circuits.
 /// It doesn't need to be a relay that's currently on the network (that is, one
-/// that we could represent as a [`Relay`]): guards might be temporarily
-/// unlisted.
+/// that we could represent as a [`Relay`](tor_netdir::Relay)): guards might be
+/// temporarily unlisted.
 ///
 /// Some fields in guards are persistent; others are reset with every process.
 ///
