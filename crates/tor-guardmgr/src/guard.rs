@@ -268,7 +268,7 @@ impl Guard {
             disabled: None,
             confirmed_at: None,
             unlisted_since: None,
-            dir_info_missing: false,
+            dir_info_missing: false, // TODO pt-client this can be wrong for bridges.
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             retry_at: None,
