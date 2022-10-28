@@ -9,7 +9,7 @@ use std::time::SystemTime;
 
 use crate::{
     bridge::BridgeConfig,
-    sample::{CandidateStatus, Universe, WeightThreshold},
+    sample::{Candidate, CandidateStatus, Universe, WeightThreshold},
 };
 use dyn_clone::DynClone;
 use futures::stream::BoxStream;
@@ -214,11 +214,12 @@ impl Universe for BridgeSet {
             let bridge_relay = self.relay_by_bridge(bridge);
             // Logic here is similar to that of "contains"
             if bridge_relay.has_all_relay_ids_from(guard) {
-                CandidateStatus::Present {
+                CandidateStatus::Present(Candidate {
                     listed_as_guard: true,
                     is_dir_cache: true, // all bridges are directory caches.
+                    full_dir_info: bridge_relay.has_descriptor(),
                     owned_target: OwnedChanTarget::from_chan_target(&bridge_relay),
-                }
+                })
             } else if bridge_relay.has_descriptor() {
                 CandidateStatus::Absent
             } else {
@@ -252,7 +253,7 @@ impl Universe for BridgeSet {
         pre_existing: &tor_linkspec::ByRelayIds<T>,
         filter: &crate::GuardFilter,
         n: usize,
-    ) -> Vec<(tor_linkspec::OwnedChanTarget, tor_netdir::RelayWeight)>
+    ) -> Vec<(Candidate, tor_netdir::RelayWeight)>
     where
         T: HasRelayIds,
     {
@@ -268,8 +269,14 @@ impl Universe for BridgeSet {
             .choose_multiple(&mut rand::thread_rng(), n)
             .into_iter()
             .map(|bridge_config| {
+                let relay = self.relay_by_bridge(bridge_config);
                 (
-                    OwnedChanTarget::from_chan_target(&self.relay_by_bridge(bridge_config)),
+                    Candidate {
+                        listed_as_guard: true,
+                        is_dir_cache: true,
+                        full_dir_info: relay.has_descriptor(),
+                        owned_target: OwnedChanTarget::from_chan_target(&relay),
+                    },
                     RelayWeight::from(0),
                 )
             })

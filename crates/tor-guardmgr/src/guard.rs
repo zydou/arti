@@ -10,6 +10,7 @@ use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::dirstatus::DirStatus;
+use crate::sample::Candidate;
 use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
@@ -224,11 +225,31 @@ pub(crate) enum NewlyConfirmed {
 }
 
 impl Guard {
+    /// Create a new unused [`Guard`] from a [`Candidate`].
+    pub(crate) fn from_candidate(
+        candidate: Candidate,
+        now: SystemTime,
+        params: &GuardParams,
+    ) -> Self {
+        let Candidate {
+            is_dir_cache,
+            full_dir_info,
+            owned_target,
+            ..
+        } = candidate;
+
+        Guard {
+            is_dir_cache,
+            dir_info_missing: !full_dir_info,
+            ..Self::from_chan_target(&owned_target, now, params)
+        }
+    }
+
     /// Create a new unused [`Guard`] from a [`ChanTarget`].
     ///
     /// This function doesn't check whether the provided relay is a
     /// suitable guard node or not: that's up to the caller to decide.
-    pub(crate) fn from_chan_target<T>(relay: &T, now: SystemTime, params: &GuardParams) -> Self
+    fn from_chan_target<T>(relay: &T, now: SystemTime, params: &GuardParams) -> Self
     where
         T: ChanTarget,
     {
@@ -268,7 +289,7 @@ impl Guard {
             disabled: None,
             confirmed_at: None,
             unlisted_since: None,
-            dir_info_missing: false, // TODO pt-client this can be wrong for bridges.
+            dir_info_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             retry_at: None,
@@ -494,11 +515,12 @@ impl Guard {
         // for the guard, we won't know its full set of identities.
         use sample::CandidateStatus::*;
         let listed_as_guard = match universe.status(self) {
-            Present {
+            Present(Candidate {
                 listed_as_guard,
                 is_dir_cache,
+                full_dir_info,
                 owned_target,
-            } => {
+            }) => {
                 // Update address information.
                 self.orports = owned_target.addrs().into();
                 // Update Pt information.
@@ -512,6 +534,7 @@ impl Guard {
                 // Update our IDs: the Relay will have strictly more.
                 assert!(owned_target.has_all_relay_ids_from(self));
                 self.id = GuardId(RelayIds::from_relay_ids(&owned_target));
+                self.dir_info_missing = !full_dir_info;
 
                 listed_as_guard
             }

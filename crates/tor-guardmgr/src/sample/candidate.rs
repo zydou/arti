@@ -40,7 +40,7 @@ pub(crate) trait Universe {
         pre_existing: &ByRelayIds<T>,
         filter: &GuardFilter,
         n: usize,
-    ) -> Vec<(OwnedChanTarget, RelayWeight)>
+    ) -> Vec<(Candidate, RelayWeight)>
     where
         T: HasRelayIds;
 }
@@ -50,20 +50,26 @@ pub(crate) trait Universe {
 #[derive(Clone, Debug)]
 pub(crate) enum CandidateStatus {
     /// The candidate is definitely present in some form.
-    Present {
-        /// True if the candidate is not currently disabled for use as a guard.
-        listed_as_guard: bool,
-        /// True if the candidate can be used as a directory cache.
-        is_dir_cache: bool,
-        /// Information about connecting to the candidate and using it to build
-        /// a channel.
-        owned_target: OwnedChanTarget,
-    },
+    Present(Candidate),
     /// The candidate is definitely not in the [`Universe`].
     Absent,
     /// We would need to download more directory information to be sure whether
     /// this candidate is in the [`Universe`].
     Uncertain,
+}
+
+/// Information about a candidate that we have selected as a guard.
+#[derive(Clone, Debug)]
+pub(crate) struct Candidate {
+    /// True if the candidate is not currently disabled for use as a guard.
+    pub(crate) listed_as_guard: bool,
+    /// True if the candidate can be used as a directory cache.
+    pub(crate) is_dir_cache: bool,
+    /// True if we have complete directory information about this candidate.
+    pub(crate) full_dir_info: bool,
+    /// Information about connecting to the candidate and using it to build
+    /// a channel.
+    pub(crate) owned_target: OwnedChanTarget,
 }
 
 /// Information about how much of the universe we are using in a guard sample,
@@ -93,11 +99,12 @@ impl Universe for NetDir {
 
     fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus {
         match NetDir::by_ids(self, guard) {
-            Some(relay) => CandidateStatus::Present {
+            Some(relay) => CandidateStatus::Present(Candidate {
                 listed_as_guard: relay.is_flagged_guard(),
                 is_dir_cache: relay.is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
-            },
+                full_dir_info: true,
+            }),
             None => match NetDir::ids_listed(self, guard) {
                 Some(true) => panic!("ids_listed said true, but by_ids said none!"),
                 Some(false) => CandidateStatus::Absent,
@@ -139,7 +146,7 @@ impl Universe for NetDir {
         pre_existing: &ByRelayIds<T>,
         filter: &GuardFilter,
         n: usize,
-    ) -> Vec<(OwnedChanTarget, RelayWeight)>
+    ) -> Vec<(Candidate, RelayWeight)>
     where
         T: HasRelayIds,
     {
@@ -165,7 +172,12 @@ impl Universe for NetDir {
         .iter()
         .map(|relay| {
             (
-                OwnedChanTarget::from_chan_target(relay),
+                Candidate {
+                    listed_as_guard: true,
+                    is_dir_cache: true,
+                    full_dir_info: true,
+                    owned_target: OwnedChanTarget::from_chan_target(relay),
+                },
                 weight(self, relay).unwrap_or_else(|| RelayWeight::from(0)),
             )
         })

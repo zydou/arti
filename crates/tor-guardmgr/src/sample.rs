@@ -15,7 +15,7 @@ use crate::{
 };
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
-use tor_linkspec::{ByRelayIds, ChanTarget, HasRelayIds};
+use tor_linkspec::{ByRelayIds, HasRelayIds};
 
 use itertools::Itertools;
 use rand::seq::SliceRandom;
@@ -25,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
 use tracing::{debug, info};
 
-pub(crate) use candidate::{CandidateStatus, Universe, WeightThreshold};
+pub(crate) use candidate::{Candidate, CandidateStatus, Universe, WeightThreshold};
 
 /// A set of sampled guards, along with various orderings on subsets
 /// of the sample.
@@ -455,11 +455,11 @@ impl GuardSet {
                 // We've reached our target; no need to add more.
                 break;
             }
-            if self.active_filter.permits(&candidate) {
+            if self.active_filter.permits(&candidate.owned_target) {
                 n_filtered_usable += 1;
             }
             current_weight += weight;
-            self.add_guard(&candidate, now, params);
+            self.add_guard(candidate, now, params);
             any_added = true;
         }
         self.assert_consistency();
@@ -469,13 +469,13 @@ impl GuardSet {
     /// Add `relay` as a new guard.
     ///
     /// Does nothing if it is already a guard.
-    fn add_guard<T: ChanTarget>(&mut self, relay: &T, now: SystemTime, params: &GuardParams) {
-        let id = GuardId::from_relay_ids(relay);
+    fn add_guard(&mut self, relay: Candidate, now: SystemTime, params: &GuardParams) {
+        let id = GuardId::from_relay_ids(&relay.owned_target);
         if self.guards.by_all_ids(&id).is_some() {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
-        let guard = Guard::from_chan_target(relay, now, params);
+        let guard = Guard::from_candidate(relay, now, params);
         self.guards.insert(guard);
         self.sample.push(id);
         self.primary_guards_invalidated = true;
