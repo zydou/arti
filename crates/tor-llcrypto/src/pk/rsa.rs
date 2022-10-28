@@ -222,7 +222,7 @@ impl PublicKey {
     /// omitted.
     pub fn verify(&self, hashed: &[u8], sig: &[u8]) -> Result<(), signature::Error> {
         use rsa::PublicKey;
-        let padding = rsa::PaddingScheme::new_pkcs1v15_sign(None);
+        let padding = rsa::PaddingScheme::new_pkcs1v15_sign_raw();
         self.0
             .verify(padding, hashed, sig)
             .map_err(|_| signature::Error::new())
