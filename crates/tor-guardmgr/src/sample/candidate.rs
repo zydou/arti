@@ -3,7 +3,7 @@
 
 use std::time::SystemTime;
 
-use tor_linkspec::{ByRelayIds, HasRelayIds, OwnedChanTarget};
+use tor_linkspec::{ByRelayIds, ChanTarget, HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use crate::{GuardFilter, GuardParams};
@@ -11,16 +11,15 @@ use crate::{GuardFilter, GuardParams};
 /// A "Universe" is a source from which guard candidates are drawn, and from
 /// which guards are updated.
 pub(crate) trait Universe {
-    /// Check whether this universe contains a candidate with the given
-    /// identities.
+    /// Check whether this universe contains a candidate for the given guard.
     ///
     /// Return `Some(true)` if it definitely does; `Some(false)` if it
     /// definitely does not, and `None` if we cannot tell without downloading
     /// more information.
-    fn contains<T: HasRelayIds>(&self, id: &T) -> Option<bool>;
+    fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool>;
 
-    /// Return full information about a member of this universe, by its identity.
-    fn status<T: HasRelayIds>(&self, id: &T) -> CandidateStatus;
+    /// Return full information about a member of this universe for a given guard.
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus;
 
     /// Return the time at which this Universe last changed.  This can be
     /// approximate.
@@ -88,18 +87,18 @@ impl Universe for NetDir {
         NetDir::lifetime(self).valid_after()
     }
 
-    fn contains<T: HasRelayIds>(&self, id: &T) -> Option<bool> {
-        NetDir::ids_listed(self, id)
+    fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool> {
+        NetDir::ids_listed(self, guard)
     }
 
-    fn status<T: HasRelayIds>(&self, id: &T) -> CandidateStatus {
-        match NetDir::by_ids(self, id) {
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus {
+        match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present {
                 listed_as_guard: relay.is_flagged_guard(),
                 is_dir_cache: relay.is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
             },
-            None => match NetDir::ids_listed(self, id) {
+            None => match NetDir::ids_listed(self, guard) {
                 Some(true) => panic!("ids_listed said true, but by_ids said none!"),
                 Some(false) => CandidateStatus::Absent,
                 None => CandidateStatus::Uncertain,

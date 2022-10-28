@@ -475,7 +475,7 @@ impl Guard {
     /// download more directory information about this guard before we can be
     /// certain whether this guard is listed or not.
     pub(crate) fn listed_in<U: sample::Universe>(&self, universe: &U) -> Option<bool> {
-        universe.contains(&self.id)
+        universe.contains(self)
     }
 
     /// Change this guard's status based on a newly received or newly updated
@@ -493,7 +493,7 @@ impl Guard {
         // This is a tricky check, since if we're missing directory information
         // for the guard, we won't know its full set of identities.
         use sample::CandidateStatus::*;
-        let listed_as_guard = match universe.status(&self.id) {
+        let listed_as_guard = match universe.status(self) {
             Present {
                 listed_as_guard,
                 is_dir_cache,
