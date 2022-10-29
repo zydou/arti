@@ -1249,9 +1249,7 @@ dependencies = [
 name = "fs-mistrust"
 version = "0.5.1"
 dependencies = [
- "anyhow",
  "derive_builder_fork_arti",
- "derive_more",
  "dirs",
  "educe",
  "libc",
@@ -3685,7 +3683,6 @@ dependencies = [
  "fs-mistrust",
  "fslock",
  "futures",
- "futures-await-test",
  "hex",
  "hex-literal",
  "humantime-serde",
@@ -3778,7 +3775,6 @@ dependencies = [
  "tor-proto",
  "tor-protover",
  "tor-rtcompat",
- "tor-rtmock",
  "tor-units",
  "tracing",
 ]
@@ -3852,7 +3848,6 @@ dependencies = [
  "float_eq",
  "futures",
  "hex",
- "hex-literal",
  "num_enum",
  "rand 0.8.5",
  "rand_chacha 0.3.1",

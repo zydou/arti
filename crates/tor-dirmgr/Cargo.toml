@@ -72,7 +72,6 @@ tracing = "0.1.18"
 
 [dev-dependencies]
 float_eq = "1.0.0"
-futures-await-test = "0.3.0"
 hex-literal = "0.3"
 tempfile = "3"
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }

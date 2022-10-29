@@ -24,7 +24,7 @@ experimental-api = []
 
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
-testing = ["hex", "hex-literal", "tor-netdoc/build_docs"]
+testing = ["hex", "tor-netdoc/build_docs"]
 
 [dependencies]
 bitflags = "1"
@@ -32,7 +32,6 @@ derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
 derive_more = "0.99"
 futures = "0.3.14"
 hex = { version = "0.4", optional = true }
-hex-literal = { version = "0.3", optional = true }
 num_enum = "0.5"
 rand = "0.8"
 serde = { version = "1.0.103", features = ["derive"] }
@@ -53,7 +52,6 @@ tracing = "0.1.18"
 [dev-dependencies]
 float_eq = "1.0.0"
 hex = "0.4"
-hex-literal = "0.3"
 rand_chacha = "0.3"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2", features = ["build_docs"] }
