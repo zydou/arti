@@ -197,8 +197,7 @@ fn reconfigure<R: Runtime>(
 struct FileWatcher {
     /// An underlying `notify` watcher that tells us about directory changes.
     // this field is kept only so the watcher is not dropped
-    #[allow(dead_code)]
-    watcher: notify::RecommendedWatcher,
+    _watcher: notify::RecommendedWatcher,
 }
 
 impl FileWatcher {
@@ -338,6 +337,6 @@ impl FileWatcherBuilder {
             watcher.watch(&dir, notify::RecursiveMode::NonRecursive)?;
         }
 
-        Ok(FileWatcher { watcher })
+        Ok(FileWatcher { _watcher: watcher })
     }
 }
