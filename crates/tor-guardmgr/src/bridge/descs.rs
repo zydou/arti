@@ -67,7 +67,7 @@ impl tor_linkspec::HasRelayIdsLegacy for BridgeDesc {
 /// This is analogous to NetDirProvider.
 ///
 /// TODO pt-client: improve documentation.
-pub trait BridgeDescProvider: DynClone {
+pub trait BridgeDescProvider: DynClone + Send + Sync {
     /// Return the current set of bridge descriptors.
     fn bridges(&self) -> Arc<BridgeDescList>;
 
