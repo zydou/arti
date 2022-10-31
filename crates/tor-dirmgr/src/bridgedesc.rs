@@ -32,6 +32,9 @@ use tor_rtcompat::Runtime;
 
 use crate::event::FlagPublisher;
 
+#[cfg(test)]
+mod bdtest;
+
 /// The key we use in all our data structures
 ///
 /// This type saves typing and would make it easier to change the bridge descriptor manager
@@ -1055,6 +1058,11 @@ pub enum Error {
     /// There was a programming error somewhere in our code, or the calling code.
     #[error("Programming error")]
     Bug(#[from] tor_error::Bug),
+
+    /// Error used for testing
+    #[cfg(test)]
+    #[error("Error for testing, {0:?}, retry at {1:?}")]
+    TestError(&'static str, RetryTime),
 }
 
 impl HasKind for Error {
@@ -1073,6 +1081,8 @@ impl HasKind for Error {
             E::ExtremeValidityTime => bridge_protocol_violation,
             E::BadValidityTime(..) => EK::ClockSkew,
             E::Bug(e) => e.kind(),
+            #[cfg(test)]
+            E::TestError(..) => EK::Internal,
         }
     }
 }
@@ -1099,6 +1109,9 @@ impl HasRetryTime for Error {
 
             // Probably, things are broken here, rather than remotely.
             E::Bug(..) => R::Never,
+
+            #[cfg(test)]
+            E::TestError(_, retry) => *retry,
         }
     }
 }
