@@ -482,6 +482,17 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
 
         Ok(BridgeDescManager { mgr })
     }
+
+    /// Consistency check convenience wrapper
+    #[cfg(test)]
+    fn check_consistency<'i, I>(&self, input_bridges: Option<I>)
+    where
+        I: IntoIterator<Item = &'i BridgeKey>,
+    {
+        self.mgr
+            .lock_only()
+            .check_consistency(&self.mgr.runtime, input_bridges);
+    }
 }
 
 impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> {
@@ -1093,3 +1104,188 @@ impl HasRetryTime for Error {
 }
 
 impl BridgeDescError for Error {}
+
+impl State {
+    /// Consistency check (for testing)
+    ///
+    /// `input` should be what was passed to `set_bridges` (or `None` if not known).
+    ///
+    /// Does not make any changes.
+    /// Only takes `&mut` because postage::watch::Sender::borrow` wants it.
+    #[cfg(test)]
+    fn check_consistency<'i, R, I>(&mut self, runtime: &R, input: Option<I>)
+    where
+        R: Runtime,
+        I: IntoIterator<Item = &'i BridgeKey>,
+    {
+        /// Where we found a thing was Tracked
+        #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+        enum Where {
+            /// Found in `running`
+            Running,
+            /// Found in `queued`
+            Queued,
+            /// Found in the schedule `sch`
+            Schedule {
+                sch_name: &'static str,
+                /// Starts out as `false`, set to `true` when we find this in `current`
+                found_in_current: bool,
+            },
+        }
+
+        /// Records the expected input from `input`, and what we have found so far
+        struct Tracked {
+            /// Were we told what the last `set_bridges` call got as input?
+            known_input: bool,
+            /// `Some` means we have seen this bridge in one our records (other than `current`)
+            tracked: HashMap<BridgeKey, Option<Where>>,
+            /// Earliest instant found in any schedule
+            earliest: Option<Instant>,
+        }
+
+        let mut tracked = if let Some(input) = input {
+            let tracked = input.into_iter().map(|b| (b.clone(), None)).collect();
+            Tracked {
+                tracked,
+                known_input: true,
+                earliest: None,
+            }
+        } else {
+            Tracked {
+                tracked: HashMap::new(),
+                known_input: false,
+                earliest: None,
+            }
+        };
+
+        impl Tracked {
+            /// Note that `bridge` is Tracked
+            fn note(&mut self, where_: Where, b: &BridgeKey) {
+                match self.tracked.get(b) {
+                    // Invariant *Tracked* - ie appears at most once
+                    Some(Some(prev_where)) => {
+                        panic!("duplicate {:?} {:?} {:?}", prev_where, where_, b);
+                    }
+                    // Invariant *Input (every tracked bridge is was in input)*
+                    None if self.known_input => {
+                        panic!("unexpected {:?} {:?}", where_, b);
+                    }
+                    // OK, we've not seen it before, note it as being here
+                    _ => {
+                        self.tracked.insert(b.clone(), Some(where_));
+                    }
+                }
+            }
+        }
+
+        /// Walk `schedule` and update `tracked` (including `tracked.earliest`)
+        ///
+        /// Check invariant *Tracked* and *Schedule* wrt this schedule.
+        #[cfg(test)]
+        fn walk_sch<TT: Ord + Copy + Debug, RD, CT: Fn(TT) -> Instant>(
+            tracked: &mut Tracked,
+            sch_name: &'static str,
+            schedule: &BinaryHeap<RefetchEntry<TT, RD>>,
+            conv_time: CT,
+        ) {
+            let where_ = Where::Schedule {
+                sch_name,
+                found_in_current: false,
+            };
+
+            if let Some(first) = schedule.peek() {
+                // Of course this is a heap, so this ought to be a wasteful scan,
+                // but, indirectly,this tests our implementation of `Ord` for `RefetchEntry`.
+                for re in schedule {
+                    tracked.note(where_, &re.bridge);
+                }
+
+                let scanned = schedule
+                    .iter()
+                    .map(|re| re.when)
+                    .min()
+                    .expect("schedule empty!");
+                assert_eq!(scanned, first.when);
+                tracked.earliest = Some(
+                    [tracked.earliest, Some(conv_time(scanned))]
+                        .into_iter()
+                        .flatten()
+                        .min()
+                        .expect("flatten of chain Some was empty"),
+                );
+            }
+        }
+
+        // *Timeout* (prep)
+        //
+        // This will fail if there is clock skew, but won't mind if
+        // the earliest refetch time is in the past.
+        let now_wall = runtime.wallclock();
+        let now_mono = runtime.now();
+        let adj_wall = |wallclock: SystemTime| {
+            // Good grief what a palaver!
+            if let Ok(ahead) = wallclock.duration_since(now_wall) {
+                now_mono + ahead
+            } else if let Ok(behind) = now_wall.duration_since(wallclock) {
+                now_mono - behind
+            } else {
+                panic!("times should be totally ordered!")
+            }
+        };
+
+        // *Tracked*
+        //
+        // We walk our data structures in turn
+
+        for b in self.running.keys() {
+            tracked.note(Where::Running, b);
+        }
+        for qe in &self.queued {
+            tracked.note(Where::Queued, &qe.bridge);
+        }
+
+        walk_sch(&mut tracked, "refetch", &self.refetch_schedule, adj_wall);
+        walk_sch(&mut tracked, "retry", &self.retry_schedule, |t| t);
+
+        // *Current*
+        for b in self.current.keys() {
+            let found = tracked
+                .tracked
+                .get_mut(b)
+                .and_then(Option::as_mut)
+                .unwrap_or_else(|| panic!("current but untracked {:?}", b));
+            if let Where::Schedule {
+                found_in_current, ..
+            } = found
+            {
+                *found_in_current = true;
+            }
+        }
+
+        // *Input (sense: every input bridge is tracked)*
+        //
+        // (Will not cope if spawn ever failed, since that violates the invariant.)
+        for (b, where_) in &tracked.tracked {
+            match where_ {
+                None => panic!("missing {}", &b),
+                Some(Where::Schedule {
+                    sch_name,
+                    found_in_current,
+                }) => {
+                    assert!(found_in_current, "not-Schedule {} {}", &b, sch_name);
+                }
+                _ => {}
+            }
+        }
+
+        // *Limit*
+        let parallelism = u8::from(self.config.parallelism).into();
+        assert!(self.running.len() <= parallelism);
+
+        // *Running*
+        assert!(self.running.len() == parallelism || self.queued.is_empty());
+
+        // *Timeout* (final)
+        assert_eq!(tracked.earliest, *self.earliest_timeout.borrow());
+    }
+}
