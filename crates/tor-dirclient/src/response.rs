@@ -111,6 +111,17 @@ impl DirResponse {
         Ok(self.into_output_unchecked())
     }
 
+    /// Consume this DirResponse and return the output, as a string,
+    /// if it was successful and complete and valid UTF-8.
+    pub fn into_output_string(self) -> Result<String, RequestFailedError> {
+        self.check_ok()?;
+        let s = String::from_utf8(self.output).map_err(|error| RequestFailedError {
+            error: error.into(),
+            source: self.source.clone(),
+        })?;
+        Ok(s)
+    }
+
     /// Return the source information about this response.
     pub fn source(&self) -> Option<&SourceInfo> {
         self.source.as_ref()
