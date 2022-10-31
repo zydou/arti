@@ -383,13 +383,13 @@ dependencies = [
 
 [[package]]
 name = "async-rustls"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c86f33abd5a4f3e2d6d9251a9e0c6a7e52eb1113caf893dae8429bf4a53f378"
+checksum = "93b21a03b7c21702a0110f9f8d228763a533570deb376119042dabf33c37a01a"
 dependencies = [
- "futures-lite",
+ "futures-io",
  "rustls",
- "webpki 0.21.4",
+ "webpki",
 ]
 
 [[package]]
@@ -2777,15 +2777,14 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.19.1"
+version = "0.20.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
+checksum = "539a2bfe908f471bfa933876bd1eb6a19cf2176d375f82ef7f99530a40e48c2c"
 dependencies = [
- "base64",
  "log",
  "ring",
  "sct",
- "webpki 0.21.4",
+ "webpki",
 ]
 
 [[package]]
@@ -2864,9 +2863,9 @@ checksum = "9c8132065adcfd6e02db789d9285a0deb2f3fcb04002865ab67d5fb103533898"
 
 [[package]]
 name = "sct"
-version = "0.6.1"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b362b83898e0e69f38515b82ee15aa80636befe47c3b6d3d89a911e78fc228ce"
+checksum = "d53dcdb7c9f8158937a7981b48accfd39a43af418591a5d008c7b22b5e1b7ca4"
 dependencies = [
  "ring",
  "untrusted 0.7.1",
@@ -3413,7 +3412,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "void",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -3444,7 +3443,7 @@ dependencies = [
  "tls-api",
  "tokio",
  "untrusted 0.6.2",
- "webpki 0.22.0",
+ "webpki",
 ]
 
 [[package]]
@@ -4535,16 +4534,6 @@ checksum = "bcda906d8be16e728fd5adc5b729afad4e444e106ab28cd1c7256e54fa61510f"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "webpki"
-version = "0.21.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
-dependencies = [
- "ring",
- "untrusted 0.7.1",
 ]
 
 [[package]]
