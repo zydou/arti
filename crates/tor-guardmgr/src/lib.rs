@@ -208,6 +208,13 @@ struct GuardMgrInner {
     /// This has to be an Option so it can be initialized from None: at the
     /// time a GuardMgr is created, there is no NetDirProvider for it to use.
     netdir_provider: Option<Weak<dyn NetDirProvider>>,
+
+    /// A netdir provider that we can use for discovering bridge descriptors.
+    ///
+    /// This has to be an Option so it can be initialized from None: at the time
+    /// a GuardMgr is created, there is no BridgeDescProvider for it to use.
+    #[cfg(feature = "bridge-client")]
+    bridge_desc_provider: Option<Weak<dyn bridge::BridgeDescProvider>>,
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
@@ -305,6 +312,8 @@ impl<R: Runtime> GuardMgr<R> {
             send_skew,
             recv_skew,
             netdir_provider: None,
+            #[cfg(feature = "bridge-client")]
+            bridge_desc_provider: None,
         }));
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -352,16 +361,26 @@ impl<R: Runtime> GuardMgr<R> {
         Ok(())
     }
 
-    /// Configure a new BridgeDescProvider.
+    /// Configure a new [`bridge::BridgeDescProvider`] for this [`GuardMgr`].
     ///
-    /// TODO pt-client: give this more documentation, like install_netdir_provider has.
+    /// It will be used to learn about changes in the set of available bridge
+    /// descriptors; we'll inform it whenever our desired set of bridge
+    /// descriptors changes.
+    ///
+    /// TODO: Same todo as in `install_netdir_provider` about task handles.
     #[cfg(feature = "bridge-client")]
-    #[allow(clippy::needless_pass_by_value, clippy::missing_panics_doc)]
-    pub fn install_bridge_desc_provider<T>(
+    pub fn install_bridge_desc_provider(
         &self,
-        _provider: Arc<dyn bridge::BridgeDescProvider>,
+        provider: &Arc<dyn bridge::BridgeDescProvider>,
     ) -> Result<(), GuardMgrError> {
-        todo!() // TODO pt-client: Implement this and remove the clippy exceptions above.
+        let weak_provider = Arc::downgrade(provider);
+        {
+            let mut inner = self.inner.lock().expect("Poisoned lock");
+            inner.bridge_desc_provider = Some(weak_provider.clone());
+        }
+        // TODO pt-client: launch a keep_bridge_descs_updated task.
+
+        Ok(())
     }
 
     /// Flush our current guard state to the state manager, if there
