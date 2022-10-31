@@ -4,7 +4,7 @@ use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use rustls::{Certificate, ServerName, TLSError};
+use rustls::{Certificate, Error as TLSError, ServerName};
 use rustls_crate as rustls;
 
 use std::{
@@ -154,11 +154,10 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         &self,
         message: &[u8],
         cert: &rustls::Certificate,
-        dss: &rustls::internal::msgs::handshake::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, rustls::TLSError> {
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
-        let signature = dss.sig.0.as_ref();
 
         // NOTE:
         //
@@ -169,7 +168,7 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         // It turns out, apparently, unless my experiments are wrong,  that
         // OpenSSL will happily use PSS with TLS 1.2.  At least, it seems to do
         // so when invoked via native_tls in the test code for this crate.
-        cert.check_signature(scheme, message, signature)
+        cert.check_signature(scheme, message, dss.signature())
             .map(|_| rustls::client::HandshakeSignatureValid::assertion())
             .map_err(|_| TLSError::InvalidCertificateSignature)
     }
@@ -178,13 +177,12 @@ impl rustls_crate::client::ServerCertVerifier for Verifier {
         &self,
         message: &[u8],
         cert: &rustls::Certificate,
-        dss: &rustls::internal::msgs::handshake::DigitallySignedStruct,
-    ) -> Result<rustls::client::HandshakeSignatureValid, rustls::TLSError> {
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
-        let signature = dss.sig.0.as_ref();
 
-        cert.check_tls13_signature(scheme, message, signature)
+        cert.check_tls13_signature(scheme, message, dss.signature())
             .map(|_| rustls::client::HandshakeSignatureValid::assertion())
             .map_err(|_| TLSError::InvalidCertificateSignature)
     }
