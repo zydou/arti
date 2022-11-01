@@ -19,7 +19,7 @@ pub(crate) trait Universe {
     fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool>;
 
     /// Return full information about a member of this universe for a given guard.
-    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus;
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate>;
 
     /// Return the time at which this Universe last changed.  This can be
     /// approximate.
@@ -48,9 +48,9 @@ pub(crate) trait Universe {
 /// Information about a single guard candidate, as returned by
 /// [`Universe::status`].
 #[derive(Clone, Debug)]
-pub(crate) enum CandidateStatus {
+pub(crate) enum CandidateStatus<T> {
     /// The candidate is definitely present in some form.
-    Present(Candidate),
+    Present(T),
     /// The candidate is definitely not in the [`Universe`].
     Absent,
     /// We would need to download more directory information to be sure whether
@@ -97,7 +97,7 @@ impl Universe for NetDir {
         NetDir::ids_listed(self, guard)
     }
 
-    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus {
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
         match NetDir::by_ids(self, guard) {
             Some(relay) => CandidateStatus::Present(Candidate {
                 listed_as_guard: relay.is_flagged_guard(),

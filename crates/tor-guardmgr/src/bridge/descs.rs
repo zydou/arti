@@ -183,50 +183,55 @@ impl BridgeSet {
         };
         BridgeRelay::new(bridge.clone(), desc)
     }
-}
 
-impl Universe for BridgeSet {
-    fn contains<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> Option<bool> {
+    /// Look up a BridgeRelay corresponding to a given guard.
+    fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
+        &self,
+        guard: &T,
+    ) -> CandidateStatus<BridgeRelay> {
         match self.bridge_by_guard(guard) {
             Some(bridge) => {
                 let bridge_relay = self.relay_by_bridge(bridge);
                 if bridge_relay.has_all_relay_ids_from(guard) {
                     // We have all the IDs from the guard, either in the bridge
                     // line or in the descriptor, so the match is exact.
-                    Some(true)
+                    CandidateStatus::Present(bridge_relay)
                 } else if bridge_relay.has_descriptor() {
                     // We don't have an exact match and we have have a
                     // descriptor, so we know that this is _not_ a real match.
-                    Some(false)
+                    CandidateStatus::Absent
                 } else {
                     // We don't have a descriptor; finding it might make our
                     // match precise.
-                    None
+                    CandidateStatus::Uncertain
                 }
             }
-            // We found no bridge that matches this guard's
-            None => Some(false),
+            // We found no bridge that matches this guard's identities, so we
+            // can declare it absent.
+            None => CandidateStatus::Absent,
+        }
+    }
+}
+
+impl Universe for BridgeSet {
+    fn contains<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> Option<bool> {
+        match self.bridge_relay_by_guard(guard) {
+            CandidateStatus::Present(_) => Some(true),
+            CandidateStatus::Absent => Some(false),
+            CandidateStatus::Uncertain => None,
         }
     }
 
-    fn status<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> CandidateStatus {
-        if let Some(bridge) = self.bridge_by_guard(guard) {
-            let bridge_relay = self.relay_by_bridge(bridge);
-            // Logic here is similar to that of "contains"
-            if bridge_relay.has_all_relay_ids_from(guard) {
-                CandidateStatus::Present(Candidate {
-                    listed_as_guard: true,
-                    is_dir_cache: true, // all bridges are directory caches.
-                    full_dir_info: bridge_relay.has_descriptor(),
-                    owned_target: OwnedChanTarget::from_chan_target(&bridge_relay),
-                })
-            } else if bridge_relay.has_descriptor() {
-                CandidateStatus::Absent
-            } else {
-                CandidateStatus::Uncertain
-            }
-        } else {
-            CandidateStatus::Absent
+    fn status<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
+        match self.bridge_relay_by_guard(guard) {
+            CandidateStatus::Present(bridge_relay) => CandidateStatus::Present(Candidate {
+                listed_as_guard: true,
+                is_dir_cache: true, // all bridges are directory caches.
+                full_dir_info: bridge_relay.has_descriptor(),
+                owned_target: OwnedChanTarget::from_chan_target(&bridge_relay),
+            }),
+            CandidateStatus::Absent => CandidateStatus::Absent,
+            CandidateStatus::Uncertain => CandidateStatus::Uncertain,
         }
     }
 
