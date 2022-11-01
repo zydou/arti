@@ -65,7 +65,6 @@ tor-netdir = { path = "../tor-netdir", version = "0.6.0", features = ["testing"]
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
 tor-persist = { path = "../tor-persist", version = "0.5.1", features = ["testing"] }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.6.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

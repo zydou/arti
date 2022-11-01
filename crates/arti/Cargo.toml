@@ -84,9 +84,6 @@ regex = { version = "1", default-features = false, features = ["std"] }
 serde_json = "1.0.50"
 toml = "0.5.6"
 
-[target.'cfg(unix)'.dependencies]
-libc = { version = "0.2", default-features = false }
-
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.8", features = ["winerror"] }
 [package.metadata.docs.rs]
