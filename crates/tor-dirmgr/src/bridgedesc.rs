@@ -694,7 +694,10 @@ impl State {
         *self.earliest_timeout.borrow_mut() = new_earliest_timeout;
     }
 
-    /// Launch circuits if we can
+    /// Launch download attempts if we can
+    ///
+    /// Specifically: if we have things in `queued`, and `running` is shorter than
+    /// `config.parallelism`, we launch task(s) to attempt download(s).
     ///
     /// Restores liveness invariant *Running*.
     ///
@@ -717,6 +720,8 @@ impl State {
                     let bridge = bridge.clone();
                     let inner = mgr.clone();
                     let mockable = inner.mockable.clone();
+
+                    // The task which actually downloads a descriptor.
                     async move {
                         let got = inner.download_descriptor(mockable, &bridge, &config).await;
                         let mut state = inner.lock_then_process();
