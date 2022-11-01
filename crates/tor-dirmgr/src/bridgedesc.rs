@@ -284,6 +284,8 @@ struct State {
     retry_schedule: BinaryHeap<RefetchEntry<Instant, RetryDelay>>,
 
     /// Earliest time from either `retry_schedule` or `refetch_schedule`
+    ///
+    /// `None` means "wait indefinitely".
     earliest_timeout: postage::watch::Sender<Option<Instant>>,
 }
 
@@ -956,6 +958,9 @@ async fn timeout_task<R: Runtime, M: Mockable<R>>(
         select! {
             // Someone modified the schedules, and sent us a new earliest timeout
             changed = update.next() => {
+                // changed is Option<Option< >>.
+                // The outer Option is from the Stream impl for watch::Receiver - None means EOF.
+                // The inner Option is Some(wakeup_time), or None meaning "wait indefinitely"
                 next_wakeup = if let Some(changed) = changed {
                     changed
                 } else {
