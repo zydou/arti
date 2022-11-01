@@ -705,6 +705,18 @@ impl GuardMgrInner {
             .and_then(|np| np.timely_netdir().ok())
     }
 
+    /// Look up the latest [`BridgeDescList`](bridge::BridgeDescList) (if there
+    /// is one) from our [`BridgeDescProvider`](bridge::BridgeDescProvider) (if
+    /// we have one).
+    #[cfg(feature = "bridge-client")]
+    #[allow(dead_code)]
+    fn latest_bridge_desc_list(&self) -> Option<Arc<bridge::BridgeDescList>> {
+        self.bridge_desc_provider
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .map(|bp| bp.bridges())
+    }
+
     /// Run a function that takes `&mut self` and an optional NetDir.
     ///
     /// If a NetDir is provided, use that.  Otherwise, try to use the netdir
