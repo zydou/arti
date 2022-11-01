@@ -912,6 +912,12 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
 }
 
 /// Task which waits for the timeout, and requeues bridges that need to be refetched
+///
+/// This task's job is to execute the wakeup instructions provided via `updates`.
+///
+/// `updates` is the receiving end of [`State`]'s `earliest_timeout`,
+/// which is maintained to be the earliest time any of the schedules says we should wake up
+/// (liveness property *Timeout*).
 async fn timeout_task<R: Runtime, M: Mockable<R>>(
     runtime: R,
     inner: Weak<Manager<R, M>>,
