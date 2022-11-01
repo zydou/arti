@@ -30,7 +30,7 @@ testing = []
 [dependencies]
 base64 = "0.13.0"
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
-derive_more = "0.99"
+derive_more = "0.99.3"
 dyn-clone = "1.0.4"
 educe = "0.4.6"
 futures = "0.3.14"

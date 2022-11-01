@@ -59,7 +59,7 @@ error_detail = []
 [dependencies]
 cfg-if = "1.0.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99"
+derive_more = "0.99.3"
 directories = "4"
 educe = "0.4.6"
 fs-mistrust = { path = "../fs-mistrust", version = "0.5.0", features = ["serde"] }

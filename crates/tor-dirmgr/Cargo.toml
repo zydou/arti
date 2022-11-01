@@ -33,7 +33,7 @@ experimental-api = []
 async-trait = "0.1.2"
 base64 = "0.13.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99"
+derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "2"

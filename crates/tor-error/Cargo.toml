@@ -16,7 +16,7 @@ default = ["backtrace"]
 
 [dependencies]
 backtrace = { version = "0.3.39", optional = true }
-derive_more = "0.99"
+derive_more = "0.99.3"
 futures = "0.3"
 once_cell = "1"
 strum = { version = "0.24", features = ["derive"] }

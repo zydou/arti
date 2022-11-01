@@ -28,7 +28,7 @@ void = "1"
 libc = { version = "0.2", default-features = false }
 
 [dev-dependencies]
-derive_more = "0.99"
+derive_more = "0.99.3"
 educe = "0.4.6"
 futures-await-test = "0.3.0"
 tokio = { version = "1.7", features = ["macros", "rt", "rt-multi-thread", "time"] }
