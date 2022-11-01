@@ -235,7 +235,7 @@ async fn success() -> Result<(), anyhow::Error> {
 
     eprintln!("----- move the clock forward to do some retries ----------");
 
-    mock.sleep.advance(Duration::from_secs(50000)).await;
+    mock.sleep.advance(Duration::from_secs(5000)).await;
 
     bdm.check_consistency(Some(&bridges));
 

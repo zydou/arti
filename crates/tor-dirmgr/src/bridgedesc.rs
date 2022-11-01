@@ -104,7 +104,7 @@ impl Default for BridgeDescDownloadConfig {
             retry: secs(30),
             prefetch: secs(1000),
             min_refetch: secs(3600),
-            max_refetch: secs(86400),
+            max_refetch: secs(3600 * 3), // matches C Tor behaviour
         }
     }
 }
