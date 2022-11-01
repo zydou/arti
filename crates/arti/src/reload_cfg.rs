@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel as std_channel, Sender};
+use std::time::Duration;
 
 use anyhow::Context;
 use arti_client::config::Reconfigure;
@@ -16,6 +17,9 @@ use futures::task::SpawnExt;
 
 use crate::process::sighup_stream;
 use crate::{ArtiCombinedConfig, ArtiConfig};
+
+/// How long to wait after an event got received, before we try to process it.
+const DEBOUNCE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Event possibly triggering a configuration reload
 #[derive(Debug)]
@@ -78,6 +82,9 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         debug!("Entering FS event loop");
         let mut iife = || -> Result<(), anyhow::Error> {
             while let Ok(event) = rx.recv() {
+                // we are in a dedicated thread, it's safe to thread::sleep.
+                std::thread::sleep(DEBOUNCE_INTERVAL);
+
                 while let Ok(_ignore) = rx.try_recv() {
                     // Discard other events, so that we only reload once.
                     //
