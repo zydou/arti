@@ -207,6 +207,9 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 ///
 /// ### Possible states of a bridge:
 ///
+/// A bridge can be in one of the following states,
+/// represented by its presence in these particular data structures inside `State`:
+///
 ///  * `running`/`queued`: newly added, no outcome yet.
 ///  * `current` + `running`/`queued`: we are fetching (or going to)
 ///  * `current = OK` + `refetch_schedule`: fetched OK, will refetch before expiry
