@@ -95,17 +95,24 @@ pub(crate) struct Guard {
 
     /// The most recently seen addresses for this guard.  If `pt_targets` is
     /// empty, these are the addresses we use for making OR connections to this
-    /// guard directly.
+    /// guard directly.  If `pt_targets` is nonempty, these are addresses at
+    /// which the server is "located" (q.v. [`HasAddrs`]), but not ways to
+    /// connect to it.
     orports: Vec<SocketAddr>,
 
     /// Any `PtTarget` instances that we know about for connecting to this guard
     /// over a pluggable transport.
     ///
-    /// If this is empty, then this guard only supports direct connections.
+    /// If this is empty, then this guard only supports direct connections, at
+    /// the locations in `orports`.
     ///
     /// (Currently, this is always empty, or a singleton.  If we find more than
     /// one, we only look at the first. It is a vector only for forward
     /// compatibility.)
+    //
+    // TODO: We may want to replace pt_targets and orports with a new structure;
+    // maybe a PtAddress and a list of SocketAddr.  But we'll keep them like
+    // this for now to keep backward compatibility.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pt_targets: Vec<PtTarget>,
 
@@ -509,7 +516,7 @@ impl Guard {
     /// guard, either directly or via an authenticated directory document.
     ///
     /// Additionally, a guard's `orports` or `pt_targets` may change, if the
-    /// directory lists a new address for the relay.
+    /// `universe` lists a new address for the relay.
     pub(crate) fn update_from_universe<U: sample::Universe>(&mut self, universe: &U) {
         // This is a tricky check, since if we're missing directory information
         // for the guard, we won't know its full set of identities.

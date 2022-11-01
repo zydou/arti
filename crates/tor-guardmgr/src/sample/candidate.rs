@@ -117,8 +117,8 @@ impl Universe for NetDir {
     where
         T: HasRelayIds,
     {
-        // When adding from a netdir, we impose total limit on the fraction of
-        // the universe we're willing to add.
+        // When adding from a netdir, we impose a limit on the fraction of the
+        // universe we're willing to add.
         let maximum_weight = {
             let total_weight = self.total_weight(tor_netdir::WeightRole::Guard, |r| {
                 r.is_flagged_guard() && r.is_dir_cache()

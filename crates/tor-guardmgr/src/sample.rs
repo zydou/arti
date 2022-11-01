@@ -481,7 +481,7 @@ impl GuardSet {
         self.primary_guards_invalidated = true;
     }
 
-    /// Return the number of our primary guards are missing directory
+    /// Return the number of our primary guards that are missing directory
     /// information in `universe`.
     pub(crate) fn n_primary_without_dir_info<U: Universe>(&mut self, universe: &U) -> usize {
         self.primary
