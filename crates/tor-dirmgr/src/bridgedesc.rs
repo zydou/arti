@@ -579,6 +579,9 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
                 bridge,
                 retry_delay: None,
             }));
+
+        // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
+        // to make further progress and restore the liveness properties.
     }
 }
 
@@ -718,6 +721,8 @@ impl State {
                         let got = inner.download_descriptor(mockable, &bridge, &config).await;
                         let mut state = inner.lock_then_process();
                         state.record_download_outcome(bridge, got);
+                        // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
+                        // to make further progress and restore the liveness properties.
                     }
                 })
                 .map(|()| JoinHandle)
@@ -1001,6 +1006,9 @@ async fn timeout_task<R: Runtime, M: Mockable<R>>(
                     runtime.now(),
                     Some,
                 );
+
+                // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
+                // to make further progress and restore the liveness properties.
             }
         }
     }
