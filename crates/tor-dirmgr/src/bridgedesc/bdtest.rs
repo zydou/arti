@@ -283,5 +283,39 @@ async fn success() -> Result<(), anyhow::Error> {
     bdm.check_consistency(Some(&bridges));
     mock.expect_download_calls(0).await;
 
+    eprintln!("----- remove a bridge while we have some requeued ----------");
+
+    let hold = mock.mstate.lock().await;
+
+    mock.sleep.advance(Duration::from_secs(5000)).await;
+    bdm.check_consistency(Some(&bridges));
+
+    // should yield, but not produce any events yet
+    let count = stream_drain_ready(&mut events).await;
+    assert_eq!(count, 0);
+    bdm.check_consistency(Some(&bridges));
+
+    let removed = bridges.pop().unwrap();
+    bdm.set_bridges(&bridges);
+
+    // should produce a removed bridge event
+    let () = stream_drain_until(1, &mut events, || async {
+        bdm.check_consistency(Some(&bridges));
+        (!bdm.bridges().contains_key(&removed)).then(|| ())
+    })
+    .await;
+
+    drop(hold);
+
+    // should produce a removed bridge event
+    let () = stream_drain_until(1, &mut events, || async {
+        bdm.check_consistency(Some(&bridges));
+        let state = bdm.mgr.lock_only();
+        (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+    })
+    .await;
+
+    mock.expect_download_calls(NFAIL - 1).await;
+
     Ok(())
 }
