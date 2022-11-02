@@ -721,6 +721,10 @@ impl State {
                     // The task which actually downloads a descriptor.
                     async move {
                         let got = inner.download_descriptor(mockable, &bridge, &config).await;
+                        match &got {
+                            Ok(_) => debug!(r#"download succeeded for "{}""#, bridge),
+                            Err(err) => debug!(r#"download failed for "{}": {}"#, bridge, err),
+                        };
                         let mut state = inner.lock_then_process();
                         state.record_download_outcome(bridge, got);
                         // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
@@ -865,6 +869,8 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
         bridge: &BridgeConfig,
         config: &BridgeDescDownloadConfig,
     ) -> Result<(BridgeDesc, SystemTime), Error> {
+        debug!(r#"starting download for "{}""#, bridge);
+
         let output = mockable
             .clone()
             .download(&self.runtime, &self.circmgr, bridge)
