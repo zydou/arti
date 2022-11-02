@@ -1,5 +1,6 @@
 //! Declare an error type for the tor-dirmgr crate.
 
+use std::error::Error as StdError;
 use std::sync::Arc;
 
 use crate::DocSource;
@@ -152,6 +153,12 @@ impl From<tor_rtcompat::scheduler::SleepError> for Error {
             ScheduleDropped => Error::ManagerDropped,
             e => tor_error::into_internal!("Unexpected sleep error")(e).into(),
         }
+    }
+}
+
+impl AsRef<dyn StdError + 'static> for Error {
+    fn as_ref(&self) -> &(dyn StdError + 'static) {
+        self
     }
 }
 
