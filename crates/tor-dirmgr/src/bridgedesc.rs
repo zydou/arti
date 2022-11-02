@@ -138,12 +138,17 @@ mod mockable {
         ///
         /// Runs in a task.
         /// Called by `Manager::download_descriptor`, which handles parsing and validation.
+        ///
+        /// If `if_modified_since` is `Some`,
+        /// should tolerate an HTTP 304 Not Modified and return `None` in that case.
+        /// If `if_modified_since` is `None`, returning `Ok(None,)` is forbidden.
         async fn download(
             self,
             runtime: &R,
             circmgr: &Self::CircMgr,
             bridge: &BridgeConfig,
-        ) -> Result<String, Error>;
+            if_modified_since: Option<SystemTime>,
+        ) -> Result<Option<String>, Error>;
     }
 }
 #[async_trait]
@@ -156,7 +161,9 @@ impl<R: Runtime> mockable::MockableAPI<R> for () {
         runtime: &R,
         circmgr: &Self::CircMgr,
         bridge: &BridgeConfig,
-    ) -> Result<String, Error> {
+        _if_modified_since: Option<SystemTime>,
+    ) -> Result<Option<String>, Error> {
+        // TODO actually support _if_modified_since
         let circuit = circmgr.get_or_launch_dir_specific(bridge).await?;
         let mut stream = circuit
             .begin_dir_stream()
@@ -170,7 +177,7 @@ impl<R: Runtime> mockable::MockableAPI<R> for () {
                 _ => internal!("tor_dirclient::download gave non-RequestFailed {:?}", dce).into(),
             })?;
         let output = response.into_output_string()?;
-        Ok(output)
+        Ok(Some(output))
     }
 }
 
@@ -904,8 +911,9 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
 
         let output = mockable
             .clone()
-            .download(&self.runtime, &self.circmgr, bridge)
+            .download(&self.runtime, &self.circmgr, bridge, None)
             .await?;
+        let output = output.expect("got None but no if_modified_since");
         let desc = RouterDesc::parse(&output)?;
 
         // We *could* just trust this because we have trustworthy provenance

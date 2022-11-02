@@ -80,7 +80,8 @@ impl mockable::MockableAPI<R> for Mock {
         _runtime: &R,
         _circmgr: &Self::CircMgr,
         bridge: &BridgeConfig,
-    ) -> Result<String, Error> {
+        _if_modified_since: Option<SystemTime>,
+    ) -> Result<Option<String>, Error> {
         eprint!("download ...");
         let mut mstate = self.mstate.lock().await;
         mstate.download_calls += 1;
@@ -93,7 +94,7 @@ impl mockable::MockableAPI<R> for Mock {
             .docs
             .get(&addr.port())
             .ok_or(TE("no document", RT::AfterWaiting))?;
-        doc.clone()
+        doc.clone().map(Some)
     }
 }
 
