@@ -448,6 +448,18 @@ impl<R: Runtime> BridgeDescManager<R> {
     }
 }
 
+/// If download was successful, what we obtained
+struct Downloaded {
+    /// The bridge descriptor, fully parsed and verified
+    desc: BridgeDesc,
+
+    /// When we should start a refresh for this descriptor
+    ///
+    /// This is derived from the expiry time,
+    /// and clamped according to limits in the configuration).
+    refetch: SystemTime,
+}
+
 impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
     /// Actual constructor, which takes a mockable
     //
@@ -826,15 +838,7 @@ impl<R: Runtime, M: Mockable<R>> StateGuard<'_, R, M> {
     ///
     /// Final act of the the descriptor download task.
     /// `got` is from [`download_descriptor`](Manager::download_descriptor).
-    ///
-    /// The `SystemTime` in `got.ok()`
-    /// is when we should start to refetch for this descriptor
-    /// (clamped according to limits in the configuration).
-    fn record_download_outcome(
-        &mut self,
-        bridge: BridgeKey,
-        got: Result<(BridgeDesc, SystemTime), Error>,
-    ) {
+    fn record_download_outcome(&mut self, bridge: BridgeKey, got: Result<Downloaded, Error>) {
         let RunningInfo { retry_delay, .. } = match self.running.remove(&bridge) {
             Some(ri) => ri,
             None => {
@@ -844,7 +848,7 @@ impl<R: Runtime, M: Mockable<R>> StateGuard<'_, R, M> {
         };
 
         let insert = match got {
-            Ok((desc, refetch)) => {
+            Ok(Downloaded { desc, refetch }) => {
                 // Successful download.  Schedule the refetch, and we'll insert Ok.
 
                 self.refetch_schedule.push(RefetchEntry {
@@ -907,8 +911,8 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
         mockable: M,
         bridge: &BridgeConfig,
         config: &BridgeDescDownloadConfig,
-    ) -> Result<(BridgeDesc, SystemTime), Error> {
-        let process_document = |output: &str| -> Result<(BridgeDesc, SystemTime), Error> {
+    ) -> Result<Downloaded, Error> {
+        let process_document = |output: &str| -> Result<Downloaded, Error> {
             let desc = RouterDesc::parse(&output)?;
 
             // We *could* just trust this because we have trustworthy provenance
@@ -957,7 +961,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
 
             let desc = BridgeDesc::new(Arc::new(desc));
 
-            Ok((desc, refetch))
+            Ok(Downloaded { desc, refetch })
         };
 
         debug!(r#"starting download for "{}""#, bridge);
