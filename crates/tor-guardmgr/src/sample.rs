@@ -5,6 +5,8 @@
 // - allow use of BridgeList in place of NetDir, possibly via a trait implemented by both.
 // - allow Guard to be constructed from a Bridge rather than a Relay
 
+mod candidate;
+
 use crate::filter::GuardFilter;
 use crate::guard::{Guard, NewlyConfirmed, Reachable};
 use crate::skew::SkewObservation;
@@ -14,7 +16,6 @@ use crate::{
 use crate::{FirstHop, GuardSetSelector};
 use tor_basic_utils::iter::{FilterCount, IteratorExt as _};
 use tor_linkspec::{ByRelayIds, HasRelayIds};
-use tor_netdir::{NetDir, Relay};
 
 use itertools::Itertools;
 use rand::seq::SliceRandom;
@@ -23,6 +24,8 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
 use tracing::{debug, info};
+
+pub(crate) use candidate::{Candidate, CandidateStatus, Universe, WeightThreshold};
 
 /// A set of sampled guards, along with various orderings on subsets
 /// of the sample.
@@ -336,12 +339,6 @@ impl GuardSet {
         guard_set
     }
 
-    /// Return false if `relay` (or some other relay that shares an ID with it)
-    /// is a member if this set.
-    fn can_add_relay(&self, relay: &Relay<'_>) -> bool {
-        self.guards.all_overlapping(relay).is_empty()
-    }
-
     /// Return `Ok(true)` if `id` is definitely a member of this set, and
     /// `Ok(false)` if it is definitely not a member.  
     ///
@@ -371,11 +368,11 @@ impl GuardSet {
     /// Guards always start out un-confirmed.
     ///
     /// Return true if any guards were added.
-    pub(crate) fn extend_sample_as_needed(
+    pub(crate) fn extend_sample_as_needed<U: Universe>(
         &mut self,
         now: SystemTime,
         params: &GuardParams,
-        dir: &NetDir,
+        dir: &U,
     ) -> bool {
         let mut any_added = false;
         while self.extend_sample_inner(now, params, dir) {
@@ -393,7 +390,12 @@ impl GuardSet {
     /// this function will add fewer filter-permitted guards than we had wanted.
     /// Because of that, this is a separate function, and
     /// extend_sample_as_needed runs it in a loop until it returns false.
-    fn extend_sample_inner(&mut self, now: SystemTime, params: &GuardParams, dir: &NetDir) -> bool {
+    fn extend_sample_inner<U: Universe>(
+        &mut self,
+        now: SystemTime,
+        params: &GuardParams,
+        dir: &U,
+    ) -> bool {
         self.assert_consistency();
         let n_filtered_usable = self
             .guards
@@ -416,62 +418,33 @@ impl GuardSet {
         let want_to_add = params.min_filtered_sample_size - n_filtered_usable;
         let n_to_add = std::cmp::min(max_to_add, want_to_add);
 
-        // What's the most weight we're willing to have in the sample?
-        let target_weight = {
-            let total_weight = dir.total_weight(tor_netdir::WeightRole::Guard, |r| {
-                r.is_flagged_guard() && r.is_dir_cache()
-            });
-            total_weight
-                .ratio(params.max_sample_bw_fraction)
-                .unwrap_or(total_weight)
-        };
-        let mut current_weight: tor_netdir::RelayWeight = self
-            .guards
-            .values()
-            .filter_map(|guard| guard.get_weight(dir))
-            .sum();
-        if current_weight >= target_weight {
-            return false; // Can't add any more weight.
-        }
+        let candidate::WeightThreshold {
+            mut current_weight,
+            maximum_weight,
+        } = dir.weight_threshold(&self.guards, params);
 
         // Ask the netdir for a set of guards we could use.
-        let n_candidates = if self.filter_is_restrictive || self.active_filter.is_unfiltered() {
-            n_to_add
-        } else {
-            // The filter will probably reject a bunch of guards, but we sample
-            // before filtering, so we make this larger on an ad-hoc basis.
-            n_to_add * 3
-        };
-        let candidates = dir.pick_n_relays(
-            &mut rand::thread_rng(),
-            n_candidates,
-            tor_netdir::WeightRole::Guard,
-            |relay| {
-                let filter_ok = if self.filter_is_restrictive {
-                    // If we have a very restrictive filter, we only add
-                    // relays permitted by that filter.
-                    self.active_filter.permits(relay)
-                } else {
-                    // Otherwise we add any relay to the sample.
-                    true
-                };
-                filter_ok
-                    && relay.is_flagged_guard()
-                    && relay.is_dir_cache()
-                    && self.can_add_relay(relay)
-            },
-        );
+        let no_filter = GuardFilter::unfiltered();
+        let (n_candidates, pre_filter) =
+            if self.filter_is_restrictive || self.active_filter.is_unfiltered() {
+                (n_to_add, &self.active_filter)
+            } else {
+                // The filter will probably reject a bunch of guards, but we sample
+                // before filtering, so we make this larger on an ad-hoc basis.
+                (n_to_add * 3, &no_filter)
+            };
 
-        // Add those candidates to the sample, up to our maximum weight.
+        let candidates = dir.sample(&self.guards, pre_filter, n_candidates);
+
+        // Add those candidates to the sample.
         let mut any_added = false;
         let mut n_filtered_usable = n_filtered_usable;
-        for candidate in candidates {
-            if current_weight >= target_weight
+        for (candidate, weight) in candidates {
+            // Don't add any more if we have met the minimal sample size, and we
+            // have added too much weight.
+            if current_weight >= maximum_weight
                 && self.guards.len() >= params.min_filtered_sample_size
             {
-                // Can't add any more weight.  (We only enforce target_weight
-                // if we have at least 'min_filtered_sample_size' in
-                // our total sample.)
                 break;
             }
             if self.guards.len() >= params.max_sample_size {
@@ -482,15 +455,13 @@ impl GuardSet {
                 // We've reached our target; no need to add more.
                 break;
             }
-            let candidate_weight = dir.relay_weight(&candidate, tor_netdir::WeightRole::Guard);
-            if self.active_filter.permits(&candidate) {
+            if self.active_filter.permits(&candidate.owned_target) {
                 n_filtered_usable += 1;
             }
-            current_weight += candidate_weight;
-            self.add_guard(&candidate, now, params);
+            current_weight += weight;
+            self.add_guard(candidate, now, params);
             any_added = true;
         }
-
         self.assert_consistency();
         any_added
     }
@@ -498,21 +469,21 @@ impl GuardSet {
     /// Add `relay` as a new guard.
     ///
     /// Does nothing if it is already a guard.
-    fn add_guard(&mut self, relay: &Relay<'_>, now: SystemTime, params: &GuardParams) {
-        let id = GuardId::from_relay_ids(relay);
+    fn add_guard(&mut self, relay: Candidate, now: SystemTime, params: &GuardParams) {
+        let id = GuardId::from_relay_ids(&relay.owned_target);
         if self.guards.by_all_ids(&id).is_some() {
             return;
         }
         debug!(guard_id=?id, "Adding guard to sample.");
-        let guard = Guard::from_relay(relay, now, params);
+        let guard = Guard::from_candidate(relay, now, params);
         self.guards.insert(guard);
         self.sample.push(id);
         self.primary_guards_invalidated = true;
     }
 
-    /// Return the number of our primary guards are missing their
-    /// microdescriptors in `dir`.
-    pub(crate) fn missing_primary_microdescriptors(&mut self, dir: &NetDir) -> usize {
+    /// Return the number of our primary guards that are missing directory
+    /// information in `universe`.
+    pub(crate) fn n_primary_without_dir_info<U: Universe>(&mut self, universe: &U) -> usize {
         self.primary
             .iter()
             .filter(|id| {
@@ -520,19 +491,18 @@ impl GuardSet {
                     .guards
                     .by_all_ids(*id)
                     .expect("Inconsistent guard state");
-                g.listed_in(dir).is_none()
+                g.listed_in(universe).is_none()
             })
             .count()
     }
 
-    /// Update the status of every guard  in this sample from a network
-    /// directory.
-    pub(crate) fn update_status_from_netdir(&mut self, dir: &NetDir) {
+    /// Update the status of every guard  in this sample from a given source.
+    pub(crate) fn update_status_from_dir<U: Universe>(&mut self, dir: &U) {
         let old_guards = std::mem::take(&mut self.guards);
         self.guards = old_guards
             .into_values()
             .map(|mut guard| {
-                guard.update_from_netdir(dir);
+                guard.update_from_universe(dir);
                 guard
             })
             .collect();
@@ -1009,6 +979,7 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 mod test {
     #![allow(clippy::unwrap_used)]
     use tor_linkspec::{HasRelayIds, RelayIdType};
+    use tor_netdir::{NetDir, Relay};
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};
 
     use super::*;
@@ -1446,7 +1417,7 @@ mod test {
             .pick_guard_id(&usage, &params, Instant::now())
             .unwrap();
         guards.record_success(&p_id1, &params, None, SystemTime::now());
-        assert_eq!(guards.missing_primary_microdescriptors(&netdir), 0);
+        assert_eq!(guards.n_primary_without_dir_info(&netdir), 0);
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|_idx, bld| {
@@ -1459,7 +1430,7 @@ mod test {
         .unwrap_if_sufficient()
         .unwrap();
 
-        assert_eq!(guards.missing_primary_microdescriptors(&netdir2), 1);
+        assert_eq!(guards.n_primary_without_dir_info(&netdir2), 1);
     }
 
     #[test]

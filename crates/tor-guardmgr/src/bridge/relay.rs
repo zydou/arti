@@ -38,6 +38,11 @@ pub struct BridgeRelayWithDesc<'a>(
 );
 
 impl BridgeRelay {
+    /// Construct a new BridgeRelay from its parts.
+    pub(crate) fn new(bridge_line: Arc<BridgeConfig>, desc: Option<BridgeDesc>) -> Self {
+        Self { bridge_line, desc }
+    }
+
     /// Return true if this BridgeRelay has a known descriptor and can be used for relays.
     pub fn has_descriptor(&self) -> bool {
         self.desc.is_some()

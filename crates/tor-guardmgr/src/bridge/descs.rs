@@ -5,15 +5,23 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::SystemTime;
 
-use crate::bridge::BridgeConfig;
+use crate::{
+    bridge::BridgeConfig,
+    sample::{Candidate, CandidateStatus, Universe, WeightThreshold},
+};
 use dyn_clone::DynClone;
 use futures::stream::BoxStream;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use strum::{EnumCount, EnumIter};
 use tor_error::{HasKind, HasRetryTime};
+use tor_linkspec::{ChanTarget, HasChanMethod, HasRelayIds, OwnedChanTarget};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
+use tor_netdir::RelayWeight;
 use tor_netdoc::doc::routerdesc::RouterDesc;
+
+use super::BridgeRelay;
 
 /// A router descriptor that can be used to build circuits through a bridge.
 ///
@@ -122,3 +130,161 @@ dyn_clone::clone_trait_object!(BridgeDescError);
 
 /// A set of bridge descriptors, managed and modified by a BridgeDescProvider.
 pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn BridgeDescError>>>;
+
+/// A collection of bridges, possibly with their descriptors.
+//
+// TODO pt-client: I doubt that this type is in its final form.
+#[derive(Debug, Clone)]
+pub(crate) struct BridgeSet {
+    /// When did this BridgeSet last change its listed bridges?
+    config_last_changed: SystemTime,
+    /// The configured bridges.
+    config: Vec<Arc<BridgeConfig>>,
+    /// A map from those bridges to their descriptors.  It may contain elements
+    /// that are not in `config`.
+    descs: Arc<BridgeDescList>,
+}
+
+impl BridgeSet {
+    /// Create a new `BridgeSet` from its configuration.
+    #[allow(dead_code)] // TODO pt-client remove
+    pub(crate) fn new(config: Vec<Arc<BridgeConfig>>) -> Self {
+        Self {
+            config_last_changed: SystemTime::now(),
+            config,
+            descs: Arc::new(BridgeDescList::default()),
+        }
+    }
+
+    /// Returns the bridge that best matches a given guard.
+    ///
+    /// Note that since the guard may have more identities than the bridge the
+    /// match may not be perfect: the caller needs to check for a closer match
+    /// if they want to be certain.
+    ///
+    /// We check for a match by identity _and_ channel method, since channel
+    /// method is part of what makes two bridge lines different.
+    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&Arc<BridgeConfig>>
+    where
+        T: ChanTarget,
+    {
+        self.config.iter().find(|bridge| {
+            guard.has_all_relay_ids_from(bridge.as_ref())
+                && guard.chan_method() == bridge.chan_method()
+        })
+    }
+
+    /// Return a BridgeRelay wrapping the provided configuration, plus any known
+    /// descriptor for that configuration.
+    fn relay_by_bridge(&self, bridge: &Arc<BridgeConfig>) -> BridgeRelay {
+        let desc = match self.descs.get(bridge) {
+            Some(Ok(b)) => Some(b.clone()),
+            _ => None,
+        };
+        BridgeRelay::new(bridge.clone(), desc)
+    }
+
+    /// Look up a BridgeRelay corresponding to a given guard.
+    fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
+        &self,
+        guard: &T,
+    ) -> CandidateStatus<BridgeRelay> {
+        match self.bridge_by_guard(guard) {
+            Some(bridge) => {
+                let bridge_relay = self.relay_by_bridge(bridge);
+                if bridge_relay.has_all_relay_ids_from(guard) {
+                    // We have all the IDs from the guard, either in the bridge
+                    // line or in the descriptor, so the match is exact.
+                    CandidateStatus::Present(bridge_relay)
+                } else if bridge_relay.has_descriptor() {
+                    // We don't have an exact match and we have have a
+                    // descriptor, so we know that this is _not_ a real match.
+                    CandidateStatus::Absent
+                } else {
+                    // We don't have a descriptor; finding it might make our
+                    // match precise.
+                    CandidateStatus::Uncertain
+                }
+            }
+            // We found no bridge that matches this guard's identities, so we
+            // can declare it absent.
+            None => CandidateStatus::Absent,
+        }
+    }
+}
+
+impl Universe for BridgeSet {
+    fn contains<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> Option<bool> {
+        match self.bridge_relay_by_guard(guard) {
+            CandidateStatus::Present(_) => Some(true),
+            CandidateStatus::Absent => Some(false),
+            CandidateStatus::Uncertain => None,
+        }
+    }
+
+    fn status<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
+        match self.bridge_relay_by_guard(guard) {
+            CandidateStatus::Present(bridge_relay) => CandidateStatus::Present(Candidate {
+                listed_as_guard: true,
+                is_dir_cache: true, // all bridges are directory caches.
+                full_dir_info: bridge_relay.has_descriptor(),
+                owned_target: OwnedChanTarget::from_chan_target(&bridge_relay),
+            }),
+            CandidateStatus::Absent => CandidateStatus::Absent,
+            CandidateStatus::Uncertain => CandidateStatus::Uncertain,
+        }
+    }
+
+    fn timestamp(&self) -> std::time::SystemTime {
+        self.config_last_changed
+    }
+
+    fn weight_threshold<T>(
+        &self,
+        _sample: &tor_linkspec::ByRelayIds<T>,
+        _params: &crate::GuardParams,
+    ) -> WeightThreshold
+    where
+        T: HasRelayIds,
+    {
+        WeightThreshold {
+            current_weight: RelayWeight::from(0),
+            maximum_weight: RelayWeight::from(u64::MAX),
+        }
+    }
+
+    fn sample<T>(
+        &self,
+        pre_existing: &tor_linkspec::ByRelayIds<T>,
+        filter: &crate::GuardFilter,
+        n: usize,
+    ) -> Vec<(Candidate, tor_netdir::RelayWeight)>
+    where
+        T: HasRelayIds,
+    {
+        use rand::seq::IteratorRandom;
+        self.config
+            .iter()
+            .filter(|bridge_conf| {
+                filter.permits(bridge_conf.as_ref())
+                    && pre_existing
+                        .all_overlapping(bridge_conf.as_ref())
+                        .is_empty()
+            })
+            .choose_multiple(&mut rand::thread_rng(), n)
+            .into_iter()
+            .map(|bridge_config| {
+                let relay = self.relay_by_bridge(bridge_config);
+                (
+                    Candidate {
+                        listed_as_guard: true,
+                        is_dir_cache: true,
+                        full_dir_info: relay.has_descriptor(),
+                        owned_target: OwnedChanTarget::from_chan_target(&relay),
+                    },
+                    RelayWeight::from(0),
+                )
+            })
+            .collect()
+    }
+}

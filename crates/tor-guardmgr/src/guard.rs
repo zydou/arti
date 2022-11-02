@@ -1,7 +1,6 @@
 //! Code to represent its single guard node and track its status.
 
 use tor_basic_utils::retry::RetryDelay;
-use tor_netdir::{NetDir, Relay, RelayWeight};
 
 use educe::Educe;
 use serde::{Deserialize, Serialize};
@@ -11,11 +10,14 @@ use std::time::{Duration, Instant, SystemTime};
 use tracing::{trace, warn};
 
 use crate::dirstatus::DirStatus;
+use crate::sample::Candidate;
 use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
-use crate::{ExternalActivity, GuardSetSelector, GuardUsageKind};
-use tor_linkspec::{HasAddrs, HasRelayIds, RelayIds};
+use crate::{sample, ExternalActivity, GuardSetSelector, GuardUsageKind};
+use tor_linkspec::{
+    ChanTarget, ChannelMethod, HasAddrs, HasChanMethod, HasRelayIds, PtTarget, RelayIds,
+};
 use tor_persist::{Futureproof, JsonValue};
 
 /// Tri-state to represent whether a guard is believed to be reachable or not.
@@ -70,8 +72,8 @@ impl CrateId {
 ///
 /// A Guard is a Tor relay that clients use for the first hop of their circuits.
 /// It doesn't need to be a relay that's currently on the network (that is, one
-/// that we could represent as a [`Relay`]): guards might be temporarily
-/// unlisted.
+/// that we could represent as a [`Relay`](tor_netdir::Relay)): guards might be
+/// temporarily unlisted.
 ///
 /// Some fields in guards are persistent; others are reset with every process.
 ///
@@ -91,9 +93,28 @@ pub(crate) struct Guard {
     /// The identity keys for this guard.
     id: GuardId,
 
-    /// The most recently seen addresses for making OR connections to this
-    /// guard.
+    /// The most recently seen addresses for this guard.  If `pt_targets` is
+    /// empty, these are the addresses we use for making OR connections to this
+    /// guard directly.  If `pt_targets` is nonempty, these are addresses at
+    /// which the server is "located" (q.v. [`HasAddrs`]), but not ways to
+    /// connect to it.
     orports: Vec<SocketAddr>,
+
+    /// Any `PtTarget` instances that we know about for connecting to this guard
+    /// over a pluggable transport.
+    ///
+    /// If this is empty, then this guard only supports direct connections, at
+    /// the locations in `orports`.
+    ///
+    /// (Currently, this is always empty, or a singleton.  If we find more than
+    /// one, we only look at the first. It is a vector only for forward
+    /// compatibility.)
+    //
+    // TODO: We may want to replace pt_targets and orports with a new structure;
+    // maybe a PtAddress and a list of SocketAddr.  But we'll keep them like
+    // this for now to keep backward compatibility.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pt_targets: Vec<PtTarget>,
 
     /// When, approximately, did we first add this guard to our sample?
     #[serde(with = "humantime_serde")]
@@ -125,7 +146,7 @@ pub(crate) struct Guard {
     /// True if this guard is listed in the latest consensus, but we don't
     /// have a microdescriptor for it.
     #[serde(skip)]
-    microdescriptor_missing: bool,
+    dir_info_missing: bool,
 
     /// When did we last give out this guard in response to a request?
     #[serde(skip)]
@@ -211,35 +232,71 @@ pub(crate) enum NewlyConfirmed {
 }
 
 impl Guard {
-    /// Create a new unused [`Guard`] from a [`Relay`].
+    /// Create a new unused [`Guard`] from a [`Candidate`].
+    pub(crate) fn from_candidate(
+        candidate: Candidate,
+        now: SystemTime,
+        params: &GuardParams,
+    ) -> Self {
+        let Candidate {
+            is_dir_cache,
+            full_dir_info,
+            owned_target,
+            ..
+        } = candidate;
+
+        Guard {
+            is_dir_cache,
+            dir_info_missing: !full_dir_info,
+            ..Self::from_chan_target(&owned_target, now, params)
+        }
+    }
+
+    /// Create a new unused [`Guard`] from a [`ChanTarget`].
     ///
     /// This function doesn't check whether the provided relay is a
     /// suitable guard node or not: that's up to the caller to decide.
-    pub(crate) fn from_relay(relay: &Relay<'_>, now: SystemTime, params: &GuardParams) -> Self {
+    fn from_chan_target<T>(relay: &T, now: SystemTime, params: &GuardParams) -> Self
+    where
+        T: ChanTarget,
+    {
         let added_at = randomize_time(
             &mut rand::thread_rng(),
             now,
             params.lifetime_unconfirmed / 10,
         );
 
+        let pt_target = match relay.chan_method() {
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(pt) => Some(pt),
+            _ => None,
+        };
+
         Self::new(
             GuardId::from_relay_ids(relay),
             relay.addrs().into(),
+            pt_target,
             added_at,
         )
     }
 
     /// Return a new, manually constructed [`Guard`].
-    fn new(id: GuardId, orports: Vec<SocketAddr>, added_at: SystemTime) -> Self {
+    fn new(
+        id: GuardId,
+        orports: Vec<SocketAddr>,
+        pt_target: Option<PtTarget>,
+        added_at: SystemTime,
+    ) -> Self {
         Guard {
             id,
             orports,
+            pt_targets: pt_target.into_iter().collect(),
             added_at,
             added_by: CrateId::this_crate(),
             disabled: None,
             confirmed_at: None,
             unlisted_since: None,
-            microdescriptor_missing: false,
+            dir_info_missing: false,
             last_tried_to_connect_at: None,
             reachable: Reachable::Unknown,
             retry_at: None,
@@ -279,8 +336,9 @@ impl Guard {
         }
     }
 
-    /// Return true if this guard is listed in the latest NetDir, and hasn't
-    /// been turned off for some other reason.
+    /// Return true if this guard is usable and working according to our latest
+    /// configuration and directory information, and hasn't been turned off for
+    /// some other reason.
     pub(crate) fn usable(&self) -> bool {
         self.unlisted_since.is_none() && self.disabled.is_none()
     }
@@ -324,6 +382,7 @@ impl Guard {
         Guard {
             // All other persistent fields are taken from `self`.
             id: self.id,
+            pt_targets: self.pt_targets,
             orports: self.orports,
             added_at: self.added_at,
             added_by: self.added_by,
@@ -339,7 +398,7 @@ impl Guard {
             reachable: other.reachable,
             is_dir_cache: other.is_dir_cache,
             exploratory_circ_pending: other.exploratory_circ_pending,
-            microdescriptor_missing: other.microdescriptor_missing,
+            dir_info_missing: other.dir_info_missing,
             circ_history: other.circ_history,
             suspicious_behavior_warned: other.suspicious_behavior_warned,
             dir_status: other.dir_status,
@@ -429,7 +488,7 @@ impl Guard {
             GuardUsageKind::Data => {
                 // We need a "definitely listed" guard to build a multihop
                 // circuit.
-                if self.microdescriptor_missing {
+                if self.dir_info_missing {
                     return false;
                 }
             }
@@ -437,66 +496,73 @@ impl Guard {
         self.obeys_restrictions(&usage.restrictions[..])
     }
 
-    /// Check whether this guard is listed in the provided [`NetDir`].
+    /// Check whether this guard is listed in the provided [`sample::Universe`].
     ///
     /// Returns `Some(true)` if it is definitely listed, and `Some(false)` if it
     /// is definitely not listed.  A `None` return indicates that we need to
-    /// download another microdescriptor before we can be certain whether this
-    /// guard is listed or not.
-    pub(crate) fn listed_in(&self, netdir: &NetDir) -> Option<bool> {
-        netdir.ids_listed(&self.id.0)
+    /// download more directory information about this guard before we can be
+    /// certain whether this guard is listed or not.
+    pub(crate) fn listed_in<U: sample::Universe>(&self, universe: &U) -> Option<bool> {
+        universe.contains(self)
     }
 
     /// Change this guard's status based on a newly received or newly updated
-    /// [`NetDir`].
+    /// [`sample::Universe`].
     ///
     /// A guard may become "listed" or "unlisted": a listed guard is one that
     /// appears in the consensus with the Guard flag.
     ///
     /// A guard may acquire additional identities if we learned them from the
-    /// netdir.
+    /// guard, either directly or via an authenticated directory document.
     ///
-    /// Additionally, a guard's orports may change, if the directory lists a new
-    /// address for the relay.
-    pub(crate) fn update_from_netdir(&mut self, netdir: &NetDir) {
-        // This is a tricky check, since if we're missing a microdescriptor
-        // for the RSA id, we won't know whether the ed25519 id is listed or
-        // not.
-        let listed_as_guard = match self.listed_in(netdir) {
-            Some(true) => {
-                // Definitely listed.
-                let relay = netdir
-                    .by_ids(&self.id.0)
-                    .expect("Couldn't get a listed relay?!");
+    /// Additionally, a guard's `orports` or `pt_targets` may change, if the
+    /// `universe` lists a new address for the relay.
+    pub(crate) fn update_from_universe<U: sample::Universe>(&mut self, universe: &U) {
+        // This is a tricky check, since if we're missing directory information
+        // for the guard, we won't know its full set of identities.
+        use sample::CandidateStatus::*;
+        let listed_as_guard = match universe.status(self) {
+            Present(Candidate {
+                listed_as_guard,
+                is_dir_cache,
+                full_dir_info,
+                owned_target,
+            }) => {
                 // Update address information.
-                self.orports = relay.addrs().into();
+                self.orports = owned_target.addrs().into();
+                // Update Pt information.
+                self.pt_targets = match owned_target.chan_method() {
+                    #[cfg(feature = "pt-client")]
+                    ChannelMethod::Pluggable(pt) => vec![pt],
+                    _ => Vec::new(),
+                };
                 // Check whether we can currently use it as a directory cache.
-                self.is_dir_cache = relay.is_dir_cache();
+                self.is_dir_cache = is_dir_cache;
                 // Update our IDs: the Relay will have strictly more.
-                assert!(relay.has_all_relay_ids_from(self));
-                self.id = GuardId(RelayIds::from_relay_ids(&relay));
+                assert!(owned_target.has_all_relay_ids_from(self));
+                self.id = GuardId(RelayIds::from_relay_ids(&owned_target));
+                self.dir_info_missing = !full_dir_info;
 
-                relay.is_flagged_guard()
+                listed_as_guard
             }
-            Some(false) => false, // Definitely not listed.
-            None => {
-                // We can't tell if this is listed: The RSA id is present, but
-                // the microdescriptor is missing so we don't know the Ed25519 ID.
-                self.microdescriptor_missing = true;
+            Absent => false, // Definitely not listed.
+            Uncertain => {
+                // We can't tell if this is listed without more directory information.
+                self.dir_info_missing = true;
                 return;
             }
         };
 
         // We got a definite answer, so we aren't missing a microdesc for this
         // guard.
-        self.microdescriptor_missing = false;
+        self.dir_info_missing = false;
 
         if listed_as_guard {
             // Definitely listed, so clear unlisted_since.
             self.mark_listed();
         } else {
             // Unlisted or not a guard; mark it unlisted.
-            self.mark_unlisted(netdir.lifetime().valid_after());
+            self.mark_unlisted(universe.timestamp());
         }
     }
 
@@ -679,14 +745,6 @@ impl Guard {
         }
     }
 
-    /// Return the weight of this guard (if any) according to `dir`.
-    ///
-    /// We use this information to decide whether we are about to sample
-    /// too much of the network as guards.
-    pub(crate) fn get_weight(&self, dir: &NetDir) -> Option<RelayWeight> {
-        dir.weight_by_rsa_id(self.id.0.rsa_identity()?, tor_netdir::WeightRole::Guard)
-    }
-
     /// Return a [`FirstHop`](crate::FirstHop) object to represent this guard.
     pub(crate) fn get_external_rep(&self, selection: GuardSetSelector) -> crate::FirstHop {
         crate::FirstHop {
@@ -731,7 +789,17 @@ impl tor_linkspec::HasRelayIds for Guard {
     }
 }
 
-impl tor_linkspec::DirectChanMethodsHelper for Guard {}
+impl tor_linkspec::HasChanMethod for Guard {
+    fn chan_method(&self) -> ChannelMethod {
+        match &self.pt_targets[..] {
+            #[cfg(feature = "pt-client")]
+            [first, ..] => ChannelMethod::Pluggable(first.clone()),
+            #[cfg(not(feature = "pt-client"))]
+            [_first, ..] => ChannelMethod::Direct(vec![]), // can't connect to this; no pt support.
+            [] => ChannelMethod::Direct(self.orports.clone()),
+        }
+    }
+}
 
 impl tor_linkspec::ChanTarget for Guard {}
 
@@ -838,7 +906,7 @@ mod test {
         let id = basic_id();
         let ports = vec!["127.0.0.7:7777".parse().unwrap()];
         let added = SystemTime::now();
-        Guard::new(id, ports, added)
+        Guard::new(id, ports, None, added)
     }
 
     #[test]
@@ -912,7 +980,7 @@ mod test {
         assert!(g.conforms_to_usage(&dir_usage));
 
         let mut g2 = g.clone();
-        g2.microdescriptor_missing = true;
+        g2.dir_info_missing = true;
         assert!(!g2.conforms_to_usage(&data_usage));
         assert!(g2.conforms_to_usage(&dir_usage));
 
@@ -1049,28 +1117,24 @@ mod test {
 
         // Construct a guard from a relay from the netdir.
         let relay22 = netdir.by_id(&Ed25519Identity::from([22; 32])).unwrap();
-        let guard22 = Guard::from_relay(&relay22, now, &params);
+        let guard22 = Guard::from_chan_target(&relay22, now, &params);
         assert!(guard22.same_relay_ids(&relay22));
         assert!(Some(guard22.added_at) <= Some(now));
 
         // Can we still get the relay back?
-        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id);
         let r = id.get_relay(&netdir).unwrap();
         assert!(r.same_relay_ids(&relay22));
-
-        // Can we check on the guard's weight?
-        let w = guard22.get_weight(&netdir).unwrap();
-        assert_eq!(w, 3000.into());
 
         // Now try a guard that isn't in the netdir.
         let guard255 = Guard::new(
             GuardId::new([255; 32].into(), [255; 20].into()),
             vec![],
+            None,
             now,
         );
-        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id.clone());
+        let id = FirstHopId::in_sample(GuardSetSelector::Default, guard255.id);
         assert!(id.get_relay(&netdir).is_none());
-        assert!(guard255.get_weight(&netdir).is_none());
     }
 
     #[test]
@@ -1105,11 +1169,12 @@ mod test {
         let mut guard255 = Guard::new(
             GuardId::new([255; 32].into(), [255; 20].into()),
             vec!["8.8.8.8:53".parse().unwrap()],
+            None,
             now,
         );
         assert_eq!(guard255.unlisted_since, None);
         assert_eq!(guard255.listed_in(&netdir), Some(false));
-        guard255.update_from_netdir(&netdir);
+        guard255.update_from_universe(&netdir);
         assert_eq!(
             guard255.unlisted_since,
             Some(netdir.lifetime().valid_after())
@@ -1117,28 +1182,38 @@ mod test {
         assert!(!guard255.orports.is_empty());
 
         // Try a guard that is in netdir, but not netdir2.
-        let mut guard22 = Guard::new(GuardId::new([22; 32].into(), [22; 20].into()), vec![], now);
+        let mut guard22 = Guard::new(
+            GuardId::new([22; 32].into(), [22; 20].into()),
+            vec![],
+            None,
+            now,
+        );
         let id22: FirstHopId = FirstHopId::in_sample(GuardSetSelector::Default, guard22.id.clone());
         let relay22 = id22.get_relay(&netdir).unwrap();
         assert_eq!(guard22.listed_in(&netdir), Some(true));
-        guard22.update_from_netdir(&netdir);
+        guard22.update_from_universe(&netdir);
         assert_eq!(guard22.unlisted_since, None); // It's listed.
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs are set.
         assert_eq!(guard22.listed_in(&netdir2), Some(false));
-        guard22.update_from_netdir(&netdir2);
+        guard22.update_from_universe(&netdir2);
         assert_eq!(
             guard22.unlisted_since,
             Some(netdir2.lifetime().valid_after())
         );
         assert_eq!(&guard22.orports, relay22.addrs()); // Addrs still set.
-        assert!(!guard22.microdescriptor_missing);
+        assert!(!guard22.dir_info_missing);
 
         // Now see what happens for a guard that's in the consensus, but missing an MD.
-        let mut guard23 = Guard::new(GuardId::new([23; 32].into(), [23; 20].into()), vec![], now);
+        let mut guard23 = Guard::new(
+            GuardId::new([23; 32].into(), [23; 20].into()),
+            vec![],
+            None,
+            now,
+        );
         assert_eq!(guard23.listed_in(&netdir2), Some(true));
         assert_eq!(guard23.listed_in(&netdir3), None);
-        guard23.update_from_netdir(&netdir3);
-        assert!(guard23.microdescriptor_missing);
+        guard23.update_from_universe(&netdir3);
+        assert!(guard23.dir_info_missing);
         assert!(guard23.is_dir_cache);
     }
 
