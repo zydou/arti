@@ -211,7 +211,7 @@ async fn success() -> Result<(), anyhow::Error> {
 
     let bad = (1..=NFAIL).map(bad_bridge).collect_vec();
 
-    let bridges = chain!(iter::once(bridge.clone()), bad.iter().cloned(),).collect_vec();
+    let mut bridges = chain!(iter::once(bridge.clone()), bad.iter().cloned(),).collect_vec();
 
     let hold = mock.mstate.lock().await;
 
@@ -252,6 +252,36 @@ async fn success() -> Result<(), anyhow::Error> {
 
     bdm.check_consistency(Some(&bridges));
     mock.expect_download_calls(NFAIL).await;
+
+    eprintln!("----- set the bridges to the ones we have already ----------");
+
+    let hold = mock.mstate.lock().await;
+
+    bdm.set_bridges(&bridges);
+    bdm.check_consistency(Some(&bridges));
+
+    drop(hold);
+
+    let events_counted = stream_drain_ready(&mut events).await;
+    assert_eq!(events_counted, 0);
+    bdm.check_consistency(Some(&bridges));
+    mock.expect_download_calls(0).await;
+
+    eprintln!("----- set the bridges to one fewer than we have already ----------");
+
+    let _ = bridges.pop().unwrap();
+
+    let hold = mock.mstate.lock().await;
+
+    bdm.set_bridges(&bridges);
+    bdm.check_consistency(Some(&bridges));
+
+    drop(hold);
+
+    let events_counted = stream_drain_ready(&mut events).await;
+    assert_eq!(events_counted, 1);
+    bdm.check_consistency(Some(&bridges));
+    mock.expect_download_calls(0).await;
 
     Ok(())
 }
