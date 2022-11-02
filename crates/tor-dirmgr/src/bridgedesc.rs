@@ -582,23 +582,31 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
         });
 
         // Is there anything in queued we should forget about?
-        state.queued.retain(|qe| note_found_keep_p(&mut new_bridges, &qe.bridge, "was queued"));
+        state
+            .queued
+            .retain(|qe| note_found_keep_p(&mut new_bridges, &qe.bridge, "was queued"));
 
         // Restore the invariant *Schedules*, that the schedules contain only things in current,
         // by removing the same things from the schedules that we earlier removed from current.
-        filter_schedule(&mut new_bridges, &mut state.retry_schedule, "previously failed");
-        filter_schedule(&mut new_bridges, &mut state.refetch_schedule, "previously downloaded");
+        filter_schedule(
+            &mut new_bridges,
+            &mut state.retry_schedule,
+            "previously failed",
+        );
+        filter_schedule(
+            &mut new_bridges,
+            &mut state.refetch_schedule,
+            "previously downloaded",
+        );
 
         // OK now we have the list of bridges to add (if any).
-        state
-            .queued
-            .extend(new_bridges.into_iter().map(|bridge| {
-                debug!(r#" added bridge, queueing for download "{}""#, &bridge);
-                QueuedEntry {
-                    bridge,
-                    retry_delay: None,
-                }
-            }));
+        state.queued.extend(new_bridges.into_iter().map(|bridge| {
+            debug!(r#" added bridge, queueing for download "{}""#, &bridge);
+            QueuedEntry {
+                bridge,
+                retry_delay: None,
+            }
+        }));
 
         // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
         // to make further progress and restore the liveness properties.
