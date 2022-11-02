@@ -514,13 +514,33 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
     }
 
     fn set_bridges(&self, new_bridges: &[Arc<BridgeConfig>]) {
+        /// Helper: Called for each bridge that is currently Tracked.
+        ///
+        /// Checks if `new_bridges` has `bridge`.  If so, removes it from `new_bridges`,
+        /// and returns `true`, indicating that this bridge should be kept.
+        ///
+        /// If not, returns `false`, indicating that this bridge should be removed,
+        /// and logs a message.
+        fn note_found_keep_p(
+            new_bridges: &mut HashSet<BridgeKey>,
+            bridge: &BridgeKey,
+            was_state: &str,
+        ) -> bool {
+            let keep = new_bridges.remove(bridge);
+            if !keep {
+                debug!(r#"forgetting bridge ({}) "{}""#, was_state, bridge);
+            }
+            keep
+        }
+
         /// Helper: filters `*_schedule` so that it contains only things in `new_bridges`,
         /// removing them as we go.
         fn filter_schedule<TT: Ord + Copy, RD>(
             new_bridges: &mut HashSet<BridgeKey>,
             schedule: &mut BinaryHeap<RefetchEntry<TT, RD>>,
+            was_state: &str,
         ) {
-            schedule.retain_ext(|b| new_bridges.remove(&b.bridge));
+            schedule.retain_ext(|b| note_found_keep_p(new_bridges, &b.bridge, was_state));
         }
 
         let mut state = self.mgr.lock_then_process();
@@ -554,7 +574,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
 
         // Is there anything in running we should abort?
         state.running.retain(|b, ri| {
-            let keep = new_bridges.remove(b);
+            let keep = note_found_keep_p(&mut new_bridges, b, "was downloading");
             if !keep {
                 ri.join.abort();
             }
@@ -562,19 +582,22 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
         });
 
         // Is there anything in queued we should forget about?
-        state.queued.retain(|qe| new_bridges.remove(&qe.bridge));
+        state.queued.retain(|qe| note_found_keep_p(&mut new_bridges, &qe.bridge, "was queued"));
 
         // Restore the invariant *Schedules*, that the schedules contain only things in current,
         // by removing the same things from the schedules that we earlier removed from current.
-        filter_schedule(&mut new_bridges, &mut state.retry_schedule);
-        filter_schedule(&mut new_bridges, &mut state.refetch_schedule);
+        filter_schedule(&mut new_bridges, &mut state.retry_schedule, "previously failed");
+        filter_schedule(&mut new_bridges, &mut state.refetch_schedule, "previously downloaded");
 
         // OK now we have the list of bridges to add (if any).
         state
             .queued
-            .extend(new_bridges.into_iter().map(|bridge| QueuedEntry {
-                bridge,
-                retry_delay: None,
+            .extend(new_bridges.into_iter().map(|bridge| {
+                debug!(r#" added bridge, queueing for download "{}""#, &bridge);
+                QueuedEntry {
+                    bridge,
+                    retry_delay: None,
+                }
             }));
 
         // `StateGuard`, from `lock_then_process`, gets dropped here, and runs `process`,
