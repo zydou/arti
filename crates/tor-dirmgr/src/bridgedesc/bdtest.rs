@@ -287,7 +287,7 @@ async fn success() -> Result<(), anyhow::Error> {
 
     let hold = mock.mstate.lock().await;
 
-    mock.sleep.advance(Duration::from_secs(5000)).await;
+    mock.sleep.advance(Duration::from_secs(8000)).await;
     bdm.check_consistency(Some(&bridges));
 
     // should yield, but not produce any events yet
