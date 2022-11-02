@@ -901,12 +901,65 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
     ///
     /// The returned value is precisely the `got` input to
     /// [`record_download_outcome`](StateGuard::record_download_outcome).
+    #[allow(clippy::needless_borrow)] // false positive
     async fn download_descriptor(
         &self,
         mockable: M,
         bridge: &BridgeConfig,
         config: &BridgeDescDownloadConfig,
     ) -> Result<(BridgeDesc, SystemTime), Error> {
+        let process_document = |output: &str| -> Result<(BridgeDesc, SystemTime), Error> {
+            let desc = RouterDesc::parse(&output)?;
+
+            // We *could* just trust this because we have trustworthy provenance
+            // we know that the channel machinery authenticated the identity keys in `bridge`.
+            // But let's do some cross-checking anyway.
+            // `check_signature` checks the self-signature.
+            let desc = desc.check_signature().map_err(Arc::new)?;
+
+            let now = self.runtime.wallclock();
+            desc.is_valid_at(&now)?;
+
+            // Justification that use of "dangerously" is correct:
+            // 1. We have checked this just above, so it is valid now.
+            // 2. We are extracting the timeout and implement our own refetch logic using expires.
+            let (desc, (_, expires)) = desc.dangerously_into_parts();
+
+            // Our refetch schedule, and enforcement of descriptor expiry, is somewhat approximate.
+            // The following situations can result in a nominally-expired descriptor being used:
+            //
+            // 1. We primarily enforce the timeout by looking at the expiry time,
+            //    subtracting a configured constant, and scheduling the start of a refetch then.
+            //    If it takes us longer to do the retry, than the prefetch constant,
+            //    we'll still be providing the old descriptor to consumers in the meantime.
+            //
+            // 2. We apply a minimum time before we will refetch a descriptor.
+            //    So if the validity time is unreasonably short, we'll use it beyond that time.
+            //
+            // 3. Clock warping could confuse this algorithm.  This is inevitable because we
+            //    are relying on calendar times (SystemTime) in the descriptor, and because
+            //    we don't have a mechanism for being told about clock warps rather than the
+            //    passage of time.
+            //
+            // We think this is all OK given that a bridge descriptor is used for trying to
+            // connect to the bridge itself.  In particular, we don't want to completely trust
+            // bridges to control our retry logic.
+            let refetch = match expires {
+                ops::Bound::Included(expires) | ops::Bound::Excluded(expires) => expires
+                    .checked_sub(config.prefetch)
+                    .ok_or(Error::ExtremeValidityTime)?,
+
+                ops::Bound::Unbounded => now
+                    .checked_add(config.max_refetch)
+                    .ok_or(Error::ExtremeValidityTime)?,
+            };
+            let refetch = refetch.clamp(now + config.min_refetch, now + config.max_refetch);
+
+            let desc = BridgeDesc::new(Arc::new(desc));
+
+            Ok((desc, refetch))
+        };
+
         debug!(r#"starting download for "{}""#, bridge);
 
         let output = mockable
@@ -914,54 +967,8 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
             .download(&self.runtime, &self.circmgr, bridge, None)
             .await?;
         let output = output.expect("got None but no if_modified_since");
-        let desc = RouterDesc::parse(&output)?;
 
-        // We *could* just trust this because we have trustworthy provenance
-        // we know that the channel machinery authenticated the identity keys in `bridge`.
-        // But let's do some cross-checking anyway.  `check_signature` checks the self-signature.
-        let desc = desc.check_signature().map_err(Arc::new)?;
-
-        let now = self.runtime.wallclock();
-        desc.is_valid_at(&now)?;
-
-        // Justification that use of "dangerously" is correct:
-        // 1. We have checked this just above, so it is valid now.
-        // 2. We are extracting the timeout and implement our own refetch logic using expires.
-        let (desc, (_, expires)) = desc.dangerously_into_parts();
-
-        // Our refetch schedule, and enforcement of descriptor expiry, is somewhat approximate.
-        // The following situations can result in a nominally-expired descriptor being used:
-        //
-        // 1. We primarily enforce the timeout by looking at the expiry time,
-        //    subtracting a configured constant, and scheduling the start of a refetch then.
-        //    If it takes us longer to do the retry, than the prefetch constant,
-        //    we'll still be providing the old descriptor to consumers in the meantime.
-        //
-        // 2. We apply a minimum time before we will refetch a descriptor.
-        //    So if the validity time is unreasonably short, we'll use it beyond that time.
-        //
-        // 3. Clock warping could confuse this algorithm.  This is inevitable because we
-        //    are relying on calendar times (SystemTime) in the descriptor, and because
-        //    we don't have a mechanism for being told about clock warps rather than the
-        //    passage of time.
-        //
-        // We think this is all OK given that a bridge descriptor is used for trying to
-        // connect to the bridge itself.  In particular, we don't want to completely trust
-        // bridges to control our retry logic.
-        let refetch = match expires {
-            ops::Bound::Included(expires) | ops::Bound::Excluded(expires) => expires
-                .checked_sub(config.prefetch)
-                .ok_or(Error::ExtremeValidityTime)?,
-
-            ops::Bound::Unbounded => now
-                .checked_add(config.max_refetch)
-                .ok_or(Error::ExtremeValidityTime)?,
-        };
-        let refetch = refetch.clamp(now + config.min_refetch, now + config.max_refetch);
-
-        let desc = BridgeDesc::new(Arc::new(desc));
-
-        Ok((desc, refetch))
+        process_document(&output)
     }
 }
 
