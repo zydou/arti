@@ -138,13 +138,16 @@ fn setup() -> (Bdm, R, M, BridgeKey) {
     (bdm, runtime, mock, bridge)
 }
 
-async fn stream_drain_ready<S: Stream + Unpin + FusedStream>(s: &mut S) {
+async fn stream_drain_ready<S: Stream + Unpin + FusedStream>(s: &mut S) -> usize {
+    let mut count = 0;
     while select_biased! {
         _ = s.next() => true,
         () = future::ready(()) => false,
     } {
         tor_rtcompat::task::yield_now().await;
+        count += 1;
     }
+    count
 }
 
 async fn stream_drain_until<S, F, FF, Y>(attempts: usize, s: &mut S, mut f: F) -> Y
