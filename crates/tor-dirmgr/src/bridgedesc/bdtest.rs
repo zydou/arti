@@ -165,6 +165,12 @@ where
     panic!("untilness didn't occur");
 }
 
+fn bad_bridge(i: usize) -> BridgeKey {
+    let bad = format!("192.126.0.1:{} EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1", i);
+    let bad: BridgeConfig = bad.parse().unwrap();
+    Arc::new(bad)
+}
+
 #[tokio::test]
 async fn success() -> Result<(), anyhow::Error> {
     let (bdm, runtime, mock, bridge) = setup();
@@ -200,13 +206,7 @@ async fn success() -> Result<(), anyhow::Error> {
 
     const NFAIL: usize = 6;
 
-    let bad = (1..=NFAIL)
-        .map(|i| {
-            let bad = format!("192.126.0.1:{} EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1", i);
-            let bad: BridgeConfig = bad.parse().unwrap();
-            Arc::new(bad)
-        })
-        .collect_vec();
+    let bad = (1..=NFAIL).map(bad_bridge).collect_vec();
 
     let bridges = chain!(iter::once(bridge.clone()), bad.iter().cloned(),).collect_vec();
 
