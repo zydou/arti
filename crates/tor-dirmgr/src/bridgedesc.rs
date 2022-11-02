@@ -514,17 +514,13 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
     }
 
     fn set_bridges(&self, new_bridges: &[Arc<BridgeConfig>]) {
-        /// Helper: filters `*_schedule` so that it contains only things in `current`.
-        ///
-        /// Restores invariant *Schedules* with respect to a particular schedule,
-        /// after `current` has perhaps had items removed.
-        ///
-        /// Idempotent.
-        fn filter_by_current<TT: Ord + Copy, RD>(
-            current: &BridgeDescList,
+        /// Helper: filters `*_schedule` so that it contains only things in `new_bridges`,
+        /// removing them as we go.
+        fn filter_schedule<TT: Ord + Copy, RD>(
+            new_bridges: &mut HashSet<BridgeKey>,
             schedule: &mut BinaryHeap<RefetchEntry<TT, RD>>,
         ) {
-            schedule.retain_ext(|b| current.contains_key(&b.bridge));
+            schedule.retain_ext(|b| new_bridges.remove(&b.bridge));
         }
 
         let mut state = self.mgr.lock_then_process();
@@ -546,18 +542,15 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
             let current: BridgeDescList = state
                 .current
                 .iter()
-                .filter(|(b, _)| new_bridges.remove(&**b))
+                .filter(|(b, _)| new_bridges.contains(&**b))
                 .map(|(b, v)| (b.clone(), v.clone()))
                 .collect();
             state.set_current_and_notify(current);
         } else {
             // Nothing is being removed, so we can keep `current`.
-            // Bridges being newly requested here will be added to `current`
-            // later, after they have been fetched.
-            //
-            // So, simply remove from `new_bridges` the ones we have already.
-            new_bridges.retain(|b| !state.current.contains_key(b));
         }
+        // Bridges being newly requested will be added to `current`
+        // later, after they have been fetched.
 
         // Is there anything in running we should abort?
         state.running.retain(|b, ri| {
@@ -571,9 +564,10 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> 
         // Is there anything in queued we should forget about?
         state.queued.retain(|qe| new_bridges.remove(&qe.bridge));
 
-        // Restore the invariant *Schedules*, that the schedules contain only things in current
-        filter_by_current(&state.current, &mut state.retry_schedule);
-        filter_by_current(&state.current, &mut state.refetch_schedule);
+        // Restore the invariant *Schedules*, that the schedules contain only things in current,
+        // by removing the same things from the schedules that we earlier removed from current.
+        filter_schedule(&mut new_bridges, &mut state.retry_schedule);
+        filter_schedule(&mut new_bridges, &mut state.refetch_schedule);
 
         // OK now we have the list of bridges to add (if any).
         state
