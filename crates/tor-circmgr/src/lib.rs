@@ -182,7 +182,7 @@ impl<R: Runtime> CircMgr<R> {
         )));
 
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone(), config)?;
-        guardmgr.set_filter(config.path_rules().build_guard_filter(), None);
+        guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
 
@@ -295,7 +295,7 @@ impl<R: Runtime> CircMgr<R> {
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {
             let filter = new_config.path_rules().build_guard_filter();
-            self.mgr.peek_builder().guardmgr().set_filter(filter, None);
+            self.mgr.peek_builder().guardmgr().set_filter(filter);
         }
 
         let discard_circuits = !new_config
@@ -366,16 +366,6 @@ impl<R: Runtime> CircMgr<R> {
             .peek_builder()
             .guardmgr()
             .netdir_is_sufficient(netdir)
-    }
-
-    /// Reconfigure this circuit manager using the latest network directory.
-    ///
-    /// This function is deprecated: `launch_background_tasks` now makes sure that this happens as needed.
-    #[deprecated(
-        note = "There is no need to call this function if you have used launch_background_tasks"
-    )]
-    pub fn update_network(&self, netdir: &NetDir) {
-        self.mgr.peek_builder().guardmgr().update_network(netdir);
     }
 
     /// Return a circuit suitable for sending one-hop BEGINDIR streams,

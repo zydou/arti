@@ -275,8 +275,8 @@ const STORAGE_KEY: &str = "guards";
 impl<R: Runtime> GuardMgr<R> {
     /// Create a new "empty" guard manager and launch its background tasks.
     ///
-    /// It won't be able to hand out any guards until
-    /// [`GuardMgr::update_network`] has been called.
+    /// It won't be able to hand out any guards until a [`NetDirProvider`] has
+    /// been installed.
     pub fn new<S>(
         runtime: R,
         state_mgr: S,
@@ -434,21 +434,21 @@ impl<R: Runtime> GuardMgr<R> {
         inner.guards.active_guards_mut().mark_all_guards_retriable();
     }
 
-    /// Update the state of this [`GuardMgr`] based on a new or modified
-    /// [`NetDir`] object.
+    /// Configure this guardmgr to use a fixed [`NetDir`] instead of a provider.
     ///
-    /// This method can add new guards, or notice that existing guards have
-    /// become unusable.  It needs a `NetDir` so it can identify potential
-    /// candidate guards.
-    ///
-    /// Call this method whenever the `NetDir` changes, unless you have used
+    /// This function is for testing only, and is exclusive with
     /// `install_netdir_provider`.
-    pub fn update_network(&self, netdir: &NetDir) {
-        trace!("Updating guard state from network directory");
+    #[cfg(any(test, feature = "testing"))]
+    pub fn install_test_netdir(&self, netdir: &NetDir) {
+        use tor_netdir::testprovider::TestNetDirProvider;
         let now = self.runtime.wallclock();
+        let netdir_provider: Arc<dyn NetDirProvider> =
+            Arc::new(TestNetDirProvider::from(netdir.clone()));
+        self.install_netdir_provider(&netdir_provider)
+            .expect("Couldn't install testing network provider");
 
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.update(now, Some(netdir));
+        inner.update(now);
     }
 
     /// Replace the fallback list held by this GuardMgr with `new_list`
@@ -469,10 +469,10 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
     // TODO should this be part of the config?
-    pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
+    pub fn set_filter(&self, filter: GuardFilter) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.set_filter(filter, netdir, now);
+        inner.set_filter(filter, now);
     }
 
     /// Select a guard for a given [`GuardUsage`].
@@ -498,13 +498,9 @@ impl<R: Runtime> GuardMgr<R> {
     /// bootstrap we might want to use _all_ guards as possible
     /// directory caches.  That's not implemented yet. (See ticket
     /// [#220](https://gitlab.torproject.org/tpo/core/arti/-/issues/220)).
-    ///
-    /// This function only looks at netdir when all of the known
-    /// guards are down; to force an update, use [`GuardMgr::update_network`].
     pub fn select_guard(
         &self,
         usage: GuardUsage,
-        netdir: Option<&NetDir>,
     ) -> Result<(FirstHop, GuardMonitor, GuardUsable), PickGuardError> {
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
@@ -515,7 +511,7 @@ impl<R: Runtime> GuardMgr<R> {
         // it should _probably_ not hurt.)
         inner.guards.active_guards_mut().consider_all_retries(now);
 
-        let (origin, guard) = inner.select_guard_with_expand(&usage, netdir, now, wallclock)?;
+        let (origin, guard) = inner.select_guard_with_expand(&usage, now, wallclock)?;
         trace!(?guard, ?usage, "Guard selected");
 
         let (usable, usable_sender) = if origin.usable_immediately() {
@@ -719,19 +715,17 @@ impl GuardMgrInner {
 
     /// Run a function that takes `&mut self` and an optional NetDir.
     ///
-    /// If a NetDir is provided, use that.  Otherwise, try to use the netdir
+    /// We try to use the netdir
     /// from our [`NetDirProvider`] (if we have one).
     //
     // This function exists to handle the lifetime mess where sometimes the
     // resulting NetDir will borrow from `netdir`, and sometimes it will borrow
     // from an Arc returned by `self.latest_netdir()`.
-    fn with_opt_netdir<F, T>(&mut self, netdir: Option<&NetDir>, func: F) -> T
+    fn with_opt_netdir<F, T>(&mut self, func: F) -> T
     where
         F: FnOnce(&mut Self, Option<&NetDir>) -> T,
     {
-        if let Some(nd) = netdir {
-            func(self, Some(nd))
-        } else if let Some(nd) = self.timely_netdir() {
+        if let Some(nd) = self.timely_netdir() {
             func(self, Some(nd.as_ref()))
         } else {
             func(self, None)
@@ -744,8 +738,8 @@ impl GuardMgrInner {
     ///
     /// We can expire guards based on the time alone; we can only add guards or
     /// change their status with a NetDir.
-    fn update(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
-        self.with_opt_netdir(netdir, |this, netdir| this.update_internal(now, netdir));
+    fn update(&mut self, now: SystemTime) {
+        self.with_opt_netdir(|this, netdir| this.update_internal(now, netdir));
     }
 
     /// As `update`, but do not try to look up a [`NetDir`] if none is given.
@@ -806,7 +800,7 @@ impl GuardMgrInner {
     fn replace_guards_with(&mut self, mut new_guards: GuardSets, now: SystemTime) {
         std::mem::swap(&mut self.guards, &mut new_guards);
         self.guards.copy_status_from(new_guards);
-        self.update(now, None);
+        self.update(now);
     }
 
     /// Update which guard set is active based on the current filter and the
@@ -875,8 +869,8 @@ impl GuardMgrInner {
     }
 
     /// Replace the current GuardFilter with `filter`.
-    fn set_filter(&mut self, filter: GuardFilter, netdir: Option<&NetDir>, now: SystemTime) {
-        self.with_opt_netdir(netdir, |this, netdir| {
+    fn set_filter(&mut self, filter: GuardFilter, now: SystemTime) {
+        self.with_opt_netdir(|this, netdir| {
             this.filter = filter;
             // This call will invoke update_chosen_guard_set() if possible, and
             // then call set_filter on the GuardSet.
@@ -1161,7 +1155,7 @@ impl GuardMgrInner {
     /// Run any periodic events that update guard status, and return a
     /// duration after which periodic events should next be run.
     pub(crate) fn run_periodic_events(&mut self, wallclock: SystemTime, now: Instant) -> Duration {
-        self.update(wallclock, None);
+        self.update(wallclock);
         self.expire_and_answer_pending_requests(now);
         Duration::from_secs(1) // TODO: Too aggressive.
     }
@@ -1170,7 +1164,6 @@ impl GuardMgrInner {
     fn select_guard_with_expand(
         &mut self,
         usage: &GuardUsage,
-        netdir: Option<&NetDir>,
         now: Instant,
         wallclock: SystemTime,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
@@ -1184,7 +1177,7 @@ impl GuardMgrInner {
         };
 
         // That didn't work. If we have a netdir, expand the sample and try again.
-        let res = self.with_opt_netdir(netdir, |this, dir| {
+        let res = self.with_opt_netdir(|this, dir| {
             let dir = dir?;
             trace!("No guards available, trying to extend the sample.");
             this.update_internal(wallclock, Some(dir));
@@ -1572,10 +1565,9 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, statemgr, netdir) = init(rt.clone());
             let usage = GuardUsage::default();
+            guardmgr.install_test_netdir(&netdir);
 
-            guardmgr.update_network(&netdir);
-
-            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).unwrap();
+            let (id, mon, usable) = guardmgr.select_guard(usage).unwrap();
             // Report that the circuit succeeded.
             mon.succeeded();
 
@@ -1591,11 +1583,11 @@ mod test {
             // Try reloading from the state...
             let guardmgr2 =
                 GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default()).unwrap();
-            guardmgr2.update_network(&netdir);
+            guardmgr2.install_test_netdir(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!
             let usage = GuardUsage::default();
-            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
+            let (id2, _mon, _usable) = guardmgr2.select_guard(usage).unwrap();
             assert!(id2.same_relay_ids(&id));
         });
     }
@@ -1610,15 +1602,15 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir);
+            guardmgr.install_test_netdir(&netdir);
 
             // We'll have the first two guard fail, which should make us
             // try a non-primary guard.
-            let (id1, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id1, mon, _usable) = guardmgr.select_guard(u.clone()).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
-            let (id2, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id2, mon, _usable) = guardmgr.select_guard(u.clone()).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
@@ -1626,8 +1618,8 @@ mod test {
             assert!(!id1.same_relay_ids(&id2));
 
             // Now we should get two sampled guards. They should be different.
-            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
-            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone()).unwrap();
+            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone()).unwrap();
             assert!(!id3.same_relay_ids(&id4));
 
             let (u3, u4) = futures::join!(
@@ -1658,9 +1650,9 @@ mod test {
                 f.push_reachable_addresses(vec!["2.0.0.0/8:9001".parse().unwrap()]);
                 f
             };
-            guardmgr.set_filter(filter, Some(&netdir));
-            guardmgr.update_network(&netdir);
-            let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
+            guardmgr.set_filter(filter);
+            guardmgr.install_test_netdir(&netdir);
+            let (guard, _mon, _usable) = guardmgr.select_guard(u).unwrap();
             // Make sure that the filter worked.
             let addr = guard.addrs()[0];
             assert_eq!(addr, "2.0.0.3:9001".parse().unwrap());
@@ -1676,16 +1668,14 @@ mod test {
                 .kind(GuardUsageKind::OneHopDirectory)
                 .build()
                 .unwrap();
-            guardmgr.update_network(&netdir);
+            guardmgr.install_test_netdir(&netdir);
             {
                 // Override this parameter, so that we can get deterministic results below.
                 let mut inner = guardmgr.inner.lock().unwrap();
                 inner.params.dir_parallelism = 1;
             }
 
-            let (guard, mon, _usable) = guardmgr
-                .select_guard(data_usage.clone(), Some(&netdir))
-                .unwrap();
+            let (guard, mon, _usable) = guardmgr.select_guard(data_usage.clone()).unwrap();
             mon.succeeded();
 
             // Record that this guard gave us a bad directory object.
@@ -1694,15 +1684,13 @@ mod test {
             // We ask for another guard, for data usage.  We should get the same
             // one as last time, since the director failure doesn't mean this
             // guard is useless as a primary guard.
-            let (g2, mon, _usable) = guardmgr.select_guard(data_usage, Some(&netdir)).unwrap();
+            let (g2, mon, _usable) = guardmgr.select_guard(data_usage).unwrap();
             assert_eq!(g2.ed_identity(), guard.ed_identity());
             mon.succeeded();
 
             // But if we ask for a guard for directory usage, we should get a
             // different one, since the last guard we gave out failed.
-            let (g3, mon, _usable) = guardmgr
-                .select_guard(dir_usage.clone(), Some(&netdir))
-                .unwrap();
+            let (g3, mon, _usable) = guardmgr.select_guard(dir_usage.clone()).unwrap();
             assert_ne!(g3.ed_identity(), guard.ed_identity());
             mon.succeeded();
 
@@ -1710,7 +1698,7 @@ mod test {
             guardmgr.note_external_success(&guard, ExternalActivity::DirCache);
 
             // Now that the guard is working as a cache, asking for it should get us the same guard.
-            let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage, Some(&netdir)).unwrap();
+            let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage).unwrap();
             assert_eq!(g4.ed_identity(), guard.ed_identity());
         });
     }

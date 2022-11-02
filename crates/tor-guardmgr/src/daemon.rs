@@ -105,12 +105,9 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
     while let Some(event) = event_stream.next().await {
         match event {
             DirEvent::NewConsensus | DirEvent::NewDescriptors => {
-                if let (Some(inner), Some(provider)) = (inner.upgrade(), netdir_provider.upgrade())
-                {
+                if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    if let Ok(netdir) = provider.timely_netdir() {
-                        inner.update(runtime.wallclock(), Some(&netdir));
-                    }
+                    inner.update(runtime.wallclock());
                 }
             }
             _ => {}
