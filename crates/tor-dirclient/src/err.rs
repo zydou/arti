@@ -12,6 +12,7 @@ use crate::SourceInfo;
 /// An error originating from the tor-dirclient crate.
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)] // TODO(nickm) worth fixing as we do #587
 pub enum Error {
     /// Error while getting a circuit
     #[error("Error while getting a circuit")]

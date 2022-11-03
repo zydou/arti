@@ -485,6 +485,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 }
 
 /// Possible actions that we'll decide to take when asked for a channel.
+#[allow(clippy::large_enum_variant)]
 enum Action<C> {
     /// We found no channel.  We're going to launch a new one,
     /// then tell everybody about it.
