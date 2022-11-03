@@ -139,9 +139,22 @@ impl SqliteStore {
         )?;
         let db_exists = db_n_tables > 0;
 
+        // Update the schema from current_vsn to the latest (does not commit)
+        let update_schema = |tx: &rusqlite::Transaction, current_vsn| {
+            for (from_vsn, update) in UPDATE_SCHEMA.iter().enumerate() {
+                let from_vsn = u32::try_from(from_vsn).expect("schema version >2^32");
+                let new_vsn = from_vsn + 1;
+                if current_vsn < new_vsn {
+                    tx.execute_batch(update)?;
+                    tx.execute(UPDATE_SCHEMA_VERSION, params![new_vsn, new_vsn])?;
+                }
+            }
+            Ok::<_, Error>(())
+        };
+
         if !db_exists {
             tx.execute_batch(INSTALL_V0_SCHEMA)?;
-            tx.execute_batch(UPDATE_SCHEMA_V0_TO_V1)?;
+            update_schema(&tx, 0)?;
             tx.commit()?;
             return Ok(());
         }
@@ -154,8 +167,7 @@ impl SqliteStore {
         )?;
 
         if version < SCHEMA_VERSION {
-            // Update the schema.
-            tx.execute_batch(UPDATE_SCHEMA_V0_TO_V1)?;
+            update_schema(&tx, version)?;
             tx.commit()?;
             return Ok(());
         } else if readable_by > SCHEMA_VERSION {
@@ -649,9 +661,6 @@ fn cmeta_from_row(row: &rusqlite::Row<'_>) -> Result<ConsensusMeta> {
     ))
 }
 
-/// Version number used for this version of the arti cache schema.
-const SCHEMA_VERSION: u32 = 1;
-
 /// Set up the tables for the arti cache schema in a sqlite database.
 const INSTALL_V0_SCHEMA: &str = "
   -- Helps us version the schema.  The schema here corresponds to a
@@ -711,16 +720,23 @@ const INSTALL_V0_SCHEMA: &str = "
 
 ";
 
-/// Update the database schema from version 0 to version 1.
-const UPDATE_SCHEMA_V0_TO_V1: &str = "
+/// Update the database schema, from each version to the next
+const UPDATE_SCHEMA: &[&str] = &["
+  -- Update the database schema from version 0 to version 1.
   CREATE TABLE RouterDescs (
     sha1_digest TEXT PRIMARY KEY NOT NULL,
     published DATE NOT NULL,
     contents BLOB NOT NULL
   );
+"];
 
-  UPDATE TorSchemaMeta SET version=1 WHERE version<1;
+/// Update the database schema version tracking, from each version to the next
+const UPDATE_SCHEMA_VERSION: &str = "
+  UPDATE TorSchemaMeta SET version=? WHERE version<?;
 ";
+
+/// Version number used for this version of the arti cache schema.
+const SCHEMA_VERSION: u32 = UPDATE_SCHEMA.len() as u32;
 
 /// Query: find the latest-expiring microdesc consensus with a given
 /// pending status.
