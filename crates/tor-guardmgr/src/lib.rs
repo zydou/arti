@@ -215,6 +215,14 @@ struct GuardMgrInner {
     /// a GuardMgr is created, there is no BridgeDescProvider for it to use.
     #[cfg(feature = "bridge-client")]
     bridge_desc_provider: Option<Weak<dyn bridge::BridgeDescProvider>>,
+
+    /// A list of the bridges that we are configured to use.
+    #[cfg(feature = "bridge-client")]
+    configured_bridges: Arc<[bridge::BridgeConfig]>,
+
+    /// True iff we are configured to use briges.
+    #[cfg(feature = "bridge-client")]
+    use_bridges: bool,
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
@@ -296,9 +304,6 @@ impl<R: Runtime> GuardMgr<R> {
         let (send_skew, recv_skew) = postage::watch::channel();
         let recv_skew = ClockSkewEvents { inner: recv_skew };
 
-        // TODO pt-client do something with the bridge information
-        // should probably share code with reconfigure() as much as possible
-
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
             filter: GuardFilter::unfiltered(),
@@ -314,7 +319,18 @@ impl<R: Runtime> GuardMgr<R> {
             netdir_provider: None,
             #[cfg(feature = "bridge-client")]
             bridge_desc_provider: None,
+            #[cfg(feature = "bridge-client")]
+            configured_bridges: Arc::new([]),
+            #[cfg(feature = "bridge-client")]
+            use_bridges: false,
         }));
+        #[cfg(feature = "bridge-client")]
+        {
+            let mut inner = inner.lock().expect("lock poisoned");
+            // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
+            // providers are configured? I think not, but we should make sure.
+            inner.replace_bridge_config(config, SystemTime::now());
+        }
         {
             let weak_inner = Arc::downgrade(&inner);
             let rt_clone = runtime.clone();
@@ -451,19 +467,18 @@ impl<R: Runtime> GuardMgr<R> {
         inner.update(now);
     }
 
-    /// Replace the fallback list held by this GuardMgr with `new_list`
-    fn replace_fallback_list(&self, list: &fallback::FallbackList) {
-        let mut fallbacks: fallback::FallbackState = list.into();
-        let mut inner = self.inner.lock().expect("Poisoned lock");
-        std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
-        inner.fallbacks.take_status_from(fallbacks);
-    }
-
-    /// Reconfigure
+    /// Replace the configuration in this `GuardMgr` with `config`.
     pub fn reconfigure(&self, config: &impl GuardMgrConfig) -> Result<(), ReconfigureError> {
-        // TODO pt-client: do something with config.bridges and config.bridges_enabled
-        // should probably share code with new() as much as possible
-        self.replace_fallback_list(config.fallbacks());
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        // Change the set of configured fallbacks.
+        {
+            let mut fallbacks: fallback::FallbackState = config.fallbacks().into();
+            std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
+            inner.fallbacks.take_status_from(fallbacks);
+        }
+        // If we are built to use bridges, change the bridge configuration.
+        #[cfg(feature = "bridge-client")]
+        inner.replace_bridge_config(config, SystemTime::now());
         Ok(())
     }
 
@@ -749,6 +764,32 @@ impl GuardMgrInner {
             );
             //XXXX use real universe
         });
+    }
+
+    /// Replace our bridge configuration with the one from `new_config`.
+    #[cfg(feature = "bridge-client")]
+    fn replace_bridge_config(&mut self, new_config: &impl GuardMgrConfig, now: SystemTime) {
+        let mut update = false;
+
+        if self.use_bridges != new_config.bridges_enabled() {
+            self.use_bridges = new_config.bridges_enabled();
+            update |= true;
+
+            if self.use_bridges {
+                self.guards.active_set = GuardSetSelector::Bridges;
+            } else {
+                self.guards.active_set = GuardSetSelector::Default;
+                // We might immediately switch to the restricted set; that's fine.
+            }
+        }
+        if self.configured_bridges.as_ref() != new_config.bridges() {
+            self.configured_bridges = new_config.bridges().into();
+            update |= self.use_bridges;
+        }
+
+        if update {
+            self.update(now);
+        }
     }
 
     /// Update our selection based on network parameters and configuration, and
