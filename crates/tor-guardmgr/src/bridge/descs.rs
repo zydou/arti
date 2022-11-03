@@ -137,24 +137,24 @@ pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn 
 //
 // TODO pt-client: I doubt that this type is in its final form.
 #[derive(Debug, Clone)]
-pub(crate) struct BridgeSet {
+pub(crate) struct BridgeSet<'a> {
     /// When did this BridgeSet last change its listed bridges?
     config_last_changed: SystemTime,
     /// The configured bridges.
-    config: Vec<Arc<BridgeConfig>>,
+    config: &'a [BridgeConfig],
     /// A map from those bridges to their descriptors.  It may contain elements
     /// that are not in `config`.
-    descs: Arc<BridgeDescList>,
+    descs: Option<&'a BridgeDescList>,
 }
 
-impl BridgeSet {
+impl<'a> BridgeSet<'a> {
     /// Create a new `BridgeSet` from its configuration.
     #[allow(dead_code)] // TODO pt-client remove
-    pub(crate) fn new(config: Vec<Arc<BridgeConfig>>) -> Self {
+    pub(crate) fn new(config: &'a [BridgeConfig], descs: Option<&'a BridgeDescList>) -> Self {
         Self {
-            config_last_changed: SystemTime::now(),
+            config_last_changed: SystemTime::now(), // TODO pt-client wrong.
             config,
-            descs: Arc::new(BridgeDescList::default()),
+            descs,
         }
     }
 
@@ -166,24 +166,23 @@ impl BridgeSet {
     ///
     /// We check for a match by identity _and_ channel method, since channel
     /// method is part of what makes two bridge lines different.
-    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&Arc<BridgeConfig>>
+    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&BridgeConfig>
     where
         T: ChanTarget,
     {
         self.config.iter().find(|bridge| {
-            guard.has_all_relay_ids_from(bridge.as_ref())
-                && guard.chan_method() == bridge.chan_method()
+            guard.has_all_relay_ids_from(*bridge) && guard.chan_method() == bridge.chan_method()
         })
     }
 
     /// Return a BridgeRelay wrapping the provided configuration, plus any known
     /// descriptor for that configuration.
-    fn relay_by_bridge(&self, bridge: &Arc<BridgeConfig>) -> BridgeRelay {
-        let desc = match self.descs.get(bridge) {
+    fn relay_by_bridge(&self, bridge: &'a BridgeConfig) -> BridgeRelay<'a> {
+        let desc = match self.descs.and_then(|d| d.get(bridge)) {
             Some(Ok(b)) => Some(b.clone()),
             _ => None,
         };
-        BridgeRelay::new(bridge.clone(), desc)
+        BridgeRelay::new(bridge, desc)
     }
 
     /// Look up a BridgeRelay corresponding to a given guard.
@@ -215,7 +214,7 @@ impl BridgeSet {
     }
 }
 
-impl Universe for BridgeSet {
+impl<'a> Universe for BridgeSet<'a> {
     fn contains<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> Option<bool> {
         match self.bridge_relay_by_guard(guard) {
             CandidateStatus::Present(_) => Some(true),
@@ -268,10 +267,8 @@ impl Universe for BridgeSet {
         self.config
             .iter()
             .filter(|bridge_conf| {
-                filter.permits(bridge_conf.as_ref())
-                    && pre_existing
-                        .all_overlapping(bridge_conf.as_ref())
-                        .is_empty()
+                filter.permits(*bridge_conf)
+                    && pre_existing.all_overlapping(*bridge_conf).is_empty()
             })
             .choose_multiple(&mut rand::thread_rng(), n)
             .into_iter()

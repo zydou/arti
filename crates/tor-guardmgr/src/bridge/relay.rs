@@ -1,7 +1,5 @@
 //! Implementation code to make a bridge something that we can connect to and use to relay traffic.
 
-use std::sync::Arc;
-
 use tor_linkspec::{
     ChanTarget, CircTarget, HasAddrs, HasChanMethod, HasRelayIds, RelayIdRef, RelayIdType,
 };
@@ -12,16 +10,19 @@ use super::{BridgeConfig, BridgeDesc};
 /// it traffic.
 #[derive(Clone, Debug)]
 
-pub struct BridgeRelay {
+pub struct BridgeRelay<'a> {
     /// The local configurations for the bridge.
     ///
     /// This is _always_ necessary, since it without it we can't know whether
     /// any pluggable transports are needed.
-    bridge_line: Arc<BridgeConfig>,
+    bridge_line: &'a BridgeConfig,
 
     /// A descriptor for the bridge.
     ///
     /// If present, it MUST have every RelayId that the `bridge_line` does.
+    ///
+    /// `BridgeDesc` is an `Arc<>` internally, so we aren't so worried about
+    /// having this be owned.
     desc: Option<BridgeDesc>,
 }
 
@@ -34,12 +35,12 @@ pub struct BridgeRelay {
 #[derive(Clone, Debug)]
 pub struct BridgeRelayWithDesc<'a>(
     /// This will _always_ be a bridge relay with a non-None desc.
-    &'a BridgeRelay,
+    &'a BridgeRelay<'a>,
 );
 
-impl BridgeRelay {
+impl<'a> BridgeRelay<'a> {
     /// Construct a new BridgeRelay from its parts.
-    pub(crate) fn new(bridge_line: Arc<BridgeConfig>, desc: Option<BridgeDesc>) -> Self {
+    pub(crate) fn new(bridge_line: &'a BridgeConfig, desc: Option<BridgeDesc>) -> Self {
         Self { bridge_line, desc }
     }
 
@@ -56,7 +57,7 @@ impl BridgeRelay {
     }
 }
 
-impl HasRelayIds for BridgeRelay {
+impl<'a> HasRelayIds for BridgeRelay<'a> {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         self.bridge_line
             .identity(key_type)
@@ -64,19 +65,19 @@ impl HasRelayIds for BridgeRelay {
     }
 }
 
-impl HasAddrs for BridgeRelay {
+impl<'a> HasAddrs for BridgeRelay<'a> {
     fn addrs(&self) -> &[std::net::SocketAddr] {
         todo!()
     }
 }
 
-impl HasChanMethod for BridgeRelay {
+impl<'a> HasChanMethod for BridgeRelay<'a> {
     fn chan_method(&self) -> tor_linkspec::ChannelMethod {
         todo!()
     }
 }
 
-impl ChanTarget for BridgeRelay {}
+impl<'a> ChanTarget for BridgeRelay<'a> {}
 
 impl<'a> HasRelayIds for BridgeRelayWithDesc<'a> {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
