@@ -110,7 +110,7 @@ pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
 
 use pending::{PendingRequest, RequestId};
-use sample::GuardSet;
+use sample::{GuardSet, Universe};
 
 use crate::ids::{FirstHopIdInner, GuardId};
 
@@ -739,12 +739,23 @@ impl GuardMgrInner {
     /// We can expire guards based on the time alone; we can only add guards or
     /// change their status with a NetDir.
     fn update(&mut self, now: SystemTime) {
-        self.with_opt_netdir(|this, netdir| this.update_internal(now, netdir));
+        self.with_opt_netdir(|this, netdir| {
+            this.update_active_set_and_filter(netdir);
+            Self::update_guardset_internal(
+                &this.params,
+                now,
+                this.guards.active_guards_mut(),
+                netdir,
+            );
+            //XXXX use real universe
+        });
     }
 
-    /// As `update`, but do not try to look up a [`NetDir`] if none is given.
-    fn update_internal(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
-        // Set the parameters.
+    /// Update our selection based on network parameters and configuration, and
+    /// make sure it has the right configuration itself.
+    fn update_active_set_and_filter(&mut self, netdir: Option<&NetDir>) {
+        // Set the parameters.  These always come from the NetDir, even if this
+        // is a bridge set.
         if let Some(netdir) = netdir {
             match GuardParams::try_from(netdir.params()) {
                 Ok(params) => self.params = params,
@@ -765,34 +776,34 @@ impl GuardMgrInner {
                 .active_guards_mut()
                 .set_filter(self.filter.clone(), restrictive);
         }
+    }
 
-        // Then expire guards.  Do that early, in case we need more.
-        self.guards
-            .active_guards_mut()
-            .expire_old_guards(&self.params, now);
+    /// Update the status of every guard in `active_guards`, and expand it as
+    /// needed.
+    ///
+    /// This function doesn't take `&self`, to make sure that we are only
+    /// affecting a single `GuardSet`, and to avoid confusing the borrow
+    /// checker.
+    fn update_guardset_internal<U: Universe>(
+        params: &GuardParams,
+        now: SystemTime,
+        active_guards: &mut GuardSet,
+        universe: Option<&U>,
+    ) {
+        // Expire guards.  Do that early, in case we need to grab more guards.
+        active_guards.expire_old_guards(params, now);
 
-        if let Some(netdir) = netdir {
-            if self
-                .guards
-                .active_guards_mut()
-                .n_primary_without_dir_info(netdir)
-                > 0
-            {
+        if let Some(universe) = universe {
+            if active_guards.n_primary_without_dir_info(universe) > 0 {
                 // We are missing primary guard descriptors, so we shouldn't update our guard
                 // status.
                 return;
             }
-            self.guards
-                .active_guards_mut()
-                .update_status_from_dir(netdir);
-            self.guards
-                .active_guards_mut()
-                .extend_sample_as_needed(now, &self.params, netdir);
+            active_guards.update_status_from_dir(universe);
+            active_guards.extend_sample_as_needed(now, params, universe);
         }
 
-        self.guards
-            .active_guards_mut()
-            .select_primary_guards(&self.params);
+        active_guards.select_primary_guards(params);
     }
 
     /// Replace the active guard state with `new_state`, preserving
@@ -874,7 +885,14 @@ impl GuardMgrInner {
             this.filter = filter;
             // This call will invoke update_chosen_guard_set() if possible, and
             // then call set_filter on the GuardSet.
-            this.update_internal(now, netdir);
+            this.update_active_set_and_filter(netdir);
+            Self::update_guardset_internal(
+                &this.params,
+                now,
+                this.guards.active_guards_mut(),
+                netdir,
+            );
+            // XXXX need real universe
         });
     }
 
@@ -1180,7 +1198,12 @@ impl GuardMgrInner {
         let res = self.with_opt_netdir(|this, dir| {
             let dir = dir?;
             trace!("No guards available, trying to extend the sample.");
-            this.update_internal(wallclock, Some(dir));
+            Self::update_guardset_internal(
+                &this.params,
+                wallclock,
+                this.guards.active_guards_mut(),
+                Some(dir),
+            );
             if this
                 .guards
                 .active_guards_mut()
