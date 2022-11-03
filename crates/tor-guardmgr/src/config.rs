@@ -2,6 +2,7 @@
 
 use tor_basic_utils::define_accessor_trait;
 
+use crate::bridge::BridgeConfig;
 use crate::fallback::FallbackList;
 
 define_accessor_trait! {
@@ -13,6 +14,12 @@ define_accessor_trait! {
     /// Prefer to use `TorClientConfig`, which will always implement this trait.
     pub trait GuardMgrConfig {
         fallbacks: FallbackList,
+        bridges: [BridgeConfig],
+        +
+        /// Should the bridges be used?
+        ///
+        /// This is only allowed to return true if `bridges()` is nonempty.
+        fn bridges_enabled(&self) -> bool;
     }
 }
 
@@ -39,6 +46,18 @@ pub(crate) mod testing {
         ///
         #[as_ref]
         pub fallbacks: FallbackList,
+
+        ///
+        pub bridges: Vec<BridgeConfig>,
     }
-    impl GuardMgrConfig for TestConfig {}
+    impl AsRef<[BridgeConfig]> for TestConfig {
+        fn as_ref(&self) -> &[BridgeConfig] {
+            &self.bridges
+        }
+    }
+    impl GuardMgrConfig for TestConfig {
+        fn bridges_enabled(&self) -> bool {
+            !self.bridges.is_empty()
+        }
+    }
 }

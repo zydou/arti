@@ -20,7 +20,9 @@ pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSourc
 
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
-pub use tor_guardmgr::bridge::{BridgeConfig, BridgeParseError};
+pub use tor_guardmgr::bridge::BridgeParseError;
+
+use tor_guardmgr::bridge::BridgeConfig;
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -266,6 +268,21 @@ fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigB
     Ok(())
 }
 
+impl BridgesConfig {
+    /// Should the bridges be used?
+    fn bridges_enabled(&self) -> bool {
+        #[cfg(feature = "bridge-client")]
+        {
+            self.enabled.as_bool().unwrap_or(!self.bridges.is_empty())
+        }
+
+        #[cfg(not(feature = "bridge-client"))]
+        {
+            false
+        }
+    }
+}
+
 /// List of configured bridges, as found in the built configuration
 //
 // This type alias arranges that we can put `BridgeList` in `BridgesConfig`
@@ -429,7 +446,24 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
         self.tor_network.fallback_caches()
     }
 }
-impl tor_guardmgr::GuardMgrConfig for TorClientConfig {}
+impl AsRef<[BridgeConfig]> for TorClientConfig {
+    fn as_ref(&self) -> &[BridgeConfig] {
+        #[cfg(feature = "bridge-client")]
+        {
+            &self.bridges.bridges
+        }
+
+        #[cfg(not(feature = "bridge-client"))]
+        {
+            &[]
+        }
+    }
+}
+impl tor_guardmgr::GuardMgrConfig for TorClientConfig {
+    fn bridges_enabled(&self) -> bool {
+        self.bridges.bridges_enabled()
+    }
+}
 
 impl TorClientConfig {
     /// Try to create a DirMgrConfig corresponding to this object.

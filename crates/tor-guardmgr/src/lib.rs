@@ -289,6 +289,9 @@ impl<R: Runtime> GuardMgr<R> {
         let (send_skew, recv_skew) = postage::watch::channel();
         let recv_skew = ClockSkewEvents { inner: recv_skew };
 
+        // TODO pt-client do something with the bridge information
+        // should probably share code with reconfigure() as much as possible
+
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
             filter: GuardFilter::unfiltered(),
@@ -439,6 +442,8 @@ impl<R: Runtime> GuardMgr<R> {
 
     /// Reconfigure
     pub fn reconfigure(&self, config: &impl GuardMgrConfig) -> Result<(), ReconfigureError> {
+        // TODO pt-client: do something with config.bridges and config.bridges_enabled
+        // should probably share code with new() as much as possible
         self.replace_fallback_list(config.fallbacks());
         Ok(())
     }
