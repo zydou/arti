@@ -418,7 +418,7 @@ impl GuardSet {
         let want_to_add = params.min_filtered_sample_size - n_filtered_usable;
         let n_to_add = std::cmp::min(max_to_add, want_to_add);
 
-        let candidate::WeightThreshold {
+        let WeightThreshold {
             mut current_weight,
             maximum_weight,
         } = dir.weight_threshold(&self.guards, params);
