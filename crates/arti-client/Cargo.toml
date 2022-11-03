@@ -88,6 +88,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
 tor-persist = { path = "../tor-persist", version = "0.5.1" }
 tor-proto = { path = "../tor-proto", version = "0.7.0" }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.1.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
 tracing = "0.1.18"
 
