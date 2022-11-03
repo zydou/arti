@@ -7,8 +7,7 @@
 use tor_basic_utils::define_accessor_trait;
 use tor_config::impl_standard_builder;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper, ConfigBuildError};
-use tor_guardmgr::fallback::FallbackList;
-use tor_guardmgr::GuardFilter;
+use tor_guardmgr::{GuardFilter, GuardMgrConfig};
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -286,11 +285,10 @@ define_accessor_trait! {
     // We use this AsRef-based trait, so that we can pass a reference
     // to the configuration when we build a new CircMgr, rather than
     // cloning all the fields an extra time.
-    pub trait CircMgrConfig {
+    pub trait CircMgrConfig: GuardMgrConfig {
         path_rules: PathConfig,
         circuit_timing: CircuitTiming,
         preemptive_circuits: PreemptiveCircuitConfig,
-        fallbacks: FallbackList,
     }
 }
 

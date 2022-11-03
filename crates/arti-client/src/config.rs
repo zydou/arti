@@ -398,6 +398,7 @@ impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
         self.tor_network.fallback_caches()
     }
 }
+impl tor_guardmgr::GuardMgrConfig for TorClientConfig {}
 
 impl TorClientConfig {
     /// Try to create a DirMgrConfig corresponding to this object.

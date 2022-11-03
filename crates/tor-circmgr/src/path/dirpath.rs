@@ -101,6 +101,7 @@ mod test {
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
     use tor_guardmgr::fallback::{FallbackDir, FallbackList};
+    use tor_guardmgr::TestConfig;
     use tor_linkspec::RelayIds;
     use tor_netdir::testnet;
 
@@ -189,7 +190,8 @@ mod test {
             let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
-            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             guards.update_network(&netdir);
 
             let mut distinct_guards = HashSet::new();
