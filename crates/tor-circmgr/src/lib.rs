@@ -297,7 +297,7 @@ impl<R: Runtime> CircMgr<R> {
         self.mgr
             .peek_builder()
             .guardmgr()
-            .replace_fallback_list(new_config.fallbacks().clone());
+            .replace_fallback_list(new_config.fallbacks());
 
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {

@@ -282,7 +282,7 @@ impl<R: Runtime> GuardMgr<R> {
             ctrl,
             pending: HashMap::new(),
             waiting: Vec::new(),
-            fallbacks: fallbacks.into(),
+            fallbacks: (&fallbacks).into(),
             storage,
             send_skew,
             recv_skew,
@@ -415,7 +415,7 @@ impl<R: Runtime> GuardMgr<R> {
     }
 
     /// Replace the fallback list held by this GuardMgr with `new_list`.
-    pub fn replace_fallback_list(&self, list: fallback::FallbackList) {
+    pub fn replace_fallback_list(&self, list: &fallback::FallbackList) {
         let mut fallbacks: fallback::FallbackState = list.into();
         let mut inner = self.inner.lock().expect("Poisoned lock");
         std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
