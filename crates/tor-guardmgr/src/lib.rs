@@ -882,19 +882,8 @@ impl GuardMgrInner {
 
     /// Replace the current GuardFilter with `filter`.
     fn set_filter(&mut self, filter: GuardFilter, now: SystemTime) {
-        self.with_opt_netdir(|this, netdir| {
-            this.filter = filter;
-            // This call will invoke update_chosen_guard_set() if possible, and
-            // then call set_filter on the GuardSet.
-            this.update_active_set_and_filter(netdir);
-            Self::update_guardset_internal(
-                &this.params,
-                now,
-                this.guards.active_guards_mut(),
-                netdir,
-            );
-            // XXXX need real universe
-        });
+        self.filter = filter;
+        self.update(now);
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
