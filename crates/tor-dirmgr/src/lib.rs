@@ -53,6 +53,8 @@ mod shared_ref;
 mod state;
 mod storage;
 
+#[cfg(feature = "bridge-client")]
+pub mod bridgedesc;
 #[cfg(feature = "dirfilter")]
 pub mod filter;
 

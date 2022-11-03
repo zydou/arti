@@ -33,7 +33,7 @@ experimental-api = []
 async-trait = "0.1.2"
 base64 = "0.13.0"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99"
+derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 event-listener = "2"
@@ -67,13 +67,17 @@ tor-guardmgr = { path = "../tor-guardmgr", version = "0.7.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
 tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
+tor-proto = { path = "../tor-proto", version = "0.7.0" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
 tracing = "0.1.18"
 
 [dev-dependencies]
+anyhow = "1.0.23"
 float_eq = "1.0.0"
 hex-literal = "0.3"
 tempfile = "3"
+tokio = { version = "1.7", features = ["full"] }
+tor-linkspec = { path = "../tor-linkspec", version = "0.5.1" }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }
 tor-rtmock = { path = "../tor-rtmock", version = "0.6.0" }
 [package.metadata.docs.rs]

@@ -47,7 +47,7 @@ dangerous-expose-struct-fields = ["visible", "visibility"]
 [dependencies]
 base64ct = { version = "1.5.1", features = ["alloc"] }
 bitflags = "1"
-derive_more = "0.99"
+derive_more = "0.99.3"
 digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"

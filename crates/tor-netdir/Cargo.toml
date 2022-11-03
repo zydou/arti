@@ -29,7 +29,7 @@ testing = ["hex", "tor-netdoc/build_docs"]
 [dependencies]
 bitflags = "1"
 derive_builder = { version = "0.11.2", package = "derive_builder_fork_arti" }
-derive_more = "0.99"
+derive_more = "0.99.3"
 futures = "0.3.14"
 hex = { version = "0.4", optional = true }
 num_enum = "0.5"

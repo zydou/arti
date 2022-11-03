@@ -3672,6 +3672,7 @@ dependencies = [
 name = "tor-dirmgr"
 version = "0.8.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "base64",
  "derive_builder_fork_arti",
@@ -3701,6 +3702,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "time",
+ "tokio",
  "tor-basic-utils",
  "tor-checkable",
  "tor-circmgr",
@@ -3709,9 +3711,11 @@ dependencies = [
  "tor-dirclient",
  "tor-error",
  "tor-guardmgr",
+ "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",
  "tor-netdoc",
+ "tor-proto",
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
