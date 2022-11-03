@@ -79,6 +79,20 @@ mod sample;
 mod skew;
 mod util;
 
+#[cfg(not(feature = "bridge-client"))]
+/// Bridges (stub module, bridges disabled in cargo features)
+pub mod bridge {
+    /// Configuration for a bridge - uninhabited placeholder type
+    ///
+    /// This type appears in configuration APIs as a stand-in,
+    /// when the `bridge-client` cargo feature is not enabled.
+    ///
+    /// The type is uninhabited: without this feature, you cannot create a `BridgeConfig`.
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+    #[non_exhaustive]
+    pub enum BridgeConfig {}
+}
+
 #[cfg(feature = "testing")]
 pub use config::testing::TestConfig;
 
