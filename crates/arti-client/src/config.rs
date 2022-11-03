@@ -20,7 +20,9 @@ pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSourc
 
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
-pub use tor_guardmgr::bridge::{BridgeConfig, BridgeParseError};
+pub use tor_guardmgr::bridge::BridgeParseError;
+
+use tor_guardmgr::bridge::BridgeConfig;
 
 /// Types for configuring how Tor circuits are built.
 pub mod circ {
@@ -211,7 +213,7 @@ impl StorageConfig {
 // We leave this as an empty struct even when bridge support is disabled,
 // as otherwise the default config file would generate an unknown section warning.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]
-#[builder(build_fn(error = "ConfigBuildError"))]
+#[builder(build_fn(validate = "validate_bridges_config", error = "ConfigBuildError"))]
 #[builder(derive(Debug, Serialize, Deserialize))]
 #[non_exhaustive]
 #[builder_struct_attr(non_exhaustive)] // This struct can be empty.
@@ -234,6 +236,52 @@ pub struct BridgesConfig {
 }
 #[cfg(feature = "bridge-client")]
 impl_standard_builder! { BridgesConfig }
+
+/// Check that the bridge configuration is right
+#[allow(clippy::unnecessary_wraps)]
+fn validate_bridges_config(bridges: &BridgesConfigBuilder) -> Result<(), ConfigBuildError> {
+    let _ = bridges; // suppresses unused variable for just that argument
+
+    #[cfg(feature = "bridge-client")]
+    use BoolOrAuto as BoA;
+
+    // Ideally we would run this post-build, rather than pre-build;
+    // doing it here means we have to recapitulate the defaulting.
+    // Happily the defaulting is obvious, cheap, and not going to change.
+    //
+    // Alternatively we could have derive_builder provide `build_unvalidated`,
+    // but that involves re-setting the build fn name for every field.
+    #[cfg(feature = "bridge-client")]
+    match (
+        bridges.enabled.unwrap_or_default(),
+        bridges.bridges.bridges.as_deref().unwrap_or_default(),
+    ) {
+        (BoA::Auto, _) | (BoA::Explicit(false), _) | (BoA::Explicit(true), [_, ..]) => {}
+        (BoA::Explicit(true), []) => {
+            return Err(ConfigBuildError::Inconsistent {
+                fields: ["enabled", "bridges"].map(Into::into).into_iter().collect(),
+                problem: "bridges enabled=true, but no bridges defined".into(),
+            })
+        }
+    }
+
+    Ok(())
+}
+
+impl BridgesConfig {
+    /// Should the bridges be used?
+    fn bridges_enabled(&self) -> bool {
+        #[cfg(feature = "bridge-client")]
+        {
+            self.enabled.as_bool().unwrap_or(!self.bridges.is_empty())
+        }
+
+        #[cfg(not(feature = "bridge-client"))]
+        {
+            false
+        }
+    }
+}
 
 /// List of configured bridges, as found in the built configuration
 //
@@ -396,6 +444,24 @@ impl tor_circmgr::CircMgrConfig for TorClientConfig {}
 impl AsRef<tor_guardmgr::fallback::FallbackList> for TorClientConfig {
     fn as_ref(&self) -> &tor_guardmgr::fallback::FallbackList {
         self.tor_network.fallback_caches()
+    }
+}
+impl AsRef<[BridgeConfig]> for TorClientConfig {
+    fn as_ref(&self) -> &[BridgeConfig] {
+        #[cfg(feature = "bridge-client")]
+        {
+            &self.bridges.bridges
+        }
+
+        #[cfg(not(feature = "bridge-client"))]
+        {
+            &[]
+        }
+    }
+}
+impl tor_guardmgr::GuardMgrConfig for TorClientConfig {
+    fn bridges_enabled(&self) -> bool {
+        self.bridges.bridges_enabled()
     }
 }
 

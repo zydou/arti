@@ -67,7 +67,7 @@ mod usage;
 pub use err::Error;
 pub use isolation::IsolationToken;
 use tor_guardmgr::fallback::FallbackList;
-pub use tor_guardmgr::{ClockSkewEvents, SkewEstimate};
+pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
 pub use usage::{TargetPort, TargetPorts};
 
 pub use config::{
@@ -181,11 +181,7 @@ impl<R: Runtime> CircMgr<R> {
             config.preemptive_circuits().clone(),
         )));
 
-        let guardmgr = tor_guardmgr::GuardMgr::new(
-            runtime.clone(),
-            storage.clone(),
-            config.fallbacks().clone(),
-        )?;
+        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone(), config)?;
         guardmgr.set_filter(config.path_rules().build_guard_filter(), None);
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
@@ -294,10 +290,7 @@ impl<R: Runtime> CircMgr<R> {
             return Ok(());
         }
 
-        self.mgr
-            .peek_builder()
-            .guardmgr()
-            .replace_fallback_list(new_config.fallbacks().clone());
+        self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
 
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {

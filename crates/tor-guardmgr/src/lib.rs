@@ -57,6 +57,7 @@ use tor_proto::ClockSkew;
 use tracing::{debug, info, trace, warn};
 
 use tor_config::impl_standard_builder;
+use tor_config::ReconfigureError;
 use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 use tor_netdir::{params::NetParameters, NetDir, Relay};
 use tor_persist::{DynStorageHandle, StateMgr};
@@ -64,6 +65,7 @@ use tor_rtcompat::Runtime;
 
 #[cfg(feature = "bridge-client")]
 pub mod bridge;
+mod config;
 mod daemon;
 mod dirstatus;
 mod err;
@@ -77,6 +79,24 @@ mod sample;
 mod skew;
 mod util;
 
+#[cfg(not(feature = "bridge-client"))]
+/// Bridges (stub module, bridges disabled in cargo features)
+pub mod bridge {
+    /// Configuration for a bridge - uninhabited placeholder type
+    ///
+    /// This type appears in configuration APIs as a stand-in,
+    /// when the `bridge-client` cargo feature is not enabled.
+    ///
+    /// The type is uninhabited: without this feature, you cannot create a `BridgeConfig`.
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+    #[non_exhaustive]
+    pub enum BridgeConfig {}
+}
+
+#[cfg(feature = "testing")]
+pub use config::testing::TestConfig;
+
+pub use config::GuardMgrConfig;
 pub use err::{GuardMgrError, PickGuardError};
 pub use events::ClockSkewEvents;
 pub use filter::GuardFilter;
@@ -170,7 +190,6 @@ struct GuardMgrInner {
 
     /// A list of fallback directories used to access the directory system
     /// when no other directory information is yet known.
-    // TODO: reconfigure when the configuration changes.
     fallbacks: fallback::FallbackState,
 
     /// Location in which to store persistent state.
@@ -247,10 +266,6 @@ struct GuardSets {
 const STORAGE_KEY: &str = "guards";
 
 impl<R: Runtime> GuardMgr<R> {
-    // TODO pt-client: We need a configuration argument on construction, and a
-    // reconfigure function. They need to take a configuration object including
-    // a BridgeList, and the "are bridges on or off" object.
-
     /// Create a new "empty" guard manager and launch its background tasks.
     ///
     /// It won't be able to hand out any guards until
@@ -258,7 +273,7 @@ impl<R: Runtime> GuardMgr<R> {
     pub fn new<S>(
         runtime: R,
         state_mgr: S,
-        fallbacks: fallback::FallbackList,
+        config: &impl GuardMgrConfig,
     ) -> Result<Self, GuardMgrError>
     where
         S: StateMgr + Send + Sync + 'static,
@@ -274,6 +289,9 @@ impl<R: Runtime> GuardMgr<R> {
         let (send_skew, recv_skew) = postage::watch::channel();
         let recv_skew = ClockSkewEvents { inner: recv_skew };
 
+        // TODO pt-client do something with the bridge information
+        // should probably share code with reconfigure() as much as possible
+
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
             filter: GuardFilter::unfiltered(),
@@ -282,7 +300,7 @@ impl<R: Runtime> GuardMgr<R> {
             ctrl,
             pending: HashMap::new(),
             waiting: Vec::new(),
-            fallbacks: fallbacks.into(),
+            fallbacks: config.fallbacks().into(),
             storage,
             send_skew,
             recv_skew,
@@ -414,15 +432,24 @@ impl<R: Runtime> GuardMgr<R> {
         inner.update(now, Some(netdir));
     }
 
-    /// Replace the fallback list held by this GuardMgr with `new_list`.
-    pub fn replace_fallback_list(&self, list: fallback::FallbackList) {
+    /// Replace the fallback list held by this GuardMgr with `new_list`
+    fn replace_fallback_list(&self, list: &fallback::FallbackList) {
         let mut fallbacks: fallback::FallbackState = list.into();
         let mut inner = self.inner.lock().expect("Poisoned lock");
         std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
         inner.fallbacks.take_status_from(fallbacks);
     }
 
+    /// Reconfigure
+    pub fn reconfigure(&self, config: &impl GuardMgrConfig) -> Result<(), ReconfigureError> {
+        // TODO pt-client: do something with config.bridges and config.bridges_enabled
+        // should probably share code with new() as much as possible
+        self.replace_fallback_list(config.fallbacks());
+        Ok(())
+    }
+
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
+    // TODO should this be part of the config?
     pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");
@@ -1483,7 +1510,7 @@ mod test {
         let statemgr = TestingStateMgr::new();
         let have_lock = statemgr.try_lock().unwrap();
         assert!(have_lock.held());
-        let guardmgr = GuardMgr::new(rt, statemgr.clone(), [].into()).unwrap();
+        let guardmgr = GuardMgr::new(rt, statemgr.clone(), &TestConfig::default()).unwrap();
         let (con, mds) = testnet::construct_network().unwrap();
         let param_overrides = vec![
             // We make the sample size smaller than usual to compensate for the
@@ -1531,7 +1558,8 @@ mod test {
             drop(guardmgr);
 
             // Try reloading from the state...
-            let guardmgr2 = GuardMgr::new(rt.clone(), statemgr.clone(), [].into()).unwrap();
+            let guardmgr2 =
+                GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default()).unwrap();
             guardmgr2.update_network(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!

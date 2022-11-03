@@ -132,11 +132,15 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 ///
 /// ```
 /// // imagine this in the lower-level module
+/// pub trait Supertrait {}
 /// use tor_basic_utils::define_accessor_trait;
 /// define_accessor_trait! {
-///     pub trait View {
+///     pub trait View: Supertrait {
 ///         lorem: String,
 ///         ipsum: usize,
+///         +
+///         fn other_accessor(&self) -> bool;
+///         // any other trait items can go here
 ///    }
 /// }
 ///
@@ -153,7 +157,10 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 ///     #[as_ref] ipsum: usize,
 ///     dolor: Vec<()>,
 /// }
-/// impl View for Everything { }
+/// impl Supertrait for Everything { }
+/// impl View for Everything {
+///     fn other_accessor(&self) -> bool { false }
+/// }
 ///
 /// let everything = Everything {
 ///     lorem: "sit".into(),
@@ -167,7 +174,8 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 /// ### Generated code
 ///
 /// ```
-/// pub trait View: AsRef<String> + AsRef<usize> {
+/// # pub trait Supertrait { }
+/// pub trait View: AsRef<String> + AsRef<usize> + Supertrait {
 ///     fn lorem(&self) -> &String { self.as_ref() }
 ///     fn ipsum(&self) -> &usize { self.as_ref() }
 /// }
@@ -176,16 +184,21 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 macro_rules! define_accessor_trait {
     {
         $( #[ $attr:meta ])*
-        $vis:vis trait $Trait:ident {
+        $vis:vis trait $Trait:ident $( : $( $Super:path )* )? {
             $( $accessor:ident: $type:ty, )*
+            $( + $( $rest:tt )* )?
         }
     } => {
         $( #[ $attr ])*
-        $vis trait $Trait: $( core::convert::AsRef<$type> + )* {
+        $vis trait $Trait: $( core::convert::AsRef<$type> + )* $( $( $Super + )* )?
+        {
             $(
                 /// Access the field
                 fn $accessor(&self) -> &$type { core::convert::AsRef::as_ref(self) }
             )*
+            $(
+                $( $rest )*
+            )?
         }
     }
 }

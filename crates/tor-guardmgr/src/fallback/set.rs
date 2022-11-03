@@ -109,9 +109,9 @@ impl HasRelayIds for Entry {
     }
 }
 
-impl From<FallbackList> for FallbackState {
-    fn from(list: FallbackList) -> Self {
-        let mut fallbacks: Vec<Entry> = list.fallbacks.into_iter().map(|fb| fb.into()).collect();
+impl From<&FallbackList> for FallbackState {
+    fn from(list: &FallbackList) -> Self {
+        let mut fallbacks: Vec<Entry> = list.fallbacks.iter().map(|fb| fb.clone().into()).collect();
         fallbacks.sort_by(|x, y| x.cmp_by_relay_ids(y));
         fallbacks.dedup_by(|x, y| x.same_relay_ids(y));
         FallbackState { fallbacks }
@@ -280,7 +280,7 @@ mod test {
         let list: FallbackList = fbs.clone().into();
         assert!(!list.is_empty());
         assert_eq!(list.len(), 4);
-        let mut set: FallbackState = list.clone().into();
+        let mut set: FallbackState = (&list).into();
 
         // inspect the generated set
         assert_eq!(set.fallbacks.len(), 4);
@@ -311,7 +311,7 @@ mod test {
         redundant_fbs[..].shuffle(&mut testing_rng());
         let list2 = redundant_fbs.into();
         assert_ne!(&list, &list2);
-        let set2: FallbackState = list2.into();
+        let set2: FallbackState = (&list2).into();
 
         // It should have the same elements, in the same order.
         assert_eq!(set.fallbacks.len(), set2.fallbacks.len());
@@ -334,7 +334,7 @@ mod test {
             rand_fb(&mut rng),
         ];
         let list: FallbackList = fbs.into();
-        let mut set: FallbackState = list.into();
+        let mut set: FallbackState = (&list).into();
         let filter = crate::GuardFilter::unfiltered();
 
         let mut counts = [0_usize; 4];
@@ -380,7 +380,7 @@ mod test {
         ));
 
         // Construct an empty set; make sure we get the right error.
-        let empty_set = FallbackState::from(FallbackList::from(vec![]));
+        let empty_set = FallbackState::from(&FallbackList::from(vec![]));
         assert!(matches!(
             empty_set.choose(&mut rng, now, &filter),
             Err(PickGuardError::NoCandidatesAvailable)
@@ -399,7 +399,7 @@ mod test {
             rand_fb(&mut rng),
         ];
         let list: FallbackList = fbs.clone().into();
-        let mut set: FallbackState = list.into();
+        let mut set: FallbackState = (&list).into();
         let ids: Vec<_> = set
             .fallbacks
             .iter()
@@ -444,7 +444,7 @@ mod test {
         let fbs_new = vec![rand_fb(&mut rng), rand_fb(&mut rng), rand_fb(&mut rng)];
         fbs2.extend(fbs_new.clone());
 
-        let mut set2 = FallbackState::from(FallbackList::from(fbs2.clone()));
+        let mut set2 = FallbackState::from(&FallbackList::from(fbs2.clone()));
         set2.take_status_from(set); // consumes set.
         assert_eq!(set2.fallbacks.len(), 6); // Started with 4, added 3, removed 1.
 

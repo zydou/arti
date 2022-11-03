@@ -21,6 +21,11 @@ additional_provided['tor-rtcompat'] = [
     ('RustlsProvider', 'all(feature = "rustls", any(feature = "tokio", feature = "async-std"))'),
 ]
 
+# We're not very interested in the testing feature
+additional_provided['tor-guardmgr'] = [
+    ('TestConfig', 'feature = "testing"'),
+]
+
 # Sha1 is present both ways
 additional_provided['tor-llcrypto'] = [
     ('Sha1', 'feature = "with-openssl"'),

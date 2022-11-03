@@ -299,6 +299,7 @@ mod test {
     use crate::test::OptDummyGuardMgr;
     use std::collections::HashSet;
     use tor_basic_utils::test_rng::testing_rng;
+    use tor_guardmgr::TestConfig;
     use tor_linkspec::{HasRelayIds, RelayIds};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_netdir::testnet;
@@ -470,7 +471,8 @@ mod test {
             let mut rng = testing_rng();
             let dirinfo = (&netdir).into();
             let statemgr = tor_persist::TestingStateMgr::new();
-            let guards = tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, [].into()).unwrap();
+            let guards =
+                tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             let config = PathConfig::default();
             guards.update_network(&netdir);
             let port443 = TargetPort::ipv4(443);
