@@ -236,7 +236,7 @@ pub struct DirMgr<R: Runtime> {
     // TODO(nickm): I'd like to use an rwlock, but that's not feasible, since
     // rusqlite::Connection isn't Sync.
     // TODO is needed?
-    store: Mutex<DynStore>,
+    store: Arc<Mutex<DynStore>>,
     /// Our latest sufficiently bootstrapped directory, if we have one.
     ///
     /// We use the RwLock so that we can give this out to a bunch of other
@@ -848,7 +848,7 @@ impl<R: Runtime> DirMgr<R> {
 
         Ok(DirMgr {
             config: config.into(),
-            store,
+            store: store.into(),
             netdir,
             default_parameters,
             events,
