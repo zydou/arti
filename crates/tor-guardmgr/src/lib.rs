@@ -762,7 +762,7 @@ impl GuardMgrInner {
                 Err(e) => warn!("Unusable guard parameters from consensus: {}", e),
             }
 
-            self.select_guard_set(netdir);
+            self.select_guard_set_based_on_filter(netdir);
         }
 
         // Change the filter, if it doesn't match what the guards have.
@@ -819,8 +819,7 @@ impl GuardMgrInner {
     ///
     /// After calling this function, the new guard set's filter may be
     /// out-of-date: be sure to call `set_filter` as appropriate.
-    fn select_guard_set(&mut self, netdir: &NetDir) {
-        let frac_permitted = self.filter.frac_bw_permitted(netdir);
+    fn select_guard_set_based_on_filter(&mut self, netdir: &NetDir) {
         // In general, we'd like to use the restricted set if we're under the
         // threshold, and the default set if we're over the threshold.  But if
         // we're sitting close to the threshold, we want to avoid flapping back
@@ -831,9 +830,11 @@ impl GuardMgrInner {
         let offset = match self.guards.active_set {
             GuardSetSelector::Default => -0.05,
             GuardSetSelector::Restricted => 0.05,
+            // If we're using bridges, then we don't switch between the other guard sets based on on the filter at all.
             #[cfg(feature = "bridge-client")]
-            GuardSetSelector::Bridges => todo!(), // TODO pt-client
+            GuardSetSelector::Bridges => return,
         };
+        let frac_permitted = self.filter.frac_bw_permitted(netdir);
         let threshold = self.params.filter_threshold + offset;
         let new_choice = if frac_permitted < threshold {
             GuardSetSelector::Restricted
