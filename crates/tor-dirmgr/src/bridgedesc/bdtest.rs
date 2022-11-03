@@ -315,7 +315,17 @@ async fn success() -> Result<(), anyhow::Error> {
     })
     .await;
 
-    mock.expect_download_calls(NFAIL - 1).await;
+    {
+        // When we cancel the download, we race with the manager.
+        // Maybe the download for the one we removed was started, or maybe not.
+        let mut mstate = mock.mstate.lock().await;
+        assert!(
+            ((NFAIL - 1)..=NFAIL).contains(&mstate.download_calls),
+            "{:?}",
+            mstate.download_calls
+        );
+        mstate.download_calls = 0;
+    }
 
     Ok(())
 }
