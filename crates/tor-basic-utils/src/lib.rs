@@ -138,6 +138,9 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 ///     pub trait View: Supertrait {
 ///         lorem: String,
 ///         ipsum: usize,
+///         +
+///         fn other_accessor(&self) -> bool;
+///         // any other trait items can go here
 ///    }
 /// }
 ///
@@ -155,7 +158,9 @@ impl<T: Ord> BinaryHeapExt<T> for BinaryHeap<T> {
 ///     dolor: Vec<()>,
 /// }
 /// impl Supertrait for Everything { }
-/// impl View for Everything { }
+/// impl View for Everything {
+///     fn other_accessor(&self) -> bool { false }
+/// }
 ///
 /// let everything = Everything {
 ///     lorem: "sit".into(),
@@ -181,6 +186,7 @@ macro_rules! define_accessor_trait {
         $( #[ $attr:meta ])*
         $vis:vis trait $Trait:ident $( : $( $Super:path )* )? {
             $( $accessor:ident: $type:ty, )*
+            $( + $( $rest:tt )* )?
         }
     } => {
         $( #[ $attr ])*
@@ -190,6 +196,9 @@ macro_rules! define_accessor_trait {
                 /// Access the field
                 fn $accessor(&self) -> &$type { core::convert::AsRef::as_ref(self) }
             )*
+            $(
+                $( $rest )*
+            )?
         }
     }
 }
