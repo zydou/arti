@@ -918,13 +918,13 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
         // convenience alias, capturing the usual parameters from our variables.
         let process_document = |output| process_document(&self.runtime, config, output);
 
-        let output = mockable
+        let text = mockable
             .clone()
             .download(&self.runtime, &self.circmgr, bridge, None)
             .await?;
-        let output = output.expect("got None but no if_modified_since");
+        let text = text.expect("got None but no if_modified_since");
 
-        process_document(&output)
+        process_document(&text)
     }
 }
 
@@ -937,9 +937,9 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
 fn process_document<R: Runtime>(
     runtime: &R,
     config: &BridgeDescDownloadConfig,
-    output: &str,
+    text: &str,
 ) -> Result<Downloaded, Error> {
-    let desc = RouterDesc::parse(output)?;
+    let desc = RouterDesc::parse(text)?;
 
     // We *could* just trust this because we have trustworthy provenance
     // we know that the channel machinery authenticated the identity keys in `bridge`.
