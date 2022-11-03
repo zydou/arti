@@ -185,7 +185,7 @@ def main(lints, files):
 
     always_insist = True
     if not files:
-        files = subprocess.run(['find', '-name', '*.rs'],
+        files = subprocess.run(['find', '.', '-name', '*.rs'],
                                stdout=subprocess.PIPE, check=True).stdout
         files = files.decode('utf-8').rstrip('\n').split('\n')
         always_insist = False
