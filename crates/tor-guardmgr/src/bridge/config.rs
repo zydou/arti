@@ -131,7 +131,7 @@ pub enum BridgeParseError {
     #[error(
         "Cannot parse {word:?} as direct bridge IpAddress:ORPort ({addr_error}), nor as PT name"
     )]
-    InvalidIAddrorPt {
+    InvalidIpAddrOrPt {
         /// The offending word
         word: String,
         /// Why we couldn't parse it as an IP address and port
@@ -234,7 +234,7 @@ impl FromStr for BridgeConfig {
             let word = s.next().ok_or(BPE::Empty)?;
             if word.contains(':') {
                 // Not a PT name.  Hope it's an address:port.
-                let addr = word.parse().map_err(|addr_error| BPE::InvalidIAddrorPt {
+                let addr = word.parse().map_err(|addr_error| BPE::InvalidIpAddrOrPt {
                     word: word.to_string(),
                     addr_error,
                 })?;
