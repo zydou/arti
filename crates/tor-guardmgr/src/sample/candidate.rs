@@ -152,7 +152,7 @@ impl Universe for NetDir {
     {
         /// Return the weight for this relay, if we can find it.
         ///
-        /// (We should always be able to find it as netdirs are constructed
+        /// (We should always be able to find it as `NetDir`s are constructed
         /// today.)
         fn weight(dir: &NetDir, relay: &Relay<'_>) -> Option<RelayWeight> {
             dir.weight_by_rsa_id(relay.rsa_identity()?, tor_netdir::WeightRole::Guard)

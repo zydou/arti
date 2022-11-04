@@ -26,7 +26,7 @@ use super::BridgeRelay;
 /// A router descriptor that can be used to build circuits through a bridge.
 ///
 /// These descriptors are fetched from the bridges themselves, and used in
-/// conjunction with configured bridge information and ppluggable transports to
+/// conjunction with configured bridge information and pluggable transports to
 /// contact bridges and build circuits through them.
 #[derive(Clone, Debug)]
 pub struct BridgeDesc {
@@ -91,7 +91,7 @@ dyn_clone::clone_trait_object!(BridgeDescProvider);
 ///
 /// Currently changes are always reported as `BridgeDescEvent::SomethingChanged`.
 ///
-/// In the future, as an optimisation, more fine-grained information may be provided.
+/// In the future, as an optimization, more fine-grained information may be provided.
 /// Unrecognized variants should be handled the same way as `SomethingChanged`.
 /// (So right now, it is not necessary to match on the variant at all.)
 #[derive(

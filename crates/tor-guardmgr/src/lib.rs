@@ -220,7 +220,7 @@ struct GuardMgrInner {
     #[cfg(feature = "bridge-client")]
     configured_bridges: Arc<[bridge::BridgeConfig]>,
 
-    /// True iff we are configured to use briges.
+    /// True iff we are configured to use bridges.
     #[cfg(feature = "bridge-client")]
     use_bridges: bool,
 }
