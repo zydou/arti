@@ -1,7 +1,7 @@
 //! This module defines and implements traits used to create a guard sample from
 //! either bridges or relays.
 
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
 use tor_linkspec::{ByRelayIds, ChanTarget, HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay, RelayWeight};
@@ -189,15 +189,15 @@ impl Universe for NetDir {
 ///
 /// This enum exists because `Universe` is not dyn-compatible.
 #[derive(Clone, Debug)]
-pub(crate) enum UniverseRef<'a> {
+pub(crate) enum UniverseRef {
     /// A reference to a netdir.
-    NetDir(&'a NetDir),
+    NetDir(Arc<NetDir>),
     /// A BridgeSet (which is always references internally)
     #[cfg(feature = "bridge-client")]
-    BridgeSet(crate::bridge::BridgeSet<'a>),
+    BridgeSet(crate::bridge::BridgeSet),
 }
 
-impl<'a> Universe for UniverseRef<'a> {
+impl Universe for UniverseRef {
     fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool> {
         match self {
             UniverseRef::NetDir(r) => r.contains(guard),

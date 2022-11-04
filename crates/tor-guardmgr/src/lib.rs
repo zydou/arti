@@ -772,34 +772,38 @@ impl GuardMgrInner {
         }
     }
 
+    /// Return the latest `BridgeSet` based on our `BridgeDescProvider` and our
+    /// configured bridges.
+    #[cfg(feature = "bridge-client")]
+    fn latest_bridge_set(&self) -> bridge::BridgeSet {
+        let bridge_descs = self.latest_bridge_desc_list();
+        let bridge_config = self.configured_bridges.clone();
+        bridge::BridgeSet::new(bridge_config, bridge_descs)
+    }
+
     /// Run a function that takes `&mut self` and an optional [`UniverseRef`].
     ///
     /// We try to get a universe from the appropriate source for the current
     /// active guard set.
     fn with_opt_universe<F, T>(&mut self, func: F) -> T
     where
-        F: for<'a> FnOnce(&mut Self, Option<UniverseRef<'a>>) -> T,
+        F: FnOnce(&mut Self, Option<&UniverseRef>) -> T,
     {
         // TODO pt-client: soon, make the function take an GuardSet and a set
         // of parameters, so we can't get the active set wrong.
         match self.guards.active_set.universe_type() {
             UniverseType::NetDir => {
                 if let Some(nd) = self.timely_netdir() {
-                    func(self, Some(UniverseRef::NetDir(nd.as_ref())))
+                    func(self, Some(&UniverseRef::NetDir(nd)))
                 } else {
                     func(self, None)
                 }
             }
             #[cfg(feature = "bridge-client")]
-            UniverseType::BridgeSet => {
-                let bridge_descs = self.latest_bridge_desc_list();
-                let bridge_config = self.configured_bridges.clone();
-                let bridge_set = bridge::BridgeSet::new(
-                    bridge_config.as_ref(),
-                    bridge_descs.as_ref().map(|b| b.as_ref()),
-                );
-                func(self, Some(UniverseRef::BridgeSet(bridge_set)))
-            }
+            UniverseType::BridgeSet => func(
+                self,
+                Some(&UniverseRef::BridgeSet(self.latest_bridge_set())),
+            ),
         }
     }
 
@@ -818,7 +822,7 @@ impl GuardMgrInner {
                 &this.params,
                 now,
                 this.guards.active_guards_mut(),
-                univ.as_ref(),
+                univ,
             );
         });
     }
@@ -1290,12 +1294,12 @@ impl GuardMgrInner {
                 &this.params,
                 wallclock,
                 this.guards.active_guards_mut(),
-                Some(&univ),
+                Some(univ),
             );
             if this.guards.active_guards_mut().extend_sample_as_needed(
                 wallclock,
                 &this.params,
-                &univ,
+                univ,
             ) {
                 this.guards
                     .active_guards_mut()

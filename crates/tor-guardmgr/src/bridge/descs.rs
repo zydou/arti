@@ -137,20 +137,20 @@ pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn 
 //
 // TODO pt-client: I doubt that this type is in its final form.
 #[derive(Debug, Clone)]
-pub(crate) struct BridgeSet<'a> {
+pub(crate) struct BridgeSet {
     /// When did this BridgeSet last change its listed bridges?
     config_last_changed: SystemTime,
     /// The configured bridges.
-    config: &'a [BridgeConfig],
+    config: Arc<[BridgeConfig]>,
     /// A map from those bridges to their descriptors.  It may contain elements
     /// that are not in `config`.
-    descs: Option<&'a BridgeDescList>,
+    descs: Option<Arc<BridgeDescList>>,
 }
 
-impl<'a> BridgeSet<'a> {
+impl BridgeSet {
     /// Create a new `BridgeSet` from its configuration.
     #[allow(dead_code)] // TODO pt-client remove
-    pub(crate) fn new(config: &'a [BridgeConfig], descs: Option<&'a BridgeDescList>) -> Self {
+    pub(crate) fn new(config: Arc<[BridgeConfig]>, descs: Option<Arc<BridgeDescList>>) -> Self {
         Self {
             config_last_changed: SystemTime::now(), // TODO pt-client wrong.
             config,
@@ -177,8 +177,8 @@ impl<'a> BridgeSet<'a> {
 
     /// Return a BridgeRelay wrapping the provided configuration, plus any known
     /// descriptor for that configuration.
-    fn relay_by_bridge(&self, bridge: &'a BridgeConfig) -> BridgeRelay<'a> {
-        let desc = match self.descs.and_then(|d| d.get(bridge)) {
+    fn relay_by_bridge<'a>(&'a self, bridge: &'a BridgeConfig) -> BridgeRelay<'a> {
+        let desc = match self.descs.as_ref().and_then(|d| d.get(bridge)) {
             Some(Ok(b)) => Some(b.clone()),
             _ => None,
         };
@@ -214,7 +214,7 @@ impl<'a> BridgeSet<'a> {
     }
 }
 
-impl<'a> Universe for BridgeSet<'a> {
+impl Universe for BridgeSet {
     fn contains<T: tor_linkspec::ChanTarget>(&self, guard: &T) -> Option<bool> {
         match self.bridge_relay_by_guard(guard) {
             CandidateStatus::Present(_) => Some(true),
