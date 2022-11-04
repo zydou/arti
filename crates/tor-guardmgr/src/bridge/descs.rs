@@ -186,7 +186,7 @@ impl BridgeSet {
     }
 
     /// Look up a BridgeRelay corresponding to a given guard.
-    fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
+    pub(crate) fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
         &self,
         guard: &T,
     ) -> CandidateStatus<BridgeRelay> {

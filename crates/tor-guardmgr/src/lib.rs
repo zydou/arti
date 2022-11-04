@@ -1337,9 +1337,17 @@ impl GuardMgrInner {
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let active_set = &self.guards.active_set;
-        self.guards
-            .guards(active_set)
-            .pick_guard(active_set, usage, &self.params, now)
+        let (list_kind, mut first_hop) =
+            self.guards
+                .guards(active_set)
+                .pick_guard(active_set, usage, &self.params, now)?;
+        #[cfg(feature = "bridge-client")]
+        if self.guards.active_set.universe_type() == UniverseType::BridgeSet {
+            // See if we can promote first_hop to a viable CircTarget.
+            let bridges = self.latest_bridge_set();
+            first_hop.lookup_bridge_circ_target(&bridges);
+        }
+        Ok((list_kind, first_hop))
     }
 
     /// Helper: Select a fallback directory.
@@ -1516,6 +1524,23 @@ impl FirstHop {
         match &mut self.inner {
             FirstHopInner::Chan(ct) => ct,
             FirstHopInner::Circ(ct) => ct.chan_target_mut(),
+        }
+    }
+
+    /// If possible and appropriate, find a circuit target in `bridges` for this
+    /// `FirstHop`, and make this `FirstHop` a viable circuit target.
+    #[cfg(feature = "bridge-client")]
+    fn lookup_bridge_circ_target(&mut self, bridges: &bridge::BridgeSet) {
+        use crate::sample::CandidateStatus::Present;
+        if self.sample.as_ref().map(|s| s.universe_type()) == Some(UniverseType::BridgeSet)
+            && matches!(self.inner, FirstHopInner::Chan(_))
+        {
+            if let Present(bridge_relay) = bridges.bridge_relay_by_guard(self) {
+                if let Some(circ_target) = bridge_relay.for_circuit_usage() {
+                    self.inner =
+                        FirstHopInner::Circ(OwnedCircTarget::from_circ_target(&circ_target));
+                }
+            }
         }
     }
 }
