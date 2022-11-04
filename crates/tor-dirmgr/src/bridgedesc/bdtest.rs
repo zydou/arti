@@ -108,7 +108,7 @@ impl Mock {
     }
 }
 
-fn setup() -> (TempDir, Bdm, R, M, BridgeKey) {
+fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let runtime = RealRuntime::current().unwrap();
     let runtime = MockSleepRuntime::new(runtime);
     let sleep = runtime.mock_sleep().clone();
@@ -128,6 +128,9 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey) {
     let (db_tmp_dir, store) = crate::storage::sqlite::test::new_empty().unwrap();
     let store = Arc::new(Mutex::new(Box::new(store) as _));
 
+    let sql_path = db_tmp_dir.path().join("db.sql");
+    let conn = rusqlite::Connection::open(&sql_path).unwrap();
+
     let bdm = BridgeDescManager::<R, M>::new_internal(
         runtime.clone(),
         (),
@@ -142,7 +145,7 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey) {
         .unwrap();
     let bridge = Arc::new(bridge);
 
-    (db_tmp_dir, bdm, runtime, mock, bridge)
+    (db_tmp_dir, bdm, runtime, mock, bridge, conn)
 }
 
 async fn stream_drain_ready<S: Stream + Unpin + FusedStream>(s: &mut S) -> usize {
