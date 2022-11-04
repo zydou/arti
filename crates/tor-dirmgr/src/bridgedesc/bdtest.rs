@@ -21,6 +21,7 @@ use futures::select_biased;
 use futures::stream::FusedStream;
 use futures::Stream;
 use itertools::{chain, Itertools};
+use tracing_test::traced_test;
 
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
@@ -176,6 +177,7 @@ fn bad_bridge(i: usize) -> BridgeKey {
 }
 
 #[tokio::test]
+#[traced_test]
 async fn success() -> Result<(), anyhow::Error> {
     let (bdm, runtime, mock, bridge) = setup();
 

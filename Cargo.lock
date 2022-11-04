@@ -3719,6 +3719,7 @@ dependencies = [
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]
