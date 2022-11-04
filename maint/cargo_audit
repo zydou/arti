@@ -13,17 +13,17 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
-    # This is not a vulnerability but an unmaintained warning for `ansi_term`.
-    # The upstream issue does not offer good alternatives, and anyway we get
-    # this crate via clap and tracing-*.
-    # It does not seem at all likely that this is really a problem for us.
-    --ignore RUSTSEC-2021-0139
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
 
 
 OBSOLETE_IGNORE=(
+    # This is not a vulnerability but an unmaintained warning for `ansi_term`.
+    # The upstream issue does not offer good alternatives, and anyway we get
+    # this crate via clap and tracing-*.
+    # It does not seem at all likely that this is really a problem for us.
+    --ignore RUSTSEC-2021-0139
     # This is not a vulnerability but an unmaintained warn for the
     # `net2` crate. It was pulled indirectly by `notify` 4.0.
     # It's fixed in `notify` 5.0.

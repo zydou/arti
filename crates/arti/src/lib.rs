@@ -249,18 +249,18 @@ where
             .usage("arti <SUBCOMMAND> [OPTIONS]")
             .arg(
                 Arg::with_name("config-files")
-                    .short("c")
+                    .short('c')
                     .long("config")
                     .takes_value(true)
                     .value_name("FILE")
                     .multiple(true)
                     // NOTE: don't forget the `global` flag on all arguments declared at this level!
                     .global(true)
-                    .help(&config_file_help),
+                    .help(config_file_help.as_str()),
             )
             .arg(
                 Arg::with_name("option")
-                    .short("o")
+                    .short('o')
                     .takes_value(true)
                     .value_name("KEY=VALUE")
                     .multiple(true)
@@ -269,7 +269,7 @@ where
             )
             .arg(
                 Arg::with_name("loglevel")
-                    .short("l")
+                    .short('l')
                     .long("log-level")
                     .global(true)
                     .takes_value(true)
@@ -290,14 +290,14 @@ where
                     )
                     .arg(
                         Arg::with_name("socks-port")
-                            .short("p")
+                            .short('p')
                             .takes_value(true)
                             .value_name("PORT")
                             .help("Port to listen on for SOCKS connections (overrides the port in the config if specified).")
                     )
                     .arg(
                         Arg::with_name("dns-port")
-                            .short("d")
+                            .short('d')
                             .takes_value(true)
                             .value_name("PORT")
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")

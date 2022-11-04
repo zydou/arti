@@ -28,7 +28,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         .usage("arti-testing <SUBCOMMAND> [OPTIONS]")
         .arg(
             Arg::with_name("config-files")
-                .short("c")
+                .short('c')
                 .long("config")
                 .takes_value(true)
                 .value_name("FILE")
@@ -37,7 +37,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         )
         .arg(
             Arg::with_name("option")
-                .short("o")
+                .short('o')
                 .takes_value(true)
                 .value_name("KEY=VALUE")
                 .multiple(true)
@@ -45,7 +45,7 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         )
         .arg(
             Arg::with_name("log")
-                .short("l")
+                .short('l')
                 .long("log")
                 .takes_value(true)
                 .value_name("FILTER")
@@ -107,15 +107,13 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
                     Arg::with_name("target")
                         .long("target")
                         .takes_value(true)
-                        .value_name("ADDR:PORT")
-                        .required(true),
+                        .value_name("ADDR:PORT"),
                 )
                 .arg(
                     Arg::with_name("retry")
                         .long("retry")
                         .takes_value(true)
-                        .value_name("DELAY")
-                        .required(false),
+                        .value_name("DELAY"),
                 ),
         )
         .subcommand(SubCommand::with_name("bootstrap").about("Try to bootstrap only"))
