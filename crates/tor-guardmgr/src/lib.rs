@@ -466,6 +466,10 @@ impl<R: Runtime> GuardMgr<R> {
     /// Return true if `netdir` has enough information to safely become our new netdir.
     pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
         let mut inner = self.inner.lock().expect("Poisoned lock");
+        if inner.guards.active_set.universe_type() != UniverseType::NetDir {
+            // If we aren't using the netdir, this isn't something we want to look at.
+            return true;
+        }
         inner
             .guards
             .active_guards_mut()
