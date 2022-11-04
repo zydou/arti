@@ -943,7 +943,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
         debug!(r#"starting download for "{}""#, bridge);
 
         // convenience alias, capturing the usual parameters from our variables.
-        let process_document = |output| process_document(&self.runtime, config, output);
+        let process_document = |text| process_document(&self.runtime, config, text);
 
         let text = mockable
             .clone()
