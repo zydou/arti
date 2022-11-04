@@ -108,6 +108,8 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
                     inner.update(runtime.wallclock());
+                } else {
+                    return;
                 }
             }
             _ => {}
