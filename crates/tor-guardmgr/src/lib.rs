@@ -1320,7 +1320,7 @@ impl GuardMgrInner {
         // guard, and we aren't using bridges, then we may be able to use a
         // fallback.
         if usage.kind == GuardUsageKind::OneHopDirectory
-            && self.guards.active_set.universe_type() != UniverseType::BridgeSet
+            && self.guards.active_set.universe_type() == UniverseType::NetDir
         {
             return self.select_fallback(now);
         }
@@ -1336,6 +1336,7 @@ impl GuardMgrInner {
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let active_set = &self.guards.active_set;
+        #[cfg_attr(not(feature = "bridge-client"), allow(unused_mut))]
         let (list_kind, mut first_hop) =
             self.guards
                 .guards(active_set)
@@ -1477,6 +1478,7 @@ enum FirstHopInner {
     Chan(OwnedChanTarget),
     /// We have enough information to connect to a guards _and_ to build
     /// multihop circuits through it.
+    #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     Circ(OwnedCircTarget),
 }
 

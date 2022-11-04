@@ -21,6 +21,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
 use tracing::{debug, info};
 
+#[allow(unused_imports)]
 pub(crate) use candidate::{Candidate, CandidateStatus, Universe, UniverseRef, WeightThreshold};
 
 /// A set of sampled guards, along with various orderings on subsets
