@@ -537,16 +537,6 @@ impl<R: Runtime> GuardMgr<R> {
     /// through the guard returned by this function, but you can't
     /// actually use it for traffic unless the [`GuardUsable`] future
     /// yields "true".
-    ///
-    /// # Limitations
-    ///
-    /// This function will never return a guard that isn't listed in
-    /// the most recent [`NetDir`].
-    ///
-    /// That's _usually_ what you'd want, but when we're trying to
-    /// bootstrap we might want to use _all_ guards as possible
-    /// directory caches.  That's not implemented yet. (See ticket
-    /// [#220](https://gitlab.torproject.org/tpo/core/arti/-/issues/220)).
     pub fn select_guard(
         &self,
         usage: GuardUsage,
