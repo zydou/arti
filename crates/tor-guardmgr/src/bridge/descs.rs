@@ -149,7 +149,6 @@ pub(crate) struct BridgeSet {
 
 impl BridgeSet {
     /// Create a new `BridgeSet` from its configuration.
-    #[allow(dead_code)] // TODO pt-client remove
     pub(crate) fn new(config: Arc<[BridgeConfig]>, descs: Option<Arc<BridgeDescList>>) -> Self {
         Self {
             config_last_changed: SystemTime::now(), // TODO pt-client wrong.

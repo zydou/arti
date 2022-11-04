@@ -291,7 +291,6 @@ struct GuardSets {
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
     remaining: HashMap<String, tor_persist::JsonValue>,
-    // TODO pt-client: There must also be a "bridges" GuardSet instance.
 }
 
 /// The key (filename) we use for storing our persistent guard state in the
@@ -1478,7 +1477,6 @@ enum FirstHopInner {
     Chan(OwnedChanTarget),
     /// We have enough information to connect to a guards _and_ to build
     /// multihop circuits through it.
-    #[allow(dead_code)] // TODO pt-client
     Circ(OwnedCircTarget),
 }
 
@@ -1509,9 +1507,6 @@ impl FirstHop {
     }
 
     /// If possible, return a view of this object that can be used to build a circuit.
-    ///
-    /// TODO pt-client: This will need to return "Some" only for bridges that have
-    /// a bridge descriptor.
     pub fn as_circ_target(&self) -> Option<&OwnedCircTarget> {
         match &self.inner {
             FirstHopInner::Chan(_) => None,
