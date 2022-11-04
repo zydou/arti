@@ -178,6 +178,11 @@ where
     panic!("untilness didn't occur");
 }
 
+fn queues_are_empty(bdm: &Bdm) -> Option<()> {
+    let state = bdm.mgr.lock_only();
+    (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+}
+
 fn bad_bridge(i: usize) -> BridgeKey {
     let bad = format!("192.126.0.1:{} EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1", i);
     let bad: BridgeConfig = bad.parse().unwrap();
@@ -321,8 +326,7 @@ async fn success() -> Result<(), anyhow::Error> {
     // should produce a removed bridge event
     let () = stream_drain_until(1, &mut events, || async {
         bdm.check_consistency(Some(&bridges));
-        let state = bdm.mgr.lock_only();
-        (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+        queues_are_empty(&bdm)
     })
     .await;
 
