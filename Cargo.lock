@@ -3686,6 +3686,7 @@ dependencies = [
  "futures",
  "hex",
  "hex-literal",
+ "humantime 2.1.0",
  "humantime-serde",
  "itertools",
  "memmap2",

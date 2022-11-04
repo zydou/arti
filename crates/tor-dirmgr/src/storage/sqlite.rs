@@ -15,6 +15,9 @@ use tor_netdoc::doc::netstatus::{ConsensusFlavor, Lifetime};
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
 
+#[cfg(feature = "bridge-client")]
+pub(crate) use {crate::storage::CachedBridgeDescriptor, tor_guardmgr::bridge::BridgeConfig};
+
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
@@ -579,6 +582,26 @@ impl Store for SqliteStore {
         stmt.finalize()?;
         tx.commit()?;
         Ok(())
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn lookup_bridgedesc(&self, _bridge: &BridgeConfig) -> Result<Option<CachedBridgeDescriptor>> {
+        Ok(None) // TODO pt-client
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn store_bridgedesc(
+        &mut self,
+        _bridge: &BridgeConfig,
+        _entry: CachedBridgeDescriptor,
+        _until: SystemTime,
+    ) -> Result<()> {
+        Ok(()) // TODO pt-client
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn delete_bridgedesc(&mut self, _bridge: &BridgeConfig) -> Result<()> {
+        Ok(()) // TODO pt-client
     }
 }
 
