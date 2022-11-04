@@ -6,6 +6,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::{self, Debug, Display};
 use std::num::NonZeroU8;
 use std::ops;
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -792,7 +793,13 @@ impl State {
 
                     // The task which actually downloads a descriptor.
                     async move {
-                        let got = inner.download_descriptor(mockable, &bridge, &config).await;
+                        let got =
+                            AssertUnwindSafe(inner.download_descriptor(mockable, &bridge, &config))
+                                .catch_unwind()
+                                .await
+                                .unwrap_or_else(|_| {
+                                    Err(internal!("download descriptor task paniced!").into())
+                                });
                         match &got {
                             Ok(_) => debug!(r#"download succeeded for "{}""#, bridge),
                             Err(err) => debug!(r#"download failed for "{}": {}"#, bridge, err),
