@@ -31,6 +31,7 @@ use tor_netdoc::doc::routerdesc::RouterDesc;
 use tor_rtcompat::Runtime;
 
 use crate::event::FlagPublisher;
+use crate::DynStore;
 
 #[cfg(test)]
 mod bdtest;
@@ -153,7 +154,7 @@ mod mockable {
 }
 #[async_trait]
 impl<R: Runtime> mockable::MockableAPI<R> for () {
-    type CircMgr = CircMgr<R>;
+    type CircMgr = Arc<CircMgr<R>>;
 
     /// Actual code for downloading a descriptor document
     async fn download(
@@ -191,6 +192,10 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 
     /// Circuit manager, used for creating circuits
     circmgr: M::CircMgr,
+
+    /// Persistent state store
+    #[allow(dead_code)] // TODO pt-client, will disappear later in this MR branch
+    store: Arc<Mutex<DynStore>>,
 
     /// Mock for testing, usually `()`
     mockable: M,
@@ -439,12 +444,25 @@ impl JoinHandle {
 
 impl<R: Runtime> BridgeDescManager<R> {
     /// Create a new `BridgeDescManager`
-    pub fn new(
-        runtime: R,
-        circmgr: CircMgr<R>,
-        config: BridgeDescDownloadConfig,
+    ///
+    /// This is the public constructor.
+    //
+    // TODO: That this constructor requires a DirMgr is rather odd.
+    // In principle there is little reason why you need a DirMgr to make a BridgeDescManager.
+    // However, BridgeDescManager needs a Store, and currently that is a private trait, and the
+    // implementation is constructible only from the dirmgr's config.  This should probably be
+    // tidied up somehow, at some point, perhaps by exposing `Store` and its configuration.
+    pub fn new_with_dirmgr(
+        dirmgr: &crate::DirMgr<R>,
+        config: &BridgeDescDownloadConfig,
     ) -> Result<Self, StartupError> {
-        Self::with_mockable(runtime, circmgr, config, ())
+        Self::new_internal(
+            dirmgr.runtime.clone(),
+            dirmgr.circmgr.clone().ok_or(StartupError::MissingCircMgr)?,
+            dirmgr.store.clone(),
+            config,
+            (),
+        )
     }
 }
 
@@ -467,10 +485,11 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
     //
     // Allow passing `runtime` by value, which is usual API for this kind of setup function.
     #[allow(clippy::needless_pass_by_value)]
-    fn with_mockable(
+    fn new_internal(
         runtime: R,
         circmgr: M::CircMgr,
-        config: BridgeDescDownloadConfig,
+        store: Arc<Mutex<DynStore>>,
+        config: &BridgeDescDownloadConfig,
         mockable: M,
     ) -> Result<Self, StartupError> {
         /// Convenience alias
@@ -478,7 +497,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
             Default::default()
         }
 
-        let config = config.into();
+        let config = config.clone().into();
         let (earliest_timeout, timeout_update) = postage::watch::channel();
 
         let state = Mutex::new(State {
@@ -495,6 +514,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
             state,
             runtime: runtime.clone(),
             circmgr,
+            store,
             mockable,
         });
 
@@ -1090,6 +1110,12 @@ async fn timeout_task<R: Runtime, M: Mockable<R>>(
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum StartupError {
+    /// No circuit manager in the directory manager
+    #[error(
+        "tried to create bridge descriptor manager from directory manager with no circuit manager"
+    )]
+    MissingCircMgr,
+
     /// Unable to spawn task
     //
     // TODO lots of our Errors have a variant exactly like this.
@@ -1106,8 +1132,10 @@ pub enum StartupError {
 
 impl HasKind for StartupError {
     fn kind(&self) -> ErrorKind {
+        use ErrorKind as EK;
         use StartupError as SE;
         match self {
+            SE::MissingCircMgr => EK::Internal,
             SE::Spawn { cause, .. } => cause.kind(),
         }
     }

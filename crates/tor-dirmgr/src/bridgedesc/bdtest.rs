@@ -21,6 +21,7 @@ use futures::select_biased;
 use futures::stream::FusedStream;
 use futures::Stream;
 use itertools::{chain, Itertools};
+use tempfile::TempDir;
 use tracing_test::traced_test;
 
 use tor_linkspec::HasAddrs;
@@ -107,7 +108,7 @@ impl Mock {
     }
 }
 
-fn setup() -> (Bdm, R, M, BridgeKey) {
+fn setup() -> (TempDir, Bdm, R, M, BridgeKey) {
     let runtime = RealRuntime::current().unwrap();
     let runtime = MockSleepRuntime::new(runtime);
     let sleep = runtime.mock_sleep().clone();
@@ -124,10 +125,14 @@ fn setup() -> (Bdm, R, M, BridgeKey) {
 
     let mock = Mock { sleep, mstate };
 
-    let bdm = BridgeDescManager::<R, M>::with_mockable(
+    let (db_tmp_dir, store) = crate::storage::sqlite::test::new_empty().unwrap();
+    let store = Arc::new(Mutex::new(Box::new(store) as _));
+
+    let bdm = BridgeDescManager::<R, M>::new_internal(
         runtime.clone(),
         (),
-        Default::default(),
+        store,
+        &Default::default(),
         mock.clone(),
     )
     .unwrap();
@@ -137,7 +142,7 @@ fn setup() -> (Bdm, R, M, BridgeKey) {
         .unwrap();
     let bridge = Arc::new(bridge);
 
-    (bdm, runtime, mock, bridge)
+    (db_tmp_dir, bdm, runtime, mock, bridge)
 }
 
 async fn stream_drain_ready<S: Stream + Unpin + FusedStream>(s: &mut S) -> usize {
@@ -179,7 +184,7 @@ fn bad_bridge(i: usize) -> BridgeKey {
 #[tokio::test]
 #[traced_test]
 async fn success() -> Result<(), anyhow::Error> {
-    let (bdm, runtime, mock, bridge) = setup();
+    let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup();
 
     bdm.check_consistency(Some([]));
 

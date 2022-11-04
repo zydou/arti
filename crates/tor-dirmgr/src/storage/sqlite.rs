@@ -878,7 +878,7 @@ const DROP_OLD_AUTHCERTS: &str = "DELETE FROM Authcerts WHERE expires < ?;";
 const DROP_OLD_CONSENSUSES: &str = "DELETE FROM Consensuses WHERE valid_until < ?;";
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::storage::EXPIRATION_DEFAULTS;
@@ -886,7 +886,7 @@ mod test {
     use tempfile::{tempdir, TempDir};
     use time::ext::NumericalDuration;
 
-    fn new_empty() -> Result<(TempDir, SqliteStore)> {
+    pub(crate) fn new_empty() -> Result<(TempDir, SqliteStore)> {
         let tmp_dir = tempdir().unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
         let conn = rusqlite::Connection::open(&sql_path)?;
