@@ -394,7 +394,16 @@ impl<R: Runtime> GuardMgr<R> {
             let mut inner = self.inner.lock().expect("Poisoned lock");
             inner.bridge_desc_provider = Some(weak_provider.clone());
         }
-        // TODO pt-client: launch a keep_bridge_descs_updated task.
+
+        let weak_inner = Arc::downgrade(&self.inner);
+        let rt_clone = self.runtime.clone();
+        self.runtime
+            .spawn(daemon::keep_bridge_descs_updated(
+                rt_clone,
+                weak_inner,
+                weak_provider,
+            ))
+            .map_err(|e| GuardMgrError::from_spawn("periodic guard netdir updater", e))?;
 
         Ok(())
     }
