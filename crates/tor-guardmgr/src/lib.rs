@@ -1318,11 +1318,11 @@ impl GuardMgrInner {
         }
 
         // Okay, that didn't work either.  If we were asked for a directory
-        // guard, then we may be able to use a fallback.
-        //
-        // TODO pt-client: Actually, we never want to use fallbacks if we are in
-        // bridge mode.
-        if usage.kind == GuardUsageKind::OneHopDirectory {
+        // guard, and we aren't using bridges, then we may be able to use a
+        // fallback.
+        if usage.kind == GuardUsageKind::OneHopDirectory
+            && self.guards.active_set.universe_type() != UniverseType::BridgeSet
+        {
             return self.select_fallback(now);
         }
 
