@@ -320,10 +320,14 @@ impl Store for SqliteStore {
 
         let now = OffsetDateTime::now_utc();
         tx.execute(DROP_OLD_EXTDOCS, [])?;
+        // TODO bad system clocks might generate table rows with times in the future.
+        // When do they ever get deleted ?  (This is handled properly for BridgeDescs.)
         tx.execute(DROP_OLD_MICRODESCS, [now - expiration.microdescs])?;
         tx.execute(DROP_OLD_AUTHCERTS, [now - expiration.authcerts])?;
         tx.execute(DROP_OLD_CONSENSUSES, [now - expiration.consensuses])?;
         tx.execute(DROP_OLD_ROUTERDESCS, [now - expiration.router_descs])?;
+        #[cfg(feature = "bridge-client")]
+        tx.execute(DROP_OLD_BRIDGEDESCS, [now, now])?;
         tx.commit()?;
         for name in expired_blobs {
             let fname = self.blob_dir.join(name);
@@ -585,23 +589,53 @@ impl Store for SqliteStore {
     }
 
     #[cfg(feature = "bridge-client")]
-    fn lookup_bridgedesc(&self, _bridge: &BridgeConfig) -> Result<Option<CachedBridgeDescriptor>> {
-        Ok(None) // TODO pt-client
+    fn lookup_bridgedesc(&self, bridge: &BridgeConfig) -> Result<Option<CachedBridgeDescriptor>> {
+        let bridge_line = bridge.to_string();
+        Ok(self
+            .conn
+            .query_row(FIND_BRIDGEDESC, params![bridge_line], |row| {
+                let (fetched, document): (OffsetDateTime, _) = row.try_into()?;
+                let fetched = fetched.into();
+                Ok(CachedBridgeDescriptor { fetched, document })
+            })
+            .optional()?)
     }
 
     #[cfg(feature = "bridge-client")]
     fn store_bridgedesc(
         &mut self,
-        _bridge: &BridgeConfig,
-        _entry: CachedBridgeDescriptor,
-        _until: SystemTime,
+        bridge: &BridgeConfig,
+        entry: CachedBridgeDescriptor,
+        until: SystemTime,
     ) -> Result<()> {
-        Ok(()) // TODO pt-client
+        if self.is_readonly() {
+            // Hopefully whoever *does* have the lock will update the cache.
+            // Otherwise it will contain a stale entry forever
+            // (which we'll ignore, but waste effort on).
+            return Ok(());
+        }
+        let bridge_line = bridge.to_string();
+        let row = params![
+            bridge_line,
+            OffsetDateTime::from(entry.fetched),
+            OffsetDateTime::from(until),
+            entry.document,
+        ];
+        self.conn.execute(INSERT_BRIDGEDESC, row)?;
+        Ok(())
     }
 
     #[cfg(feature = "bridge-client")]
-    fn delete_bridgedesc(&mut self, _bridge: &BridgeConfig) -> Result<()> {
-        Ok(()) // TODO pt-client
+    fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()> {
+        if self.is_readonly() {
+            // This is called when we find corrupted or stale cache entries,
+            // to stop us wasting time on them next time.
+            // Hopefully whoever *does* have the lock will do this.
+            return Ok(());
+        }
+        let bridge_line = bridge.to_string();
+        self.conn.execute(DELETE_BRIDGEDESC, params![bridge_line])?;
+        Ok(())
     }
 }
 
@@ -751,6 +785,15 @@ const UPDATE_SCHEMA: &[&str] = &["
     published DATE NOT NULL,
     contents BLOB NOT NULL
   );
+","
+  -- Update the database schema from version 1 to version 2.
+  -- We create this table even if the bridge-client feature is disabled, but then don't touch it at all.
+  CREATE TABLE BridgeDescs (
+    bridge_line TEXT PRIMARY KEY NOT NULL,
+    fetched DATE NOT NULL,
+    until DATE NOT NULL,
+    contents BLOB NOT NULL
+  );
 "];
 
 /// Update the database schema version tracking, from each version to the next
@@ -882,6 +925,19 @@ const UPDATE_MD_LISTED: &str = "
   WHERE sha256_digest = ?;
 ";
 
+/// Query: Find a cached bridge descriptor
+#[cfg(feature = "bridge-client")]
+const FIND_BRIDGEDESC: &str = "SELECT fetched, contents FROM BridgeDescs WHERE bridge_line = ?;";
+/// Query: Record a cached bridge descriptor
+#[cfg(feature = "bridge-client")]
+const INSERT_BRIDGEDESC: &str = "
+  INSERT OR REPLACE INTO BridgeDescs ( bridge_line, fetched, until, contents )
+  VALUES ( ?, ?, ?, ? );
+";
+/// Query: Remove a cached bridge descriptor
+#[cfg(feature = "bridge-client")]
+const DELETE_BRIDGEDESC: &str = "DELETE FROM BridgeDescs WHERE bridge_line = ?;";
+
 /// Query: Discard every expired extdoc.
 ///
 /// External documents aren't exposed through [`Store`].
@@ -899,6 +955,9 @@ const DROP_OLD_AUTHCERTS: &str = "DELETE FROM Authcerts WHERE expires < ?;";
 /// Query: Discard every consensus that's been expired for at least
 /// two days.
 const DROP_OLD_CONSENSUSES: &str = "DELETE FROM Consensuses WHERE valid_until < ?;";
+/// Query: Discard every bridge descriptor that is too old, or from the future.  (Both ?=now.)
+#[cfg(feature = "bridge-client")]
+const DROP_OLD_BRIDGEDESCS: &str = "DELETE FROM BridgeDescs WHERE ? > until OR fetched > ?;";
 
 #[cfg(test)]
 pub(crate) mod test {
