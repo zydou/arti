@@ -241,8 +241,29 @@ enum GuardSetSelector {
     /// The "bridges" guard set is currently in use: we are selecting our guards
     /// from among the universe of configured bridges.
     #[cfg(feature = "bridge-client")]
-    #[allow(dead_code)] // TODO pt-client: remove this "allow" once used
     Bridges,
+}
+
+/// Describes the [`Universe`] that a guard sample should take its guards from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UniverseType {
+    /// Take information from the network directory.
+    NetDir,
+    /// Take information from the configured bridges.
+    #[cfg(feature = "bridge-client")]
+    BridgeSet,
+}
+
+impl GuardSetSelector {
+    /// Return a description of which [`Universe`] this guard sample should take
+    /// its guards from.
+    fn universe_type(&self) -> UniverseType {
+        match self {
+            GuardSetSelector::Default | GuardSetSelector::Restricted => UniverseType::NetDir,
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => UniverseType::BridgeSet,
+        }
+    }
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
@@ -767,8 +788,8 @@ impl GuardMgrInner {
     {
         // TODO pt-client: soon, make the function take an GuardSet and a set
         // of parameters, so we can't get the active set wrong.
-        match self.guards.active_set {
-            GuardSetSelector::Default | GuardSetSelector::Restricted => {
+        match self.guards.active_set.universe_type() {
+            UniverseType::NetDir => {
                 if let Some(nd) = self.timely_netdir() {
                     func(self, Some(UniverseRef::NetDir(nd.as_ref())))
                 } else {
@@ -776,7 +797,7 @@ impl GuardMgrInner {
                 }
             }
             #[cfg(feature = "bridge-client")]
-            GuardSetSelector::Bridges => {
+            UniverseType::BridgeSet => {
                 let bridge_descs = self.latest_bridge_desc_list();
                 let bridge_config = self.configured_bridges.clone();
                 let bridge_set = bridge::BridgeSet::new(
@@ -1472,10 +1493,10 @@ impl FirstHop {
 
     /// Look up this guard in `netdir`.
     pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
-        match self.sample {
+        match &self.sample {
             #[cfg(feature = "bridge-client")]
-            // Always return "None" for a bridge, since it isn't in a netdir.
-            Some(GuardSetSelector::Bridges) => None,
+            // Always return "None" for anything that isn't in the netdir.
+            Some(s) if s.universe_type() == UniverseType::BridgeSet => None,
             // Otherwise ask the netdir.
             _ => netdir.by_ids(self),
         }
