@@ -184,3 +184,68 @@ impl Universe for NetDir {
         .collect()
     }
 }
+
+/// Reference to a [`Universe`] of one of the types supported by this crate.
+///
+/// This enum exists because `Universe` is not dyn-compatible.
+#[derive(Clone, Debug)]
+pub(crate) enum UniverseRef<'a> {
+    /// A reference to a netdir.
+    NetDir(&'a NetDir),
+    /// A BridgeSet (which is always references internally)
+    #[cfg(feature = "bridge-client")]
+    BridgeSet(crate::bridge::BridgeSet<'a>),
+}
+
+impl<'a> Universe for UniverseRef<'a> {
+    fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool> {
+        match self {
+            UniverseRef::NetDir(r) => r.contains(guard),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.contains(guard),
+        }
+    }
+
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
+        match self {
+            UniverseRef::NetDir(r) => r.status(guard),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.status(guard),
+        }
+    }
+
+    fn timestamp(&self) -> SystemTime {
+        match self {
+            UniverseRef::NetDir(r) => r.timestamp(),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.timestamp(),
+        }
+    }
+
+    fn weight_threshold<T>(&self, sample: &ByRelayIds<T>, params: &GuardParams) -> WeightThreshold
+    where
+        T: HasRelayIds,
+    {
+        match self {
+            UniverseRef::NetDir(r) => r.weight_threshold(sample, params),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.weight_threshold(sample, params),
+        }
+    }
+
+    fn sample<T>(
+        &self,
+        pre_existing: &ByRelayIds<T>,
+        filter: &GuardFilter,
+        n: usize,
+    ) -> Vec<(Candidate, RelayWeight)>
+    where
+        T: HasRelayIds,
+    {
+        match self {
+            UniverseRef::NetDir(r) => r.sample(pre_existing, filter, n),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.sample(pre_existing, filter, n),
+        }
+    }
+}

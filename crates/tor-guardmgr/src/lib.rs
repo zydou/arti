@@ -110,7 +110,7 @@ pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
 
 use pending::{PendingRequest, RequestId};
-use sample::{GuardSet, Universe};
+use sample::{GuardSet, Universe, UniverseRef};
 
 use crate::ids::{FirstHopIdInner, GuardId};
 
@@ -720,7 +720,6 @@ impl GuardMgrInner {
     /// is one) from our [`BridgeDescProvider`](bridge::BridgeDescProvider) (if
     /// we have one).
     #[cfg(feature = "bridge-client")]
-    #[allow(dead_code)]
     fn latest_bridge_desc_list(&self) -> Option<Arc<bridge::BridgeDescList>> {
         self.bridge_desc_provider
             .as_ref()
@@ -730,8 +729,10 @@ impl GuardMgrInner {
 
     /// Run a function that takes `&mut self` and an optional NetDir.
     ///
-    /// We try to use the netdir
-    /// from our [`NetDirProvider`] (if we have one).
+    /// We try to use the netdir from our [`NetDirProvider`] (if we have one).
+    /// Therefore, although its _parameters_ are suitable for every
+    /// [`GuardSet`], its _contents_ might not be. For those, call
+    /// [`with_opt_universe`](Self::with_opt_universe) instead.
     //
     // This function exists to handle the lifetime mess where sometimes the
     // resulting NetDir will borrow from `netdir`, and sometimes it will borrow
@@ -747,6 +748,37 @@ impl GuardMgrInner {
         }
     }
 
+    /// Run a function that takes `&mut self` and an optional [`UniverseRef`].
+    ///
+    /// We try to get a universe from the appropriate source for the current
+    /// active guard set.
+    fn with_opt_universe<F, T>(&mut self, func: F) -> T
+    where
+        F: for<'a> FnOnce(&mut Self, Option<UniverseRef<'a>>) -> T,
+    {
+        // TODO pt-client: soon, make the function take an GuardSet and a set
+        // of parameters, so we can't get the active set wrong.
+        match self.guards.active_set {
+            GuardSetSelector::Default | GuardSetSelector::Restricted => {
+                if let Some(nd) = self.timely_netdir() {
+                    func(self, Some(UniverseRef::NetDir(nd.as_ref())))
+                } else {
+                    func(self, None)
+                }
+            }
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => {
+                let bridge_descs = self.latest_bridge_desc_list();
+                let bridge_config = self.configured_bridges.clone();
+                let bridge_set = bridge::BridgeSet::new(
+                    bridge_config.as_ref(),
+                    bridge_descs.as_ref().map(|b| b.as_ref()),
+                );
+                func(self, Some(UniverseRef::BridgeSet(bridge_set)))
+            }
+        }
+    }
+
     /// Update the status of all guards in the active set, based on the passage
     /// of time and (optionally) a network directory. If no directory is
     /// provided, we try to find one from the installed provider.
@@ -756,13 +788,14 @@ impl GuardMgrInner {
     fn update(&mut self, now: SystemTime) {
         self.with_opt_netdir(|this, netdir| {
             this.update_active_set_and_filter(netdir);
+        });
+        self.with_opt_universe(|this, univ| {
             Self::update_guardset_internal(
                 &this.params,
                 now,
                 this.guards.active_guards_mut(),
-                netdir,
+                univ.as_ref(),
             );
-            //XXXX use real universe
         });
     }
 
@@ -1226,20 +1259,20 @@ impl GuardMgrInner {
         };
 
         // That didn't work. If we have a netdir, expand the sample and try again.
-        let res = self.with_opt_netdir(|this, dir| {
-            let dir = dir?;
+        let res = self.with_opt_universe(|this, univ| {
+            let univ = univ?;
             trace!("No guards available, trying to extend the sample.");
             Self::update_guardset_internal(
                 &this.params,
                 wallclock,
                 this.guards.active_guards_mut(),
-                Some(dir),
+                Some(&univ),
             );
-            if this
-                .guards
-                .active_guards_mut()
-                .extend_sample_as_needed(wallclock, &this.params, dir)
-            {
+            if this.guards.active_guards_mut().extend_sample_as_needed(
+                wallclock,
+                &this.params,
+                &univ,
+            ) {
                 this.guards
                     .active_guards_mut()
                     .select_primary_guards(&this.params);
