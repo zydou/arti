@@ -704,7 +704,7 @@ impl State {
         //
         // (This is not perfect but will mitigate the worst effects by ensuring
         // that we do *something* at least every `max_refetch`, in the worst case,
-        // ather than just getting completely stuck.)
+        // other than just getting completely stuck.)
         let max_refetch_wall = now_wall + self.config.max_refetch;
         if self
             .refetch_schedule

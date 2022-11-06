@@ -1,4 +1,4 @@
-//! Configuration elements for the gaurd manager
+//! Configuration elements for the guard manager
 
 use tor_basic_utils::define_accessor_trait;
 
@@ -39,7 +39,7 @@ pub(crate) mod testing {
     use super::*;
     use derive_more::AsRef;
 
-    /// A dummy test copnfiguration, with transparent fields for testing
+    /// A dummy test configuration, with transparent fields for testing
     #[derive(Default, Debug, AsRef)]
     #[allow(clippy::exhaustive_structs)]
     pub struct TestConfig {

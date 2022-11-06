@@ -14,7 +14,7 @@ use bytes::BytesMut;
 /// NOTE: only link protocol versions 3 and higher are supported.
 /// VERSIONS cells are not supported via the encoder/decoder, since
 /// VERSIONS cells always use a two-byte circuit-ID for backwards
-/// compatability with protocol versions < 4.
+/// compatibility with protocol versions < 4.
 ///
 /// The implemented format is one of the following:
 ///

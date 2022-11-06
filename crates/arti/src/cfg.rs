@@ -1,6 +1,6 @@
 //! Configuration for the Arti command line application
 //
-// (Thia module is called `cfg` to avoid name clash with the `config` crate, which we use.)
+// (This module is called `cfg` to avoid name clash with the `config` crate, which we use.)
 
 use paste::paste;
 
@@ -126,7 +126,7 @@ pub struct ProxyConfig {
     #[builder(field(build = r#"resolve_listen_port!(self, dns, 0)"#))]
     pub(crate) dns_listen: Listen,
 
-    /// Port to lisen on (at localhost) for incoming DNS connections.
+    /// Port to listen on (at localhost) for incoming DNS connections.
     ///
     /// This field is deprecated, and will, eventually, be removed.
     /// Use `dns_listen` instead, which accepts the same values,
@@ -309,7 +309,7 @@ mod test {
             "storage.permissions.trust_user",
         ]);
 
-        // Additionalk cfg blocks will need to be added whenever we add features
+        // Additional cfg blocks will need to be added whenever we add features
         // which have example config, since if the feature isn't enabled,
         // those keys are ignored (unrecognized).
 
