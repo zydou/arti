@@ -477,7 +477,7 @@ mod test {
 
     #[test]
     fn base64() -> Result<()> {
-        // Test parsing succeess:
+        // Test parsing success:
         // Unpadded:
         assert_eq!("Mi43MTgyOA".parse::<B64>()?.as_bytes(), &b"2.71828"[..]);
         assert!("Mi43MTgyOA".parse::<B64>()?.check_len(7..8).is_ok());

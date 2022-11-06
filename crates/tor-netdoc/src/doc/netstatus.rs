@@ -168,7 +168,7 @@ impl<T> NetParams<T> {
     pub fn get<A: AsRef<str>>(&self, v: A) -> Option<&T> {
         self.params.get(v.as_ref())
     }
-    /// Return an iterator over all key value pares in an arbitrary order.
+    /// Return an iterator over all key value pairs in an arbitrary order.
     pub fn iter(&self) -> impl Iterator<Item = (&String, &T)> {
         self.params.iter()
     }
