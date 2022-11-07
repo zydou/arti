@@ -1587,6 +1587,17 @@ impl FirstHop {
 
     /// If possible and appropriate, find a circuit target in `bridges` for this
     /// `FirstHop`, and make this `FirstHop` a viable circuit target.
+    ///
+    /// (By default, any `FirstHop` that a `GuardSet` returns will have enough
+    /// information to be a `ChanTarget`, but it will be lacking the additional
+    /// network information in `CircTarget`[^1] necessary for us to build a
+    /// multi-hop circuit through it.  If this FirstHop is a regular non-bridge
+    /// `Relay`, then the `CircMgr` will later look up that circuit information
+    /// itself from the network directory. But if this `FirstHop` *is* a bridge,
+    /// then we need to find that information in the `BridgeSet`, since the
+    /// CircMgr does not keep track of the `BridgeSet`.)
+    ///
+    /// [^1]: For example, supported protocol versions and ntor keys.
     #[cfg(feature = "bridge-client")]
     fn lookup_bridge_circ_target(&mut self, bridges: &bridge::BridgeSet) {
         use crate::sample::CandidateStatus::Present;
