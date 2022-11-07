@@ -182,9 +182,6 @@ pub trait HasChanMethod {
 /// Implement `HasChanMethods` for an object with `HasAddr` whose addresses
 /// _all_ represent a host we can connect to by a direct Tor connection at its
 /// IP addresses.
-//
-// TODO pt-client: We should decide whether this is a good name. Maybe the name
-// should instead suggest that we _only_ have direct methods?
 pub trait DirectChanMethodsHelper: HasAddrs {}
 
 impl<D: DirectChanMethodsHelper> HasChanMethod for D {

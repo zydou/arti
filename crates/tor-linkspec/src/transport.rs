@@ -398,8 +398,6 @@ impl PtTarget {
 /// address and settings information that transport requires.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(clippy::exhaustive_enums)]
-// TODO pt-client: I am not in love with this enum name --nm.
-// TODO pt-client: Maybe "ContactMethod" would be better?
 pub enum ChannelMethod {
     /// Connect to the relay directly at one of several addresses.
     Direct(Vec<std::net::SocketAddr>),
