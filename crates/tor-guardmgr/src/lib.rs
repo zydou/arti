@@ -51,6 +51,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
+use tor_error::internal;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
@@ -216,13 +217,10 @@ struct GuardMgrInner {
     #[cfg(feature = "bridge-client")]
     bridge_desc_provider: Option<Weak<dyn bridge::BridgeDescProvider>>,
 
-    /// A list of the bridges that we are configured to use.
+    /// A list of the bridges that we are configured to use, or "None" if we are
+    /// not configured to use bridges.
     #[cfg(feature = "bridge-client")]
-    configured_bridges: Arc<[bridge::BridgeConfig]>,
-
-    /// True iff we are configured to use bridges.
-    #[cfg(feature = "bridge-client")]
-    use_bridges: bool,
+    configured_bridges: Option<Arc<[bridge::BridgeConfig]>>,
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
@@ -340,9 +338,7 @@ impl<R: Runtime> GuardMgr<R> {
             #[cfg(feature = "bridge-client")]
             bridge_desc_provider: None,
             #[cfg(feature = "bridge-client")]
-            configured_bridges: Arc::new([]),
-            #[cfg(feature = "bridge-client")]
-            use_bridges: false,
+            configured_bridges: None,
         }));
         #[cfg(feature = "bridge-client")]
         {
@@ -787,11 +783,13 @@ impl GuardMgrInner {
 
     /// Return the latest `BridgeSet` based on our `BridgeDescProvider` and our
     /// configured bridges.
+    ///
+    /// Returns `None` if we are not configured to use bridges.
     #[cfg(feature = "bridge-client")]
-    fn latest_bridge_set(&self) -> bridge::BridgeSet {
+    fn latest_bridge_set(&self) -> Option<bridge::BridgeSet> {
+        let bridge_config = self.configured_bridges.as_ref()?.clone();
         let bridge_descs = self.latest_bridge_desc_list();
-        let bridge_config = self.configured_bridges.clone();
-        bridge::BridgeSet::new(bridge_config, bridge_descs)
+        Some(bridge::BridgeSet::new(bridge_config, bridge_descs))
     }
 
     /// Run a function that takes `&mut self` and an optional [`UniverseRef`].
@@ -815,7 +813,9 @@ impl GuardMgrInner {
             #[cfg(feature = "bridge-client")]
             UniverseType::BridgeSet => func(
                 self,
-                Some(&UniverseRef::BridgeSet(self.latest_bridge_set())),
+                self.latest_bridge_set()
+                    .map(UniverseRef::BridgeSet)
+                    .as_ref(),
             ),
         }
     }
@@ -843,27 +843,35 @@ impl GuardMgrInner {
     /// Replace our bridge configuration with the one from `new_config`.
     #[cfg(feature = "bridge-client")]
     fn replace_bridge_config(&mut self, new_config: &impl GuardMgrConfig, now: SystemTime) {
-        let mut update = false;
-
-        if self.use_bridges != new_config.bridges_enabled() {
-            self.use_bridges = new_config.bridges_enabled();
-            update |= true;
-
-            if self.use_bridges {
+        match (&self.configured_bridges, new_config.bridges_enabled()) {
+            (None, false) => {
+                assert_ne!(
+                    self.guards.active_set.universe_type(),
+                    UniverseType::BridgeSet
+                );
+                return; // nothing to do
+            }
+            (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
+                assert_eq!(
+                    self.guards.active_set.universe_type(),
+                    UniverseType::BridgeSet
+                );
+                return; // nothing to do.
+            }
+            (_, true) => {
+                self.configured_bridges = Some(new_config.bridges().into());
                 self.guards.active_set = GuardSetSelector::Bridges;
-            } else {
+            }
+            (_, false) => {
+                self.configured_bridges = None;
                 self.guards.active_set = GuardSetSelector::Default;
-                // We might immediately switch to the restricted set; that's fine.
             }
         }
-        if self.configured_bridges.as_ref() != new_config.bridges() {
-            self.configured_bridges = new_config.bridges().into();
-            update |= self.use_bridges;
-        }
 
-        if update {
-            self.update(now);
-        }
+        // If we have gotten here, we have changed the set of bridges, changed
+        // which set is active, or changed them both.  We need to make sure that
+        // our `GuardSet` object is up-to-date with our configuration.
+        self.update(now);
     }
 
     /// Update our selection based on network parameters and configuration, and
@@ -1358,7 +1366,11 @@ impl GuardMgrInner {
         #[cfg(feature = "bridge-client")]
         if self.guards.active_set.universe_type() == UniverseType::BridgeSet {
             // See if we can promote first_hop to a viable CircTarget.
-            let bridges = self.latest_bridge_set();
+            let bridges = self.latest_bridge_set().ok_or_else(|| {
+                PickGuardError::Internal(internal!(
+                    "No bridge set available, even though this is the Bridges sample"
+                ))
+            })?;
             first_hop.lookup_bridge_circ_target(&bridges);
         }
         Ok((list_kind, first_hop))
