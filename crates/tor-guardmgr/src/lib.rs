@@ -821,16 +821,23 @@ impl GuardMgrInner {
     }
 
     /// Update the status of all guards in the active set, based on the passage
-    /// of time and (optionally) a network directory. If no directory is
-    /// provided, we try to find one from the installed provider.
-    ///
-    /// We can expire guards based on the time alone; we can only add guards or
-    /// change their status with a NetDir.
+    /// of time, our configuration, and and the relevant Universe for our active
+    /// set.
     fn update(&mut self, now: SystemTime) {
         self.with_opt_netdir(|this, netdir| {
-            this.update_active_set_and_filter(netdir);
+            // Here we update our parameters from the latest NetDir, and check
+            // whether we need to change to a (non)-restrictive GuardSet based
+            // on those parameters and our configured filter.
+            //
+            // This uses a NetDir unconditionally, since we always want to take
+            // the network parameters our parameters from the consensus even if
+            // the guards themselves are from a BridgeSet.
+            this.update_active_set_params_and_filter(netdir);
         });
         self.with_opt_universe(|this, univ| {
+            // Now we update the set of guards themselves based on the
+            // Universe, which is either the latest NetDir, or the latest
+            // BridgeSet—depending on what the GuardSet wants.
             Self::update_guardset_internal(
                 &this.params,
                 now,
@@ -874,9 +881,20 @@ impl GuardMgrInner {
         self.update(now);
     }
 
-    /// Update our selection based on network parameters and configuration, and
-    /// make sure it has the right configuration itself.
-    fn update_active_set_and_filter(&mut self, netdir: Option<&NetDir>) {
+    /// Update our parameters, our selection (based on network parameters and
+    /// configuration), and make sure the active GuardSet has the right
+    /// configuration itself.
+    ///
+    /// We should call this whenever the NetDir's parameters change, or whenever
+    /// our filter changes.  We do not need to call it for new elements arriving
+    /// in our Universe, since those do not affect anything here.
+    ///
+    /// We should also call this whenever a new GuardSet becomes active for any
+    /// reason _other_ than just having called this function.
+    ///
+    /// (This function is only invoked from `update`, which should be called
+    /// under the above circumstances.)
+    fn update_active_set_params_and_filter(&mut self, netdir: Option<&NetDir>) {
         // Set the parameters.  These always come from the NetDir, even if this
         // is a bridge set.
         if let Some(netdir) = netdir {
@@ -907,22 +925,30 @@ impl GuardMgrInner {
     /// This function doesn't take `&self`, to make sure that we are only
     /// affecting a single `GuardSet`, and to avoid confusing the borrow
     /// checker.
+    ///
+    /// We should call this whenever the contents of the universe have changed.
+    ///
+    /// We should also call this whenever a new GuardSet becomes active.
     fn update_guardset_internal<U: Universe>(
         params: &GuardParams,
         now: SystemTime,
         active_guards: &mut GuardSet,
         universe: Option<&U>,
     ) {
-        // Expire guards.  Do that early, in case we need to grab more guards.
+        // Expire guards.  Do that early, in case doing so makes it clear that
+        // we need to grab more guards or mark others as primary.
         active_guards.expire_old_guards(params, now);
 
         if let Some(universe) = universe {
             if active_guards.n_primary_without_dir_info(universe) > 0 {
                 // We are missing primary guard descriptors, so we shouldn't update our guard
                 // status.
+                // TODO pt-client: This should not apply to bridges.
                 return;
             }
             active_guards.update_status_from_dir(universe);
+            // TODO pt-client: This is no longer needed, since we have access to
+            // the Universe inside select_guard_with_expand.
             active_guards.extend_sample_as_needed(now, params, universe);
         }
 
@@ -1311,12 +1337,21 @@ impl GuardMgrInner {
         let res = self.with_opt_universe(|this, univ| {
             let univ = univ?;
             trace!("No guards available, trying to extend the sample.");
+            // Make sure that the status on all of our guards are accurate. (Our
+            // parameters and configuration did not change, so we do not need to
+            // call update() or update_active_set_and_filter(). However, we _do_
+            // want to make sure that any old guards are expired, and that our
+            // primary-guard set is updated accordingly.)
             Self::update_guardset_internal(
                 &this.params,
                 wallclock,
                 this.guards.active_guards_mut(),
                 Some(univ),
             );
+            // TODO pt-client: We just called "expand_sample_as_needed()" in
+            // update_guardset_internal! We should remove that call, so that
+            // this call can detect if the sample was actually expanded or
+            // not.
             if this.guards.active_guards_mut().extend_sample_as_needed(
                 wallclock,
                 &this.params,
