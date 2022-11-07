@@ -349,7 +349,6 @@ impl PtTarget {
     /// NOTE that these are not necessarily an address to which you can open a
     /// TCP connection! The address will be interpreted by the implementation of
     /// this pluggable transport.
-
     pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
         match self {
             PtTarget {
