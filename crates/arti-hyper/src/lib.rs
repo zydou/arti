@@ -51,7 +51,7 @@ use hyper::http::Uri;
 use hyper::service::Service;
 use pin_project::pin_project;
 use thiserror::Error;
-use tls_api::TlsConnector as TlsConn; // This is different from tor_rtompat::TlsConnector
+use tls_api::TlsConnector as TlsConn; // This is different from tor_rtcompat::TlsConnector
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tor_rtcompat::Runtime;
 

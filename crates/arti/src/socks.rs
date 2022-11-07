@@ -18,7 +18,7 @@ use tor_socksproto::{SocksAddr, SocksAuth, SocksCmd, SocksRequest};
 
 use anyhow::{anyhow, Context, Result};
 
-/// Paylod to return when an HTTP connection arrive on a Socks port
+/// Payload to return when an HTTP connection arrive on a Socks port
 const WRONG_PROTOCOL_PAYLOAD: &[u8] = br#"HTTP/1.0 501 Tor is not an HTTP Proxy
 Content-Type: text/html; charset=utf-8
 
