@@ -376,6 +376,10 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// TODO: we should eventually return some kind of a task handle from this
     /// task, even though it is not strictly speaking periodic.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`NetDirProvider`] is already installed.
     pub fn install_netdir_provider(
         &self,
         provider: &Arc<dyn NetDirProvider>,
@@ -383,6 +387,7 @@ impl<R: Runtime> GuardMgr<R> {
         let weak_provider = Arc::downgrade(provider);
         {
             let mut inner = self.inner.lock().expect("Poisoned lock");
+            assert!(inner.netdir_provider.is_none());
             inner.netdir_provider = Some(weak_provider.clone());
         }
         let weak_inner = Arc::downgrade(&self.inner);
@@ -404,6 +409,10 @@ impl<R: Runtime> GuardMgr<R> {
     /// descriptors changes.
     ///
     /// TODO: Same todo as in `install_netdir_provider` about task handles.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`bridge::BridgeDescProvider`] is already installed.
     #[cfg(feature = "bridge-client")]
     pub fn install_bridge_desc_provider(
         &self,
@@ -412,6 +421,7 @@ impl<R: Runtime> GuardMgr<R> {
         let weak_provider = Arc::downgrade(provider);
         {
             let mut inner = self.inner.lock().expect("Poisoned lock");
+            assert!(inner.bridge_desc_provider.is_none());
             inner.bridge_desc_provider = Some(weak_provider.clone());
         }
 
@@ -487,6 +497,10 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// This function is for testing only, and is exclusive with
     /// `install_netdir_provider`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any [`NetDirProvider`] has already been installed.
     #[cfg(any(test, feature = "testing"))]
     pub fn install_test_netdir(&self, netdir: &NetDir) {
         use tor_netdir::testprovider::TestNetDirProvider;
