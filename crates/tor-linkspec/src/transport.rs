@@ -251,13 +251,6 @@ impl Display for PtTargetAddr {
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
-// TODO pt-client: I am not sure we will want to keep this type, rather than
-// just inlining it.  I am leaving it as a separate type for now, though, for a
-// few reasons:
-// 1) to avoid confusing it with the parameters passed to a transport when it
-//    starts;
-// 2) to give us some flexibility about the representation.
-//
 // TODO pt-client: This type ought to validate that the keys do not contain `=`
 //                 and that the keys and values do not contain whitespace.
 // See this spec issue https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
