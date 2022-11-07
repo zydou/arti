@@ -375,8 +375,6 @@ pub enum ChannelMethod {
     /// Connect to the relay directly at one of several addresses.
     Direct(Vec<std::net::SocketAddr>),
 
-    // TODO pt-client: We may want to have a third variant for "Direct" with a
-    // single address. Maybe?
     /// Connect to a bridge relay via a pluggable transport.
     #[cfg(feature = "pt-client")]
     Pluggable(PtTarget),
