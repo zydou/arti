@@ -174,7 +174,7 @@ pub trait HasAddrs {
 pub trait HasChanMethod {
     /// Return the known ways to contact this
     // TODO: See notes on HasAddrs above.
-    // TODO pt-client: I don't like having this return a new ChannelMethod, but I
+    // TODO: I don't like having this return a new ChannelMethod, but I
     // don't see a great alternative. Let's revisit that.-nickm.
     fn chan_method(&self) -> ChannelMethod;
 }
