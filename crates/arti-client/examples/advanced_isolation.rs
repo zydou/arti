@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
-// This example showcase how to use the trait IsolationHelper to build complexe isolation rules.
+// This example showcase how to use the trait IsolationHelper to build complex isolation rules.
 // For most usages, using a combination of TorClient::isolated_client and IsolationToken should
 // be enough.
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ use tokio_crate as tokio;
 use futures::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Example Isolation which isolate streams deemed sensitive from each other, but won't isolate
-/// Innocent streams from other Innoncent streams or from Sensitive streams.
+/// `Innocent` streams from other `Innocent` streams or from `Sensitive` streams.
 ///
 /// More formally, for two streams to share the same circuit, it's required that either:
 /// - at least one stream is Innocent

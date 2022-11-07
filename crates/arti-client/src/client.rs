@@ -531,7 +531,7 @@ impl<R: Runtime> TorClient<R> {
         Ok(())
     }
 
-    /// ## For `BootstrapBehavior::Ondemand` clients
+    /// ## For `BootstrapBehavior::OnDemand` clients
     ///
     /// Initiate a bootstrap by calling `bootstrap` (which is idempotent, so attempts to
     /// bootstrap twice will just do nothing).

@@ -34,7 +34,7 @@ pub const ARTI_EXAMPLE_CONFIG: &str = concat!(include_str!("./arti-example-confi
 //
 // NB here in Arti the OLDEST_SUPPORTED_CONFIG and the ARTI_EXAMPLE_CONFIG are tested
 // somewhat differently: we test that the current example is *exhaustive*, not just
-// parseable.
+// parsable.
 #[cfg(test)]
 const OLDEST_SUPPORTED_CONFIG: &str = concat!(include_str!("./oldest-supported-config.toml"),);
 
@@ -77,7 +77,7 @@ impl_standard_builder! { ApplicationConfig }
 ///
 /// For `dns` and `proxy`.
 ///
-/// Handles defaulting, and normalisation, using `resolve_alternative_specs`
+/// Handles defaulting, and normalization, using `resolve_alternative_specs`
 /// and `Listen::new_localhost_option`.
 ///
 /// Broken out into a macro so as to avoid having to state the field name four times,
@@ -574,7 +574,7 @@ mod test {
         let example = serde_json::to_value(&example).unwrap();
         // dbg!(&example);
 
-        // "Exhaustive" taxonomy of the recognised configuration keys
+        // "Exhaustive" taxonomy of the recognized configuration keys
         //
         // We use the JSON serialization of the default builders, because Rust's toml
         // implementation likes to omit more things, that we want to see.
