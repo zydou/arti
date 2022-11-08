@@ -13,8 +13,6 @@ use super::ChannelFactory;
 /// It can be used itself as a `ChannelFactory`, to open connections to a given
 /// channel target depending on its configured [`TransportId`].
 //
-// TODO pt-client: Rename to ChannelFactoryRegistry?
-//
 // TODO pt-client: Turn this into a concrete type?
 pub trait TransportRegistry {
     /// Return a ChannelFactory that can make connections via a chosen
