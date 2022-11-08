@@ -370,10 +370,10 @@ impl GuardSet {
         now: SystemTime,
         params: &GuardParams,
         dir: &U,
-    ) -> bool {
-        let mut any_added = false;
+    ) -> crate::ExtendedStatus {
+        let mut any_added = crate::ExtendedStatus::No;
         while self.extend_sample_inner(now, params, dir) {
-            any_added = true;
+            any_added = crate::ExtendedStatus::Yes;
         }
         any_added
     }
