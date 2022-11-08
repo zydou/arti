@@ -800,8 +800,10 @@ impl GuardMgrInner {
     where
         F: FnOnce(&mut Self, Option<&UniverseRef>) -> T,
     {
-        // TODO pt-client: soon, make the function take an GuardSet and a set
-        // of parameters, so we can't get the active set wrong.
+        // TODO: it might be nice to make `func` take an GuardSet and a set of
+        // parameters, so we can't get the active set wrong. Doing that will
+        // require a fair amount of refactoring so that the borrow checker is
+        // happy, however.
         match self.guards.active_set.universe_type() {
             UniverseType::NetDir => {
                 if let Some(nd) = self.timely_netdir() {
