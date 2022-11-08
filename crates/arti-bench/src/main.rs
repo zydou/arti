@@ -46,12 +46,13 @@
 use anyhow::{anyhow, Result};
 use arti::cfg::ArtiCombinedConfig;
 use arti_client::{IsolationToken, TorAddr, TorClient, TorClientConfig};
-use clap::{App, Arg};
+use clap::{value_parser, Arg, ArgAction};
 use futures::StreamExt;
 use rand::distributions::Standard;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fmt;
 use std::fmt::Formatter;
 use std::future::Future;
@@ -281,83 +282,84 @@ async fn client<S: AsyncRead + AsyncWrite + Unpin>(
 fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let matches = App::new("arti-bench")
+    let matches = clap::Command::new("arti-bench")
         .version(env!("CARGO_PKG_VERSION"))
         .author("The Tor Project Developers")
         .about("A simple benchmarking utility for Arti.")
         .arg(
-            Arg::with_name("arti-config")
-                .short("c")
+            Arg::new("arti-config")
+                .short('c')
                 .long("arti-config")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .required(true)
                 .value_name("CONFIG")
+                .value_parser(value_parser!(OsString))
                 .help(
                     "Path to the Arti configuration to use (usually, a Chutney-generated config).",
                 ),
         )
         .arg(
-            Arg::with_name("num-samples")
-                .short("s")
+            Arg::new("num-samples")
+                .short('s')
                 .long("num-samples")
-                .takes_value(true)
-                .required(true)
+                .action(ArgAction::Set)
                 .value_name("COUNT")
+                .value_parser(value_parser!(usize))
                 .default_value("3")
                 .help("How many samples to take per benchmark run.")
         )
         .arg(
-            Arg::with_name("num-streams")
-                .short("p")
+            Arg::new("num-streams")
+                .short('p')
                 .long("streams")
                 .aliases(&["num-parallel"])
-                .takes_value(true)
-                .required(true)
+                .action(ArgAction::Set)
                 .value_name("COUNT")
+                .value_parser(value_parser!(usize))
                 .default_value("3")
                 .help("How many simultaneous streams per circuit.")
         )
         .arg(
-            Arg::with_name("num-circuits")
-                .short("C")
+            Arg::new("num-circuits")
+                .short('C')
                 .long("num-circuits")
-                .takes_value(true)
-                .required(false)
+                .action(ArgAction::Set)
                 .value_name("COUNT")
+                .value_parser(value_parser!(usize))
                 .default_value("1")
                 .help("How many simultaneous circuits per run.")
         )
         .arg(
-            Arg::with_name("output")
-                .short("o")
-                .takes_value(true)
+            Arg::new("output")
+                .short('o')
+                .action(ArgAction::Set)
                 .value_name("/path/to/output.json")
                 .help("A path to write benchmark results to, in JSON format.")
         )
         .arg(
-            Arg::with_name("download-bytes")
-                .short("d")
+            Arg::new("download-bytes")
+                .short('d')
                 .long("download-bytes")
-                .takes_value(true)
-                .required(true)
+                .action(ArgAction::Set)
                 .value_name("SIZE")
+                .value_parser(value_parser!(usize))
                 .default_value("10485760")
                 .help("How much fake payload data to generate for the download benchmark."),
         )
         .arg(
-            Arg::with_name("upload-bytes")
-                .short("u")
+            Arg::new("upload-bytes")
+                .short('u')
                 .long("upload-bytes")
-                .takes_value(true)
-                .required(true)
+                .action(ArgAction::Set)
                 .value_name("SIZE")
+                .value_parser(value_parser!(usize))
                 .default_value("10485760")
                 .help("How much fake payload data to generate for the upload benchmark."),
         )
         .arg(
-            Arg::with_name("socks-proxy")
+            Arg::new("socks-proxy")
                 .long("socks5")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("addr:port")
                 .help("SOCKS5 proxy address for a node to benchmark through as well (usually a Chutney node). Optional."),
         )
@@ -365,7 +367,7 @@ fn main() -> Result<()> {
     info!("Parsing Arti configuration...");
     let mut config_sources = ConfigurationSources::new_empty();
     matches
-        .values_of_os("arti-config")
+        .get_many::<OsString>("arti-config")
         .unwrap_or_default()
         .for_each(|f| {
             config_sources.push_source(
@@ -386,14 +388,11 @@ fn main() -> Result<()> {
     let local_addr = listener.local_addr()?;
     let connect_addr = SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), local_addr.port());
     info!("Bound to {}.", local_addr);
-    let upload_bytes = matches.value_of("upload-bytes").unwrap().parse::<usize>()?;
-    let download_bytes = matches
-        .value_of("download-bytes")
-        .unwrap()
-        .parse::<usize>()?;
-    let samples = matches.value_of("num-samples").unwrap().parse::<usize>()?;
-    let streams_per_circ = matches.value_of("num-streams").unwrap().parse::<usize>()?;
-    let circs_per_sample = matches.value_of("num-circuits").unwrap().parse::<usize>()?;
+    let upload_bytes = *matches.get_one::<usize>("upload-bytes").unwrap();
+    let download_bytes = *matches.get_one::<usize>("download-bytes").unwrap();
+    let samples = *matches.get_one::<usize>("num-samples").unwrap();
+    let streams_per_circ = *matches.get_one::<usize>("num-streams").unwrap();
+    let circs_per_sample = *matches.get_one::<usize>("num-circuits").unwrap();
     info!("Generating test payloads, please wait...");
     let upload_payload = random_payload(upload_bytes).into();
     let download_payload = random_payload(download_bytes).into();
@@ -421,7 +420,7 @@ fn main() -> Result<()> {
     };
 
     benchmark.without_arti()?;
-    if let Some(addr) = matches.value_of("socks-proxy") {
+    if let Some(addr) = matches.get_one::<String>("socks-proxy") {
         benchmark.with_proxy(addr)?;
     }
     benchmark.with_arti(tcc)?;
@@ -439,7 +438,7 @@ fn main() -> Result<()> {
         info!("  TTFB (down): {} msec", results.download_ttfb_msec);
     }
 
-    if let Some(output) = matches.value_of("output") {
+    if let Some(output) = matches.get_one::<String>("output") {
         info!("Writing benchmark results to {}...", output);
         let file = std::fs::File::create(output)?;
         serde_json::to_writer(

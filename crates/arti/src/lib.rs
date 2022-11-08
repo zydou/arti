@@ -66,6 +66,7 @@ mod reload_cfg;
 #[cfg(not(feature = "experimental-api"))]
 mod socks;
 
+use std::ffi::OsString;
 use std::fmt::Write;
 
 pub use cfg::{
@@ -81,7 +82,7 @@ use tor_config::ConfigurationSources;
 use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Error, Result};
-use clap::{App, AppSettings, Arg, SubCommand};
+use clap::{value_parser, Arg, ArgAction, Command};
 use tracing::{error, info, warn};
 
 /// Shorthand for a boxed and pinned Future.
@@ -236,7 +237,7 @@ where
     );
 
     let clap_app =
-        App::new("Arti")
+        Command::new("Arti")
             .version(env!("CARGO_PKG_VERSION"))
             .long_version(&long_version as &str)
             .author("The Tor Project Developers")
@@ -246,64 +247,66 @@ where
             //            before the subcommand.
             //            We just declare all options as `global` and then require them to be
             //            put after the subcommand, hence this new usage string.
-            .usage("arti <SUBCOMMAND> [OPTIONS]")
+            .override_usage("arti <SUBCOMMAND> [OPTIONS]")
             .arg(
-                Arg::with_name("config-files")
-                    .short("c")
+                Arg::new("config-files")
+                    .short('c')
                     .long("config")
-                    .takes_value(true)
+                    .action(ArgAction::Set)
                     .value_name("FILE")
-                    .multiple(true)
+                    .value_parser(value_parser!(OsString))
+                    .action(ArgAction::Append)
                     // NOTE: don't forget the `global` flag on all arguments declared at this level!
                     .global(true)
-                    .help(&config_file_help),
+                    .help(config_file_help.as_str()),
             )
             .arg(
-                Arg::with_name("option")
-                    .short("o")
-                    .takes_value(true)
+                Arg::new("option")
+                    .short('o')
+                    .action(ArgAction::Set)
                     .value_name("KEY=VALUE")
-                    .multiple(true)
+                    .action(ArgAction::Append)
                     .global(true)
                     .help("Override config file parameters, using TOML-like syntax."),
             )
             .arg(
-                Arg::with_name("loglevel")
-                    .short("l")
+                Arg::new("loglevel")
+                    .short('l')
                     .long("log-level")
                     .global(true)
-                    .takes_value(true)
+                    .action(ArgAction::Set)
                     .value_name("LEVEL")
                     .help("Override the log level (usually one of 'trace', 'debug', 'info', 'warn', 'error')."),
             )
             .arg(
-                Arg::with_name("disable-fs-permission-checks")
+                Arg::new("disable-fs-permission-checks")
                     .long("disable-fs-permission-checks")
-                    .takes_value(false)
                     .global(true)
+                    .action(ArgAction::SetTrue)
                     .help("Don't check permissions on the files we use."),
             )
             .subcommand(
-                SubCommand::with_name("proxy")
+                Command::new("proxy")
                     .about(
                         "Run Arti in SOCKS proxy mode, proxying connections through the Tor network.",
                     )
                     .arg(
-                        Arg::with_name("socks-port")
-                            .short("p")
-                            .takes_value(true)
+                        Arg::new("socks-port")
+                            .short('p')
+                            .action(ArgAction::Set)
                             .value_name("PORT")
                             .help("Port to listen on for SOCKS connections (overrides the port in the config if specified).")
                     )
                     .arg(
-                        Arg::with_name("dns-port")
-                            .short("d")
-                            .takes_value(true)
+                        Arg::new("dns-port")
+                            .short('d')
+                            .action(ArgAction::Set)
                             .value_name("PORT")
                             .help("Port to listen on for DNS request (overrides the port in the config if specified).")
                     )
             )
-            .setting(AppSettings::SubcommandRequiredElseHelp);
+            .subcommand_required(true)
+            .arg_required_else_help(true);
 
     // Tracing doesn't log anything when there is no subscriber set.  But we want to see
     // logging messages from config parsing etc.  We can't set the global default subscriber
@@ -324,9 +327,9 @@ where
         .finish();
     let pre_config_logging = tracing::Dispatch::new(pre_config_logging);
     let pre_config_logging_ret = tracing::dispatcher::with_default(&pre_config_logging, || {
-        let matches = clap_app.get_matches_from_safe(cli_args)?;
+        let matches = clap_app.try_get_matches_from(cli_args)?;
 
-        let fs_mistrust_disabled = matches.is_present("disable-fs-permission-checks");
+        let fs_mistrust_disabled = matches.get_flag("disable-fs-permission-checks");
 
         // A Mistrust object to use for loading our configuration.  Elsewhere, we
         // use the value _from_ the configuration.
@@ -339,16 +342,21 @@ where
                 .expect("Could not construct default fs-mistrust")
         };
 
-        let mut override_options: Vec<&str> =
-            matches.values_of("option").unwrap_or_default().collect();
+        let mut override_options: Vec<String> = matches
+            .get_many::<String>("option")
+            .unwrap_or_default()
+            .cloned()
+            .collect();
         if fs_mistrust_disabled {
-            override_options.push("storage.permissions.dangerously_trust_everyone=true");
+            override_options.push("storage.permissions.dangerously_trust_everyone=true".to_owned());
         }
 
         let cfg_sources = {
             let mut cfg_sources = ConfigurationSources::from_cmdline(
                 default_config_files()?,
-                matches.values_of_os("config-files").unwrap_or_default(),
+                matches
+                    .get_many::<OsString>("config-files")
+                    .unwrap_or_default(),
                 override_options,
             );
             cfg_sources.set_mistrust(cfg_mistrust);
@@ -370,7 +378,7 @@ where
     let _log_guards = logging::setup_logging(
         config.logging(),
         &log_mistrust,
-        matches.value_of("loglevel"),
+        matches.get_one::<String>("loglevel").map(|s| s.as_str()),
     )?;
 
     if !config.application().allow_running_as_root {
@@ -387,7 +395,7 @@ where
 
     if let Some(proxy_matches) = matches.subcommand_matches("proxy") {
         let socks_port = match (
-            proxy_matches.value_of("socks-port"),
+            proxy_matches.get_one::<String>("socks-port"),
             config.proxy().socks_listen.localhost_port_legacy()?,
         ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),
@@ -396,7 +404,7 @@ where
         };
 
         let dns_port = match (
-            proxy_matches.value_of("dns-port"),
+            proxy_matches.get_one::<String>("dns-port"),
             config.proxy().dns_listen.localhost_port_legacy()?,
         ) {
             (Some(p), _) => p.parse().expect("Invalid port specified"),

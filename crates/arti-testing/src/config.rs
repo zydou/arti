@@ -4,129 +4,129 @@ use crate::rt::badtcp::ConditionalAction;
 use crate::{Action, Job, TcpBreakage};
 
 use anyhow::{anyhow, Result};
-use clap::{App, AppSettings, Arg, SubCommand};
+use clap::{value_parser, Arg, ArgAction, Command};
+use std::ffi::OsString;
 use std::str::FromStr;
 use std::time::Duration;
 
 use tor_config::{ConfigurationSource, ConfigurationSources};
 
-/// Helper: parse an optional string as a number of seconds.
-fn int_str_to_secs(s: Option<&str>) -> Result<Option<Duration>> {
-    match s {
-        Some(s) => Ok(Some(Duration::from_secs(s.parse()?))),
-        None => Ok(None),
-    }
-}
-
 /// Parse the command line into a Job description.
 pub(crate) fn parse_cmdline() -> Result<Job> {
-    let matches = App::new("Arti testing tool")
+    let matches = Command::new("Arti testing tool")
         .version(env!("CARGO_PKG_VERSION"))
         .author("The Tor Project Developers")
         .about("Testing program for unusual arti behaviors")
         // HACK: see note in arti/src/main.rs
-        .usage("arti-testing <SUBCOMMAND> [OPTIONS]")
+        .override_usage("arti-testing <SUBCOMMAND> [OPTIONS]")
         .arg(
-            Arg::with_name("config-files")
-                .short("c")
+            Arg::new("config-files")
+                .short('c')
                 .long("config")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("FILE")
-                .multiple(true)
+                .value_parser(value_parser!(OsString))
+                .action(ArgAction::Append)
                 .global(true),
         )
         .arg(
-            Arg::with_name("option")
-                .short("o")
-                .takes_value(true)
+            Arg::new("option")
+                .short('o')
+                .action(ArgAction::Set)
                 .value_name("KEY=VALUE")
-                .multiple(true)
+                .action(ArgAction::Append)
                 .global(true),
         )
         .arg(
-            Arg::with_name("log")
-                .short("l")
+            Arg::new("log")
+                .short('l')
                 .long("log")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("FILTER")
+                .default_value("debug")
                 .global(true),
         )
         .arg(
-            Arg::with_name("timeout")
+            Arg::new("timeout")
                 .long("timeout")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("SECS")
+                .value_parser(value_parser!(u64))
+                .default_value("30")
                 .global(true),
         )
         .arg(
-            Arg::with_name("expect")
+            Arg::new("expect")
                 .long("expect")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("success|failure|timeout")
                 .global(true),
         )
         .arg(
-            Arg::with_name("tcp-failure")
+            Arg::new("tcp-failure")
                 .long("tcp-failure")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("none|timeout|error|blackhole")
                 .global(true),
         )
         .arg(
-            Arg::with_name("tcp-failure-on")
+            Arg::new("tcp-failure-on")
                 .long("tcp-failure-on")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("all|v4|v6|non443")
                 .global(true),
         )
         .arg(
-            Arg::with_name("tcp-failure-stage")
+            Arg::new("tcp-failure-stage")
                 .long("tcp-failure-stage")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("bootstrap|connect")
                 .global(true),
         )
         .arg(
-            Arg::with_name("tcp-failure-delay")
+            Arg::new("tcp-failure-delay")
                 .long("tcp-failure-delay")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("SECS")
                 .global(true),
         )
         .arg(
-            Arg::with_name("dir-filter")
+            Arg::new("dir-filter")
                 .long("dir-filter")
-                .takes_value(true)
+                .action(ArgAction::Set)
                 .value_name("FILTER_NAME")
                 .global(true),
         )
         .subcommand(
-            SubCommand::with_name("connect")
+            Command::new("connect")
                 .about("Try to bootstrap and connect to an address")
                 .arg(
-                    Arg::with_name("target")
+                    Arg::new("target")
                         .long("target")
-                        .takes_value(true)
+                        .action(ArgAction::Set)
                         .value_name("ADDR:PORT")
-                        .required(true),
+                        .default_value("www.torproject.org:443"),
                 )
                 .arg(
-                    Arg::with_name("retry")
+                    Arg::new("retry")
                         .long("retry")
-                        .takes_value(true)
+                        .action(ArgAction::Set)
                         .value_name("DELAY")
-                        .required(false),
+                        .value_parser(value_parser!(u64)),
                 ),
         )
-        .subcommand(SubCommand::with_name("bootstrap").about("Try to bootstrap only"))
-        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .subcommand(Command::new("bootstrap").about("Try to bootstrap only"))
+        .subcommand_required(true)
+        .arg_required_else_help(true)
         .get_matches();
 
     let config = {
         // TODO: this is mostly duplicate code.
         let mut cfg_sources = ConfigurationSources::new_empty();
 
-        let config_files = matches.values_of_os("config-files").unwrap_or_default();
+        let config_files = matches
+            .get_many::<OsString>("config-files")
+            .unwrap_or_default();
 
         if config_files.len() == 0 {
             // Not using the regular default here; we don't want interference
@@ -143,36 +143,45 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         }
 
         matches
-            .values_of("option")
+            .get_many::<String>("option")
             .unwrap_or_default()
             .for_each(|s| cfg_sources.push_option(s));
 
         cfg_sources
     };
 
-    let timeout =
-        int_str_to_secs(matches.value_of("timeout"))?.unwrap_or_else(|| Duration::from_secs(30));
+    let timeout = Duration::from_secs(
+        *matches
+            .get_one::<u64>("timeout")
+            .expect("Failed to pick default timeout"),
+    );
 
-    let console_log = matches.value_of("log").unwrap_or("debug").to_string();
+    let console_log = matches
+        .get_one::<String>("log")
+        .expect("Failed to get default log level")
+        .clone();
 
     let expectation = matches
-        .value_of("expect")
-        .map(crate::Expectation::from_str)
+        .get_one::<String>("expect")
+        .map(|s| crate::Expectation::from_str(s.as_str()))
         .transpose()?;
 
     let tcp_breakage = {
-        let action = matches.value_of("tcp-failure").unwrap_or("none").parse()?;
+        let action = matches
+            .get_one::<String>("tcp-failure")
+            .unwrap_or(&"none".to_string())
+            .parse()?;
         let stage = matches
-            .value_of("tcp-failure-stage")
-            .unwrap_or("bootstrap")
+            .get_one::<String>("tcp-failure-stage")
+            .unwrap_or(&"bootstrap".to_string())
             .parse()?;
         let delay = matches
-            .value_of("tcp-failure-delay")
+            .get_one::<String>("tcp-failure-delay")
             .map(|d| d.parse().map(Duration::from_secs))
             .transpose()?;
         let when = matches
-            .value_of("tcp-failure-on")
-            .unwrap_or("all")
+            .get_one::<String>("tcp-failure-on")
+            .unwrap_or(&"all".to_string())
             .parse()?;
         let action = ConditionalAction { action, when };
 
@@ -184,8 +193,8 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
     };
 
     let dir_filter = matches
-        .value_of("dir-filter")
-        .map(crate::dirfilter::new_filter)
+        .get_one::<String>("dir-filter")
+        .map(|s| crate::dirfilter::new_filter(s.as_str()))
         .transpose()?
         .unwrap_or_else(crate::dirfilter::nil_filter);
 
@@ -193,10 +202,12 @@ pub(crate) fn parse_cmdline() -> Result<Job> {
         Action::Bootstrap
     } else if let Some(matches) = matches.subcommand_matches("connect") {
         let target = matches
-            .value_of("target")
-            .unwrap_or("www.torproject.org:443")
-            .to_owned();
-        let retry_delay = int_str_to_secs(matches.value_of("retry"))?;
+            .get_one::<String>("target")
+            .expect("Failed to set default connect target")
+            .clone();
+        let retry_delay = matches
+            .get_one::<u64>("retry")
+            .map(|d| Duration::from_secs(*d));
 
         Action::Connect {
             target,
