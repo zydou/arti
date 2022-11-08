@@ -53,7 +53,7 @@ fn example_wallclock() -> SystemTime {
 type RealRuntime = tor_rtcompat::tokio::TokioNativeTlsRuntime;
 type R = MockSleepRuntime<RealRuntime>;
 type M = Mock;
-type Bdm = BridgeDescManager<R, M>;
+type Bdm = BridgeDescMgr<R, M>;
 type RT = RetryTime;
 use Error::TestError as TE;
 
@@ -150,7 +150,7 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let sql_path = db_tmp_dir.path().join("db.sql");
     let conn = rusqlite::Connection::open(&sql_path).unwrap();
 
-    let bdm = BridgeDescManager::<R, M>::new_internal(
+    let bdm = BridgeDescMgr::<R, M>::new_internal(
         runtime.clone(),
         (),
         store,

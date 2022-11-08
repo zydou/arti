@@ -1,4 +1,4 @@
-//! `BridgeDescManager` - downloads and caches bridges' router descriptors
+//! `BridgeDescMgr` - downloads and caches bridges' router descriptors
 
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -49,7 +49,7 @@ type BridgeKey = Arc<BridgeConfig>;
 ///
 /// This is a handle which is cheap to clone and has internal mutability.
 #[derive(Clone)]
-pub struct BridgeDescManager<R: Runtime, M = ()>
+pub struct BridgeDescMgr<R: Runtime, M = ()>
 where
     M: Mockable<R>,
 {
@@ -61,7 +61,7 @@ where
     mgr: Arc<Manager<R, M>>,
 }
 
-/// Configuration for the `BridgeDescManager`
+/// Configuration for the `BridgeDescMgr`
 ///
 /// Currently, the only way to make this is via its `Default` impl.
 //
@@ -113,12 +113,12 @@ impl Default for BridgeDescDownloadConfig {
     }
 }
 
-/// Mockable internal methods for within the `BridgeDescManager`
+/// Mockable internal methods for within the `BridgeDescMgr`
 ///
 /// Implemented for `()`, meaning "do not use mocks: use the real versions of everything".
 ///
 /// This (`()`) is the default for the type parameter in
-/// [`BridgeDescManager`],
+/// [`BridgeDescMgr`],
 /// and it is the only publicly available implementation,
 /// since this trait is sealed.
 pub trait Mockable<R>: mockable::MockableAPI<R> {}
@@ -248,7 +248,7 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 ///
 /// * **Input**:
 ///   Exactly each bridge that was passed to
-///   the last call to [`set_bridges()`](BridgeDescManager::set_bridges) is Tracked.
+///   the last call to [`set_bridges()`](BridgeDescMgr::set_bridges) is Tracked.
 ///   (If we encountered spawn failures, we treat this as trying to shut down,
 ///   so we cease attempts to get bridges, and discard the relevant state, violating this.)
 ///
@@ -444,14 +444,14 @@ impl JoinHandle {
     fn abort(&self) {}
 }
 
-impl<R: Runtime> BridgeDescManager<R> {
-    /// Create a new `BridgeDescManager`
+impl<R: Runtime> BridgeDescMgr<R> {
+    /// Create a new `BridgeDescMgr`
     ///
     /// This is the public constructor.
     //
     // TODO: That this constructor requires a DirMgr is rather odd.
-    // In principle there is little reason why you need a DirMgr to make a BridgeDescManager.
-    // However, BridgeDescManager needs a Store, and currently that is a private trait, and the
+    // In principle there is little reason why you need a DirMgr to make a BridgeDescMgr.
+    // However, BridgeDescMgr needs a Store, and currently that is a private trait, and the
     // implementation is constructible only from the dirmgr's config.  This should probably be
     // tidied up somehow, at some point, perhaps by exposing `Store` and its configuration.
     pub fn new_with_dirmgr(
@@ -483,7 +483,7 @@ struct Downloaded {
     refetch: SystemTime,
 }
 
-impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
+impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
     /// Actual constructor, which takes a mockable
     //
     // Allow passing `runtime` by value, which is usual API for this kind of setup function.
@@ -532,7 +532,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
                 cause: cause.into(),
             })?;
 
-        Ok(BridgeDescManager { mgr })
+        Ok(BridgeDescMgr { mgr })
     }
 
     /// Consistency check convenience wrapper
@@ -547,7 +547,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescManager<R, M> {
     }
 }
 
-impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescManager<R, M> {
+impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescMgr<R, M> {
     fn bridges(&self) -> Arc<BridgeDescList> {
         self.mgr.lock_only().current.clone()
     }
