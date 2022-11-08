@@ -29,9 +29,7 @@ pub use proxied::ProxyError;
 /// [`ChannelFactory`](crate::factory::ChannelFactory), wrap it in a
 /// `ChanBuilder`.
 //
-// TODO pt-client: rename this to Transport? TransportConnector?
-//
-// TODO pt-client: Maybe move this to a separate crate so that tor-ptmgr can be
+// TODO: Maybe move this to a separate crate so that tor-ptmgr can be
 // used without having to depend on chanmgr.
 #[async_trait]
 pub trait TransportHelper {
