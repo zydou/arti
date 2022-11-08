@@ -380,6 +380,11 @@ impl RouterDesc {
         &self.ntor_onion_key
     }
 
+    /// Return the publication
+    pub fn published(&self) -> time::SystemTime {
+        self.published
+    }
+
     /// Helper: tokenize `s`, and divide it into three validated sections.
     fn parse_sections<'a>(
         reader: &mut NetDocReader<'a, RouterKwd>,
