@@ -117,8 +117,9 @@ pub use misc::*;
 pub enum ErrorKind {
     /// Error connecting to the Tor network
     ///
-    /// Perhaps the local network is not working, or perhaps the chosen relay is not working
-    /// properly.  Not used for errors that occur within the Tor network, or accessing the public
+    /// Perhaps the local network is not working,
+    /// or perhaps the chosen relay or bridge is not working properly.
+    /// Not used for errors that occur within the Tor network, or accessing the public
     /// internet on the far side of Tor.
     #[display(fmt = "error connecting to Tor")]
     TorAccessFailed,
