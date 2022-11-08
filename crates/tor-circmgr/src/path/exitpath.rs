@@ -164,7 +164,6 @@ impl<'a> ExitPathBuilder<'a> {
             Some(guardmgr) => {
                 let mut b = tor_guardmgr::GuardUsageBuilder::default();
                 b.kind(tor_guardmgr::GuardUsageKind::Data);
-                guardmgr.update_network(netdir); // possibly unnecessary.
                 if let Some(exit_relay) = chosen_exit {
                     // TODO(nickm): Our way of building a family here is
                     // somewhat questionable. We're only adding the ed25519
@@ -181,7 +180,7 @@ impl<'a> ExitPathBuilder<'a> {
                         .push(tor_guardmgr::GuardRestriction::AvoidAllIds(family));
                 }
                 let guard_usage = b.build().expect("Failed while building guard usage!");
-                let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage, Some(netdir))?;
+                let (guard, mut mon, usable) = guardmgr.select_guard(guard_usage)?;
                 let guard = if let Some(ct) = guard.as_circ_target() {
                     // This is a bridge; we will not look for it in the network directory.
                     MaybeOwnedRelay::from(ct.clone())
@@ -474,7 +473,7 @@ mod test {
             let guards =
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
             let config = PathConfig::default();
-            guards.update_network(&netdir);
+            guards.install_test_netdir(&netdir);
             let port443 = TargetPort::ipv4(443);
 
             // We're going to just have these all succeed and make sure

@@ -1,9 +1,5 @@
 //! Logic for manipulating a sampled set of guards, along with various
 //! orderings on that sample.
-//
-// TODO pt-client: We must teach GuardSet to handle bridges.  That requires us to:
-// - allow use of BridgeList in place of NetDir, possibly via a trait implemented by both.
-// - allow Guard to be constructed from a Bridge rather than a Relay
 
 mod candidate;
 
@@ -25,7 +21,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Instant, SystemTime};
 use tracing::{debug, info};
 
-pub(crate) use candidate::{Candidate, CandidateStatus, Universe, WeightThreshold};
+#[allow(unused_imports)]
+pub(crate) use candidate::{Candidate, CandidateStatus, Universe, UniverseRef, WeightThreshold};
 
 /// A set of sampled guards, along with various orderings on subsets
 /// of the sample.

@@ -34,24 +34,17 @@ impl DirPathBuilder {
         guards: Option<&GuardMgr<RT>>,
     ) -> Result<(TorPath<'a>, Option<GuardMonitor>, Option<GuardUsable>)> {
         match (netdir, guards) {
-            (dirinfo, Some(guardmgr)) => {
+            (_, Some(guardmgr)) => {
                 // We use a guardmgr whenever we have one, regardless of whether
                 // there's a netdir.
                 //
                 // That way, we prefer our guards (if they're up) before we default to the fallback directories.
-                let netdir = match dirinfo {
-                    DirInfo::Directory(netdir) => {
-                        guardmgr.update_network(netdir); // possibly unnecessary.
-                        Some(netdir)
-                    }
-                    _ => None,
-                };
 
                 let guard_usage = tor_guardmgr::GuardUsageBuilder::default()
                     .kind(tor_guardmgr::GuardUsageKind::OneHopDirectory)
                     .build()
                     .expect("Unable to build directory guard usage");
-                let (guard, mon, usable) = guardmgr.select_guard(guard_usage, netdir)?;
+                let (guard, mon, usable) = guardmgr.select_guard(guard_usage)?;
                 Ok((TorPath::new_one_hop_owned(&guard), Some(mon), Some(usable)))
             }
 
@@ -192,7 +185,7 @@ mod test {
             let statemgr = tor_persist::TestingStateMgr::new();
             let guards =
                 tor_guardmgr::GuardMgr::new(rt.clone(), statemgr, &TestConfig::default()).unwrap();
-            guards.update_network(&netdir);
+            guards.install_test_netdir(&netdir);
 
             let mut distinct_guards = HashSet::new();
 

@@ -363,11 +363,12 @@ mod test {
         // The quartiles here are -22 and -10.  The IQR is therefore 12, so we
         // won't discard anything.
         //
-        // The mean is -17.125: That's more than 15 minutes from zero, so we'll say
-        // we're slow.
+        // The mean is -17.125: That's more than 15 minutes from zero, so we'll
+        // say we're slow.
         //
         // The standard deviation is 7.67: that puts the mean between 2 and 3
-        // stddevs from zero, so we'll say we're skewed with "low" confidence.
+        // standard deviations from zero, so we'll say we're skewed with "low"
+        // confidence.
         let obs = from_minutes(&[-20.0, -10.0, -20.0, -25.0, 0.0, -18.0, -22.0, -22.0]);
 
         let est = SkewEstimate::estimate_skew(obs.iter(), Instant::now()).unwrap();

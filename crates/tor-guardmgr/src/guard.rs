@@ -749,7 +749,6 @@ impl Guard {
     pub(crate) fn get_external_rep(&self, selection: GuardSetSelector) -> crate::FirstHop {
         crate::FirstHop {
             sample: Some(selection),
-            // TODO pt-client: might have a bridge descriptor.
             inner: crate::FirstHopInner::Chan(tor_linkspec::OwnedChanTarget::from_chan_target(
                 self,
             )),

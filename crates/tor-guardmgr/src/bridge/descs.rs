@@ -26,7 +26,7 @@ use super::BridgeRelay;
 /// A router descriptor that can be used to build circuits through a bridge.
 ///
 /// These descriptors are fetched from the bridges themselves, and used in
-/// conjunction with configured bridge information and ppluggable transports to
+/// conjunction with configured bridge information and pluggable transports to
 /// contact bridges and build circuits through them.
 #[derive(Clone, Debug)]
 pub struct BridgeDesc {
@@ -67,7 +67,7 @@ impl tor_linkspec::HasRelayIdsLegacy for BridgeDesc {
 /// This is analogous to NetDirProvider.
 ///
 /// TODO pt-client: improve documentation.
-pub trait BridgeDescProvider: DynClone {
+pub trait BridgeDescProvider: DynClone + Send + Sync {
     /// Return the current set of bridge descriptors.
     fn bridges(&self) -> Arc<BridgeDescList>;
 
@@ -91,7 +91,7 @@ dyn_clone::clone_trait_object!(BridgeDescProvider);
 ///
 /// Currently changes are always reported as `BridgeDescEvent::SomethingChanged`.
 ///
-/// In the future, as an optimisation, more fine-grained information may be provided.
+/// In the future, as an optimization, more fine-grained information may be provided.
 /// Unrecognized variants should be handled the same way as `SomethingChanged`.
 /// (So right now, it is not necessary to match on the variant at all.)
 #[derive(
@@ -141,20 +141,19 @@ pub(crate) struct BridgeSet {
     /// When did this BridgeSet last change its listed bridges?
     config_last_changed: SystemTime,
     /// The configured bridges.
-    config: Vec<Arc<BridgeConfig>>,
+    config: Arc<[BridgeConfig]>,
     /// A map from those bridges to their descriptors.  It may contain elements
     /// that are not in `config`.
-    descs: Arc<BridgeDescList>,
+    descs: Option<Arc<BridgeDescList>>,
 }
 
 impl BridgeSet {
     /// Create a new `BridgeSet` from its configuration.
-    #[allow(dead_code)] // TODO pt-client remove
-    pub(crate) fn new(config: Vec<Arc<BridgeConfig>>) -> Self {
+    pub(crate) fn new(config: Arc<[BridgeConfig]>, descs: Option<Arc<BridgeDescList>>) -> Self {
         Self {
-            config_last_changed: SystemTime::now(),
+            config_last_changed: SystemTime::now(), // TODO pt-client wrong.
             config,
-            descs: Arc::new(BridgeDescList::default()),
+            descs,
         }
     }
 
@@ -166,28 +165,27 @@ impl BridgeSet {
     ///
     /// We check for a match by identity _and_ channel method, since channel
     /// method is part of what makes two bridge lines different.
-    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&Arc<BridgeConfig>>
+    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&BridgeConfig>
     where
         T: ChanTarget,
     {
         self.config.iter().find(|bridge| {
-            guard.has_all_relay_ids_from(bridge.as_ref())
-                && guard.chan_method() == bridge.chan_method()
+            guard.has_all_relay_ids_from(*bridge) && guard.chan_method() == bridge.chan_method()
         })
     }
 
     /// Return a BridgeRelay wrapping the provided configuration, plus any known
     /// descriptor for that configuration.
-    fn relay_by_bridge(&self, bridge: &Arc<BridgeConfig>) -> BridgeRelay {
-        let desc = match self.descs.get(bridge) {
+    fn relay_by_bridge<'a>(&'a self, bridge: &'a BridgeConfig) -> BridgeRelay<'a> {
+        let desc = match self.descs.as_ref().and_then(|d| d.get(bridge)) {
             Some(Ok(b)) => Some(b.clone()),
             _ => None,
         };
-        BridgeRelay::new(bridge.clone(), desc)
+        BridgeRelay::new(bridge, desc)
     }
 
     /// Look up a BridgeRelay corresponding to a given guard.
-    fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
+    pub(crate) fn bridge_relay_by_guard<T: tor_linkspec::ChanTarget>(
         &self,
         guard: &T,
     ) -> CandidateStatus<BridgeRelay> {
@@ -268,10 +266,8 @@ impl Universe for BridgeSet {
         self.config
             .iter()
             .filter(|bridge_conf| {
-                filter.permits(bridge_conf.as_ref())
-                    && pre_existing
-                        .all_overlapping(bridge_conf.as_ref())
-                        .is_empty()
+                filter.permits(*bridge_conf)
+                    && pre_existing.all_overlapping(*bridge_conf).is_empty()
             })
             .choose_multiple(&mut rand::thread_rng(), n)
             .into_iter()

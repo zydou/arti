@@ -1,7 +1,7 @@
 //! This module defines and implements traits used to create a guard sample from
 //! either bridges or relays.
 
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
 use tor_linkspec::{ByRelayIds, ChanTarget, HasRelayIds, OwnedChanTarget};
 use tor_netdir::{NetDir, Relay, RelayWeight};
@@ -152,7 +152,7 @@ impl Universe for NetDir {
     {
         /// Return the weight for this relay, if we can find it.
         ///
-        /// (We should always be able to find it as netdirs are constructed
+        /// (We should always be able to find it as `NetDir`s are constructed
         /// today.)
         fn weight(dir: &NetDir, relay: &Relay<'_>) -> Option<RelayWeight> {
             dir.weight_by_rsa_id(relay.rsa_identity()?, tor_netdir::WeightRole::Guard)
@@ -182,5 +182,70 @@ impl Universe for NetDir {
             )
         })
         .collect()
+    }
+}
+
+/// Reference to a [`Universe`] of one of the types supported by this crate.
+///
+/// This enum exists because `Universe` is not dyn-compatible.
+#[derive(Clone, Debug)]
+pub(crate) enum UniverseRef {
+    /// A reference to a netdir.
+    NetDir(Arc<NetDir>),
+    /// A BridgeSet (which is always references internally)
+    #[cfg(feature = "bridge-client")]
+    BridgeSet(crate::bridge::BridgeSet),
+}
+
+impl Universe for UniverseRef {
+    fn contains<T: ChanTarget>(&self, guard: &T) -> Option<bool> {
+        match self {
+            UniverseRef::NetDir(r) => r.contains(guard),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.contains(guard),
+        }
+    }
+
+    fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate> {
+        match self {
+            UniverseRef::NetDir(r) => r.status(guard),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.status(guard),
+        }
+    }
+
+    fn timestamp(&self) -> SystemTime {
+        match self {
+            UniverseRef::NetDir(r) => r.timestamp(),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.timestamp(),
+        }
+    }
+
+    fn weight_threshold<T>(&self, sample: &ByRelayIds<T>, params: &GuardParams) -> WeightThreshold
+    where
+        T: HasRelayIds,
+    {
+        match self {
+            UniverseRef::NetDir(r) => r.weight_threshold(sample, params),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.weight_threshold(sample, params),
+        }
+    }
+
+    fn sample<T>(
+        &self,
+        pre_existing: &ByRelayIds<T>,
+        filter: &GuardFilter,
+        n: usize,
+    ) -> Vec<(Candidate, RelayWeight)>
+    where
+        T: HasRelayIds,
+    {
+        match self {
+            UniverseRef::NetDir(r) => r.sample(pre_existing, filter, n),
+            #[cfg(feature = "bridge-client")]
+            UniverseRef::BridgeSet(r) => r.sample(pre_existing, filter, n),
+        }
     }
 }

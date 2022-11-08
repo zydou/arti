@@ -105,15 +105,42 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
     while let Some(event) = event_stream.next().await {
         match event {
             DirEvent::NewConsensus | DirEvent::NewDescriptors => {
-                if let (Some(inner), Some(provider)) = (inner.upgrade(), netdir_provider.upgrade())
-                {
+                if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    if let Ok(netdir) = provider.timely_netdir() {
-                        inner.update(runtime.wallclock(), Some(&netdir));
-                    }
+                    inner.update(runtime.wallclock());
+                } else {
+                    return;
                 }
             }
             _ => {}
+        }
+    }
+}
+
+/// Background task to keep a guard manager up-to-date with a given bridge
+/// descriptor provider.
+#[cfg(feature = "bridge-client")]
+pub(crate) async fn keep_bridge_descs_updated<RT: tor_rtcompat::Runtime>(
+    runtime: RT,
+    inner: Weak<Mutex<GuardMgrInner>>,
+    bridge_desc_provider: Weak<dyn crate::bridge::BridgeDescProvider>,
+) {
+    use crate::bridge::BridgeDescEvent as E;
+    let mut event_stream = match bridge_desc_provider.upgrade().map(|p| p.events()) {
+        Some(s) => s,
+        None => return,
+    };
+
+    while let Some(event) = event_stream.next().await {
+        match event {
+            E::SomethingChanged => {
+                if let Some(inner) = inner.upgrade() {
+                    let mut inner = inner.lock().expect("Poisoned lock");
+                    inner.update(runtime.wallclock());
+                } else {
+                    return;
+                }
+            }
         }
     }
 }

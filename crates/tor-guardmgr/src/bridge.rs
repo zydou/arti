@@ -17,3 +17,5 @@ mod relay;
 pub use config::{BridgeConfig, BridgeParseError};
 pub use descs::{BridgeDesc, BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
 pub use relay::BridgeRelay;
+
+pub(crate) use descs::BridgeSet;

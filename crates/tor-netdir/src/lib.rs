@@ -43,6 +43,8 @@ mod weight;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testnet;
+#[cfg(feature = "testing")]
+pub mod testprovider;
 
 use static_assertions::const_assert;
 use tor_linkspec::{

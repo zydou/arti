@@ -51,6 +51,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant, SystemTime};
+use tor_error::internal;
 use tor_linkspec::{OwnedChanTarget, OwnedCircTarget, RelayId, RelayIdSet};
 use tor_netdir::NetDirProvider;
 use tor_proto::ClockSkew;
@@ -110,7 +111,7 @@ pub use pending::{GuardMonitor, GuardStatus, GuardUsable};
 pub use skew::SkewEstimate;
 
 use pending::{PendingRequest, RequestId};
-use sample::GuardSet;
+use sample::{GuardSet, Universe, UniverseRef};
 
 use crate::ids::{FirstHopIdInner, GuardId};
 
@@ -208,6 +209,18 @@ struct GuardMgrInner {
     /// This has to be an Option so it can be initialized from None: at the
     /// time a GuardMgr is created, there is no NetDirProvider for it to use.
     netdir_provider: Option<Weak<dyn NetDirProvider>>,
+
+    /// A netdir provider that we can use for discovering bridge descriptors.
+    ///
+    /// This has to be an Option so it can be initialized from None: at the time
+    /// a GuardMgr is created, there is no BridgeDescProvider for it to use.
+    #[cfg(feature = "bridge-client")]
+    bridge_desc_provider: Option<Weak<dyn bridge::BridgeDescProvider>>,
+
+    /// A list of the bridges that we are configured to use, or "None" if we are
+    /// not configured to use bridges.
+    #[cfg(feature = "bridge-client")]
+    configured_bridges: Option<Arc<[bridge::BridgeConfig]>>,
 }
 
 /// A selector that tells us which [`GuardSet`] of several is currently in use.
@@ -226,8 +239,29 @@ enum GuardSetSelector {
     /// The "bridges" guard set is currently in use: we are selecting our guards
     /// from among the universe of configured bridges.
     #[cfg(feature = "bridge-client")]
-    #[allow(dead_code)] // TODO pt-client: remove this "allow" once used
     Bridges,
+}
+
+/// Describes the [`Universe`] that a guard sample should take its guards from.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum UniverseType {
+    /// Take information from the network directory.
+    NetDir,
+    /// Take information from the configured bridges.
+    #[cfg(feature = "bridge-client")]
+    BridgeSet,
+}
+
+impl GuardSetSelector {
+    /// Return a description of which [`Universe`] this guard sample should take
+    /// its guards from.
+    fn universe_type(&self) -> UniverseType {
+        match self {
+            GuardSetSelector::Default | GuardSetSelector::Restricted => UniverseType::NetDir,
+            #[cfg(feature = "bridge-client")]
+            GuardSetSelector::Bridges => UniverseType::BridgeSet,
+        }
+    }
 }
 
 /// Persistent state for a guard manager, as serialized to disk.
@@ -255,7 +289,6 @@ struct GuardSets {
     /// Unrecognized fields, including (possibly) other guard sets.
     #[serde(flatten)]
     remaining: HashMap<String, tor_persist::JsonValue>,
-    // TODO pt-client: There must also be a "bridges" GuardSet instance.
 }
 
 /// The key (filename) we use for storing our persistent guard state in the
@@ -268,8 +301,8 @@ const STORAGE_KEY: &str = "guards";
 impl<R: Runtime> GuardMgr<R> {
     /// Create a new "empty" guard manager and launch its background tasks.
     ///
-    /// It won't be able to hand out any guards until
-    /// [`GuardMgr::update_network`] has been called.
+    /// It won't be able to hand out any guards until a [`NetDirProvider`] has
+    /// been installed.
     pub fn new<S>(
         runtime: R,
         state_mgr: S,
@@ -289,9 +322,6 @@ impl<R: Runtime> GuardMgr<R> {
         let (send_skew, recv_skew) = postage::watch::channel();
         let recv_skew = ClockSkewEvents { inner: recv_skew };
 
-        // TODO pt-client do something with the bridge information
-        // should probably share code with reconfigure() as much as possible
-
         let inner = Arc::new(Mutex::new(GuardMgrInner {
             guards: state,
             filter: GuardFilter::unfiltered(),
@@ -305,7 +335,18 @@ impl<R: Runtime> GuardMgr<R> {
             send_skew,
             recv_skew,
             netdir_provider: None,
+            #[cfg(feature = "bridge-client")]
+            bridge_desc_provider: None,
+            #[cfg(feature = "bridge-client")]
+            configured_bridges: None,
         }));
+        #[cfg(feature = "bridge-client")]
+        {
+            let mut inner = inner.lock().expect("lock poisoned");
+            // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
+            // providers are configured? I think not, but we should make sure.
+            inner.replace_bridge_config(config, SystemTime::now());
+        }
         {
             let weak_inner = Arc::downgrade(&inner);
             let rt_clone = runtime.clone();
@@ -331,6 +372,10 @@ impl<R: Runtime> GuardMgr<R> {
     ///
     /// TODO: we should eventually return some kind of a task handle from this
     /// task, even though it is not strictly speaking periodic.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`NetDirProvider`] is already installed.
     pub fn install_netdir_provider(
         &self,
         provider: &Arc<dyn NetDirProvider>,
@@ -338,6 +383,7 @@ impl<R: Runtime> GuardMgr<R> {
         let weak_provider = Arc::downgrade(provider);
         {
             let mut inner = self.inner.lock().expect("Poisoned lock");
+            assert!(inner.netdir_provider.is_none());
             inner.netdir_provider = Some(weak_provider.clone());
         }
         let weak_inner = Arc::downgrade(&self.inner);
@@ -352,16 +398,40 @@ impl<R: Runtime> GuardMgr<R> {
         Ok(())
     }
 
-    /// Configure a new BridgeDescProvider.
+    /// Configure a new [`bridge::BridgeDescProvider`] for this [`GuardMgr`].
     ///
-    /// TODO pt-client: give this more documentation, like install_netdir_provider has.
+    /// It will be used to learn about changes in the set of available bridge
+    /// descriptors; we'll inform it whenever our desired set of bridge
+    /// descriptors changes.
+    ///
+    /// TODO: Same todo as in `install_netdir_provider` about task handles.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`bridge::BridgeDescProvider`] is already installed.
     #[cfg(feature = "bridge-client")]
-    #[allow(clippy::needless_pass_by_value, clippy::missing_panics_doc)]
-    pub fn install_bridge_desc_provider<T>(
+    pub fn install_bridge_desc_provider(
         &self,
-        _provider: Arc<dyn bridge::BridgeDescProvider>,
+        provider: &Arc<dyn bridge::BridgeDescProvider>,
     ) -> Result<(), GuardMgrError> {
-        todo!() // TODO pt-client: Implement this and remove the clippy exceptions above.
+        let weak_provider = Arc::downgrade(provider);
+        {
+            let mut inner = self.inner.lock().expect("Poisoned lock");
+            assert!(inner.bridge_desc_provider.is_none());
+            inner.bridge_desc_provider = Some(weak_provider.clone());
+        }
+
+        let weak_inner = Arc::downgrade(&self.inner);
+        let rt_clone = self.runtime.clone();
+        self.runtime
+            .spawn(daemon::keep_bridge_descs_updated(
+                rt_clone,
+                weak_inner,
+                weak_provider,
+            ))
+            .map_err(|e| GuardMgrError::from_spawn("periodic guard netdir updater", e))?;
+
+        Ok(())
     }
 
     /// Flush our current guard state to the state manager, if there
@@ -401,6 +471,10 @@ impl<R: Runtime> GuardMgr<R> {
     /// Return true if `netdir` has enough information to safely become our new netdir.
     pub fn netdir_is_sufficient(&self, netdir: &NetDir) -> bool {
         let mut inner = self.inner.lock().expect("Poisoned lock");
+        if inner.guards.active_set.universe_type() != UniverseType::NetDir {
+            // If we aren't using the netdir, this isn't something we want to look at.
+            return true;
+        }
         inner
             .guards
             .active_guards_mut()
@@ -415,45 +489,48 @@ impl<R: Runtime> GuardMgr<R> {
         inner.guards.active_guards_mut().mark_all_guards_retriable();
     }
 
-    /// Update the state of this [`GuardMgr`] based on a new or modified
-    /// [`NetDir`] object.
+    /// Configure this guardmgr to use a fixed [`NetDir`] instead of a provider.
     ///
-    /// This method can add new guards, or notice that existing guards have
-    /// become unusable.  It needs a `NetDir` so it can identify potential
-    /// candidate guards.
-    ///
-    /// Call this method whenever the `NetDir` changes, unless you have used
+    /// This function is for testing only, and is exclusive with
     /// `install_netdir_provider`.
-    pub fn update_network(&self, netdir: &NetDir) {
-        trace!("Updating guard state from network directory");
+    ///
+    /// # Panics
+    ///
+    /// Panics if any [`NetDirProvider`] has already been installed.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn install_test_netdir(&self, netdir: &NetDir) {
+        use tor_netdir::testprovider::TestNetDirProvider;
         let now = self.runtime.wallclock();
+        let netdir_provider: Arc<dyn NetDirProvider> =
+            Arc::new(TestNetDirProvider::from(netdir.clone()));
+        self.install_netdir_provider(&netdir_provider)
+            .expect("Couldn't install testing network provider");
 
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.update(now, Some(netdir));
+        inner.update(now);
     }
 
-    /// Replace the fallback list held by this GuardMgr with `new_list`
-    fn replace_fallback_list(&self, list: &fallback::FallbackList) {
-        let mut fallbacks: fallback::FallbackState = list.into();
-        let mut inner = self.inner.lock().expect("Poisoned lock");
-        std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
-        inner.fallbacks.take_status_from(fallbacks);
-    }
-
-    /// Reconfigure
+    /// Replace the configuration in this `GuardMgr` with `config`.
     pub fn reconfigure(&self, config: &impl GuardMgrConfig) -> Result<(), ReconfigureError> {
-        // TODO pt-client: do something with config.bridges and config.bridges_enabled
-        // should probably share code with new() as much as possible
-        self.replace_fallback_list(config.fallbacks());
+        let mut inner = self.inner.lock().expect("Poisoned lock");
+        // Change the set of configured fallbacks.
+        {
+            let mut fallbacks: fallback::FallbackState = config.fallbacks().into();
+            std::mem::swap(&mut inner.fallbacks, &mut fallbacks);
+            inner.fallbacks.take_status_from(fallbacks);
+        }
+        // If we are built to use bridges, change the bridge configuration.
+        #[cfg(feature = "bridge-client")]
+        inner.replace_bridge_config(config, SystemTime::now());
         Ok(())
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
     // TODO should this be part of the config?
-    pub fn set_filter(&self, filter: GuardFilter, netdir: Option<&NetDir>) {
+    pub fn set_filter(&self, filter: GuardFilter) {
         let now = self.runtime.wallclock();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.set_filter(filter, netdir, now);
+        inner.set_filter(filter, now);
     }
 
     /// Select a guard for a given [`GuardUsage`].
@@ -469,23 +546,9 @@ impl<R: Runtime> GuardMgr<R> {
     /// through the guard returned by this function, but you can't
     /// actually use it for traffic unless the [`GuardUsable`] future
     /// yields "true".
-    ///
-    /// # Limitations
-    ///
-    /// This function will never return a guard that isn't listed in
-    /// the most recent [`NetDir`].
-    ///
-    /// That's _usually_ what you'd want, but when we're trying to
-    /// bootstrap we might want to use _all_ guards as possible
-    /// directory caches.  That's not implemented yet. (See ticket
-    /// [#220](https://gitlab.torproject.org/tpo/core/arti/-/issues/220)).
-    ///
-    /// This function only looks at netdir when all of the known
-    /// guards are down; to force an update, use [`GuardMgr::update_network`].
     pub fn select_guard(
         &self,
         usage: GuardUsage,
-        netdir: Option<&NetDir>,
     ) -> Result<(FirstHop, GuardMonitor, GuardUsable), PickGuardError> {
         let now = self.runtime.now();
         let wallclock = self.runtime.wallclock();
@@ -496,7 +559,7 @@ impl<R: Runtime> GuardMgr<R> {
         // it should _probably_ not hurt.)
         inner.guards.active_guards_mut().consider_all_retries(now);
 
-        let (origin, guard) = inner.select_guard_with_expand(&usage, netdir, now, wallclock)?;
+        let (origin, guard) = inner.select_guard_with_expand(&usage, now, wallclock)?;
         trace!(?guard, ?usage, "Guard selected");
 
         let (usable, usable_sender) = if origin.usable_immediately() {
@@ -686,47 +749,161 @@ impl GuardMgrInner {
             .and_then(|np| np.timely_netdir().ok())
     }
 
+    /// Look up the latest [`BridgeDescList`](bridge::BridgeDescList) (if there
+    /// is one) from our [`BridgeDescProvider`](bridge::BridgeDescProvider) (if
+    /// we have one).
+    #[cfg(feature = "bridge-client")]
+    fn latest_bridge_desc_list(&self) -> Option<Arc<bridge::BridgeDescList>> {
+        self.bridge_desc_provider
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .map(|bp| bp.bridges())
+    }
+
     /// Run a function that takes `&mut self` and an optional NetDir.
     ///
-    /// If a NetDir is provided, use that.  Otherwise, try to use the netdir
-    /// from our [`NetDirProvider`] (if we have one).
+    /// We try to use the netdir from our [`NetDirProvider`] (if we have one).
+    /// Therefore, although its _parameters_ are suitable for every
+    /// [`GuardSet`], its _contents_ might not be. For those, call
+    /// [`with_opt_universe`](Self::with_opt_universe) instead.
     //
     // This function exists to handle the lifetime mess where sometimes the
     // resulting NetDir will borrow from `netdir`, and sometimes it will borrow
     // from an Arc returned by `self.latest_netdir()`.
-    fn with_opt_netdir<F, T>(&mut self, netdir: Option<&NetDir>, func: F) -> T
+    fn with_opt_netdir<F, T>(&mut self, func: F) -> T
     where
         F: FnOnce(&mut Self, Option<&NetDir>) -> T,
     {
-        if let Some(nd) = netdir {
-            func(self, Some(nd))
-        } else if let Some(nd) = self.timely_netdir() {
+        if let Some(nd) = self.timely_netdir() {
             func(self, Some(nd.as_ref()))
         } else {
             func(self, None)
         }
     }
 
-    /// Update the status of all guards in the active set, based on the passage
-    /// of time and (optionally) a network directory. If no directory is
-    /// provided, we try to find one from the installed provider.
+    /// Return the latest `BridgeSet` based on our `BridgeDescProvider` and our
+    /// configured bridges.
     ///
-    /// We can expire guards based on the time alone; we can only add guards or
-    /// change their status with a NetDir.
-    fn update(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
-        self.with_opt_netdir(netdir, |this, netdir| this.update_internal(now, netdir));
+    /// Returns `None` if we are not configured to use bridges.
+    #[cfg(feature = "bridge-client")]
+    fn latest_bridge_set(&self) -> Option<bridge::BridgeSet> {
+        let bridge_config = self.configured_bridges.as_ref()?.clone();
+        let bridge_descs = self.latest_bridge_desc_list();
+        Some(bridge::BridgeSet::new(bridge_config, bridge_descs))
     }
 
-    /// As `update`, but do not try to look up a [`NetDir`] if none is given.
-    fn update_internal(&mut self, now: SystemTime, netdir: Option<&NetDir>) {
-        // Set the parameters.
+    /// Run a function that takes `&mut self` and an optional [`UniverseRef`].
+    ///
+    /// We try to get a universe from the appropriate source for the current
+    /// active guard set.
+    fn with_opt_universe<F, T>(&mut self, func: F) -> T
+    where
+        F: FnOnce(&mut Self, Option<&UniverseRef>) -> T,
+    {
+        // TODO pt-client: soon, make the function take an GuardSet and a set
+        // of parameters, so we can't get the active set wrong.
+        match self.guards.active_set.universe_type() {
+            UniverseType::NetDir => {
+                if let Some(nd) = self.timely_netdir() {
+                    func(self, Some(&UniverseRef::NetDir(nd)))
+                } else {
+                    func(self, None)
+                }
+            }
+            #[cfg(feature = "bridge-client")]
+            UniverseType::BridgeSet => func(
+                self,
+                self.latest_bridge_set()
+                    .map(UniverseRef::BridgeSet)
+                    .as_ref(),
+            ),
+        }
+    }
+
+    /// Update the status of all guards in the active set, based on the passage
+    /// of time, our configuration, and and the relevant Universe for our active
+    /// set.
+    fn update(&mut self, now: SystemTime) {
+        self.with_opt_netdir(|this, netdir| {
+            // Here we update our parameters from the latest NetDir, and check
+            // whether we need to change to a (non)-restrictive GuardSet based
+            // on those parameters and our configured filter.
+            //
+            // This uses a NetDir unconditionally, since we always want to take
+            // the network parameters our parameters from the consensus even if
+            // the guards themselves are from a BridgeSet.
+            this.update_active_set_params_and_filter(netdir);
+        });
+        self.with_opt_universe(|this, univ| {
+            // Now we update the set of guards themselves based on the
+            // Universe, which is either the latest NetDir, or the latest
+            // BridgeSet—depending on what the GuardSet wants.
+            Self::update_guardset_internal(
+                &this.params,
+                now,
+                this.guards.active_guards_mut(),
+                univ,
+            );
+        });
+    }
+
+    /// Replace our bridge configuration with the one from `new_config`.
+    #[cfg(feature = "bridge-client")]
+    fn replace_bridge_config(&mut self, new_config: &impl GuardMgrConfig, now: SystemTime) {
+        match (&self.configured_bridges, new_config.bridges_enabled()) {
+            (None, false) => {
+                assert_ne!(
+                    self.guards.active_set.universe_type(),
+                    UniverseType::BridgeSet
+                );
+                return; // nothing to do
+            }
+            (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
+                assert_eq!(
+                    self.guards.active_set.universe_type(),
+                    UniverseType::BridgeSet
+                );
+                return; // nothing to do.
+            }
+            (_, true) => {
+                self.configured_bridges = Some(new_config.bridges().into());
+                self.guards.active_set = GuardSetSelector::Bridges;
+            }
+            (_, false) => {
+                self.configured_bridges = None;
+                self.guards.active_set = GuardSetSelector::Default;
+            }
+        }
+
+        // If we have gotten here, we have changed the set of bridges, changed
+        // which set is active, or changed them both.  We need to make sure that
+        // our `GuardSet` object is up-to-date with our configuration.
+        self.update(now);
+    }
+
+    /// Update our parameters, our selection (based on network parameters and
+    /// configuration), and make sure the active GuardSet has the right
+    /// configuration itself.
+    ///
+    /// We should call this whenever the NetDir's parameters change, or whenever
+    /// our filter changes.  We do not need to call it for new elements arriving
+    /// in our Universe, since those do not affect anything here.
+    ///
+    /// We should also call this whenever a new GuardSet becomes active for any
+    /// reason _other_ than just having called this function.
+    ///
+    /// (This function is only invoked from `update`, which should be called
+    /// under the above circumstances.)
+    fn update_active_set_params_and_filter(&mut self, netdir: Option<&NetDir>) {
+        // Set the parameters.  These always come from the NetDir, even if this
+        // is a bridge set.
         if let Some(netdir) = netdir {
             match GuardParams::try_from(netdir.params()) {
                 Ok(params) => self.params = params,
                 Err(e) => warn!("Unusable guard parameters from consensus: {}", e),
             }
 
-            self.select_guard_set(netdir);
+            self.select_guard_set_based_on_filter(netdir);
         }
 
         // Change the filter, if it doesn't match what the guards have.
@@ -740,34 +917,42 @@ impl GuardMgrInner {
                 .active_guards_mut()
                 .set_filter(self.filter.clone(), restrictive);
         }
+    }
 
-        // Then expire guards.  Do that early, in case we need more.
-        self.guards
-            .active_guards_mut()
-            .expire_old_guards(&self.params, now);
+    /// Update the status of every guard in `active_guards`, and expand it as
+    /// needed.
+    ///
+    /// This function doesn't take `&self`, to make sure that we are only
+    /// affecting a single `GuardSet`, and to avoid confusing the borrow
+    /// checker.
+    ///
+    /// We should call this whenever the contents of the universe have changed.
+    ///
+    /// We should also call this whenever a new GuardSet becomes active.
+    fn update_guardset_internal<U: Universe>(
+        params: &GuardParams,
+        now: SystemTime,
+        active_guards: &mut GuardSet,
+        universe: Option<&U>,
+    ) {
+        // Expire guards.  Do that early, in case doing so makes it clear that
+        // we need to grab more guards or mark others as primary.
+        active_guards.expire_old_guards(params, now);
 
-        if let Some(netdir) = netdir {
-            if self
-                .guards
-                .active_guards_mut()
-                .n_primary_without_dir_info(netdir)
-                > 0
-            {
+        if let Some(universe) = universe {
+            if active_guards.n_primary_without_dir_info(universe) > 0 {
                 // We are missing primary guard descriptors, so we shouldn't update our guard
                 // status.
+                // TODO pt-client: This should not apply to bridges.
                 return;
             }
-            self.guards
-                .active_guards_mut()
-                .update_status_from_dir(netdir);
-            self.guards
-                .active_guards_mut()
-                .extend_sample_as_needed(now, &self.params, netdir);
+            active_guards.update_status_from_dir(universe);
+            // TODO pt-client: This is no longer needed, since we have access to
+            // the Universe inside select_guard_with_expand.
+            active_guards.extend_sample_as_needed(now, params, universe);
         }
 
-        self.guards
-            .active_guards_mut()
-            .select_primary_guards(&self.params);
+        active_guards.select_primary_guards(params);
     }
 
     /// Replace the active guard state with `new_state`, preserving
@@ -775,7 +960,7 @@ impl GuardMgrInner {
     fn replace_guards_with(&mut self, mut new_guards: GuardSets, now: SystemTime) {
         std::mem::swap(&mut self.guards, &mut new_guards);
         self.guards.copy_status_from(new_guards);
-        self.update(now, None);
+        self.update(now);
     }
 
     /// Update which guard set is active based on the current filter and the
@@ -783,8 +968,7 @@ impl GuardMgrInner {
     ///
     /// After calling this function, the new guard set's filter may be
     /// out-of-date: be sure to call `set_filter` as appropriate.
-    fn select_guard_set(&mut self, netdir: &NetDir) {
-        let frac_permitted = self.filter.frac_bw_permitted(netdir);
+    fn select_guard_set_based_on_filter(&mut self, netdir: &NetDir) {
         // In general, we'd like to use the restricted set if we're under the
         // threshold, and the default set if we're over the threshold.  But if
         // we're sitting close to the threshold, we want to avoid flapping back
@@ -795,9 +979,11 @@ impl GuardMgrInner {
         let offset = match self.guards.active_set {
             GuardSetSelector::Default => -0.05,
             GuardSetSelector::Restricted => 0.05,
+            // If we're using bridges, then we don't switch between the other guard sets based on on the filter at all.
             #[cfg(feature = "bridge-client")]
-            GuardSetSelector::Bridges => todo!(), // TODO pt-client
+            GuardSetSelector::Bridges => return,
         };
+        let frac_permitted = self.filter.frac_bw_permitted(netdir);
         let threshold = self.params.filter_threshold + offset;
         let new_choice = if frac_permitted < threshold {
             GuardSetSelector::Restricted
@@ -844,13 +1030,9 @@ impl GuardMgrInner {
     }
 
     /// Replace the current GuardFilter with `filter`.
-    fn set_filter(&mut self, filter: GuardFilter, netdir: Option<&NetDir>, now: SystemTime) {
-        self.with_opt_netdir(netdir, |this, netdir| {
-            this.filter = filter;
-            // This call will invoke update_chosen_guard_set() if possible, and
-            // then call set_filter on the GuardSet.
-            this.update_internal(now, netdir);
-        });
+    fn set_filter(&mut self, filter: GuardFilter, now: SystemTime) {
+        self.filter = filter;
+        self.update(now);
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
@@ -1130,7 +1312,7 @@ impl GuardMgrInner {
     /// Run any periodic events that update guard status, and return a
     /// duration after which periodic events should next be run.
     pub(crate) fn run_periodic_events(&mut self, wallclock: SystemTime, now: Instant) -> Duration {
-        self.update(wallclock, None);
+        self.update(wallclock);
         self.expire_and_answer_pending_requests(now);
         Duration::from_secs(1) // TODO: Too aggressive.
     }
@@ -1139,7 +1321,6 @@ impl GuardMgrInner {
     fn select_guard_with_expand(
         &mut self,
         usage: &GuardUsage,
-        netdir: Option<&NetDir>,
         now: Instant,
         wallclock: SystemTime,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
@@ -1153,15 +1334,29 @@ impl GuardMgrInner {
         };
 
         // That didn't work. If we have a netdir, expand the sample and try again.
-        let res = self.with_opt_netdir(netdir, |this, dir| {
-            let dir = dir?;
+        let res = self.with_opt_universe(|this, univ| {
+            let univ = univ?;
             trace!("No guards available, trying to extend the sample.");
-            this.update_internal(wallclock, Some(dir));
-            if this
-                .guards
-                .active_guards_mut()
-                .extend_sample_as_needed(wallclock, &this.params, dir)
-            {
+            // Make sure that the status on all of our guards are accurate. (Our
+            // parameters and configuration did not change, so we do not need to
+            // call update() or update_active_set_and_filter(). However, we _do_
+            // want to make sure that any old guards are expired, and that our
+            // primary-guard set is updated accordingly.)
+            Self::update_guardset_internal(
+                &this.params,
+                wallclock,
+                this.guards.active_guards_mut(),
+                Some(univ),
+            );
+            // TODO pt-client: We just called "expand_sample_as_needed()" in
+            // update_guardset_internal! We should remove that call, so that
+            // this call can detect if the sample was actually expanded or
+            // not.
+            if this.guards.active_guards_mut().extend_sample_as_needed(
+                wallclock,
+                &this.params,
+                univ,
+            ) {
                 this.guards
                     .active_guards_mut()
                     .select_primary_guards(&this.params);
@@ -1179,11 +1374,11 @@ impl GuardMgrInner {
         }
 
         // Okay, that didn't work either.  If we were asked for a directory
-        // guard, then we may be able to use a fallback.
-        //
-        // TODO pt-client: Actually, we never want to use fallbacks if we are in
-        // bridge mode.
-        if usage.kind == GuardUsageKind::OneHopDirectory {
+        // guard, and we aren't using bridges, then we may be able to use a
+        // fallback.
+        if usage.kind == GuardUsageKind::OneHopDirectory
+            && self.guards.active_set.universe_type() == UniverseType::NetDir
+        {
             return self.select_fallback(now);
         }
 
@@ -1198,9 +1393,22 @@ impl GuardMgrInner {
         now: Instant,
     ) -> Result<(sample::ListKind, FirstHop), PickGuardError> {
         let active_set = &self.guards.active_set;
-        self.guards
-            .guards(active_set)
-            .pick_guard(active_set, usage, &self.params, now)
+        #[cfg_attr(not(feature = "bridge-client"), allow(unused_mut))]
+        let (list_kind, mut first_hop) =
+            self.guards
+                .guards(active_set)
+                .pick_guard(active_set, usage, &self.params, now)?;
+        #[cfg(feature = "bridge-client")]
+        if self.guards.active_set.universe_type() == UniverseType::BridgeSet {
+            // See if we can promote first_hop to a viable CircTarget.
+            let bridges = self.latest_bridge_set().ok_or_else(|| {
+                PickGuardError::Internal(internal!(
+                    "No bridge set available, even though this is the Bridges sample"
+                ))
+            })?;
+            first_hop.lookup_bridge_circ_target(&bridges);
+        }
+        Ok((list_kind, first_hop))
     }
 
     /// Helper: Select a fallback directory.
@@ -1331,7 +1539,7 @@ enum FirstHopInner {
     Chan(OwnedChanTarget),
     /// We have enough information to connect to a guards _and_ to build
     /// multihop circuits through it.
-    #[allow(dead_code)] // TODO pt-client
+    #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     Circ(OwnedCircTarget),
 }
 
@@ -1352,19 +1560,16 @@ impl FirstHop {
 
     /// Look up this guard in `netdir`.
     pub fn get_relay<'a>(&self, netdir: &'a NetDir) -> Option<Relay<'a>> {
-        match self.sample {
+        match &self.sample {
             #[cfg(feature = "bridge-client")]
-            // Always return "None" for a bridge, since it isn't in a netdir.
-            Some(GuardSetSelector::Bridges) => None,
+            // Always return "None" for anything that isn't in the netdir.
+            Some(s) if s.universe_type() == UniverseType::BridgeSet => None,
             // Otherwise ask the netdir.
             _ => netdir.by_ids(self),
         }
     }
 
     /// If possible, return a view of this object that can be used to build a circuit.
-    ///
-    /// TODO pt-client: This will need to return "Some" only for bridges that have
-    /// a bridge descriptor.
     pub fn as_circ_target(&self) -> Option<&OwnedCircTarget> {
         match &self.inner {
             FirstHopInner::Chan(_) => None,
@@ -1377,6 +1582,34 @@ impl FirstHop {
         match &mut self.inner {
             FirstHopInner::Chan(ct) => ct,
             FirstHopInner::Circ(ct) => ct.chan_target_mut(),
+        }
+    }
+
+    /// If possible and appropriate, find a circuit target in `bridges` for this
+    /// `FirstHop`, and make this `FirstHop` a viable circuit target.
+    ///
+    /// (By default, any `FirstHop` that a `GuardSet` returns will have enough
+    /// information to be a `ChanTarget`, but it will be lacking the additional
+    /// network information in `CircTarget`[^1] necessary for us to build a
+    /// multi-hop circuit through it.  If this FirstHop is a regular non-bridge
+    /// `Relay`, then the `CircMgr` will later look up that circuit information
+    /// itself from the network directory. But if this `FirstHop` *is* a bridge,
+    /// then we need to find that information in the `BridgeSet`, since the
+    /// CircMgr does not keep track of the `BridgeSet`.)
+    ///
+    /// [^1]: For example, supported protocol versions and ntor keys.
+    #[cfg(feature = "bridge-client")]
+    fn lookup_bridge_circ_target(&mut self, bridges: &bridge::BridgeSet) {
+        use crate::sample::CandidateStatus::Present;
+        if self.sample.as_ref().map(|s| s.universe_type()) == Some(UniverseType::BridgeSet)
+            && matches!(self.inner, FirstHopInner::Chan(_))
+        {
+            if let Present(bridge_relay) = bridges.bridge_relay_by_guard(self) {
+                if let Some(circ_target) = bridge_relay.for_circuit_usage() {
+                    self.inner =
+                        FirstHopInner::Circ(OwnedCircTarget::from_circ_target(&circ_target));
+                }
+            }
         }
     }
 }
@@ -1541,10 +1774,9 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, statemgr, netdir) = init(rt.clone());
             let usage = GuardUsage::default();
+            guardmgr.install_test_netdir(&netdir);
 
-            guardmgr.update_network(&netdir);
-
-            let (id, mon, usable) = guardmgr.select_guard(usage, Some(&netdir)).unwrap();
+            let (id, mon, usable) = guardmgr.select_guard(usage).unwrap();
             // Report that the circuit succeeded.
             mon.succeeded();
 
@@ -1560,11 +1792,11 @@ mod test {
             // Try reloading from the state...
             let guardmgr2 =
                 GuardMgr::new(rt.clone(), statemgr.clone(), &TestConfig::default()).unwrap();
-            guardmgr2.update_network(&netdir);
+            guardmgr2.install_test_netdir(&netdir);
 
             // Since the guard was confirmed, we should get the same one this time!
             let usage = GuardUsage::default();
-            let (id2, _mon, _usable) = guardmgr2.select_guard(usage, Some(&netdir)).unwrap();
+            let (id2, _mon, _usable) = guardmgr2.select_guard(usage).unwrap();
             assert!(id2.same_relay_ids(&id));
         });
     }
@@ -1579,15 +1811,15 @@ mod test {
         test_with_all_runtimes!(|rt| async move {
             let (guardmgr, _statemgr, netdir) = init(rt);
             let u = GuardUsage::default();
-            guardmgr.update_network(&netdir);
+            guardmgr.install_test_netdir(&netdir);
 
             // We'll have the first two guard fail, which should make us
             // try a non-primary guard.
-            let (id1, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id1, mon, _usable) = guardmgr.select_guard(u.clone()).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
-            let (id2, mon, _usable) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id2, mon, _usable) = guardmgr.select_guard(u.clone()).unwrap();
             mon.failed();
             guardmgr.flush_msg_queue().await; // avoid race
             guardmgr.flush_msg_queue().await; // avoid race
@@ -1595,8 +1827,8 @@ mod test {
             assert!(!id1.same_relay_ids(&id2));
 
             // Now we should get two sampled guards. They should be different.
-            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
-            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone(), Some(&netdir)).unwrap();
+            let (id3, mon3, usable3) = guardmgr.select_guard(u.clone()).unwrap();
+            let (id4, mon4, usable4) = guardmgr.select_guard(u.clone()).unwrap();
             assert!(!id3.same_relay_ids(&id4));
 
             let (u3, u4) = futures::join!(
@@ -1627,9 +1859,9 @@ mod test {
                 f.push_reachable_addresses(vec!["2.0.0.0/8:9001".parse().unwrap()]);
                 f
             };
-            guardmgr.set_filter(filter, Some(&netdir));
-            guardmgr.update_network(&netdir);
-            let (guard, _mon, _usable) = guardmgr.select_guard(u, Some(&netdir)).unwrap();
+            guardmgr.set_filter(filter);
+            guardmgr.install_test_netdir(&netdir);
+            let (guard, _mon, _usable) = guardmgr.select_guard(u).unwrap();
             // Make sure that the filter worked.
             let addr = guard.addrs()[0];
             assert_eq!(addr, "2.0.0.3:9001".parse().unwrap());
@@ -1645,16 +1877,14 @@ mod test {
                 .kind(GuardUsageKind::OneHopDirectory)
                 .build()
                 .unwrap();
-            guardmgr.update_network(&netdir);
+            guardmgr.install_test_netdir(&netdir);
             {
                 // Override this parameter, so that we can get deterministic results below.
                 let mut inner = guardmgr.inner.lock().unwrap();
                 inner.params.dir_parallelism = 1;
             }
 
-            let (guard, mon, _usable) = guardmgr
-                .select_guard(data_usage.clone(), Some(&netdir))
-                .unwrap();
+            let (guard, mon, _usable) = guardmgr.select_guard(data_usage.clone()).unwrap();
             mon.succeeded();
 
             // Record that this guard gave us a bad directory object.
@@ -1663,15 +1893,13 @@ mod test {
             // We ask for another guard, for data usage.  We should get the same
             // one as last time, since the director failure doesn't mean this
             // guard is useless as a primary guard.
-            let (g2, mon, _usable) = guardmgr.select_guard(data_usage, Some(&netdir)).unwrap();
+            let (g2, mon, _usable) = guardmgr.select_guard(data_usage).unwrap();
             assert_eq!(g2.ed_identity(), guard.ed_identity());
             mon.succeeded();
 
             // But if we ask for a guard for directory usage, we should get a
             // different one, since the last guard we gave out failed.
-            let (g3, mon, _usable) = guardmgr
-                .select_guard(dir_usage.clone(), Some(&netdir))
-                .unwrap();
+            let (g3, mon, _usable) = guardmgr.select_guard(dir_usage.clone()).unwrap();
             assert_ne!(g3.ed_identity(), guard.ed_identity());
             mon.succeeded();
 
@@ -1679,7 +1907,7 @@ mod test {
             guardmgr.note_external_success(&guard, ExternalActivity::DirCache);
 
             // Now that the guard is working as a cache, asking for it should get us the same guard.
-            let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage, Some(&netdir)).unwrap();
+            let (g4, _mon, _usable) = guardmgr.select_guard(dir_usage).unwrap();
             assert_eq!(g4.ed_identity(), guard.ed_identity());
         });
     }

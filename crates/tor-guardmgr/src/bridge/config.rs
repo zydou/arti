@@ -1,5 +1,4 @@
 //! Configuration logic and types for bridges.
-#![allow(dead_code)] // TODO pt-client: remove.
 
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
@@ -74,16 +73,6 @@ pub struct BridgeConfig {
 // and check that the toml looks okay.  For discussion see
 // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/704/diffs#note_2835271
 
-// TODO pt-client Additionally, make sure that Bridge can be deserialized from a string,
-// when that string is a "bridge" line.
-
-// TODO pt-client We want a "list of bridges'" configuration type
-//
-// TODO pt-client we want a "should we use bridges at this moment"
-// configuration object.
-//
-// (These last two might be part of the same configuration type.)
-
 impl HasRelayIds for BridgeConfig {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         match key_type {
@@ -131,7 +120,7 @@ pub enum BridgeParseError {
     #[error(
         "Cannot parse {word:?} as direct bridge IpAddress:ORPort ({addr_error}), nor as PT name"
     )]
-    InvalidIAddrorPt {
+    InvalidIpAddrOrPt {
         /// The offending word
         word: String,
         /// Why we couldn't parse it as an IP address and port
@@ -234,7 +223,7 @@ impl FromStr for BridgeConfig {
             let word = s.next().ok_or(BPE::Empty)?;
             if word.contains(':') {
                 // Not a PT name.  Hope it's an address:port.
-                let addr = word.parse().map_err(|addr_error| BPE::InvalidIAddrorPt {
+                let addr = word.parse().map_err(|addr_error| BPE::InvalidIpAddrOrPt {
                     word: word.to_string(),
                     addr_error,
                 })?;
