@@ -21,6 +21,9 @@ use futures::select_biased;
 use futures::stream::FusedStream;
 use futures::Stream;
 use itertools::{chain, Itertools};
+use tempfile::TempDir;
+use time::OffsetDateTime;
+use tracing_test::traced_test;
 
 use tor_linkspec::HasAddrs;
 use tor_rtcompat::SleepProvider;
@@ -50,7 +53,7 @@ fn example_wallclock() -> SystemTime {
 type RealRuntime = tor_rtcompat::tokio::TokioNativeTlsRuntime;
 type R = MockSleepRuntime<RealRuntime>;
 type M = Mock;
-type Bdm = BridgeDescManager<R, M>;
+type Bdm = BridgeDescMgr<R, M>;
 type RT = RetryTime;
 use Error::TestError as TE;
 
@@ -63,7 +66,17 @@ struct Mock {
     mstate: Arc<futures::lock::Mutex<MockState>>,
 }
 
+const MOCK_NOT_MODIFIED: &str = "IF-MODIFIED-SINCE ";
+
 struct MockState {
+    /// Maps the port number for a download, to what we should return
+    ///
+    /// If the Ok string starts with `MOCK_NOT_MODIFIED` then the rest is the Debug
+    /// output from a SystemTime.   In this case the manager is supposed to pass
+    /// `if_modified_since` as `Some(that SystemTime)`, and we will actually return `None`.
+    ///
+    /// Otherwise the `if_modified_since` from the manager will be ignored
+    /// and we always give it Some.
     docs: HashMap<u16, Result<String, Error>>,
 
     download_calls: usize,
@@ -80,7 +93,7 @@ impl mockable::MockableAPI<R> for Mock {
         _runtime: &R,
         _circmgr: &Self::CircMgr,
         bridge: &BridgeConfig,
-        _if_modified_since: Option<SystemTime>,
+        if_modified_since: Option<SystemTime>,
     ) -> Result<Option<String>, Error> {
         eprint!("download ...");
         let mut mstate = self.mstate.lock().await;
@@ -94,7 +107,15 @@ impl mockable::MockableAPI<R> for Mock {
             .docs
             .get(&addr.port())
             .ok_or(TE("no document", RT::AfterWaiting))?;
-        doc.clone().map(Some)
+        doc.clone().map(|text| {
+            if let Some(expect_ims) = text.strip_prefix(MOCK_NOT_MODIFIED) {
+                eprintln!("#{} {:?}", mstate.download_calls, text);
+                assert_eq!(format!("{:?}", if_modified_since.unwrap()), expect_ims,);
+                None
+            } else {
+                Some(text)
+            }
+        })
     }
 }
 
@@ -106,7 +127,7 @@ impl Mock {
     }
 }
 
-fn setup() -> (Bdm, R, M, BridgeKey) {
+fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let runtime = RealRuntime::current().unwrap();
     let runtime = MockSleepRuntime::new(runtime);
     let sleep = runtime.mock_sleep().clone();
@@ -123,10 +144,17 @@ fn setup() -> (Bdm, R, M, BridgeKey) {
 
     let mock = Mock { sleep, mstate };
 
-    let bdm = BridgeDescManager::<R, M>::with_mockable(
+    let (db_tmp_dir, store) = crate::storage::sqlite::test::new_empty().unwrap();
+    let store = Arc::new(Mutex::new(Box::new(store) as _));
+
+    let sql_path = db_tmp_dir.path().join("db.sql");
+    let conn = rusqlite::Connection::open(&sql_path).unwrap();
+
+    let bdm = BridgeDescMgr::<R, M>::new_internal(
         runtime.clone(),
         (),
-        Default::default(),
+        store,
+        &Default::default(),
         mock.clone(),
     )
     .unwrap();
@@ -136,7 +164,7 @@ fn setup() -> (Bdm, R, M, BridgeKey) {
         .unwrap();
     let bridge = Arc::new(bridge);
 
-    (bdm, runtime, mock, bridge)
+    (db_tmp_dir, bdm, runtime, mock, bridge, conn)
 }
 
 async fn stream_drain_ready<S: Stream + Unpin + FusedStream>(s: &mut S) -> usize {
@@ -169,6 +197,32 @@ where
     panic!("untilness didn't occur");
 }
 
+fn queues_are_empty(bdm: &Bdm) -> Option<()> {
+    let state = bdm.mgr.lock_only();
+    (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+}
+
+fn in_results(bdm: &Bdm, bridge: &BridgeKey, wanted: Option<Result<(), ()>>) -> Option<()> {
+    let bridges = bdm.bridges();
+    let got = bridges.get(bridge);
+    let got = got.map(|got| got.as_ref().map(|_| ()).map_err(|_| ()));
+    (got == wanted).then(|| ())
+}
+
+async fn clear_and_re_request<S>(bdm: &Bdm, events: &mut S, bridge: &BridgeKey)
+where
+    S: Stream + Unpin + FusedStream,
+    S::Item: Debug,
+{
+    bdm.set_bridges(&[]);
+    stream_drain_until(3, events, || async {
+        in_results(bdm, bridge, None)
+            .and_then(|()| bdm.mgr.lock_only().running.is_empty().then(|| ()))
+    })
+    .await;
+    bdm.set_bridges(&[bridge.clone()]);
+}
+
 fn bad_bridge(i: usize) -> BridgeKey {
     let bad = format!("192.126.0.1:{} EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1", i);
     let bad: BridgeConfig = bad.parse().unwrap();
@@ -176,8 +230,9 @@ fn bad_bridge(i: usize) -> BridgeKey {
 }
 
 #[tokio::test]
+#[traced_test]
 async fn success() -> Result<(), anyhow::Error> {
-    let (bdm, runtime, mock, bridge) = setup();
+    let (_db_tmp_dir, bdm, runtime, mock, bridge, ..) = setup();
 
     bdm.check_consistency(Some([]));
 
@@ -311,8 +366,7 @@ async fn success() -> Result<(), anyhow::Error> {
     // should produce a removed bridge event
     let () = stream_drain_until(1, &mut events, || async {
         bdm.check_consistency(Some(&bridges));
-        let state = bdm.mgr.lock_only();
-        (state.running.is_empty() && state.queued.is_empty()).then(|| ())
+        queues_are_empty(&bdm)
     })
     .await;
 
@@ -327,6 +381,85 @@ async fn success() -> Result<(), anyhow::Error> {
         );
         mstate.download_calls = 0;
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[traced_test]
+async fn cache() -> Result<(), anyhow::Error> {
+    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    let mut events = bdm.events().fuse();
+
+    let in_results = |wanted| in_results(&bdm, &bridge, wanted);
+
+    eprintln!("----- test that a downloaded descriptor goes into the cache -----");
+
+    bdm.set_bridges(&[bridge.clone()]);
+    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+
+    mock.expect_download_calls(1).await;
+
+    sql_conn
+        .query_row("SELECT * FROM BridgeDescs", [], |row| {
+            let get_time = |f| -> SystemTime { row.get_unwrap::<&str, OffsetDateTime>(f).into() };
+            let bline: String = row.get_unwrap("bridge_line");
+            let fetched: SystemTime = get_time("fetched");
+            let until: SystemTime = get_time("until");
+            let contents: String = row.get_unwrap("contents");
+            let now = runtime.wallclock();
+            assert_eq!(bline, bridge.to_string());
+            assert!(fetched <= now);
+            assert!(now < until);
+            assert_eq!(contents, EXAMPLE_DESCRIPTOR);
+            Ok(())
+        })
+        .unwrap();
+
+    eprintln!("----- forget the descriptor and try to reload it from the cache -----");
+
+    clear_and_re_request(&bdm, &mut events, &bridge).await;
+    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+
+    // Should not have been re-downloaded, since the fetch time is great.
+    mock.expect_download_calls(0).await;
+
+    eprintln!("----- corrupt the cache and check we re-download -----");
+
+    sql_conn
+        .execute_batch("UPDATE BridgeDescs SET contents = 'garbage'")
+        .unwrap();
+
+    clear_and_re_request(&bdm, &mut events, &bridge).await;
+    stream_drain_until(3, &mut events, || async { in_results(Some(Ok(()))) }).await;
+
+    mock.expect_download_calls(1).await;
+
+    eprintln!("----- advance the lock and check that we do an if-modified-since -----");
+
+    let published = bdm
+        .bridges()
+        .get(&bridge)
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .as_ref()
+        .published();
+
+    mock.mstate.lock().await.docs.insert(
+        EXAMPLE_PORT,
+        Ok(format!("{}{:?}", MOCK_NOT_MODIFIED, published)),
+    );
+
+    // Exceeds default max_refetch
+    mock.sleep.advance(Duration::from_secs(20000)).await;
+
+    stream_drain_until(3, &mut events, || async {
+        (mock.mstate.lock().await.download_calls > 0).then(|| ())
+    })
+    .await;
+
+    mock.expect_download_calls(1).await;
 
     Ok(())
 }

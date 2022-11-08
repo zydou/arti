@@ -13,6 +13,9 @@ use tor_netdoc::doc::netstatus::ConsensusFlavor;
 #[cfg(feature = "routerdesc")]
 use tor_netdoc::doc::routerdesc::RdDigest;
 
+#[cfg(feature = "bridge-client")]
+pub(crate) use tor_guardmgr::bridge::BridgeConfig;
+
 use crate::docmeta::{AuthCertMeta, ConsensusMeta};
 use crate::{Error, Result};
 use std::cell::RefCell;
@@ -304,6 +307,40 @@ pub(crate) trait Store {
     #[cfg(feature = "routerdesc")]
     #[allow(unused)]
     fn store_routerdescs(&mut self, digests: &[(&str, SystemTime, &RdDigest)]) -> Result<()>;
+
+    /// Look up a cached bridge descriptor.
+    #[cfg(feature = "bridge-client")]
+    fn lookup_bridgedesc(&self, bridge: &BridgeConfig) -> Result<Option<CachedBridgeDescriptor>>;
+
+    /// Store a cached bridge descriptor.
+    ///
+    /// This entry will be deleted some time after `until`
+    /// (but the caller is not allowed to rely on either timely deletion,
+    /// or retention until that time).
+    #[cfg(feature = "bridge-client")]
+    fn store_bridgedesc(
+        &mut self,
+        bridge: &BridgeConfig,
+        entry: CachedBridgeDescriptor,
+        until: SystemTime,
+    ) -> Result<()>;
+
+    /// Delete a cached bridge descriptor for this bridge.
+    ///
+    /// It's not an error if it's not present.
+    #[cfg(feature = "bridge-client")]
+    fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()>;
+}
+
+/// Value in the bridge descriptor cache
+#[derive(Clone, Debug)]
+#[cfg_attr(not(feature = "bridge_client"), allow(dead_code))]
+pub(crate) struct CachedBridgeDescriptor {
+    /// When we fetched this
+    pub(crate) fetched: SystemTime,
+
+    /// The document text, as we fetched it
+    pub(crate) document: String,
 }
 
 // TODO(eta): maybe use something like the `delegate` crate to autogenerate this?
@@ -390,6 +427,26 @@ impl Store for DynStore {
     #[cfg(feature = "routerdesc")]
     fn store_routerdescs(&mut self, digests: &[(&str, SystemTime, &RdDigest)]) -> Result<()> {
         self.deref_mut().store_routerdescs(digests)
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn lookup_bridgedesc(&self, bridge: &BridgeConfig) -> Result<Option<CachedBridgeDescriptor>> {
+        self.deref().lookup_bridgedesc(bridge)
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn store_bridgedesc(
+        &mut self,
+        bridge: &BridgeConfig,
+        entry: CachedBridgeDescriptor,
+        until: SystemTime,
+    ) -> Result<()> {
+        self.deref_mut().store_bridgedesc(bridge, entry, until)
+    }
+
+    #[cfg(feature = "bridge-client")]
+    fn delete_bridgedesc(&mut self, bridge: &BridgeConfig) -> Result<()> {
+        self.deref_mut().delete_bridgedesc(bridge)
     }
 }
 

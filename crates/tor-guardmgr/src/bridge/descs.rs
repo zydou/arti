@@ -115,9 +115,9 @@ pub enum BridgeDescEvent {
 
 /// An error caused while fetching bridge descriptors
 ///
-/// Note that when this appears in `BridgeDescList`, as returned by `BridgeDescManager`,
+/// Note that when this appears in `BridgeDescList`, as returned by `BridgeDescMgr`,
 /// the fact that this is `HasRetryTime` does *not* mean the caller should retry.
-/// Retries will be handled by the `BridgeDescManager`.
+/// Retries will be handled by the `BridgeDescMgr`.
 /// The `HasRetryTime` impl can be used as a guide to
 /// whether the situation is likely to improve soon.
 ///

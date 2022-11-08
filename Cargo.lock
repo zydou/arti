@@ -3686,6 +3686,7 @@ dependencies = [
  "futures",
  "hex",
  "hex-literal",
+ "humantime 2.1.0",
  "humantime-serde",
  "itertools",
  "memmap2",
@@ -3695,6 +3696,7 @@ dependencies = [
  "rand 0.8.5",
  "retry-error",
  "rusqlite",
+ "safelog",
  "scopeguard",
  "serde",
  "signature",
@@ -3719,6 +3721,7 @@ dependencies = [
  "tor-rtcompat",
  "tor-rtmock",
  "tracing",
+ "tracing-test",
 ]
 
 [[package]]
