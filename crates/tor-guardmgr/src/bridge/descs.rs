@@ -247,6 +247,10 @@ impl Universe for BridgeSet {
         self.config_last_changed
     }
 
+    /// Note that for a BridgeSet, we always treat the current weight as 0 and
+    /// the maximum weight as "unlimited".  That's because we don't have
+    /// bandwidth measurements for bridges, and so `max_sample_bw_fraction`
+    /// doesn't apply to them.
     fn weight_threshold<T>(
         &self,
         _sample: &tor_linkspec::ByRelayIds<T>,

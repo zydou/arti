@@ -1454,9 +1454,6 @@ enum ExtendedStatus {
 
 /// A set of parameters, derived from the consensus document, controlling
 /// the behavior of a guard manager.
-//
-// TODO pt-client: We need to see what Tor does here for these parameters as
-// applied to bridges.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 struct GuardParams {
