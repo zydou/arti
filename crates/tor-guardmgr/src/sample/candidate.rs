@@ -21,8 +21,11 @@ pub(crate) trait Universe {
     /// Return full information about a member of this universe for a given guard.
     fn status<T: ChanTarget>(&self, guard: &T) -> CandidateStatus<Candidate>;
 
-    /// Return the time at which this Universe last changed.  This can be
-    /// approximate.
+    /// Return an (approximate) timestamp describing when this universe was
+    /// generated.
+    ///
+    /// This timestamp is used to determine how long a guard has been listed or
+    /// unlisted.
     fn timestamp(&self) -> SystemTime;
 
     /// Return information about how much of this universe has been added to

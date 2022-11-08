@@ -146,8 +146,6 @@ pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn 
 /// A collection of bridges, possibly with their descriptors.
 #[derive(Debug, Clone)]
 pub(crate) struct BridgeSet {
-    /// When did this BridgeSet last change its listed bridges?
-    config_last_changed: SystemTime,
     /// The configured bridges.
     config: Arc<[BridgeConfig]>,
     /// A map from those bridges to their descriptors.  It may contain elements
@@ -158,11 +156,7 @@ pub(crate) struct BridgeSet {
 impl BridgeSet {
     /// Create a new `BridgeSet` from its configuration.
     pub(crate) fn new(config: Arc<[BridgeConfig]>, descs: Option<Arc<BridgeDescList>>) -> Self {
-        Self {
-            config_last_changed: SystemTime::now(), // TODO pt-client wrong.
-            config,
-            descs,
-        }
+        Self { config, descs }
     }
 
     /// Returns the bridge that best matches a given guard.
@@ -244,7 +238,12 @@ impl Universe for BridgeSet {
     }
 
     fn timestamp(&self) -> std::time::SystemTime {
-        self.config_last_changed
+        // We just use the current time as the timestamp of this BridgeSet.
+        // This makes the guard code treat a BridgeSet as _continuously updated_:
+        // anything listed in the guard set is treated as listed right up to this
+        // moment, and anything unlisted is treated as unlisted right up to this
+        // moment.
+        SystemTime::now()
     }
 
     /// Note that for a BridgeSet, we always treat the current weight as 0 and
