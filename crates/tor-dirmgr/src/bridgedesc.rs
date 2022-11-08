@@ -64,8 +64,7 @@ where
 /// Configuration for the `BridgeDescMgr`
 ///
 /// Currently, the only way to make this is via its `Default` impl.
-//
-// TODO pt-client: there should be some way to override the defaults.
+// TODO: there should be some way to override the defaults.  See #629 for considerations.
 #[derive(Debug, Clone)]
 pub struct BridgeDescDownloadConfig {
     /// How many bridge descriptor downloads to attempt in parallel?
@@ -94,7 +93,7 @@ pub struct BridgeDescDownloadConfig {
     /// When this time expires, a refetch attempt will be started even if the
     /// descriptor is not going to expire soon.
     //
-    // TODO pt-client: When this is configurable, we need to make sure we reject
+    // TODO: When this is configurable, we need to make sure we reject
     // configurations with max_refresh < min_refresh, or we may panic.
     max_refetch: Duration,
 }
