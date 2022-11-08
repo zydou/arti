@@ -134,8 +134,6 @@ dyn_clone::clone_trait_object!(BridgeDescError);
 pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn BridgeDescError>>>;
 
 /// A collection of bridges, possibly with their descriptors.
-//
-// TODO pt-client: I doubt that this type is in its final form.
 #[derive(Debug, Clone)]
 pub(crate) struct BridgeSet {
     /// When did this BridgeSet last change its listed bridges?
