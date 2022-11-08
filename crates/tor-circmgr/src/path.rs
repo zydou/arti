@@ -50,11 +50,11 @@ enum MaybeOwnedRelay<'a> {
     Relay(Relay<'a>),
     /// An owned description of a relay.
     //
-    // TODO pt-client: I don't love boxing this, but it fixes a warning about
+    // TODO: I don't love boxing this, but it fixes a warning about
     // variant sizes and is probably not the worst thing we could do.  OTOH, we
-    // could probably afford to use an Arc here and in guardmgr?
+    // could probably afford to use an Arc here and in guardmgr? -nickm
     //
-    // TODO pt-client: Try using an Arc.
+    // TODO: Try using an Arc. -nickm
     Owned(Box<OwnedCircTarget>),
 }
 
