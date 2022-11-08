@@ -320,14 +320,21 @@ impl Store for SqliteStore {
 
         let now = OffsetDateTime::now_utc();
         tx.execute(DROP_OLD_EXTDOCS, [])?;
-        // TODO bad system clocks might generate table rows with times in the future.
-        // When do they ever get deleted ?  (This is handled properly for BridgeDescs.)
+
+        // In theory bad system clocks might generate table rows with times far in the future.
+        // However, for data which is cached here which comes from the network consensus,
+        // we rely on the fact that no consensus from the future exists, so this can't happen.
         tx.execute(DROP_OLD_MICRODESCS, [now - expiration.microdescs])?;
         tx.execute(DROP_OLD_AUTHCERTS, [now - expiration.authcerts])?;
         tx.execute(DROP_OLD_CONSENSUSES, [now - expiration.consensuses])?;
         tx.execute(DROP_OLD_ROUTERDESCS, [now - expiration.router_descs])?;
+
+        // Bridge descriptors come from bridges and bridges might send crazy times,
+        // so we need to discard any that look like they are from the future,
+        // since otherwise wrong far-future timestamps might live in our DB indefinitely.
         #[cfg(feature = "bridge-client")]
         tx.execute(DROP_OLD_BRIDGEDESCS, [now, now])?;
+
         tx.commit()?;
         for name in expired_blobs {
             let fname = self.blob_dir.join(name);
