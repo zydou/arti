@@ -51,6 +51,7 @@ postage = { version = "0.5.0", default-features = false, features = ["futures-tr
 rand = "0.8"
 retry-error = { path = "../retry-error", version = "0.2.0" }
 rusqlite = { version = "0.28.0", features = ["time"] }
+safelog = { path = "../safelog", version = "0.1.2" }
 scopeguard = "1"
 serde = { version = "1.0.103", features = ["derive"] }
 signature = "1"

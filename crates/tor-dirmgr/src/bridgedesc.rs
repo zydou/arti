@@ -20,6 +20,7 @@ use futures::task::{SpawnError, SpawnExt as _};
 use futures::FutureExt;
 use tracing::{debug, error, info, trace};
 
+use safelog::sensitive;
 use tor_basic_utils::retry::RetryDelay;
 use tor_basic_utils::BinaryHeapExt as _;
 use tor_checkable::{SelfSigned, Timebound};
@@ -954,7 +955,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
             .unwrap_or_else(|err| {
                 error!(
                     r#"bridge descriptor cache lookup failed, for "{}": {}"#,
-                    bridge,
+                    sensitive(bridge),
                     tor_error::Report(&err)
                 );
                 None
