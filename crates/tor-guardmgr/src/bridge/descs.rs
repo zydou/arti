@@ -64,9 +64,19 @@ impl tor_linkspec::HasRelayIdsLegacy for BridgeDesc {
     }
 }
 
-/// This is analogous to NetDirProvider.
+/// Trait for an object that knows how to fetch bridge descriptors as needed.
 ///
-/// TODO pt-client: improve documentation.
+/// A "bridge descriptor" (represented by [`BridgeDesc`]) is a self-signed
+/// representation of a bridge's keys, capabilities, and other information. We
+/// can connect to a bridge without a descriptor, but we need to have one before
+/// we can build a multi-hop circuit through a bridge.
+///
+/// In arti, the implementor of this trait is `BridgeDescMgr`.  We define this
+/// trait here so that we can avoid a circularity in our crate dependencies.
+/// (Since `BridgeDescMgr` uses circuits, it needs `CircMgr`, which needs
+/// `GuardMgr`, which in turn needs `BridgeDescMgr` again. We break this
+/// circularity by having `GuardMgr` use `BridgeDescMgr` only through this
+/// trait's API.)
 pub trait BridgeDescProvider: DynClone + Send + Sync {
     /// Return the current set of bridge descriptors.
     fn bridges(&self) -> Arc<BridgeDescList>;
