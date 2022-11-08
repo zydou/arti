@@ -251,20 +251,57 @@ impl Display for PtTargetAddr {
 /// This type is _not_ for settings that apply to _all_ of the connections over
 /// a transport.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash, Serialize, Deserialize)]
-// TODO pt-client: I am not sure we will want to keep this type, rather than
-// just inlining it.  I am leaving it as a separate type for now, though, for a
-// few reasons:
-// 1) to avoid confusing it with the parameters passed to a transport when it
-//    starts;
-// 2) to give us some flexibility about the representation.
-//
-// TODO pt-client: This type ought to validate that the keys do not contain `=`
-//                 and that the keys and values do not contain whitespace.
-// See this spec issue https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
-#[serde(transparent)]
+#[serde(into = "Vec<(String, String)>", try_from = "Vec<(String, String)>")]
 pub struct PtTargetSettings {
     /// A list of (key,value) pairs
     settings: Vec<(String, String)>,
+}
+
+impl PtTargetSettings {
+    /// Return an error if `k,v` is not a valid setting.
+    fn check_setting(k: &str, v: &str) -> Result<(), PtTargetInvalidSetting> {
+        // Unfortunately the spec is not very clear about the valid syntax.
+        // https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
+        //
+        // For now we reject things that cannot be represented in a bridge line
+        if k.find(|c: char| c == '=' || c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Key(k.to_string()));
+        }
+        if v.find(|c: char| c.is_whitespace()).is_some() {
+            return Err(PtTargetInvalidSetting::Value(v.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Add `k,v` to this list of settings, if it is valid.
+    fn push_setting(
+        &mut self,
+        k: impl Into<String>,
+        v: impl Into<String>,
+    ) -> Result<(), PtTargetInvalidSetting> {
+        let k = k.into();
+        let v = v.into();
+        Self::check_setting(&k, &v)?;
+        self.settings.push((k, v));
+        Ok(())
+    }
+}
+
+impl TryFrom<Vec<(String, String)>> for PtTargetSettings {
+    type Error = PtTargetInvalidSetting;
+
+    fn try_from(settings: Vec<(String, String)>) -> Result<Self, Self::Error> {
+        for (k, v) in settings.iter() {
+            Self::check_setting(k, v)?;
+        }
+        Ok(Self { settings })
+    }
+}
+
+impl From<PtTargetSettings> for Vec<(String, String)> {
+    fn from(settings: PtTargetSettings) -> Self {
+        settings.settings
+    }
 }
 
 /// The set of information passed to the  pluggable transport subsystem in order
@@ -315,21 +352,7 @@ impl PtTarget {
         k: impl Into<String>,
         v: impl Into<String>,
     ) -> Result<(), PtTargetInvalidSetting> {
-        let k = k.into();
-        let v = v.into();
-
-        // Unfortunately the spec is not very clear about the valid syntax.
-        // https://gitlab.torproject.org/tpo/core/torspec/-/issues/173
-        //
-        // For now we reject things that cannot be represented in a bridge line
-        if k.find(|c: char| c == '=' || c.is_whitespace()).is_some() {
-            return Err(PtTargetInvalidSetting::Key(k));
-        }
-        if v.find(|c: char| c.is_whitespace()).is_some() {
-            return Err(PtTargetInvalidSetting::Value(v));
-        }
-        self.settings.settings.push((k, v));
-        Ok(()) // TODO pt-client: check the syntax
+        self.settings.push_setting(k, v)
     }
 
     /// Get the transport name
@@ -356,7 +379,6 @@ impl PtTarget {
     /// NOTE that these are not necessarily an address to which you can open a
     /// TCP connection! The address will be interpreted by the implementation of
     /// this pluggable transport.
-
     pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
         match self {
             PtTarget {
@@ -376,14 +398,10 @@ impl PtTarget {
 /// address and settings information that transport requires.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[allow(clippy::exhaustive_enums)]
-// TODO pt-client: I am not in love with this enum name --nm.
-// TODO pt-client: Maybe "ContactMethod" would be better?
 pub enum ChannelMethod {
     /// Connect to the relay directly at one of several addresses.
     Direct(Vec<std::net::SocketAddr>),
 
-    // TODO pt-client: We may want to have a third variant for "Direct" with a
-    // single address. Maybe?
     /// Connect to a bridge relay via a pluggable transport.
     #[cfg(feature = "pt-client")]
     Pluggable(PtTarget),
