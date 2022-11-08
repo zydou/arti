@@ -72,7 +72,6 @@ impl<'a> BridgeRelay<'a> {
 
     /// If we have enough information about this relay to build a circuit through it,
     /// return a BridgeRelayWithDesc for it.
-    // TODO pt-client rename XXXX
     pub fn for_circuit_usage(&self) -> Option<BridgeRelayWithDesc<'_>> {
         self.desc.is_some().then(|| BridgeRelayWithDesc(self))
     }
