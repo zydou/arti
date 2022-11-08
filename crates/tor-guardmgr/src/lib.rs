@@ -478,7 +478,7 @@ impl<R: Runtime> GuardMgr<R> {
         inner
             .guards
             .active_guards_mut()
-            .n_primary_without_dir_info(netdir)
+            .n_primary_without_id_info_in(netdir)
             == 0
     }
 
@@ -940,10 +940,10 @@ impl GuardMgrInner {
         active_guards.expire_old_guards(params, now);
 
         if let Some(universe) = universe {
-            if active_guards.n_primary_without_dir_info(universe) > 0 {
-                // We are missing primary guard descriptors, so we shouldn't update our guard
+            if active_guards.n_primary_without_id_info_in(universe) > 0 {
+                // We are missing the information needed to see whether our
+                // primary guards are listed, so we shouldn't update our guard
                 // status.
-                // TODO pt-client: This should not apply to bridges.
                 return;
             }
             active_guards.update_status_from_dir(universe);

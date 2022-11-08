@@ -480,7 +480,12 @@ impl GuardSet {
 
     /// Return the number of our primary guards that are missing directory
     /// information in `universe`.
-    pub(crate) fn n_primary_without_dir_info<U: Universe>(&mut self, universe: &U) -> usize {
+    ///
+    /// Note that "missing directory information" is not the same as "absent":
+    /// in this case, we  are counting the primary guards where we cannot tell
+    /// whether they appear in the universe or not because we have not yet
+    /// downloaded their descriptors.
+    pub(crate) fn n_primary_without_id_info_in<U: Universe>(&mut self, universe: &U) -> usize {
         self.primary
             .iter()
             .filter(|id| {
@@ -1414,7 +1419,7 @@ mod test {
             .pick_guard_id(&usage, &params, Instant::now())
             .unwrap();
         guards.record_success(&p_id1, &params, None, SystemTime::now());
-        assert_eq!(guards.n_primary_without_dir_info(&netdir), 0);
+        assert_eq!(guards.n_primary_without_id_info_in(&netdir), 0);
 
         use tor_netdir::testnet;
         let netdir2 = testnet::construct_custom_netdir(|_idx, bld| {
@@ -1427,7 +1432,7 @@ mod test {
         .unwrap_if_sufficient()
         .unwrap();
 
-        assert_eq!(guards.n_primary_without_dir_info(&netdir2), 1);
+        assert_eq!(guards.n_primary_without_id_info_in(&netdir2), 1);
     }
 
     #[test]
