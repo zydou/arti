@@ -26,6 +26,9 @@ reading large directory objects from disk.
 `routerdesc` -- (Incomplete) support for downloading and storing
      router descriptors.
 
+`compression` (default) -- Build support for downloading compressed
+documents. Requires a C compiler.
+
 ### Experimental and unstable features
 
 Note that the APIs enabled by these features are NOT covered by

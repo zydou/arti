@@ -121,6 +121,8 @@ work.
   DNS queries over the Tor network.
 * `harden` (default) -- Build with support for hardening the Arti process by
   disabling debugger attachment and other local memory-inspection vectors.
+* `compression` (default) -- Build support for downloading compressed
+  documents. Requires a C compiler.
 
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental

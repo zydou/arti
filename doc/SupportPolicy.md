@@ -77,7 +77,7 @@ age and the difficulty of working with them.
 
 We currently have automated tests on Linux only.  On OSX and Windows, we
 have automated builds, but the tests are not (yet) run.  In the long
-run, we aim to have automated builds and testing for all of our these
+run, we aim to have automated builds and testing for all of these
 platforms.
 
 All other modern Free operating systems are **community-supported**:

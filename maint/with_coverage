@@ -20,7 +20,7 @@ Options:
   -s: Skip generating a final report.
   -f <format>: format to use when generating coverage report. one of html (default), ade,
                lcov, coveralls, coveralls+, files, covdir, or cobertura
-  -o <path>: set the output path for the coverage report (defaiult "coverage")
+  -o <path>: set the output path for the coverage report (default "coverage")
 
 Notes:
   You need to have grcov and llvm-tools-preview installed.

@@ -159,6 +159,8 @@ about these features.
   [native-tls](https://github.com/sfackler/rust-native-tls) crate for TLS
   support
 * `async-std` -- build with [async-std](https://async.rs/) support
+* `compression` (default) -- Build support for downloading compressed
+  documents. Requires a C compiler.
 
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental
