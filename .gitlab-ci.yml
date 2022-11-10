@@ -136,7 +136,7 @@ coverage:
 
 minimal-versions:
   stage: test
-  image: rust:1.56
+  image: rust:1.60
   script:
     - rustup install nightly
     - ./maint/downgrade_dependencies

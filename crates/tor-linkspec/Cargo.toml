@@ -3,7 +3,7 @@ name = "tor-linkspec"
 version = "0.5.1"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.60"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Parts of the Tor protocol that indicate specific relays on the network"
@@ -25,7 +25,7 @@ derive_more = "0.99.3"
 educe = "0.4.6"
 hex = "0.4"
 serde = { version = "1.0.103", features = ["derive"] }
-serde_with = "1.14.0"
+serde_with = "2.0.1"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
 tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.1" }

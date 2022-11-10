@@ -3,7 +3,7 @@ name = "tor-netdoc"
 version = "0.5.2"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
-rust-version = "1.56"
+rust-version = "1.60"
 license = "MIT OR Apache-2.0"
 homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
 description = "Network document formats used with the Tor protocols."
@@ -52,14 +52,14 @@ digest = "0.10.0"
 educe = "0.4.6"
 hex = "0.4"
 once_cell = "1"
-phf = { version = "0.10.0", features = ["macros"] }
+phf = { version = "0.11.1", features = ["macros"] }
 rand = { version = "0.8", optional = true }
 serde = "1.0.103"
-serde_with = "1.14.0"
+serde_with = "2.0.1"
 signature = "1"
 thiserror = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
-tinystr = "0.6.0"
+tinystr = "0.7.0"
 tor-bytes = { path = "../tor-bytes", version = "0.5.1" }
 tor-cert = { path = "../tor-cert", version = "0.5.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }

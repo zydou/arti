@@ -156,9 +156,6 @@ impl<H: HasRelayIds> ByRelayIds<H> {
     }
 }
 
-// TODO MSRV: Remove this `allow` once we no longer get a false positive
-// for it on our MSRV.  1.56 is affected; 1.60 is not.
-#[allow(unreachable_pub)]
 pub use tor_basic_utils::n_key_set::Error as ByRelayIdsError;
 
 #[cfg(test)]
