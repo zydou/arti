@@ -1299,10 +1299,9 @@ impl HasKind for Error {
     fn kind(&self) -> ErrorKind {
         use Error as E;
         use ErrorKind as EK;
-        // TODO pt-client: Should this be EK::TorAccessFailed
-        // or a new EK::BridgeProtocolViolation or something ?
-        let bridge_protocol_violation = EK::TorProtocolViolation;
+        let bridge_protocol_violation = EK::TorAccessFailed;
         match self {
+            // We trust that tor_circmgr returns TorAccessFailed when it ought to.
             E::CircuitFailed(e) => e.kind(),
             E::StreamFailed(e) => e.kind(),
             E::RequestFailed(e) => e.kind(),
