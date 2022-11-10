@@ -101,7 +101,6 @@ pub struct BridgeDescDownloadConfig {
 impl Default for BridgeDescDownloadConfig {
     fn default() -> Self {
         let secs = Duration::from_secs;
-        // TODO pt-client: are these default parameters anywhere near sensible?
         BridgeDescDownloadConfig {
             parallelism: 4.try_into().expect("parallelism is zero"),
             retry: secs(30),
