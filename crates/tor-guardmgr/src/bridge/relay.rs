@@ -9,7 +9,6 @@ use super::{BridgeConfig, BridgeDesc};
 /// The information about a Bridge that is necessary to connect to it and send
 /// it traffic.
 #[derive(Clone, Debug)]
-
 pub struct BridgeRelay<'a> {
     /// The local configurations for the bridge.
     ///
@@ -24,6 +23,17 @@ pub struct BridgeRelay<'a> {
     /// `BridgeDesc` is an `Arc<>` internally, so we aren't so worried about
     /// having this be owned.
     desc: Option<BridgeDesc>,
+
+    /// All the known addresses for the bridge.
+    ///
+    /// This includes the contact addresses in `bridge_line`, plus any addresses
+    /// listed in `desc`.
+    ///
+    /// TODO(nickm): I wish we didn't have to reallocate a for this, but the API
+    /// requires that we can return a reference to a slice of this.
+    ///
+    /// TODO(nickm): perhaps, construct this lazily?
+    addrs: Vec<std::net::SocketAddr>,
 }
 
 /// A BridgeRelay that is known to have its full information available, and
@@ -41,7 +51,18 @@ pub struct BridgeRelayWithDesc<'a>(
 impl<'a> BridgeRelay<'a> {
     /// Construct a new BridgeRelay from its parts.
     pub(crate) fn new(bridge_line: &'a BridgeConfig, desc: Option<BridgeDesc>) -> Self {
-        Self { bridge_line, desc }
+        let addrs = bridge_line
+            .addrs()
+            .iter()
+            .copied()
+            .chain(desc.iter().flat_map(|d| d.as_ref().or_ports()))
+            .collect();
+
+        Self {
+            bridge_line,
+            desc,
+            addrs,
+        }
     }
 
     /// Return true if this BridgeRelay has a known descriptor and can be used for relays.
@@ -51,7 +72,6 @@ impl<'a> BridgeRelay<'a> {
 
     /// If we have enough information about this relay to build a circuit through it,
     /// return a BridgeRelayWithDesc for it.
-    // TODO pt-client rename XXXX
     pub fn for_circuit_usage(&self) -> Option<BridgeRelayWithDesc<'_>> {
         self.desc.is_some().then(|| BridgeRelayWithDesc(self))
     }
@@ -66,14 +86,18 @@ impl<'a> HasRelayIds for BridgeRelay<'a> {
 }
 
 impl<'a> HasAddrs for BridgeRelay<'a> {
+    /// Note: Remember (from the documentation at [`HasAddrs`]) that these are
+    /// not necessarily addresses _at which the Bridge can be reached_. For
+    /// those, use `chan_method`.  These addresses are used for establishing
+    /// GeoIp and family info.
     fn addrs(&self) -> &[std::net::SocketAddr] {
-        todo!()
+        &self.addrs[..]
     }
 }
 
 impl<'a> HasChanMethod for BridgeRelay<'a> {
     fn chan_method(&self) -> tor_linkspec::ChannelMethod {
-        todo!()
+        self.bridge_line.chan_method()
     }
 }
 
@@ -85,22 +109,17 @@ impl<'a> HasRelayIds for BridgeRelayWithDesc<'a> {
     }
 }
 impl<'a> HasAddrs for BridgeRelayWithDesc<'a> {
+    /// Note: Remember (from the documentation at [`HasAddrs`]) that these are
+    /// not necessarily addresses _at which the Bridge can be reached_. For
+    /// those, use `chan_method`.  These addresses are used for establishing
+    /// GeoIp and family info.
     fn addrs(&self) -> &[std::net::SocketAddr] {
-        // TODO pt-client: This is a tricky case and we'll need to audit the
-        // semantics of HasAddrs.
-        //
-        // The problem is that the addresses this method returns can be _either_
-        // addresses at which the relay resides, and which we use to detect
-        // familyhood (in which case we should return any addresses from the
-        // members of this object), _or_ they can be addresses which we should
-        // try to contact directly to perform the Tor handshake, in which case
-        // this method should return an empty list.
-        &[]
+        self.0.addrs()
     }
 }
 impl<'a> HasChanMethod for BridgeRelayWithDesc<'a> {
     fn chan_method(&self) -> tor_linkspec::ChannelMethod {
-        todo!()
+        self.0.chan_method()
     }
 }
 

@@ -385,6 +385,15 @@ impl RouterDesc {
         self.published
     }
 
+    /// Return an iterator of every `SocketAddr` at which this descriptor says
+    /// its relay can be reached.
+    pub fn or_ports(&self) -> impl Iterator<Item = net::SocketAddr> + '_ {
+        self.ipv4addr
+            .map(|a| net::SocketAddr::new(a.into(), self.orport))
+            .into_iter()
+            .chain(self.ipv6addr.map(net::SocketAddr::from))
+    }
+
     /// Helper: tokenize `s`, and divide it into three validated sections.
     fn parse_sections<'a>(
         reader: &mut NetDocReader<'a, RouterKwd>,

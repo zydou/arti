@@ -478,7 +478,7 @@ impl<R: Runtime> GuardMgr<R> {
         inner
             .guards
             .active_guards_mut()
-            .n_primary_without_dir_info(netdir)
+            .n_primary_without_id_info_in(netdir)
             == 0
     }
 
@@ -800,8 +800,10 @@ impl GuardMgrInner {
     where
         F: FnOnce(&mut Self, Option<&UniverseRef>) -> T,
     {
-        // TODO pt-client: soon, make the function take an GuardSet and a set
-        // of parameters, so we can't get the active set wrong.
+        // TODO: it might be nice to make `func` take an GuardSet and a set of
+        // parameters, so we can't get the active set wrong. Doing that will
+        // require a fair amount of refactoring so that the borrow checker is
+        // happy, however.
         match self.guards.active_set.universe_type() {
             UniverseType::NetDir => {
                 if let Some(nd) = self.timely_netdir() {
@@ -841,6 +843,7 @@ impl GuardMgrInner {
             Self::update_guardset_internal(
                 &this.params,
                 now,
+                this.guards.active_set.universe_type(),
                 this.guards.active_guards_mut(),
                 univ,
             );
@@ -932,27 +935,47 @@ impl GuardMgrInner {
     fn update_guardset_internal<U: Universe>(
         params: &GuardParams,
         now: SystemTime,
+        universe_type: UniverseType,
         active_guards: &mut GuardSet,
         universe: Option<&U>,
-    ) {
+    ) -> ExtendedStatus {
         // Expire guards.  Do that early, in case doing so makes it clear that
         // we need to grab more guards or mark others as primary.
         active_guards.expire_old_guards(params, now);
 
-        if let Some(universe) = universe {
-            if active_guards.n_primary_without_dir_info(universe) > 0 {
-                // We are missing primary guard descriptors, so we shouldn't update our guard
-                // status.
-                // TODO pt-client: This should not apply to bridges.
-                return;
+        let extended = if let Some(universe) = universe {
+            // TODO: This check here may be completely unnecessary. I inserted
+            // it back in 5ac0fcb7ef603e0d14 because I was originally concerned
+            // it might be undesirable to list a primary guard as "missing dir
+            // info" (and therefore unusable) if we were expecting to get its
+            // microdescriptor "very soon."
+            //
+            // But due to the other check in `netdir_is_sufficient`, we
+            // shouldn't be installing a netdir until it has microdescs for all
+            // of the (non-bridge) primary guards that it lists. - nickm
+            if active_guards.n_primary_without_id_info_in(universe) > 0
+                && universe_type == UniverseType::NetDir
+            {
+                // We are missing the information from a NetDir needed to see
+                // whether our primary guards are listed, so we shouldn't update
+                // our guard status.
+                //
+                // We don't want to do this check if we are using bridges, since
+                // a missing bridge descriptor is not guaranteed to temporary
+                // problem in the same way that a missing microdescriptor is.
+                // (When a bridge desc is missing, the bridge could be down or
+                // unreachable, and nobody else can help us. But if a microdesc
+                // is missing, we just need to find a cache that has it.)
+                return ExtendedStatus::No;
             }
             active_guards.update_status_from_dir(universe);
-            // TODO pt-client: This is no longer needed, since we have access to
-            // the Universe inside select_guard_with_expand.
-            active_guards.extend_sample_as_needed(now, params, universe);
-        }
+            active_guards.extend_sample_as_needed(now, params, universe)
+        } else {
+            ExtendedStatus::No
+        };
 
         active_guards.select_primary_guards(params);
+        extended
     }
 
     /// Replace the active guard state with `new_state`, preserving
@@ -1337,33 +1360,25 @@ impl GuardMgrInner {
         let res = self.with_opt_universe(|this, univ| {
             let univ = univ?;
             trace!("No guards available, trying to extend the sample.");
-            // Make sure that the status on all of our guards are accurate. (Our
-            // parameters and configuration did not change, so we do not need to
-            // call update() or update_active_set_and_filter(). However, we _do_
-            // want to make sure that any old guards are expired, and that our
-            // primary-guard set is updated accordingly.)
-            Self::update_guardset_internal(
+            // Make sure that the status on all of our guards are accurate, and
+            // expand the sample if we can.
+            //
+            // Our parameters and configuration did not change, so we do not
+            // need to call update() or update_active_set_and_filter(). This
+            // call is sufficient to  extend the sample and recompute primary
+            // guards.
+            let extended = Self::update_guardset_internal(
                 &this.params,
                 wallclock,
+                this.guards.active_set.universe_type(),
                 this.guards.active_guards_mut(),
                 Some(univ),
             );
-            // TODO pt-client: We just called "expand_sample_as_needed()" in
-            // update_guardset_internal! We should remove that call, so that
-            // this call can detect if the sample was actually expanded or
-            // not.
-            if this.guards.active_guards_mut().extend_sample_as_needed(
-                wallclock,
-                &this.params,
-                univ,
-            ) {
-                this.guards
-                    .active_guards_mut()
-                    .select_primary_guards(&this.params);
+            if extended == ExtendedStatus::Yes {
                 match this.select_guard_once(usage, now) {
                     Ok(res) => return Some(res),
                     Err(e) => {
-                        trace!("Couldn't select guard after expanding sample: {}", e);
+                        trace!("Couldn't select guard after update: {}", e);
                     }
                 }
             }
@@ -1430,11 +1445,17 @@ impl GuardMgrInner {
     }
 }
 
+/// A possible outcome of trying to extend a guard sample.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum ExtendedStatus {
+    /// The guard sample was extended. (At least one guard was added to it.)
+    Yes,
+    /// The guard sample was not extended.
+    No,
+}
+
 /// A set of parameters, derived from the consensus document, controlling
 /// the behavior of a guard manager.
-//
-// TODO pt-client: We need to see what Tor does here for these parameters as
-// applied to bridges.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 struct GuardParams {
