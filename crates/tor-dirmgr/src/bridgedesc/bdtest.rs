@@ -16,6 +16,7 @@
 use std::future::Future;
 use std::iter;
 use std::ops::Bound;
+use std::time::UNIX_EPOCH;
 
 use futures::select_biased;
 use futures::stream::FusedStream;
@@ -460,6 +461,105 @@ async fn cache() -> Result<(), anyhow::Error> {
     .await;
 
     mock.expect_download_calls(1).await;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn process_doc() -> Result<(), anyhow::Error> {
+    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+
+    let text = EXAMPLE_DESCRIPTOR;
+    let config = BridgeDescDownloadConfig::default();
+    let valid = example_validity();
+
+    let pr_t = |s: &str, t: SystemTime| {
+        let now = runtime.wallclock();
+        eprintln!(
+            "                  {:10} {:?} {:10}",
+            s,
+            t,
+            t.duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
+                - now.duration_since(UNIX_EPOCH).unwrap().as_secs_f64(),
+        );
+    };
+
+    let expecting_of = |text: &str, exp: Result<SystemTime, &str>| {
+        let got = process_document(&runtime, &config, text);
+        match exp {
+            Ok(exp_refetch) => {
+                let refetch = got.unwrap().refetch;
+                pr_t("refetch", refetch);
+                assert_eq!(refetch, exp_refetch);
+            }
+            Err(exp_msg) => {
+                let msg = got.as_ref().expect_err(exp_msg).to_string();
+                assert!(
+                    msg.contains(exp_msg),
+                    "{:?} {:?} exp={:?}",
+                    msg,
+                    got,
+                    exp_msg
+                );
+            }
+        }
+    };
+
+    let expecting_at = |now: SystemTime, exp| {
+        mock.sleep.jump_to(now);
+        pr_t("now", now);
+        pr_t("valid.0", valid.0);
+        pr_t("valid.1", valid.1);
+        if let Ok(exp) = exp {
+            pr_t("expect", exp);
+        }
+        expecting_of(text, exp);
+    };
+
+    let secs = Duration::from_secs;
+
+    eprintln!("----- good -----");
+    expecting_of(text, Ok(runtime.wallclock() + config.max_refetch));
+
+    eprintln!("----- modified under signature -----");
+    expecting_of(
+        &text.replace("\nbandwidth 10485760", "\nbandwidth 10485761"),
+        Err("Signature check failed"),
+    );
+
+    eprintln!("----- doc not yet valid -----");
+    expecting_at(
+        valid.0 - secs(10),
+        Err("Descriptor is outside its validity time"),
+    );
+
+    eprintln!("----- need to refetch due to doc validity expiring soon -----");
+    expecting_at(valid.1 - secs(5000), Ok(valid.1 - secs(1000)));
+
+    eprintln!("----- will refetch later than usual, due to min refetch interval -----");
+    {
+        let now = valid.1 - secs(4000); // would want to refetch at valid.1-1000 ie 30000
+        expecting_at(now, Ok(now + config.min_refetch));
+    }
+
+    eprintln!("----- will refetch after doc validity ends, due to min refetch interval -----");
+    {
+        let now = valid.1 - secs(10);
+        let exp = now + config.min_refetch;
+        assert!(exp > valid.1);
+        expecting_at(now, Ok(exp));
+    }
+
+    eprintln!("----- expired -----");
+    expecting_at(
+        valid.1 + secs(10),
+        Err("Descriptor is outside its validity time"),
+    );
+
+    // TODO ideally we would test the `ops::Bound::Unbounded` case in process_download's
+    // expiry time handling, but that would require making a document with unbounded
+    // validity time.  Even if that is possible, I don't think we have code in-tree to
+    // make signed test documents.
 
     Ok(())
 }

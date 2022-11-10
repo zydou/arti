@@ -1065,8 +1065,6 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
 ///
 /// Parses it, checks the signature, checks the document validity times,
 /// and if that's all good, calculates when will want to refetch it.
-//
-// TODO pt-client: This function could usefully have some unit tests.
 fn process_document<R: Runtime>(
     runtime: &R,
     config: &BridgeDescDownloadConfig,
