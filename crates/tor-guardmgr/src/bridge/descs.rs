@@ -167,7 +167,7 @@ impl BridgeSet {
     ///
     /// We check for a match by identity _and_ channel method, since channel
     /// method is part of what makes two bridge lines different.
-    fn bridge_by_guard<T>(&self, guard: &T) -> Option<&BridgeConfig>
+    pub(crate) fn bridge_by_guard<T>(&self, guard: &T) -> Option<&BridgeConfig>
     where
         T: ChanTarget,
     {
