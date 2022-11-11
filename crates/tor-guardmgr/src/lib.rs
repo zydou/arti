@@ -119,6 +119,7 @@ use crate::ids::{FirstHopIdInner, GuardId};
 /// A "guard manager" that selects and remembers a persistent set of
 /// guard nodes.
 ///
+/// This is a "handle"; clones of it share state.
 #[derive(Clone)]
 pub struct GuardMgr<R: Runtime> {
     /// An asynchronous runtime object.

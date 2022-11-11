@@ -154,6 +154,8 @@ impl<'a> DirInfo<'a> {
 /// believes in two kinds of circuits: Exit circuits, and directory
 /// circuits.  Exit circuits are ones that were created to connect to
 /// a set of ports; directory circuits were made to talk to directory caches.
+///
+/// This is a "handle"; clones of it share state.
 #[derive(Clone)]
 pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
