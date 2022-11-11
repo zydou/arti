@@ -408,8 +408,12 @@ impl<R: Runtime> TorClient<R> {
             dormant.into(),
             &NetParameters::from_map(&config.override_net_params),
         ));
+        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), &config)
+            .map_err(ErrorDetail::GuardMgrSetup)?;
+
         let circmgr =
-            tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr))
+            tor_circmgr::CircMgr::new(&config, statemgr.clone(), &runtime, Arc::clone(&chanmgr),
+                                      guardmgr)
                 .map_err(ErrorDetail::CircMgrSetup)?;
 
         let timeout_cfg = config.stream_timeouts;

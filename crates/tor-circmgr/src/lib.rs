@@ -175,6 +175,7 @@ impl<R: Runtime> CircMgr<R> {
         storage: SM,
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
+        guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Result<Arc<Self>>
     where
         SM: tor_persist::StateMgr + Send + Sync + 'static,
@@ -183,7 +184,6 @@ impl<R: Runtime> CircMgr<R> {
             config.preemptive_circuits().clone(),
         )));
 
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone(), config)?;
         guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);
