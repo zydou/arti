@@ -125,6 +125,11 @@ enum ErrorDetail {
     #[error("Error setting up the circuit manager")]
     CircMgrSetup(#[source] tor_circmgr::Error),
 
+    /// Error setting up the bridge descriptor manager
+    #[error("Error setting up the bridge descriptor managerr")]
+    #[cfg(feature = "bridge-client")]
+    BridgeDescMgrSetup(#[from] tor_dirmgr::bridgedesc::StartupError),
+
     /// Error setting up the directory manager
     // TODO: should "dirmgr setup error" be its own type in tor-dirmgr?
     #[error("Error setting up the directory manager")]
@@ -289,6 +294,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
             E::GuardMgrSetup(e) => e.kind(),
+            #[cfg(feature = "bridge-client")]
+            E::BridgeDescMgrSetup(e) => e.kind(),
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
