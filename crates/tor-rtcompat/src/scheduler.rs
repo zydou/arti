@@ -342,7 +342,12 @@ mod test {
         });
     }
 
+    // This test is disabled because it was flaky when the CI servers were
+    // heavily loaded. (See #545.)
+    //
+    // TODO: Let's fix this test and make it more reliable, then re-enable it.
     #[test]
+    #[ignore]
     fn it_cancels_delayed_firings() {
         test_with_all_runtimes!(|rt| async move {
             let (mut sch, hdl) = TaskSchedule::new(rt.clone());
