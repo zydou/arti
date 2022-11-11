@@ -51,7 +51,7 @@ type BridgeKey = Arc<BridgeConfig>;
 /// whether `TorClient::bootstrap()` has been called, etc.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-// TODO pt-client actually 1. accept this 2. use it
+// TODO pt-client actually honour dormancy
 // TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
 //     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
 pub enum Dormancy {
@@ -496,14 +496,22 @@ impl<R: Runtime> BridgeDescMgr<R> {
     pub fn new_with_dirmgr(
         dirmgr: &crate::DirMgr<R>,
         config: &BridgeDescDownloadConfig,
+        dormancy: Dormancy,
     ) -> Result<Self, StartupError> {
         Self::new_internal(
             dirmgr.runtime.clone(),
             dirmgr.circmgr.clone().ok_or(StartupError::MissingCircMgr)?,
             dirmgr.store.clone(),
             config,
+            dormancy,
             (),
         )
+    }
+
+    /// Set whether this `BridgeDescMgr` is active
+    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
+    pub fn set_dormancy(&self, _dormancy: Dormancy) {
+        // TODO pt-client
     }
 }
 
@@ -532,6 +540,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         circmgr: M::CircMgr,
         store: Arc<Mutex<DynStore>>,
         config: &BridgeDescDownloadConfig,
+        _dormancy: Dormancy,
         mockable: M,
     ) -> Result<Self, StartupError> {
         /// Convenience alias
