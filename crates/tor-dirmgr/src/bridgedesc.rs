@@ -52,6 +52,8 @@ type BridgeKey = Arc<BridgeConfig>;
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 // TODO pt-client actually 1. accept this 2. use it
+// TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
+//     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
 pub enum Dormancy {
     /// Dormant (inactive)
     ///
