@@ -2,7 +2,7 @@
 //! state machines in the `states` module.
 
 use std::num::NonZeroUsize;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::{
     collections::HashMap,
     sync::{Arc, Weak},
@@ -285,12 +285,7 @@ async fn fetch_multiple<R: Runtime>(
 ) -> Result<Vec<(ClientRequest, DirResponse)>> {
     let requests = {
         let store = dirmgr.store.lock().expect("store lock poisoned");
-        make_requests_for_documents(
-            &dirmgr.runtime,
-            missing,
-            store.deref(),
-            &dirmgr.config.get(),
-        )?
+        make_requests_for_documents(&dirmgr.runtime, missing, &**store, &dirmgr.config.get())?
     };
 
     #[cfg(test)]
@@ -357,7 +352,7 @@ async fn load_once<R: Runtime>(
 
         let documents = {
             let store = dirmgr.store.lock().expect("store lock poisoned");
-            load_documents_from_store(&missing, store.deref())?
+            load_documents_from_store(&missing, &**store)?
         };
 
         state.add_from_cache(documents, &mut changed)
@@ -390,7 +385,7 @@ pub(crate) async fn load<R: Runtime>(
         let outcome = load_once(&dirmgr, &mut state, attempt_id, &mut changed).await;
         {
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
-            dirmgr.apply_netdir_changes(&mut state, store.deref_mut())?;
+            dirmgr.apply_netdir_changes(&mut state, &mut **store)?;
         }
 
         if let Err(e) = outcome {
@@ -554,7 +549,7 @@ pub(crate) async fn download<R: Runtime>(
         {
             let dirmgr = upgrade_weak_ref(&dirmgr)?;
             let mut store = dirmgr.store.lock().expect("store lock poisoned");
-            dirmgr.apply_netdir_changes(state, store.deref_mut())?;
+            dirmgr.apply_netdir_changes(state, &mut **store)?;
         }
         if state.is_ready(Readiness::Complete) {
             return Ok(());
@@ -620,7 +615,7 @@ pub(crate) async fn download<R: Runtime>(
             {
                 let dirmgr = upgrade_weak_ref(&dirmgr)?;
                 let mut store = dirmgr.store.lock().expect("store lock poisoned");
-                let outcome = dirmgr.apply_netdir_changes(state, store.deref_mut());
+                let outcome = dirmgr.apply_netdir_changes(state, &mut **store);
                 propagate_fatal_errors!(outcome);
             }
 

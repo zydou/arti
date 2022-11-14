@@ -83,7 +83,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
-use std::ops::Deref;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -108,6 +108,30 @@ use strum;
 
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Storage manager used by [`DirMgr`] and [`BridgeDescMgr`]
+///
+/// Internally, this wraps up a sqlite database.
+///
+/// This is a handle, which is cheap to clone; clones share state.
+#[derive(Clone)]
+pub struct DirMgrStore<R: Runtime> {
+    /// The actual store
+    pub(crate) store: Arc<Mutex<crate::DynStore>>,
+
+    /// Be parameterised by Runtime even though we don't use it right now
+    pub(crate) runtime: PhantomData<R>,
+}
+
+impl<R: Runtime> DirMgrStore<R> {
+    /// Open the storage, according to the specified configuration
+    pub fn new(config: &DirMgrConfig, runtime: R, offline: bool) -> Result<Self> {
+        let store = Arc::new(Mutex::new(config.open_store(offline)?));
+        drop(runtime);
+        let runtime = PhantomData;
+        Ok(DirMgrStore { store, runtime })
+    }
+}
 
 /// Trait for DirMgr implementations
 #[async_trait]
@@ -327,7 +351,8 @@ impl<R: Runtime> DirMgr<R> {
     /// program; it's only suitable for command-line or batch tools.
     // TODO: I wish this function didn't have to be async or take a runtime.
     pub async fn load_once(runtime: R, config: DirMgrConfig) -> Result<Arc<NetDir>> {
-        let dirmgr = Arc::new(Self::from_config(config, runtime, None, true)?);
+        let store = DirMgrStore::new(&config, runtime.clone(), true)?;
+        let dirmgr = Arc::new(Self::from_config(config, runtime, store, None, true)?);
 
         // TODO: add some way to return a directory that isn't up-to-date
         let _success = dirmgr.load_directory(AttemptId::next()).await?;
@@ -349,9 +374,10 @@ impl<R: Runtime> DirMgr<R> {
     pub async fn load_or_bootstrap_once(
         config: DirMgrConfig,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<NetDir>> {
-        let dirmgr = DirMgr::bootstrap_from_config(config, runtime, circmgr).await?;
+        let dirmgr = DirMgr::bootstrap_from_config(config, runtime, store, circmgr).await?;
         dirmgr
             .timely_netdir()
             .map_err(|_| Error::DirectoryNotPresent)
@@ -363,11 +389,13 @@ impl<R: Runtime> DirMgr<R> {
     pub fn create_unbootstrapped(
         config: DirMgrConfig,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<Self>> {
         Ok(Arc::new(DirMgr::from_config(
             config,
             runtime,
+            store,
             Some(circmgr),
             false,
         )?))
@@ -507,9 +535,10 @@ impl<R: Runtime> DirMgr<R> {
     pub async fn bootstrap_from_config(
         config: DirMgrConfig,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Arc<CircMgr<R>>,
     ) -> Result<Arc<Self>> {
-        let dirmgr = Self::create_unbootstrapped(config, runtime, circmgr)?;
+        let dirmgr = Self::create_unbootstrapped(config, runtime, store, circmgr)?;
 
         dirmgr.bootstrap().await?;
 
@@ -821,13 +850,14 @@ impl<R: Runtime> DirMgr<R> {
     ///
     /// If `offline` is set, opens the SQLite store read-only and sets the offline flag in the
     /// returned manager.
+    #[allow(clippy::unnecessary_wraps)] // API compat and future-proofing
     fn from_config(
         config: DirMgrConfig,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Option<Arc<CircMgr<R>>>,
         offline: bool,
     ) -> Result<Self> {
-        let store = Mutex::new(config.open_store(offline)?);
         let netdir = Arc::new(SharedMutArc::new());
         let events = event::FlagPublisher::new();
         let default_parameters = NetParameters::from_map(&config.override_net_params);
@@ -847,7 +877,7 @@ impl<R: Runtime> DirMgr<R> {
 
         Ok(DirMgr {
             config: config.into(),
-            store: store.into(),
+            store: store.store,
             netdir,
             default_parameters,
             events,
@@ -901,7 +931,7 @@ impl<R: Runtime> DirMgr<R> {
         let mut result = HashMap::new();
         let query: DocQuery = (*doc).into();
         let store = self.store.lock().expect("store lock poisoned");
-        query.load_from_store_into(&mut result, store.deref())?;
+        query.load_from_store_into(&mut result, &**store)?;
         let item = result.into_iter().at_most_one().map_err(|_| {
             Error::CacheCorruption("Found more than one entry in storage for given docid")
         })?;
@@ -929,7 +959,7 @@ impl<R: Runtime> DirMgr<R> {
         let mut result = HashMap::new();
         let store = self.store.lock().expect("store lock poisoned");
         for (_, query) in partitioned.into_iter() {
-            query.load_from_store_into(&mut result, store.deref())?;
+            query.load_from_store_into(&mut result, &**store)?;
         }
         Ok(result)
     }
@@ -1099,7 +1129,8 @@ mod test {
             cache_path: dir.path().into(),
             ..Default::default()
         };
-        let dirmgr = DirMgr::from_config(config, runtime, None, false).unwrap();
+        let store = DirMgrStore::new(&config, runtime.clone(), false).unwrap();
+        let dirmgr = DirMgr::from_config(config, runtime, store, None, false).unwrap();
 
         (dir, dirmgr)
     }
@@ -1245,7 +1276,7 @@ mod test {
                 bootstrap::make_consensus_request(
                     now,
                     ConsensusFlavor::Microdesc,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1282,7 +1313,7 @@ mod test {
                 bootstrap::make_consensus_request(
                     now,
                     ConsensusFlavor::Microdesc,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1318,13 +1349,9 @@ mod test {
             // Try an authcert.
             let query = DocId::AuthCert(certid1);
             let store = mgr.store.lock().unwrap();
-            let reqs = bootstrap::make_requests_for_documents(
-                &mgr.runtime,
-                &[query],
-                store.deref(),
-                &config,
-            )
-            .unwrap();
+            let reqs =
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[query], &**store, &config)
+                    .unwrap();
             assert_eq!(reqs.len(), 1);
             let req = &reqs[0];
             if let ClientRequest::AuthCert(r) = req {
@@ -1334,13 +1361,9 @@ mod test {
             }
 
             // Try a bunch of mds.
-            let reqs = bootstrap::make_requests_for_documents(
-                &mgr.runtime,
-                &md_ids,
-                store.deref(),
-                &config,
-            )
-            .unwrap();
+            let reqs =
+                bootstrap::make_requests_for_documents(&mgr.runtime, &md_ids, &**store, &config)
+                    .unwrap();
             assert_eq!(reqs.len(), 2);
             assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
 
@@ -1350,7 +1373,7 @@ mod test {
                 let reqs = bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &rd_ids,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap();
@@ -1373,7 +1396,7 @@ mod test {
             let q = DocId::Microdesc([99; 32]);
             let r = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], store.deref(), &config)
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], &**store, &config)
                     .unwrap()
             };
             let expanded = mgr.expand_response_text(&r[0], "ABC".to_string());
@@ -1390,7 +1413,7 @@ mod test {
                 bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &[latest_id],
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1425,7 +1448,7 @@ mod test {
                 bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &[latest_id],
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()

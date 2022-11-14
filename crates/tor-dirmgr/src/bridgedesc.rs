@@ -34,7 +34,7 @@ use tor_rtcompat::Runtime;
 
 use crate::event::FlagPublisher;
 use crate::storage::CachedBridgeDescriptor;
-use crate::{DynStore, Store};
+use crate::{DirMgrStore, DynStore};
 
 #[cfg(test)]
 mod bdtest;
@@ -493,19 +493,14 @@ impl<R: Runtime> BridgeDescMgr<R> {
     // However, BridgeDescMgr needs a Store, and currently that is a private trait, and the
     // implementation is constructible only from the dirmgr's config.  This should probably be
     // tidied up somehow, at some point, perhaps by exposing `Store` and its configuration.
-    pub fn new_with_dirmgr(
-        dirmgr: &crate::DirMgr<R>,
+    pub fn new(
         config: &BridgeDescDownloadConfig,
+        runtime: R,
+        store: DirMgrStore<R>,
+        circmgr: Arc<tor_circmgr::CircMgr<R>>,
         dormancy: Dormancy,
     ) -> Result<Self, StartupError> {
-        Self::new_internal(
-            dirmgr.runtime.clone(),
-            dirmgr.circmgr.clone().ok_or(StartupError::MissingCircMgr)?,
-            dirmgr.store.clone(),
-            config,
-            dormancy,
-            (),
-        )
+        Self::new_internal(runtime, circmgr, store.store, config, dormancy, ())
     }
 
     /// Set whether this `BridgeDescMgr` is active
