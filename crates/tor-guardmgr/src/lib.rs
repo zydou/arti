@@ -738,6 +738,7 @@ impl GuardSets {
                     other.guards_mut(&sample),
                 ));
         }
+        self.active_set = other.active_set;
     }
 }
 
