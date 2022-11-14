@@ -679,18 +679,21 @@ mod test {
 
     #[async_test]
     async fn postage_drop() {
-        let (s, r) = postage::watch::channel_with(20);
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        struct I(i32);
+
+        let (s, r) = postage::watch::channel_with(I(20));
         let s = DropNotifyWatchSender::new(s);
 
-        assert_eq!(*r.borrow(), 20);
+        assert_eq!(*r.borrow(), I(20));
         drop(s);
-        assert_eq!(*r.borrow(), 0);
+        assert_eq!(*r.borrow(), I(0));
 
-        let (s, r) = postage::watch::channel_with(44);
+        let (s, r) = postage::watch::channel_with(I(44));
         let s = DropNotifyWatchSender::new(s);
 
-        assert_eq!(*r.borrow(), 44);
+        assert_eq!(*r.borrow(), I(44));
         drop(s.into_inner());
-        assert_eq!(*r.borrow(), 44);
+        assert_eq!(*r.borrow(), I(44));
     }
 }
