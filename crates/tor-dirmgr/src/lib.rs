@@ -83,6 +83,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -107,6 +108,30 @@ use strum;
 
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Storage manager used by [`DirMgr`] and [`BridgeDescMgr`]
+///
+/// Internally, this wraps up a sqlite database.
+///
+/// This is a handle, which is cheap to clone; clones share state.
+#[derive(Clone)]
+pub struct DirMgrStore<R: Runtime> {
+    /// The actual store
+    pub(crate) store: Arc<Mutex<crate::DynStore>>,
+
+    /// Be parameterised by Runtime even though we don't use it right now
+    pub(crate) runtime: PhantomData<R>,
+}
+
+impl<R: Runtime> DirMgrStore<R> {
+    /// Open the storage, according to the specified configuration
+    pub fn new(config: &DirMgrConfig, runtime: R, offline: bool) -> Result<Self> {
+        let store = Arc::new(Mutex::new(config.open_store(offline)?));
+        drop(runtime);
+        let runtime = PhantomData;
+        Ok(DirMgrStore { store, runtime })
+    }
+}
 
 /// Trait for DirMgr implementations
 #[async_trait]
