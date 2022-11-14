@@ -83,7 +83,6 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
 
-use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -901,7 +900,7 @@ impl<R: Runtime> DirMgr<R> {
         let mut result = HashMap::new();
         let query: DocQuery = (*doc).into();
         let store = self.store.lock().expect("store lock poisoned");
-        query.load_from_store_into(&mut result, store.deref())?;
+        query.load_from_store_into(&mut result, &**store)?;
         let item = result.into_iter().at_most_one().map_err(|_| {
             Error::CacheCorruption("Found more than one entry in storage for given docid")
         })?;
@@ -929,7 +928,7 @@ impl<R: Runtime> DirMgr<R> {
         let mut result = HashMap::new();
         let store = self.store.lock().expect("store lock poisoned");
         for (_, query) in partitioned.into_iter() {
-            query.load_from_store_into(&mut result, store.deref())?;
+            query.load_from_store_into(&mut result, &**store)?;
         }
         Ok(result)
     }
@@ -1245,7 +1244,7 @@ mod test {
                 bootstrap::make_consensus_request(
                     now,
                     ConsensusFlavor::Microdesc,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1282,7 +1281,7 @@ mod test {
                 bootstrap::make_consensus_request(
                     now,
                     ConsensusFlavor::Microdesc,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1318,13 +1317,9 @@ mod test {
             // Try an authcert.
             let query = DocId::AuthCert(certid1);
             let store = mgr.store.lock().unwrap();
-            let reqs = bootstrap::make_requests_for_documents(
-                &mgr.runtime,
-                &[query],
-                store.deref(),
-                &config,
-            )
-            .unwrap();
+            let reqs =
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[query], &**store, &config)
+                    .unwrap();
             assert_eq!(reqs.len(), 1);
             let req = &reqs[0];
             if let ClientRequest::AuthCert(r) = req {
@@ -1334,13 +1329,9 @@ mod test {
             }
 
             // Try a bunch of mds.
-            let reqs = bootstrap::make_requests_for_documents(
-                &mgr.runtime,
-                &md_ids,
-                store.deref(),
-                &config,
-            )
-            .unwrap();
+            let reqs =
+                bootstrap::make_requests_for_documents(&mgr.runtime, &md_ids, &**store, &config)
+                    .unwrap();
             assert_eq!(reqs.len(), 2);
             assert!(matches!(reqs[0], ClientRequest::Microdescs(_)));
 
@@ -1350,7 +1341,7 @@ mod test {
                 let reqs = bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &rd_ids,
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap();
@@ -1373,7 +1364,7 @@ mod test {
             let q = DocId::Microdesc([99; 32]);
             let r = {
                 let store = mgr.store.lock().unwrap();
-                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], store.deref(), &config)
+                bootstrap::make_requests_for_documents(&mgr.runtime, &[q], &**store, &config)
                     .unwrap()
             };
             let expanded = mgr.expand_response_text(&r[0], "ABC".to_string());
@@ -1390,7 +1381,7 @@ mod test {
                 bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &[latest_id],
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
@@ -1425,7 +1416,7 @@ mod test {
                 bootstrap::make_requests_for_documents(
                     &mgr.runtime,
                     &[latest_id],
-                    store.deref(),
+                    &**store,
                     &config,
                 )
                 .unwrap()
