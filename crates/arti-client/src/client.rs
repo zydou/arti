@@ -14,6 +14,7 @@ use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort}
 use tor_config::MutCfg;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug};
+use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -70,6 +71,8 @@ pub struct TorClient<R: Runtime> {
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<dyn tor_dirmgr::DirProvider>,
+    /// Guard manager
+    guardmgr: GuardMgr<R>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -416,7 +419,7 @@ impl<R: Runtime> TorClient<R> {
             statemgr.clone(),
             &runtime,
             Arc::clone(&chanmgr),
-            guardmgr,
+            guardmgr.clone(),
         )
         .map_err(ErrorDetail::CircMgrSetup)?;
 
@@ -473,6 +476,7 @@ impl<R: Runtime> TorClient<R> {
             chanmgr,
             circmgr,
             dirmgr,
+            guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
             timeoutcfg: Arc::new(timeout_cfg.into()),
