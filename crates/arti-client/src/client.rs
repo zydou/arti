@@ -430,7 +430,12 @@ impl<R: Runtime> TorClient<R> {
         let dirmgr_store =
             DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
         let dirmgr = dirmgr_builder
-            .build(runtime.clone(), dirmgr_store.clone(), Arc::clone(&circmgr), dir_cfg)
+            .build(
+                runtime.clone(),
+                dirmgr_store.clone(),
+                Arc::clone(&circmgr),
+                dir_cfg,
+            )
             .map_err(crate::Error::into_detail)?;
 
         let mut periodic_task_handles = circmgr
