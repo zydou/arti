@@ -45,6 +45,47 @@ mod bdtest;
 /// to take and handle another way of identifying the bridges it is working with.
 type BridgeKey = Arc<BridgeConfig>;
 
+/// Active vs dormant state, as far as the bridge descriptor manager is concerned
+///
+/// This is usually derived in higher layers from `arti_client::DormantMode`,
+/// whether `TorClient::bootstrap()` has been called, etc.
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+// TODO pt-client actually honour dormancy
+// TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
+//     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
+pub enum Dormancy {
+    /// Dormant (inactive)
+    ///
+    /// Bridge descriptor downloads, or refreshes, will not be started.
+    ///
+    /// In-progress downloads will be stopped if possible,
+    /// but they may continue until they complete (or fail).
+    // TODO async task cancellation: actually cancel these in this case
+    ///
+    /// So a dormant BridgeDescManager may still continue to
+    /// change the return value from [`bridges()`](BridgeDescProvider::bridges)
+    /// and continue to report [`BridgeDescEvent`]s.
+    ///
+    /// When the BridgeDescManager is dormant,
+    /// `bridges()` may return stale descriptors
+    /// (that is, descriptors which ought to have been refetched and may no longer be valid),
+    /// or stale errors
+    /// (that is, errors which occurred some time ago,
+    /// and which would normally have been retried by now).
+    Dormant,
+
+    /// Active
+    ///
+    /// Bridge descriptors will be downloaded as requested.
+    ///
+    /// When a bridge descriptor manager has been `Dormant`,
+    /// it may continue to provide stale data (as described)
+    /// for a while after it is made `Active`,
+    /// until the required refreshes and retries have taken place (or failed).
+    Active,
+}
+
 /// **Downloader and cache for bridges' router descriptors**
 ///
 /// This is a handle which is cheap to clone and has internal mutability.
@@ -455,14 +496,22 @@ impl<R: Runtime> BridgeDescMgr<R> {
     pub fn new_with_dirmgr(
         dirmgr: &crate::DirMgr<R>,
         config: &BridgeDescDownloadConfig,
+        dormancy: Dormancy,
     ) -> Result<Self, StartupError> {
         Self::new_internal(
             dirmgr.runtime.clone(),
             dirmgr.circmgr.clone().ok_or(StartupError::MissingCircMgr)?,
             dirmgr.store.clone(),
             config,
+            dormancy,
             (),
         )
+    }
+
+    /// Set whether this `BridgeDescMgr` is active
+    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
+    pub fn set_dormancy(&self, _dormancy: Dormancy) {
+        // TODO pt-client
     }
 }
 
@@ -491,6 +540,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         circmgr: M::CircMgr,
         store: Arc<Mutex<DynStore>>,
         config: &BridgeDescDownloadConfig,
+        _dormancy: Dormancy,
         mockable: M,
     ) -> Result<Self, StartupError> {
         /// Convenience alias

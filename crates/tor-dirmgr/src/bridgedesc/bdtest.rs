@@ -156,6 +156,7 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
         (),
         store,
         &Default::default(),
+        Dormancy::Active,
         mock.clone(),
     )
     .unwrap();
