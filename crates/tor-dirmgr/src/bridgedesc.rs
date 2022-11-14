@@ -34,7 +34,7 @@ use tor_rtcompat::Runtime;
 
 use crate::event::FlagPublisher;
 use crate::storage::CachedBridgeDescriptor;
-use crate::{DynStore, Store};
+use crate::DynStore;
 
 #[cfg(test)]
 mod bdtest;
