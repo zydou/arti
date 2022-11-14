@@ -32,7 +32,7 @@ pub(crate) mod sqlite;
 pub(crate) use sqlite::SqliteStore;
 
 /// Convenient Sized & dynamic [`Store`]
-pub(crate) type DynStore = Box<dyn Store + Send>;
+pub(crate) type DynStore = Box<dyn Store>;
 
 /// A document returned by a directory manager.
 ///
@@ -235,7 +235,7 @@ pub(crate) const EXPIRATION_DEFAULTS: ExpirationConfig = {
 ///
 /// When creating an instance of this [`Store`], it should try to grab the lock during
 /// initialization (`is_readonly() iff some other implementation grabbed it`).
-pub(crate) trait Store {
+pub(crate) trait Store: Send + 'static {
     /// Return true if this [`Store`] is opened in read-only mode.
     fn is_readonly(&self) -> bool;
     /// Try to upgrade from a read-only connection to a read-write connection.
