@@ -500,14 +500,7 @@ impl<R: Runtime> BridgeDescMgr<R> {
         circmgr: Arc<tor_circmgr::CircMgr<R>>,
         dormancy: Dormancy,
     ) -> Result<Self, StartupError> {
-        Self::new_internal(
-            runtime,
-            circmgr,
-            store.store,
-            config,
-            dormancy,
-            (),
-        )
+        Self::new_internal(runtime, circmgr, store.store, config, dormancy, ())
     }
 
     /// Set whether this `BridgeDescMgr` is active
