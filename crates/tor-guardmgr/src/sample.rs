@@ -939,6 +939,43 @@ impl GuardSet {
             }
         }
     }
+
+    /// Return the guards whose bridge descriptors we should request, given our
+    /// current configuration and status.
+    ///
+    /// (The output of this function is not reasonable unless this is a Bridge
+    /// sample.)
+    #[cfg(feature = "bridge-client")]
+    #[allow(dead_code)] // TODO pt-client remove.
+    pub(crate) fn descriptors_to_request(&self, now: Instant, params: &GuardParams) -> Vec<&Guard> {
+        /// This constant is here to improve our odds that we can get a working
+        /// bridge if we have any per-circuit filters that would prevent us from
+        /// using our preferred bridge.
+        const MINIMUM: usize = 2;
+
+        let maximum = std::cmp::max(params.data_parallelism, MINIMUM);
+        let data_usage = GuardUsage::default();
+
+        // Here we duplicate some but not all of the restrictions above in
+        // pick_guard_id.  We skip those restrictions that are specific to only
+        // certain kinds of circuits, and those that are temporary restrictions
+        // encouraging us to try more guards.
+        //
+        // TODO: we may want to refactor this code and the code in pick_guard_id
+        // above to share a single function.  Before we do that, however, I want
+        // to experiment with this logic a bit to make sure that it works and
+        // doesn't give us surprising results.
+        self.preference_order()
+            .filter(|(_, g)| {
+                g.usable()
+                    && g.reachable() != Reachable::Unreachable
+                    && g.ready_for_usage(&data_usage, now)
+                    && self.active_filter.permits(*g)
+            })
+            .take(maximum)
+            .map(|(_, g)| g)
+            .collect()
+    }
 }
 
 use serde::Serializer;

@@ -849,6 +849,8 @@ impl GuardMgrInner {
                 this.guards.active_guards_mut(),
                 univ,
             );
+            #[cfg(feature = "bridge-client")]
+            this.update_desired_descriptors(Instant::now()); // TODO pt-client: take inst as an argument.
         });
     }
 
@@ -977,7 +979,33 @@ impl GuardMgrInner {
         };
 
         active_guards.select_primary_guards(params);
+
         extended
+    }
+
+    /// If using bridges, tell the BridgeDescProvider which descriptors we want.
+    /// We need to check this *after* we select our primary guards.
+    #[cfg(feature = "bridge-client")]
+    fn update_desired_descriptors(&mut self, now: Instant) {
+        if self.guards.active_set.universe_type() != UniverseType::BridgeSet {
+            return;
+        }
+
+        let provider = self.bridge_desc_provider.as_ref().and_then(Weak::upgrade);
+        let bridge_set = self.latest_bridge_set();
+        if let (Some(provider), Some(bridge_set)) = (provider, bridge_set) {
+            let desired: Vec<_> = self
+                .guards
+                .active_guards()
+                .descriptors_to_request(now, &self.params)
+                .into_iter()
+                .flat_map(|guard| bridge_set.bridge_by_guard(guard))
+                // Yuck. TODO pt-client: This clone means we are Arcing wrong.
+                .map(|bridge_config| Arc::new(bridge_config.clone()))
+                .collect();
+
+            provider.set_bridges(&desired);
+        }
     }
 
     /// Replace the active guard state with `new_state`, preserving
