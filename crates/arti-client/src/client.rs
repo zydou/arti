@@ -69,6 +69,8 @@ pub struct TorClient<R: Runtime> {
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
+    /// Directory manager persistent storage.
+    dirmgr_store: DirMgrStore<R>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<dyn tor_dirmgr::DirProvider>,
     /// Guard manager
@@ -428,7 +430,7 @@ impl<R: Runtime> TorClient<R> {
         let dirmgr_store =
             DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
         let dirmgr = dirmgr_builder
-            .build(runtime.clone(), dirmgr_store, Arc::clone(&circmgr), dir_cfg)
+            .build(runtime.clone(), dirmgr_store.clone(), Arc::clone(&circmgr), dir_cfg)
             .map_err(crate::Error::into_detail)?;
 
         let mut periodic_task_handles = circmgr
@@ -475,6 +477,7 @@ impl<R: Runtime> TorClient<R> {
             connect_prefs: Default::default(),
             chanmgr,
             circmgr,
+            dirmgr_store,
             dirmgr,
             guardmgr,
             statemgr,
