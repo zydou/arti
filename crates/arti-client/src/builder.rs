@@ -4,7 +4,7 @@
 
 use crate::{err::ErrorDetail, BootstrapBehavior, Result, TorClient, TorClientConfig};
 use std::sync::Arc;
-use tor_dirmgr::DirMgrConfig;
+use tor_dirmgr::{DirMgrConfig, DirMgrStore};
 use tor_rtcompat::Runtime;
 
 /// An object that knows how to construct some kind of DirProvider.
@@ -17,6 +17,7 @@ pub trait DirProviderBuilder<R: Runtime> {
     fn build(
         &self,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Arc<tor_circmgr::CircMgr<R>>,
         config: DirMgrConfig,
     ) -> Result<Arc<dyn tor_dirmgr::DirProvider + 'static>>;
@@ -30,10 +31,11 @@ impl<R: Runtime> DirProviderBuilder<R> for DirMgrBuilder {
     fn build(
         &self,
         runtime: R,
+        store: DirMgrStore<R>,
         circmgr: Arc<tor_circmgr::CircMgr<R>>,
         config: DirMgrConfig,
     ) -> Result<Arc<dyn tor_dirmgr::DirProvider + 'static>> {
-        let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(config, runtime, circmgr)
+        let dirmgr = tor_dirmgr::DirMgr::create_unbootstrapped(config, runtime, store, circmgr)
             .map_err(ErrorDetail::DirMgrSetup)?;
         Ok(Arc::new(dirmgr))
     }

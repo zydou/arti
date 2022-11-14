@@ -12,7 +12,7 @@ use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
-use tor_dirmgr::Timeliness;
+use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
@@ -413,8 +413,11 @@ impl<R: Runtime> TorClient<R> {
                 .map_err(ErrorDetail::CircMgrSetup)?;
 
         let timeout_cfg = config.stream_timeouts;
+
+        let dirmgr_store =
+            DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
         let dirmgr = dirmgr_builder
-            .build(runtime.clone(), Arc::clone(&circmgr), dir_cfg)
+            .build(runtime.clone(), dirmgr_store, Arc::clone(&circmgr), dir_cfg)
             .map_err(crate::Error::into_detail)?;
 
         let mut periodic_task_handles = circmgr
