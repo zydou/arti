@@ -154,6 +154,8 @@ impl<'a> DirInfo<'a> {
 /// believes in two kinds of circuits: Exit circuits, and directory
 /// circuits.  Exit circuits are ones that were created to connect to
 /// a set of ports; directory circuits were made to talk to directory caches.
+///
+/// This is a "handle"; clones of it share state.
 #[derive(Clone)]
 pub struct CircMgr<R: Runtime> {
     /// The underlying circuit manager object that implements our behavior.
@@ -173,6 +175,7 @@ impl<R: Runtime> CircMgr<R> {
         storage: SM,
         runtime: &R,
         chanmgr: Arc<ChanMgr<R>>,
+        guardmgr: tor_guardmgr::GuardMgr<R>,
     ) -> Result<Arc<Self>>
     where
         SM: tor_persist::StateMgr + Send + Sync + 'static,
@@ -181,7 +184,6 @@ impl<R: Runtime> CircMgr<R> {
             config.preemptive_circuits().clone(),
         )));
 
-        let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), storage.clone(), config)?;
         guardmgr.set_filter(config.path_rules().build_guard_filter());
 
         let storage_handle = storage.create_handle(PARETO_TIMEOUT_DATA_KEY);

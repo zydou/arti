@@ -115,6 +115,11 @@ enum ErrorDetail {
     #[error("Error setting up the channel manager")]
     ChanMgrSetup(#[source] tor_chanmgr::Error),
 
+    /// Error setting up the guard manager
+    // TODO: should "guardmgr setup error" be its own type in tor-guardmgr?
+    #[error("Error setting up the circuit manager")]
+    GuardMgrSetup(#[source] tor_guardmgr::GuardMgrError),
+
     /// Error setting up the circuit manager
     // TODO: should "circmgr setup error" be its own type in tor-circmgr?
     #[error("Error setting up the circuit manager")]
@@ -283,6 +288,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::ObtainExitCircuit { cause, .. } => cause.kind(),
             E::ExitTimeout => EK::RemoteNetworkTimeout,
             E::BootstrapRequired { .. } => EK::BootstrapRequired,
+            E::GuardMgrSetup(e) => e.kind(),
             E::CircMgrSetup(e) => e.kind(),
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
