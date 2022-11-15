@@ -415,8 +415,9 @@ impl RouterDesc {
         let body = ROUTER_BODY_RULES.parse(&mut reader)?;
 
         // Parse the signature.
-        let mut reader =
-            reader.new_pred(|item| item.is_ok_with_annotation() || item.is_ok_with_kwd(ROUTER));
+        let mut reader = reader.new_pred(|item| {
+            item.is_ok_with_annotation() || item.is_ok_with_kwd(ROUTER) || item.is_empty_line()
+        });
         let sig = ROUTER_SIG_RULES.parse(&mut reader)?;
 
         Ok((header, body, sig))
@@ -429,7 +430,13 @@ impl RouterDesc {
     pub fn parse(s: &str) -> Result<UncheckedRouterDesc> {
         let mut reader = crate::parse::tokenize::NetDocReader::new(s);
         let result = Self::parse_internal(&mut reader).map_err(|e| e.within(s))?;
-        reader.should_be_exhausted().map_err(|e| e.within(s))?;
+        // We permit empty lines at the end of router descriptors, since there's
+        // a known issue in Tor relays that causes them to return them this way.
+        //
+        // TODO pt-client: Add this issue to dir-spec.
+        reader
+            .should_be_exhausted_but_for_empty_lines()
+            .map_err(|e| e.within(s))?;
         Ok(result)
     }
 
