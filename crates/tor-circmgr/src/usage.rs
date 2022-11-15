@@ -330,7 +330,6 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         usage: &TargetCircUsage,
     ) -> std::result::Result<(), RestrictionFailed> {
         use SupportedCircUsage::*;
-        tracing::info!("restrict_mut u={:?} self={:?}", &usage, &self);
         match (self, usage) {
             (Dir, TargetCircUsage::Dir) => Ok(()),
             // This usage is only used to create circuits preemptively, and doesn't actually
