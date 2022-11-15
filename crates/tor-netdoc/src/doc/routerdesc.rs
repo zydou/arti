@@ -432,8 +432,6 @@ impl RouterDesc {
         let result = Self::parse_internal(&mut reader).map_err(|e| e.within(s))?;
         // We permit empty lines at the end of router descriptors, since there's
         // a known issue in Tor relays that causes them to return them this way.
-        //
-        // TODO pt-client: Add this issue to dir-spec.
         reader
             .should_be_exhausted_but_for_empty_lines()
             .map_err(|e| e.within(s))?;
