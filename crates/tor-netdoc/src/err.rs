@@ -270,6 +270,9 @@ pub enum ParseErrorKind {
     /// A consensus lifetime was ill-formed.
     #[display(fmt = "Invalid consensus lifetime")]
     InvalidLifetime,
+    /// Found an empty line in the middle of a document
+    #[display(fmt = "Empty line")]
+    EmptyLine,
 }
 
 /// The underlying source for an [`Error`](crate::Error).

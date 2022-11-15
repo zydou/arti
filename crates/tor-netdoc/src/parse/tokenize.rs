@@ -156,6 +156,9 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     fn kwdline(&mut self) -> Result<(&'a str, &'a str)> {
         let pos = self.off;
         let line = self.line()?;
+        if line.is_empty() {
+            return Err(EK::EmptyLine.at_pos(self.pos(pos)));
+        }
         let (line, anno_ok) = if let Some(rem) = line.strip_prefix("opt ") {
             (rem, false)
         } else {
@@ -866,7 +869,7 @@ truncated line";
         assert!(toks[17].is_err());
         assert_eq!(
             toks[17].as_ref().err().unwrap(),
-            &EK::BadKeyword.at_pos(Pos::from_line(28, 1))
+            &EK::EmptyLine.at_pos(Pos::from_line(28, 1))
         );
 
         assert!(toks[18].is_err());
