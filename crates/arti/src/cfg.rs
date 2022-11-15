@@ -245,6 +245,7 @@ mod test {
     use arti_client::config::TorClientConfigBuilder;
     use itertools::{chain, Itertools};
     use regex::Regex;
+    use std::collections::HashSet;
     use std::iter;
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
@@ -694,6 +695,27 @@ mod test {
             .iter()
             .cloned()
             .chain(expect_missing.iter().cloned())
+            .collect_vec();
+
+        // Things might appear in expect_missing for different reasons, and sometimes
+        // at different levels.  For example, `bridges.transports` is expected to be
+        // missing because we document that a different way in the example; but
+        // `bridges` is expected to be missing from the OLDEST_SUPPORTED_CONFIG,
+        // because that config predates bridge support.
+        //
+        // When this happens, we need to remove `bridges.transports` in favour of
+        // the over-arching `bridges`.
+        let expect_missing = expect_missing
+            .iter()
+            .cloned()
+            .filter({
+                let original: HashSet<_> = expect_missing.iter().cloned().collect();
+                move |found| {
+                    !found
+                        .match_indices('.')
+                        .any(|(doti, _)| original.contains(&found[0..doti]))
+                }
+            })
             .collect_vec();
         dbg!(&expect_missing);
 
