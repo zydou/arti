@@ -563,7 +563,43 @@ mod test {
         );
     }
 
-    #[allow(clippy::dbg_macro)]
+    /// Config keys which would be recognised by the parser, but are missing from the examples
+    ///
+    /// Used by `exhaustive_1`.
+    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] =
+        &["tor_network.authorities", "tor_network.fallback_caches"];
+
+    /// Config file exhaustiveness and default checking
+    ///
+    /// `example_file` is a putative configuration file text.
+    /// It is expected to contain "example lines",
+    /// which are lines in start with `#` *not followed by whitespace*.
+    ///
+    /// This function checks that:
+    ///
+    /// Positive check on the example lines that are present.
+    ///  * `example_file`, when example lines are uncommented, can be parsed.
+    ///  * The example values are the same as the default values.
+    ///
+    /// Check for missing examples:
+    ///  * Every key `in `TorClientConfig` or `ArtiConfig` has a corresponding example value.
+    ///  * Except: entries in union(`expect_missing` `CONFIG_KEYS_EXPECT_NO_EXAMPLE`)
+    ///    do *not* have an example value.
+    ///
+    /// It handles straightforward cases, where the example line is in a `[section]`
+    /// and is something like `#key = value`.
+    ///
+    /// It does not handle more complex keys, eg those listed in `CONFIG_KEYS_EXPECT_NO_EXAMPLE`,
+    /// and which don't appear in "example lines" starting with just `#`:
+    ///
+    /// For complex config keys, it may not be sufficient to simply write the default value in
+    /// the example files (along with perhaps some other information).  In that case,
+    ///   1. Write a bespoke example (with lines starting `# `) in the config file.
+    ///   2. Write a bespoke test, to test the parsing of the bespoke example.
+    ///      This will probably involve using `ExampleSectionLines` and may be quite ad-hoc.
+    ///      The test function bridges(), below, is a complex worked example.
+    ///   3. Either add a trivial example for the affected key(s) (starting with just `#`)
+    ///      or add the affected key(s) to the manual overrides `CONFIG_KEYS_EXPECT_NO_EXAMPLE`.
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
@@ -654,8 +690,9 @@ mod test {
         // When adding things here, check that `arti-example-config.toml`
         // actually has something about these particular config keys.
         dbg!(&expect_missing);
-        let expect_missing: Vec<&str> = ["tor_network.authorities", "tor_network.fallback_caches"]
-            .into_iter()
+        let expect_missing: Vec<&str> = CONFIG_KEYS_EXPECT_NO_EXAMPLE
+            .iter()
+            .cloned()
             .chain(expect_missing.iter().cloned())
             .collect_vec();
         dbg!(&expect_missing);
@@ -695,8 +732,16 @@ mod test {
         );
         let deprecated = deprecated.iter().map(|s| &**s).collect_vec();
 
+        // Check that:
+        //  - The primary example config file has good examples for everything
+        //  - Except for deprecated config keys
+        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
         exhaustive_1(ARTI_EXAMPLE_CONFIG, &deprecated);
 
+        // Check that:
+        //  - That oldest supported example config file has good examples for everything
+        //  - Except for keys that we have introduced since that file was written
+        //  - (And, except for those that we never expect: CONFIG_KEYS_EXPECT_NO_EXAMPLE.)
         exhaustive_1(
             OLDEST_SUPPORTED_CONFIG,
             // add *new*, not present in old file, settings here
