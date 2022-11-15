@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
+use tor_linkspec::{HasChanMethod, HasRelayIds};
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
@@ -271,6 +272,16 @@ impl TargetCircUsage {
     }
 }
 
+/// Return true if `a` and `b` count as the same target for the purpose of
+/// comparing `DirSpecificTarget` values.
+#[cfg(feature = "specific-relay")]
+fn owned_targets_equivalent(a: &OwnedChanTarget, b: &OwnedChanTarget) -> bool {
+    // We ignore `addresses` here, since they can be different if one of our
+    // arguments comes from only a bridge line, and the other comes from a
+    // bridge line and a descriptor.
+    a.same_relay_ids(b) && a.chan_method() == b.chan_method()
+}
+
 impl crate::mgr::AbstractSpec for SupportedCircUsage {
     type Usage = TargetCircUsage;
 
@@ -306,6 +317,10 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 }
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => true,
+            #[cfg(feature = "specific-relay")]
+            (DirSpecificTarget(a), TargetCircUsage::DirSpecificTarget(b)) => {
+                owned_targets_equivalent(a, b)
+            }
             (_, _) => false,
         }
     }
@@ -315,7 +330,7 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
         usage: &TargetCircUsage,
     ) -> std::result::Result<(), RestrictionFailed> {
         use SupportedCircUsage::*;
-
+        tracing::info!("restrict_mut u={:?} self={:?}", &usage, &self);
         match (self, usage) {
             (Dir, TargetCircUsage::Dir) => Ok(()),
             // This usage is only used to create circuits preemptively, and doesn't actually
@@ -345,6 +360,12 @@ impl crate::mgr::AbstractSpec for SupportedCircUsage {
                 }
             }
             (Exit { .. } | NoUsage, TargetCircUsage::TimeoutTesting) => Ok(()),
+            #[cfg(feature = "specific-relay")]
+            (DirSpecificTarget(a), TargetCircUsage::DirSpecificTarget(b))
+                if owned_targets_equivalent(a, b) =>
+            {
+                Ok(())
+            }
             (_, _) => Err(RestrictionFailed::NotSupported),
         }
     }
