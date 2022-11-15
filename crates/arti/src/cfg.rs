@@ -567,8 +567,15 @@ mod test {
     /// Config keys which would be recognised by the parser, but are missing from the examples
     ///
     /// Used by `exhaustive_1`.
-    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] =
-        &["tor_network.authorities", "tor_network.fallback_caches"];
+    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] = &[
+        // TODO pt-client: Provide a test case that parses the (more complicated)
+        // example present in ARTI_EXAMPLE_CONFIG.
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823#note_2854365
+        // and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        "bridges.transports",
+        "tor_network.authorities",
+        "tor_network.fallback_caches",
+    ];
 
     /// Config file exhaustiveness and default checking
     ///
