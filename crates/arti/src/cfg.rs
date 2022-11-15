@@ -563,6 +563,12 @@ mod test {
         );
     }
 
+    /// Config keys which would be recognised by the parser, but are missing from the examples
+    ///
+    /// Used by `exhaustive_1`.
+    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] =
+        &["tor_network.authorities", "tor_network.fallback_caches"];
+
     fn exhaustive_1(example_file: &str, expect_missing: &[&str]) {
         use serde_json::Value as JsValue;
         use std::collections::BTreeSet;
@@ -653,8 +659,9 @@ mod test {
         // When adding things here, check that `arti-example-config.toml`
         // actually has something about these particular config keys.
         dbg!(&expect_missing);
-        let expect_missing: Vec<&str> = ["tor_network.authorities", "tor_network.fallback_caches"]
-            .into_iter()
+        let expect_missing: Vec<&str> = CONFIG_KEYS_EXPECT_NO_EXAMPLE
+            .iter()
+            .cloned()
             .chain(expect_missing.iter().cloned())
             .collect_vec();
         dbg!(&expect_missing);
