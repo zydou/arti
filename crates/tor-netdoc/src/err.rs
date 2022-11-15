@@ -312,7 +312,7 @@ impl ParseErrorKind {
         Error {
             kind: self,
             msg: None,
-            pos: None,
+            pos: Pos::Unknown,
             source: None,
         }
     }
@@ -348,7 +348,7 @@ pub struct Error {
     /// Do we have more information about the error?>
     msg: Option<Cow<'static, str>>,
     /// Where did the error occur?
-    pos: Option<Pos>,
+    pos: Pos,
     /// Was this caused by another error?
     source: Option<ParseErrorSource>,
 }
@@ -360,23 +360,16 @@ impl PartialEq for Error {
 }
 
 impl Error {
-    /// Helper: return a mutable reference to this error's position (if any)
-    fn pos_mut(&mut self) -> Option<&mut Pos> {
-        self.pos.as_mut()
-    }
-
     /// Helper: return this error's position.
     pub(crate) fn pos(&self) -> Pos {
-        self.pos.unwrap_or(Pos::Unknown)
+        self.pos
     }
 
     /// Return a new error based on this one, with any byte-based
     /// position mapped to some line within a string.
     #[must_use]
     pub fn within(mut self, s: &str) -> Error {
-        if let Some(p) = self.pos_mut() {
-            *p = p.within(s);
-        }
+        self.pos = self.pos.within(s);
         self
     }
 
@@ -384,9 +377,7 @@ impl Error {
     /// any) replaced by 'p'.
     #[must_use]
     pub fn at_pos(mut self, p: Pos) -> Error {
-        if let Some(mypos) = self.pos_mut() {
-            *mypos = p;
-        }
+        self.pos = p;
         self
     }
 
@@ -394,10 +385,11 @@ impl Error {
     /// replaced by 'p' if it had no position before.
     #[must_use]
     pub fn or_at_pos(mut self, p: Pos) -> Error {
-        if let Some(mypos) = self.pos_mut() {
-            if *mypos == Pos::None {
-                *mypos = p;
+        match self.pos {
+            Pos::None | Pos::Unknown => {
+                self.pos = p;
             }
+            _ => (),
         }
         self
     }
@@ -432,7 +424,7 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.kind, self.pos.unwrap_or(Pos::None))?;
+        write!(f, "{}{}", self.kind, self.pos)?;
         if let Some(msg) = &self.msg {
             write!(f, ": {}", msg)?;
         }
@@ -455,7 +447,7 @@ macro_rules! declare_into  {
                 Error {
                     kind: ParseErrorKind::$kind,
                     msg: None,
-                    pos: None,
+                    pos: Pos::Unknown,
                     source: Some(source.into())
                 }
             }
@@ -480,7 +472,7 @@ impl From<tor_error::Bug> for Error {
         Error {
             kind,
             msg: None,
-            pos: None,
+            pos: Pos::Unknown,
             source: Some(err.into()),
         }
     }

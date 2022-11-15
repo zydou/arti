@@ -412,7 +412,9 @@ lemon
         // oranges don't take an object.
         check(
             "@tasty yes\norange no\n-----BEGIN ORANGE-----\naaa\n-----END ORANGE-----\n",
-            &EK::UnexpectedObject.with_msg("orange"),
+            &EK::UnexpectedObject
+                .with_msg("orange")
+                .at_pos(Pos::from_line(2, 1)),
         );
     }
 }
