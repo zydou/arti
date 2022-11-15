@@ -654,6 +654,7 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
     ///
     /// Like [`should_be_exhausted`], but permit empty lines at the end of the
     /// document.
+    #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
         use crate::err::ParseErrorKind as K;
         while let Some(Err(e)) = self.iter().peek() {
