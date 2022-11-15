@@ -12,8 +12,11 @@ use tor_basic_utils::futures::{DropNotifyWatchSender, PostageWatchSenderExt};
 use tor_circmgr::isolation::Isolation;
 use tor_circmgr::{isolation::StreamIsolationBuilder, IsolationToken, TargetPort};
 use tor_config::MutCfg;
+#[cfg(feature = "bridge-client")]
+use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
 use tor_error::{internal, Bug};
+use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
 use tor_proto::circuit::ClientCirc;
@@ -68,8 +71,25 @@ pub struct TorClient<R: Runtime> {
     /// Circuit manager for keeping our circuits up to date and building
     /// them on-demand.
     circmgr: Arc<tor_circmgr::CircMgr<R>>,
+    /// Directory manager persistent storage.
+    #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
+    dirmgr_store: DirMgrStore<R>,
     /// Directory manager for keeping our directory material up to date.
     dirmgr: Arc<dyn tor_dirmgr::DirProvider>,
+    /// Bridge descriptor manager
+    ///
+    /// None until we have bootstrapped.
+    ///
+    /// Lock hierarchy: don't acquire this before dormant
+    //
+    // TODO: after or as part of https://gitlab.torproject.org/tpo/core/arti/-/issues/634
+    // this can be   bridge_desc_mgr: BridgeDescMgr<R>>
+    // since BridgeDescMgr is Clone and all its methods take `&self` (it has a lock inside)
+    #[cfg(feature = "bridge-client")]
+    bridge_desc_mgr: Arc<Mutex<Option<BridgeDescMgr<R>>>>,
+    /// Guard manager
+    #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
+    guardmgr: GuardMgr<R>,
     /// Location on disk where we store persistent data.
     statemgr: FsStateMgr,
     /// Client address configuration
@@ -160,6 +180,15 @@ impl From<DormantMode> for tor_chanmgr::Dormancy {
         match dormant {
             DormantMode::Normal => tor_chanmgr::Dormancy::Active,
             DormantMode::Soft => tor_chanmgr::Dormancy::Dormant,
+        }
+    }
+}
+#[cfg(feature = "bridge-client")]
+impl From<DormantMode> for tor_dirmgr::bridgedesc::Dormancy {
+    fn from(dormant: DormantMode) -> tor_dirmgr::bridgedesc::Dormancy {
+        match dormant {
+            DormantMode::Normal => tor_dirmgr::bridgedesc::Dormancy::Active,
+            DormantMode::Soft => tor_dirmgr::bridgedesc::Dormancy::Dormant,
         }
     }
 }
@@ -416,7 +445,7 @@ impl<R: Runtime> TorClient<R> {
             statemgr.clone(),
             &runtime,
             Arc::clone(&chanmgr),
-            guardmgr,
+            guardmgr.clone(),
         )
         .map_err(ErrorDetail::CircMgrSetup)?;
 
@@ -425,7 +454,12 @@ impl<R: Runtime> TorClient<R> {
         let dirmgr_store =
             DirMgrStore::new(&dir_cfg, runtime.clone(), false).map_err(ErrorDetail::DirMgrSetup)?;
         let dirmgr = dirmgr_builder
-            .build(runtime.clone(), dirmgr_store, Arc::clone(&circmgr), dir_cfg)
+            .build(
+                runtime.clone(),
+                dirmgr_store.clone(),
+                Arc::clone(&circmgr),
+                dir_cfg,
+            )
             .map_err(crate::Error::into_detail)?;
 
         let mut periodic_task_handles = circmgr
@@ -442,12 +476,16 @@ impl<R: Runtime> TorClient<R> {
 
         let (dormant_send, dormant_recv) = postage::watch::channel_with(Some(dormant));
         let dormant_send = DropNotifyWatchSender::new(dormant_send);
+        #[cfg(feature = "bridge-client")]
+        let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
                 dirmgr.clone().upcast_arc(),
                 chanmgr.clone(),
+                #[cfg(feature = "bridge-client")]
+                bridge_desc_mgr.clone(),
                 periodic_task_handles,
             ))
             .map_err(|e| ErrorDetail::from_spawn("periodic task dormant monitor", e))?;
@@ -472,7 +510,11 @@ impl<R: Runtime> TorClient<R> {
             connect_prefs: Default::default(),
             chanmgr,
             circmgr,
+            dirmgr_store,
             dirmgr,
+            #[cfg(feature = "bridge-client")]
+            bridge_desc_mgr,
+            guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
             timeoutcfg: Arc::new(timeout_cfg.into()),
@@ -509,6 +551,31 @@ impl<R: Runtime> TorClient<R> {
     /// Implementation of `bootstrap`, split out in order to avoid manually specifying
     /// double error conversions.
     async fn bootstrap_inner(&self) -> StdResult<(), ErrorDetail> {
+        // Make sure we have a bridge descriptor manager, which is active iff required
+        #[cfg(feature = "bridge-client")]
+        {
+            let mut dormant = self.dormant.lock().expect("dormant lock poisoned");
+            let dormant = dormant.borrow();
+            let dormant = dormant.ok_or_else(|| internal!("dormant dropped"))?.into();
+
+            let mut bdm = self.bridge_desc_mgr.lock().expect("bdm lock poisoned");
+            if bdm.is_none() {
+                let new_bdm = BridgeDescMgr::new(
+                    &Default::default(),
+                    self.runtime.clone(),
+                    self.dirmgr_store.clone(),
+                    self.circmgr.clone(),
+                    dormant,
+                )?;
+                self.guardmgr
+                    .install_bridge_desc_provider(&(Arc::new(new_bdm.clone()) as _))
+                    .map_err(ErrorDetail::GuardMgrSetup)?;
+                // If ^ that fails, we drop the BridgeDescMgr again.  It may do some
+                // work but will hopefully eventually quit.
+                *bdm = Some(new_bdm);
+            }
+        }
+
         // Wait for an existing bootstrap attempt to finish first.
         //
         // This is a futures::lock::Mutex, so it's okay to await while we hold it.
@@ -987,6 +1054,7 @@ async fn tasks_monitor_dormant<R: Runtime>(
     mut dormant_rx: postage::watch::Receiver<Option<DormantMode>>,
     netdir: Arc<dyn NetDirProvider>,
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
+    #[cfg(feature = "bridge-client")] bridge_desc_mgr: Arc<Mutex<Option<BridgeDescMgr<R>>>>,
     periodic_task_handles: Vec<TaskHandle>,
 ) {
     while let Some(Some(mode)) = dormant_rx.next().await {
@@ -995,6 +1063,15 @@ async fn tasks_monitor_dormant<R: Runtime>(
         chanmgr
             .set_dormancy(mode.into(), netparams)
             .unwrap_or_else(|e| error!("set dormancy: {}", e));
+
+        // IEFI simplifies handling of exceptional cases, as "never mind, then".
+        #[cfg(feature = "bridge-client")]
+        (|| {
+            let mut bdm = bridge_desc_mgr.lock().ok()?;
+            let bdm = bdm.as_mut()?;
+            bdm.set_dormancy(mode.into());
+            Some(())
+        })();
 
         let is_dormant = matches!(mode, DormantMode::Soft);
 
