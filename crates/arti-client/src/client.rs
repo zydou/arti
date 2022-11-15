@@ -85,8 +85,10 @@ pub struct TorClient<R: Runtime> {
     // TODO: after or as part of https://gitlab.torproject.org/tpo/core/arti/-/issues/634
     // this can be   bridge_desc_mgr: BridgeDescMgr<R>>
     // since BridgeDescMgr is Clone and all its methods take `&self` (it has a lock inside)
+    // Or maybe BridgeDescMgr should not be Clone, since we want to make Weaks of it,
+    // which we can't do when the Arc is inside.
     #[cfg(feature = "bridge-client")]
-    bridge_desc_mgr: Arc<Mutex<Option<BridgeDescMgr<R>>>>,
+    bridge_desc_mgr: Arc<Mutex<Option<Arc<BridgeDescMgr<R>>>>>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -560,15 +562,15 @@ impl<R: Runtime> TorClient<R> {
 
             let mut bdm = self.bridge_desc_mgr.lock().expect("bdm lock poisoned");
             if bdm.is_none() {
-                let new_bdm = BridgeDescMgr::new(
+                let new_bdm = Arc::new(BridgeDescMgr::new(
                     &Default::default(),
                     self.runtime.clone(),
                     self.dirmgr_store.clone(),
                     self.circmgr.clone(),
                     dormant,
-                )?;
+                )?);
                 self.guardmgr
-                    .install_bridge_desc_provider(&(Arc::new(new_bdm.clone()) as _))
+                    .install_bridge_desc_provider(&(new_bdm.clone() as _))
                     .map_err(ErrorDetail::GuardMgrSetup)?;
                 // If ^ that fails, we drop the BridgeDescMgr again.  It may do some
                 // work but will hopefully eventually quit.
@@ -1054,7 +1056,7 @@ async fn tasks_monitor_dormant<R: Runtime>(
     mut dormant_rx: postage::watch::Receiver<Option<DormantMode>>,
     netdir: Arc<dyn NetDirProvider>,
     chanmgr: Arc<tor_chanmgr::ChanMgr<R>>,
-    #[cfg(feature = "bridge-client")] bridge_desc_mgr: Arc<Mutex<Option<BridgeDescMgr<R>>>>,
+    #[cfg(feature = "bridge-client")] bridge_desc_mgr: Arc<Mutex<Option<Arc<BridgeDescMgr<R>>>>>,
     periodic_task_handles: Vec<TaskHandle>,
 ) {
     while let Some(Some(mode)) = dormant_rx.next().await {
