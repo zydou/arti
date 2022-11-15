@@ -375,6 +375,11 @@ impl<R: Runtime> GuardMgr<R> {
     /// TODO: we should eventually return some kind of a task handle from this
     /// task, even though it is not strictly speaking periodic.
     ///
+    /// The guardmgr retains only a `Weak` reference to `provider`,
+    /// `install_netdir_provider` downgrades it on entry,
+    // TODO add ref to document when https://gitlab.torproject.org/tpo/core/arti/-/issues/624
+    // is fixed.  Also, maybe take an owned `Weak` to start with.
+    //
     /// # Panics
     ///
     /// Panics if a [`NetDirProvider`] is already installed.
