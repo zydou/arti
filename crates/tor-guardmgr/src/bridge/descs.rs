@@ -172,7 +172,11 @@ impl BridgeSet {
         T: ChanTarget,
     {
         self.config.iter().find(|bridge| {
-            guard.has_all_relay_ids_from(*bridge) && guard.chan_method() == bridge.chan_method()
+            guard.has_all_relay_ids_from(*bridge)
+                // The Guard could have more addresses than the BridgeConfig if
+                // we happen to know its descriptor, it is using a direct
+                // connection, and it has listed more addresses there.
+                && bridge.chan_method().contained_by(&guard.chan_method())
         })
     }
 

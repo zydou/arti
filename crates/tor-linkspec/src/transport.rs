@@ -488,6 +488,21 @@ impl ChannelMethod {
         }
         Ok(())
     }
+
+    /// Return true if every method to contact `self` is also a method to
+    /// contact `other`.
+    pub fn contained_by(&self, other: &ChannelMethod) -> bool {
+        use ChannelMethod as CM;
+        match (self, other) {
+            (CM::Direct(our_addrs), CM::Direct(their_addrs)) => {
+                our_addrs.iter().all(|a| their_addrs.contains(a))
+            }
+            #[cfg(feature = "pt-client")]
+            (CM::Pluggable(our_target), CM::Pluggable(their_target)) => our_target == their_target,
+            #[cfg(feature = "pt-client")]
+            (_, _) => false,
+        }
+    }
 }
 
 /// An error that occurred while filtering addresses from a ChanMethod.
