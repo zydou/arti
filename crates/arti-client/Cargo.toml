@@ -24,6 +24,8 @@ full = [
     "async-std",
     "native-tls",
     "compression",
+    "bridge-client",
+    "pt-client",
     "tor-rtcompat/full",
     "tor-proto/full",
     "tor-netdoc/full",
@@ -51,11 +53,9 @@ compression = ["tor-dirmgr/compression"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = [
-    "bridge-client",
     "dirfilter",
     "experimental-api",
     "error_detail",
-    "pt-client",
     "tor-proto/experimental",
     "tor-cell/experimental",
     "tor-checkable/experimental",

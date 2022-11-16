@@ -161,6 +161,8 @@ about these features.
 * `async-std` -- build with [async-std](https://async.rs/) support
 * `compression` (default) -- Build support for downloading compressed
   documents. Requires a C compiler.
+* `bridge-client` -- Build with support for bridges.
+* `pt-client` -- Build with support for pluggable transports.
 
 * `full` -- Build with all features above, along with all stable additive
   features from other arti crates.  (This does not include experimental
@@ -202,8 +204,6 @@ implementation with another.
  versioning[^1] guarantees: we might break them or remove them between patch
  versions.
 
-* `bridge-client` -- Build with (as yet unimplemented) support for bridges
-* `pt-client` -- Build with (as yet unimplemented) support for pluggable transports
 * `experimental-api` -- build with experimental, unstable API support.
 * `error_detail` -- expose the `arti_client::Error` inner error type.
 * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
