@@ -457,4 +457,11 @@ mod test {
             );
         }
     }
+
+    #[test]
+    fn has_id() {
+        use crate::RelayIds;
+        assert!(example().has_any_identity());
+        assert!(!RelayIds::empty().has_any_identity());
+    }
 }
