@@ -31,7 +31,7 @@ mod padding_test;
 /// `Mutex<HashMap<...>>` to limit the amount of code that can see and
 /// lock the Mutex here.  (We're using a blocking mutex close to async
 /// code, so we need to be careful.)
-pub(crate) struct ChannelMap<C: AbstractChannel> {
+pub(crate) struct MgrState<C: AbstractChannel> {
     /// The data, within a lock
     inner: std::sync::Mutex<Inner<C>>,
 }
@@ -221,7 +221,7 @@ impl<C: AbstractChannel> ChannelState<C> {
     }
 }
 
-impl<C: AbstractChannel> ChannelMap<C> {
+impl<C: AbstractChannel> MgrState<C> {
     /// Create a new empty ChannelMap.
     pub(crate) fn new(
         config: ChannelConfig,
@@ -234,7 +234,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
 
-        ChannelMap {
+        MgrState {
             inner: std::sync::Mutex::new(Inner {
                 channels: ByRelayIds::new(),
                 config,
@@ -517,8 +517,8 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
-    fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
-        ChannelMap::new(
+    fn new_test_channel_map<C: AbstractChannel>() -> MgrState<C> {
+        MgrState::new(
             ChannelConfig::default(),
             Default::default(),
             &Default::default(),

@@ -82,7 +82,7 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     connector: CF,
 
     /// A map from ed25519 identity to channel, or to pending channel status.
-    pub(crate) channels: map::ChannelMap<CF::Channel>,
+    pub(crate) channels: map::MgrState<CF::Channel>,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -103,7 +103,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     ) -> Self {
         AbstractChanMgr {
             connector,
-            channels: map::ChannelMap::new(config.clone(), dormancy, netparams),
+            channels: map::MgrState::new(config.clone(), dormancy, netparams),
         }
     }
 
