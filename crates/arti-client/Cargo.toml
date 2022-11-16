@@ -33,7 +33,7 @@ full = [
 ]
 
 async-std = ["tor-rtcompat/async-std"]
-bridge-client = ["tor-guardmgr/bridge-client"]
+bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-guardmgr/pt-client"]
