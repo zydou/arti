@@ -51,7 +51,6 @@ type BridgeKey = BridgeConfig;
 /// whether `TorClient::bootstrap()` has been called, etc.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-// TODO pt-client actually honour dormancy
 // TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
 //     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
 pub enum Dormancy {
@@ -292,7 +291,8 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 ///   so we cease attempts to get bridges, and discard the relevant state, violating this.)
 ///
 /// * **Limit**:
-///   `running` is capped at the effective parallelism.
+///   `running` is capped at the effective parallelism: zero if we are dormant,
+///   the configured parallelism otherwise.
 ///
 /// ### Liveness properties:
 ///
@@ -328,6 +328,9 @@ struct State {
     /// Bridges which we want to download,
     /// but we're waiting for `running` to be less than `effective_parallelism()`.
     queued: VecDeque<QueuedEntry>,
+
+    /// Are we dormant?
+    dormancy: Dormancy,
 
     /// Bridges that we have a descriptor for,
     /// and when they should be refetched due to validity expiry.
@@ -529,7 +532,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         circmgr: M::CircMgr,
         store: Arc<Mutex<DynStore>>,
         config: &BridgeDescDownloadConfig,
-        _dormancy: Dormancy,
+        dormancy: Dormancy,
         mockable: M,
     ) -> Result<Self, StartupError> {
         /// Convenience alias
@@ -546,6 +549,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
             current: default(),
             running: default(),
             queued: default(),
+            dormancy,
             retry_schedule: default(),
             refetch_schedule: default(),
             earliest_timeout,
@@ -585,8 +589,8 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
 
     /// Set whether this `BridgeDescMgr` is active
     // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
-    pub fn set_dormancy(&self, _dormancy: Dormancy) {
-        // TODO pt-client
+    pub fn set_dormancy(&self, dormancy: Dormancy) {
+        self.mgr.lock_then_process().dormancy = dormancy;
     }
 }
 
@@ -910,7 +914,10 @@ impl State {
     ///
     /// Helper function.  The return value depends the mutable state and also the `config`.
     fn effective_parallelism(&self) -> usize {
-        usize::from(u8::from(self.config.parallelism))
+        match self.dormancy {
+            Dormancy::Active => usize::from(u8::from(self.config.parallelism)),
+            Dormancy::Dormant => 0,
+        }
     }
 }
 
