@@ -13,8 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-
-experimental = ["bridge-client"]
+full = ["bridge-client", "pt-client"]
+experimental = []
 
 # Support for using bridges as a client. Note that this is not the same as
 # the pt-client feature, since here we are not concerned with
