@@ -292,7 +292,7 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 ///   so we cease attempts to get bridges, and discard the relevant state, violating this.)
 ///
 /// * **Limit**:
-///   `running` is capped at the parallelism.
+///   `running` is capped at the effective parallelism.
 ///
 /// ### Liveness properties:
 ///
@@ -326,7 +326,7 @@ struct State {
     running: HashMap<BridgeKey, RunningInfo>,
 
     /// Bridges which we want to download,
-    /// but we're waiting for `running` to be less than `config.parallelism`.
+    /// but we're waiting for `running` to be less than `effective_parallelism()`.
     queued: VecDeque<QueuedEntry>,
 
     /// Bridges that we have a descriptor for,
@@ -812,7 +812,7 @@ impl State {
     /// Launch download attempts if we can
     ///
     /// Specifically: if we have things in `queued`, and `running` is shorter than
-    /// `config.parallelism`, we launch task(s) to attempt download(s).
+    /// `effective_parallelism()`, we launch task(s) to attempt download(s).
     ///
     /// Restores liveness invariant *Running*.
     ///
@@ -820,7 +820,7 @@ impl State {
     fn consider_launching<R: Runtime, M: Mockable<R>>(&mut self, mgr: &Arc<Manager<R, M>>) {
         let mut to_remove = vec![];
 
-        while self.running.len() < usize::from(u8::from(self.config.parallelism)) {
+        while self.running.len() < self.effective_parallelism() {
             let QueuedEntry {
                 bridge,
                 retry_delay,
@@ -904,6 +904,13 @@ impl State {
     fn set_current_and_notify<BDL: Into<Arc<BridgeDescList>>>(&mut self, new: BDL) {
         self.current = new.into();
         self.subscribers.publish(BridgeDescEvent::SomethingChanged);
+    }
+
+    /// Obtain the currently-desired level of parallelism
+    ///
+    /// Helper function.  The return value depends the mutable state and also the `config`.
+    fn effective_parallelism(&self) -> usize {
+        usize::from(u8::from(self.config.parallelism))
     }
 }
 
@@ -1566,7 +1573,7 @@ impl State {
         }
 
         // *Limit*
-        let parallelism = u8::from(self.config.parallelism).into();
+        let parallelism = self.effective_parallelism();
         assert!(self.running.len() <= parallelism);
 
         // *Running*
