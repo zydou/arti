@@ -14,7 +14,16 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = ["tokio", "native-tls", "dns-proxy", "harden", "compression"]
 
-full = ["async-std", "tokio", "native-tls", "journald", "arti-client/full", "dns-proxy", "harden", "compression"]
+full = [
+    "async-std",
+    "tokio",
+    "native-tls",
+    "journald",
+    "arti-client/full",
+    "dns-proxy",
+    "harden",
+    "compression",
+]
 
 async-std = [
     "arti-client/async-std",
