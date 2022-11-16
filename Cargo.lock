@@ -3884,6 +3884,7 @@ dependencies = [
  "educe",
  "hex",
  "hex-literal",
+ "itertools",
  "safelog",
  "serde",
  "serde_test",

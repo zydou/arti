@@ -714,4 +714,88 @@ mod test {
         let s = PtTargetSettings::try_from(v);
         assert!(matches!(s, Err(PtTargetInvalidSetting::Value(_))));
     }
+
+    #[test]
+    fn chanmethod_direct() {
+        let a1 = "127.0.0.1:8080".parse().unwrap();
+        let a2 = "127.0.0.2:8181".parse().unwrap();
+        let a3 = "127.0.0.3:8282".parse().unwrap();
+
+        let m = ChannelMethod::Direct(vec![a1, a2]);
+        assert_eq!(m.socket_addrs(), Some(&[a1, a2][..]));
+        assert_eq!((m.target_addr()), Some(PtTargetAddr::IpPort(a1)));
+        assert!(m.is_direct());
+        assert_eq!(m.transport_id(), TransportId::default());
+
+        let m2 = ChannelMethod::Direct(vec![a1, a2, a3]);
+        assert!(m.contained_by(&m));
+        assert!(m.contained_by(&m2));
+        assert!(!m2.contained_by(&m));
+
+        let mut m3 = m2.clone();
+        m3.retain_addrs(|a| a.port() != 8282).unwrap();
+        assert_eq!(m3, m);
+        assert_ne!(m3, m2);
+    }
+
+    #[test]
+    #[cfg(feature = "pt-client")]
+    fn chanmethod_pt() {
+        use itertools::Itertools;
+
+        let transport = "giraffe".parse().unwrap();
+        let addr1 = PtTargetAddr::HostPort("pt.example.com".into(), 1234);
+        let target1 = PtTarget::new("giraffe".parse().unwrap(), addr1.clone());
+        let m1 = ChannelMethod::Pluggable(target1);
+
+        let addr2 = PtTargetAddr::IpPort("127.0.0.1:567".parse().unwrap());
+        let target2 = PtTarget::new("giraffe".parse().unwrap(), addr2.clone());
+        let m2 = ChannelMethod::Pluggable(target2);
+
+        let addr3 = PtTargetAddr::None;
+        let target3 = PtTarget::new("giraffe".parse().unwrap(), addr3.clone());
+        let m3 = ChannelMethod::Pluggable(target3);
+
+        assert_eq!(m1.socket_addrs(), None);
+        assert_eq!(
+            m2.socket_addrs(),
+            Some(&["127.0.0.1:567".parse().unwrap()][..])
+        );
+        assert_eq!(m3.socket_addrs(), None);
+
+        assert_eq!(m1.target_addr(), Some(addr1));
+        assert_eq!(m2.target_addr(), Some(addr2));
+        assert_eq!(m3.target_addr(), Some(addr3));
+
+        assert!(!m1.is_direct());
+        assert!(!m2.is_direct());
+        assert!(!m3.is_direct());
+
+        assert_eq!(m1.transport_id(), transport);
+        assert_eq!(m2.transport_id(), transport);
+        assert_eq!(m3.transport_id(), transport);
+
+        for v in [&m1, &m2, &m3].iter().combinations(2) {
+            let first = v[0];
+            let second = v[1];
+            assert_eq!(first.contained_by(second), first == second);
+        }
+
+        let mut m1new = m1.clone();
+        let mut m2new = m2.clone();
+        let mut m3new = m3.clone();
+        // this will retain the IpPort target, and ignore the other targets.
+        m1new.retain_addrs(|a| a.port() == 567).unwrap();
+        m2new.retain_addrs(|a| a.port() == 567).unwrap();
+        m3new.retain_addrs(|a| a.port() == 567).unwrap();
+        assert_eq!(m1new, m1);
+        assert_eq!(m2new, m2);
+        assert_eq!(m3new, m3);
+
+        // But if we try to remove the ipport target, we get an error.
+        assert!(matches!(
+            m2new.retain_addrs(|a| a.port() == 999),
+            Err(RetainAddrsError::NoAddrsLeft)
+        ));
+    }
 }
