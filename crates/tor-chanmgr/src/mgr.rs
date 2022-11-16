@@ -31,7 +31,7 @@ pub(crate) trait AbstractChannel: Clone + HasRelayIds {
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
 
-    /// Reparameterise this channel according to the provided `ChannelPaddingInstructionsUpdates`
+    /// Reparameterize this channel according to the provided `ChannelPaddingInstructionsUpdates`
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".

@@ -139,7 +139,7 @@ impl<C: Clone> ChannelState<C> {
 /// Type of the `nf_ito_*` netdir parameters, convenience alias
 type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>>;
 
-/// Extract from a `NetDarameters` which we need, conveniently organised for our processing
+/// Extract from a `NetParameters` which we need, conveniently organized for our processing
 ///
 /// This type serves two functions at once:
 ///
@@ -288,7 +288,7 @@ impl<C: AbstractChannel> MgrState<C> {
 
     /// Reconfigure all channels as necessary
     ///
-    /// (By reparameterising channels as needed)
+    /// (By reparameterizing channels as needed)
     /// This function will handle
     ///   - netdir update
     ///   - a reconfiguration
@@ -314,7 +314,7 @@ impl<C: AbstractChannel> MgrState<C> {
         let mut inner = self
             .inner
             .lock()
-            .map_err(|_| internal!("poisonned channel manager"))?;
+            .map_err(|_| internal!("poisoned channel manager"))?;
         let mut inner = &mut *inner;
 
         if let Some(new_config) = new_config {
@@ -374,7 +374,7 @@ impl<C: AbstractChannel> MgrState<C> {
 ///
 /// This is called in two places:
 ///
-///  1. During chanmgr creation, it is called once to analyse the initial state
+///  1. During chanmgr creation, it is called once to analyze the initial state
 ///     and construct a corresponding ChannelPaddingInstructions.
 ///
 ///  2. During reconfiguration.
@@ -625,7 +625,7 @@ mod test {
     }
 
     #[test]
-    fn reparameterise_via_netdir() -> Result<()> {
+    fn reparameterize_via_netdir() -> Result<()> {
         let map = new_test_channel_map();
 
         // Set some non-default parameters so that we can tell when an update happens
