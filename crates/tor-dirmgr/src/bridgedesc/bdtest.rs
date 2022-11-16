@@ -466,6 +466,48 @@ async fn cache() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
+#[traced_test]
+async fn dormant() -> Result<(), anyhow::Error> {
+    let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
+    let mut events = bdm.events().fuse();
+
+    use Dormancy::*;
+
+    eprintln!("----- become dormant, but request a bridge -----");
+    bdm.set_dormancy(Dormant);
+    bdm.set_bridges(&[bridge.clone()]);
+
+    // TODO async wait for idle:
+    //
+    // This is a bodge.  What we really want to do is drive all tasks until we are idle.
+    // But Tokio does not provide this facility, AFAICT.  I also checked smol and
+    // async-std, and did a moderately thorough search using lib.rs.  I think the proper
+    // approach has to be a custom executor.  (`tor_rtmock::MockSleepRuntime::wait_for`
+    // doesn't work because it doesn't track, and therefore doesn't progress, spawned tasks.)
+    //
+    // Instead, we do this: this is real time, not mock time.  That ought to let
+    // everything that is going to run, do so.  (I have verified that this test fails
+    // before dormancy is actually implemented.)  If the 10ms we have here is too short
+    // (eg by random chance) then we might miss a situation where the dormancy is not
+    // properly effective, but we oughtn't to have a flaky test with good code, since "no
+    // progress was made within 10ms" is the expected behaviour.
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    mock.expect_download_calls(0).await;
+
+    eprintln!("----- become active -----");
+    bdm.set_dormancy(Active);
+    // This should immediately trigger the download:
+
+    stream_drain_until(3, &mut events, || async {
+        in_results(&bdm, &bridge, Some(Ok(())))
+    })
+    .await;
+    mock.expect_download_calls(1).await;
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn process_doc() -> Result<(), anyhow::Error> {
     let (_db_tmp_path, bdm, runtime, mock, bridge, sql_conn, ..) = setup();
 
