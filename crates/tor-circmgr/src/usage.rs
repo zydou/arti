@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tor_linkspec::{HasChanMethod, HasRelayIds};
 use tracing::debug;
 
 use crate::path::{dirpath::DirPathBuilder, exitpath::ExitPathBuilder, TorPath};
@@ -16,7 +15,7 @@ use tor_netdoc::types::policy::PortPolicy;
 use tor_rtcompat::Runtime;
 
 #[cfg(feature = "specific-relay")]
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::{HasChanMethod, HasRelayIds, OwnedChanTarget};
 
 use crate::isolation::{IsolationHelper, StreamIsolation};
 use crate::mgr::{abstract_spec_find_supported, AbstractCirc, OpenEntry, RestrictionFailed};
