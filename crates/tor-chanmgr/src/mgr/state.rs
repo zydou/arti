@@ -513,7 +513,7 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
-    fn new_test_channel_map<C: AbstractChannel>() -> MgrState<C> {
+    fn new_test_state<C: AbstractChannel>() -> MgrState<C> {
         MgrState::new(
             ChannelConfig::default(),
             Default::default(),
@@ -603,7 +603,7 @@ mod test {
 
     #[test]
     fn rmv_unusable() -> Result<()> {
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         map.with_channels(|map| {
             map.insert(closed("machen"));
@@ -626,7 +626,7 @@ mod test {
 
     #[test]
     fn reparameterize_via_netdir() -> Result<()> {
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         // Set some non-default parameters so that we can tell when an update happens
         let _ = map
@@ -683,7 +683,7 @@ mod test {
 
     #[test]
     fn expire_channels() -> Result<()> {
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         // Channel that has been unused beyond max duration allowed is expired
         map.with_channels(|map| {
@@ -700,7 +700,7 @@ mod test {
             assert!(map.by_ed25519(&str_to_ed("w")).is_none());
         })?;
 
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         // Channel that has been unused for shorter than max unused duration
         map.with_channels(|map| {
