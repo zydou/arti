@@ -668,4 +668,50 @@ mod test {
             assert!(matches!(e, BridgeAddrError::BadAddress(_)));
         }
     }
+
+    #[test]
+    fn transport_id() {
+        let id1: TransportId = "<none>".parse().unwrap();
+        assert!(id1.is_builtin());
+        assert_eq!(id1.to_string(), "<none>".to_string());
+
+        #[cfg(feature = "pt-client")]
+        {
+            let id2: TransportId = "obfs4".parse().unwrap();
+            assert_ne!(id2, id1);
+            assert!(!id2.is_builtin());
+            assert_eq!(id2.to_string(), "obfs4");
+
+            assert!(matches!(
+                TransportId::from_str("==="),
+                Err(TransportIdError::BadId(_))
+            ));
+        }
+
+        #[cfg(not(feature = "pt-client"))]
+        {
+            assert!(matches!(
+                TransportId::from_str("obfs4"),
+                Err(TransportIdError::NoSupport)
+            ))
+        }
+    }
+
+    #[test]
+    fn settings() {
+        let s = PtTargetSettings::try_from(vec![]).unwrap();
+        assert_eq!(Vec::<_>::from(s), vec![]);
+
+        let v = vec![("abc".into(), "def".into()), ("ghi".into(), "jkl".into())];
+        let s = PtTargetSettings::try_from(v.clone()).unwrap();
+        assert_eq!(Vec::<_>::from(s), v);
+
+        let v = vec![("a=b".into(), "def".into())];
+        let s = PtTargetSettings::try_from(v);
+        assert!(matches!(s, Err(PtTargetInvalidSetting::Key(_))));
+
+        let v = vec![("abc".into(), "d ef".into())];
+        let s = PtTargetSettings::try_from(v);
+        assert!(matches!(s, Err(PtTargetInvalidSetting::Value(_))));
+    }
 }
