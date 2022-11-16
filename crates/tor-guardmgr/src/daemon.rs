@@ -107,7 +107,7 @@ pub(crate) async fn keep_netdir_updated<RT: tor_rtcompat::Runtime>(
             DirEvent::NewConsensus | DirEvent::NewDescriptors => {
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    inner.update(runtime.wallclock());
+                    inner.update(runtime.wallclock(), runtime.now());
                 } else {
                     return;
                 }
@@ -136,7 +136,7 @@ pub(crate) async fn keep_bridge_descs_updated<RT: tor_rtcompat::Runtime>(
             E::SomethingChanged => {
                 if let Some(inner) = inner.upgrade() {
                     let mut inner = inner.lock().expect("Poisoned lock");
-                    inner.update(runtime.wallclock());
+                    inner.update(runtime.wallclock(), runtime.now());
                 } else {
                     return;
                 }
