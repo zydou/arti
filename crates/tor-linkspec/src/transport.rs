@@ -82,19 +82,6 @@ impl TryFrom<String> for PtTransportName {
     }
 }
 
-impl AsRef<str> for PtTransportName {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl PtTransportName {
-    /// Return the name as a `String`
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-}
-
 impl Display for PtTransportName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
