@@ -502,12 +502,6 @@ impl<R: Runtime> BridgeDescMgr<R> {
     ) -> Result<Self, StartupError> {
         Self::new_internal(runtime, circmgr, store.store, config, dormancy, ())
     }
-
-    /// Set whether this `BridgeDescMgr` is active
-    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
-    pub fn set_dormancy(&self, _dormancy: Dormancy) {
-        // TODO pt-client
-    }
 }
 
 /// If download was successful, what we obtained
@@ -587,6 +581,12 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         self.mgr
             .lock_only()
             .check_consistency(&self.mgr.runtime, input_bridges);
+    }
+
+    /// Set whether this `BridgeDescMgr` is active
+    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
+    pub fn set_dormancy(&self, _dormancy: Dormancy) {
+        // TODO pt-client
     }
 }
 
