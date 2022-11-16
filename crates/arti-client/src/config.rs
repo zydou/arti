@@ -41,6 +41,11 @@ pub mod dir {
     };
 }
 
+/// Types for configuring pluggable transports.
+pub mod pt {
+    pub use tor_ptmgr::config::{ManagedTransportConfig, ManagedTransportConfigBuilder};
+}
+
 /// Configuration for client behavior relating to addresses.
 ///
 /// This type is immutable once constructed. To create an object of this type,
@@ -233,7 +238,24 @@ pub struct BridgesConfig {
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
     bridges: BridgeList,
+
+    /// Configured list of pluggable transports.
+    #[builder(sub_builder, setter(custom))]
+    #[builder_field_attr(serde(default))]
+    transports: TransportConfigList,
 }
+
+/// A list of configured transport binaries (type alias for macrology).
+type TransportConfigList = Vec<pt::ManagedTransportConfig>;
+
+define_list_builder_helper! {
+    pub(crate) struct TransportConfigListBuilder {
+        transports: [pt::ManagedTransportConfigBuilder],
+    }
+    built: TransportConfigList = transports;
+    default = vec![];
+}
+
 #[cfg(feature = "bridge-client")]
 impl_standard_builder! { BridgesConfig }
 

@@ -245,6 +245,7 @@ mod test {
     use arti_client::config::TorClientConfigBuilder;
     use itertools::{chain, Itertools};
     use regex::Regex;
+    use std::collections::HashSet;
     use std::iter;
     use std::time::Duration;
     use tor_config::load::{ConfigResolveError, ResolutionResults};
@@ -566,8 +567,15 @@ mod test {
     /// Config keys which would be recognised by the parser, but are missing from the examples
     ///
     /// Used by `exhaustive_1`.
-    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] =
-        &["tor_network.authorities", "tor_network.fallback_caches"];
+    const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] = &[
+        // TODO pt-client: Provide a test case that parses the (more complicated)
+        // example present in ARTI_EXAMPLE_CONFIG.
+        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823#note_2854365
+        // and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        "bridges.transports",
+        "tor_network.authorities",
+        "tor_network.fallback_caches",
+    ];
 
     /// Config file exhaustiveness and default checking
     ///
@@ -694,6 +702,27 @@ mod test {
             .iter()
             .cloned()
             .chain(expect_missing.iter().cloned())
+            .collect_vec();
+
+        // Things might appear in expect_missing for different reasons, and sometimes
+        // at different levels.  For example, `bridges.transports` is expected to be
+        // missing because we document that a different way in the example; but
+        // `bridges` is expected to be missing from the OLDEST_SUPPORTED_CONFIG,
+        // because that config predates bridge support.
+        //
+        // When this happens, we need to remove `bridges.transports` in favour of
+        // the over-arching `bridges`.
+        let expect_missing = expect_missing
+            .iter()
+            .cloned()
+            .filter({
+                let original: HashSet<_> = expect_missing.iter().cloned().collect();
+                move |found| {
+                    !found
+                        .match_indices('.')
+                        .any(|(doti, _)| original.contains(&found[0..doti]))
+                }
+            })
             .collect_vec();
         dbg!(&expect_missing);
 

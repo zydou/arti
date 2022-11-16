@@ -147,6 +147,22 @@
 #
 #bridges = []
 
+# An example pluggable transport binary.
+# [[bridges.transports]]
+
+# Which pluggable transports does this binary provide?
+# protocols = ["obfs4", "obfs5"]
+
+# Path to the binary to be run.
+# path = "/usr/bin/obfsproxy"
+
+# Any command-line arguments to pass to the binary (empty if not specified).
+# arguments = ["-obfs4", "-obfs5"]
+
+# Should we run this binary on startup? If false or unspecified, the binary will be
+# launched when we first attempt to use any of the transports it provides instead.
+# run_on_startup = true
+
 # Replacement values for consensus parameters.  This is an advanced option
 # and you probably should leave it alone. Not all parameters are supported.
 # These are case-sensitive.
