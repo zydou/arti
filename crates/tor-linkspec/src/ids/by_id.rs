@@ -202,6 +202,7 @@ mod test {
         // Try exact lookup
         assert_eq!(set.by_all_ids(&keys1), Some(&keys1));
         assert_eq!(set.by_all_ids(&keys2), Some(&keys2));
+        assert_eq!(set.by_all_ids(&RelayIds::empty()), None);
         {
             let search = RelayIdsBuilder::default()
                 .rsa_identity(rsa1)
