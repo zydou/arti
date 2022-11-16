@@ -81,7 +81,10 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     /// A 'connector' object that we use to create channels.
     connector: CF,
 
-    /// A map from ed25519 identity to channel, or to pending channel status.
+    /// All internal state held by this channel manager.
+    ///
+    /// The most important part is the map from relay identity to channel, or
+    /// to pending channel status.
     pub(crate) channels: state::MgrState<CF::Channel>,
 }
 

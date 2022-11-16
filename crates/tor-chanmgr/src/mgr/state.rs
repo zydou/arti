@@ -25,29 +25,25 @@ use void::{ResultVoidExt as _, Void};
 #[cfg(test)]
 mod padding_test;
 
-/// A map from channel id to channel state, plus necessary auxiliary state
+/// All mutable state held by an `AbstractChannelMgr`.
 ///
-/// We make this a separate type instead of just using
-/// `Mutex<HashMap<...>>` to limit the amount of code that can see and
+/// One reason that this is an isolated type is that we want to
+/// to limit the amount of code that can see and
 /// lock the Mutex here.  (We're using a blocking mutex close to async
 /// code, so we need to be careful.)
 pub(crate) struct MgrState<C: AbstractChannel> {
     /// The data, within a lock
+    ///
+    /// (Danger: this uses a blocking mutex close to async code.  This mutex
+    /// must never be held while an await is happening.)
     inner: std::sync::Mutex<Inner<C>>,
 }
 
 /// A map from channel id to channel state, plus necessary auxiliary state - inside lock
 struct Inner<C: AbstractChannel> {
     /// A map from identity to channel, or to pending channel status.
-    ///
-    /// (Danger: this uses a blocking mutex close to async code.  This mutex
-    /// must never be held while an await is happening.)
     channels: ByRelayIds<ChannelState<C>>,
 
-    // TODO: The subsequent fields really do not belong in structure called
-    // `ChannelMap`. These, plus the actual map, should probably be in a
-    // structure called "MgrState", and that structure should be the thing that
-    // is put behind a Mutex.
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
@@ -63,7 +59,7 @@ struct Inner<C: AbstractChannel> {
     /// Dormancy
     ///
     /// The last dormancy information we have been told about and passed on to our channels.
-    /// Updated via `ChanMgr::set_dormancy` and hence `ChannelMap::reconfigure_general`,
+    /// Updated via `MgrState::set_dormancy` and hence `MgrState::reconfigure_general`,
     /// which then uses it to calculate how to reconfigure the channels.
     dormancy: Dormancy,
 }
@@ -222,7 +218,7 @@ impl<C: AbstractChannel> ChannelState<C> {
 }
 
 impl<C: AbstractChannel> MgrState<C> {
-    /// Create a new empty ChannelMap.
+    /// Create a new empty `MgrState`.
     pub(crate) fn new(
         config: ChannelConfig,
         dormancy: Dormancy,
@@ -244,9 +240,9 @@ impl<C: AbstractChannel> MgrState<C> {
         }
     }
 
-    /// Run a function on the `ByRelayIds` that implements this map.
+    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
     ///
-    /// This function grabs a mutex over the map: do not provide slow function.
+    /// This function grabs a mutex: do not provide a slow function.
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
@@ -258,9 +254,9 @@ impl<C: AbstractChannel> MgrState<C> {
         Ok(func(&mut inner.channels))
     }
 
-    /// Run a function on the `ByRelayIds` that implements this map.
+    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
     ///
-    /// This function grabs a mutex over the map: do not provide slow function.
+    /// This function grabs a mutex: do not provide a slow function.
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
@@ -279,7 +275,7 @@ impl<C: AbstractChannel> MgrState<C> {
         Ok(func(channels, channels_params))
     }
 
-    /// Remove every unusable state from the map.
+    /// Remove every unusable state from the map in this state..
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut inner = self.inner.lock()?;
