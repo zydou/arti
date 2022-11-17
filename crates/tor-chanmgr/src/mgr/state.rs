@@ -25,29 +25,25 @@ use void::{ResultVoidExt as _, Void};
 #[cfg(test)]
 mod padding_test;
 
-/// A map from channel id to channel state, plus necessary auxiliary state
+/// All mutable state held by an `AbstractChannelMgr`.
 ///
-/// We make this a separate type instead of just using
-/// `Mutex<HashMap<...>>` to limit the amount of code that can see and
+/// One reason that this is an isolated type is that we want to
+/// to limit the amount of code that can see and
 /// lock the Mutex here.  (We're using a blocking mutex close to async
 /// code, so we need to be careful.)
-pub(crate) struct ChannelMap<C: AbstractChannel> {
+pub(crate) struct MgrState<C: AbstractChannel> {
     /// The data, within a lock
+    ///
+    /// (Danger: this uses a blocking mutex close to async code.  This mutex
+    /// must never be held while an await is happening.)
     inner: std::sync::Mutex<Inner<C>>,
 }
 
 /// A map from channel id to channel state, plus necessary auxiliary state - inside lock
 struct Inner<C: AbstractChannel> {
     /// A map from identity to channel, or to pending channel status.
-    ///
-    /// (Danger: this uses a blocking mutex close to async code.  This mutex
-    /// must never be held while an await is happening.)
     channels: ByRelayIds<ChannelState<C>>,
 
-    // TODO: The subsequent fields really do not belong in structure called
-    // `ChannelMap`. These, plus the actual map, should probably be in a
-    // structure called "MgrState", and that structure should be the thing that
-    // is put behind a Mutex.
     /// Parameters for channels that we create, and that all existing channels are using
     ///
     /// Will be updated by a background task, which also notifies all existing
@@ -63,7 +59,7 @@ struct Inner<C: AbstractChannel> {
     /// Dormancy
     ///
     /// The last dormancy information we have been told about and passed on to our channels.
-    /// Updated via `ChanMgr::set_dormancy` and hence `ChannelMap::reconfigure_general`,
+    /// Updated via `MgrState::set_dormancy` and hence `MgrState::reconfigure_general`,
     /// which then uses it to calculate how to reconfigure the channels.
     dormancy: Dormancy,
 }
@@ -143,7 +139,7 @@ impl<C: Clone> ChannelState<C> {
 /// Type of the `nf_ito_*` netdir parameters, convenience alias
 type NfIto = IntegerMilliseconds<BoundedInt32<0, CHANNEL_PADDING_TIMEOUT_UPPER_BOUND>>;
 
-/// Extract from a `NetDarameters` which we need, conveniently organised for our processing
+/// Extract from a `NetParameters` which we need, conveniently organized for our processing
 ///
 /// This type serves two functions at once:
 ///
@@ -221,8 +217,8 @@ impl<C: AbstractChannel> ChannelState<C> {
     }
 }
 
-impl<C: AbstractChannel> ChannelMap<C> {
-    /// Create a new empty ChannelMap.
+impl<C: AbstractChannel> MgrState<C> {
+    /// Create a new empty `MgrState`.
     pub(crate) fn new(
         config: ChannelConfig,
         dormancy: Dormancy,
@@ -234,7 +230,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
             .unwrap_or_else(|e: tor_error::Bug| panic!("bug detected on startup: {:?}", e));
         let _: Option<_> = update; // there are no channels yet, that would need to be told
 
-        ChannelMap {
+        MgrState {
             inner: std::sync::Mutex::new(Inner {
                 channels: ByRelayIds::new(),
                 config,
@@ -244,9 +240,9 @@ impl<C: AbstractChannel> ChannelMap<C> {
         }
     }
 
-    /// Run a function on the `ByRelayIds` that implements this map.
+    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
     ///
-    /// This function grabs a mutex over the map: do not provide slow function.
+    /// This function grabs a mutex: do not provide a slow function.
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
@@ -258,9 +254,9 @@ impl<C: AbstractChannel> ChannelMap<C> {
         Ok(func(&mut inner.channels))
     }
 
-    /// Run a function on the `ByRelayIds` that implements this map.
+    /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
     ///
-    /// This function grabs a mutex over the map: do not provide slow function.
+    /// This function grabs a mutex: do not provide a slow function.
     ///
     /// We provide this function rather than exposing the channels set directly,
     /// to make sure that the calling code doesn't await while holding the lock.
@@ -279,7 +275,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         Ok(func(channels, channels_params))
     }
 
-    /// Remove every unusable state from the map.
+    /// Remove every unusable state from the map in this state..
     #[cfg(test)]
     pub(crate) fn remove_unusable(&self) -> Result<()> {
         let mut inner = self.inner.lock()?;
@@ -292,7 +288,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 
     /// Reconfigure all channels as necessary
     ///
-    /// (By reparameterising channels as needed)
+    /// (By reparameterizing channels as needed)
     /// This function will handle
     ///   - netdir update
     ///   - a reconfiguration
@@ -318,7 +314,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
         let mut inner = self
             .inner
             .lock()
-            .map_err(|_| internal!("poisonned channel manager"))?;
+            .map_err(|_| internal!("poisoned channel manager"))?;
         let mut inner = &mut *inner;
 
         if let Some(new_config) = new_config {
@@ -378,7 +374,7 @@ impl<C: AbstractChannel> ChannelMap<C> {
 ///
 /// This is called in two places:
 ///
-///  1. During chanmgr creation, it is called once to analyse the initial state
+///  1. During chanmgr creation, it is called once to analyze the initial state
 ///     and construct a corresponding ChannelPaddingInstructions.
 ///
 ///  2. During reconfiguration.
@@ -517,8 +513,8 @@ mod test {
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
-    fn new_test_channel_map<C: AbstractChannel>() -> ChannelMap<C> {
-        ChannelMap::new(
+    fn new_test_state<C: AbstractChannel>() -> MgrState<C> {
+        MgrState::new(
             ChannelConfig::default(),
             Default::default(),
             &Default::default(),
@@ -607,7 +603,7 @@ mod test {
 
     #[test]
     fn rmv_unusable() -> Result<()> {
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         map.with_channels(|map| {
             map.insert(closed("machen"));
@@ -629,8 +625,8 @@ mod test {
     }
 
     #[test]
-    fn reparameterise_via_netdir() -> Result<()> {
-        let map = new_test_channel_map();
+    fn reparameterize_via_netdir() -> Result<()> {
+        let map = new_test_state();
 
         // Set some non-default parameters so that we can tell when an update happens
         let _ = map
@@ -687,7 +683,7 @@ mod test {
 
     #[test]
     fn expire_channels() -> Result<()> {
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         // Channel that has been unused beyond max duration allowed is expired
         map.with_channels(|map| {
@@ -704,7 +700,7 @@ mod test {
             assert!(map.by_ed25519(&str_to_ed("w")).is_none());
         })?;
 
-        let map = new_test_channel_map();
+        let map = new_test_state();
 
         // Channel that has been unused for shorter than max unused duration
         map.with_channels(|map| {

@@ -1,6 +1,6 @@
 //! Abstract implementation of a channel manager
 
-use crate::mgr::map::{OpenEntry, PendingEntry};
+use crate::mgr::state::{OpenEntry, PendingEntry};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use tor_linkspec::{HasRelayIds, RelayIds};
 use tor_netdir::params::NetParameters;
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
-mod map;
+mod state;
 
 /// Trait to describe as much of a
 /// [`Channel`](tor_proto::channel::Channel) as `AbstractChanMgr`
@@ -31,7 +31,7 @@ pub(crate) trait AbstractChannel: Clone + HasRelayIds {
     /// Return None if the channel is currently in use.
     fn duration_unused(&self) -> Option<Duration>;
 
-    /// Reparameterise this channel according to the provided `ChannelPaddingInstructionsUpdates`
+    /// Reparameterize this channel according to the provided `ChannelPaddingInstructionsUpdates`
     ///
     /// The changed parameters may not be implemented "immediately",
     /// but this will be done "reasonably soon".
@@ -81,8 +81,11 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     /// A 'connector' object that we use to create channels.
     connector: CF,
 
-    /// A map from ed25519 identity to channel, or to pending channel status.
-    pub(crate) channels: map::ChannelMap<CF::Channel>,
+    /// All internal state held by this channel manager.
+    ///
+    /// The most important part is the map from relay identity to channel, or
+    /// to pending channel status.
+    pub(crate) channels: state::MgrState<CF::Channel>,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -103,7 +106,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     ) -> Self {
         AbstractChanMgr {
             connector,
-            channels: map::ChannelMap::new(config.clone(), dormancy, netparams),
+            channels: state::MgrState::new(config.clone(), dormancy, netparams),
         }
     }
 
@@ -115,11 +118,11 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
 
     /// Helper: return the objects used to inform pending tasks
     /// about a newly open or failed channel.
-    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (map::ChannelState<C>, Sending) {
+    fn setup_launch<C: Clone>(&self, ids: RelayIds) -> (state::ChannelState<C>, Sending) {
         let (snd, rcv) = oneshot::channel();
         let pending = rcv.shared();
         (
-            map::ChannelState::Building(map::PendingEntry { ids, pending }),
+            state::ChannelState::Building(state::PendingEntry { ids, pending }),
             snd,
         )
     }
@@ -256,7 +259,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         target: &CF::BuildSpec,
         final_attempt: bool,
     ) -> Result<Option<Action<CF::Channel>>> {
-        use map::ChannelState::*;
+        use state::ChannelState::*;
         self.channels.with_channels(|channel_map| {
             match channel_map.by_all_ids(target) {
                 Some(Open(OpenEntry { channel, .. })) => {
@@ -354,7 +357,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         target: &CF::BuildSpec,
         outcome: Result<CF::Channel>,
     ) -> Result<Option<CF::Channel>> {
-        use map::ChannelState::*;
+        use state::ChannelState::*;
         match outcome {
             Ok(chan) => {
                 // The channel got built: remember it, tell the
@@ -474,7 +477,7 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
     where
         T: Into<tor_linkspec::RelayIdRef<'a>>,
     {
-        use map::ChannelState::*;
+        use state::ChannelState::*;
         self.channels
             .with_channels(|channel_map| match channel_map.by_id(ident) {
                 Some(Open(ref ent)) if ent.channel.is_usable() => Some(ent.channel.clone()),
