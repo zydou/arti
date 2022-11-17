@@ -285,6 +285,11 @@ impl PtTargetSettings {
         self.settings.push((k, v));
         Ok(())
     }
+
+    /// Return the inner list of (key, value) pairs
+    pub fn into_inner(self) -> Vec<(String, String)> {
+        self.settings
+    }
 }
 
 impl TryFrom<Vec<(String, String)>> for PtTargetSettings {
@@ -388,6 +393,11 @@ impl PtTarget {
 
             _ => None,
         }
+    }
+
+    /// Consume the `PtTarget` and return the component parts
+    pub fn into_parts(self) -> (PtTransportName, PtTargetAddr, PtTargetSettings) {
+        (self.transport, self.addr, self.settings)
     }
 }
 
