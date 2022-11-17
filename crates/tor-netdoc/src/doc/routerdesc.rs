@@ -897,8 +897,38 @@ mod test {
         assert_eq!(rd.nickname.as_str(), "Akka");
         assert_eq!(rd.orport, 443);
         assert_eq!(rd.dirport, 0);
-
         assert_eq!(rd.uptime, Some(1036923));
+
+        assert_eq!(
+            rd.rsa_identity().to_string(),
+            "$56927e61b51e6f363fb55498150a6ddfcf7077f2"
+        );
+        assert_eq!(
+            rd.ed_identity().to_string(),
+            "CVTjf1oeaL616hH+1+UvYZ8OgkwF3z7UMITvJzm5r7A"
+        );
+        assert_eq!(
+            rd.protocols().to_string(),
+            "Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 \
+             HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 \
+             Padding=2 Relay=1-4"
+        );
+
+        assert_eq!(
+            hex::encode(rd.ntor_onion_key().to_bytes()),
+            "329b3b52991613392e35d1a821dd6753e1210458ecc3337f7b7d39bfcf5da273"
+        );
+        assert_eq!(
+            rd.published(),
+            time::SystemTime::UNIX_EPOCH + time::Duration::new(1668455932, 0)
+        );
+        assert_eq!(
+            rd.or_ports().collect::<Vec<_>>(),
+            vec![
+                "95.216.33.58:443".parse().unwrap(),
+                "[2a01:4f9:2a:2145::2]:443".parse().unwrap(),
+            ]
+        );
 
         Ok(())
     }
