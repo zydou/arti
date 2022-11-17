@@ -11,6 +11,9 @@
 //!    type.  (Different lists with the same Rust type, but which ought to have a different
 //!    default, are different "kinds" and should each have a separately named type alias.)
 //!
+//!    (Or, alternatively, with a hand-written builder type, make the builder field be
+//!    `Option<Vec<ElementBuilder>>`.)
+//!
 // An alternative design would be declare the field on `Outer` as `Vec<Thing>`, and to provide
 // a `VecBuilder`.  But:
 //
@@ -359,11 +362,15 @@ macro_rules! define_list_builder_accessors {
             /// constructed and a mutable reference to the now-defaulted list of builders
             /// will be returned.
             $vis fn $things(&mut self) -> &mut Vec<$EntryBuilder> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access()
             }
 
             /// Set the whole list (overriding the default)
             $vis fn [<set_ $things>](&mut self, list: Vec<$EntryBuilder>) {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 *self.$things.access_opt_mut() = Some(list)
             }
 
@@ -371,6 +378,8 @@ macro_rules! define_list_builder_accessors {
             ///
             /// If the list has not yet been set, or accessed, `&None` is returned.
             $vis fn [<opt_ $things>](&self) -> &Option<Vec<$EntryBuilder>> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access_opt()
             }
 
@@ -378,9 +387,63 @@ macro_rules! define_list_builder_accessors {
             ///
             /// If the list has not yet been set, or accessed, `&mut None` is returned.
             $vis fn [<opt_ $things _mut>](&mut self) -> &mut Option<Vec<$EntryBuilder>> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access_opt_mut()
             }
         } )* }
+    }
+}
+
+/// Extension trait, an alternative to `define_list_builder_helper`
+///
+/// Useful for a handwritten `Builder` which wants to contain a list,
+/// which is an `Option<Vec<ItemBuilder>>`.
+///
+/// # Example
+///
+/// ```
+/// use tor_config::define_list_builder_accessors;
+///
+/// #[derive(Default)]
+/// struct WombatBuilder {
+///     leg_lengths: Option<Vec<u32>>,
+/// }
+///
+/// define_list_builder_accessors! {
+///     struct WombatBuilder {
+///         leg_lengths: [u32],
+///     }
+/// }
+///
+/// let mut wb = WombatBuilder::default();
+/// wb.leg_lengths().push(42);
+///
+/// assert_eq!(wb.leg_lengths, Some(vec![42]));
+/// ```
+///
+/// It is not necessary to `use` this trait anywhere in your code;
+/// the macro `define_list_builder_accessors` arranges to have it in scope where it needs it.
+pub trait DirectDefaultEmptyListBuilderAccessors {
+    /// Entry type
+    type T;
+    /// Get access to the `Vec`, defaulting it
+    fn access(&mut self) -> &mut Vec<Self::T>;
+    /// Get access to the `Option<Vec>`
+    fn access_opt(&self) -> &Option<Vec<Self::T>>;
+    /// Get mutable access to the `Option<Vec>`
+    fn access_opt_mut(&mut self) -> &mut Option<Vec<Self::T>>;
+}
+impl<T> DirectDefaultEmptyListBuilderAccessors for Option<Vec<T>> {
+    type T = T;
+    fn access(&mut self) -> &mut Vec<T> {
+        self.get_or_insert_with(Vec::new)
+    }
+    fn access_opt(&self) -> &Option<Vec<T>> {
+        self
+    }
+    fn access_opt_mut(&mut self) -> &mut Option<Vec<T>> {
+        self
     }
 }
 
