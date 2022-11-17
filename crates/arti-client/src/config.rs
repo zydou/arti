@@ -20,7 +20,7 @@ pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSourc
 
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
-pub use tor_guardmgr::bridge::BridgeParseError;
+pub use tor_guardmgr::bridge::{BridgeConfigBuilder, BridgeParseError};
 
 use tor_guardmgr::bridge::BridgeConfig;
 
@@ -315,26 +315,25 @@ pub type BridgeList = Vec<BridgeConfig>;
 #[cfg(feature = "bridge-client")]
 define_list_builder_helper! {
     struct BridgeListBuilder {
-        bridges: [BridgeConfig],
+        bridges: [BridgeConfigBuilder],
     }
     built: BridgeList = bridges;
     default = vec![];
-    item_build: |bridge| Ok(bridge.clone());
-    #[serde(try_from="MultilineListBuilder")]
-    #[serde(into="MultilineListBuilder")]
+    #[serde(try_from="MultilineListBuilder<BridgeConfigBuilder>")]
+    #[serde(into="MultilineListBuilder<BridgeConfigBuilder>")]
 }
 
 #[cfg(feature = "bridge-client")]
 convert_helper_via_multi_line_list_builder! {
     struct BridgeListBuilder {
-        bridges: [BridgeConfig],
+        bridges: [BridgeConfigBuilder],
     }
 }
 
 #[cfg(feature = "bridge-client")]
 define_list_builder_accessors! {
     struct BridgesConfigBuilder {
-        pub bridges: [BridgeConfig],
+        pub bridges: [BridgeConfigBuilder],
     }
 }
 
