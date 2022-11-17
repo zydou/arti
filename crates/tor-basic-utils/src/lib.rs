@@ -47,6 +47,8 @@ pub mod n_key_set;
 pub mod retry;
 pub mod test_rng;
 
+pub use paste::paste;
+
 // ----------------------------------------------------------------------
 
 /// Function with the signature of `Debug::fmt` that just prints `".."`
@@ -234,3 +236,90 @@ macro_rules! macro_first_nonempty {
 }
 
 // ----------------------------------------------------------------------
+
+/// Helper for defining a struct which can be (de)serialized several ways, including "natively"
+///
+/// Ideally we would have
+/// ```rust ignore
+/// #[derive(Deserialize)]
+/// #[serde(try_from=Possibilities)]
+/// struct Main { /* principal definition */ }
+///
+/// #[derive(Deserialize)]
+/// #[serde(untagged)]
+/// enum Possibilities { Main(Main), Other(OtherRepr) }
+///
+/// #[derive(Deserialize)]
+/// struct OtherRepr { /* other representation we still want to read */ }
+///
+/// impl TryFrom<Possibilities> for Main { /* ... */ }
+/// ```
+///
+/// But the impl for `Possibilities` ends up honouring the `try_from` on `Main`
+/// so is recursive.
+///
+/// We solve that (ab)using serde's remote feature,
+/// on a second copy of the struct definition.
+///
+/// See the Example for instructions.
+/// It is important to **add test cases**
+/// for all the representations you expect to parse and serialise,
+/// since there are easy-to-write bugs,
+/// for example omitting some of the necessary attributes.
+///
+/// # Generated output:
+///
+///  * The original struct definition, unmodified
+///  * `#[derive(Serialize, Deserialize)] struct $main_Raw { }`
+///
+/// The `$main_Raw` struct ought not normally be to constructed anywhere,
+/// and *isn't* convertible to or from the near-identical `$main` struct.
+/// It exists only as a thing to feed to the serde remove derive,
+/// and name in `with=`.
+///
+/// # Example
+///
+/// ```
+/// use serde::{Deserialize, Serialize};
+/// use tor_basic_utils::derive_serde_raw;
+///
+/// derive_serde_raw! {
+///     #[derive(Deserialize, Serialize, Default, Clone, Debug)]
+///     #[serde(try_from="BridgeConfigBuilderSerde", into="BridgeConfigBuilderSerde")]
+///     pub struct BridgeConfigBuilder = "BridgeConfigBuilder" {
+///         transport: Option<String>,
+///         //...
+///     }
+/// }
+///
+/// #[derive(Serialize,Deserialize)]
+/// #[serde(untagged)]
+/// enum BridgeConfigBuilderSerde {
+///     BridgeLine(String),
+///     Dict(#[serde(with="BridgeConfigBuilder_Raw")] BridgeConfigBuilder),
+/// }
+///
+/// impl TryFrom<BridgeConfigBuilderSerde> for BridgeConfigBuilder { //...
+/// #    type Error = std::io::Error;
+/// #    fn try_from(_: BridgeConfigBuilderSerde) -> Result<Self, Self::Error> { todo!() } }
+/// impl From<BridgeConfigBuilder> for BridgeConfigBuilderSerde { //...
+/// #    fn from(_: BridgeConfigBuilder) -> BridgeConfigBuilderSerde { todo!() } }
+/// ```
+#[macro_export]
+macro_rules! derive_serde_raw { {
+    $( #[ $($attrs:meta)* ] )*
+    $vis:vis struct $main:ident=$main_s:literal
+    $($body:tt)*
+} => {
+    $(#[ $($attrs)* ])*
+    $vis struct $main
+    $($body)*
+
+    $crate::paste! {
+        #[allow(non_camel_case_types)]
+        #[derive(Serialize, Deserialize)]
+        #[serde(remote=$main_s)]
+        struct [< $main _Raw >]
+        $($body)*
+    }
+} }
