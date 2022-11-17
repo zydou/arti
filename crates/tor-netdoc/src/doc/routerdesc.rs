@@ -894,12 +894,11 @@ mod test {
             .check_signature()?
             .dangerously_assume_timely();
 
-        assert_eq!(rd.nickname.as_str(), "idun2");
-        assert_eq!(rd.orport, 9001);
+        assert_eq!(rd.nickname.as_str(), "Akka");
+        assert_eq!(rd.orport, 443);
         assert_eq!(rd.dirport, 0);
 
-        assert_eq!(rd.uptime, Some(1828391));
-        //assert_eq!(rd.platform.unwrap(), "Tor 0.4.2.6 on Linux");
+        assert_eq!(rd.uptime, Some(1036923));
 
         Ok(())
     }
