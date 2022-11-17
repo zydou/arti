@@ -1,9 +1,11 @@
 //! Configuration logic and types for bridges.
 
 use std::fmt::{self, Display};
+use std::iter;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use itertools::{chain, Itertools};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -268,6 +270,47 @@ impl BridgeConfigBuilder {
             addrs,
             rsa_id,
             ed_id,
+        })
+    }
+}
+
+/// `BridgeConfigBuilder` parses the same way as `BridgeConfig`
+//
+// We implement it this way round (rather than having the `impl FromStr for BridgeConfig`
+// call this and then `build`, because the `BridgeConfig` parser
+// does a lot of bespoke checking of the syntax and semantics.
+// Doing it the other way, we'd have to unwrap a supposedly-never-existing `ConfigBuildError`,
+// in `BridgeConfig`'s `FromStr` impl.
+impl FromStr for BridgeConfigBuilder {
+    type Err = BridgeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bridge: BridgeConfig = s.parse()?;
+
+        let (transport, addrs, settings) = match bridge.addrs {
+            ChannelMethod::Direct(addrs) => (
+                "".into(),
+                addrs.into_iter().map(BridgeAddr::IpPort).collect(),
+                vec![],
+            ),
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(target) => {
+                let (transport, addr, settings) = target.into_parts();
+                (transport.into_inner(), vec![addr], settings.into_inner())
+            }
+        };
+
+        let ids = chain!(
+            iter::once(bridge.rsa_id.into()),
+            bridge.ed_id.into_iter().map(Into::into),
+        )
+        .collect_vec();
+
+        Ok(BridgeConfigBuilder {
+            transport: Some(transport),
+            addrs: Some(addrs),
+            settings: Some(settings),
+            ids: Some(ids),
         })
     }
 }
@@ -768,7 +811,9 @@ mod test {
             let built = bcb.build().unwrap();
             assert_eq!(&built, &line.parse::<BridgeConfig>().unwrap());
 
-            // TODO: Test parsing bridge lines into BridgeConfigBuilder (when that is implemented)
+            let parsed_b: BridgeConfigBuilder = line.parse().unwrap();
+            assert_eq!(&built, &parsed_b.build().unwrap());
+
             // TODO: Test reserialsation (when that is implemented)
 
             for json in jsons {
