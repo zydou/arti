@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant, SystemTime};
-use tracing::{trace, warn};
+use tracing::{info, trace, warn};
 
 use crate::dirstatus::DirStatus;
 use crate::sample::Candidate;
@@ -15,6 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{sample, ExternalActivity, GuardSetSelector, GuardUsageKind};
+use safelog::sensitive as sv;
 use tor_linkspec::{
     ChanTarget, ChannelMethod, HasAddrs, HasChanMethod, HasRelayIds, PtTarget, RelayIds,
 };
@@ -411,7 +412,22 @@ impl Guard {
 
     /// Change the reachability status for this guard.
     fn set_reachable(&mut self, r: Reachable) {
+        use Reachable as R;
+
         if self.reachable != r {
+            // High-level logs, if change is interesting to user.
+            match (self.reachable, r) {
+                (_, R::Reachable) => info!(
+                    "We have found that {} is usable.",
+                    sv(self.display_chan_target())
+                ),
+                (R::Untried | R::Reachable, R::Unreachable) => warn!(
+                    "Could not connect to {}. We'll retry later, and let you know if it succeeds.",
+                    sv(self.display_chan_target())
+                ),
+                (_, _) => {} // not interesting.
+            }
+            //
             trace!(guard_id = ?self.id, old=?self.reachable, new=?r, "Guard status changed.");
             self.reachable = r;
         }
