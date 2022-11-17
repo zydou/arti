@@ -188,7 +188,7 @@ const NONE_ADDR: &str = "-";
     Clone, Debug, PartialEq, Eq, Hash, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
 )]
 #[non_exhaustive]
-pub enum PtTargetAddr {
+pub enum BridgeAddr {
     /// An IP address and port for a Tor relay.
     ///
     /// This is the only address type supported by the BuiltIn transport.
@@ -199,10 +199,10 @@ pub enum PtTargetAddr {
     None,
 }
 
-/// An error from parsing a [`PtTargetAddr`].
+/// An error from parsing a [`BridgeAddr`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum PtAddrError {
+pub enum BridgeAddrError {
     /// We were compiled without support for addresses of this type.
     #[error("Not compiled with pluggable transport support.")]
     NoSupport,
@@ -211,32 +211,32 @@ pub enum PtAddrError {
     BadAddress(String),
 }
 
-impl FromStr for PtTargetAddr {
-    type Err = PtAddrError;
+impl FromStr for BridgeAddr {
+    type Err = BridgeAddrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(addr) = s.parse() {
-            Ok(PtTargetAddr::IpPort(addr))
+            Ok(BridgeAddr::IpPort(addr))
         } else if let Some((name, port)) = s.rsplit_once(':') {
             let port = port
                 .parse()
-                .map_err(|_| PtAddrError::BadAddress(s.to_string()))?;
+                .map_err(|_| BridgeAddrError::BadAddress(s.to_string()))?;
 
             Ok(Self::HostPort(name.to_string(), port))
         } else if s == NONE_ADDR {
             Ok(Self::None)
         } else {
-            Err(PtAddrError::BadAddress(s.to_string()))
+            Err(BridgeAddrError::BadAddress(s.to_string()))
         }
     }
 }
 
-impl Display for PtTargetAddr {
+impl Display for BridgeAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PtTargetAddr::IpPort(addr) => write!(f, "{}", addr),
-            PtTargetAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
-            PtTargetAddr::None => write!(f, "{}", NONE_ADDR),
+            BridgeAddr::IpPort(addr) => write!(f, "{}", addr),
+            BridgeAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
+            BridgeAddr::None => write!(f, "{}", NONE_ADDR),
         }
     }
 }
@@ -316,7 +316,7 @@ pub struct PtTarget {
     /// The transport to be used.
     transport: PtTransportName,
     /// The address of the bridge relay, if any.
-    addr: PtTargetAddr,
+    addr: BridgeAddr,
     /// Any additional settings used by the transport.
     #[serde(default)]
     settings: PtTargetSettings,
@@ -343,7 +343,7 @@ pub enum PtTargetInvalidSetting {
 
 impl PtTarget {
     /// Create a new `PtTarget` (with no settings)
-    pub fn new(transport: PtTransportName, addr: PtTargetAddr) -> Self {
+    pub fn new(transport: PtTransportName, addr: BridgeAddr) -> Self {
         PtTarget {
             transport,
             addr,
@@ -366,7 +366,7 @@ impl PtTarget {
     }
 
     /// Get the transport target address (or host and port)
-    pub fn addr(&self) -> &PtTargetAddr {
+    pub fn addr(&self) -> &BridgeAddr {
         &self.addr
     }
 
@@ -387,7 +387,7 @@ impl PtTarget {
     pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
         match self {
             PtTarget {
-                addr: PtTargetAddr::IpPort(addr),
+                addr: BridgeAddr::IpPort(addr),
                 ..
             } => Some(std::slice::from_ref(addr)),
 
@@ -396,7 +396,7 @@ impl PtTarget {
     }
 
     /// Consume the `PtTarget` and return the component parts
-    pub fn into_parts(self) -> (PtTransportName, PtTargetAddr, PtTargetSettings) {
+    pub fn into_parts(self) -> (PtTransportName, BridgeAddr, PtTargetSettings) {
         (self.transport, self.addr, self.settings)
     }
 }
@@ -436,10 +436,10 @@ impl ChannelMethod {
         }
     }
 
-    /// Return a PtTargetAddr that this ChannelMethod uses.
-    pub fn target_addr(&self) -> Option<PtTargetAddr> {
+    /// Return a BridgeAddr that this ChannelMethod uses.
+    pub fn target_addr(&self) -> Option<BridgeAddr> {
         match self {
-            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(PtTargetAddr::IpPort(addr[0])),
+            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(BridgeAddr::IpPort(addr[0])),
 
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(PtTarget { addr, .. }) => Some(addr.clone()),
@@ -474,7 +474,7 @@ impl ChannelMethod {
         P: Fn(&std::net::SocketAddr) -> bool,
     {
         #[cfg(feature = "pt-client")]
-        use PtTargetAddr as Pt;
+        use BridgeAddr as Pt;
 
         match self {
             ChannelMethod::Direct(d) if d.is_empty() => {}
@@ -523,11 +523,11 @@ pub enum RetainAddrsError {
     NoAddrsLeft,
 }
 
-impl HasAddrs for PtTargetAddr {
+impl HasAddrs for BridgeAddr {
     fn addrs(&self) -> &[SocketAddr] {
         match self {
-            PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
-            PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
+            BridgeAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
+            BridgeAddr::HostPort(..) | BridgeAddr::None => &[],
         }
     }
 }
@@ -605,7 +605,7 @@ mod test {
     #[test]
     fn addr() {
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
-            let a: PtTargetAddr = addr.parse().unwrap();
+            let a: BridgeAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
 
             let sa: SocketAddr = addr.parse().unwrap();
@@ -613,14 +613,14 @@ mod test {
         }
 
         for addr in &["www.example.com:9100", "-"] {
-            let a: PtTargetAddr = addr.parse().unwrap();
+            let a: BridgeAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
             assert_eq!(a.addrs(), &[]);
         }
 
         for addr in &["foobar", "<<<>>>"] {
-            let e = PtTargetAddr::from_str(addr).unwrap_err();
-            assert!(matches!(e, PtAddrError::BadAddress(_)));
+            let e = BridgeAddr::from_str(addr).unwrap_err();
+            assert!(matches!(e, BridgeAddrError::BadAddress(_)));
         }
     }
 }
