@@ -9,6 +9,7 @@ use itertools::{chain, Itertools};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use tor_basic_utils::derive_serde_raw;
 use tor_config::define_list_builder_accessors;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
@@ -100,6 +101,7 @@ impl HasAddrs for BridgeConfig {
 
 impl ChanTarget for BridgeConfig {}
 
+derive_serde_raw! {
 /// Builder for a `BridgeConfig`.
 ///
 /// Construct this with [`BridgeConfigBuilder::default()`] or [`BridgeConfig::builder()`],
@@ -108,8 +110,9 @@ impl ChanTarget for BridgeConfig {}
 // `BridgeConfig` contains a `ChannelMethod`.  This is convenient for its users,
 // but means we can't use `#[derive(Builder)]` to autogenerate this.
 #[derive(Deserialize, Serialize, Default, Clone, Debug)]
+#[serde(try_from="BridgeConfigBuilderSerde", into="BridgeConfigBuilderSerde")]
 #[cfg_attr(test, derive(Eq, PartialEq))]
-pub struct BridgeConfigBuilder {
+pub struct BridgeConfigBuilder = "BridgeConfigBuilder" {
     /// The `PtTransportName`, but not yet parsed or checked.
     ///
     /// `""` and `"-"` and `"bridge"` all mean "do not use a pluggable transport".
@@ -124,7 +127,40 @@ pub struct BridgeConfigBuilder {
     /// Settings (for the transport)
     settings: Option<Vec<(String, String)>>,
 }
+}
 impl_standard_builder! { BridgeConfig: !Default }
+
+/// serde representation of a `BridgeConfigBuilder`
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum BridgeConfigBuilderSerde {
+    /// We understand a bridge line
+    BridgeLine(String),
+    /// We understand a dictionary matching BridgeConfigBuilder
+    Dict(#[serde(with = "BridgeConfigBuilder_Raw")] BridgeConfigBuilder),
+}
+
+impl TryFrom<BridgeConfigBuilderSerde> for BridgeConfigBuilder {
+    type Error = BridgeParseError;
+    fn try_from(input: BridgeConfigBuilderSerde) -> Result<Self, Self::Error> {
+        use BridgeConfigBuilderSerde::*;
+        match input {
+            BridgeLine(s) => s.parse(),
+            Dict(d) => Ok(d),
+        }
+    }
+}
+
+impl From<BridgeConfigBuilder> for BridgeConfigBuilderSerde {
+    fn from(input: BridgeConfigBuilder) -> BridgeConfigBuilderSerde {
+        use BridgeConfigBuilderSerde::*;
+        // Try to serialize as a bridge line if we can
+        match input.build() {
+            Ok(bridge) => BridgeLine(bridge.to_string()),
+            Err(_) => Dict(input),
+        }
+    }
+}
 
 impl BridgeConfigBuilder {
     /// Set the transport protocol name (eg, a pluggable transport) to use.
@@ -814,7 +850,8 @@ mod test {
             let parsed_b: BridgeConfigBuilder = line.parse().unwrap();
             assert_eq!(&built, &parsed_b.build().unwrap());
 
-            // TODO: Test reserialsation (when that is implemented)
+            let re_serialized = serde_json::to_value(&bcb).unwrap();
+            assert_eq!(re_serialized, serde_json::Value::String(line.to_string()));
 
             for json in jsons {
                 let from_dict: BridgeConfigBuilder = serde_json::from_str(json).unwrap();
