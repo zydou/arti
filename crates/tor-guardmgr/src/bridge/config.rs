@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use tor_config::define_list_builder_accessors;
+use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
 use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
@@ -121,13 +122,7 @@ pub struct BridgeConfigBuilder {
     /// Settings (for the transport)
     settings: Option<Vec<(String, String)>>,
 }
-
-impl BridgeConfig {
-    /// Make a builder, for constructing a `BridgeConfig`
-    pub fn builder() -> BridgeConfigBuilder {
-        BridgeConfigBuilder::default()
-    }
-}
+impl_standard_builder! { BridgeConfig: !Default }
 
 impl BridgeConfigBuilder {
     /// Set the transport protocol name (eg, a pluggable transport) to use.
@@ -152,6 +147,128 @@ impl BridgeConfigBuilder {
     pub fn push_setting(&mut self, k: impl Into<String>, v: impl Into<String>) -> &mut Self {
         self.settings().push((k.into(), v.into()));
         self
+    }
+}
+
+impl BridgeConfigBuilder {
+    /// Build a `BridgeConfig`
+    pub fn build(&self) -> Result<BridgeConfig, ConfigBuildError> {
+        let transport = self.transport.as_deref().unwrap_or_default();
+        let addrs = self.addrs.as_deref().unwrap_or_default();
+        let settings = self.settings.as_deref().unwrap_or_default();
+
+        #[allow(clippy::comparison_to_empty)] // .is_empty() would *not* be clearer
+        let addrs = if transport == "" || transport == "-" || transport == "bridge" {
+            if !settings.is_empty() {
+                return Err(ConfigBuildError::Inconsistent {
+                    fields: vec!["transport".into(), "settings".into()],
+                    problem: "Specified `settings` for a direct bridge connection".into(),
+                });
+            }
+            let addrs = addrs.iter().filter_map(|pta| match pta {
+                BridgeAddr::IpPort(sa) => Some(Ok(*sa)),
+                BridgeAddr::HostPort(..) => Some(Err(ConfigBuildError::Inconsistent {
+                    fields: vec!["addrs".into(), "transport".into()],
+                    problem: "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection".into(),
+                })),
+                BridgeAddr::None => None,
+                _ => Some(Err(ConfigBuildError::Inconsistent {
+                    fields: vec!["addrs".into(), "transport".into()],
+                    problem: "`addrs` contains unspported target address type, but only numeric addresses are supported for a direct bridge connection".into(),
+                })),
+            }).collect::<Result<Vec<SocketAddr>,_>>()?;
+            if addrs.is_empty() {
+                return Err(ConfigBuildError::Inconsistent {
+                    fields: vec!["addrs".into(), "transport".into()],
+                    problem: "Missing `addrs` for a direct bridge connection".into(),
+                });
+            }
+            ChannelMethod::Direct(addrs)
+        } else {
+            #[cfg(not(feature = "pt-client"))]
+            {
+                return Err(ConfigBuildError::Invalid {
+                    field: "transport".into(),
+                    problem: "pluggable transport support disabled in tor-guardmgr cargo features"
+                        .into(),
+                });
+            }
+            #[cfg(feature = "pt-client")]
+            {
+                let addr = match addrs {
+                    [] => BridgeAddr::None,
+                    [addr] => addr.clone(),
+                    [_, _, ..] => return Err(ConfigBuildError::Inconsistent {
+                        fields: vec!["addrs".into(), "transport".into()],
+                        problem:
+                            "Transport (non-direct bridge) only supports a single nominal address"
+                                .into(),
+                    }),
+                };
+                let transport =
+                    transport
+                        .parse()
+                        .map_err(|e: TransportIdError| ConfigBuildError::Invalid {
+                            field: "transport".into(),
+                            problem: e.to_string(),
+                        })?;
+                let mut target = PtTarget::new(transport, addr);
+                for (i, (k, v)) in settings.iter().enumerate() {
+                    // Using PtTargetSettings TryFrom would prevent us reporting the index i
+                    target
+                        .push_setting(k, v)
+                        .map_err(|e| ConfigBuildError::Invalid {
+                            field: format!("settings.{}", i),
+                            problem: e.to_string(),
+                        })?;
+                }
+                ChannelMethod::Pluggable(target)
+            }
+        };
+
+        let mut rsa_id = None;
+        let mut ed_id = None;
+
+        /// Helper to store an id in `rsa_id` or `ed_id`
+        fn store_id<T: Clone>(
+            u: &mut Option<T>,
+            desc: &str,
+            v: &T,
+        ) -> Result<(), ConfigBuildError> {
+            if u.is_some() {
+                Err(ConfigBuildError::Invalid {
+                    field: "ids".into(),
+                    problem: format!("multiple different ids of the same type ({})", desc),
+                })
+            } else {
+                *u = Some(v.clone());
+                Ok(())
+            }
+        }
+
+        for (i, id) in self.ids.as_deref().unwrap_or_default().iter().enumerate() {
+            match id {
+                RelayId::Rsa(rsa) => store_id(&mut rsa_id, "RSA", rsa)?,
+                RelayId::Ed25519(ed) => store_id(&mut ed_id, "ed25519", ed)?,
+                other => {
+                    return Err(ConfigBuildError::Invalid {
+                        field: format!("ids.{}", i),
+                        problem: format!("unsupported bridge id type {}", other.id_type()),
+                    })
+                }
+            }
+        }
+
+        let rsa_id = rsa_id.ok_or_else(|| ConfigBuildError::Invalid {
+            field: "ids".into(),
+            problem: "need an RSA identity".into(),
+        })?;
+
+        Ok(BridgeConfig {
+            addrs,
+            rsa_id,
+            ed_id,
+        })
     }
 }
 
@@ -648,14 +765,16 @@ mod test {
 
             let mut bcb = BridgeConfigBuilder::default();
             f(&mut bcb);
+            let built = bcb.build().unwrap();
+            assert_eq!(&built, &line.parse::<BridgeConfig>().unwrap());
 
-            // TODO: Test building (when that is implemente)d
             // TODO: Test parsing bridge lines into BridgeConfigBuilder (when that is implemented)
             // TODO: Test reserialsation (when that is implemented)
 
             for json in jsons {
                 let from_dict: BridgeConfigBuilder = serde_json::from_str(json).unwrap();
                 assert_eq!(&from_dict, &bcb);
+                assert_eq!(&built, &from_dict.build().unwrap());
             }
         };
 
@@ -688,6 +807,134 @@ mod test {
                 bcb.ids()
                     .push("$0bac39417268b96b9f514e7f63fa6fba1a788955".parse().unwrap());
                 bcb.push_setting("iat-mode", "1");
+            },
+        );
+
+        let chk_broken = |emsg: &str, jsons: &[&str], f: &dyn Fn(&mut BridgeConfigBuilder)| {
+            eprintln!(" ---- chk_bridgeline ----\n{:?}", emsg);
+
+            let mut bcb = BridgeConfigBuilder::default();
+            f(&mut bcb);
+
+            for json in jsons {
+                let from_dict: BridgeConfigBuilder = serde_json::from_str(json).unwrap();
+                assert_eq!(&from_dict, &bcb);
+            }
+
+            let err = bcb.build().expect_err("succeeded?!");
+            let got_emsg = err.to_string();
+            assert!(
+                got_emsg.contains(emsg),
+                "wrong error message: got_emsg={:?} err={:?}",
+                &got_emsg,
+                &err
+            );
+
+            // This is a kludge.  When we serialize `Option<Vec<_>>` as JSON,
+            // we get a `Null` entry.  These `Null`s aren't in our test cases and we don't
+            // really want them, although it's OK that they're there in the JSON.
+            // The TOML serialization omits them completely, though.
+            // So, we serialize the builder as TOML, and then convert the TOML to JSON Value.
+            // That launders out the `Null`s and gives us the same Value as our original JSON.
+            let toml_got = toml::to_string(&bcb).unwrap();
+            let json_got: serde_json::Value = toml::from_str(&toml_got).unwrap();
+            let json_exp: serde_json::Value = serde_json::from_str(jsons[0]).unwrap();
+            assert_eq!(&json_got, &json_exp);
+        };
+
+        chk_broken(
+            "Specified `settings` for a direct bridge connection",
+            &[r#"{
+                "settings": [["hi","there"]]
+            }"#],
+            &|bcb| {
+                bcb.settings().push(("hi".into(), "there".into()));
+            },
+        );
+
+        #[cfg(not(feature = "pt-client"))]
+        chk_broken(
+            "pluggable transport support disabled in tor-guardmgr cargo features",
+            &[r#"{
+                "transport": "obfs4"
+            }"#],
+            &|bcb| {
+                bcb.transport("obfs4");
+            },
+        );
+
+        #[cfg(feature = "pt-client")]
+        chk_broken(
+            "only numeric addresses are supported for a direct bridge connection",
+            &[r#"{
+                "transport": "bridge",
+                "addrs": ["some-host:80"]
+            }"#],
+            &|bcb| {
+                bcb.transport("bridge");
+                bcb.addrs().push("some-host:80".parse().unwrap());
+            },
+        );
+
+        chk_broken(
+            "Missing `addrs` for a direct bridge connection",
+            &[r#"{
+                "transport": "-"
+            }"#],
+            &|bcb| {
+                bcb.transport("-");
+            },
+        );
+
+        #[cfg(feature = "pt-client")]
+        chk_broken(
+            "only supports a single nominal address",
+            &[r#"{
+                "transport": "obfs4",
+                "addrs": ["some-host:80", "38.229.33.83:80"]
+            }"#],
+            &|bcb| {
+                bcb.transport("obfs4");
+                bcb.addrs().push("some-host:80".parse().unwrap());
+                bcb.addrs().push("38.229.33.83:80".parse().unwrap());
+            },
+        );
+
+        chk_broken(
+            "multiple different ids of the same type (ed25519)",
+            &[r#"{
+                "addrs": ["38.229.33.83:80"],
+                "ids": ["ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
+                        "ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISA"]
+            }"#],
+            &|bcb| {
+                bcb.addrs().push("38.229.33.83:80".parse().unwrap());
+                bcb.ids().push(
+                    "ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE"
+                        .parse()
+                        .unwrap(),
+                );
+                bcb.ids().push(
+                    "ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISA"
+                        .parse()
+                        .unwrap(),
+                );
+            },
+        );
+
+        chk_broken(
+            "need an RSA identity",
+            &[r#"{
+                "addrs": ["38.229.33.83:80"],
+                "ids": ["ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE"]
+            }"#],
+            &|bcb| {
+                bcb.addrs().push("38.229.33.83:80".parse().unwrap());
+                bcb.ids().push(
+                    "ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE"
+                        .parse()
+                        .unwrap(),
+                );
             },
         );
     }

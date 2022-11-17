@@ -3856,6 +3856,7 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
+ "toml",
  "tor-basic-utils",
  "tor-config",
  "tor-error",
