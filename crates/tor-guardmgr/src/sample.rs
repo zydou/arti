@@ -825,8 +825,10 @@ impl GuardSet {
                 match (src, guard.reachable()) {
                     (_, Reachable::Reachable) => return Some(false),
                     (_, Reachable::Unreachable) => (),
-                    (ListKind::Primary, Reachable::Unknown) => return Some(false),
-                    (_, Reachable::Unknown) => {
+                    (ListKind::Primary, Reachable::Untried | Reachable::Retriable) => {
+                        return Some(false)
+                    }
+                    (_, Reachable::Untried | Reachable::Retriable) => {
                         if guard.exploratory_attempt_after(cutoff) {
                             return None;
                         }
@@ -1501,7 +1503,7 @@ mod test {
             let g2 = guards1.get(&id2).unwrap();
             assert!(g1.confirmed());
             assert!(!g2.confirmed());
-            assert_eq!(g1.reachable(), Reachable::Unknown);
+            assert_eq!(g1.reachable(), Reachable::Untried);
             assert_eq!(g2.reachable(), Reachable::Unreachable);
         }
 

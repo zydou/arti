@@ -29,16 +29,15 @@ pub(crate) enum Reachable {
     /// used it more recently than we've failed.
     Reachable,
     /// A guard is believed to be unreachable, since recent attempts
-    /// to use it have failed.
+    /// to use it have failed, and not enough time has elapsed since then.
     Unreachable,
-    /// A guard's reachability status is unknown.
-    ///
-    /// The status might be unknown for a variety of reasons, including:
-    ///   * We haven't tried to use the guard.
-    ///   * Attempts to use it have failed, but those attempts are far
-    ///     enough in the past that we're willing to retry them.
+    /// We have never (during the lifetime of the current guard manager)
+    /// tried to connect to this guard.
     #[educe(Default)]
-    Unknown,
+    Untried,
+    /// The last time that we tried to connect to this guard, it failed,
+    /// but enough time has elapsed that we think it is worth trying again.
+    Retriable,
 }
 
 /// The name and version of the crate that first picked a potential
@@ -298,7 +297,7 @@ impl Guard {
             unlisted_since: None,
             dir_info_missing: false,
             last_tried_to_connect_at: None,
-            reachable: Reachable::Unknown,
+            reachable: Reachable::Untried,
             retry_at: None,
             dir_status: guard_dirstatus(),
             retry_schedule: None,
@@ -453,10 +452,10 @@ impl Guard {
     }
 
     /// If this guard is marked Unreachable, clear its unreachability status
-    /// and mark it as Unknown.
+    /// and mark it as Retriable.
     pub(crate) fn mark_retriable(&mut self) {
-        if self.reachable != Reachable::Reachable {
-            self.set_reachable(Reachable::Unknown);
+        if self.reachable == Reachable::Unreachable {
+            self.set_reachable(Reachable::Retriable);
             self.retry_at = None;
             self.retry_schedule = None;
         }
@@ -919,7 +918,7 @@ mod test {
         assert_eq!(g.guard_id(), &id);
         assert!(g.same_relay_ids(&FirstHopId::in_sample(GuardSetSelector::Default, id)));
         assert_eq!(g.addrs(), &["127.0.0.7:7777".parse().unwrap()]);
-        assert_eq!(g.reachable(), Reachable::Unknown);
+        assert_eq!(g.reachable(), Reachable::Untried);
         assert_eq!(g.reachable(), Reachable::default());
 
         use crate::GuardUsageBuilder;
@@ -1077,7 +1076,7 @@ mod test {
         // Retriable right after the retry time.
         g.consider_retry(g.retry_at.unwrap() + Duration::from_secs(1));
         assert!(g.retry_at.is_none());
-        assert_eq!(g.reachable(), Reachable::Unknown);
+        assert_eq!(g.reachable(), Reachable::Retriable);
     }
 
     #[test]
@@ -1290,11 +1289,11 @@ mod test {
         let mut g = basic_guard();
         use super::Reachable::*;
 
-        assert_eq!(g.reachable(), Unknown);
+        assert_eq!(g.reachable(), Untried);
 
         for (pre, post) in &[
-            (Unknown, Unknown),
-            (Unreachable, Unknown),
+            (Untried, Untried),
+            (Unreachable, Retriable),
             (Reachable, Reachable),
         ] {
             g.reachable = *pre;
