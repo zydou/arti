@@ -472,11 +472,16 @@ impl RouterDesc {
                 .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)?
                 .into_unchecked()
                 .check_key(None)
-                .map_err(|err| EK::BadSignature.err().with_source(err))?;
+                .map_err(|err| {
+                    EK::BadObjectVal
+                        .err()
+                        .with_source(err)
+                        .at_pos(cert_tok.pos())
+                })?;
             let sk = *cert.peek_subject_key().as_ed25519().ok_or_else(|| {
                 EK::BadObjectVal
                     .at_pos(cert_tok.pos())
-                    .with_msg("no ed25519 signing key")
+                    .with_msg("wrong type for signing key in cert")
             })?;
             let sk: ll::pk::ed25519::PublicKey = sk.try_into().map_err(|_| {
                 EK::BadObjectVal
@@ -976,6 +981,30 @@ mod test {
             &EK::BadPolicy
                 .at_pos(Pos::from_line(43, 1))
                 .with_source(PolicyError::InvalidPolicy),
+        );
+        check(
+            "no-ed-id-key-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_source(tor_cert::CertError::MissingPubKey),
+        );
+        check(
+            "non-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_msg("wrong type for signing key in cert"),
+        );
+        check(
+            "bad-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_msg("invalid ed25519 signing key"),
+        );
+        check(
+            "mismatched-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(8, 1))
+                .with_msg("master-key-ed25519 does not match key in identity-ed25519"),
         );
     }
 
