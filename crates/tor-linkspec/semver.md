@@ -6,4 +6,4 @@ MODIFIED: RelayId and RelayIdRef now implement Ord.
 MODIFIED: Added cmp_by_relay_ids() to HasRelayIds.
 BREAKING: Replaced functions to access addresses from ChanMethod.
 BREAKING: Replaced functions to strip addresses from ChanMethod.
-
+BREAKING: Remove impl Display for OwnedCircTarget.

@@ -199,13 +199,6 @@ impl OwnedCircTarget {
     }
 }
 
-/// Primarily for error reporting and logging
-impl Display for OwnedCircTarget {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&self.chan_target, f)
-    }
-}
-
 impl HasAddrs for OwnedCircTarget {
     fn addrs(&self) -> &[SocketAddr] {
         self.chan_target.addrs()
