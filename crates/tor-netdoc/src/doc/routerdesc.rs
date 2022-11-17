@@ -894,6 +894,7 @@ mod test {
 
     #[test]
     fn parse_arbitrary() -> Result<()> {
+        use std::str::FromStr;
         use tor_checkable::{SelfSigned, Timebound};
         let rd = RouterDesc::parse(TESTDATA)?
             .check_signature()?
@@ -903,6 +904,14 @@ mod test {
         assert_eq!(rd.orport, 443);
         assert_eq!(rd.dirport, 0);
         assert_eq!(rd.uptime, Some(1036923));
+        assert_eq!(
+            rd.family.as_ref(),
+            &RelayFamily::from_str(
+                "$303509ab910ef207b7438c27435c4a2fd579f1b1 \
+                 $56927e61b51e6f363fb55498150a6ddfcf7077f2"
+            )
+            .unwrap()
+        );
 
         assert_eq!(
             rd.rsa_identity().to_string(),
