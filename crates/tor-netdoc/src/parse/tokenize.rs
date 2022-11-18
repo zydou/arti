@@ -652,8 +652,8 @@ impl<'a, K: Keyword> NetDocReader<'a, K> {
 
     /// Give an error if there are remaining tokens in this NetDocReader.
     ///
-    /// Like [`should_be_exhausted`], but permit empty lines at the end of the
-    /// document.
+    /// Like [`should_be_exhausted`](Self::should_be_exhausted),
+    /// but permit empty lines at the end of the document.
     #[cfg(feature = "routerdesc")]
     pub(crate) fn should_be_exhausted_but_for_empty_lines(&mut self) -> Result<()> {
         use crate::err::ParseErrorKind as K;

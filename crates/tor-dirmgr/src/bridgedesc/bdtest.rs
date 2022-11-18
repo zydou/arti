@@ -149,7 +149,7 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let store = Arc::new(Mutex::new(Box::new(store) as _));
 
     let sql_path = db_tmp_dir.path().join("db.sql");
-    let conn = rusqlite::Connection::open(&sql_path).unwrap();
+    let conn = rusqlite::Connection::open(sql_path).unwrap();
 
     let bdm = BridgeDescMgr::<R, M>::new_internal(
         runtime.clone(),

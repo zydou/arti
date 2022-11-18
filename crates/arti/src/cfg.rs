@@ -615,7 +615,7 @@ mod test {
         let example = uncomment_example_settings(example_file);
         let example: toml::Value = toml::from_str(&example).unwrap();
         // dbg!(&example);
-        let example = serde_json::to_value(&example).unwrap();
+        let example = serde_json::to_value(example).unwrap();
         // dbg!(&example);
 
         // "Exhaustive" taxonomy of the recognized configuration keys
@@ -626,8 +626,8 @@ mod test {
         // I'm not sure this is quite perfect but it is pretty good,
         // and has found a number of un-exampled config keys.
         let exhausts = [
-            serde_json::to_value(&TorClientConfig::builder()).unwrap(),
-            serde_json::to_value(&ArtiConfig::builder()).unwrap(),
+            serde_json::to_value(TorClientConfig::builder()).unwrap(),
+            serde_json::to_value(ArtiConfig::builder()).unwrap(),
         ];
 
         #[derive(Default, Debug)]

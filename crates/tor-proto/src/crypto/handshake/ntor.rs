@@ -359,8 +359,8 @@ mod tests {
 
     fn make_fake_ephem_key(bytes: &[u8]) -> EphemeralSecret {
         assert_eq!(bytes.len(), 32);
-        let mut rng = FakePRNG::new(bytes);
-        EphemeralSecret::new(&mut rng)
+        let rng = FakePRNG::new(bytes);
+        EphemeralSecret::new(rng)
     }
 
     #[test]

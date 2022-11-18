@@ -109,7 +109,8 @@ use strum;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Storage manager used by [`DirMgr`] and [`BridgeDescMgr`]
+/// Storage manager used by [`DirMgr`] and
+/// [`BridgeDescMgr`](bridgedesc::BridgeDescMgr)
 ///
 /// Internally, this wraps up a sqlite database.
 ///
