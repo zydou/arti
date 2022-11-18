@@ -159,17 +159,7 @@ impl OwnedChanTarget {
 /// Primarily for error reporting and logging
 impl Display for OwnedChanTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[")?;
-        match &*self.addrs {
-            [] => write!(f, "?")?,
-            [a] => write!(f, "{}", a)?,
-            [a, ..] => write!(f, "{}+", a)?,
-        };
-        for ident in self.identities() {
-            write!(f, " {}", ident)?;
-        }
-        write!(f, "]")?;
-        Ok(())
+        write!(f, "{}", self.display_chan_target())
     }
 }
 
@@ -206,13 +196,6 @@ impl OwnedCircTarget {
     /// Return a mutable view of this OwnedCircTarget as an [`OwnedChanTarget`].
     pub fn chan_target_mut(&mut self) -> &mut OwnedChanTarget {
         &mut self.chan_target
-    }
-}
-
-/// Primarily for error reporting and logging
-impl Display for OwnedCircTarget {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&self.chan_target, f)
     }
 }
 
