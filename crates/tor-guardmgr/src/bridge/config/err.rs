@@ -112,4 +112,9 @@ pub enum BridgeParseError {
         /// The offending word
         word: String,
     },
+
+    /// Bridge support disabled in cargo features
+    // We deliberately make this one *not* configured out if bridge support is enabled
+    #[error("Bridge requested, but support disabled in cargo features")]
+    BridgesNotSupported,
 }
