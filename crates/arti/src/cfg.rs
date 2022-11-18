@@ -794,7 +794,6 @@ mod test {
         );
     }
 
-    #[cfg(feature = "bridge-client")] // TODO pt-client we should test the non-bridge case
     #[test]
     fn bridges() {
         // We make assumptions about the contents of `arti-example-config.toml` !
@@ -810,7 +809,7 @@ mod test {
         // Below, we annotate with `[1]` etc. where these assumptions are made.
 
         // Filter examples that we don't want to test in this configuration
-        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| {
+        let filter_examples = |#[allow(unused_mut)] mut examples: ExampleSectionLines| -> _ {
             // [7], filter out the PTs
             if cfg!(all(feature = "bridge-client", not(feature = "pt-client"))) {
                 let looks_like_addr =
@@ -821,7 +820,11 @@ mod test {
             examples
         };
 
-        let resolve_examples = |examples: &ExampleSectionLines| -> TorClientConfig {
+        // Tests that one example parses, and returns what it parsed.
+        // If bridge support is completely disabled, checks that this configuration
+        // is rejected, as it should be, and returns a dummy value `((),)`
+        // (so that the rest of the test has something to "compare that we parsed it the same").
+        let resolve_examples = |examples: &ExampleSectionLines| {
             // [7], check that the PT bridge is properly rejected
             #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
             {
@@ -830,7 +833,19 @@ mod test {
             }
 
             let examples = filter_examples(examples.clone());
-            examples.resolve().unwrap()
+
+            #[cfg(feature = "bridge-client")]
+            {
+                examples.resolve::<TorClientConfig>().unwrap()
+            }
+
+            #[cfg(not(feature = "bridge-client"))]
+            {
+                let err = examples.resolve::<TorClientConfig>().unwrap_err();
+                expect_err_contains(err, "support disabled in cargo features");
+                // Use ((),) as the dummy unit value because () gives clippy conniptions
+                ((),)
+            }
         };
 
         // [1], [2], narrow to just the nontrivial, non-default, examples
