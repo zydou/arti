@@ -347,7 +347,7 @@ impl<R: Runtime> GuardMgr<R> {
             let mut inner = inner.lock().expect("lock poisoned");
             // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
             // providers are configured? I think not, but we should make sure.
-            inner.replace_bridge_config(config, SystemTime::now());
+            inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
         }
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -457,8 +457,7 @@ impl<R: Runtime> GuardMgr<R> {
     pub fn reload_persistent_state(&self) -> Result<(), GuardMgrError> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
         if let Some(new_guards) = inner.storage.load()? {
-            let now = self.runtime.wallclock();
-            inner.replace_guards_with(new_guards, now);
+            inner.replace_guards_with(new_guards, self.runtime.wallclock(), self.runtime.now());
         }
         Ok(())
     }
@@ -470,8 +469,9 @@ impl<R: Runtime> GuardMgr<R> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
         debug_assert!(inner.storage.can_store());
         let new_guards = inner.storage.load()?.unwrap_or_default();
-        let now = self.runtime.wallclock();
-        inner.replace_guards_with(new_guards, now);
+        let wallclock = self.runtime.wallclock();
+        let now = self.runtime.now();
+        inner.replace_guards_with(new_guards, wallclock, now);
         Ok(())
     }
 
@@ -507,14 +507,15 @@ impl<R: Runtime> GuardMgr<R> {
     #[cfg(any(test, feature = "testing"))]
     pub fn install_test_netdir(&self, netdir: &NetDir) {
         use tor_netdir::testprovider::TestNetDirProvider;
-        let now = self.runtime.wallclock();
+        let wallclock = self.runtime.wallclock();
+        let now = self.runtime.now();
         let netdir_provider: Arc<dyn NetDirProvider> =
             Arc::new(TestNetDirProvider::from(netdir.clone()));
         self.install_netdir_provider(&netdir_provider)
             .expect("Couldn't install testing network provider");
 
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.update(now);
+        inner.update(wallclock, now);
     }
 
     /// Replace the configuration in this `GuardMgr` with `config`.
@@ -528,16 +529,21 @@ impl<R: Runtime> GuardMgr<R> {
         }
         // If we are built to use bridges, change the bridge configuration.
         #[cfg(feature = "bridge-client")]
-        inner.replace_bridge_config(config, SystemTime::now());
+        {
+            let wallclock = self.runtime.wallclock();
+            let now = self.runtime.now();
+            inner.replace_bridge_config(config, wallclock, now);
+        }
         Ok(())
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
     // TODO should this be part of the config?
     pub fn set_filter(&self, filter: GuardFilter) {
-        let now = self.runtime.wallclock();
+        let wallclock = self.runtime.wallclock();
+        let now = self.runtime.now();
         let mut inner = self.inner.lock().expect("Poisoned lock");
-        inner.set_filter(filter, now);
+        inner.set_filter(filter, wallclock, now);
     }
 
     /// Select a guard for a given [`GuardUsage`].
@@ -833,7 +839,7 @@ impl GuardMgrInner {
     /// Update the status of all guards in the active set, based on the passage
     /// of time, our configuration, and and the relevant Universe for our active
     /// set.
-    fn update(&mut self, now: SystemTime) {
+    fn update(&mut self, wallclock: SystemTime, now: Instant) {
         self.with_opt_netdir(|this, netdir| {
             // Here we update our parameters from the latest NetDir, and check
             // whether we need to change to a (non)-restrictive GuardSet based
@@ -850,19 +856,26 @@ impl GuardMgrInner {
             // BridgeSet—depending on what the GuardSet wants.
             Self::update_guardset_internal(
                 &this.params,
-                now,
+                wallclock,
                 this.guards.active_set.universe_type(),
                 this.guards.active_guards_mut(),
                 univ,
             );
             #[cfg(feature = "bridge-client")]
-            this.update_desired_descriptors(Instant::now()); // TODO pt-client: take inst as an argument.
+            this.update_desired_descriptors(now);
+            #[cfg(not(feature = "bridge-client"))]
+            let _ = now;
         });
     }
 
     /// Replace our bridge configuration with the one from `new_config`.
     #[cfg(feature = "bridge-client")]
-    fn replace_bridge_config(&mut self, new_config: &impl GuardMgrConfig, now: SystemTime) {
+    fn replace_bridge_config(
+        &mut self,
+        new_config: &impl GuardMgrConfig,
+        wallclock: SystemTime,
+        now: Instant,
+    ) {
         match (&self.configured_bridges, new_config.bridges_enabled()) {
             (None, false) => {
                 assert_ne!(
@@ -891,7 +904,7 @@ impl GuardMgrInner {
         // If we have gotten here, we have changed the set of bridges, changed
         // which set is active, or changed them both.  We need to make sure that
         // our `GuardSet` object is up-to-date with our configuration.
-        self.update(now);
+        self.update(wallclock, now);
     }
 
     /// Update our parameters, our selection (based on network parameters and
@@ -1016,10 +1029,15 @@ impl GuardMgrInner {
 
     /// Replace the active guard state with `new_state`, preserving
     /// non-persistent state for any guards that are retained.
-    fn replace_guards_with(&mut self, mut new_guards: GuardSets, now: SystemTime) {
+    fn replace_guards_with(
+        &mut self,
+        mut new_guards: GuardSets,
+        wallclock: SystemTime,
+        now: Instant,
+    ) {
         std::mem::swap(&mut self.guards, &mut new_guards);
         self.guards.copy_status_from(new_guards);
-        self.update(now);
+        self.update(wallclock, now);
     }
 
     /// Update which guard set is active based on the current filter and the
@@ -1089,9 +1107,9 @@ impl GuardMgrInner {
     }
 
     /// Replace the current GuardFilter with `filter`.
-    fn set_filter(&mut self, filter: GuardFilter, now: SystemTime) {
+    fn set_filter(&mut self, filter: GuardFilter, wallclock: SystemTime, now: Instant) {
         self.filter = filter;
-        self.update(now);
+        self.update(wallclock, now);
     }
 
     /// Called when the circuit manager reports (via [`GuardMonitor`]) that
@@ -1371,7 +1389,7 @@ impl GuardMgrInner {
     /// Run any periodic events that update guard status, and return a
     /// duration after which periodic events should next be run.
     pub(crate) fn run_periodic_events(&mut self, wallclock: SystemTime, now: Instant) -> Duration {
-        self.update(wallclock);
+        self.update(wallclock, now);
         self.expire_and_answer_pending_requests(now);
         Duration::from_secs(1) // TODO: Too aggressive.
     }
