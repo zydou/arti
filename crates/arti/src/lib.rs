@@ -83,6 +83,7 @@ use tor_rtcompat::{BlockOn, Runtime};
 
 use anyhow::{Context, Error, Result};
 use clap::{value_parser, Arg, ArgAction, Command};
+#[allow(unused_imports)]
 use tracing::{error, info, warn};
 
 /// Shorthand for a boxed and pinned Future.
