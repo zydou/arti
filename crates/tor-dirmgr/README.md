@@ -18,16 +18,23 @@ keeping a cache of it on disk.
 
 ## Compile-time features
 
-`mmap` (default) -- Use memory mapping to reduce the memory load for
-reading large directory objects from disk.
+* `mmap` (default) -- Use memory mapping to reduce the memory load for
+  reading large directory objects from disk.
 
-`static` -- Try to link with a static copy of sqlite3.
+* `routerdesc` -- (Incomplete) support for downloading and storing
+  router descriptors.
 
-`routerdesc` -- (Incomplete) support for downloading and storing
-     router descriptors.
+* `compression` (default) -- Build support for downloading compressed
+  documents. Requires a C compiler.
 
-`compression` (default) -- Build support for downloading compressed
-documents. Requires a C compiler.
+* `bridge-client`: Provide APIs used to fetch
+  and use bridge information.
+
+* `full` -- Enable all features above.
+
+### Non-additive features
+
+* `static` -- Try to link with a static copy of sqlite3.
 
 ### Experimental and unstable features
 
@@ -40,9 +47,6 @@ them between patch versions.
 
 * `dirfilter`: enable an experimental mechanism to modify incoming
   directory information before it is used.
-
-* `bridge-client`: Provide (as yet unimplented) APIs used to fetch
-  and use bridge information.
 
 * `experimental`: Enable all the above experimental features.
 

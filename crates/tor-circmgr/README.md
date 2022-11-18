@@ -18,6 +18,12 @@ constructing a new one.
 
 ## Compile-time features
 
+* `specific-relay`: Support for connecting to a relay via
+   specifically provided connection instructions, rather than
+   using information from a Tor network directory.
+
+* `full`: Enable all features above.
+
 ### Experimental and unstable features
 
 Note that the APIs enabled by these features are NOT covered by
@@ -26,10 +32,6 @@ them between patch versions.
 
 * `experimental-api`: Add additional non-stable APIs to our public
   interfaces.
-
-* `specific-relay`: Support for connecting to a relay via
-   specifically provided connection instructions, rather than
-   using information from a Tor network directory.
 
 * `experimental`: Enable all the above experimental features.
 

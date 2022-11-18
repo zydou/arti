@@ -40,16 +40,20 @@ TODO: Possibly the link specifiers and the `*Target` traits belong in different 
 
 ## Compile-time features
 
+* `pt-client` -- Build with enhanced data types to support pluggable
+   transports.
+
+* `full` -- Build with all the features above.
+
 ### Experimental and unstable features
 
  Note that the APIs enabled by these features are NOT covered by
  semantic versioning[^1] guarantees: we might break them or remove
  them between patch versions.
 
-* `pt-client` -- Build with enhanced data types to support pluggable
-   transports.
-
-* `experimental` -- Build with all experimental features above.
+* `experimental` -- Build with all experimental features above. (Currently,
+  there are no experimental features in this crate, but there may be in the
+  future.)
 
 [^1]: Remember, semantic versioning is what makes various `cargo`
 features work reliably. To be explicit: if you want `cargo update`

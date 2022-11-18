@@ -12,9 +12,28 @@ categories = ["command-line-utilities", "cryptography"]
 repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
-default = ["tokio", "native-tls", "dns-proxy", "harden", "compression"]
+default = [
+    "tokio",
+    "native-tls",
+    "dns-proxy",
+    "harden",
+    "compression",
+    "bridge-client",
+    "pt-client",
+]
 
-full = ["async-std", "tokio", "native-tls", "journald", "arti-client/full", "dns-proxy", "harden", "compression"]
+full = [
+    "async-std",
+    "tokio",
+    "native-tls",
+    "journald",
+    "arti-client/full",
+    "dns-proxy",
+    "harden",
+    "compression",
+    "bridge-client",
+    "pt-client",
+]
 
 async-std = [
     "arti-client/async-std",
@@ -26,7 +45,7 @@ async-std = [
 ]
 bridge-client = ["arti-client/bridge-client"]
 dns-proxy = ["trust-dns-proto"]
-experimental-api = ["bridge-client", "pt-client", "visibility"]
+experimental-api = ["visibility"]
 harden = ["secmem-proc"]
 tokio = ["tokio-crate", "arti-client/tokio", "tor-rtcompat/tokio"]
 native-tls = ["arti-client/native-tls", "tor-rtcompat/native-tls"]

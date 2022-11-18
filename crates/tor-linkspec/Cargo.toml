@@ -13,7 +13,8 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-experimental = ["pt-client"]
+full = ["pt-client"]
+experimental = []
 pt-client = []
 
 [dependencies]
