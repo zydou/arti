@@ -95,7 +95,7 @@ pub mod bridge {
     pub enum BridgeConfig {}
 }
 
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub use config::testing::TestConfig;
 
 pub use config::GuardMgrConfig;

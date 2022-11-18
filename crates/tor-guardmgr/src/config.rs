@@ -24,7 +24,7 @@ define_accessor_trait! {
 }
 
 /// Helpers for testing configuration
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub(crate) mod testing {
     // @@ begin test lint list maintained by maint/add_warning @@
     #![allow(clippy::bool_assert_comparison)]
