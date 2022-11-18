@@ -783,6 +783,20 @@ mod test {
         );
     }
 
+    /// Check that the `Report` of `err` contains the string `exp`, and otherwise panic
+    #[cfg_attr(feature = "pt-client", allow(dead_code))]
+    fn expect_err_contains(err: ConfigResolveError, exp: &str) {
+        use std::error::Error as StdError;
+        let err: Box<dyn StdError> = Box::new(err);
+        let err = tor_error::Report(err).to_string();
+        assert!(
+            err.contains(exp),
+            "wrong message, got {:?}, exp {:?}",
+            err,
+            exp,
+        );
+    }
+
     #[cfg(feature = "bridge-client")] // TODO pt-client we should test the non-bridge case
     #[test]
     fn bridges() {
@@ -814,16 +828,8 @@ mod test {
             // [7], check that the PT bridge is properly rejected
             #[cfg(all(feature = "bridge-client", not(feature = "pt-client")))]
             {
-                use std::error::Error as StdError;
-
                 let err = examples.resolve::<TorClientConfig>().unwrap_err();
-                let err: Box<dyn StdError> = Box::new(err);
-                let err = tor_error::Report(&err).to_string();
-                assert!(
-                    err.contains("support disabled in cargo features"),
-                    "wrong message, got {}",
-                    err
-                );
+                expect_err_contains(err, "support disabled in cargo features");
             }
 
             let examples = filter_examples(examples.clone());
