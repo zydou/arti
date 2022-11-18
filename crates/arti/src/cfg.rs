@@ -314,9 +314,6 @@ mod test {
         // which have example config, since if the feature isn't enabled,
         // those keys are ignored (unrecognized).
 
-        #[cfg(not(feature = "pt-client"))]
-        known_unrecognized_options_new.extend(["bridges.bridges", "bridges.enabled"]);
-
         // The unrecognized options in new are those that are only new, plus those in all
         known_unrecognized_options_new.extend(known_unrecognized_options_all.clone());
 
