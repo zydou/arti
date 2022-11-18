@@ -4,15 +4,19 @@ use std::fmt::{self, Display};
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use tor_config::define_list_builder_accessors;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
 use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
+use tor_linkspec::BridgeAddr;
+
 #[cfg(feature = "pt-client")]
-use tor_linkspec::{BridgeAddr, PtAddrError, PtTarget, PtTargetInvalidSetting};
+use tor_linkspec::{PtAddrError, PtTarget, PtTargetInvalidSetting};
 
 /// A relay not listed on the main tor network, used for anticensorship.
 ///
@@ -68,10 +72,6 @@ pub struct BridgeConfig {
     /// The Ed25519 identity of the bridge.
     ed_id: Option<Ed25519Identity>,
 }
-// TODO pt-client: when implementing deserialization for this type, make sure
-// that it can accommodate a large variety of possible configurations methods,
-// and check that the toml looks okay.  For discussion see
-// https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/704/diffs#note_2835271
 
 impl HasRelayIds for BridgeConfig {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
@@ -96,6 +96,72 @@ impl HasAddrs for BridgeConfig {
 }
 
 impl ChanTarget for BridgeConfig {}
+
+/// Builder for a `BridgeConfig`.
+///
+/// Construct this with [`BridgeConfigBuilder::default()`] or [`BridgeConfig::builder()`],
+/// call setter methods, and then call `build().`
+//
+// `BridgeConfig` contains a `ChannelMethod`.  This is convenient for its users,
+// but means we can't use `#[derive(Builder)]` to autogenerate this.
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
+pub struct BridgeConfigBuilder {
+    /// The `PtTransportName`, but not yet parsed or checked.
+    ///
+    /// `""` and `"-"` and `"bridge"` all mean "do not use a pluggable transport".
+    transport: Option<String>,
+
+    /// Host:ORPort
+    addrs: Option<Vec<BridgeAddr>>,
+
+    /// IDs
+    ids: Option<Vec<RelayId>>,
+
+    /// Settings (for the transport)
+    settings: Option<Vec<(String, String)>>,
+}
+
+impl BridgeConfig {
+    /// Make a builder, for constructing a `BridgeConfig`
+    pub fn builder() -> BridgeConfigBuilder {
+        BridgeConfigBuilder::default()
+    }
+}
+
+impl BridgeConfigBuilder {
+    /// Set the transport protocol name (eg, a pluggable transport) to use.
+    ///
+    /// The empty string `""`, a single hyphen `"-"`, and the word `"bridge"`,
+    /// all mean to connect directly;
+    /// i.e., passing one of this is equivalent to
+    /// calling [`direct()`](BridgeConfigBuilder::direct).
+    ///
+    /// The value is not checked at this point.
+    pub fn transport(&mut self, transport: impl Into<String>) -> &mut Self {
+        self.transport = Some(transport.into());
+        self
+    }
+
+    /// Specify to use a direct connection.
+    pub fn direct(&mut self) -> &mut Self {
+        self.transport("")
+    }
+
+    /// Add a pluggable transport setting
+    pub fn push_setting(&mut self, k: impl Into<String>, v: impl Into<String>) -> &mut Self {
+        self.settings().push((k.into(), v.into()));
+        self
+    }
+}
+
+define_list_builder_accessors! {
+    struct BridgeConfigBuilder {
+        pub addrs: [BridgeAddr],
+        pub ids: [RelayId],
+        pub settings: [(String,String)],
+    }
+}
 
 /// Error when parsing a bridge line from a string
 #[derive(Error, Clone, Debug)]
@@ -572,6 +638,57 @@ mod test {
                 "38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE xGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
             ],
             "More than one identity of the same type specified",
+        );
+    }
+
+    #[test]
+    fn config_api() {
+        let chk_bridgeline = |line: &str, jsons: &[&str], f: &dyn Fn(&mut BridgeConfigBuilder)| {
+            eprintln!(" ---- chk_bridgeline ----\n{}", line);
+
+            let mut bcb = BridgeConfigBuilder::default();
+            f(&mut bcb);
+
+            // TODO: Test building (when that is implemente)d
+            // TODO: Test parsing bridge lines into BridgeConfigBuilder (when that is implemented)
+            // TODO: Test reserialsation (when that is implemented)
+
+            for json in jsons {
+                let from_dict: BridgeConfigBuilder = serde_json::from_str(json).unwrap();
+                assert_eq!(&from_dict, &bcb);
+            }
+        };
+
+        chk_bridgeline(
+            "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
+            &[r#"{
+                "addrs": ["38.229.33.83:80"],
+                "ids": ["ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
+                      "$0bac39417268b96b9f514e7f63fa6fba1a788955"]
+            }"#],
+            &|bcb| {
+                bcb.addrs().push("38.229.33.83:80".parse().unwrap());
+                bcb.ids().push("ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE".parse().unwrap());
+                bcb.ids().push("$0bac39417268b96b9f514e7f63fa6fba1a788955".parse().unwrap());
+            }
+        );
+
+        #[cfg(feature = "pt-client")]
+        chk_bridgeline(
+            "obfs4 some-host:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 iat-mode=1",
+            &[r#"{
+                "transport": "obfs4",
+                "addrs": ["some-host:80"],
+                "ids": ["$0bac39417268b96b9f514e7f63fa6fba1a788955"],
+                "settings": [["iat-mode", "1"]]
+            }"#],
+            &|bcb| {
+                bcb.transport("obfs4");
+                bcb.addrs().push("some-host:80".parse().unwrap());
+                bcb.ids()
+                    .push("$0bac39417268b96b9f514e7f63fa6fba1a788955".parse().unwrap());
+                bcb.push_setting("iat-mode", "1");
+            },
         );
     }
 }

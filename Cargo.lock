@@ -3853,6 +3853,7 @@ dependencies = [
  "retain_mut",
  "safelog",
  "serde",
+ "serde_json",
  "strum",
  "thiserror",
  "tor-basic-utils",
