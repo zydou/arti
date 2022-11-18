@@ -783,6 +783,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "bridge-client")] // TODO pt-client we should test the non-bridge case
     #[test]
     fn bridges() {
         // We make assumptions about the contents of `arti-example-config.toml` !
