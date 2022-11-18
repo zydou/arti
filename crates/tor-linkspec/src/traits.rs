@@ -5,7 +5,7 @@ use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
-use crate::{ChannelMethod, OwnedChanTarget, RelayIdRef, RelayIdType, RelayIdTypeIter};
+use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
 
 /// Legacy implementation helper for HasRelayIds.
 ///
@@ -206,12 +206,6 @@ pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
         Self: Sized,
     {
         DisplayChanTarget { inner: self }
-    }
-}
-
-impl<T: ChanTarget> From<&T> for OwnedChanTarget {
-    fn from(target: &T) -> Self {
-        OwnedChanTarget::from_chan_target(target)
     }
 }
 

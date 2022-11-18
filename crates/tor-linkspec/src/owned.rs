@@ -227,6 +227,24 @@ impl CircTarget for OwnedCircTarget {
     }
 }
 
+/// A value that can be converted into an OwnedChanTarget.
+pub trait IntoOwnedChanTarget {
+    /// Convert this value into an [`OwnedChanTarget`].
+    fn to_owned(self) -> OwnedChanTarget;
+}
+
+impl<'a, T: ChanTarget + ?Sized> IntoOwnedChanTarget for &'a T {
+    fn to_owned(self) -> OwnedChanTarget {
+        OwnedChanTarget::from_chan_target(self)
+    }
+}
+
+impl IntoOwnedChanTarget for OwnedChanTarget {
+    fn to_owned(self) -> OwnedChanTarget {
+        self
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
