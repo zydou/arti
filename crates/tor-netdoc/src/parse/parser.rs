@@ -58,7 +58,7 @@ impl<'a, K: Keyword> TokVal<'a, K> {
     /// Return the Item for this value, if there is exactly one.
     fn singleton(&self) -> Option<&Item<'a, K>> {
         match &*self.0 {
-            &[ref x] => Some(x),
+            [x] => Some(x),
             _ => None,
         }
     }

@@ -344,7 +344,7 @@ mod test {
         assert_eq!(store.try_lock()?, LockStatus::NewlyAcquired);
         let fname = statedir.join("numbat.toml");
         let fname2 = statedir.join("quoll.json");
-        std::fs::write(&fname, "we no longer use toml files.").unwrap();
+        std::fs::write(fname, "we no longer use toml files.").unwrap();
         std::fs::write(&fname2, "{}").unwrap();
 
         // Make the store directory read-only and make sure that we can't delete from it.
@@ -358,7 +358,7 @@ mod test {
         assert_eq!(lst.len(), 3); // We can't remove the file, but we didn't freak out. Great!
                                   // Try failing to read a mode-0 file.
         std::fs::set_permissions(&statedir, rw_dir).unwrap();
-        std::fs::set_permissions(&fname2, unusable).unwrap();
+        std::fs::set_permissions(fname2, unusable).unwrap();
 
         let h: Result<Option<HashMap<String, u32>>> = store.load("quoll");
         assert!(h.is_err());

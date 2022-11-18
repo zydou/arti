@@ -482,7 +482,7 @@ world = \"nonsense\"
         let xd = td.path().join("nonexistent.d/");
         std::fs::create_dir(&d).unwrap();
         std::fs::write(&cf, EX_TOML).unwrap();
-        std::fs::write(&df, EX2_TOML).unwrap();
+        std::fs::write(df, EX2_TOML).unwrap();
         std::fs::write(d.join("not-toml"), "SYNTAX ERROR").unwrap();
 
         let files = vec![

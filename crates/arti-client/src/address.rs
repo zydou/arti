@@ -490,7 +490,7 @@ mod test {
             "www.example.com:8000",
         );
         check(
-            &TorAddr::from(("www.example.com", 8000)).unwrap(),
+            TorAddr::from(("www.example.com", 8000)).unwrap(),
             "www.example.com:8000",
         );
         check("[2001:db8::0042]:9001".to_owned(), "[2001:db8::42]:9001");
