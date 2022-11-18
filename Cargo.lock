@@ -3851,6 +3851,7 @@ dependencies = [
  "postage",
  "rand 0.8.5",
  "retain_mut",
+ "safelog",
  "serde",
  "strum",
  "thiserror",

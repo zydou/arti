@@ -10,6 +10,7 @@ use tor_linkspec::OwnedChanTarget;
 use tor_proto::channel::Channel;
 
 pub use registry::TransportRegistry;
+use tracing::debug;
 
 /// An object that knows how to build `Channels` to `ChanTarget`s.
 ///
@@ -58,6 +59,7 @@ where
     type BuildSpec = OwnedChanTarget;
 
     async fn build_channel(&self, target: &Self::BuildSpec) -> crate::Result<Self::Channel> {
+        debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target).await
     }
 }
