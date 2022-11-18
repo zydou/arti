@@ -12,7 +12,7 @@ use tor_linkspec::{RelayId, RelayIdError, TransportIdError};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 #[cfg(feature = "pt-client")]
-use tor_linkspec::{PtAddrError, PtTarget, PtTargetAddr, PtTargetInvalidSetting};
+use tor_linkspec::{BridgeAddr, PtAddrError, PtTarget, PtTargetInvalidSetting};
 
 /// A relay not listed on the main tor network, used for anticensorship.
 ///
@@ -248,7 +248,7 @@ impl FromStr for BridgeConfig {
                             word: word.to_string(),
                             source,
                         })?
-                        .unwrap_or(PtTargetAddr::None);
+                        .unwrap_or(BridgeAddr::None);
                     ChannelMethod::Pluggable(PtTarget::new(pt_name, addr))
                 }
             }
@@ -391,7 +391,7 @@ mod test {
     use super::*;
 
     #[cfg(feature = "pt-client")]
-    fn mk_pt_target(name: &str, addr: PtTargetAddr, params: &[(&str, &str)]) -> ChannelMethod {
+    fn mk_pt_target(name: &str, addr: BridgeAddr, params: &[(&str, &str)]) -> ChannelMethod {
         let mut target = PtTarget::new(name.parse().unwrap(), addr);
         for &(k, v) in params {
             target.push_setting(k, v).unwrap();
@@ -453,7 +453,7 @@ mod test {
         ], BridgeConfig {
             addrs: mk_pt_target(
                 "obfs4",
-                PtTargetAddr::IpPort("38.229.33.83:80".parse().unwrap()),
+                BridgeAddr::IpPort("38.229.33.83:80".parse().unwrap()),
                 &[
                     ("cert", "VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op" ),
                     ("iat-mode", "1"),
@@ -470,7 +470,7 @@ mod test {
         ], BridgeConfig {
             addrs: mk_pt_target(
                 "obfs4",
-                PtTargetAddr::HostPort("some-host".into(), 80),
+                BridgeAddr::HostPort("some-host".into(), 80),
                 &[
                     ("iat-mode", "1"),
                 ],
