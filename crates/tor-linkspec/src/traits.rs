@@ -440,7 +440,7 @@ mod test {
         );
 
         let rsa = hex!("234461644a6f6b6523436f726e794f6e4d61696e").into();
-        let mut b = OwnedChanTarget::builder();
+        let mut b = crate::OwnedChanTarget::builder();
         b.ids().rsa_identity(rsa);
         let e2 = b
             .method(ChannelMethod::Pluggable(PtTarget::new(
