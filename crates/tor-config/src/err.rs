@@ -60,16 +60,17 @@ impl ConfigBuildError {
     #[must_use]
     pub fn within(&self, prefix: &str) -> Self {
         use ConfigBuildError::*;
+        let addprefix = |field: &str| format!("{}.{}", prefix, field);
         match self {
             MissingField { field } => MissingField {
-                field: format!("{}.{}", prefix, field),
+                field: addprefix(field),
             },
             Invalid { field, problem } => Invalid {
-                field: format!("{}.{}", prefix, field),
+                field: addprefix(field),
                 problem: problem.clone(),
             },
             Inconsistent { fields, problem } => Inconsistent {
-                fields: fields.iter().map(|f| format!("{}.{}", prefix, f)).collect(),
+                fields: fields.iter().map(|f| addprefix(f)).collect(),
                 problem: problem.clone(),
             },
         }
