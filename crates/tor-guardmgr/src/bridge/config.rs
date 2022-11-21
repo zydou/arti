@@ -245,13 +245,6 @@ impl BridgeConfigBuilder {
             }
             ChannelMethod::Direct(addrs)
         } else {
-            #[cfg(not(feature = "pt-client"))]
-            {
-                return Err(unsupported(
-                    "transport".into(),
-                    &"pluggable transport support disabled in tor-guardmgr cargo features",
-                ));
-            }
             #[cfg(feature = "pt-client")]
             {
                 let addr =
@@ -274,6 +267,13 @@ impl BridgeConfigBuilder {
                         .map_err(|e| invalid(format!("settings.{}", i), &e))?;
                 }
                 ChannelMethod::Pluggable(target)
+            }
+            #[cfg(not(feature = "pt-client"))]
+            {
+                return Err(unsupported(
+                    "transport".into(),
+                    &"pluggable transport support disabled in tor-guardmgr cargo features",
+                ));
             }
         };
 
