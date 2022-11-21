@@ -15,7 +15,7 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{sample, ExternalActivity, GuardSetSelector, GuardUsageKind};
-use safelog::sensitive as sv;
+use safelog::Redactable as _;
 use tor_linkspec::{
     ChanTarget, ChannelMethod, HasAddrs, HasChanMethod, HasRelayIds, PtTarget, RelayIds,
 };
@@ -419,11 +419,11 @@ impl Guard {
             match (self.reachable, r) {
                 (_, R::Reachable) => info!(
                     "We have found that {} is usable.",
-                    sv(self.display_chan_target())
+                    self.display_chan_target().redacted()
                 ),
                 (R::Untried | R::Reachable, R::Unreachable) => warn!(
                     "Could not connect to {}. We'll retry later, and let you know if it succeeds.",
-                    sv(self.display_chan_target())
+                    self.display_chan_target().redacted()
                 ),
                 (_, _) => {} // not interesting.
             }
