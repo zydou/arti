@@ -592,6 +592,8 @@ mod test {
         assert_ne!(snow, obfs);
         assert_ne!(snow, dflt);
 
+        assert_eq!(dflt.to_string(), "<none>");
+
         assert!(matches!(
             TransportId::from_str("12345"),
             Err(TransportIdError::BadId(_))
