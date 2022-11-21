@@ -36,6 +36,7 @@ old_rand_core = { package = "rand_core", version = "0.5.1" }
 openssl = { version = "0.10.30", optional = true }
 rand_core = "0.6.2"
 rsa = "0.7.1"
+safelog = { version = "0.1.3", path = "../safelog" }
 serde = "1.0.103"
 sha-1 = "0.10.0"
 sha2 = "0.10.0"

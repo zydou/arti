@@ -132,6 +132,22 @@ impl Debug for Ed25519Identity {
     }
 }
 
+impl safelog::Redactable for Ed25519Identity {
+    /// Warning: This displays 12 bits of the ed25519 identity, which is
+    /// enough to narrow down a public relay by a great deal.
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}…",
+            &base64::encode_config(self.id, base64::STANDARD_NO_PAD)[..2]
+        )
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ed25519Identity {{ {} }}", self.redacted())
+    }
+}
+
 impl serde::Serialize for Ed25519Identity {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
