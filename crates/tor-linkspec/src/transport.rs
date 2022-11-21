@@ -181,6 +181,32 @@ impl TransportId {
     pub fn is_builtin(&self) -> bool {
         self.0 == Inner::BuiltIn
     }
+
+    /// Returns the pluggable transport name
+    ///
+    /// Or `None` if `self` doesn't specify a pluggable transport
+    /// (e.g. if it specifies the builtin transport).
+    #[cfg(feature = "pt-client")]
+    pub fn as_pluggable(&self) -> Option<&PtTransportName> {
+        match &self.0 {
+            Inner::BuiltIn => None,
+            #[cfg(feature = "pt-client")]
+            Inner::Pluggable(pt) => Some(pt),
+        }
+    }
+
+    /// Consumes this `TransportId` and returns the pluggable transport name
+    ///
+    /// Or `None` if `self` doesn't specify a pluggable transport
+    /// (e.g. if it specifies the builtin transport).
+    #[cfg(feature = "pt-client")]
+    pub fn into_pluggable(self) -> Option<PtTransportName> {
+        match self.0 {
+            Inner::BuiltIn => None,
+            #[cfg(feature = "pt-client")]
+            Inner::Pluggable(pt) => Some(pt),
+        }
+    }
 }
 
 /// This identifier is used to indicate no transport address.
