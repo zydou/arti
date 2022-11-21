@@ -53,6 +53,7 @@ def test_crate_config(crate, features, allow_empty=False):
         return
     features = ",".join(features)
     args = ["cargo", KEYWORD, "-p", crate, "--no-default-features", "--features", features]
+    print("running:", " ".join(args), file=sys.stderr)
     p = run(args)
     if p.returncode != 0:
         raise Exception("Failed to test '" + crate + "' with features '" + features + "'")
