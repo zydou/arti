@@ -217,6 +217,14 @@ pub trait Redactable: std::fmt::Display + std::fmt::Debug {
     fn redacted(&self) -> Redacted<&Self> {
         Redacted(self)
     }
+    /// Return a smart pointer that redacts this object if `redact` is true.
+    fn maybe_redacted(&self, redact: bool) -> MaybeRedacted<&Self> {
+        if redact {
+            MaybeRedacted::Redacted(Redacted(self))
+        } else {
+            MaybeRedacted::NotRedacted(self)
+        }
+    }
 }
 
 impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
@@ -274,6 +282,36 @@ impl<T: Redactable> std::fmt::Debug for Redacted<T> {
             self.0.debug_redacted(f)
         } else {
             std::fmt::Debug::fmt(&self.0, f)
+        }
+    }
+}
+
+/// An object that may or may not be redacted.
+///
+/// Used to implement conditional redaction
+#[derive(Clone)]
+#[allow(clippy::exhaustive_enums)]
+pub enum MaybeRedacted<T: Redactable> {
+    /// A variant where we are redacting the object.
+    Redacted(Redacted<T>),
+    /// A variant where we are not redacting the object.
+    NotRedacted(T),
+}
+
+impl<T: Redactable> std::fmt::Display for MaybeRedacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MaybeRedacted::Redacted(v) => std::fmt::Display::fmt(v, f),
+            MaybeRedacted::NotRedacted(v) => std::fmt::Display::fmt(v, f),
+        }
+    }
+}
+
+impl<T: Redactable> std::fmt::Debug for MaybeRedacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MaybeRedacted::Redacted(v) => std::fmt::Debug::fmt(v, f),
+            MaybeRedacted::NotRedacted(v) => std::fmt::Debug::fmt(v, f),
         }
     }
 }
