@@ -19,6 +19,13 @@ define_accessor_trait! {
         /// Should the bridges be used?
         ///
         /// This is only allowed to return true if `bridges()` is nonempty.
+        ///
+        /// Therefore, it also requires `tor-guardmgr` cargo feature `bridge-client`,
+        /// since without that feature `BridgeConfig` is uninhabited and therefore
+        /// `bridges` is necessarily empty.
+        //
+        // Therefore, it is safe (from a "reject unsupported config" point of view)
+        // to ctest this only in code which is #[cfg(feature = "bridge-client")].
         fn bridges_enabled(&self) -> bool;
     }
 }

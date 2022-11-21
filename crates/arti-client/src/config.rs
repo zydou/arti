@@ -18,9 +18,11 @@ pub use tor_config::{define_list_builder_accessors, define_list_builder_helper};
 pub use tor_config::{BoolOrAuto, ConfigError};
 pub use tor_config::{CfgPath, CfgPathError, ConfigBuildError, ConfigurationSource, Reconfigure};
 
+pub use tor_guardmgr::bridge::BridgeConfigBuilder;
+
 #[cfg(feature = "bridge-client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bridge-client")))]
-pub use tor_guardmgr::bridge::{BridgeConfigBuilder, BridgeParseError};
+pub use tor_guardmgr::bridge::BridgeParseError;
 
 use tor_guardmgr::bridge::BridgeConfig;
 
@@ -229,12 +231,10 @@ pub struct BridgesConfig {
     /// `false` means to not use even configured bridges.
     /// `true` means to insist on the use of bridges;
     /// if none are configured, that's then an error.
-    #[cfg(feature = "bridge-client")]
     #[builder(default)]
     pub(crate) enabled: BoolOrAuto,
 
     /// Configured list of bridges (possibly via pluggable transports)
-    #[cfg(feature = "bridge-client")]
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
     bridges: BridgeList,
@@ -256,7 +256,6 @@ define_list_builder_helper! {
     default = vec![];
 }
 
-#[cfg(feature = "bridge-client")]
 impl_standard_builder! { BridgesConfig }
 
 /// Check that the bridge configuration is right
@@ -309,10 +308,8 @@ impl BridgesConfig {
 //
 // This type alias arranges that we can put `BridgeList` in `BridgesConfig`
 // and have derive_builder put a `BridgeListBuilder` in `BridgesConfigBuilder`.
-#[cfg(feature = "bridge-client")]
 pub type BridgeList = Vec<BridgeConfig>;
 
-#[cfg(feature = "bridge-client")]
 define_list_builder_helper! {
     struct BridgeListBuilder {
         bridges: [BridgeConfigBuilder],
@@ -323,7 +320,6 @@ define_list_builder_helper! {
     #[serde(into="MultilineListBuilder<BridgeConfigBuilder>")]
 }
 
-#[cfg(feature = "bridge-client")]
 convert_helper_via_multi_line_list_builder! {
     struct BridgeListBuilder {
         bridges: [BridgeConfigBuilder],
