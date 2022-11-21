@@ -177,6 +177,21 @@ pub enum TransportIdError {
 }
 
 impl TransportId {
+    /// Return a new `TransportId` referencing the builtin transport
+    ///
+    /// This is equivalent to the `Default` impl.
+    pub fn new_builtin() -> Self {
+        TransportId(Inner::BuiltIn)
+    }
+
+    /// Return a new `TransportId` referencing a pluggable transport
+    ///
+    /// This is equivalent to the `From<PtTransportName>` impl.
+    #[cfg(feature = "pt-client")]
+    pub fn new_pluggable(pt: PtTransportName) -> Self {
+        pt.into()
+    }
+
     /// Return true if this is the built-in transport.
     pub fn is_builtin(&self) -> bool {
         self.0 == Inner::BuiltIn
