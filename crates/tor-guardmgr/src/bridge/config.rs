@@ -119,6 +119,8 @@ pub struct BridgeConfigBuilder = "BridgeConfigBuilder" {
     transport: Option<String>,
 
     /// Host:ORPort
+    ///
+    /// When using a pluggable transport, only one address is allowed.
     addrs: Option<Vec<BridgeAddr>>,
 
     /// IDs
