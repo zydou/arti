@@ -199,70 +199,77 @@ impl BridgeConfigBuilder {
         let addrs = self.addrs.as_deref().unwrap_or_default();
         let settings = self.settings.as_deref().unwrap_or_default();
 
+        // Error construction helpers
+        let inconsist_transp = |field: &str, problem: &str| ConfigBuildError::Inconsistent {
+            fields: vec![field.into(), "transport".into()],
+            problem: problem.into(),
+        };
+        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::Invalid {
+            field,
+            problem: problem.to_string(),
+        };
+        #[cfg_attr(not(feature = "pt-client"), allow(unused_variables))]
+        let invalid = |field: String, problem: &dyn Display| ConfigBuildError::Invalid {
+            field,
+            problem: problem.to_string(),
+        };
+
         #[allow(clippy::comparison_to_empty)] // .is_empty() would *not* be clearer
         let addrs = if transport == "" || transport == "-" || transport == "bridge" {
             if !settings.is_empty() {
-                return Err(ConfigBuildError::Inconsistent {
-                    fields: vec!["transport".into(), "settings".into()],
-                    problem: "Specified `settings` for a direct bridge connection".into(),
-                });
+                return Err(inconsist_transp(
+                    "settings",
+                    "Specified `settings` for a direct bridge connection",
+                ));
             }
             let addrs = addrs.iter().filter_map(|pta| match pta {
                 BridgeAddr::IpPort(sa) => Some(Ok(*sa)),
-                BridgeAddr::HostPort(..) => Some(Err(ConfigBuildError::Inconsistent {
-                    fields: vec!["addrs".into(), "transport".into()],
-                    problem: "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection".into(),
-                })),
+                BridgeAddr::HostPort(..) => Some(Err(
+                    "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
+                )),
                 BridgeAddr::None => None,
-                _ => Some(Err(ConfigBuildError::Inconsistent {
-                    fields: vec!["addrs".into(), "transport".into()],
-                    problem: "`addrs` contains unspported target address type, but only numeric addresses are supported for a direct bridge connection".into(),
-                })),
-            }).collect::<Result<Vec<SocketAddr>,_>>()?;
+                _ => Some(Err(
+                    "`addrs` contains unspported target address type, but only numeric addresses are supported for a direct bridge connection"
+                )),
+            }).collect::<Result<Vec<SocketAddr>,&str>>().map_err(|problem| inconsist_transp(
+                "addrs",
+                problem,
+            ))?;
             if addrs.is_empty() {
-                return Err(ConfigBuildError::Inconsistent {
-                    fields: vec!["addrs".into(), "transport".into()],
-                    problem: "Missing `addrs` for a direct bridge connection".into(),
-                });
+                return Err(inconsist_transp(
+                    "addrs",
+                    "Missing `addrs` for a direct bridge connection",
+                ));
             }
             ChannelMethod::Direct(addrs)
         } else {
             #[cfg(not(feature = "pt-client"))]
             {
-                return Err(ConfigBuildError::Invalid {
-                    field: "transport".into(),
-                    problem: "pluggable transport support disabled in tor-guardmgr cargo features"
-                        .into(),
-                });
+                return Err(unsupported(
+                    "transport".into(),
+                    &"pluggable transport support disabled in tor-guardmgr cargo features",
+                ));
             }
             #[cfg(feature = "pt-client")]
             {
                 let addr = match addrs {
                     [] => BridgeAddr::None,
                     [addr] => addr.clone(),
-                    [_, _, ..] => return Err(ConfigBuildError::Inconsistent {
-                        fields: vec!["addrs".into(), "transport".into()],
-                        problem:
-                            "Transport (non-direct bridge) only supports a single nominal address"
-                                .into(),
-                    }),
+                    [_, _, ..] => return Err(inconsist_transp(
+                        "addrs",
+                        "Transport (non-direct bridge) only supports a single nominal address",
+                    )),
                 };
                 let transport =
                     transport
                         .parse()
-                        .map_err(|e: TransportIdError| ConfigBuildError::Invalid {
-                            field: "transport".into(),
-                            problem: e.to_string(),
-                        })?;
+                        .map_err(|e: TransportIdError| invalid("transport".into(), &e))?;
                 let mut target = PtTarget::new(transport, addr);
                 for (i, (k, v)) in settings.iter().enumerate() {
                     // Using PtTargetSettings TryFrom would prevent us reporting the index i
                     target
                         .push_setting(k, v)
-                        .map_err(|e| ConfigBuildError::Invalid {
-                            field: format!("settings.{}", i),
-                            problem: e.to_string(),
-                        })?;
+                        .map_err(|e| invalid(format!("settings.{}", i), &e))?;
                 }
                 ChannelMethod::Pluggable(target)
             }
@@ -293,10 +300,10 @@ impl BridgeConfigBuilder {
                 RelayId::Rsa(rsa) => store_id(&mut rsa_id, "RSA", rsa)?,
                 RelayId::Ed25519(ed) => store_id(&mut ed_id, "ed25519", ed)?,
                 other => {
-                    return Err(ConfigBuildError::Invalid {
-                        field: format!("ids.{}", i),
-                        problem: format!("unsupported bridge id type {}", other.id_type()),
-                    })
+                    return Err(unsupported(
+                        format!("ids.{}", i),
+                        &format_args!("unsupported bridge id type {}", other.id_type()),
+                    ))
                 }
             }
         }
