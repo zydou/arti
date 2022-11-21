@@ -252,18 +252,18 @@ impl BridgeConfigBuilder {
             }
             #[cfg(feature = "pt-client")]
             {
-                let addr = match addrs {
-                    [] => BridgeAddr::None,
-                    [addr] => addr.clone(),
-                    [_, _, ..] => return Err(inconsist_transp(
-                        "addrs",
-                        "Transport (non-direct bridge) only supports a single nominal address",
-                    )),
-                };
-                let transport =
-                    transport
-                        .parse()
-                        .map_err(|e: TransportIdError| invalid("transport".into(), &e))?;
+                let addr =
+                    match addrs {
+                        [] => BridgeAddr::None,
+                        [addr] => addr.clone(),
+                        [_, _, ..] => return Err(inconsist_transp(
+                            "addrs",
+                            "Transport (non-direct bridge) only supports a single nominal address",
+                        )),
+                    };
+                let transport = transport
+                    .parse()
+                    .map_err(|e: TransportIdError| invalid("transport".into(), &e))?;
                 let mut target = PtTarget::new(transport, addr);
                 for (i, (k, v)) in settings.iter().enumerate() {
                     // Using PtTargetSettings TryFrom would prevent us reporting the index i
