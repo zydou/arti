@@ -24,7 +24,9 @@ use crate::HasAddrs;
 ///
 /// This can be displayed as, or parsed from, a string.
 /// `"-"` is used to indicate the builtin transport,
-/// and `""` and `"<none>"` are also recognised for that.
+/// and `""` and `"bridge"` and `"<none>"` are also recognised for that.
+//
+// We recognise "bridge" as pluggable; "BRIDGE" is rejected as invalid.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct TransportId(Inner);
 
@@ -105,7 +107,8 @@ impl Display for PtTransportName {
 //
 // Actual pluggable transport names are restricted to the syntax of C identifiers.
 // These strings are deliberately not in that syntax so as to avoid clashes.
-const BUILT_IN_IDS: &[&str] = &["-", "", "<none>"];
+// `"bridge"` is likewise prohibited by the spec.
+const BUILT_IN_IDS: &[&str] = &["-", "", "bridge", "<none>"];
 
 impl FromStr for TransportId {
     type Err = TransportIdError;
@@ -633,6 +636,7 @@ mod test {
         let dflt2 = TransportId::from_str("<none>").unwrap();
         let dflt3 = TransportId::from_str("-").unwrap();
         let dflt4 = TransportId::from_str("").unwrap();
+        let dflt5 = TransportId::from_str("bridge").unwrap();
         let snow = TransportId::from_str("snowflake").unwrap();
         let obfs_again = TransportId::from_str("obfs4").unwrap();
 
@@ -640,6 +644,7 @@ mod test {
         assert_eq!(dflt, dflt2);
         assert_eq!(dflt, dflt3);
         assert_eq!(dflt, dflt4);
+        assert_eq!(dflt, dflt5);
         assert_ne!(snow, obfs);
         assert_ne!(snow, dflt);
 
@@ -650,7 +655,7 @@ mod test {
             Err(TransportIdError::BadId(_))
         ));
         assert!(matches!(
-            TransportId::from_str("bridge"),
+            TransportId::from_str("Bridge"),
             Err(TransportIdError::BadId(_))
         ));
     }
