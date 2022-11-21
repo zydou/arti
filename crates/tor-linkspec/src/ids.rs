@@ -6,6 +6,7 @@
 //! over those types, and over other new types that may exist in the future.
 
 use derive_more::{Display, From};
+use safelog::Redactable;
 use tor_llcrypto::pk::{
     ed25519::{Ed25519Identity, ED25519_ID_LEN},
     rsa::{RsaIdentity, RSA_ID_LEN},
@@ -192,6 +193,34 @@ impl<'a> RelayIdRef<'a> {
 impl<'a> From<&'a RelayId> for RelayIdRef<'a> {
     fn from(ident: &'a RelayId) -> Self {
         ident.as_ref()
+    }
+}
+
+impl Redactable for RelayId {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().display_redacted(f)
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().debug_redacted(f)
+    }
+}
+
+impl<'a> Redactable for RelayIdRef<'a> {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Display as _;
+        match self {
+            RelayIdRef::Ed25519(k) => k.redacted().fmt(f),
+            RelayIdRef::Rsa(k) => k.redacted().fmt(f),
+        }
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Debug as _;
+        match self {
+            RelayIdRef::Ed25519(k) => k.redacted().fmt(f),
+            RelayIdRef::Rsa(k) => k.redacted().fmt(f),
+        }
     }
 }
 

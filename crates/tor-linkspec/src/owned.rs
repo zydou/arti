@@ -1,5 +1,6 @@
 //! Owned variants of [`ChanTarget`] and [`CircTarget`].
 
+use safelog::Redactable;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 use std::net::SocketAddr;
@@ -160,6 +161,16 @@ impl OwnedChanTarget {
 impl Display for OwnedChanTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.display_chan_target())
+    }
+}
+
+impl Redactable for OwnedChanTarget {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.display_chan_target().display_redacted(f)
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.display_chan_target().debug_redacted(f)
     }
 }
 

@@ -3917,6 +3917,7 @@ dependencies = [
  "rand_core 0.5.1",
  "rand_core 0.6.4",
  "rsa",
+ "safelog",
  "serde",
  "serde_test",
  "sha-1",

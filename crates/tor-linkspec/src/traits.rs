@@ -1,6 +1,7 @@
 //! Declare traits to be implemented by types that describe a place
 //! that Tor can connect to, directly or indirectly.
 
+use safelog::Redactable;
 use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
@@ -240,21 +241,24 @@ pub struct DisplayChanTarget<'a, T> {
     inner: &'a T,
 }
 
-impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a, T: ChanTarget> DisplayChanTarget<'a, T> {
+    /// helper: output `self` in a possibly redacted way.
+    fn fmt_impl(&self, f: &mut fmt::Formatter<'_>, redact: bool) -> fmt::Result {
         write!(f, "[")?;
         // We look at the chan_method() (where we would connect to) rather than
         // the addrs() (where the relay is, nebulously, "located").  This lets us
         // give a less surprising description.
         match self.inner.chan_method() {
             ChannelMethod::Direct(v) if v.is_empty() => write!(f, "?")?,
-            ChannelMethod::Direct(v) if v.len() == 1 => write!(f, "{}", v[0])?,
-            ChannelMethod::Direct(v) => write!(f, "{}+", v[0])?,
+            ChannelMethod::Direct(v) if v.len() == 1 => {
+                write!(f, "{}", v[0].maybe_redacted(redact))?;
+            }
+            ChannelMethod::Direct(v) => write!(f, "{}+", v[0].maybe_redacted(redact))?,
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(target) => {
                 match target.addr() {
                     crate::PtTargetAddr::None => {}
-                    other => write!(f, "{} ", other)?,
+                    other => write!(f, "{} ", other.maybe_redacted(redact))?,
                 }
                 write!(f, "via {}", target.transport())?;
                 // This deliberately doesn't include the PtTargetSettings, since
@@ -263,10 +267,28 @@ impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
         }
 
         for ident in self.inner.identities() {
-            write!(f, " {}", ident)?;
+            write!(f, " {}", ident.maybe_redacted(redact))?;
+            if redact {
+                break;
+            }
         }
 
         write!(f, "]")
+    }
+}
+
+impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_impl(f, false)
+    }
+}
+
+impl<'a, T: ChanTarget + std::fmt::Debug> safelog::Redactable for DisplayChanTarget<'a, T> {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_impl(f, true)
+    }
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ChanTarget({:?})", self.redacted().to_string())
     }
 }
 
