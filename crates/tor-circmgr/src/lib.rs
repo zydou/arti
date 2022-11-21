@@ -508,7 +508,6 @@ impl<R: Runtime> CircMgr<R> {
     /// TODO: we may want to expose this eventually.  If we do, we should
     /// be very clear that you don't want to use it haphazardly.
     pub(crate) fn retire_all_circuits(&self) {
-        // TODO pt-client: There is a bug here; see arti#656
         self.mgr.retire_all_circuits();
     }
 

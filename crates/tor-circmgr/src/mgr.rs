@@ -492,10 +492,19 @@ struct CircList<B: AbstractCircBuilder> {
     open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Spec, B::Circ>>,
     /// Weak-set of PendingEntry for circuits that are being built.
     ///
-    /// Because this set only holds weak references, and the only
-    /// strong reference to the PendingEntry is held by the task
-    /// building the circuit, this set's members are lazily removed
-    /// after the circuit is either built or fails to build.
+    /// Because this set only holds weak references, and the only strong
+    /// reference to the PendingEntry is held by the task building the circuit,
+    /// this set's members are lazily removed after the circuit is either built
+    /// or fails to build.
+    ///
+    /// This set is used for two purposes:
+    ///
+    /// 1. When a circuit request finds that there is no open circuit for its
+    ///    purposes, it checks here to see if there is a pending circuit that it
+    ///    could wait for.
+    /// 2. When a pending circuit finishes building, it checks here to make sure
+    ///    that it has not been cancelled. (Removing an entry from this set marks
+    ///    it as cancelled.)
     pending_circs: PtrWeakHashSet<Weak<PendingEntry<B>>>,
     /// Weak-set of PendingRequest for requests that are waiting for a
     /// circuit to be built.
@@ -641,6 +650,9 @@ impl<B: AbstractCircBuilder> CircList<B> {
 
     /// Clear all pending circuits and open circuits.
     fn clear_all_circuits(&mut self) {
+        // Note that removing entries from pending_circs will also cause the
+        // circuit tasks to realize that they are cancelled when they
+        // go to tell anybody about their results.
         self.pending_circs.clear();
         self.open_circs.clear();
     }
@@ -1321,7 +1333,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         drop(pending);
                         (Some(new_spec), Ok(id))
                     } else {
-                        // This circuit is no longer pending! It must have been cancelled.
+                        // This circuit is no longer pending! It must have been cancelled, probably
+                        // by a call to retire_all_circuits().
                         drop(pending); // ibid
                         (None, Err(Error::CircCanceled))
                     }
