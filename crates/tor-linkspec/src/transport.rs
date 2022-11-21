@@ -21,6 +21,10 @@ use crate::HasAddrs;
 /// If this crate is compiled with the `pt-client` feature, this type can
 /// support pluggable transports; otherwise, only the built-in transport type is
 /// supported.
+///
+/// This can be displayed as, or parsed from, a string.
+/// `"-"` is used to indicate the builtin transport,
+/// and `""` and `"<none>"` are also recognised for that.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct TransportId(Inner);
 
@@ -95,17 +99,19 @@ impl Display for PtTransportName {
     }
 }
 
-/// This identifier is used to indicate the built-in transport.
+/// These identifiers are used to indicate the built-in transport.
+///
+/// When outputting string representations, the first (`"-"`) is used.
 //
 // Actual pluggable transport names are restricted to the syntax of C identifiers.
-// This string deliberately is not in that syntax so as to avoid clashes.
-const BUILT_IN_ID: &str = "<none>";
+// These strings are deliberately not in that syntax so as to avoid clashes.
+const BUILT_IN_IDS: &[&str] = &["-", "", "<none>"];
 
 impl FromStr for TransportId {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == BUILT_IN_ID {
+        if BUILT_IN_IDS.contains(&s) {
             return Ok(TransportId(Inner::BuiltIn));
         };
 
@@ -123,7 +129,7 @@ impl FromStr for TransportId {
 impl Display for TransportId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
-            Inner::BuiltIn => write!(f, "{}", BUILT_IN_ID),
+            Inner::BuiltIn => write!(f, "{}", BUILT_IN_IDS[0]),
             #[cfg(feature = "pt-client")]
             Inner::Pluggable(name) => write!(f, "{}", name),
         }
@@ -584,15 +590,19 @@ mod test {
         let obfs = TransportId::from_str("obfs4").unwrap();
         let dflt = TransportId::default();
         let dflt2 = TransportId::from_str("<none>").unwrap();
+        let dflt3 = TransportId::from_str("-").unwrap();
+        let dflt4 = TransportId::from_str("").unwrap();
         let snow = TransportId::from_str("snowflake").unwrap();
         let obfs_again = TransportId::from_str("obfs4").unwrap();
 
         assert_eq!(obfs, obfs_again);
         assert_eq!(dflt, dflt2);
+        assert_eq!(dflt, dflt3);
+        assert_eq!(dflt, dflt4);
         assert_ne!(snow, obfs);
         assert_ne!(snow, dflt);
 
-        assert_eq!(dflt.to_string(), "<none>");
+        assert_eq!(dflt.to_string(), "-");
 
         assert!(matches!(
             TransportId::from_str("12345"),
