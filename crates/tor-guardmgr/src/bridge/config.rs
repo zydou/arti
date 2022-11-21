@@ -124,6 +124,8 @@ pub struct BridgeConfigBuilder = "BridgeConfigBuilder" {
     addrs: Option<Vec<BridgeAddr>>,
 
     /// IDs
+    ///
+    /// No more than one ID of each type is permitted.
     ids: Option<Vec<RelayId>>,
 
     /// Settings (for the transport)
