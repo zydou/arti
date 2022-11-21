@@ -14,6 +14,7 @@ use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::RelayId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
 use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::TransportId;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 use tor_linkspec::BridgeAddr;
@@ -216,8 +217,15 @@ impl BridgeConfigBuilder {
             problem: problem.to_string(),
         };
 
-        #[allow(clippy::comparison_to_empty)] // .is_empty() would *not* be clearer
-        let addrs = if transport == "" || transport == "-" || transport == "bridge" {
+        let transp: TransportId = transport
+            .parse()
+            .map_err(|e| invalid("transport".into(), &e))?;
+
+        // This match seems redundant, but it allows us to apply #[cfg] to the branches,
+        // which isn't possible with `if ... else ...`.
+        let addrs = match () {
+            () if transp.is_builtin() => {
+
             if !settings.is_empty() {
                 return Err(inconsist_transp(
                     "settings",
@@ -244,9 +252,12 @@ impl BridgeConfigBuilder {
                 ));
             }
             ChannelMethod::Direct(addrs)
-        } else {
+
+            }
+
             #[cfg(feature = "pt-client")]
-            {
+            () if transp.as_pluggable().is_some() => {
+                let transport = transp.into_pluggable().expect("became not pluggable!");
                 let addr =
                     match addrs {
                         [] => BridgeAddr::None,
@@ -256,9 +267,6 @@ impl BridgeConfigBuilder {
                             "Transport (non-direct bridge) only supports a single nominal address",
                         )),
                     };
-                let transport = transport
-                    .parse()
-                    .map_err(|e| invalid("transport".into(), &e))?;
                 let mut target = PtTarget::new(transport, addr);
                 for (i, (k, v)) in settings.iter().enumerate() {
                     // Using PtTargetSettings TryFrom would prevent us reporting the index i
@@ -268,11 +276,15 @@ impl BridgeConfigBuilder {
                 }
                 ChannelMethod::Pluggable(target)
             }
-            #[cfg(not(feature = "pt-client"))]
-            {
+
+            () => {
+                // With current code, this can only happen if tor-linkspec has pluggable
+                // transports enabled, but we don't.  But if `TransportId` gains other
+                // inner variants, it would trigger.
                 return Err(unsupported(
                     "transport".into(),
-                    &"pluggable transport support disabled in tor-guardmgr cargo features",
+                    &format_args!("support for selected transport '{}' disabled in tor-guardmgr cargo features",
+                                  transp),
                 ));
             }
         };
@@ -849,7 +861,7 @@ mod test {
 
         #[cfg(not(feature = "pt-client"))]
         chk_broken(
-            "pluggable transport support disabled in tor-guardmgr cargo features",
+            "Not compiled with pluggable transport support",
             &[r#"{
                 "transport": "obfs4"
             }"#],
