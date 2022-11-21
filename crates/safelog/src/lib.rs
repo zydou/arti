@@ -45,6 +45,7 @@ use serde::{Deserialize, Serialize};
 
 mod err;
 mod flags;
+mod impls;
 
 pub use err::Error;
 pub use flags::{disable_safe_logging, enforce_safe_logging, with_safe_logging_suppressed, Guard};
