@@ -204,7 +204,7 @@ impl BridgeConfigBuilder {
             fields: vec![field.into(), "transport".into()],
             problem: problem.into(),
         };
-        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::Invalid {
+        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::Unsupported {
             field,
             problem: problem.to_string(),
         };
