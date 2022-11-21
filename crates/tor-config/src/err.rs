@@ -37,6 +37,16 @@ pub enum ConfigBuildError {
         /// The problem that makes them inconsistent
         problem: String,
     },
+    /// The requested configuration is not supported in this build
+    #[error("Field {field:?} specifies a configuration not supported in this build: {problem}")]
+    // TODO should we report the cargo feature, if applicable?  And if so, of `arti`
+    // or of the underlying crate?  This seems like a can of worms.
+    Unsupported {
+        /// The names of the (primary) field requesting the unsupported configuration
+        field: String,
+        /// The description of the problem
+        problem: String,
+    },
 }
 
 impl From<derive_builder::UninitializedFieldError> for ConfigBuildError {
@@ -60,16 +70,21 @@ impl ConfigBuildError {
     #[must_use]
     pub fn within(&self, prefix: &str) -> Self {
         use ConfigBuildError::*;
+        let addprefix = |field: &str| format!("{}.{}", prefix, field);
         match self {
             MissingField { field } => MissingField {
-                field: format!("{}.{}", prefix, field),
+                field: addprefix(field),
             },
             Invalid { field, problem } => Invalid {
-                field: format!("{}.{}", prefix, field),
+                field: addprefix(field),
                 problem: problem.clone(),
             },
             Inconsistent { fields, problem } => Inconsistent {
-                fields: fields.iter().map(|f| format!("{}.{}", prefix, f)).collect(),
+                fields: fields.iter().map(|f| addprefix(f)).collect(),
+                problem: problem.clone(),
+            },
+            Unsupported { field, problem } => Invalid {
+                field: addprefix(field),
                 problem: problem.clone(),
             },
         }

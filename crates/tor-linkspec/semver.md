@@ -7,3 +7,5 @@ MODIFIED: Added cmp_by_relay_ids() to HasRelayIds.
 BREAKING: Replaced functions to access addresses from ChanMethod.
 BREAKING: Replaced functions to strip addresses from ChanMethod.
 BREAKING: Remove impl Display for OwnedCircTarget.
+ADDED: Provide deconstructors for PtTargetSettings and PtTarget
+MODIFIED: Renaming PtTargetAddr to BridgeAddr (in progress, will become BREAKING)

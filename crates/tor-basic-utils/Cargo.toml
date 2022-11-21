@@ -31,7 +31,9 @@ libc = { version = "0.2", default-features = false }
 derive_more = "0.99.3"
 educe = "0.4.6"
 futures-await-test = "0.3.0"
+serde = { version = "1.0.103", features = ["derive"] }
 tokio = { version = "1.7", features = ["macros", "rt", "rt-multi-thread", "time"] }
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
