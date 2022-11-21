@@ -186,6 +186,97 @@ impl_display_traits! {
     Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer
 }
 
+/// A `redactable` object is one where we know a way to display _part_ of it
+/// when we are running with safe logging enabled.
+///
+/// For example, instead of referring to a user as `So-and-So` or `[scrubbed]`,
+/// this trait would allow referring to the user as `S[...]`.
+///
+/// # Privacy notes
+///
+/// Displaying some information about an object is always less safe than
+/// displaying no information about it!
+///
+/// For example, in an environment with only a small number of users, the first
+/// letter of a user's name might be plenty of information to identify them
+/// uniquely.
+///
+/// Even if a piece of redacted information is safe on its own, several pieces
+/// of redacted information, when taken together, can be enough for an adversary
+/// to infer more than you want.  For example, if you log somebody's first
+/// initial, month of birth, and last-two-digits of ID number, you have just
+/// discarded 99.9% of potential individuals from the attacker's consideration.
+pub trait Redactable: std::fmt::Display + std::fmt::Debug {
+    /// As `Display::fmt`, but produce a redacted representation.
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    /// As `Debug::fmt`, but produce a redacted representation.
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    /// Return a smart pointer that will display or debug this object as its
+    /// redacted form.
+    fn redacted(&self) -> Redacted<&Self> {
+        Redacted(self)
+    }
+}
+
+impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (*self).display_redacted(f)
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (*self).debug_redacted(f)
+    }
+}
+
+/// A wrapper around a `Redactable` that displays it in redacted format.
+#[derive(Educe)]
+#[educe(
+    Clone(bound),
+    Default(bound),
+    Deref,
+    DerefMut,
+    Eq(bound),
+    Hash(bound),
+    Ord(bound),
+    PartialEq(bound),
+    PartialOrd(bound)
+)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct Redacted<T: Redactable>(T);
+
+impl<T: Redactable> Redacted<T> {
+    /// Create a new `Redacted`.
+    pub fn new(value: T) -> Self {
+        Self(value)
+    }
+
+    /// Consume this wrapper and return its inner value.
+    pub fn unwrap(self) -> T {
+        self.0
+    }
+}
+
+impl<T: Redactable> std::fmt::Display for Redacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if flags::unsafe_logging_enabled() {
+            self.0.display_redacted(f)
+        } else {
+            std::fmt::Display::fmt(&self.0, f)
+        }
+    }
+}
+
+impl<T: Redactable> std::fmt::Debug for Redacted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if flags::unsafe_logging_enabled() {
+            self.0.debug_redacted(f)
+        } else {
+            std::fmt::Debug::fmt(&self.0, f)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     #![allow(clippy::unwrap_used)]
