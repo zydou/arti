@@ -12,9 +12,9 @@ use tor_basic_utils::derive_serde_raw;
 use tor_config::define_list_builder_accessors;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::RelayId;
+use tor_linkspec::TransportId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
 use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
-use tor_linkspec::TransportId;
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 use tor_linkspec::BridgeAddr;
@@ -225,14 +225,13 @@ impl BridgeConfigBuilder {
         // which isn't possible with `if ... else ...`.
         let addrs = match () {
             () if transp.is_builtin() => {
-
-            if !settings.is_empty() {
-                return Err(inconsist_transp(
-                    "settings",
-                    "Specified `settings` for a direct bridge connection",
-                ));
-            }
-            let addrs = addrs.iter().filter_map(|pta| match pta {
+                if !settings.is_empty() {
+                    return Err(inconsist_transp(
+                        "settings",
+                        "Specified `settings` for a direct bridge connection",
+                    ));
+                }
+                let addrs = addrs.iter().filter_map(|pta| match pta {
                 BridgeAddr::IpPort(sa) => Some(Ok(*sa)),
                 BridgeAddr::HostPort(..) => Some(Err(
                     "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
@@ -245,14 +244,13 @@ impl BridgeConfigBuilder {
                 "addrs",
                 problem,
             ))?;
-            if addrs.is_empty() {
-                return Err(inconsist_transp(
-                    "addrs",
-                    "Missing `addrs` for a direct bridge connection",
-                ));
-            }
-            ChannelMethod::Direct(addrs)
-
+                if addrs.is_empty() {
+                    return Err(inconsist_transp(
+                        "addrs",
+                        "Missing `addrs` for a direct bridge connection",
+                    ));
+                }
+                ChannelMethod::Direct(addrs)
             }
 
             #[cfg(feature = "pt-client")]
