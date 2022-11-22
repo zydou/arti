@@ -13,6 +13,13 @@ set -euo pipefail
 # If you add anything to this section, make sure to add a comment
 # explaining why it's safe to do so.
 IGNORE=(
+    # This is a real but theoretical unaligned read.  It might happen only on
+    # Windows and only with a custom global allocator, which we don't do in our
+    # arti binary.  The bad crate is depended on by env-logger and clap.
+    # This is being discussed by those crates' contributors here:
+    #     https://github.com/clap-rs/clap/pull/4249
+    #     https://github.com/rust-cli/env_logger/pull/246
+    --ignore RUSTSEC-2021-0145
 )
 
 ${CARGO:-cargo} audit -D warnings "${IGNORE[@]}"
