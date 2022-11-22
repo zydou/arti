@@ -280,14 +280,14 @@ impl<R: Runtime> ChanMgr<R> {
         todo!("TODO pt-client: implement this.")
     }
 
+    /*
+    TODO pt-client: use AbstractPtMgr instead
     /// Replace the transport registry with one that may know about
     /// more transports.
     #[cfg(feature = "pt-client")]
     pub fn set_transport_registry(&self, _registry: impl factory::TransportRegistry) {
-        // TODO pt-client: See set_default_transport above.
-        #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
-        todo!("TODO pt-client: implement this.")
     }
+     */
 
     /// Watch for things that ought to change the configuration of all channels in the client
     ///

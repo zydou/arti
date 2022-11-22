@@ -6,6 +6,7 @@ use std::sync::Arc;
 use futures::task::SpawnError;
 use thiserror::Error;
 
+use crate::factory::AbstractPtError;
 use tor_error::{internal, ErrorKind};
 use tor_linkspec::{ChanTarget, OwnedChanTarget, PtTargetAddr};
 use tor_proto::ClockSkew;
@@ -107,6 +108,15 @@ pub enum Error {
     #[error("Problem while connecting to Tor via a proxy")]
     Proxy(#[from] ProxyError),
 
+    /// An error occurred in a pluggable transport manager.
+    ///
+    /// We can't know the type, because any pluggable transport manager implementing
+    /// `AbstractPtMgr` can be used.
+    /// However, if you're using Arti in the standard configuration, this will be
+    /// `tor-ptmgr`'s `PtError`.
+    #[error("Pluggable transport error: {0}")]
+    Pt(#[source] Arc<dyn AbstractPtError>),
+
     /// An internal error of some kind that should never occur.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -146,6 +156,7 @@ impl tor_error::HasKind for Error {
             E::ChannelBuild { .. } => EK::TorAccessFailed,
             E::RequestCancelled => EK::TransientFailure,
             E::Proxy(e) => e.kind(),
+            E::Pt(e) => e.kind(),
         }
     }
 }
@@ -166,6 +177,7 @@ impl tor_error::HasRetryTime for Error {
 
             // Delegate.
             E::Proxy(e) => e.retry_time(),
+            E::Pt(e) => e.retry_time(),
 
             // This error reflects multiple attempts, but every failure is an IO
             // error, so we can also retry this after a delay.
