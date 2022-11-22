@@ -272,11 +272,13 @@ impl<C: AbstractChannelFactory> MgrState<C> {
         inner.builder.clone()
     }
 
-    /// Replace the builder stored in this state.
-    #[allow(dead_code)] //TODO pt-client: remove.
-    pub(crate) fn replace_builder(&self, builder: C) {
+    /// Run a function to modify the builder stored in this state.
+    pub(crate) fn with_mut_builder<F>(&self, func: F)
+    where
+        F: FnOnce(&mut C),
+    {
         let mut inner = self.inner.lock().expect("lock poisoned");
-        inner.builder = builder;
+        func(&mut inner.builder);
     }
 
     /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.

@@ -106,6 +106,14 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         }
     }
 
+    /// Run a function to modify the channel builder in this object.
+    pub(crate) fn with_mut_builder<F>(&self, func: F)
+    where
+        F: FnOnce(&mut CF),
+    {
+        self.channels.with_mut_builder(func);
+    }
+
     /// Remove every unusable entry from this channel manager.
     #[cfg(test)]
     pub(crate) fn remove_unusable_entries(&self) -> Result<()> {

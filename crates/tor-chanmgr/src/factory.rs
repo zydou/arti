@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use tor_error::{HasKind, HasRetryTime};
-use tor_linkspec::{OwnedChanTarget, PtTransportName};
+use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
 use tracing::debug;
 
@@ -74,8 +74,85 @@ pub trait AbstractPtMgr {
     async fn factory_for_transport(
         &self,
         transport: &PtTransportName,
-    ) -> Result<Option<Arc<dyn ChannelFactory + Sync>>, Arc<dyn AbstractPtError>>;
+    ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>>;
 }
 
 /// Alias for an Arc ChannelFactory with all of the traits that we require.
 pub(crate) type ArcFactory = Arc<dyn ChannelFactory + Send + Sync + 'static>;
+
+/// Alias for an Arc PtMgr with all of the traits that we require.
+pub(crate) type ArcPtMgr = Arc<dyn AbstractPtMgr + Send + Sync + 'static>;
+
+#[async_trait]
+impl<P> AbstractPtMgr for Option<P>
+where
+    P: AbstractPtMgr + Send + Sync,
+{
+    async fn factory_for_transport(
+        &self,
+        transport: &PtTransportName,
+    ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>> {
+        match self {
+            Some(mgr) => mgr.factory_for_transport(transport).await,
+            None => Ok(None),
+        }
+    }
+}
+
+/// A ChannelFactory built from an optional PtMgr to use for pluggable transports, and a
+/// ChannelFactory to use for everything else.
+#[derive(Clone)]
+pub(crate) struct Factory {
+    #[cfg(feature = "pt-client")]
+    /// The PtMgr to use for pluggable transports
+    ptmgr: Option<ArcPtMgr>,
+    /// The factory to use for everything else
+    default_factory: ArcFactory,
+}
+
+#[async_trait]
+impl ChannelFactory for Factory {
+    async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
+        use tor_linkspec::ChannelMethod::*;
+        let factory = match target.chan_method() {
+            Direct(_) => self.default_factory.clone(),
+            #[cfg(feature = "pt-client")]
+            Pluggable(a) => match self.ptmgr.as_ref() {
+                Some(mgr) => mgr
+                    .factory_for_transport(a.transport())
+                    .await
+                    .expect("TODO pt-client")
+                    .ok_or_else(|| crate::Error::NoSuchTransport(a.transport().clone().into()))?,
+                None => return Err(crate::Error::NoSuchTransport(a.transport().clone().into())),
+            },
+        };
+
+        factory.connect_via_transport(target).await
+    }
+}
+
+impl Factory {
+    /// Create a new `Factory` that will try to use `ptmgr` to handle pluggable
+    /// transports requests, and `default_factory` to handle everything else.
+    pub(crate) fn new(
+        default_factory: ArcFactory,
+        #[cfg(feature = "pt-client")] ptmgr: Option<ArcPtMgr>,
+    ) -> Self {
+        Self {
+            default_factory,
+            #[cfg(feature = "pt-client")]
+            ptmgr,
+        }
+    }
+
+    /// Replace the default factory in this object.
+    pub(crate) fn replace_default_factory(&mut self, factory: ArcFactory) {
+        self.default_factory = factory;
+    }
+
+    #[cfg(feature = "pt-client")]
+    /// Replace the PtMgr in this object.
+    pub(crate) fn replace_ptmgr(&mut self, ptmgr: ArcPtMgr) {
+        self.ptmgr = Some(ptmgr);
+    }
+}
