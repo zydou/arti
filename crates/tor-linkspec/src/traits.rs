@@ -430,8 +430,6 @@ mod test {
 
     #[test]
     fn display() {
-        use crate::PtTarget;
-
         let e1 = example();
         assert_eq!(
             e1.display_chan_target().to_string(),
@@ -439,19 +437,24 @@ mod test {
               $1234567890abcdef12341234567890abcdef1234]"
         );
 
-        let rsa = hex!("234461644a6f6b6523436f726e794f6e4d61696e").into();
-        let mut b = crate::OwnedChanTarget::builder();
-        b.ids().rsa_identity(rsa);
-        let e2 = b
-            .method(ChannelMethod::Pluggable(PtTarget::new(
-                "obfs4".parse().unwrap(),
-                "127.0.0.1:99".parse().unwrap(),
-            )))
-            .build()
-            .unwrap();
-        assert_eq!(
-            e2.to_string(),
-            "[127.0.0.1:99 via obfs4 $234461644a6f6b6523436f726e794f6e4d61696e]"
-        );
+        #[cfg(feature = "pt-client")]
+        {
+            use crate::PtTarget;
+
+            let rsa = hex!("234461644a6f6b6523436f726e794f6e4d61696e").into();
+            let mut b = crate::OwnedChanTarget::builder();
+            b.ids().rsa_identity(rsa);
+            let e2 = b
+                .method(ChannelMethod::Pluggable(PtTarget::new(
+                    "obfs4".parse().unwrap(),
+                    "127.0.0.1:99".parse().unwrap(),
+                )))
+                .build()
+                .unwrap();
+            assert_eq!(
+                e2.to_string(),
+                "[127.0.0.1:99 via obfs4 $234461644a6f6b6523436f726e794f6e4d61696e]"
+            );
+        }
     }
 }

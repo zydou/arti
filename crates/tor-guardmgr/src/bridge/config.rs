@@ -12,6 +12,7 @@ use tor_basic_utils::derive_serde_raw;
 use tor_config::define_list_builder_accessors;
 use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::RelayId;
+use tor_linkspec::TransportId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
 use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
@@ -216,15 +217,21 @@ impl BridgeConfigBuilder {
             problem: problem.to_string(),
         };
 
-        #[allow(clippy::comparison_to_empty)] // .is_empty() would *not* be clearer
-        let addrs = if transport == "" || transport == "-" || transport == "bridge" {
-            if !settings.is_empty() {
-                return Err(inconsist_transp(
-                    "settings",
-                    "Specified `settings` for a direct bridge connection",
-                ));
-            }
-            let addrs = addrs.iter().filter_map(|pta| match pta {
+        let transp: TransportId = transport
+            .parse()
+            .map_err(|e| invalid("transport".into(), &e))?;
+
+        // This match seems redundant, but it allows us to apply #[cfg] to the branches,
+        // which isn't possible with `if ... else ...`.
+        let addrs = match () {
+            () if transp.is_builtin() => {
+                if !settings.is_empty() {
+                    return Err(inconsist_transp(
+                        "settings",
+                        "Specified `settings` for a direct bridge connection",
+                    ));
+                }
+                let addrs = addrs.iter().filter_map(|pta| match pta {
                 BridgeAddr::IpPort(sa) => Some(Ok(*sa)),
                 BridgeAddr::HostPort(..) => Some(Err(
                     "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
@@ -237,23 +244,18 @@ impl BridgeConfigBuilder {
                 "addrs",
                 problem,
             ))?;
-            if addrs.is_empty() {
-                return Err(inconsist_transp(
-                    "addrs",
-                    "Missing `addrs` for a direct bridge connection",
-                ));
+                if addrs.is_empty() {
+                    return Err(inconsist_transp(
+                        "addrs",
+                        "Missing `addrs` for a direct bridge connection",
+                    ));
+                }
+                ChannelMethod::Direct(addrs)
             }
-            ChannelMethod::Direct(addrs)
-        } else {
-            #[cfg(not(feature = "pt-client"))]
-            {
-                return Err(unsupported(
-                    "transport".into(),
-                    &"pluggable transport support disabled in tor-guardmgr cargo features",
-                ));
-            }
+
             #[cfg(feature = "pt-client")]
-            {
+            () if transp.as_pluggable().is_some() => {
+                let transport = transp.into_pluggable().expect("became not pluggable!");
                 let addr =
                     match addrs {
                         [] => BridgeAddr::None,
@@ -263,9 +265,6 @@ impl BridgeConfigBuilder {
                             "Transport (non-direct bridge) only supports a single nominal address",
                         )),
                     };
-                let transport = transport
-                    .parse()
-                    .map_err(|e| invalid("transport".into(), &e))?;
                 let mut target = PtTarget::new(transport, addr);
                 for (i, (k, v)) in settings.iter().enumerate() {
                     // Using PtTargetSettings TryFrom would prevent us reporting the index i
@@ -274,6 +273,17 @@ impl BridgeConfigBuilder {
                         .map_err(|e| invalid(format!("settings.{}", i), &e))?;
                 }
                 ChannelMethod::Pluggable(target)
+            }
+
+            () => {
+                // With current code, this can only happen if tor-linkspec has pluggable
+                // transports enabled, but we don't.  But if `TransportId` gains other
+                // inner variants, it would trigger.
+                return Err(unsupported(
+                    "transport".into(),
+                    &format_args!("support for selected transport '{}' disabled in tor-guardmgr cargo features",
+                                  transp),
+                ));
             }
         };
 
@@ -820,9 +830,10 @@ mod test {
             let got_emsg = err.to_string();
             assert!(
                 got_emsg.contains(emsg),
-                "wrong error message: got_emsg={:?} err={:?}",
+                "wrong error message: got_emsg={:?} err={:?} expected={:?}",
                 &got_emsg,
-                &err
+                &err,
+                emsg,
             );
 
             // This is a kludge.  When we serialize `Option<Vec<_>>` as JSON,
@@ -849,7 +860,7 @@ mod test {
 
         #[cfg(not(feature = "pt-client"))]
         chk_broken(
-            "pluggable transport support disabled in tor-guardmgr cargo features",
+            "Not compiled with pluggable transport support",
             &[r#"{
                 "transport": "obfs4"
             }"#],

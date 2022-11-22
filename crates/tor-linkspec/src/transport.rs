@@ -21,6 +21,12 @@ use crate::HasAddrs;
 /// If this crate is compiled with the `pt-client` feature, this type can
 /// support pluggable transports; otherwise, only the built-in transport type is
 /// supported.
+///
+/// This can be displayed as, or parsed from, a string.
+/// `"-"` is used to indicate the builtin transport,
+/// and `""` and `"bridge"` and `"<none>"` are also recognised for that.
+//
+// We recognise "bridge" as pluggable; "BRIDGE" is rejected as invalid.
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct TransportId(Inner);
 
@@ -95,17 +101,20 @@ impl Display for PtTransportName {
     }
 }
 
-/// This identifier is used to indicate the built-in transport.
+/// These identifiers are used to indicate the built-in transport.
+///
+/// When outputting string representations, the first (`"-"`) is used.
 //
 // Actual pluggable transport names are restricted to the syntax of C identifiers.
-// This string deliberately is not in that syntax so as to avoid clashes.
-const BUILT_IN_ID: &str = "<none>";
+// These strings are deliberately not in that syntax so as to avoid clashes.
+// `"bridge"` is likewise prohibited by the spec.
+const BUILT_IN_IDS: &[&str] = &["-", "", "bridge", "<none>"];
 
 impl FromStr for TransportId {
     type Err = TransportIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == BUILT_IN_ID {
+        if BUILT_IN_IDS.contains(&s) {
             return Ok(TransportId(Inner::BuiltIn));
         };
 
@@ -123,7 +132,7 @@ impl FromStr for TransportId {
 impl Display for TransportId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
-            Inner::BuiltIn => write!(f, "{}", BUILT_IN_ID),
+            Inner::BuiltIn => write!(f, "{}", BUILT_IN_IDS[0]),
             #[cfg(feature = "pt-client")]
             Inner::Pluggable(name) => write!(f, "{}", name),
         }
@@ -171,9 +180,50 @@ pub enum TransportIdError {
 }
 
 impl TransportId {
+    /// Return a new `TransportId` referencing the builtin transport
+    ///
+    /// This is equivalent to the `Default` impl.
+    pub fn new_builtin() -> Self {
+        TransportId(Inner::BuiltIn)
+    }
+
+    /// Return a new `TransportId` referencing a pluggable transport
+    ///
+    /// This is equivalent to the `From<PtTransportName>` impl.
+    #[cfg(feature = "pt-client")]
+    pub fn new_pluggable(pt: PtTransportName) -> Self {
+        pt.into()
+    }
+
     /// Return true if this is the built-in transport.
     pub fn is_builtin(&self) -> bool {
         self.0 == Inner::BuiltIn
+    }
+
+    /// Returns the pluggable transport name
+    ///
+    /// Or `None` if `self` doesn't specify a pluggable transport
+    /// (e.g. if it specifies the builtin transport).
+    #[cfg(feature = "pt-client")]
+    pub fn as_pluggable(&self) -> Option<&PtTransportName> {
+        match &self.0 {
+            Inner::BuiltIn => None,
+            #[cfg(feature = "pt-client")]
+            Inner::Pluggable(pt) => Some(pt),
+        }
+    }
+
+    /// Consumes this `TransportId` and returns the pluggable transport name
+    ///
+    /// Or `None` if `self` doesn't specify a pluggable transport
+    /// (e.g. if it specifies the builtin transport).
+    #[cfg(feature = "pt-client")]
+    pub fn into_pluggable(self) -> Option<PtTransportName> {
+        match self.0 {
+            Inner::BuiltIn => None,
+            #[cfg(feature = "pt-client")]
+            Inner::Pluggable(pt) => Some(pt),
+        }
     }
 }
 
@@ -584,20 +634,28 @@ mod test {
         let obfs = TransportId::from_str("obfs4").unwrap();
         let dflt = TransportId::default();
         let dflt2 = TransportId::from_str("<none>").unwrap();
+        let dflt3 = TransportId::from_str("-").unwrap();
+        let dflt4 = TransportId::from_str("").unwrap();
+        let dflt5 = TransportId::from_str("bridge").unwrap();
         let snow = TransportId::from_str("snowflake").unwrap();
         let obfs_again = TransportId::from_str("obfs4").unwrap();
 
         assert_eq!(obfs, obfs_again);
         assert_eq!(dflt, dflt2);
+        assert_eq!(dflt, dflt3);
+        assert_eq!(dflt, dflt4);
+        assert_eq!(dflt, dflt5);
         assert_ne!(snow, obfs);
         assert_ne!(snow, dflt);
+
+        assert_eq!(dflt.to_string(), "-");
 
         assert!(matches!(
             TransportId::from_str("12345"),
             Err(TransportIdError::BadId(_))
         ));
         assert!(matches!(
-            TransportId::from_str("bridge"),
+            TransportId::from_str("Bridge"),
             Err(TransportIdError::BadId(_))
         ));
     }
