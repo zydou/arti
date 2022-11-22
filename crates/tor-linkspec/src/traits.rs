@@ -1,11 +1,11 @@
 //! Declare traits to be implemented by types that describe a place
 //! that Tor can connect to, directly or indirectly.
 
-use std::{iter::FusedIterator, net::SocketAddr};
+use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
-use crate::{ChannelMethod, OwnedChanTarget, RelayIdRef, RelayIdType, RelayIdTypeIter};
+use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
 
 /// Legacy implementation helper for HasRelayIds.
 ///
@@ -195,11 +195,17 @@ impl<D: DirectChanMethodsHelper> HasChanMethod for D {
 /// Anything that implements 'ChanTarget' can be used as the
 /// identity of a relay for the purposes of launching a new
 /// channel.
-pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {}
-
-impl<T: ChanTarget> From<&T> for OwnedChanTarget {
-    fn from(target: &T) -> Self {
-        OwnedChanTarget::from_chan_target(target)
+pub trait ChanTarget: HasRelayIds + HasAddrs + HasChanMethod {
+    /// Return a reference to this object suitable for formatting its
+    /// [`ChanTarget`]-specific members.
+    ///
+    /// The display format is not exhaustive, but tries to give enough
+    /// information to identify which channel target we're talking about.
+    fn display_chan_target(&self) -> DisplayChanTarget<'_, Self>
+    where
+        Self: Sized,
+    {
+        DisplayChanTarget { inner: self }
     }
 }
 
@@ -224,6 +230,44 @@ pub trait CircTarget: ChanTarget {
     fn ntor_onion_key(&self) -> &pk::curve25519::PublicKey;
     /// Return the subprotocols implemented by this relay.
     fn protovers(&self) -> &tor_protover::Protocols;
+}
+
+/// A reference to a ChanTarget that implements Display using a hopefully useful
+/// format.
+#[derive(Debug, Clone)]
+pub struct DisplayChanTarget<'a, T> {
+    /// The ChanTarget that we're formatting.
+    inner: &'a T,
+}
+
+impl<'a, T: ChanTarget> fmt::Display for DisplayChanTarget<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        // We look at the chan_method() (where we would connect to) rather than
+        // the addrs() (where the relay is, nebulously, "located").  This lets us
+        // give a less surprising description.
+        match self.inner.chan_method() {
+            ChannelMethod::Direct(v) if v.is_empty() => write!(f, "?")?,
+            ChannelMethod::Direct(v) if v.len() == 1 => write!(f, "{}", v[0])?,
+            ChannelMethod::Direct(v) => write!(f, "{}+", v[0])?,
+            #[cfg(feature = "pt-client")]
+            ChannelMethod::Pluggable(target) => {
+                match target.addr() {
+                    crate::PtTargetAddr::None => {}
+                    other => write!(f, "{} ", other)?,
+                }
+                write!(f, "via {}", target.transport())?;
+                // This deliberately doesn't include the PtTargetSettings, since
+                // they can be large, and they're typically unnecessary.
+            }
+        }
+
+        for ident in self.inner.identities() {
+            write!(f, " {}", ident)?;
+        }
+
+        write!(f, "]")
+    }
 }
 
 #[cfg(test)]
@@ -382,5 +426,35 @@ mod test {
             b(Some(ed1), None),
             b(Some(ed1), Some(rsa1)),
         ]);
+    }
+
+    #[test]
+    fn display() {
+        let e1 = example();
+        assert_eq!(
+            e1.display_chan_target().to_string(),
+            "[127.0.0.1:99+ ed25519:/FHNjmIYoaONpH7QAjDwWAgW7RO6MwOsXeuRFUiQgCU \
+              $1234567890abcdef12341234567890abcdef1234]"
+        );
+
+        #[cfg(feature = "pt-client")]
+        {
+            use crate::PtTarget;
+
+            let rsa = hex!("234461644a6f6b6523436f726e794f6e4d61696e").into();
+            let mut b = crate::OwnedChanTarget::builder();
+            b.ids().rsa_identity(rsa);
+            let e2 = b
+                .method(ChannelMethod::Pluggable(PtTarget::new(
+                    "obfs4".parse().unwrap(),
+                    "127.0.0.1:99".parse().unwrap(),
+                )))
+                .build()
+                .unwrap();
+            assert_eq!(
+                e2.to_string(),
+                "[127.0.0.1:99 via obfs4 $234461644a6f6b6523436f726e794f6e4d61696e]"
+            );
+        }
     }
 }

@@ -19,10 +19,21 @@ default = ["tokio", "native-tls", "compression"]
 #   * Features which are select a particular implementation or build flag and
 #     which therefore are not strictly additive.
 #   * Features which may introduce unnecessary licensing restrictions.
-full = ["tokio", "async-std", "native-tls", "compression", "tor-rtcompat/full", "tor-proto/full", "tor-netdoc/full", "tor-dirmgr/full"]
+full = [
+    "tokio",
+    "async-std",
+    "native-tls",
+    "compression",
+    "bridge-client",
+    "pt-client",
+    "tor-rtcompat/full",
+    "tor-proto/full",
+    "tor-netdoc/full",
+    "tor-dirmgr/full",
+]
 
 async-std = ["tor-rtcompat/async-std"]
-bridge-client = ["tor-guardmgr/bridge-client"]
+bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-guardmgr/pt-client"]
@@ -42,11 +53,9 @@ compression = ["tor-dirmgr/compression"]
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
 experimental = [
-    "bridge-client",
     "dirfilter",
     "experimental-api",
     "error_detail",
-    "pt-client",
     "tor-proto/experimental",
     "tor-cell/experimental",
     "tor-checkable/experimental",
@@ -80,7 +89,9 @@ tor-chanmgr = { path = "../tor-chanmgr", version = "0.7.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
 tor-circmgr = { path = "../tor-circmgr", version = "0.6.0" }
 tor-config = { path = "../tor-config", version = "0.6.0" }
-tor-dirmgr = { path = "../tor-dirmgr", version = "0.8.0", default-features = false, features = ["mmap"] }
+tor-dirmgr = { path = "../tor-dirmgr", version = "0.8.0", default-features = false, features = [
+    "mmap",
+] }
 tor-error = { path = "../tor-error", version = "0.3.2" }
 tor-guardmgr = { path = "../tor-guardmgr", version = "0.7.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }

@@ -404,7 +404,7 @@ impl Store for SqliteStore {
         if let Some(row) = rows.next()? {
             let meta = cmeta_from_row(row)?;
             let fname: String = row.get(5)?;
-            let text = self.read_blob(&fname)?;
+            let text = self.read_blob(fname)?;
             Ok(Some((text, meta)))
         } else {
             Ok(None)
@@ -978,7 +978,7 @@ pub(crate) mod test {
     pub(crate) fn new_empty() -> Result<(TempDir, SqliteStore)> {
         let tmp_dir = tempdir().unwrap();
         let sql_path = tmp_dir.path().join("db.sql");
-        let conn = rusqlite::Connection::open(&sql_path)?;
+        let conn = rusqlite::Connection::open(sql_path)?;
         let blob_dir = fs_mistrust::Mistrust::builder()
             .dangerously_trust_everyone()
             .build()

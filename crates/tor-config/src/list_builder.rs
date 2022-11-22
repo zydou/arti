@@ -11,6 +11,9 @@
 //!    type.  (Different lists with the same Rust type, but which ought to have a different
 //!    default, are different "kinds" and should each have a separately named type alias.)
 //!
+//!    (Or, alternatively, with a hand-written builder type, make the builder field be
+//!    `Option<Vec<ElementBuilder>>`.)
+//!
 // An alternative design would be declare the field on `Outer` as `Vec<Thing>`, and to provide
 // a `VecBuilder`.  But:
 //
@@ -130,7 +133,6 @@
 //! assert_eq!{ builder.build().unwrap().values, &[27, 12] }
 //! ```
 
-use std::fmt::Display;
 use std::str::FromStr;
 
 use educe::Educe;
@@ -359,11 +361,15 @@ macro_rules! define_list_builder_accessors {
             /// constructed and a mutable reference to the now-defaulted list of builders
             /// will be returned.
             $vis fn $things(&mut self) -> &mut Vec<$EntryBuilder> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access()
             }
 
             /// Set the whole list (overriding the default)
             $vis fn [<set_ $things>](&mut self, list: Vec<$EntryBuilder>) {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 *self.$things.access_opt_mut() = Some(list)
             }
 
@@ -371,6 +377,8 @@ macro_rules! define_list_builder_accessors {
             ///
             /// If the list has not yet been set, or accessed, `&None` is returned.
             $vis fn [<opt_ $things>](&self) -> &Option<Vec<$EntryBuilder>> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access_opt()
             }
 
@@ -378,9 +386,63 @@ macro_rules! define_list_builder_accessors {
             ///
             /// If the list has not yet been set, or accessed, `&mut None` is returned.
             $vis fn [<opt_ $things _mut>](&mut self) -> &mut Option<Vec<$EntryBuilder>> {
+                #[allow(unused_imports)]
+                use $crate::list_builder::DirectDefaultEmptyListBuilderAccessors as _;
                 self.$things.access_opt_mut()
             }
         } )* }
+    }
+}
+
+/// Extension trait, an alternative to `define_list_builder_helper`
+///
+/// Useful for a handwritten `Builder` which wants to contain a list,
+/// which is an `Option<Vec<ItemBuilder>>`.
+///
+/// # Example
+///
+/// ```
+/// use tor_config::define_list_builder_accessors;
+///
+/// #[derive(Default)]
+/// struct WombatBuilder {
+///     leg_lengths: Option<Vec<u32>>,
+/// }
+///
+/// define_list_builder_accessors! {
+///     struct WombatBuilder {
+///         leg_lengths: [u32],
+///     }
+/// }
+///
+/// let mut wb = WombatBuilder::default();
+/// wb.leg_lengths().push(42);
+///
+/// assert_eq!(wb.leg_lengths, Some(vec![42]));
+/// ```
+///
+/// It is not necessary to `use` this trait anywhere in your code;
+/// the macro `define_list_builder_accessors` arranges to have it in scope where it needs it.
+pub trait DirectDefaultEmptyListBuilderAccessors {
+    /// Entry type
+    type T;
+    /// Get access to the `Vec`, defaulting it
+    fn access(&mut self) -> &mut Vec<Self::T>;
+    /// Get access to the `Option<Vec>`
+    fn access_opt(&self) -> &Option<Vec<Self::T>>;
+    /// Get mutable access to the `Option<Vec>`
+    fn access_opt_mut(&mut self) -> &mut Option<Vec<Self::T>>;
+}
+impl<T> DirectDefaultEmptyListBuilderAccessors for Option<Vec<T>> {
+    type T = T;
+    fn access(&mut self) -> &mut Vec<T> {
+        self.get_or_insert_with(Vec::new)
+    }
+    fn access_opt(&self) -> &Option<Vec<T>> {
+        self
+    }
+    fn access_opt_mut(&mut self) -> &mut Option<Vec<T>> {
+        self
     }
 }
 
@@ -425,11 +487,13 @@ define_list_builder_helper! {
     item_build: |item| Ok(item.clone());
 }
 
-/// Configuration item specifiable as a list of strings, or a single multi-line string
+/// Configuration item specifiable as a list, or a single multi-line string
 ///
-/// If a list of strings is supplied, they are each parsed with `FromStr`.
+/// If a list is supplied, they are deserialized as builders.
 /// If a single string is supplied, it is split into lines, and `#`-comments
-/// and blank lines and whitespace are stripped, and then each line is parsed.
+/// and blank lines and whitespace are stripped, and then each line is parsed
+/// as a builder.
+/// (Eventually, the builders will be built.)
 ///
 /// For use with `sub_builder` and [`define_list_builder_helper`],
 /// with `#[serde(try_from)]` and `#[serde(into)]`.
@@ -471,8 +535,8 @@ define_list_builder_helper! {
 ///     built: LotteryNumberList = numbers;
 ///     default = generate_random();
 ///     item_build: |number| Ok(*number);
-///     #[serde(try_from="MultilineListBuilder")]
-///     #[serde(into="MultilineListBuilder")]
+///     #[serde(try_from="MultilineListBuilder<u16>")]
+///     #[serde(into="MultilineListBuilder<u16>")]
 /// }
 ///
 /// convert_helper_via_multi_line_list_builder! {
@@ -487,7 +551,7 @@ define_list_builder_helper! {
 ///     }
 /// }
 ///
-/// let lc: LotteryConfigBuilder = toml::from_str(r#"winners = ["1","2","3"]"#).unwrap();
+/// let lc: LotteryConfigBuilder = toml::from_str(r#"winners = [1,2,3]"#).unwrap();
 /// let lc = lc.build().unwrap();
 /// assert_eq!{ lc.winners, [1,2,3] }
 ///
@@ -508,7 +572,7 @@ define_list_builder_helper! {
 #[serde(untagged)]
 #[educe(Default)]
 #[non_exhaustive]
-pub enum MultilineListBuilder {
+pub enum MultilineListBuilder<EB> {
     /// Config key not present
     #[educe(Default)]
     Unspecified,
@@ -516,8 +580,8 @@ pub enum MultilineListBuilder {
     /// Config key was a string which is to be parsed line-by-line
     String(String),
 
-    /// Config key was a list of the strings to be parsed
-    List(Vec<String>),
+    /// Config key was a list of the individual entry builders
+    List(Vec<EB>),
 }
 
 /// Error from trying to parse a MultilineListBuilder as a list of particular items
@@ -542,26 +606,23 @@ pub struct MultilineListBuilderError<E: std::error::Error + Clone + Send + Sync>
     error: E,
 }
 
-impl<I> From<Option<Vec<I>>> for MultilineListBuilder
-where
-    I: Display,
-{
-    fn from(list: Option<Vec<I>>) -> Self {
+impl<EB> From<Option<Vec<EB>>> for MultilineListBuilder<EB> {
+    fn from(list: Option<Vec<EB>>) -> Self {
         use MultilineListBuilder as MlLB;
         match list {
             None => MlLB::Unspecified,
-            Some(list) => MlLB::List(list.into_iter().map(|i| i.to_string()).collect()),
+            Some(list) => MlLB::List(list),
         }
     }
 }
 
-impl<I> TryInto<Option<Vec<I>>> for MultilineListBuilder
+impl<EB> TryInto<Option<Vec<EB>>> for MultilineListBuilder<EB>
 where
-    I: FromStr,
-    I::Err: std::error::Error + Clone + Send + Sync,
+    EB: FromStr,
+    EB::Err: std::error::Error + Clone + Send + Sync,
 {
-    type Error = MultilineListBuilderError<I::Err>;
-    fn try_into(self) -> Result<Option<Vec<I>>, Self::Error> {
+    type Error = MultilineListBuilderError<EB::Err>;
+    fn try_into(self) -> Result<Option<Vec<EB>>, Self::Error> {
         use MultilineListBuilder as MlLB;
 
         /// Helper for parsing each line of `iter` and collecting the results
@@ -586,7 +647,7 @@ where
 
         Ok(match self {
             MlLB::Unspecified => None,
-            MlLB::List(list) => parse_collect(list.iter().map(|s| s.as_ref()).enumerate())?,
+            MlLB::List(list) => Some(list),
             MlLB::String(s) => parse_collect(
                 s.lines()
                     .enumerate()
@@ -608,17 +669,17 @@ where
 macro_rules! convert_helper_via_multi_line_list_builder { {
     struct $ListBuilder:ident { $things:ident: [$EntryBuilder:ty] $(,)? }
 } => {
-    impl std::convert::TryFrom<$crate::MultilineListBuilder> for $ListBuilder {
+    impl std::convert::TryFrom<$crate::MultilineListBuilder<$EntryBuilder>> for $ListBuilder {
         type Error = $crate::MultilineListBuilderError<<$EntryBuilder as std::str::FromStr>::Err>;
 
-        fn try_from(mllb: $crate::MultilineListBuilder)
+        fn try_from(mllb: $crate::MultilineListBuilder<$EntryBuilder>)
                     -> std::result::Result<$ListBuilder, Self::Error> {
             Ok($ListBuilder { $things: mllb.try_into()? })
         }
     }
 
-    impl From<$ListBuilder> for MultilineListBuilder {
-        fn from(lb: $ListBuilder) -> MultilineListBuilder {
+    impl From<$ListBuilder> for MultilineListBuilder<$EntryBuilder> {
+        fn from(lb: $ListBuilder) -> MultilineListBuilder<$EntryBuilder> {
             lb.$things.into()
         }
     }

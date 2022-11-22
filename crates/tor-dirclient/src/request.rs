@@ -486,6 +486,7 @@ impl Requestable for RoutersOwnDescRequest {
 
 /// List the encodings we accept
 fn encodings() -> String {
+    #[allow(unused_mut)]
     let mut encodings = "deflate, identity".to_string();
     #[cfg(feature = "xz")]
     {

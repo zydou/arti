@@ -16,7 +16,11 @@ Since a channel can be used for more than one circuit, it's
 important to reuse channels when possible.  This crate implements
 a [`ChanMgr`] type that can be used to create channels on demand,
 and return existing channels when they already exist.
+
 ## Compile-time features
+
+* `pt-client` -- Build with APIs to support
+  pluggable transports.
 
 ### Experimental and unstable features
 
@@ -24,10 +28,9 @@ and return existing channels when they already exist.
  semantic versioning[^1] guarantees: we might break them or remove
  them between patch versions.
 
-* `pt-client` -- Build with (as yet unimplemented) APIs to support
-  pluggable transports.
-
 * `experimental` -- Build with all experimental features above.
+  (Currently, there are no experimental features in this crate, 
+  but there may be some in the future.)
 
 [^1]: Remember, semantic versioning is what makes various `cargo`
 features work reliably. To be explicit: if you want `cargo update`

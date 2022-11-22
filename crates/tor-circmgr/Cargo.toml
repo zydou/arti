@@ -13,13 +13,16 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 
+default = []
+full = ["specific-relay"]
+specific-relay = []
+
 # Enable experimental APIs that are not yet officially supported.
 #
 # These APIs are not covered by semantic versioning.  Using this
 # feature voids your "semver warrantee".
-experimental = ["experimental-api", "specific-relay"]
+experimental = ["experimental-api"]
 experimental-api = []
-specific-relay = []
 
 [dependencies]
 async-trait = "0.1.2"

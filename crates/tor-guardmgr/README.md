@@ -93,4 +93,16 @@ Tor's current guard selection algorithm is described in Tor's
 [`guard-spec.txt`](https://gitlab.torproject.org/tpo/core/torspec/-/raw/main/guard-spec.txt)
 document.
 
+## Compile-time features
+
+* `bridge-client`: Build with support for bridges. (Bridges are relays
+  that are not listed in the Tor network directory, which can be
+  used for anti-censorship purposes.)
+
+* `pt-client`: Build with support for guards that can be contacted
+   using pluggable transports. (A pluggable transport is an alternative
+   mechanism for contacting a Tor relay, for censorship avoidance.)
+
+* `full`: Enable all features above.
+
 License: MIT OR Apache-2.0

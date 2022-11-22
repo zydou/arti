@@ -91,7 +91,9 @@ rust-latest-async-std-rustls:
 
 rust-nightly:
   stage: test
-  image: rustlang/rust:nightly
+  #image: rustlang/rust:nightly
+  # Temporary workarounds for arti#633.
+  image: rustlang/rust@sha256:415b7c22ab4a8a3ec3efc9cc8d7b018964f0c6757fff27bbd110e0ed92566321
   allow_failure: true
   script:
     - rustup show

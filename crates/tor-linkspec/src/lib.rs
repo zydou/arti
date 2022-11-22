@@ -50,12 +50,20 @@ pub use ids::{
 };
 pub use ls::LinkSpec;
 pub use owned::{
-    OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget, OwnedCircTargetBuilder, RelayIds,
-    RelayIdsBuilder,
+    IntoOwnedChanTarget, OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget,
+    OwnedCircTargetBuilder, RelayIds, RelayIdsBuilder,
 };
 pub use traits::{
     ChanTarget, CircTarget, DirectChanMethodsHelper, HasAddrs, HasChanMethod, HasRelayIds,
     HasRelayIdsLegacy,
 };
-pub use transport::{ChannelMethod, PtAddrError, PtTargetAddr, TransportId, TransportIdError};
+pub use transport::{BridgeAddr, BridgeAddrError, ChannelMethod, TransportId, TransportIdError};
 pub use transport::{PtTarget, PtTargetInvalidSetting, PtTargetSettings, PtTransportName};
+
+/// Deprecated alias for `BridgeAddr`
+// TODO pt-client remove this alias
+pub type PtTargetAddr = BridgeAddr;
+
+/// Deprecated alias for `BridgeAddr`
+// TODO pt-client remove this alias
+pub type PtAddrError = BridgeAddrError;

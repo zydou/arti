@@ -159,17 +159,7 @@ impl OwnedChanTarget {
 /// Primarily for error reporting and logging
 impl Display for OwnedChanTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[")?;
-        match &*self.addrs {
-            [] => write!(f, "?")?,
-            [a] => write!(f, "{}", a)?,
-            [a, ..] => write!(f, "{}+", a)?,
-        };
-        for ident in self.identities() {
-            write!(f, " {}", ident)?;
-        }
-        write!(f, "]")?;
-        Ok(())
+        write!(f, "{}", self.display_chan_target())
     }
 }
 
@@ -209,13 +199,6 @@ impl OwnedCircTarget {
     }
 }
 
-/// Primarily for error reporting and logging
-impl Display for OwnedCircTarget {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Display::fmt(&self.chan_target, f)
-    }
-}
-
 impl HasAddrs for OwnedCircTarget {
     fn addrs(&self) -> &[SocketAddr] {
         self.chan_target.addrs()
@@ -241,6 +224,24 @@ impl CircTarget for OwnedCircTarget {
     }
     fn protovers(&self) -> &tor_protover::Protocols {
         &self.protocols
+    }
+}
+
+/// A value that can be converted into an OwnedChanTarget.
+pub trait IntoOwnedChanTarget {
+    /// Convert this value into an [`OwnedChanTarget`].
+    fn to_owned(self) -> OwnedChanTarget;
+}
+
+impl<'a, T: ChanTarget + ?Sized> IntoOwnedChanTarget for &'a T {
+    fn to_owned(self) -> OwnedChanTarget {
+        OwnedChanTarget::from_chan_target(self)
+    }
+}
+
+impl IntoOwnedChanTarget for OwnedChanTarget {
+    fn to_owned(self) -> OwnedChanTarget {
+        self
     }
 }
 

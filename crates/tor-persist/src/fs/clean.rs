@@ -122,7 +122,7 @@ mod test {
 
         let fname1 = dir.path().join("quokka");
         let now = SystemTime::now();
-        std::fs::write(&fname1, "hello world").unwrap();
+        std::fs::write(fname1, "hello world").unwrap();
 
         let mut r = std::fs::read_dir(dir.path()).unwrap();
         let ent = r.next().unwrap().unwrap();
@@ -136,10 +136,10 @@ mod test {
         let now = SystemTime::now();
 
         let fname1 = dir.path().join("quokka.toml");
-        std::fs::write(&fname1, "hello world").unwrap();
+        std::fs::write(fname1, "hello world").unwrap();
 
         let fname2 = dir.path().join("wombat.json");
-        std::fs::write(&fname2, "greetings").unwrap();
+        std::fs::write(fname2, "greetings").unwrap();
 
         let removable_now = files_to_delete(dir.path(), now);
         assert!(removable_now.is_empty());

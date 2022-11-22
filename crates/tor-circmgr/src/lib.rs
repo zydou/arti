@@ -45,7 +45,7 @@ use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
 use tor_rtcompat::Runtime;
 
 #[cfg(feature = "specific-relay")]
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::IntoOwnedChanTarget;
 
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -411,12 +411,12 @@ impl<R: Runtime> CircMgr<R> {
     /// This could be used, for example, to download a descriptor for a bridge.
     #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
     #[cfg(feature = "specific-relay")]
-    pub async fn get_or_launch_dir_specific<T: Into<OwnedChanTarget>>(
+    pub async fn get_or_launch_dir_specific<T: IntoOwnedChanTarget>(
         &self,
         target: T,
     ) -> Result<ClientCirc> {
         self.expire_circuits();
-        let usage = TargetCircUsage::DirSpecificTarget(target.into());
+        let usage = TargetCircUsage::DirSpecificTarget(target.to_owned());
         self.mgr
             .get_or_launch(&usage, DirInfo::Nothing)
             .await
