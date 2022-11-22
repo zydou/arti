@@ -830,9 +830,10 @@ mod test {
             let got_emsg = err.to_string();
             assert!(
                 got_emsg.contains(emsg),
-                "wrong error message: got_emsg={:?} err={:?}",
+                "wrong error message: got_emsg={:?} err={:?} expected={:?}",
                 &got_emsg,
-                &err
+                &err,
+                emsg,
             );
 
             // This is a kludge.  When we serialize `Option<Vec<_>>` as JSON,
