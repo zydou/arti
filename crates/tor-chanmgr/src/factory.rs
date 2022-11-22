@@ -62,7 +62,10 @@ where
 }
 
 /// The error type returned by a pluggable transport manager.
-pub trait AbstractPtError: std::error::Error + HasKind + HasRetryTime + Send + Sync {}
+pub trait AbstractPtError:
+    std::error::Error + HasKind + HasRetryTime + Send + Sync + std::fmt::Debug
+{
+}
 
 /// A pluggable transport manager.
 ///

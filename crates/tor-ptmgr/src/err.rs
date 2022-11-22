@@ -2,6 +2,9 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use tor_chanmgr::factory::AbstractPtError;
+use tor_config::{CfgPath, CfgPathError};
+use tor_error::{ErrorKind, HasKind, HasRetryTime, RetryTime};
 
 /// An error spawning or managing a pluggable transport.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -46,6 +49,7 @@ pub enum PtError {
         /// The binary path we tried to execute.
         path: PathBuf,
         /// The I/O error returned.
+        #[source]
         error: Arc<std::io::Error>,
     },
     /// We failed to parse something a pluggable transport sent us.
@@ -61,7 +65,38 @@ pub enum PtError {
     /// We couldn't get stdio for a spawned child process for some reason.
     #[error("PT stdio unavailable")]
     StdioUnavailable,
+    /// We couldn't create a temporary directory.
+    #[error("Failed to create a temporary directory: {0}")]
+    TempdirCreateFailed(#[source] Arc<std::io::Error>),
+    /// We couldn't expand a path.
+    #[error("Failed to expand path {}: {}", path, error)]
+    PathExpansionFailed {
+        /// The offending path.
+        path: CfgPath,
+        /// The error encountered.
+        #[source]
+        error: CfgPathError,
+    },
+    /// The pluggable transport reactor failed.
+    #[error("PT reactor failed")]
+    // TODO pt-client: This should just be a bug.
+    ReactorFailed,
 }
+
+// TODO pt-client: implement.
+impl HasKind for PtError {
+    fn kind(&self) -> ErrorKind {
+        todo!()
+    }
+}
+
+impl HasRetryTime for PtError {
+    fn retry_time(&self) -> RetryTime {
+        todo!()
+    }
+}
+
+impl AbstractPtError for PtError {}
 
 /// Standard-issue `Result` alias, with [`PtError`].
 pub type Result<T> = std::result::Result<T, PtError>;
