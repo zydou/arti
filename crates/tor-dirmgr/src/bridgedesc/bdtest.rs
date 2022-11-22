@@ -164,7 +164,6 @@ fn setup() -> (TempDir, Bdm, R, M, BridgeKey, rusqlite::Connection) {
     let bridge = "51.68.172.83:9001 EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1"
         .parse()
         .unwrap();
-    let bridge = Arc::new(bridge);
 
     (db_tmp_dir, bdm, runtime, mock, bridge, conn)
 }
@@ -228,7 +227,7 @@ where
 fn bad_bridge(i: usize) -> BridgeKey {
     let bad = format!("192.126.0.1:{} EB6EFB27F29AC9511A4246D7ABE1AFABFB416FF1", i);
     let bad: BridgeConfig = bad.parse().unwrap();
-    Arc::new(bad)
+    bad
 }
 
 #[tokio::test]

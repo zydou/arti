@@ -89,10 +89,7 @@ pub trait BridgeDescProvider: DynClone + Send + Sync {
     ///
     /// Bridges outside of this set will not have their descriptors updated,
     /// and will not be revealed in the BridgeDescList.
-    //
-    // Possibly requiring a slice of owned Arc<BridgeConfig> here will involve too much copying.
-    // But this isn't on the fast path, we hope.
-    fn set_bridges(&self, bridges: &[Arc<BridgeConfig>]);
+    fn set_bridges(&self, bridges: &[BridgeConfig]);
 }
 
 dyn_clone::clone_trait_object!(BridgeDescProvider);
@@ -141,7 +138,7 @@ pub trait BridgeDescError:
 dyn_clone::clone_trait_object!(BridgeDescError);
 
 /// A set of bridge descriptors, managed and modified by a BridgeDescProvider.
-pub type BridgeDescList = HashMap<Arc<BridgeConfig>, Result<BridgeDesc, Box<dyn BridgeDescError>>>;
+pub type BridgeDescList = HashMap<BridgeConfig, Result<BridgeDesc, Box<dyn BridgeDescError>>>;
 
 /// A collection of bridges, possibly with their descriptors.
 #[derive(Debug, Clone)]
