@@ -290,6 +290,20 @@ struct GuardSets {
 /// "default_guards" (before Arti 0.1.0).
 const STORAGE_KEY: &str = "guards";
 
+/// A description of which circuits to retire because of a configuration change.
+///
+/// TODO(nickm): Eventually we will want to add a "Some" here, to support
+/// removing only those circuits that correspond to no-longer-usable guards.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[must_use]
+#[non_exhaustive]
+pub enum RetireCircuits {
+    /// There's no need to retire any circuits.
+    None,
+    /// All circuits should be retired.
+    All,
+}
+
 impl<R: Runtime> GuardMgr<R> {
     /// Create a new "empty" guard manager and launch its background tasks.
     ///
@@ -337,7 +351,7 @@ impl<R: Runtime> GuardMgr<R> {
             let mut inner = inner.lock().expect("lock poisoned");
             // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
             // providers are configured? I think not, but we should make sure.
-            inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
+            let _ignore = inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
         }
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -509,7 +523,10 @@ impl<R: Runtime> GuardMgr<R> {
     }
 
     /// Replace the configuration in this `GuardMgr` with `config`.
-    pub fn reconfigure(&self, config: &impl GuardMgrConfig) -> Result<(), ReconfigureError> {
+    pub fn reconfigure(
+        &self,
+        config: &impl GuardMgrConfig,
+    ) -> Result<RetireCircuits, ReconfigureError> {
         let mut inner = self.inner.lock().expect("Poisoned lock");
         // Change the set of configured fallbacks.
         {
@@ -522,9 +539,13 @@ impl<R: Runtime> GuardMgr<R> {
         {
             let wallclock = self.runtime.wallclock();
             let now = self.runtime.now();
-            inner.replace_bridge_config(config, wallclock, now);
+            Ok(inner.replace_bridge_config(config, wallclock, now))
         }
-        Ok(())
+        // If we are built to use bridges, change the bridge configuration.
+        #[cfg(not(feature = "bridge-client"))]
+        {
+            Ok(RetireCircuits::None)
+        }
     }
 
     /// Replace the current [`GuardFilter`] used by this `GuardMgr`.
@@ -865,21 +886,21 @@ impl GuardMgrInner {
         new_config: &impl GuardMgrConfig,
         wallclock: SystemTime,
         now: Instant,
-    ) {
+    ) -> RetireCircuits {
         match (&self.configured_bridges, new_config.bridges_enabled()) {
             (None, false) => {
                 assert_ne!(
                     self.guards.active_set.universe_type(),
                     UniverseType::BridgeSet
                 );
-                return; // nothing to do
+                return RetireCircuits::None; // nothing to do
             }
             (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
                 assert_eq!(
                     self.guards.active_set.universe_type(),
                     UniverseType::BridgeSet
                 );
-                return; // nothing to do.
+                return RetireCircuits::None; // nothing to do.
             }
             (_, true) => {
                 self.configured_bridges = Some(new_config.bridges().into());
@@ -895,6 +916,18 @@ impl GuardMgrInner {
         // which set is active, or changed them both.  We need to make sure that
         // our `GuardSet` object is up-to-date with our configuration.
         self.update(wallclock, now);
+
+        // We also need to tell the caller that its circuits are no good any
+        // more.
+        //
+        // TODO(nickm): Someday we can do this more judiciously by retuning
+        // "Some" in the case where we're still using bridges but our new bridge
+        // set contains different elements; see comment on RetireCircuits.
+        //
+        // TODO(nickm): We could also safely return RetireCircuits::None if we
+        // are using bridges, and our new bridge list is a superset of the older
+        // one.
+        RetireCircuits::All
     }
 
     /// Update our parameters, our selection (based on network parameters and

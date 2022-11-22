@@ -292,7 +292,8 @@ impl<R: Runtime> CircMgr<R> {
             return Ok(());
         }
 
-        self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
+        let retire_because_of_guardmgr =
+            self.mgr.peek_builder().guardmgr().reconfigure(new_config)?;
 
         let new_reachable = &new_config.path_rules().reachable_addrs;
         if new_reachable != &old_path_rules.reachable_addrs {
@@ -300,9 +301,10 @@ impl<R: Runtime> CircMgr<R> {
             self.mgr.peek_builder().guardmgr().set_filter(filter);
         }
 
-        let discard_circuits = !new_config
+        let discard_all_circuits = !new_config
             .path_rules()
-            .at_least_as_permissive_as(&old_path_rules);
+            .at_least_as_permissive_as(&old_path_rules)
+            || retire_because_of_guardmgr != tor_guardmgr::RetireCircuits::None;
 
         self.mgr
             .peek_builder()
@@ -311,9 +313,10 @@ impl<R: Runtime> CircMgr<R> {
             .set_circuit_timing(new_config.circuit_timing().clone());
         predictor.set_config(new_config.preemptive_circuits().clone());
 
-        if discard_circuits {
+        if discard_all_circuits {
             // TODO(nickm): Someday, we might want to take a more lenient approach, and only
-            // retire those circuits that do not conform to the new path rules.
+            // retire those circuits that do not conform to the new path rules,
+            // or do not conform to the new guard configuration.
             info!("Path configuration has become more restrictive: retiring existing circuits.");
             self.retire_all_circuits();
         }

@@ -488,14 +488,36 @@ struct CircBuildPlan<B: AbstractCircBuilder> {
 struct CircList<B: AbstractCircBuilder> {
     /// A map from circuit ID to [`OpenEntry`] values for all managed
     /// open circuits.
+    ///
+    /// A circuit is added here from [`AbstractCircMgr::do_launch`] when we find
+    /// that it completes successfully, and has not been cancelled.  
+    /// When we decide that such a circuit should no longer be handed out for
+    /// any new requests, we "retire" the circuit by removing it from this map.
     #[allow(clippy::type_complexity)]
     open_circs: HashMap<<B::Circ as AbstractCirc>::Id, OpenEntry<B::Spec, B::Circ>>,
     /// Weak-set of PendingEntry for circuits that are being built.
     ///
-    /// Because this set only holds weak references, and the only
-    /// strong reference to the PendingEntry is held by the task
-    /// building the circuit, this set's members are lazily removed
-    /// after the circuit is either built or fails to build.
+    /// Because this set only holds weak references, and the only strong
+    /// reference to the PendingEntry is held by the task building the circuit,
+    /// this set's members are lazily removed after the circuit is either built
+    /// or fails to build.
+    ///
+    /// This set is used for two purposes:
+    ///
+    /// 1. When a circuit request finds that there is no open circuit for its
+    ///    purposes, it checks here to see if there is a pending circuit that it
+    ///    could wait for.
+    /// 2. When a pending circuit finishes building, it checks here to make sure
+    ///    that it has not been cancelled. (Removing an entry from this set marks
+    ///    it as cancelled.)
+    ///
+    /// An entry is added here in [`AbstractCircMgr::prepare_action`] when we
+    /// decide that a circuit needs to be launched.
+    ///
+    /// Later, in [`AbstractCircMgr::do_launch`], once the circuit has finished
+    /// (or failed), we remove the entry (by pointer identity).  
+    /// If we cannot find the entry, we conclude that the request has been
+    /// _cancelled_, and so we discard any circuit that was created.
     pending_circs: PtrWeakHashSet<Weak<PendingEntry<B>>>,
     /// Weak-set of PendingRequest for requests that are waiting for a
     /// circuit to be built.
@@ -640,7 +662,14 @@ impl<B: AbstractCircBuilder> CircList<B> {
     }
 
     /// Clear all pending circuits and open circuits.
+    ///
+    /// Calling `clear_all_circuits` ensures that any request that is answered _after
+    /// this method runs_ will receive a circuit that was launched _after this
+    /// method runs_.
     fn clear_all_circuits(&mut self) {
+        // Note that removing entries from pending_circs will also cause the
+        // circuit tasks to realize that they are cancelled when they
+        // go to tell anybody about their results.
         self.pending_circs.clear();
         self.open_circs.clear();
     }
@@ -1313,6 +1342,12 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                 let open_ent = OpenEntry::new(new_spec.clone(), circ, use_before);
                 {
                     let mut list = self.circs.lock().expect("poisoned lock");
+                    // Finally, before we return this circuit, we need to make
+                    // sure that this pending circuit is still pending.  (If it
+                    // is not pending, then it was cancelled through a call to
+                    // `retire_all_circuits`, and the configuration that we used
+                    // to launch it is now sufficiently outdated that we should
+                    // no longer give this circuit to a client.)
                     if list.circ_is_pending(&pending) {
                         list.add_open(open_ent);
                         // We drop our reference to 'pending' here:
@@ -1321,7 +1356,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                         drop(pending);
                         (Some(new_spec), Ok(id))
                     } else {
-                        // This circuit is no longer pending! It must have been cancelled.
+                        // This circuit is no longer pending! It must have been cancelled, probably
+                        // by a call to retire_all_circuits()
                         drop(pending); // ibid
                         (None, Err(Error::CircCanceled))
                     }
@@ -1341,8 +1377,19 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
         list.take_open(id).map(|e| e.circ)
     }
 
-    /// Remove all circuits from this manager, to ensure they can't be given out for any more
-    /// requests.
+    /// Remove all open and pending circuits and from this manager, to ensure
+    /// they can't be given out for any more requests.
+    ///
+    /// Calling `retire_all_circuits` ensures that any circuit request that gets
+    /// an  answer _after this method runs_ will receive a circuit that was
+    /// launched _after this method runs_.
+    ///
+    /// We call this method this when our configuration changes in such a way
+    /// that we want to make sure that any new (or pending) requests will
+    /// receive circuits that are built using the new configuration.
+    //
+    // For more information, see documentation on [`CircuitList::open_circs`],
+    // [`CircuitList::pending_circs`], and comments in `do_launch`.
     pub(crate) fn retire_all_circuits(&self) {
         let mut list = self.circs.lock().expect("poisoned lock");
         list.clear_all_circuits();
