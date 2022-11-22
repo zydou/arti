@@ -1,15 +1,12 @@
 //! Traits and code to define different mechanisms for building Channels to
 //! different kinds of targets.
 
-pub(crate) mod registry;
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tor_linkspec::OwnedChanTarget;
+use tor_error::{HasKind, HasRetryTime};
+use tor_linkspec::{OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
-
-pub use registry::TransportRegistry;
 use tracing::debug;
 
 /// An object that knows how to build `Channels` to `ChanTarget`s.
@@ -62,4 +59,20 @@ where
         debug!("Attempting to open a new channel to {target}");
         self.connect_via_transport(target).await
     }
+}
+
+/// The error type returned by a pluggable transport manager.
+pub trait AbstractPtError: std::error::Error + HasKind + HasRetryTime + Send + Sync {}
+
+/// A pluggable transport manager.
+///
+/// We can't directly reference the `PtMgr` type from `tor-ptmgr`, because of dependency resolution
+/// constraints, so this defines the interface for what one should look like.
+#[async_trait]
+pub trait AbstractPtMgr {
+    /// Get a `ChannelFactory` for the provided `PtTransportName`.
+    async fn factory_for_transport(
+        &self,
+        transport: &PtTransportName,
+    ) -> Result<Option<Arc<dyn ChannelFactory + Sync>>, Arc<dyn AbstractPtError>>;
 }
