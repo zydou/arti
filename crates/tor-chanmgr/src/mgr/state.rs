@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use super::AbstractChannelFactory;
 use super::{AbstractChannel, Pending};
 use crate::{ChannelConfig, Dormancy, Result};
 
@@ -31,7 +32,7 @@ mod padding_test;
 /// to limit the amount of code that can see and
 /// lock the Mutex here.  (We're using a blocking mutex close to async
 /// code, so we need to be careful.)
-pub(crate) struct MgrState<C: AbstractChannel> {
+pub(crate) struct MgrState<C: AbstractChannelFactory> {
     /// The data, within a lock
     ///
     /// (Danger: this uses a blocking mutex close to async code.  This mutex
@@ -40,9 +41,15 @@ pub(crate) struct MgrState<C: AbstractChannel> {
 }
 
 /// A map from channel id to channel state, plus necessary auxiliary state - inside lock
-struct Inner<C: AbstractChannel> {
+struct Inner<C: AbstractChannelFactory> {
+    /// The channel factory type that we store.
+    ///
+    /// In this module we never use this _as_ an AbstractChannelFactory: we just
+    /// hand out clones of it when asked.
+    builder: C,
+
     /// A map from identity to channel, or to pending channel status.
-    channels: ByRelayIds<ChannelState<C>>,
+    channels: ByRelayIds<ChannelState<C::Channel>>,
 
     /// Parameters for channels that we create, and that all existing channels are using
     ///
@@ -217,9 +224,10 @@ impl<C: AbstractChannel> ChannelState<C> {
     }
 }
 
-impl<C: AbstractChannel> MgrState<C> {
+impl<C: AbstractChannelFactory> MgrState<C> {
     /// Create a new empty `MgrState`.
     pub(crate) fn new(
+        builder: C,
         config: ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
@@ -232,6 +240,7 @@ impl<C: AbstractChannel> MgrState<C> {
 
         MgrState {
             inner: std::sync::Mutex::new(Inner {
+                builder,
                 channels: ByRelayIds::new(),
                 config,
                 channels_params,
@@ -248,10 +257,26 @@ impl<C: AbstractChannel> MgrState<C> {
     /// to make sure that the calling code doesn't await while holding the lock.
     pub(crate) fn with_channels<F, T>(&self, func: F) -> Result<T>
     where
-        F: FnOnce(&mut ByRelayIds<ChannelState<C>>) -> T,
+        F: FnOnce(&mut ByRelayIds<ChannelState<C::Channel>>) -> T,
     {
         let mut inner = self.inner.lock()?;
         Ok(func(&mut inner.channels))
+    }
+
+    /// Return a copy of the builder stored in this state.
+    pub(crate) fn builder(&self) -> C
+    where
+        C: Clone,
+    {
+        let inner = self.inner.lock().expect("lock poisoned");
+        inner.builder.clone()
+    }
+
+    /// Replace the builder stored in this state.
+    #[allow(dead_code)] //TODO pt-client: remove.
+    pub(crate) fn replace_builder(&self, builder: C) {
+        let mut inner = self.inner.lock().expect("lock poisoned");
+        inner.builder = builder;
     }
 
     /// Run a function on the `ByRelayIds` that implements the map in this `MgrState`.
@@ -262,7 +287,7 @@ impl<C: AbstractChannel> MgrState<C> {
     /// to make sure that the calling code doesn't await while holding the lock.
     pub(crate) fn with_channels_and_params<F, T>(&self, func: F) -> Result<T>
     where
-        F: FnOnce(&mut ByRelayIds<ChannelState<C>>, &ChannelPaddingInstructions) -> T,
+        F: FnOnce(&mut ByRelayIds<ChannelState<C::Channel>>, &ChannelPaddingInstructions) -> T,
     {
         let mut inner = self.inner.lock()?;
         // We need this silly destructuring syntax so that we don't seem to be
@@ -509,16 +534,31 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use async_trait::async_trait;
     use std::sync::{Arc, Mutex};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
     use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 
-    fn new_test_state<C: AbstractChannel>() -> MgrState<C> {
+    fn new_test_state() -> MgrState<FakeChannelFactory> {
         MgrState::new(
+            FakeChannelFactory::default(),
             ChannelConfig::default(),
             Default::default(),
             &Default::default(),
         )
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct FakeChannelFactory;
+    #[async_trait]
+    impl AbstractChannelFactory for FakeChannelFactory {
+        type Channel = FakeChannel;
+
+        type BuildSpec = tor_linkspec::OwnedChanTarget;
+
+        async fn build_channel(&self, _target: &Self::BuildSpec) -> Result<FakeChannel> {
+            unimplemented!()
+        }
     }
 
     #[derive(Clone, Debug)]

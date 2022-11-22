@@ -114,6 +114,7 @@ fn padding_parameters_calculation() {
     one(PL::default(), &bogus_netdir, Some(DEF_MS));
 }
 
+#[derive(Clone)]
 struct FakeChannelFactory {
     channel: Channel,
 }

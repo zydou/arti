@@ -48,7 +48,7 @@ mod testing;
 pub mod transport;
 
 use educe::Educe;
-use factory::ChannelFactory;
+use factory::ArcFactory;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -81,7 +81,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// get one if it exists.
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
-    mgr: mgr::AbstractChanMgr<Box<dyn ChannelFactory + Send + Sync + 'static>>,
+    mgr: mgr::AbstractChanMgr<factory::ArcFactory>,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
@@ -169,7 +169,7 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let transport = transport::DefaultTransport::new(runtime.clone());
         let builder = builder::ChanBuilder::new(runtime, transport, sender);
-        let builder: Box<dyn ChannelFactory + Send + Sync + 'static> = Box::new(builder);
+        let builder: ArcFactory = Arc::new(builder);
         let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
         ChanMgr {
             mgr,

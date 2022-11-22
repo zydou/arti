@@ -76,3 +76,6 @@ pub trait AbstractPtMgr {
         transport: &PtTransportName,
     ) -> Result<Option<Arc<dyn ChannelFactory + Sync>>, Arc<dyn AbstractPtError>>;
 }
+
+/// Alias for an Arc ChannelFactory with all of the traits that we require.
+pub(crate) type ArcFactory = Arc<dyn ChannelFactory + Send + Sync + 'static>;
