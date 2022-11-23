@@ -43,7 +43,7 @@ mod bdtest;
 ///
 /// This type saves typing and would make it easier to change the bridge descriptor manager
 /// to take and handle another way of identifying the bridges it is working with.
-type BridgeKey = Arc<BridgeConfig>;
+type BridgeKey = BridgeConfig;
 
 /// Active vs dormant state, as far as the bridge descriptor manager is concerned
 ///
@@ -600,7 +600,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescMgr<R, M> {
         Box::pin(stream) as _
     }
 
-    fn set_bridges(&self, new_bridges: &[Arc<BridgeConfig>]) {
+    fn set_bridges(&self, new_bridges: &[BridgeConfig]) {
         /// Helper: Called for each bridge that is currently Tracked.
         ///
         /// Checks if `new_bridges` has `bridge`.  If so, removes it from `new_bridges`,
@@ -640,7 +640,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescMgr<R, M> {
         let mut new_bridges: HashSet<_> = new_bridges.iter().cloned().collect();
 
         // Is there anything in `current` that ought to be deleted?
-        if state.current.keys().any(|b| !new_bridges.contains(&**b)) {
+        if state.current.keys().any(|b| !new_bridges.contains(b)) {
             // Found a brridge In `current` but not `new`
             // We need to remove it (and any others like it) from `current`.
             //

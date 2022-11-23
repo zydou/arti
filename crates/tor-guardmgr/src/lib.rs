@@ -1042,8 +1042,7 @@ impl GuardMgrInner {
                 .descriptors_to_request(now, &self.params)
                 .into_iter()
                 .flat_map(|guard| bridge_set.bridge_by_guard(guard))
-                // Yuck. TODO pt-client: This clone means we are Arcing wrong.
-                .map(|bridge_config| Arc::new(bridge_config.clone()))
+                .cloned()
                 .collect();
 
             provider.set_bridges(&desired);

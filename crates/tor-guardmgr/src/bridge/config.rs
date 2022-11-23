@@ -4,6 +4,7 @@ use std::fmt::{self, Display};
 use std::iter;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use itertools::{chain, Itertools};
 use serde::{Deserialize, Serialize};
@@ -60,9 +61,14 @@ pub use err::BridgeParseError;
 ///  * When a pluggable transport is in use,
 ///    zero or more `key=value` parameters to pass to the transport
 ///    (smuggled in the SOCKS handshake, as described in the Tor PT specification).
+///
+/// This type is cheap to clone: it is a newtype around an `Arc`.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-// TODO pt-client: Derive builder and associated config types.  See ticket #604.
-pub struct BridgeConfig {
+pub struct BridgeConfig(Arc<Inner>);
+
+/// Configuration for a bridge - actual data
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+struct Inner {
     // TODO pt-client: I am not sold on this exact representation for Bridge; it
     // needs to be something like this, but not necessarily this exact set of
     // members.
@@ -83,8 +89,8 @@ pub struct BridgeConfig {
 impl HasRelayIds for BridgeConfig {
     fn identity(&self, key_type: RelayIdType) -> Option<RelayIdRef<'_>> {
         match key_type {
-            RelayIdType::Ed25519 => self.ed_id.as_ref().map(RelayIdRef::Ed25519),
-            RelayIdType::Rsa => Some(RelayIdRef::Rsa(&self.rsa_id)),
+            RelayIdType::Ed25519 => self.0.ed_id.as_ref().map(RelayIdRef::Ed25519),
+            RelayIdType::Rsa => Some(RelayIdRef::Rsa(&self.0.rsa_id)),
             _ => None,
         }
     }
@@ -92,13 +98,13 @@ impl HasRelayIds for BridgeConfig {
 
 impl HasChanMethod for BridgeConfig {
     fn chan_method(&self) -> ChannelMethod {
-        self.addrs.clone()
+        self.0.addrs.clone()
     }
 }
 
 impl HasAddrs for BridgeConfig {
     fn addrs(&self) -> &[SocketAddr] {
-        self.addrs.addrs()
+        self.0.addrs.addrs()
     }
 }
 
@@ -325,11 +331,14 @@ impl BridgeConfigBuilder {
             problem: "need an RSA identity".into(),
         })?;
 
-        Ok(BridgeConfig {
-            addrs,
-            rsa_id,
-            ed_id,
-        })
+        Ok(BridgeConfig(
+            Inner {
+                addrs,
+                rsa_id,
+                ed_id,
+            }
+            .into(),
+        ))
     }
 }
 
@@ -344,7 +353,7 @@ impl FromStr for BridgeConfigBuilder {
     type Err = BridgeParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bridge: BridgeConfig = s.parse()?;
+        let bridge: Inner = s.parse()?;
 
         let (transport, addrs, settings) = match bridge.addrs {
             ChannelMethod::Direct(addrs) => (
@@ -383,6 +392,15 @@ define_list_builder_accessors! {
 }
 
 impl FromStr for BridgeConfig {
+    type Err = BridgeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let inner = s.parse()?;
+        Ok(BridgeConfig(Arc::new(inner)))
+    }
+}
+
+impl FromStr for Inner {
     type Err = BridgeParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -504,7 +522,7 @@ impl FromStr for BridgeConfig {
         }
 
         let rsa_id = rsa_id.ok_or(BPE::NoRsaIdentity)?;
-        Ok(BridgeConfig {
+        Ok(Inner {
             addrs: method,
             rsa_id,
             ed_id,
@@ -514,11 +532,11 @@ impl FromStr for BridgeConfig {
 
 impl Display for BridgeConfig {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let BridgeConfig {
+        let Inner {
             addrs,
             rsa_id,
             ed_id,
-        } = self;
+        } = &*self.0;
 
         //  * Optionally, the name of the pluggable transport to use.
         //  * The `Host:ORPort` to connect to.
@@ -603,10 +621,10 @@ mod test {
 
     #[test]
     fn bridge_lines() {
-        let chk = |sl: &[&str], exp: BridgeConfig| {
+        let chk = |sl: &[&str], exp: Inner| {
             for s in sl {
                 let got: BridgeConfig = s.parse().expect(s);
-                assert_eq!(got, exp, "{:?}", s);
+                assert_eq!(*got.0, exp, "{:?}", s);
 
                 let display = got.to_string();
                 assert_eq!(display, sl[0]);
@@ -635,7 +653,7 @@ mod test {
             "obfs4 38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
             "obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
             "Bridge obfs4 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955 cert=VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op iat-mode=1",
-        ], BridgeConfig {
+        ], Inner {
             addrs: mk_pt_target(
                 "obfs4",
                 BridgeAddr::IpPort("38.229.33.83:80".parse().unwrap()),
@@ -652,7 +670,7 @@ mod test {
         chk(&[
             "obfs4 some-host:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE iat-mode=1",
             "obfs4 some-host:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955 iat-mode=1",
-        ], BridgeConfig {
+        ], Inner {
             addrs: mk_pt_target(
                 "obfs4",
                 BridgeAddr::HostPort("some-host".into(), 80),
@@ -669,7 +687,7 @@ mod test {
                 "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955",
                 "Bridge 38.229.33.83:80 0BAC39417268B96B9F514E7F63FA6FBA1A788955",
             ],
-            BridgeConfig {
+            Inner {
                 addrs: mk_direct("38.229.33.83:80"),
                 rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
                 ed_id: None,
@@ -681,7 +699,7 @@ mod test {
                 "[2001:db8::42]:123 $0bac39417268b96b9f514e7f63fa6fba1a788955",
                 "[2001:0db8::42]:123 $0bac39417268b96b9f514e7f63fa6fba1a788955",
             ],
-            BridgeConfig {
+            Inner {
                 addrs: mk_direct("[2001:0db8::42]:123"),
                 rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
                 ed_id: None,
@@ -691,7 +709,7 @@ mod test {
         chk(&[
             "38.229.33.83:80 $0bac39417268b96b9f514e7f63fa6fba1a788955 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE",
             "38.229.33.83:80 ed25519:dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE 0BAC39417268B96B9F514E7F63FA6FBA1A788955",
-        ], BridgeConfig {
+        ], Inner {
             addrs: mk_direct("38.229.33.83:80"),
             rsa_id: mk_rsa("0BAC39417268B96B9F514E7F63FA6FBA1A788955"),
             ed_id: Some(mk_ed("dGhpcyBpcyBpbmNyZWRpYmx5IHNpbGx5ISEhISEhISE")),
