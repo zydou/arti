@@ -273,6 +273,7 @@ impl<C: AbstractChannelFactory> MgrState<C> {
     }
 
     /// Run a function to modify the builder stored in this state.
+    #[allow(dead_code)]
     pub(crate) fn with_mut_builder<F>(&self, func: F)
     where
         F: FnOnce(&mut C),

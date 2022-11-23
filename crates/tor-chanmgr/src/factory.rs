@@ -140,6 +140,7 @@ impl Factory {
     }
 
     /// Replace the default factory in this object.
+    #[cfg(feature = "experimental-api")]
     pub(crate) fn replace_default_factory(&mut self, factory: Arc<dyn ChannelFactory + 'static>) {
         self.default_factory = factory;
     }

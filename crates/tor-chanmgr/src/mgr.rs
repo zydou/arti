@@ -107,6 +107,7 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     }
 
     /// Run a function to modify the channel builder in this object.
+    #[allow(dead_code)]
     pub(crate) fn with_mut_builder<F>(&self, func: F)
     where
         F: FnOnce(&mut CF),
