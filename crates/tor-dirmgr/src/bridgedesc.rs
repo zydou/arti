@@ -913,6 +913,8 @@ impl State {
     /// Obtain the currently-desired level of parallelism
     ///
     /// Helper function.  The return value depends the mutable state and also the `config`.
+    ///
+    /// This is how we implement dormancy.
     fn effective_parallelism(&self) -> usize {
         match self.dormancy {
             Dormancy::Active => usize::from(u8::from(self.config.parallelism)),
