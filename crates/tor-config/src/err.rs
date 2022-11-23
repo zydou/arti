@@ -108,6 +108,17 @@ pub enum ReconfigureError {
         field: String,
     },
 
+    /// The requested configuration is not supported in this situation
+    ///
+    /// Something, probably discovered at runtime, is not compatible with
+    /// the specified configuration.
+    ///
+    /// This ought *not* to be returned when the configuration is simply not supported
+    /// by this build of arti -
+    /// that should be reported at config build type as `ConfigBuildError::Unsupported`.
+    #[error("Configuration not supported in this situation: {0}")]
+    Unsupported(String),
+
     /// There was a programming error somewhere in our code, or the calling code.
     #[error("Programming error")]
     Bug(#[from] tor_error::Bug),

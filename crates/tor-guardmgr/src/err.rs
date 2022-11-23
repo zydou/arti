@@ -153,17 +153,31 @@ impl GuardMgrError {
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum GuardMgrConfigError {
+    /// Specified configuration requires exclusive access to stored state, which we don't have
+    #[error("Configuration requires exclusive access to shared state, but another instance of Arti has the lock: {0}")]
+    NoLock(String),
 }
 
 impl From<GuardMgrConfigError> for tor_config::ReconfigureError {
     fn from(g: GuardMgrConfigError) -> tor_config::ReconfigureError {
+        use tor_config::ReconfigureError as R;
+        use GuardMgrConfigError as G;
         match g {
+            e @ G::NoLock(_) => R::Unsupported(e.to_string()),
         }
     }
 }
 
 impl HasKind for GuardMgrConfigError {
     fn kind(&self) -> ErrorKind {
-        match *self {}
+        use ErrorKind as EK;
+        use GuardMgrConfigError as G;
+        match self {
+            // `InvalidConfig` and `FeatureDisabled` aren't right, because
+            // those should be detected at config build time and reported as `ConfigBuildError`.
+            // `InvalidConfigTransition` isn't right, because restarting arti won't help.
+            // Possibly at some point we will allow concurrent artis to work this way.
+            G::NoLock(_) => EK::NotImplemented,
+        }
     }
 }

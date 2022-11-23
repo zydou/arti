@@ -897,6 +897,9 @@ impl GuardMgrInner {
                 );
                 return Ok(RetireCircuits::None); // nothing to do
             }
+            (_, true) if !self.storage.can_store() => {
+                return Err(GuardMgrConfigError::NoLock("bridges configured".into()))
+            }
             (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
                 assert_eq!(
                     self.guards.active_set.universe_type(),
