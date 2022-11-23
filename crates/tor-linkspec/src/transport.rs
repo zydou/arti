@@ -300,10 +300,6 @@ impl Redactable for BridgeAddr {
             BridgeAddr::None => write!(f, "{}", NONE_ADDR),
         }
     }
-
-    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.display_redacted(f)
-    }
 }
 
 /// A set of options to be passed along to a pluggable transport along with a

@@ -211,7 +211,9 @@ pub trait Redactable: std::fmt::Display + std::fmt::Debug {
     /// As `Display::fmt`, but produce a redacted representation.
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
     /// As `Debug::fmt`, but produce a redacted representation.
-    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result;
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.display_redacted(f)
+    }
     /// Return a smart pointer that will display or debug this object as its
     /// redacted form.
     fn redacted(&self) -> Redacted<&Self> {
@@ -230,10 +232,6 @@ pub trait Redactable: std::fmt::Display + std::fmt::Debug {
 impl<'a, T: Redactable + ?Sized> Redactable for &'a T {
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (*self).display_redacted(f)
-    }
-
-    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (*self).debug_redacted(f)
     }
 }
 
