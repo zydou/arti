@@ -120,9 +120,9 @@ impl<T> From<T> for Sensitive<T> {
 /// Sensitive-like type.  These implementations will delegate to their std::fmt
 /// types if safe logging is disabled, and write `[scrubbed]` otherwise.
 macro_rules! impl_display_traits {
-    { $($trait:ident),*  for $object:ident } => {
+    { $($trait:ident),* } => {
     $(
-        impl<T: std::fmt::$trait> std::fmt::$trait for $object<T> {
+        impl<T: std::fmt::$trait> std::fmt::$trait for Sensitive<T> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 if flags::unsafe_logging_enabled() {
                     std::fmt::$trait::fmt(&self.0, f)
@@ -136,7 +136,7 @@ macro_rules! impl_display_traits {
 }
 
 impl_display_traits! {
-    Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer for Sensitive
+    Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer
 }
 
 #[cfg(test)]
