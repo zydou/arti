@@ -96,7 +96,7 @@ where
 /// A ChannelFactory built from an optional PtMgr to use for pluggable transports, and a
 /// ChannelFactory to use for everything else.
 #[derive(Clone)]
-pub(crate) struct Factory {
+pub(crate) struct CompoundFactory {
     #[cfg(feature = "pt-client")]
     /// The PtMgr to use for pluggable transports
     ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
@@ -105,7 +105,7 @@ pub(crate) struct Factory {
 }
 
 #[async_trait]
-impl ChannelFactory for Factory {
+impl ChannelFactory for CompoundFactory {
     async fn connect_via_transport(&self, target: &OwnedChanTarget) -> crate::Result<Channel> {
         use tor_linkspec::ChannelMethod::*;
         let factory = match target.chan_method() {
@@ -125,7 +125,7 @@ impl ChannelFactory for Factory {
     }
 }
 
-impl Factory {
+impl CompoundFactory {
     /// Create a new `Factory` that will try to use `ptmgr` to handle pluggable
     /// transports requests, and `default_factory` to handle everything else.
     pub(crate) fn new(

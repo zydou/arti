@@ -80,7 +80,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// get one if it exists.
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
-    mgr: mgr::AbstractChanMgr<factory::Factory>,
+    mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
@@ -168,7 +168,7 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let transport = transport::DefaultTransport::new(runtime.clone());
         let builder = builder::ChanBuilder::new(runtime, transport, sender);
-        let factory = factory::Factory::new(
+        let factory = factory::CompoundFactory::new(
             Arc::new(builder),
             #[cfg(feature = "pt-client")]
             None,
