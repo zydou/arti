@@ -78,14 +78,11 @@ pub(crate) trait AbstractChannelFactory {
 /// The actual job of launching connections is deferred to an
 /// `AbstractChannelFactory` type.
 pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
-    /// A 'connector' object that we use to create channels.
-    connector: CF,
-
     /// All internal state held by this channel manager.
     ///
     /// The most important part is the map from relay identity to channel, or
     /// to pending channel status.
-    pub(crate) channels: state::MgrState<CF::Channel>,
+    pub(crate) channels: state::MgrState<CF>,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -96,7 +93,7 @@ type Pending = Shared<oneshot::Receiver<Result<()>>>;
 /// complete it).
 type Sending = oneshot::Sender<Result<()>>;
 
-impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
+impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     /// Make a new empty channel manager.
     pub(crate) fn new(
         connector: CF,
@@ -105,9 +102,17 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
         netparams: &NetParameters,
     ) -> Self {
         AbstractChanMgr {
-            connector,
-            channels: state::MgrState::new(config.clone(), dormancy, netparams),
+            channels: state::MgrState::new(connector, config.clone(), dormancy, netparams),
         }
+    }
+
+    /// Run a function to modify the channel builder in this object.
+    #[allow(dead_code)]
+    pub(crate) fn with_mut_builder<F>(&self, func: F)
+    where
+        F: FnOnce(&mut CF),
+    {
+        self.channels.with_mut_builder(func);
     }
 
     /// Remove every unusable entry from this channel manager.
@@ -219,7 +224,8 @@ impl<CF: AbstractChannelFactory> AbstractChanMgr<CF> {
                 }
                 // We need to launch a channel.
                 Some(Action::Launch(send)) => {
-                    let outcome = self.connector.build_channel(&target).await;
+                    let connector = self.channels.builder();
+                    let outcome = connector.build_channel(&target).await;
                     let status = self.handle_build_outcome(&target, outcome);
 
                     // It's okay if all the receivers went away:
@@ -516,6 +522,7 @@ mod test {
     use crate::ChannelUsage as CU;
     use tor_rtcompat::{task::yield_now, test_with_one_runtime, Runtime};
 
+    #[derive(Clone)]
     struct FakeChannelFactory<RT> {
         runtime: RT,
     }

@@ -48,7 +48,6 @@ mod testing;
 pub mod transport;
 
 use educe::Educe;
-use factory::ChannelFactory;
 use futures::select_biased;
 use futures::task::SpawnExt;
 use futures::StreamExt;
@@ -81,7 +80,7 @@ use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 /// get one if it exists.
 pub struct ChanMgr<R: Runtime> {
     /// Internal channel manager object that does the actual work.
-    mgr: mgr::AbstractChanMgr<Box<dyn ChannelFactory + Send + Sync + 'static>>,
+    mgr: mgr::AbstractChanMgr<factory::CompoundFactory>,
 
     /// Stream of [`ConnStatus`] events.
     bootstrap_status: event::ConnStatusEvents,
@@ -169,8 +168,12 @@ impl<R: Runtime> ChanMgr<R> {
         let sender = Arc::new(std::sync::Mutex::new(sender));
         let transport = transport::DefaultTransport::new(runtime.clone());
         let builder = builder::ChanBuilder::new(runtime, transport, sender);
-        let builder: Box<dyn ChannelFactory + Send + Sync + 'static> = Box::new(builder);
-        let mgr = mgr::AbstractChanMgr::new(builder, config, dormancy, netparams);
+        let factory = factory::CompoundFactory::new(
+            Arc::new(builder),
+            #[cfg(feature = "pt-client")]
+            None,
+        );
+        let mgr = mgr::AbstractChanMgr::new(factory, config, dormancy, netparams);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,
@@ -271,23 +274,23 @@ impl<R: Runtime> ChanMgr<R> {
     ///
     /// This method can be used to e.g. tell Arti to use a proxy for
     /// outgoing connections.
-    pub fn set_default_transport(&self, _factory: impl factory::ChannelFactory) {
-        // TODO pt-client: Perhaps we actually want to remove this and have it
-        // be part of the constructor?  The only way to actually implement it is
-        // to make the channel factory in AbstractChanMgr mutable, which seels a
-        // little ugly.  Do we ever want to change this on a _running_ ChanMgr?
-        #![allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
-        todo!("TODO pt-client: implement this.")
+    #[cfg(feature = "experimental-api")]
+    pub fn set_default_transport(&self, factory: impl factory::ChannelFactory + 'static) {
+        // TODO pt-client: Perhaps we actually want to take this as part of the constructor instead?
+        // TODO pt-client: It's not clear to me that we really need this method.
+        // TODO pt-client: Should this method take an ArcFactory instead?
+        self.mgr
+            .with_mut_builder(|f| f.replace_default_factory(Arc::new(factory)));
     }
 
-    /*
-    TODO pt-client: use AbstractPtMgr instead
     /// Replace the transport registry with one that may know about
     /// more transports.
     #[cfg(feature = "pt-client")]
-    pub fn set_transport_registry(&self, _registry: impl factory::TransportRegistry) {
+    pub fn set_pt_mgr(&self, ptmgr: impl factory::AbstractPtMgr + 'static) {
+        // TODO pt-client: Should this method take an ArcPtMgr instead?
+        self.mgr
+            .with_mut_builder(|f| f.replace_ptmgr(Arc::new(ptmgr)));
     }
-     */
 
     /// Watch for things that ought to change the configuration of all channels in the client
     ///
