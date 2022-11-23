@@ -274,10 +274,8 @@ impl<R: Runtime> ChanMgr<R> {
     ///
     /// This method can be used to e.g. tell Arti to use a proxy for
     /// outgoing connections.
-    pub fn set_default_transport(
-        &self,
-        factory: impl factory::ChannelFactory + Send + Sync + 'static,
-    ) {
+    #[cfg(feature = "experimental-api")]
+    pub fn set_default_transport(&self, factory: impl factory::ChannelFactory + 'static) {
         // TODO pt-client: Perhaps we actually want to take this as part of the constructor instead?
         // TODO pt-client: It's not clear to me that we really need this method.
         // TODO pt-client: Should this method take an ArcFactory instead?
