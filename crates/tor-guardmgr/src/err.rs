@@ -106,6 +106,10 @@ pub enum GuardMgrError {
     #[error("Problem accessing persistent guard state")]
     State(#[from] tor_persist::Error),
 
+    /// Configuration is not valid or available
+    #[error("Invalid configuration")]
+    InvalidConfig(#[from] GuardMgrConfigError),
+
     /// An error that occurred while trying to spawn a daemon task.
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -123,6 +127,7 @@ impl HasKind for GuardMgrError {
         use GuardMgrError as G;
         match self {
             G::State(e)               => e.kind(),
+            G::InvalidConfig(e)       => e.kind(),
             G::Spawn{ cause, .. }     => cause.kind(),
         }
     }
@@ -135,5 +140,30 @@ impl GuardMgrError {
             spawning,
             cause: Arc::new(err),
         }
+    }
+}
+
+/// An error encountered while configuring or reconfiguring a guard manager
+///
+/// When this occurs during initial configuration, it will be returned wrapped
+/// up in `GuardMgrError`.
+///
+/// When it occurs during reconfiguration, it is not exposed to caller:
+/// instead, it is converted into a `tor_config::ReconfigureError`.
+#[derive(Clone, Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum GuardMgrConfigError {
+}
+
+impl From<GuardMgrConfigError> for tor_config::ReconfigureError {
+    fn from(g: GuardMgrConfigError) -> tor_config::ReconfigureError {
+        match g {
+        }
+    }
+}
+
+impl HasKind for GuardMgrConfigError {
+    fn kind(&self) -> ErrorKind {
+        match *self {}
     }
 }

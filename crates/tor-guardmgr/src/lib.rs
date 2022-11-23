@@ -89,7 +89,7 @@ pub mod bridge;
 pub use config::testing::TestConfig;
 
 pub use config::GuardMgrConfig;
-pub use err::{GuardMgrError, PickGuardError};
+pub use err::{GuardMgrConfigError, GuardMgrError, PickGuardError};
 pub use events::ClockSkewEvents;
 pub use filter::GuardFilter;
 // TODO nightly: Remove this "allow" once
@@ -352,7 +352,7 @@ impl<R: Runtime> GuardMgr<R> {
             // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
             // providers are configured? I think not, but we should make sure.
             let _: RetireCircuits =
-                inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
+                inner.replace_bridge_config(config, runtime.wallclock(), runtime.now())?;
         }
         {
             let weak_inner = Arc::downgrade(&inner);
@@ -540,7 +540,7 @@ impl<R: Runtime> GuardMgr<R> {
         {
             let wallclock = self.runtime.wallclock();
             let now = self.runtime.now();
-            Ok(inner.replace_bridge_config(config, wallclock, now))
+            Ok(inner.replace_bridge_config(config, wallclock, now)?)
         }
         // If we are built to use bridges, change the bridge configuration.
         #[cfg(not(feature = "bridge-client"))]
@@ -882,26 +882,27 @@ impl GuardMgrInner {
 
     /// Replace our bridge configuration with the one from `new_config`.
     #[cfg(feature = "bridge-client")]
+    #[allow(clippy::unnecessary_wraps)] // TODO pt-client
     fn replace_bridge_config(
         &mut self,
         new_config: &impl GuardMgrConfig,
         wallclock: SystemTime,
         now: Instant,
-    ) -> RetireCircuits {
+    ) -> Result<RetireCircuits, GuardMgrConfigError> {
         match (&self.configured_bridges, new_config.bridges_enabled()) {
             (None, false) => {
                 assert_ne!(
                     self.guards.active_set.universe_type(),
                     UniverseType::BridgeSet
                 );
-                return RetireCircuits::None; // nothing to do
+                return Ok(RetireCircuits::None); // nothing to do
             }
             (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
                 assert_eq!(
                     self.guards.active_set.universe_type(),
                     UniverseType::BridgeSet
                 );
-                return RetireCircuits::None; // nothing to do.
+                return Ok(RetireCircuits::None); // nothing to do.
             }
             (_, true) => {
                 self.configured_bridges = Some(new_config.bridges().into());
@@ -928,7 +929,7 @@ impl GuardMgrInner {
         // TODO(nickm): We could also safely return RetireCircuits::None if we
         // are using bridges, and our new bridge list is a superset of the older
         // one.
-        RetireCircuits::All
+        Ok(RetireCircuits::All)
     }
 
     /// Update our parameters, our selection (based on network parameters and
