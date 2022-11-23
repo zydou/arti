@@ -351,7 +351,8 @@ impl<R: Runtime> GuardMgr<R> {
             let mut inner = inner.lock().expect("lock poisoned");
             // TODO(nickm): This calls `GuardMgrInner::update`. Will we mind doing so before any
             // providers are configured? I think not, but we should make sure.
-            let _ignore = inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
+            let _: RetireCircuits =
+                inner.replace_bridge_config(config, runtime.wallclock(), runtime.now());
         }
         {
             let weak_inner = Arc::downgrade(&inner);
