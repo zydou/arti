@@ -2,7 +2,7 @@
 
 use std::str;
 
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
 use tor_proto::circuit::{ClientCirc, UniqId};
 
 use crate::{RequestError, RequestFailedError};
@@ -31,7 +31,7 @@ pub struct SourceInfo {
     /// Unique identifier for the circuit we're using
     circuit: UniqId,
     /// Identity of the directory cache that provided us this information.
-    cache_id: OwnedChanTarget,
+    cache_id: LoggedChanTarget,
 }
 
 impl DirResponse {
@@ -151,7 +151,7 @@ impl SourceInfo {
     pub(crate) fn from_circuit(circuit: &ClientCirc) -> Self {
         SourceInfo {
             circuit: circuit.unique_id(),
-            cache_id: circuit.first_hop(),
+            cache_id: circuit.first_hop().into(),
         }
     }
 
@@ -163,7 +163,7 @@ impl SourceInfo {
 
     /// Return information about the peer from which we received this info.
     pub fn cache_id(&self) -> &OwnedChanTarget {
-        &self.cache_id
+        self.cache_id.as_inner()
     }
 }
 

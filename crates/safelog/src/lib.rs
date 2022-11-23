@@ -49,6 +49,8 @@ mod flags;
 pub use err::Error;
 pub use flags::{disable_safe_logging, enforce_safe_logging, with_safe_logging_suppressed, Guard};
 
+use std::ops::Deref;
+
 /// A `Result` returned by the flag-manipulation functions in `safelog`.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -83,8 +85,23 @@ impl<T> Sensitive<T> {
     }
 
     /// Extract the inner value from this `Sensitive<T>`.
+    //
+    // TODO(Diziet) shouldn't this be called `into_inner` ?
     pub fn unwrap(sensitive: Sensitive<T>) -> T {
         sensitive.0
+    }
+
+    /// Converts `&Sensitive<T>` to `Sensitive<&T>`
+    pub fn as_ref(&self) -> Sensitive<&T> {
+        Sensitive(&self.0)
+    }
+
+    /// Return a reference to the inner value
+    //
+    // This isn't `AsRef` or `as_ref` because we don't want to offer "de-sensitivisation"
+    // via what is usually a semantically-neutral interface.
+    pub fn as_inner(&self) -> &T {
+        &self.0
     }
 }
 
@@ -105,9 +122,9 @@ impl<T> From<T> for Sensitive<T> {
 /// Sensitive-like type.  These implementations will delegate to their std::fmt
 /// types if safe logging is disabled, and write `[scrubbed]` otherwise.
 macro_rules! impl_display_traits {
-    { $($trait:ident),*  for $object:ident } => {
+    { $($trait:ident),* } => {
     $(
-        impl<T: std::fmt::$trait> std::fmt::$trait for $object<T> {
+        impl<T: std::fmt::$trait> std::fmt::$trait for Sensitive<T> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 if flags::unsafe_logging_enabled() {
                     std::fmt::$trait::fmt(&self.0, f)
@@ -116,12 +133,57 @@ macro_rules! impl_display_traits {
                 }
             }
         }
+
+        impl<T: std::fmt::$trait> std::fmt::$trait for BoxSensitive<T> {
+            #[inline]
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::$trait::fmt(&*self.0, f)
+            }
+        }
    )*
    }
 }
 
+/// A wrapper suitable for logging and including in errors
+///
+/// This is a newtype around `Box<Sensitive<T>>`.
+///
+/// This is useful particularly in errors,
+/// where the box can help reduce the size of error variants
+/// (for example ones containing large values like an `OwnedChanTarget`).
+///
+/// `BoxSensitive<T>` dereferences to [`Sensitive<T>`].
+//
+// Making it be a newtype rather than a type alias allows us to implement
+// `into_inner` and `From<T>` and so on.
+#[derive(Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct BoxSensitive<T>(Box<Sensitive<T>>);
+
+impl<T> From<T> for BoxSensitive<T> {
+    fn from(t: T) -> BoxSensitive<T> {
+        BoxSensitive(Box::new(sensitive(t)))
+    }
+}
+
+impl<T> BoxSensitive<T> {
+    /// Return the innermost `T`
+    pub fn into_inner(self) -> T {
+        // TODO want unstable Box::into_inner(self.0) rust-lang/rust/issues/80437
+        let unboxed = *self.0;
+        Sensitive::unwrap(unboxed)
+    }
+}
+
+impl<T> Deref for BoxSensitive<T> {
+    type Target = Sensitive<T>;
+
+    fn deref(&self) -> &Sensitive<T> {
+        &self.0
+    }
+}
+
 impl_display_traits! {
-    Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer for Sensitive
+    Display, Debug, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer
 }
 
 #[cfg(test)]

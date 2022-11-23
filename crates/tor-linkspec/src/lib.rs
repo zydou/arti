@@ -50,8 +50,8 @@ pub use ids::{
 };
 pub use ls::LinkSpec;
 pub use owned::{
-    IntoOwnedChanTarget, OwnedChanTarget, OwnedChanTargetBuilder, OwnedCircTarget,
-    OwnedCircTargetBuilder, RelayIds, RelayIdsBuilder,
+    IntoOwnedChanTarget, LoggedChanTarget, OwnedChanTarget, OwnedChanTargetBuilder,
+    OwnedCircTarget, OwnedCircTargetBuilder, RelayIds, RelayIdsBuilder,
 };
 pub use traits::{
     ChanTarget, CircTarget, DirectChanMethodsHelper, HasAddrs, HasChanMethod, HasRelayIds,

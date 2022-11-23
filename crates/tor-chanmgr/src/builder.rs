@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 
 use std::time::Duration;
 use tor_error::internal;
-use tor_linkspec::{HasChanMethod, OwnedChanTarget};
+use tor_linkspec::{HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
 
@@ -85,7 +85,7 @@ where
             .timeout(delay, connect_future)
             .await
             .map_err(|_| Error::ChanTimeout {
-                peer: target.clone(),
+                peer: target.to_logged(),
             })?
     }
 }
@@ -120,7 +120,7 @@ where
         let map_ioe = |action: &'static str| {
             move |ioe: io::Error| Error::Io {
                 action,
-                peer: peer_ref.clone(),
+                peer: peer_ref.clone().map(Into::into),
                 source: ioe.into(),
             }
         };
@@ -177,7 +177,7 @@ where
                         .record_handshake_done_with_skewed_clock();
                     Error::Proto {
                         source,
-                        peer: using_target,
+                        peer: using_target.to_logged(),
                         clock_skew,
                     }
                 }
@@ -185,7 +185,7 @@ where
             })?;
         let (chan, reactor) = chan.finish().await.map_err(|source| Error::Proto {
             source,
-            peer: target.clone(),
+            peer: target.to_logged(),
             clock_skew,
         })?;
 

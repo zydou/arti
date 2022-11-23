@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use tor_basic_utils::iter::FilterCount;
 use tor_error::{Bug, ErrorKind, HasKind, HasRetryTime};
-use tor_linkspec::OwnedChanTarget;
+use tor_linkspec::{LoggedChanTarget, OwnedChanTarget};
 
 use crate::mgr::RestrictionFailed;
 
@@ -111,7 +111,7 @@ pub enum Error {
     #[error("Problem opening a channel to {peer}")]
     Channel {
         /// Which relay we were trying to connect to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
 
         /// What went wrong
         #[source]
@@ -126,7 +126,7 @@ pub enum Error {
         /// The peer that created the protocol error.
         ///
         /// This is set to None if we can't blame a single party.
-        peer: Option<OwnedChanTarget>,
+        peer: Option<LoggedChanTarget>,
         /// The underlying error.
         #[source]
         error: tor_proto::Error,
@@ -365,10 +365,10 @@ impl Error {
     pub fn peers(&self) -> Vec<&OwnedChanTarget> {
         match self {
             Error::RequestFailed(errors) => errors.sources().flat_map(|e| e.peers()).collect(),
-            Error::Channel { peer, .. } => vec![peer],
+            Error::Channel { peer, .. } => vec![peer.as_inner()],
             Error::Protocol {
                 peer: Some(peer), ..
-            } => vec![peer],
+            } => vec![peer.as_inner()],
             _ => vec![],
         }
     }

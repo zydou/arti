@@ -231,6 +231,14 @@ impl CircTarget for OwnedCircTarget {
 pub trait IntoOwnedChanTarget {
     /// Convert this value into an [`OwnedChanTarget`].
     fn to_owned(self) -> OwnedChanTarget;
+
+    /// Convert this value into an [`LoggedChanTarget`].
+    fn to_logged(self) -> LoggedChanTarget
+    where
+        Self: Sized,
+    {
+        self.to_owned().into()
+    }
 }
 
 impl<'a, T: ChanTarget + ?Sized> IntoOwnedChanTarget for &'a T {
@@ -244,6 +252,9 @@ impl IntoOwnedChanTarget for OwnedChanTarget {
         self
     }
 }
+
+/// An `OwnedChanTarget` suitable for logging and including in errors
+pub type LoggedChanTarget = safelog::BoxSensitive<OwnedChanTarget>;
 
 #[cfg(test)]
 mod test {

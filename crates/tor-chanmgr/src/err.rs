@@ -8,8 +8,14 @@ use thiserror::Error;
 
 use crate::factory::AbstractPtError;
 use tor_error::{internal, ErrorKind};
-use tor_linkspec::{ChanTarget, OwnedChanTarget, PtTargetAddr};
+use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, LoggedChanTarget, PtTargetAddr};
 use tor_proto::ClockSkew;
+
+// We use "ChanSensitive" for values which are sensitive because they relate to
+// channel-layer trouble, rather than circuit-layer or higher.  This will let us find these later:
+// if we want to change `LoggedChanTarget` to `Redacted` (say), we should change these too.
+// (`Redacted` like https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/882)
+use safelog::{BoxSensitive as BoxChanSensitive, Sensitive as ChanSensitive};
 
 use crate::transport::proxied::ProxyError;
 
@@ -25,14 +31,14 @@ pub enum Error {
     #[error("Pending channel for {peer} failed to launch")]
     PendingFailed {
         /// Who we were talking to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
     },
 
     /// It took too long for us to establish this connection.
     #[error("Channel for {peer} timed out")]
     ChanTimeout {
         /// Who we were trying to talk to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
     },
 
     /// A protocol error while making a channel
@@ -42,7 +48,7 @@ pub enum Error {
         #[source]
         source: tor_proto::Error,
         /// Who we were trying to talk to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
         /// An authenticated ClockSkew (if available) that we received from the
         /// peer.
         clock_skew: Option<ClockSkew>,
@@ -52,7 +58,7 @@ pub enum Error {
     #[error("Network IO error, or TLS error, in {action}, talking to {peer:?}")]
     Io {
         /// Who we were talking to
-        peer: Option<PtTargetAddr>,
+        peer: Option<BoxChanSensitive<PtTargetAddr>>,
 
         /// What we were doing
         action: &'static str,
@@ -67,7 +73,7 @@ pub enum Error {
     ChannelBuild {
         /// The list of addresses we tried to connect to, coupled with
         /// the error we encountered connecting to each one.
-        addresses: Vec<(SocketAddr, Arc<std::io::Error>)>,
+        addresses: Vec<(ChanSensitive<SocketAddr>, Arc<std::io::Error>)>,
     },
 
     /// Unable to spawn task
@@ -225,7 +231,7 @@ impl Error {
     ) -> Self {
         Error::Proto {
             source,
-            peer: OwnedChanTarget::from_chan_target(peer),
+            peer: peer.to_logged(),
             clock_skew: None,
         }
     }

@@ -119,7 +119,10 @@ async fn connect_to_one<R: Runtime>(
     drop(connections);
 
     ret.ok_or_else(|| Error::ChannelBuild {
-        addresses: errors.into_iter().map(|(e, a)| (a, Arc::new(e))).collect(),
+        addresses: errors
+            .into_iter()
+            .map(|(e, a)| (sv(a), Arc::new(e)))
+            .collect(),
     })
 }
 
