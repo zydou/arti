@@ -120,7 +120,7 @@ where
         let map_ioe = |action: &'static str| {
             move |ioe: io::Error| Error::Io {
                 action,
-                peer: peer_ref.clone(),
+                peer: peer_ref.clone().map(Into::into),
                 source: ioe.into(),
             }
         };
