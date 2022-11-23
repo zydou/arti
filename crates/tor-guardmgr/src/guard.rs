@@ -68,6 +68,27 @@ impl CrateId {
     }
 }
 
+/// What rule do we use when we're displaying information about a guard?
+#[derive(Clone, Debug, Educe)]
+#[educe(Default)]
+pub(crate) enum DisplayRule {
+    /// The guard is Sensitive; we should display it as "[scrubbed]".
+    ///
+    /// We use this for public relays on the network, since displaying even the
+    /// redacted info about them can enough to identify them uniquely within the
+    /// NetDir.
+    ///
+    /// This should not be too much of a hit for UX (we hope), since the user is
+    /// not typically expected to work around issues with these guards themself.
+    #[educe(Default)]
+    Sensitive,
+    /// The guard should be Redacted; we display it as something like "192.x.x.x
+    /// $ab...".
+    ///
+    /// We use this for bridges.
+    Redacted,
+}
+
 /// A single guard node, as held by the guard manager.
 ///
 /// A Guard is a Tor relay that clients use for the first hop of their circuits.
@@ -206,6 +227,10 @@ pub(crate) struct Guard {
     #[serde(skip)]
     clock_skew: Option<SkewObservation>,
 
+    /// How should we display information about this guard?
+    #[serde(skip)]
+    sensitivity: DisplayRule,
+
     /// Fields from the state file that was used to make this `Guard` that
     /// this version of Arti doesn't understand.
     #[serde(flatten)]
@@ -308,6 +333,7 @@ impl Guard {
             suspicious_behavior_warned: false,
             clock_skew: None,
             unknown_fields: Default::default(),
+            sensitivity: DisplayRule::Sensitive,
         }
     }
 
@@ -403,6 +429,7 @@ impl Guard {
             suspicious_behavior_warned: other.suspicious_behavior_warned,
             dir_status: other.dir_status,
             clock_skew: other.clock_skew,
+            sensitivity: other.sensitivity,
             // Note that we _could_ remove either of the above blocks and add
             // `..self` or `..other`, but that would be risky: it would increase
             // the odds that we would forget to add some persistent or
@@ -417,13 +444,10 @@ impl Guard {
         if self.reachable != r {
             // High-level logs, if change is interesting to user.
             match (self.reachable, r) {
-                (_, R::Reachable) => info!(
-                    "We have found that {} is usable.",
-                    self.display_chan_target().redacted()
-                ),
+                (_, R::Reachable) => info!("We have found that {} is usable.", self),
                 (R::Untried | R::Reachable, R::Unreachable) => warn!(
                     "Could not connect to {}. We'll retry later, and let you know if it succeeds.",
-                    self.display_chan_target().redacted()
+                    self
                 ),
                 (_, _) => {} // not interesting.
             }
@@ -542,6 +566,7 @@ impl Guard {
                 is_dir_cache,
                 full_dir_info,
                 owned_target,
+                sensitivity,
             }) => {
                 // Update address information.
                 self.orports = owned_target.addrs().into();
@@ -557,6 +582,7 @@ impl Guard {
                 assert!(owned_target.has_all_relay_ids_from(self));
                 self.id = GuardId(RelayIds::from_relay_ids(&owned_target));
                 self.dir_info_missing = !full_dir_info;
+                self.sensitivity = sensitivity;
 
                 listed_as_guard
             }
@@ -816,6 +842,15 @@ impl tor_linkspec::HasChanMethod for Guard {
 }
 
 impl tor_linkspec::ChanTarget for Guard {}
+
+impl std::fmt::Display for Guard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.sensitivity {
+            DisplayRule::Sensitive => safelog::sensitive(self.display_chan_target()).fmt(f),
+            DisplayRule::Redacted => self.display_chan_target().redacted().fmt(f),
+        }
+    }
+}
 
 /// A reason for permanently disabling a guard.
 #[derive(Clone, Debug, Serialize, Deserialize)]
