@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::factory::AbstractPtError;
 use tor_error::{internal, ErrorKind};
-use tor_linkspec::{ChanTarget, OwnedChanTarget, PtTargetAddr};
+use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, LoggedChanTarget, PtTargetAddr};
 use tor_proto::ClockSkew;
 
 use crate::transport::proxied::ProxyError;
@@ -25,14 +25,14 @@ pub enum Error {
     #[error("Pending channel for {peer} failed to launch")]
     PendingFailed {
         /// Who we were talking to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
     },
 
     /// It took too long for us to establish this connection.
     #[error("Channel for {peer} timed out")]
     ChanTimeout {
         /// Who we were trying to talk to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
     },
 
     /// A protocol error while making a channel
@@ -42,7 +42,7 @@ pub enum Error {
         #[source]
         source: tor_proto::Error,
         /// Who we were trying to talk to
-        peer: OwnedChanTarget,
+        peer: LoggedChanTarget,
         /// An authenticated ClockSkew (if available) that we received from the
         /// peer.
         clock_skew: Option<ClockSkew>,
@@ -225,7 +225,7 @@ impl Error {
     ) -> Self {
         Error::Proto {
             source,
-            peer: OwnedChanTarget::from_chan_target(peer),
+            peer: peer.to_logged(),
             clock_skew: None,
         }
     }
