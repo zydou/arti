@@ -83,8 +83,23 @@ impl<T> Sensitive<T> {
     }
 
     /// Extract the inner value from this `Sensitive<T>`.
+    //
+    // TODO(Diziet) shouldn't this be called `into_inner` ?
     pub fn unwrap(sensitive: Sensitive<T>) -> T {
         sensitive.0
+    }
+
+    /// Converts `&Sensitive<T>` to `Sensitive<&T>`
+    pub fn as_ref(&self) -> Sensitive<&T> {
+        Sensitive(&self.0)
+    }
+
+    /// Return a reference to the inner value
+    //
+    // This isn't `AsRef` or `as_ref` because we don't want to offer "de-sensitivisation"
+    // via what is usually a semantically-neutral interface.
+    pub fn as_inner(&self) -> &T {
+        &self.0
     }
 }
 
