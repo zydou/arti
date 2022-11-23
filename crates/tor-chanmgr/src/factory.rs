@@ -77,12 +77,6 @@ pub trait AbstractPtMgr: Send + Sync {
     ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>>;
 }
 
-/// Alias for an Arc ChannelFactory with all of the traits that we require.
-pub(crate) type ArcFactory = Arc<dyn ChannelFactory + 'static>;
-
-/// Alias for an Arc PtMgr with all of the traits that we require.
-pub(crate) type ArcPtMgr = Arc<dyn AbstractPtMgr + 'static>;
-
 #[async_trait]
 impl<P> AbstractPtMgr for Option<P>
 where
@@ -105,9 +99,9 @@ where
 pub(crate) struct Factory {
     #[cfg(feature = "pt-client")]
     /// The PtMgr to use for pluggable transports
-    ptmgr: Option<ArcPtMgr>,
+    ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     /// The factory to use for everything else
-    default_factory: ArcFactory,
+    default_factory: Arc<dyn ChannelFactory + 'static>,
 }
 
 #[async_trait]
@@ -135,8 +129,8 @@ impl Factory {
     /// Create a new `Factory` that will try to use `ptmgr` to handle pluggable
     /// transports requests, and `default_factory` to handle everything else.
     pub(crate) fn new(
-        default_factory: ArcFactory,
-        #[cfg(feature = "pt-client")] ptmgr: Option<ArcPtMgr>,
+        default_factory: Arc<dyn ChannelFactory + 'static>,
+        #[cfg(feature = "pt-client")] ptmgr: Option<Arc<dyn AbstractPtMgr + 'static>>,
     ) -> Self {
         Self {
             default_factory,
@@ -146,13 +140,13 @@ impl Factory {
     }
 
     /// Replace the default factory in this object.
-    pub(crate) fn replace_default_factory(&mut self, factory: ArcFactory) {
+    pub(crate) fn replace_default_factory(&mut self, factory: Arc<dyn ChannelFactory + 'static>) {
         self.default_factory = factory;
     }
 
     #[cfg(feature = "pt-client")]
     /// Replace the PtMgr in this object.
-    pub(crate) fn replace_ptmgr(&mut self, ptmgr: ArcPtMgr) {
+    pub(crate) fn replace_ptmgr(&mut self, ptmgr: Arc<dyn AbstractPtMgr + 'static>) {
         self.ptmgr = Some(ptmgr);
     }
 }
