@@ -51,7 +51,6 @@ type BridgeKey = BridgeConfig;
 /// whether `TorClient::bootstrap()` has been called, etc.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-// TODO pt-client actually honour dormancy
 // TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
 //     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
 pub enum Dormancy {
@@ -292,7 +291,8 @@ struct Manager<R: Runtime, M: Mockable<R>> {
 ///   so we cease attempts to get bridges, and discard the relevant state, violating this.)
 ///
 /// * **Limit**:
-///   `running` is capped at the parallelism.
+///   `running` is capped at the effective parallelism: zero if we are dormant,
+///   the configured parallelism otherwise.
 ///
 /// ### Liveness properties:
 ///
@@ -326,8 +326,11 @@ struct State {
     running: HashMap<BridgeKey, RunningInfo>,
 
     /// Bridges which we want to download,
-    /// but we're waiting for `running` to be less than `config.parallelism`.
+    /// but we're waiting for `running` to be less than `effective_parallelism()`.
     queued: VecDeque<QueuedEntry>,
+
+    /// Are we dormant?
+    dormancy: Dormancy,
 
     /// Bridges that we have a descriptor for,
     /// and when they should be refetched due to validity expiry.
@@ -502,12 +505,6 @@ impl<R: Runtime> BridgeDescMgr<R> {
     ) -> Result<Self, StartupError> {
         Self::new_internal(runtime, circmgr, store.store, config, dormancy, ())
     }
-
-    /// Set whether this `BridgeDescMgr` is active
-    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
-    pub fn set_dormancy(&self, _dormancy: Dormancy) {
-        // TODO pt-client
-    }
 }
 
 /// If download was successful, what we obtained
@@ -535,7 +532,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         circmgr: M::CircMgr,
         store: Arc<Mutex<DynStore>>,
         config: &BridgeDescDownloadConfig,
-        _dormancy: Dormancy,
+        dormancy: Dormancy,
         mockable: M,
     ) -> Result<Self, StartupError> {
         /// Convenience alias
@@ -552,6 +549,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
             current: default(),
             running: default(),
             queued: default(),
+            dormancy,
             retry_schedule: default(),
             refetch_schedule: default(),
             earliest_timeout,
@@ -587,6 +585,12 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescMgr<R, M> {
         self.mgr
             .lock_only()
             .check_consistency(&self.mgr.runtime, input_bridges);
+    }
+
+    /// Set whether this `BridgeDescMgr` is active
+    // TODO this should instead be handled by a central mechanism; see TODO on Dormancy
+    pub fn set_dormancy(&self, dormancy: Dormancy) {
+        self.mgr.lock_then_process().dormancy = dormancy;
     }
 }
 
@@ -812,7 +816,7 @@ impl State {
     /// Launch download attempts if we can
     ///
     /// Specifically: if we have things in `queued`, and `running` is shorter than
-    /// `config.parallelism`, we launch task(s) to attempt download(s).
+    /// `effective_parallelism()`, we launch task(s) to attempt download(s).
     ///
     /// Restores liveness invariant *Running*.
     ///
@@ -820,7 +824,7 @@ impl State {
     fn consider_launching<R: Runtime, M: Mockable<R>>(&mut self, mgr: &Arc<Manager<R, M>>) {
         let mut to_remove = vec![];
 
-        while self.running.len() < usize::from(u8::from(self.config.parallelism)) {
+        while self.running.len() < self.effective_parallelism() {
             let QueuedEntry {
                 bridge,
                 retry_delay,
@@ -904,6 +908,18 @@ impl State {
     fn set_current_and_notify<BDL: Into<Arc<BridgeDescList>>>(&mut self, new: BDL) {
         self.current = new.into();
         self.subscribers.publish(BridgeDescEvent::SomethingChanged);
+    }
+
+    /// Obtain the currently-desired level of parallelism
+    ///
+    /// Helper function.  The return value depends the mutable state and also the `config`.
+    ///
+    /// This is how we implement dormancy.
+    fn effective_parallelism(&self) -> usize {
+        match self.dormancy {
+            Dormancy::Active => usize::from(u8::from(self.config.parallelism)),
+            Dormancy::Dormant => 0,
+        }
     }
 }
 
@@ -1566,7 +1582,7 @@ impl State {
         }
 
         // *Limit*
-        let parallelism = u8::from(self.config.parallelism).into();
+        let parallelism = self.effective_parallelism();
         assert!(self.running.len() <= parallelism);
 
         // *Running*
