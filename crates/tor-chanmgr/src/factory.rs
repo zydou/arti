@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tor_error::{HasKind, HasRetryTime};
+use tor_error::{internal, HasKind, HasRetryTime};
 use tor_linkspec::{HasChanMethod, OwnedChanTarget, PtTransportName};
 use tor_proto::channel::Channel;
 use tracing::debug;
@@ -119,6 +119,12 @@ impl ChannelFactory for CompoundFactory {
                     .ok_or_else(|| crate::Error::NoSuchTransport(a.transport().clone().into()))?,
                 None => return Err(crate::Error::NoSuchTransport(a.transport().clone().into())),
             },
+            #[allow(unreachable_patterns)]
+            _ => {
+                return Err(crate::Error::Internal(internal!(
+                    "No support for channel method"
+                )))
+            }
         };
 
         factory.connect_via_transport(target).await
