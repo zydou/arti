@@ -948,7 +948,6 @@ impl GuardSet {
     /// (The output of this function is not reasonable unless this is a Bridge
     /// sample.)
     #[cfg(feature = "bridge-client")]
-    #[allow(dead_code)] // TODO pt-client remove.
     pub(crate) fn descriptors_to_request(&self, now: Instant, params: &GuardParams) -> Vec<&Guard> {
         /// This constant is here to improve our odds that we can get a working
         /// bridge if we have any per-circuit filters that would prevent us from
