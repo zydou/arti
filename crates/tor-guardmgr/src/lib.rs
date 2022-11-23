@@ -85,7 +85,7 @@ mod util;
 #[path = "bridge_disabled.rs"]
 pub mod bridge;
 
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub use config::testing::TestConfig;
 
 pub use config::GuardMgrConfig;
