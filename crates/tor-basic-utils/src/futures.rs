@@ -466,15 +466,36 @@ impl<T> PostageWatchSenderExt<T> for postage::watch::Sender<T> {
 }
 
 #[derive(Debug)]
-/// Wrapper for `postage::watch::Sender` that sends `Default` when dropped
+/// Wrapper for `postage::watch::Sender` that sends `DropNotifyEof::eof()` when dropped
 ///
 /// Derefs to the inner `Sender`.
 ///
 /// Ideally this would be behaviour promised by upstream, or something
 /// See <https://github.com/austinjones/postage-rs/issues/57>.
-pub struct DropNotifyWatchSender<T: Default>(Option<postage::watch::Sender<T>>);
+pub struct DropNotifyWatchSender<T: DropNotifyEofSignallable>(Option<postage::watch::Sender<T>>);
 
-impl<T: Default> DropNotifyWatchSender<T> {
+/// Values that can signal EOF
+///
+/// Implemented for `Option`, which is usually what you want to use.
+pub trait DropNotifyEofSignallable {
+    /// Generate the EOF value
+    fn eof() -> Self;
+
+    /// Does this value indicate EOF
+    fn is_eof(&self) -> bool;
+}
+
+impl<T> DropNotifyEofSignallable for Option<T> {
+    fn eof() -> Self {
+        None
+    }
+
+    fn is_eof(&self) -> bool {
+        self.is_none()
+    }
+}
+
+impl<T: DropNotifyEofSignallable> DropNotifyWatchSender<T> {
     /// Arrange to send `T::Default` when `inner` is dropped
     pub fn new(inner: postage::watch::Sender<T>) -> Self {
         DropNotifyWatchSender(Some(inner))
@@ -486,24 +507,24 @@ impl<T: Default> DropNotifyWatchSender<T> {
     }
 }
 
-impl<T: Default> Deref for DropNotifyWatchSender<T> {
+impl<T: DropNotifyEofSignallable> Deref for DropNotifyWatchSender<T> {
     type Target = postage::watch::Sender<T>;
     fn deref(&self) -> &Self::Target {
         self.0.as_ref().expect("inner was None")
     }
 }
 
-impl<T: Default> DerefMut for DropNotifyWatchSender<T> {
+impl<T: DropNotifyEofSignallable> DerefMut for DropNotifyWatchSender<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.as_mut().expect("inner was None")
     }
 }
 
-impl<T: Default> Drop for DropNotifyWatchSender<T> {
+impl<T: DropNotifyEofSignallable> Drop for DropNotifyWatchSender<T> {
     fn drop(&mut self) {
         if let Some(mut inner) = self.0.take() {
             // None means into_inner() was called
-            *inner.borrow_mut() = Default::default();
+            *inner.borrow_mut() = DropNotifyEofSignallable::eof();
         }
     }
 }
@@ -679,18 +700,30 @@ mod test {
 
     #[async_test]
     async fn postage_drop() {
-        let (s, r) = postage::watch::channel_with(20);
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        struct I(i32);
+
+        impl DropNotifyEofSignallable for I {
+            fn eof() -> I {
+                I(0)
+            }
+            fn is_eof(&self) -> bool {
+                self.0 == 0
+            }
+        }
+
+        let (s, r) = postage::watch::channel_with(I(20));
         let s = DropNotifyWatchSender::new(s);
 
-        assert_eq!(*r.borrow(), 20);
+        assert_eq!(*r.borrow(), I(20));
         drop(s);
-        assert_eq!(*r.borrow(), 0);
+        assert_eq!(*r.borrow(), I(0));
 
-        let (s, r) = postage::watch::channel_with(44);
+        let (s, r) = postage::watch::channel_with(I(44));
         let s = DropNotifyWatchSender::new(s);
 
-        assert_eq!(*r.borrow(), 44);
+        assert_eq!(*r.borrow(), I(44));
         drop(s.into_inner());
-        assert_eq!(*r.borrow(), 44);
+        assert_eq!(*r.borrow(), I(44));
     }
 }

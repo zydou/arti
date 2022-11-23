@@ -119,6 +119,9 @@ pub struct TorClient<R: Runtime> {
     should_bootstrap: BootstrapBehavior,
 
     /// Shared boolean for whether we're currently in "dormant mode" or not.
+    //
+    // The sent value is `Option`, so that `None` is sent when the sender, here,
+    // is dropped,.  That shuts down the monitoring task.
     dormant: Arc<Mutex<DropNotifyWatchSender<Option<DormantMode>>>>,
 }
 
