@@ -49,6 +49,8 @@ mod flags;
 pub use err::Error;
 pub use flags::{disable_safe_logging, enforce_safe_logging, with_safe_logging_suppressed, Guard};
 
+use std::ops::Deref;
+
 /// A `Result` returned by the flag-manipulation functions in `safelog`.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -131,8 +133,53 @@ macro_rules! impl_display_traits {
                 }
             }
         }
+
+        impl<T: std::fmt::$trait> std::fmt::$trait for BoxSensitive<T> {
+            #[inline]
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::$trait::fmt(&*self.0, f)
+            }
+        }
    )*
    }
+}
+
+/// A wrapper suitable for logging and including in errors
+///
+/// This is a newtype around `Box<Sensitive<T>>`.
+///
+/// This is useful particularly in errors,
+/// where the box can help reduce the size of error variants
+/// (for example ones containing large values like an `OwnedChanTarget`).
+///
+/// `BoxSensitive<T>` dereferences to [`Sensitive<T>`].
+//
+// Making it be a newtype rather than a type alias allows us to implement
+// `into_inner` and `From<T>` and so on.
+#[derive(Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct BoxSensitive<T>(Box<Sensitive<T>>);
+
+impl<T> From<T> for BoxSensitive<T> {
+    fn from(t: T) -> BoxSensitive<T> {
+        BoxSensitive(Box::new(sensitive(t)))
+    }
+}
+
+impl<T> BoxSensitive<T> {
+    /// Return the innermost `T`
+    pub fn into_inner(self) -> T {
+        // TODO want unstable Box::into_inner(self.0) rust-lang/rust/issues/80437
+        let unboxed = *self.0;
+        Sensitive::unwrap(unboxed)
+    }
+}
+
+impl<T> Deref for BoxSensitive<T> {
+    type Target = Sensitive<T>;
+
+    fn deref(&self) -> &Sensitive<T> {
+        &self.0
+    }
 }
 
 impl_display_traits! {
