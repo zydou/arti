@@ -9,3 +9,4 @@ BREAKING: Replaced functions to strip addresses from ChanMethod.
 BREAKING: Remove impl Display for OwnedCircTarget.
 ADDED: Provide deconstructors for PtTargetSettings and PtTarget
 MODIFIED: Renaming PtTargetAddr to BridgeAddr (in progress, will become BREAKING)
+BREAKING: ChannelMethod is now non-exhaustive
