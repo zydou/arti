@@ -20,7 +20,7 @@ use tracing::debug;
 /// [`TransportHelper`](crate::transport::TransportHelper), by wrapping it in a
 /// `ChanBuilder`.
 #[async_trait]
-pub trait ChannelFactory {
+pub trait ChannelFactory: Send + Sync {
     /// Open an authenticated channel to `target`.
     ///
     /// This method does does not necessarily handle retries or timeouts,
@@ -69,7 +69,7 @@ pub trait AbstractPtError: std::error::Error + HasKind + HasRetryTime + Send + S
 /// We can't directly reference the `PtMgr` type from `tor-ptmgr`, because of dependency resolution
 /// constraints, so this defines the interface for what one should look like.
 #[async_trait]
-pub trait AbstractPtMgr {
+pub trait AbstractPtMgr: Send + Sync {
     /// Get a `ChannelFactory` for the provided `PtTransportName`.
     async fn factory_for_transport(
         &self,
@@ -78,15 +78,15 @@ pub trait AbstractPtMgr {
 }
 
 /// Alias for an Arc ChannelFactory with all of the traits that we require.
-pub(crate) type ArcFactory = Arc<dyn ChannelFactory + Send + Sync + 'static>;
+pub(crate) type ArcFactory = Arc<dyn ChannelFactory + 'static>;
 
 /// Alias for an Arc PtMgr with all of the traits that we require.
-pub(crate) type ArcPtMgr = Arc<dyn AbstractPtMgr + Send + Sync + 'static>;
+pub(crate) type ArcPtMgr = Arc<dyn AbstractPtMgr + 'static>;
 
 #[async_trait]
 impl<P> AbstractPtMgr for Option<P>
 where
-    P: AbstractPtMgr + Send + Sync,
+    P: AbstractPtMgr,
 {
     async fn factory_for_transport(
         &self,

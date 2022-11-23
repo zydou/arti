@@ -288,7 +288,7 @@ impl<R: Runtime> ChanMgr<R> {
     /// Replace the transport registry with one that may know about
     /// more transports.
     #[cfg(feature = "pt-client")]
-    pub fn set_pt_mgr(&self, ptmgr: impl factory::AbstractPtMgr + Send + Sync + 'static) {
+    pub fn set_pt_mgr(&self, ptmgr: impl factory::AbstractPtMgr + 'static) {
         // TODO pt-client: Should this method take an ArcPtMgr instead?
         self.mgr
             .with_mut_builder(|f| f.replace_ptmgr(Arc::new(ptmgr)));
