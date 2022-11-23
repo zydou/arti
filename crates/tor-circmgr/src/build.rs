@@ -14,7 +14,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use tor_chanmgr::{ChanMgr, ChanProvenance, ChannelUsage};
 use tor_guardmgr::GuardStatus;
-use tor_linkspec::{ChanTarget, OwnedChanTarget, OwnedCircTarget};
+use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, OwnedChanTarget, OwnedCircTarget};
 use tor_proto::circuit::{CircParameters, ClientCirc, PendingClientCirc};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
@@ -93,7 +93,7 @@ async fn create_common<RT: Runtime, CT: ChanTarget>(
                 guard_status.skew(skew);
             }
             return Err(Error::Channel {
-                peer: OwnedChanTarget::from_chan_target(target),
+                peer: target.to_logged(),
                 cause,
             });
         }
@@ -127,7 +127,7 @@ impl Buildable for ClientCirc {
         circ.create_firsthop_fast(params)
             .await
             .map_err(|error| Error::Protocol {
-                peer: Some(ct.clone()),
+                peer: Some(ct.to_logged()),
                 error,
                 action: "running CREATE_FAST handshake",
             })
@@ -144,7 +144,7 @@ impl Buildable for ClientCirc {
         circ.create_firsthop_ntor(ct, params.clone())
             .await
             .map_err(|error| Error::Protocol {
-                peer: Some(OwnedChanTarget::from_chan_target(ct)),
+                peer: Some(ct.to_logged()),
                 error,
                 action: "creating first hop",
             })
