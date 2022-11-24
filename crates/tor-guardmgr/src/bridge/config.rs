@@ -207,7 +207,7 @@ impl BridgeConfigBuilder {
             fields: vec![field.into(), "transport".into()],
             problem: problem.into(),
         };
-        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::Unsupported {
+        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::NoCompileTimeSupport {
             field,
             problem: problem.to_string(),
         };
