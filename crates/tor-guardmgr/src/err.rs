@@ -163,7 +163,7 @@ impl From<GuardMgrConfigError> for tor_config::ReconfigureError {
         use tor_config::ReconfigureError as R;
         use GuardMgrConfigError as G;
         match g {
-            e @ G::NoLock(_) => R::Unsupported(e.to_string()),
+            e @ G::NoLock(_) => R::UnsupportedSituation(e.to_string()),
         }
     }
 }

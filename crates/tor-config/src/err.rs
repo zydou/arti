@@ -117,7 +117,7 @@ pub enum ReconfigureError {
     /// by this build of arti -
     /// that should be reported at config build type as `ConfigBuildError::Unsupported`.
     #[error("Configuration not supported in this situation: {0}")]
-    Unsupported(String),
+    UnsupportedSituation(String),
 
     /// There was a programming error somewhere in our code, or the calling code.
     #[error("Programming error")]
