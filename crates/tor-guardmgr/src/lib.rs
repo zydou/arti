@@ -898,6 +898,8 @@ impl GuardMgrInner {
                 return Ok(RetireCircuits::None); // nothing to do
             }
             (_, true) if !self.storage.can_store() => {
+                // TODO: Ideally we would try to upgrade, obtaining an exclusive lock,
+                // but `StorageHandle` currently lacks a method for that.
                 return Err(GuardMgrConfigError::NoLock("bridges configured".into()))
             }
             (Some(current_bridges), true) if new_config.bridges() == current_bridges.as_ref() => {
