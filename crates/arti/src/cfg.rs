@@ -964,6 +964,7 @@ mod test {
 
         fn parse(&self) -> config::Config {
             let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            eprintln!("parsing\n  --\n{}\n  --", &s);
             let c: toml::Value = toml::from_str(&s).expect(&s);
             config::Config::try_from(&c).expect(&s)
         }
