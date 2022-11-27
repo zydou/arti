@@ -278,6 +278,12 @@ impl<R: TcpProvider + Send + Sync> TransportHelper for ExternalProxyPlugin<R> {
                 )))
             }
             ChannelMethod::Pluggable(target) => target,
+            other => {
+                return Err(crate::Error::UnusableTarget(bad_api_usage!(
+                    "Used unknown, unsupported, transport {:?} for a TCP connection.",
+                    other,
+                )))
+            }
         };
 
         let protocol = settings_to_protocol(encode_settings(pt_target.settings()))?;

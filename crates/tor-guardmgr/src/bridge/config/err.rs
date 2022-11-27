@@ -5,6 +5,8 @@
 
 use thiserror::Error;
 
+use tor_linkspec::ChannelMethod;
+
 /// Error when parsing a bridge line from a string
 #[derive(Error, Clone, Debug)]
 #[non_exhaustive]
@@ -92,6 +94,16 @@ pub enum BridgeParseError {
     UnsupportedIdentityType {
         /// The offending word
         word: String,
+    },
+
+    /// Channel method specified of unsupported type
+    ///
+    /// This can only occur with unusual (unsupported) combinations of cargo features,
+    /// or building an older `tor-guardmgr` against a newer `tor-linkspec`.
+    #[error("Channel method specified but not of supported type ({method:?})")]
+    UnsupportedChannelMethod {
+        /// The not-understood method
+        method: Box<ChannelMethod>,
     },
 
     /// Parameters may only be specified with a pluggable transport

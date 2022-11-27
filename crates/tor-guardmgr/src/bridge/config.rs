@@ -76,7 +76,9 @@ struct Inner {
     /// Address and transport via which the bridge can be reached, and
     /// the parameters for those transports.
     ///
-    /// Restriction: This `addrs` may NOT contain more than one address.
+    /// Restriction: This `addrs` may NOT contain more than one address,
+    /// and it must be a variant supported by the code in this crate:
+    /// ie, currently, `Direct` or `Pluggable`.
     addrs: ChannelMethod,
 
     /// The RSA identity of the bridge.
@@ -367,6 +369,11 @@ impl FromStr for BridgeConfigBuilder {
                 let (transport, addr, settings) = target.into_parts();
                 (transport.into_inner(), vec![addr], settings.into_inner())
             }
+            other => {
+                return Err(BridgeParseError::UnsupportedChannelMethod {
+                    method: Box::new(other),
+                });
+            }
         };
 
         let ids = chain!(
@@ -519,6 +526,7 @@ impl FromStr for Inner {
                         source,
                     }
                 })?,
+                other => panic!("made ourselves an unsupported ChannelMethod {:?}", other),
             }
         }
 
@@ -556,6 +564,12 @@ impl Display for BridgeConfig {
             ChannelMethod::Pluggable(target) => {
                 write!(f, "{} {}", target.transport(), target.addr())?;
                 Some(target.settings())
+            }
+
+            _ => {
+                // This shouldn't happen, but panicking seems worse than outputting this
+                write!(f, "[unsupported channel method, cannot display properly]")?;
+                return Ok(());
             }
         };
 

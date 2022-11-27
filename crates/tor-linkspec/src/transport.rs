@@ -457,7 +457,7 @@ impl PtTarget {
 /// pluggable transport, this includes information about the transport, and any
 /// address and settings information that transport requires.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-#[allow(clippy::exhaustive_enums)]
+#[non_exhaustive]
 pub enum ChannelMethod {
     /// Connect to the relay directly at one of several addresses.
     Direct(Vec<std::net::SocketAddr>),
