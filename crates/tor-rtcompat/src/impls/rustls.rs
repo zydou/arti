@@ -2,11 +2,11 @@
 
 use crate::traits::{CertifiedConn, TlsConnector, TlsProvider};
 
-use async_rustls::webpki::{DNSNameRef, Error as WebpkiError};
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
-use rustls::{Session, TLSError};
+use rustls::{Certificate, Error as TLSError, ServerName};
 use rustls_crate as rustls;
+
 use std::{
     io::{self, Error as IoError, Result as IoResult},
     sync::Arc,
@@ -30,7 +30,7 @@ impl<S> CertifiedConn for async_rustls::client::TlsStream<S> {
     fn peer_certificate(&self) -> IoResult<Option<Vec<u8>>> {
         let (_, session) = self.get_ref();
         Ok(session
-            .get_peer_certificates()
+            .peer_certificates()
             .and_then(|certs| certs.get(0).map(|c| Vec::from(c.as_ref()))))
     }
 }
@@ -51,7 +51,9 @@ where
     type Conn = async_rustls::client::TlsStream<S>;
 
     async fn negotiate_unvalidated(&self, stream: S, sni_hostname: &str) -> IoResult<Self::Conn> {
-        let name = get_dns_name(sni_hostname)?;
+        let name = sni_hostname
+            .try_into()
+            .map_err(|e| IoError::new(io::ErrorKind::InvalidInput, e))?;
         self.connector.connect(name, stream).await
     }
 }
@@ -76,8 +78,6 @@ where
 impl RustlsProvider {
     /// Construct a new [`RustlsProvider`.]
     pub(crate) fn new() -> Self {
-        let mut config = async_rustls::rustls::ClientConfig::new();
-
         // Be afraid: we are overriding the default certificate verification and
         // TLS signature checking code! See notes on `Verifier` below for
         // details.
@@ -86,9 +86,10 @@ impl RustlsProvider {
         // misnamed: it overrides not only how certificates are verified, but
         // also how certificates are used to check the signatures in a TLS
         // handshake.
-        config
-            .dangerous()
-            .set_certificate_verifier(std::sync::Arc::new(Verifier {}));
+        let config = async_rustls::rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(std::sync::Arc::new(Verifier {}))
+            .with_no_client_auth();
 
         RustlsProvider {
             config: Arc::new(config),
@@ -102,7 +103,7 @@ impl Default for RustlsProvider {
     }
 }
 
-/// A [`rustls::ServerCertVerifier`] based on the [`x509_signature`] crate.
+/// A [`rustls_crate::client::ServerCertVerifier`] based on the [`x509_signature`] crate.
 ///
 /// This verifier is necessary since Tor relays doesn't participate in the web
 /// browser PKI, and as such their certificates won't check out as valid ones.
@@ -117,14 +118,16 @@ impl Default for RustlsProvider {
 #[derive(Clone, Debug)]
 struct Verifier {}
 
-impl rustls::ServerCertVerifier for Verifier {
+impl rustls_crate::client::ServerCertVerifier for Verifier {
     fn verify_server_cert(
         &self,
-        _roots: &rustls::RootCertStore,
-        presented_certs: &[rustls::Certificate],
-        _dns_name: async_rustls::webpki::DNSNameRef,
+        end_entity: &Certificate,
+        _intermediates: &[Certificate],
+        _server_name: &ServerName,
+        _scts: &mut dyn Iterator<Item = &[u8]>,
         _ocsp_response: &[u8],
-    ) -> Result<rustls::ServerCertVerified, TLSError> {
+        _now: std::time::SystemTime,
+    ) -> Result<rustls::client::ServerCertVerified, TLSError> {
         // We don't check anything about the certificate at this point other
         // than making sure it is well-formed.
         //
@@ -136,10 +139,7 @@ impl rustls::ServerCertVerifier for Verifier {
         // well-formedness should get checked below in one of the
         // verify_*_signature functions.  But this check is cheap, so let's
         // leave it in.
-        let cert0 = presented_certs
-            .get(0)
-            .ok_or(TLSError::NoCertificatesPresented)?;
-        let _cert = get_cert(cert0)?;
+        let _cert = get_cert(end_entity)?;
 
         // Note that we don't even check timeliness: Tor uses the presented
         // relay certificate just as a container for the relay's public link
@@ -147,18 +147,17 @@ impl rustls::ServerCertVerifier for Verifier {
         // that authenticate this one, when we process the relay's CERTS cell in
         // `tor_proto::channel::handshake`.
 
-        Ok(rustls::ServerCertVerified::assertion())
+        Ok(rustls::client::ServerCertVerified::assertion())
     }
 
     fn verify_tls12_signature(
         &self,
         message: &[u8],
         cert: &rustls::Certificate,
-        dss: &rustls::internal::msgs::handshake::DigitallySignedStruct,
-    ) -> Result<rustls::HandshakeSignatureValid, rustls::TLSError> {
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
-        let signature = dss.sig.0.as_ref();
 
         // NOTE:
         //
@@ -169,36 +168,29 @@ impl rustls::ServerCertVerifier for Verifier {
         // It turns out, apparently, unless my experiments are wrong,  that
         // OpenSSL will happily use PSS with TLS 1.2.  At least, it seems to do
         // so when invoked via native_tls in the test code for this crate.
-        cert.check_signature(scheme, message, signature)
-            .map(|_| rustls::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::WebPKIError(WebpkiError::InvalidSignatureForPublicKey))
+        cert.check_signature(scheme, message, dss.signature())
+            .map(|_| rustls::client::HandshakeSignatureValid::assertion())
+            .map_err(|_| TLSError::InvalidCertificateSignature)
     }
 
     fn verify_tls13_signature(
         &self,
         message: &[u8],
         cert: &rustls::Certificate,
-        dss: &rustls::internal::msgs::handshake::DigitallySignedStruct,
-    ) -> Result<rustls::HandshakeSignatureValid, rustls::TLSError> {
+        dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::HandshakeSignatureValid, TLSError> {
         let cert = get_cert(cert)?;
         let scheme = convert_scheme(dss.scheme)?;
-        let signature = dss.sig.0.as_ref();
 
-        cert.check_tls13_signature(scheme, message, signature)
-            .map(|_| rustls::HandshakeSignatureValid::assertion())
-            .map_err(|_| TLSError::WebPKIError(WebpkiError::InvalidSignatureForPublicKey))
+        cert.check_tls13_signature(scheme, message, dss.signature())
+            .map(|_| rustls::client::HandshakeSignatureValid::assertion())
+            .map_err(|_| TLSError::InvalidCertificateSignature)
     }
-}
-
-/// Convert a string into a `DnsNameRef`, if possible.
-fn get_dns_name(s: &str) -> IoResult<DNSNameRef> {
-    DNSNameRef::try_from_ascii_str(s).map_err(|e| IoError::new(io::ErrorKind::InvalidInput, e))
 }
 
 /// Parse a `rustls::Certificate` as an `x509_signature::X509Certificate`, if possible.
 fn get_cert(c: &rustls::Certificate) -> Result<x509_signature::X509Certificate, TLSError> {
-    x509_signature::parse_certificate(c.as_ref())
-        .map_err(|_| TLSError::WebPKIError(async_rustls::webpki::Error::BadDER))
+    x509_signature::parse_certificate(c.as_ref()).map_err(|_| TLSError::InvalidCertificateSignature)
 }
 
 /// Convert from the signature scheme type used in `rustls` to the one used in
@@ -208,9 +200,9 @@ fn get_cert(c: &rustls::Certificate) -> Result<x509_signature::X509Certificate, 
 /// use the same enum from `rustls`, because it seems to be on a different
 /// version from the rustls we want.)
 fn convert_scheme(
-    scheme: rustls::internal::msgs::enums::SignatureScheme,
+    scheme: rustls::SignatureScheme,
 ) -> Result<x509_signature::SignatureScheme, TLSError> {
-    use rustls::internal::msgs::enums::SignatureScheme as R;
+    use rustls::SignatureScheme as R;
     use x509_signature::SignatureScheme as X;
 
     // Yes, we do allow PKCS1 here.  That's fine in practice when PKCS1 is only
@@ -249,7 +241,7 @@ mod test {
 
     #[test]
     fn test_cvt_scheme() {
-        use rustls::internal::msgs::enums::SignatureScheme as R;
+        use rustls::SignatureScheme as R;
         use x509_signature::SignatureScheme as X;
 
         macro_rules! check_cvt {
