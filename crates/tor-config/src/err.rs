@@ -41,7 +41,7 @@ pub enum ConfigBuildError {
     #[error("Field {field:?} specifies a configuration not supported in this build: {problem}")]
     // TODO should we report the cargo feature, if applicable?  And if so, of `arti`
     // or of the underlying crate?  This seems like a can of worms.
-    Unsupported {
+    NoCompileTimeSupport {
         /// The names of the (primary) field requesting the unsupported configuration
         field: String,
         /// The description of the problem
@@ -83,7 +83,7 @@ impl ConfigBuildError {
                 fields: fields.iter().map(|f| addprefix(f)).collect(),
                 problem: problem.clone(),
             },
-            Unsupported { field, problem } => Invalid {
+            NoCompileTimeSupport { field, problem } => Invalid {
                 field: addprefix(field),
                 problem: problem.clone(),
             },
@@ -107,6 +107,17 @@ pub enum ReconfigureError {
         /// The field (or fields) that we tried to change.
         field: String,
     },
+
+    /// The requested configuration is not supported in this situation
+    ///
+    /// Something, probably discovered at runtime, is not compatible with
+    /// the specified configuration.
+    ///
+    /// This ought *not* to be returned when the configuration is simply not supported
+    /// by this build of arti -
+    /// that should be reported at config build type as `ConfigBuildError::Unsupported`.
+    #[error("Configuration not supported in this situation: {0}")]
+    UnsupportedSituation(String),
 
     /// There was a programming error somewhere in our code, or the calling code.
     #[error("Programming error")]

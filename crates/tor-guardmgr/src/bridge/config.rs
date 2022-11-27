@@ -213,10 +213,11 @@ impl BridgeConfigBuilder {
             fields: vec![field.into(), "transport".into()],
             problem: problem.into(),
         };
-        let unsupported = |field: String, problem: &dyn Display| ConfigBuildError::Unsupported {
-            field,
-            problem: problem.to_string(),
-        };
+        let unsupported =
+            |field: String, problem: &dyn Display| ConfigBuildError::NoCompileTimeSupport {
+                field,
+                problem: problem.to_string(),
+            };
         #[cfg_attr(not(feature = "pt-client"), allow(unused_variables))]
         let invalid = |field: String, problem: &dyn Display| ConfigBuildError::Invalid {
             field,
