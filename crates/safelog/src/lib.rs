@@ -222,9 +222,9 @@ pub trait Redactable: std::fmt::Display + std::fmt::Debug {
     /// Return a smart pointer that redacts this object if `redact` is true.
     fn maybe_redacted(&self, redact: bool) -> MaybeRedacted<&Self> {
         if redact {
-            MaybeRedacted::Redacted(Redacted(self))
+            MaybeRedacted(either::Either::Right(Redacted(self)))
         } else {
-            MaybeRedacted::NotRedacted(self)
+            MaybeRedacted(either::Either::Left(self))
         }
     }
 }
@@ -287,29 +287,15 @@ impl<T: Redactable> std::fmt::Debug for Redacted<T> {
 /// An object that may or may not be redacted.
 ///
 /// Used to implement conditional redaction
-#[derive(Clone)]
-#[allow(clippy::exhaustive_enums)]
-pub enum MaybeRedacted<T: Redactable> {
-    /// A variant where we are redacting the object.
-    Redacted(Redacted<T>),
-    /// A variant where we are not redacting the object.
-    NotRedacted(T),
-}
-
-impl<T: Redactable> std::fmt::Display for MaybeRedacted<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MaybeRedacted::Redacted(v) => std::fmt::Display::fmt(v, f),
-            MaybeRedacted::NotRedacted(v) => std::fmt::Display::fmt(v, f),
-        }
-    }
-}
+#[derive(Clone, derive_more::Display)]
+pub struct MaybeRedacted<T: Redactable>(either::Either<T, Redacted<T>>);
 
 impl<T: Redactable> std::fmt::Debug for MaybeRedacted<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MaybeRedacted::Redacted(v) => std::fmt::Debug::fmt(v, f),
-            MaybeRedacted::NotRedacted(v) => std::fmt::Debug::fmt(v, f),
+        use std::fmt::Debug;
+        match &self.0 {
+            either::Either::Left(v) => Debug::fmt(v, f),
+            either::Either::Right(v) => Debug::fmt(v, f),
         }
     }
 }

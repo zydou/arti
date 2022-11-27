@@ -2812,7 +2812,9 @@ dependencies = [
 name = "safelog"
 version = "0.1.3"
 dependencies = [
+ "derive_more",
  "educe",
+ "either",
  "fluid-let",
  "serde",
  "serial_test",
