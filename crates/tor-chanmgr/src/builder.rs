@@ -3,7 +3,7 @@
 use std::io;
 use std::sync::{Arc, Mutex};
 
-use crate::factory::ChannelFactory;
+use crate::factory::{BootstrapReporter, ChannelFactory};
 use crate::transport::TransportHelper;
 use crate::{event::ChanMgrEventSender, Error};
 
@@ -28,14 +28,12 @@ use futures::task::SpawnExt;
 ///
 /// This channel builder does not retry on failure, but it _does_ implement a
 /// time-out.
-pub(crate) struct ChanBuilder<R: Runtime, H: TransportHelper>
+pub struct ChanBuilder<R: Runtime, H: TransportHelper>
 where
     R: tor_rtcompat::TlsProvider<H::Stream>,
 {
     /// Asynchronous runtime for TLS, TCP, spawning, and timeouts.
     runtime: R,
-    /// Used to update our bootstrap reporting status.
-    event_sender: Arc<Mutex<ChanMgrEventSender>>,
     /// The transport object that we use to construct streams.
     transport: H,
     /// Object to build TLS connections.
@@ -47,16 +45,11 @@ where
     R: TlsProvider<H::Stream>,
 {
     /// Construct a new ChanBuilder.
-    pub(crate) fn new(
-        runtime: R,
-        transport: H,
-        event_sender: Arc<Mutex<ChanMgrEventSender>>,
-    ) -> Self {
+    pub fn new(runtime: R, transport: H) -> Self {
         let tls_connector = <R as TlsProvider<H::Stream>>::tls_connector(&runtime);
         ChanBuilder {
             runtime,
             transport,
-            event_sender,
             tls_connector,
         }
     }
@@ -70,6 +63,7 @@ where
     async fn connect_via_transport(
         &self,
         target: &OwnedChanTarget,
+        reporter: BootstrapReporter,
     ) -> crate::Result<tor_proto::channel::Channel> {
         use tor_rtcompat::SleepProviderExt;
 
@@ -80,7 +74,7 @@ where
             std::time::Duration::new(10, 0)
         };
 
-        let connect_future = self.connect_no_timeout(target);
+        let connect_future = self.connect_no_timeout(target, reporter.0);
         self.runtime
             .timeout(delay, connect_future)
             .await
@@ -99,15 +93,13 @@ where
     async fn connect_no_timeout(
         &self,
         target: &OwnedChanTarget,
+        event_sender: Arc<Mutex<ChanMgrEventSender>>,
     ) -> crate::Result<tor_proto::channel::Channel> {
         use tor_proto::channel::ChannelBuilder;
         use tor_rtcompat::tls::CertifiedConn;
 
         {
-            self.event_sender
-                .lock()
-                .expect("Lock poisoned")
-                .record_attempt();
+            event_sender.lock().expect("Lock poisoned").record_attempt();
         }
 
         // 1a. Negotiate the TCP connection or other stream.
@@ -127,7 +119,7 @@ where
 
         {
             // TODO pt-client: distinguish which transport just succeeded.
-            self.event_sender
+            event_sender
                 .lock()
                 .expect("Lock poisoned")
                 .record_tcp_success();
@@ -148,7 +140,7 @@ where
             .ok_or_else(|| Error::Internal(internal!("TLS connection with no peer certificate")))?;
 
         {
-            self.event_sender
+            event_sender
                 .lock()
                 .expect("Lock poisoned")
                 .record_tls_finished();
@@ -171,7 +163,7 @@ where
             .check(target, &peer_cert, Some(now))
             .map_err(|source| match &source {
                 tor_proto::Error::HandshakeCertsExpired { .. } => {
-                    self.event_sender
+                    event_sender
                         .lock()
                         .expect("Lock poisoned")
                         .record_handshake_done_with_skewed_clock();
@@ -190,7 +182,7 @@ where
         })?;
 
         {
-            self.event_sender
+            event_sender
                 .lock()
                 .expect("Lock poisoned")
                 .record_handshake_done();
@@ -287,14 +279,15 @@ mod test {
             client_rt.jump_to(now);
 
             // Create the channel builder that we want to test.
-            let (snd, _rcv) = crate::event::channel();
             let transport = crate::transport::DefaultTransport::new(client_rt.clone());
-            let builder = ChanBuilder::new(client_rt, transport, Arc::new(Mutex::new(snd)));
+            let builder = ChanBuilder::new(client_rt, transport);
 
             let (r1, r2): (Result<Channel>, Result<LocalStream>) = futures::join!(
                 async {
                     // client-side: build a channel!
-                    builder.build_channel(&target).await
+                    builder
+                        .build_channel(&target, BootstrapReporter::fake())
+                        .await
                 },
                 async {
                     // relay-side: accept the channel

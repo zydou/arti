@@ -37,7 +37,7 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-mod builder;
+pub mod builder;
 mod config;
 mod err;
 mod event;
@@ -70,6 +70,7 @@ use tor_rtcompat::Runtime;
 /// A Result as returned by this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
+use crate::factory::BootstrapReporter;
 pub use event::{ConnBlockage, ConnStatus, ConnStatusEvents};
 use tor_rtcompat::scheduler::{TaskHandle, TaskSchedule};
 
@@ -166,14 +167,15 @@ impl<R: Runtime> ChanMgr<R> {
     {
         let (sender, receiver) = event::channel();
         let sender = Arc::new(std::sync::Mutex::new(sender));
+        let reporter = BootstrapReporter(sender);
         let transport = transport::DefaultTransport::new(runtime.clone());
-        let builder = builder::ChanBuilder::new(runtime, transport, sender);
+        let builder = builder::ChanBuilder::new(runtime, transport);
         let factory = factory::CompoundFactory::new(
             Arc::new(builder),
             #[cfg(feature = "pt-client")]
             None,
         );
-        let mgr = mgr::AbstractChanMgr::new(factory, config, dormancy, netparams);
+        let mgr = mgr::AbstractChanMgr::new(factory, config, dormancy, netparams, reporter);
         ChanMgr {
             mgr,
             bootstrap_status: receiver,

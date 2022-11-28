@@ -3,6 +3,7 @@
 use crate::mgr::state::{OpenEntry, PendingEntry};
 use crate::{ChanProvenance, ChannelConfig, ChannelUsage, Dormancy, Error, Result};
 
+use crate::factory::BootstrapReporter;
 use async_trait::async_trait;
 use futures::channel::oneshot;
 use futures::future::{FutureExt, Shared};
@@ -66,7 +67,11 @@ pub(crate) trait AbstractChannelFactory {
     /// and so on.
     ///
     /// It should not retry; that is handled at a higher level.
-    async fn build_channel(&self, target: &Self::BuildSpec) -> Result<Self::Channel>;
+    async fn build_channel(
+        &self,
+        target: &Self::BuildSpec,
+        reporter: BootstrapReporter,
+    ) -> Result<Self::Channel>;
 }
 
 /// A type- and network-agnostic implementation for [`ChanMgr`](crate::ChanMgr).
@@ -83,6 +88,9 @@ pub(crate) struct AbstractChanMgr<CF: AbstractChannelFactory> {
     /// The most important part is the map from relay identity to channel, or
     /// to pending channel status.
     pub(crate) channels: state::MgrState<CF>,
+
+    /// A bootstrap reporter to give out when building channels.
+    pub(crate) reporter: BootstrapReporter,
 }
 
 /// Type alias for a future that we wait on to see when a pending
@@ -100,9 +108,11 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
         config: &ChannelConfig,
         dormancy: Dormancy,
         netparams: &NetParameters,
+        reporter: BootstrapReporter,
     ) -> Self {
         AbstractChanMgr {
             channels: state::MgrState::new(connector, config.clone(), dormancy, netparams),
+            reporter,
         }
     }
 
@@ -225,7 +235,9 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
                 // We need to launch a channel.
                 Some(Action::Launch(send)) => {
                     let connector = self.channels.builder();
-                    let outcome = connector.build_channel(&target).await;
+                    let outcome = connector
+                        .build_channel(&target, self.reporter.clone())
+                        .await;
                     let status = self.handle_build_outcome(&target, outcome);
 
                     // It's okay if all the receivers went away:
@@ -590,6 +602,7 @@ mod test {
             &ChannelConfig::default(),
             Default::default(),
             &Default::default(),
+            BootstrapReporter::fake(),
         )
     }
 
@@ -620,7 +633,11 @@ mod test {
         type Channel = FakeChannel;
         type BuildSpec = FakeBuildSpec;
 
-        async fn build_channel(&self, target: &Self::BuildSpec) -> Result<FakeChannel> {
+        async fn build_channel(
+            &self,
+            target: &Self::BuildSpec,
+            _reporter: BootstrapReporter,
+        ) -> Result<FakeChannel> {
             yield_now().await;
             let FakeBuildSpec(ident, mood, id) = *target;
             let ed_ident = u32_to_ed(ident);
