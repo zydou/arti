@@ -4074,7 +4074,6 @@ dependencies = [
  "derive_builder_fork_arti",
  "futures",
  "serde",
- "tempfile",
  "thiserror",
  "tokio",
  "tor-chanmgr",

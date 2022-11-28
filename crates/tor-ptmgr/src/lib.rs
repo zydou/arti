@@ -52,7 +52,6 @@ use futures::channel::oneshot;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use tempfile::TempDir;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tracing::warn;
@@ -122,12 +121,8 @@ pub struct PtMgr<R> {
     state: Arc<RwLock<PtSharedState>>,
     /// PtReactor channel.
     tx: UnboundedSender<PtReactorMessage>,
-    /// Temporary directory to store PT state in.
-    //
-    // FIXME(eta): This should be configurable.
-    //
-    // TODO pt-client: There should be one of these per PT, if possible.
-    state_dir: TempDir,
+    /// Directory to store PT state in.
+    state_dir: PathBuf,
 }
 
 impl<R: Runtime> PtMgr<R> {
@@ -150,7 +145,11 @@ impl<R: Runtime> PtMgr<R> {
 
     /// Create a new PtMgr.
     // TODO pt-client: maybe don't have the Vec directly exposed?
-    pub fn new(transports: Vec<ManagedTransportConfig>, rt: R) -> Result<Self, PtError> {
+    pub fn new(
+        transports: Vec<ManagedTransportConfig>,
+        state_dir: PathBuf,
+        rt: R,
+    ) -> Result<Self, PtError> {
         let state = PtSharedState {
             cmethods: Default::default(),
             configured: Self::transform_config(transports),
@@ -162,7 +161,7 @@ impl<R: Runtime> PtMgr<R> {
             runtime: rt,
             state,
             tx,
-            state_dir: TempDir::new().map_err(|e| PtError::TempdirCreateFailed(Arc::new(e)))?,
+            state_dir,
         })
     }
 

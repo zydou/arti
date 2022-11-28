@@ -450,8 +450,13 @@ impl<R: Runtime> TorClient<R> {
 
         #[cfg(feature = "pt-client")]
         let pt_mgr = {
+            let mut pt_state_dir = config.storage.expand_state_dir()?;
+            pt_state_dir.push("pt_state");
+            config.storage.permissions().make_directory(&pt_state_dir)?;
+
             let mgr = Arc::new(tor_ptmgr::PtMgr::new(
                 config.bridges.transports.clone(),
+                pt_state_dir,
                 runtime.clone(),
             )?);
 
