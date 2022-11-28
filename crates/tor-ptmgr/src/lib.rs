@@ -168,12 +168,17 @@ impl<R: Runtime> PtMgr<R> {
 
     /// Reload the configuration
     pub fn reconfigure(
-        &mut self,
+        &self,
+        how: tor_config::Reconfigure,
         transports: Vec<ManagedTransportConfig>,
     ) -> Result<(), tor_config::ReconfigureError> {
+        let configured = Self::transform_config(transports);
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
         {
             let mut inner = self.state.write().expect("ptmgr poisoned");
-            inner.configured = Self::transform_config(transports);
+            inner.configured = configured;
         }
         // We don't have any way of propagating this sanely; the caller will find out the reactor
         // has died later on anyway.
