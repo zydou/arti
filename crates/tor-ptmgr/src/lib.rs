@@ -37,8 +37,7 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code)] // FIXME TODO pt-client: remove.
-#![allow(unused_imports)] // FIXME TODO pt-client: remove.
+#![allow(dead_code)] // FIXME TODO pt-client remove after implementing reactor.
 
 pub mod config;
 pub mod err;
@@ -46,26 +45,26 @@ pub mod ipc;
 
 use crate::config::ManagedTransportConfig;
 use crate::err::PtError;
-use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters, PtParametersBuilder};
+use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters};
 use crate::mpsc::Receiver;
-use async_trait::async_trait;
-use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::channel::mpsc::{self, UnboundedSender};
 use futures::channel::oneshot;
-use futures::StreamExt;
 use std::collections::HashMap;
-use std::mem;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tempfile::TempDir;
-use tor_chanmgr::builder::ChanBuilder;
-#[cfg(feature = "tor-channel-factory")]
-use tor_chanmgr::factory::ChannelFactory;
-use tor_chanmgr::factory::{AbstractPtError, AbstractPtMgr};
-use tor_chanmgr::transport::{ExternalProxyPlugin, TransportHelper};
-use tor_linkspec::{PtTransportName, TransportId};
+use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::{info, warn};
+use tracing::warn;
+#[cfg(feature = "tor-channel-factory")]
+use {
+    async_trait::async_trait,
+    tor_chanmgr::{
+        builder::ChanBuilder,
+        factory::{AbstractPtError, ChannelFactory},
+        transport::ExternalProxyPlugin,
+    },
+};
 
 /// Shared mutable state between the `PtReactor` and `PtMgr`.
 #[derive(Default, Debug)]
