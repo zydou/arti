@@ -36,7 +36,7 @@ async-std = ["tor-rtcompat/async-std"]
 bridge-client = ["tor-guardmgr/bridge-client", "tor-dirmgr/bridge-client"]
 tokio = ["tor-rtcompat/tokio", "tor-proto/tokio"]
 native-tls = ["tor-rtcompat/native-tls"]
-pt-client = ["bridge-client", "tor-guardmgr/pt-client"]
+pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
 rustls = ["tor-rtcompat/rustls"]
 
 static = ["static-sqlite", "static-native-tls"]
@@ -99,7 +99,7 @@ tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
 tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
 tor-persist = { path = "../tor-persist", version = "0.5.1" }
 tor-proto = { path = "../tor-proto", version = "0.7.0" }
-tor-ptmgr = { path = "../tor-ptmgr", version = "0.1.0" }
+tor-ptmgr = { path = "../tor-ptmgr", version = "0.1.0", optional = true }
 tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
 tracing = "0.1.18"
 

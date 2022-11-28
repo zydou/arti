@@ -242,7 +242,7 @@ pub struct BridgesConfig {
     /// Configured list of pluggable transports.
     #[builder(sub_builder, setter(custom))]
     #[builder_field_attr(serde(default))]
-    transports: TransportConfigList,
+    pub(crate) transports: TransportConfigList,
 }
 
 /// A list of configured transport binaries (type alias for macrology).
