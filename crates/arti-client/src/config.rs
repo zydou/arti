@@ -44,6 +44,9 @@ pub mod dir {
 }
 
 /// Types for configuring pluggable transports.
+//
+// TODO pt-client: Could we make these ignored when pt-client is not enabled? If
+// so, we could make the ptmgr dependency optional, which is something we wanted.
 pub mod pt {
     pub use tor_ptmgr::config::{ManagedTransportConfig, ManagedTransportConfigBuilder};
 }
