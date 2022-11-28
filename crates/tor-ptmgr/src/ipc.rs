@@ -361,6 +361,7 @@ impl FromStr for PtMessage {
 //
 // FIXME(eta): This currently spawns an OS thread, since there's no other way to do this without
 //             being async-runtime dependent (or adding process spawning to tor-rtcompat).
+#[derive(Debug)]
 struct AsyncPtChild {
     /// Channel to receive lines from the child process stdout.
     stdout: Receiver<io::Result<String>>,
@@ -463,7 +464,7 @@ impl AsyncPtChild {
 }
 
 /// Parameters passed to a pluggable transport.
-#[derive(PartialEq, Eq, Clone, derive_builder::Builder)]
+#[derive(PartialEq, Eq, Clone, Debug, derive_builder::Builder)]
 pub struct PtParameters {
     /// A path where the launched PT can store state.
     state_location: PathBuf,
@@ -531,23 +532,38 @@ impl PtParameters {
 }
 
 /// A SOCKS endpoint to connect through a pluggable transport.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct PtClientMethod {
     /// The SOCKS protocol version to use.
-    kind: SocksVersion,
+    pub(crate) kind: SocksVersion,
     /// The socket address to connect to.
-    endpoint: SocketAddr,
+    pub(crate) endpoint: SocketAddr,
+}
+
+impl PtClientMethod {
+    /// Get the SOCKS protocol version to use.
+    pub fn kind(&self) -> SocksVersion {
+        self.kind
+    }
+
+    /// Get the socket address to connect to.
+    pub fn endpoint(&self) -> SocketAddr {
+        self.endpoint
+    }
 }
 
 /// A pluggable transport binary in a child process.
 ///
 /// These start out inert, and must be launched with [`PluggableTransport::launch`] in order
 /// to be useful.
+#[derive(Debug)]
 pub struct PluggableTransport {
     /// The currently running child, if there is one.
     inner: Option<AsyncPtChild>,
     /// The path to the binary to run.
     binary_path: PathBuf,
+    /// Arguments to pass to the binary.
+    arguments: Vec<String>,
     /// Configured parameters.
     params: PtParameters,
     /// Information about client methods obtained from the PT.
@@ -559,20 +575,24 @@ impl PluggableTransport {
     /// the `params` to it.
     ///
     /// You must call [`PluggableTransport::launch`] to actually run the PT.
-    pub fn new(binary_path: PathBuf, params: PtParameters) -> Self {
+    pub fn new(binary_path: PathBuf, arguments: Vec<String>, params: PtParameters) -> Self {
         Self {
             params,
+            arguments,
             binary_path,
             inner: None,
             cmethods: Default::default(),
         }
     }
-    /// Get information for the named `transport`, if the PT is running.
-    //
-    // FIXME(eta): This could be slightly more typed.
-    pub fn transport_method(&self, transport: &PtTransportName) -> Option<&PtClientMethod> {
-        self.cmethods.get(transport)
+
+    /// Get all client methods returned by the binary, if it has been launched.
+    ///
+    /// If it hasn't been launched, the returned map will be empty.
+    // TODO(eta): Actually figure out a way to expose this more stably.
+    pub(crate) fn transport_methods(&self) -> &HashMap<PtTransportName, PtClientMethod> {
+        &self.cmethods
     }
+
     /// Get the next [`PtMessage`] from the running transport. It is recommended to call this
     /// in a loop once a PT has been launched, in order to forward log messages and find out about
     /// status updates.
@@ -603,6 +623,7 @@ impl PluggableTransport {
             return Ok(());
         }
         let child = Command::new(&self.binary_path)
+            .args(self.arguments.iter())
             .envs(self.params.environment_variables())
             .stdout(Stdio::piped())
             .stdin(Stdio::piped())

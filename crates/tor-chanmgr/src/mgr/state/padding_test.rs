@@ -28,6 +28,7 @@ use tor_proto::channel::{Channel, CtrlMsg};
 use crate::mgr::{AbstractChanMgr, AbstractChannelFactory};
 use crate::ChannelUsage;
 
+use crate::factory::BootstrapReporter;
 use PaddingLevel as PL;
 
 const DEF_MS: [u32; 2] = [1500, 9500];
@@ -124,7 +125,11 @@ impl AbstractChannelFactory for FakeChannelFactory {
     type Channel = Channel;
     type BuildSpec = tor_linkspec::RelayIds;
 
-    async fn build_channel(&self, _target: &Self::BuildSpec) -> Result<Self::Channel> {
+    async fn build_channel(
+        &self,
+        _target: &Self::BuildSpec,
+        _reporter: BootstrapReporter,
+    ) -> Result<Self::Channel> {
         Ok(self.channel.clone())
     }
 }
@@ -161,7 +166,13 @@ async fn case(level: PaddingLevel, dormancy: Dormancy, usage: ChannelUsage) -> C
 
     let netparams = Arc::new(NetParameters::default());
 
-    let chanmgr = AbstractChanMgr::new(factory, &cconfig, dormancy, &netparams);
+    let chanmgr = AbstractChanMgr::new(
+        factory,
+        &cconfig,
+        dormancy,
+        &netparams,
+        BootstrapReporter::fake(),
+    );
 
     let (channel, _prov) = chanmgr.get_or_launch(relay_ids, usage).await.unwrap();
 

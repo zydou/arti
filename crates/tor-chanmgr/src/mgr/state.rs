@@ -537,6 +537,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
     use super::*;
+    use crate::factory::BootstrapReporter;
     use async_trait::async_trait;
     use std::sync::{Arc, Mutex};
     use tor_llcrypto::pk::ed25519::Ed25519Identity;
@@ -559,7 +560,11 @@ mod test {
 
         type BuildSpec = tor_linkspec::OwnedChanTarget;
 
-        async fn build_channel(&self, _target: &Self::BuildSpec) -> Result<FakeChannel> {
+        async fn build_channel(
+            &self,
+            _target: &Self::BuildSpec,
+            _reporter: BootstrapReporter,
+        ) -> Result<FakeChannel> {
             unimplemented!()
         }
     }

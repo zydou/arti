@@ -37,50 +37,236 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#![allow(dead_code)] // FIXME TODO pt-client: remove.
+#![allow(unused_imports)] // FIXME TODO pt-client: remove.
+
 pub mod config;
 pub mod err;
 pub mod ipc;
 
-use config::PtMgrConfig;
-
+use crate::config::ManagedTransportConfig;
+use crate::err::PtError;
+use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters, PtParametersBuilder};
+use crate::mpsc::Receiver;
+use async_trait::async_trait;
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::channel::oneshot;
+use futures::StreamExt;
+use std::collections::HashMap;
+use std::mem;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use tempfile::TempDir;
+use tor_chanmgr::builder::ChanBuilder;
 #[cfg(feature = "tor-channel-factory")]
 use tor_chanmgr::factory::ChannelFactory;
-use tor_linkspec::TransportId;
+use tor_chanmgr::factory::{AbstractPtError, AbstractPtMgr};
+use tor_chanmgr::transport::{ExternalProxyPlugin, TransportHelper};
+use tor_linkspec::{PtTransportName, TransportId};
 use tor_rtcompat::Runtime;
+use tracing::{info, warn};
+
+/// Shared mutable state between the `PtReactor` and `PtMgr`.
+#[derive(Default, Debug)]
+struct PtSharedState {
+    /// Connection information for pluggable transports from currently running binaries.
+    cmethods: HashMap<PtTransportName, PtClientMethod>,
+    /// Current configured set of pluggable transport binaries.
+    configured: HashMap<PtTransportName, ManagedTransportConfig>,
+}
+
+/// A message to the `PtReactor`.
+enum PtReactorMessage {
+    /// Notify the reactor that the currently configured set of PTs has changed.
+    Reconfigured,
+    /// Ask the reactor to spawn a pluggable transport binary.
+    Spawn {
+        /// Spawn a binary to provide this PT.
+        pt: PtTransportName,
+        /// Notify the result via this channel.
+        result: oneshot::Sender<err::Result<PtClientMethod>>,
+    },
+}
+
+/// Background reactor to handle managing pluggable transport binaries.
+struct PtReactor<R> {
+    /// Runtime.
+    rt: R,
+    /// Currently running pluggable transport binaries.
+    running: Vec<PluggableTransport>,
+    /// State for the corresponding PtMgr.
+    state: Arc<RwLock<PtSharedState>>,
+    /// PtMgr channel.
+    /// (Unbounded so that we can reconfigure without blocking: we're unlikely to have the reactor
+    /// get behind.)
+    rx: Receiver<PtReactorMessage>,
+}
+
+impl<R: Runtime> PtReactor<R> {
+    /// XXX
+    async fn run_one_step(&mut self) -> err::Result<()> {
+        todo!()
+    }
+}
 
 /// A pluggable transport manager knows how to make different
 /// kinds of connections to the Tor network, for censorship avoidance.
 ///
 /// Currently, we only support two kinds of pluggable transports: Those
 /// configured in a PtConfig object, and those added with PtMgr::register.
-//
-// TODO: Will we need a <R:Runtime constraint> here? I don't know. -nickm
-#[derive(Clone, Debug)]
 pub struct PtMgr<R> {
     /// An underlying `Runtime`, used to spawn background tasks.
     #[allow(dead_code)]
     runtime: R,
+    /// State for this PtMgr.
+    state: Arc<RwLock<PtSharedState>>,
+    /// PtReactor channel.
+    tx: UnboundedSender<PtReactorMessage>,
+    /// Temporary directory to store PT state in.
+    //
+    // FIXME(eta): This should be configurable.
+    state_dir: TempDir,
 }
 
-#[allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
 impl<R: Runtime> PtMgr<R> {
-    /// Create a new PtMgr.
-    pub fn new(cfg: PtMgrConfig, rt: R) -> Self {
-        let _ = (cfg, rt);
-        todo!("TODO pt-client: implement this.")
-    }
-    /// Reload the configuration
-    pub fn reconfigure(&self, cfg: PtMgrConfig) -> Result<(), tor_config::ReconfigureError> {
-        let _ = cfg;
-        todo!("TODO pt-client: implement this.")
-    }
-    /// Manually add a new channel factory to this registry.
-    #[cfg(feature = "tor-channel-factory")]
-    pub fn register_factory(&self, ids: &[TransportId], factory: impl ChannelFactory) {
-        let _ = (ids, factory);
-        todo!("TODO pt-client: implement this.")
+    /// Transform the config into a more useful representation indexed by transport name.
+    fn transform_config(
+        binaries: Vec<ManagedTransportConfig>,
+    ) -> HashMap<PtTransportName, ManagedTransportConfig> {
+        let mut ret = HashMap::new();
+        // FIXME(eta): You can currently specify overlapping protocols in your binaries, and it'll
+        //             just use the last binary specified.
+        //             I attempted to fix this, but decided I didn't want to stare into the list
+        //             builder macro void after trying it for 15 minutes.
+        for thing in binaries {
+            for tn in thing.protocols.iter() {
+                ret.insert(tn.clone(), thing.clone());
+            }
+        }
+        ret
     }
 
-    // TODO pt-client: Possibly, this should have a separate function to launch
-    // its background tasks.
+    /// Create a new PtMgr.
+    // TODO pt-client: maybe don't have the Vec directly exposed?
+    pub fn new(transports: Vec<ManagedTransportConfig>, rt: R) -> Result<Self, PtError> {
+        let state = PtSharedState {
+            cmethods: Default::default(),
+            configured: Self::transform_config(transports),
+        };
+        let state = Arc::new(RwLock::new(state));
+        let (tx, _) = mpsc::unbounded();
+
+        Ok(Self {
+            runtime: rt,
+            state,
+            tx,
+            state_dir: TempDir::new().map_err(|e| PtError::TempdirCreateFailed(Arc::new(e)))?,
+        })
+    }
+
+    /// Reload the configuration
+    pub fn reconfigure(
+        &mut self,
+        transports: Vec<ManagedTransportConfig>,
+    ) -> Result<(), tor_config::ReconfigureError> {
+        {
+            let mut inner = self.state.write().expect("ptmgr poisoned");
+            inner.configured = Self::transform_config(transports);
+        }
+        // We don't have any way of propagating this sanely; the caller will find out the reactor
+        // has died later on anyway.
+        let _ = self.tx.unbounded_send(PtReactorMessage::Reconfigured);
+        Ok(())
+    }
+}
+
+/// Spawn a `PluggableTransport` using a `ManagedTransportConfig`.
+async fn spawn_from_config<R: Runtime>(
+    rt: R,
+    state_dir: PathBuf,
+    cfg: ManagedTransportConfig,
+) -> Result<PluggableTransport, PtError> {
+    // FIXME(eta): make the rest of these parameters configurable
+    let pt_params = PtParameters::builder()
+        .state_location(state_dir)
+        .transports(cfg.protocols)
+        .build()
+        .expect("PtParameters constructed incorrectly");
+
+    // FIXME(eta): I really think this expansion should happen at builder validation time...
+    let path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
+        path: cfg.path,
+        error: e,
+    })?;
+    let mut pt = PluggableTransport::new(path, cfg.arguments, pt_params);
+    pt.launch(rt).await?;
+    Ok(pt)
+}
+
+#[cfg(feature = "tor-channel-factory")]
+#[async_trait]
+impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
+    // There is going to be a lot happening "under the hood" here.
+    //
+    // When we are asked to get a ChannelFactory for a given
+    // connection, we will need to:
+    //    - launch the binary for that transport if it is not already running*.
+    //    - If we launched the binary, talk to it and see which ports it
+    //      is listening on.
+    //    - Return a ChannelFactory that connects via one of those ports,
+    //      using the appropriate version of SOCKS, passing K=V parameters
+    //      encoded properly.
+    //
+    // * As in other managers, we'll need to avoid trying to launch the same
+    //   transport twice if we get two concurrent requests.
+    //
+    // Later if the binary crashes, we should detect that.  We should relaunch
+    // it on demand.
+    //
+    // On reconfigure, we should shut down any no-longer-used transports.
+    //
+    // Maybe, we should shut down transports that haven't been used
+    // for a long time.
+    async fn factory_for_transport(
+        &self,
+        transport: &PtTransportName,
+    ) -> Result<Option<Arc<dyn ChannelFactory + Send + Sync>>, Arc<dyn AbstractPtError>> {
+        // NOTE(eta): This is using a RwLock inside async code (but not across an await point).
+        //            Arguably this is fine since it's just a small read, and nothing should ever
+        //            hold this lock for very long.
+        let (mut cmethod, configured) = {
+            let inner = self.state.read().expect("ptmgr poisoned");
+            let cmethod = inner.cmethods.get(transport).copied();
+            let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
+            (cmethod, configured)
+        };
+        if cmethod.is_none() {
+            if configured {
+                // Tell the reactor to spawn the PT, and wait for it.
+                // (The reactor will handle coalescing multiple requests.)
+                let (tx, rx) = oneshot::channel();
+                self.tx
+                    .unbounded_send(PtReactorMessage::Spawn {
+                        pt: transport.clone(),
+                        result: tx,
+                    })
+                    .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?;
+                cmethod = Some(
+                    // NOTE(eta): Could be improved with result flattening.
+                    rx.await
+                        .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?
+                        .map_err(|x| Arc::new(x) as Arc<dyn AbstractPtError>)?,
+                );
+            } else {
+                return Ok(None);
+            }
+        }
+        let cmethod = cmethod.expect("impossible");
+        let proxy = ExternalProxyPlugin::new(self.runtime.clone(), cmethod.endpoint, cmethod.kind);
+        let factory = ChanBuilder::new(self.runtime.clone(), proxy);
+        // FIXME(eta): Should we cache constructed factories? If no: should this still be an Arc?
+        // FIXME(eta): Should we track what transports are live somehow, so we can shut them down?
+        Ok(Some(Arc::new(factory)))
+    }
 }

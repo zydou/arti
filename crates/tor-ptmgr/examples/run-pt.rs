@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
         .transports(vec!["obfs4".parse().unwrap()])
         .build()
         .unwrap();
-    let mut pt = PluggableTransport::new("./obfs4proxy".into(), params);
+    let mut pt = PluggableTransport::new("./obfs4proxy".into(), vec![], params);
     pt.launch(PreferredRuntime::current()?).await?;
     loop {
         info!("message: {:?}", pt.next_message().await?);
