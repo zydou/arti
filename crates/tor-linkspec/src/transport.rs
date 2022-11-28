@@ -673,7 +673,7 @@ mod test {
     fn transport_id() {
         let id1: TransportId = "<none>".parse().unwrap();
         assert!(id1.is_builtin());
-        assert_eq!(id1.to_string(), "<none>".to_string());
+        assert_eq!(id1.to_string(), "-".to_string());
 
         #[cfg(feature = "pt-client")]
         {
@@ -723,7 +723,7 @@ mod test {
 
         let m = ChannelMethod::Direct(vec![a1, a2]);
         assert_eq!(m.socket_addrs(), Some(&[a1, a2][..]));
-        assert_eq!((m.target_addr()), Some(PtTargetAddr::IpPort(a1)));
+        assert_eq!((m.target_addr()), Some(BridgeAddr::IpPort(a1)));
         assert!(m.is_direct());
         assert_eq!(m.transport_id(), TransportId::default());
 
@@ -744,15 +744,15 @@ mod test {
         use itertools::Itertools;
 
         let transport = "giraffe".parse().unwrap();
-        let addr1 = PtTargetAddr::HostPort("pt.example.com".into(), 1234);
+        let addr1 = BridgeAddr::HostPort("pt.example.com".into(), 1234);
         let target1 = PtTarget::new("giraffe".parse().unwrap(), addr1.clone());
         let m1 = ChannelMethod::Pluggable(target1);
 
-        let addr2 = PtTargetAddr::IpPort("127.0.0.1:567".parse().unwrap());
+        let addr2 = BridgeAddr::IpPort("127.0.0.1:567".parse().unwrap());
         let target2 = PtTarget::new("giraffe".parse().unwrap(), addr2.clone());
         let m2 = ChannelMethod::Pluggable(target2);
 
-        let addr3 = PtTargetAddr::None;
+        let addr3 = BridgeAddr::None;
         let target3 = PtTarget::new("giraffe".parse().unwrap(), addr3.clone());
         let m3 = ChannelMethod::Pluggable(target3);
 
