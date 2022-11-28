@@ -72,7 +72,7 @@ impl CrateId {
 #[derive(Clone, Debug, Educe)]
 #[educe(Default)]
 pub(crate) enum DisplayRule {
-    /// The guard is Sensitive; we should display it as "[scrubbed]".
+    /// The guard is Sensitive; we should display it as "\[scrubbed\]".
     ///
     /// We use this for public relays on the network, since displaying even the
     /// redacted info about them can enough to identify them uniquely within the
