@@ -250,11 +250,19 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
                         pt: transport.clone(),
                         result: tx,
                     })
-                    .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?;
+                    .map_err(|_| {
+                        Arc::new(PtError::Internal(tor_error::internal!(
+                            "PT reactor closed unexpectedly"
+                        ))) as Arc<dyn AbstractPtError>
+                    })?;
                 cmethod = Some(
                     // NOTE(eta): Could be improved with result flattening.
                     rx.await
-                        .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?
+                        .map_err(|_| {
+                            Arc::new(PtError::Internal(tor_error::internal!(
+                                "PT reactor closed unexpectedly"
+                            ))) as Arc<dyn AbstractPtError>
+                        })?
                         .map_err(|x| Arc::new(x) as Arc<dyn AbstractPtError>)?,
                 );
             } else {
