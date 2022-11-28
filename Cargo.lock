@@ -4085,6 +4085,7 @@ dependencies = [
  "tor-socksproto",
  "tracing",
  "tracing-subscriber",
+ "visibility",
 ]
 
 [[package]]

@@ -35,4 +35,18 @@ TODO pt-client: The first version of this crate will probably only conform
 to the old Tor pluggable transport protocol, and not to more recent variants
 as documented at `pluggabletransports.info`
 
+## Feature flags
+
+### Experimental and unstable features
+
+ Note that the APIs enabled by these features are NOT covered by semantic
+ versioning guarantees: we might break them or remove them between patch
+ versions.
+
+* `experimental-api` -- build with experimental, unstable API support.
+
+* `experimental` -- Build with all experimental features above, along with
+  all experimental features from other arti crates.
+
+
 License: MIT OR Apache-2.0
