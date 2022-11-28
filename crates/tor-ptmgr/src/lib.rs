@@ -125,6 +125,8 @@ pub struct PtMgr<R> {
     /// Temporary directory to store PT state in.
     //
     // FIXME(eta): This should be configurable.
+    //
+    // TODO pt-client: There should be one of these per PT, if possible.
     state_dir: TempDir,
 }
 
