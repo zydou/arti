@@ -374,10 +374,10 @@ impl AsyncPtChild {
     fn new(mut child: Child) -> Result<Self, PtError> {
         let (stdin, stdout) = (
             child.stdin.take().ok_or_else(|| {
-                PtError::Internal(internal!("Created child process without stdin"))
+                PtError::Internal(internal!("Created child process without stdin pipe"))
             })?,
             child.stdout.take().ok_or_else(|| {
-                PtError::Internal(internal!("Created child process without stdout"))
+                PtError::Internal(internal!("Created child process without stdout pipe"))
             })?,
         );
         let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
