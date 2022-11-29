@@ -158,8 +158,6 @@ impl<CF: AbstractChannelFactory + Clone> AbstractChanMgr<CF> {
     ) -> Result<(CF::Channel, ChanProvenance)> {
         use ChannelUsage as CU;
 
-        // TODO pt-client: This is not yet used.
-
         let chan = self.get_or_launch_internal(target).await?;
 
         match usage {

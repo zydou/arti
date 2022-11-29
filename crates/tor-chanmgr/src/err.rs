@@ -110,7 +110,7 @@ pub enum Error {
     #[error("Channel request cancelled or superseded")]
     RequestCancelled,
 
-    /// We tried to create a channel with
+    /// We tried to create a channel through a proxy, and encountered an error.
     #[error("Problem while connecting to Tor via a proxy")]
     Proxy(#[from] ProxyError),
 

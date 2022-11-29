@@ -160,7 +160,7 @@ impl ChannelFactory for CompoundFactory {
                 Some(mgr) => mgr
                     .factory_for_transport(a.transport())
                     .await
-                    .expect("TODO pt-client")
+                    .map_err(|e| crate::Error::Pt(e))?
                     .ok_or_else(|| crate::Error::NoSuchTransport(a.transport().clone().into()))?,
                 None => return Err(crate::Error::NoSuchTransport(a.transport().clone().into())),
             },
