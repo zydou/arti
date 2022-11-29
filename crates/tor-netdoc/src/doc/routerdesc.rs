@@ -472,11 +472,16 @@ impl RouterDesc {
                 .check_cert_type(tor_cert::CertType::IDENTITY_V_SIGNING)?
                 .into_unchecked()
                 .check_key(None)
-                .map_err(|err| EK::BadSignature.err().with_source(err))?;
+                .map_err(|err| {
+                    EK::BadObjectVal
+                        .err()
+                        .with_source(err)
+                        .at_pos(cert_tok.pos())
+                })?;
             let sk = *cert.peek_subject_key().as_ed25519().ok_or_else(|| {
                 EK::BadObjectVal
                     .at_pos(cert_tok.pos())
-                    .with_msg("no ed25519 signing key")
+                    .with_msg("wrong type for signing key in cert")
             })?;
             let sk: ll::pk::ed25519::PublicKey = sk.try_into().map_err(|_| {
                 EK::BadObjectVal
@@ -889,17 +894,55 @@ mod test {
 
     #[test]
     fn parse_arbitrary() -> Result<()> {
+        use std::str::FromStr;
         use tor_checkable::{SelfSigned, Timebound};
         let rd = RouterDesc::parse(TESTDATA)?
             .check_signature()?
             .dangerously_assume_timely();
 
-        assert_eq!(rd.nickname.as_str(), "idun2");
-        assert_eq!(rd.orport, 9001);
+        assert_eq!(rd.nickname.as_str(), "Akka");
+        assert_eq!(rd.orport, 443);
         assert_eq!(rd.dirport, 0);
+        assert_eq!(rd.uptime, Some(1036923));
+        assert_eq!(
+            rd.family.as_ref(),
+            &RelayFamily::from_str(
+                "$303509ab910ef207b7438c27435c4a2fd579f1b1 \
+                 $56927e61b51e6f363fb55498150a6ddfcf7077f2"
+            )
+            .unwrap()
+        );
 
-        assert_eq!(rd.uptime, Some(1828391));
-        //assert_eq!(rd.platform.unwrap(), "Tor 0.4.2.6 on Linux");
+        assert_eq!(
+            rd.rsa_identity().to_string(),
+            "$56927e61b51e6f363fb55498150a6ddfcf7077f2"
+        );
+        assert_eq!(
+            rd.ed_identity().to_string(),
+            "CVTjf1oeaL616hH+1+UvYZ8OgkwF3z7UMITvJzm5r7A"
+        );
+        assert_eq!(
+            rd.protocols().to_string(),
+            "Cons=1-2 Desc=1-2 DirCache=2 FlowCtrl=1-2 HSDir=2 \
+             HSIntro=4-5 HSRend=1-2 Link=1-5 LinkAuth=1,3 Microdesc=1-2 \
+             Padding=2 Relay=1-4"
+        );
+
+        assert_eq!(
+            hex::encode(rd.ntor_onion_key().to_bytes()),
+            "329b3b52991613392e35d1a821dd6753e1210458ecc3337f7b7d39bfcf5da273"
+        );
+        assert_eq!(
+            rd.published(),
+            time::SystemTime::UNIX_EPOCH + time::Duration::new(1668455932, 0)
+        );
+        assert_eq!(
+            rd.or_ports().collect::<Vec<_>>(),
+            vec![
+                "95.216.33.58:443".parse().unwrap(),
+                "[2a01:4f9:2a:2145::2]:443".parse().unwrap(),
+            ]
+        );
 
         Ok(())
     }
@@ -947,6 +990,30 @@ mod test {
             &EK::BadPolicy
                 .at_pos(Pos::from_line(43, 1))
                 .with_source(PolicyError::InvalidPolicy),
+        );
+        check(
+            "no-ed-id-key-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_source(tor_cert::CertError::MissingPubKey),
+        );
+        check(
+            "non-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_msg("wrong type for signing key in cert"),
+        );
+        check(
+            "bad-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(2, 1))
+                .with_msg("invalid ed25519 signing key"),
+        );
+        check(
+            "mismatched-ed-sk-in-cert",
+            &EK::BadObjectVal
+                .at_pos(Pos::from_line(8, 1))
+                .with_msg("master-key-ed25519 does not match key in identity-ed25519"),
         );
     }
 
