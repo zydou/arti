@@ -162,13 +162,13 @@ get our project manager to sign off on them.
 
  * Arti 1.1.0: Anti-censorship features (Goal: End of October, 2022?)
    * Target audience: **censored users**
-   * [ ] Bridges
-   * [ ] Pluggable transports
+   * [x] Bridges
+   * [x] Pluggable transports
    * [and more...?](https://gitlab.torproject.org/tpo/core/arti/-/milestones/10)
 
- * Arti 1.2.0: Onion service support (not funded, timeframe TBD)
+ * Arti 1.2.0: Onion service support (timeframe TBD)
 
- * Arti 2.0.0: Feature parity with C tor as a client (not funded, timeframe TBD)
+ * Arti 2.0.0: Feature parity with C tor as a client (timeframe TBD)
 
  * Arti ?.?.?: Relay support
 
