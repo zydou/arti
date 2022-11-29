@@ -38,6 +38,7 @@ tor-protover = { path = "../tor-protover", version = "0.3.0" }
 
 [dev-dependencies]
 hex-literal = "0.3"
+itertools = "0.10.1"
 serde_test = "1.0.124"
 
 [package.metadata.docs.rs]

@@ -116,7 +116,7 @@ impl<H: HasRelayIds> ByRelayIds<H> {
         }
     }
 
-    /// Remove the single value in this set (if any) that has all the same relay ids that
+    /// Remove the single value in this set (if any) that has all the same
     /// relay IDs that `key` does.
     pub fn remove_by_all_ids<T>(&mut self, key: &T) -> Option<H>
     where
@@ -133,6 +133,7 @@ impl<H: HasRelayIds> ByRelayIds<H> {
             None
         }
     }
+
     /// Return a reference to every element in this set that shares _any_ ID
     /// with `key`.
     ///
@@ -201,6 +202,7 @@ mod test {
         // Try exact lookup
         assert_eq!(set.by_all_ids(&keys1), Some(&keys1));
         assert_eq!(set.by_all_ids(&keys2), Some(&keys2));
+        assert_eq!(set.by_all_ids(&RelayIds::empty()), None);
         {
             let search = RelayIdsBuilder::default()
                 .rsa_identity(rsa1)
@@ -268,7 +270,7 @@ mod test {
 
         let mut set = ByRelayIds::new();
         set.insert(keys1.clone());
-        set.insert(keys2);
+        set.insert(keys2.clone());
         assert_eq!(set.len(), 2);
 
         let removed = set.remove_exact(&keys1);
@@ -277,9 +279,27 @@ mod test {
 
         {
             let search = RelayIdsBuilder::default().ed_identity(ed2).build().unwrap();
+            // We're calling remove_exact, but we did not list _all_ the keys in keys2.
             let removed = set.remove_exact(&search);
             assert_eq!(removed, None);
             assert_eq!(set.len(), 1);
+
+            // If we were to use `remove_by_all_ids` with a search that didn't
+            // match, it wouldn't work.
+            let no_match = RelayIdsBuilder::default()
+                .ed_identity(ed2)
+                .rsa_identity(rsa1)
+                .build()
+                .unwrap();
+            let removed = set.remove_by_all_ids(&no_match);
+            assert_eq!(removed, None);
+            assert_eq!(set.len(), 1);
+
+            // If we use `remove_by_all_ids` with the original search, though,
+            // it will remove the element.
+            let removed = set.remove_by_all_ids(&search);
+            assert_eq!(removed, Some(keys2));
+            assert_eq!(set.len(), 0);
         }
     }
 }

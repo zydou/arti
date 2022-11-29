@@ -363,7 +363,7 @@ impl FromStr for BridgeConfigBuilder {
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(target) => {
                 let (transport, addr, settings) = target.into_parts();
-                (transport.into_inner(), vec![addr], settings.into_inner())
+                (transport.to_string(), vec![addr], settings.into_inner())
             }
             other => {
                 return Err(BridgeParseError::UnsupportedChannelMethod {

@@ -83,19 +83,6 @@ impl TryFrom<String> for PtTransportName {
     }
 }
 
-impl AsRef<str> for PtTransportName {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl PtTransportName {
-    /// Return the name as a `String`
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-}
-
 impl Display for PtTransportName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
@@ -691,5 +678,135 @@ mod test {
             let e = BridgeAddr::from_str(addr).unwrap_err();
             assert!(matches!(e, BridgeAddrError::BadAddress(_)));
         }
+    }
+
+    #[test]
+    fn transport_id() {
+        let id1: TransportId = "<none>".parse().unwrap();
+        assert!(id1.is_builtin());
+        assert_eq!(id1.to_string(), "-".to_string());
+
+        #[cfg(feature = "pt-client")]
+        {
+            let id2: TransportId = "obfs4".parse().unwrap();
+            assert_ne!(id2, id1);
+            assert!(!id2.is_builtin());
+            assert_eq!(id2.to_string(), "obfs4");
+
+            assert!(matches!(
+                TransportId::from_str("==="),
+                Err(TransportIdError::BadId(_))
+            ));
+        }
+
+        #[cfg(not(feature = "pt-client"))]
+        {
+            assert!(matches!(
+                TransportId::from_str("obfs4"),
+                Err(TransportIdError::NoSupport)
+            ))
+        }
+    }
+
+    #[test]
+    fn settings() {
+        let s = PtTargetSettings::try_from(vec![]).unwrap();
+        assert_eq!(Vec::<_>::from(s), vec![]);
+
+        let v = vec![("abc".into(), "def".into()), ("ghi".into(), "jkl".into())];
+        let s = PtTargetSettings::try_from(v.clone()).unwrap();
+        assert_eq!(Vec::<_>::from(s), v);
+
+        let v = vec![("a=b".into(), "def".into())];
+        let s = PtTargetSettings::try_from(v);
+        assert!(matches!(s, Err(PtTargetInvalidSetting::Key(_))));
+
+        let v = vec![("abc".into(), "d ef".into())];
+        let s = PtTargetSettings::try_from(v);
+        assert!(matches!(s, Err(PtTargetInvalidSetting::Value(_))));
+    }
+
+    #[test]
+    fn chanmethod_direct() {
+        let a1 = "127.0.0.1:8080".parse().unwrap();
+        let a2 = "127.0.0.2:8181".parse().unwrap();
+        let a3 = "127.0.0.3:8282".parse().unwrap();
+
+        let m = ChannelMethod::Direct(vec![a1, a2]);
+        assert_eq!(m.socket_addrs(), Some(&[a1, a2][..]));
+        assert_eq!((m.target_addr()), Some(BridgeAddr::IpPort(a1)));
+        assert!(m.is_direct());
+        assert_eq!(m.transport_id(), TransportId::default());
+
+        let m2 = ChannelMethod::Direct(vec![a1, a2, a3]);
+        assert!(m.contained_by(&m));
+        assert!(m.contained_by(&m2));
+        assert!(!m2.contained_by(&m));
+
+        let mut m3 = m2.clone();
+        m3.retain_addrs(|a| a.port() != 8282).unwrap();
+        assert_eq!(m3, m);
+        assert_ne!(m3, m2);
+    }
+
+    #[test]
+    #[cfg(feature = "pt-client")]
+    fn chanmethod_pt() {
+        use itertools::Itertools;
+
+        let transport = "giraffe".parse().unwrap();
+        let addr1 = BridgeAddr::HostPort("pt.example.com".into(), 1234);
+        let target1 = PtTarget::new("giraffe".parse().unwrap(), addr1.clone());
+        let m1 = ChannelMethod::Pluggable(target1);
+
+        let addr2 = BridgeAddr::IpPort("127.0.0.1:567".parse().unwrap());
+        let target2 = PtTarget::new("giraffe".parse().unwrap(), addr2.clone());
+        let m2 = ChannelMethod::Pluggable(target2);
+
+        let addr3 = BridgeAddr::None;
+        let target3 = PtTarget::new("giraffe".parse().unwrap(), addr3.clone());
+        let m3 = ChannelMethod::Pluggable(target3);
+
+        assert_eq!(m1.socket_addrs(), None);
+        assert_eq!(
+            m2.socket_addrs(),
+            Some(&["127.0.0.1:567".parse().unwrap()][..])
+        );
+        assert_eq!(m3.socket_addrs(), None);
+
+        assert_eq!(m1.target_addr(), Some(addr1));
+        assert_eq!(m2.target_addr(), Some(addr2));
+        assert_eq!(m3.target_addr(), Some(addr3));
+
+        assert!(!m1.is_direct());
+        assert!(!m2.is_direct());
+        assert!(!m3.is_direct());
+
+        assert_eq!(m1.transport_id(), transport);
+        assert_eq!(m2.transport_id(), transport);
+        assert_eq!(m3.transport_id(), transport);
+
+        for v in [&m1, &m2, &m3].iter().combinations(2) {
+            let first = v[0];
+            let second = v[1];
+            assert_eq!(first.contained_by(second), first == second);
+        }
+
+        let mut m1new = m1.clone();
+        let mut m2new = m2.clone();
+        let mut m3new = m3.clone();
+        // this will retain the IpPort target, and ignore the other targets.
+        m1new.retain_addrs(|a| a.port() == 567).unwrap();
+        m2new.retain_addrs(|a| a.port() == 567).unwrap();
+        m3new.retain_addrs(|a| a.port() == 567).unwrap();
+        assert_eq!(m1new, m1);
+        assert_eq!(m2new, m2);
+        assert_eq!(m3new, m3);
+
+        // But if we try to remove the ipport target, we get an error.
+        assert!(matches!(
+            m2new.retain_addrs(|a| a.port() == 999),
+            Err(RetainAddrsError::NoAddrsLeft)
+        ));
     }
 }
