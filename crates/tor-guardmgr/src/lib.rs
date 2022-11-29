@@ -882,7 +882,6 @@ impl GuardMgrInner {
 
     /// Replace our bridge configuration with the one from `new_config`.
     #[cfg(feature = "bridge-client")]
-    #[allow(clippy::unnecessary_wraps)] // TODO pt-client
     fn replace_bridge_config(
         &mut self,
         new_config: &impl GuardMgrConfig,

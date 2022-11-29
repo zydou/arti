@@ -69,10 +69,6 @@ pub struct BridgeConfig(Arc<Inner>);
 /// Configuration for a bridge - actual data
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct Inner {
-    // TODO pt-client: I am not sold on this exact representation for Bridge; it
-    // needs to be something like this, but not necessarily this exact set of
-    // members.
-    //
     /// Address and transport via which the bridge can be reached, and
     /// the parameters for those transports.
     ///
