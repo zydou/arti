@@ -15,7 +15,10 @@ use crate::skew::SkewObservation;
 use crate::util::randomize_time;
 use crate::{ids::GuardId, GuardParams, GuardRestriction, GuardUsage};
 use crate::{sample, ExternalActivity, GuardSetSelector, GuardUsageKind};
+
+#[cfg(feature = "bridge-client")]
 use safelog::Redactable as _;
+
 use tor_linkspec::{
     ChanTarget, ChannelMethod, HasAddrs, HasChanMethod, HasRelayIds, PtTarget, RelayIds,
 };
@@ -86,6 +89,7 @@ pub(crate) enum DisplayRule {
     /// $ab...".
     ///
     /// We use this for bridges.
+    #[cfg(feature = "bridge-client")]
     Redacted,
 }
 
@@ -847,6 +851,7 @@ impl std::fmt::Display for Guard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.sensitivity {
             DisplayRule::Sensitive => safelog::sensitive(self.display_chan_target()).fmt(f),
+            #[cfg(feature = "bridge-client")]
             DisplayRule::Redacted => self.display_chan_target().redacted().fmt(f),
         }
     }

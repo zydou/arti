@@ -569,6 +569,7 @@ mod test {
         // example present in ARTI_EXAMPLE_CONFIG.
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823#note_2854365
         // and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        #[cfg(feature = "pt-client")]
         "bridges.transports",
         "tor_network.authorities",
         "tor_network.fallback_caches",
@@ -964,6 +965,7 @@ mod test {
 
         fn parse(&self) -> config::Config {
             let s: String = chain!(iter::once(&self.section), self.lines.iter(),).join("\n");
+            eprintln!("parsing\n  --\n{}\n  --", &s);
             let c: toml::Value = toml::from_str(&s).expect(&s);
             config::Config::try_from(&c).expect(&s)
         }

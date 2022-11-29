@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# Run cargo check and cargo test with various featuresets relevant to configuration
+
+set -euo pipefail
+
+: "${CARGO:=cargo}"
+
+set -x
+
+for feat in '' bridge-client pt-client; do
+    feat_args=(--no-default-features "--features=tokio,native-tls,$feat")
+
+    $CARGO check "${feat_args[@]}" -p arti-client
+    $CARGO check "${feat_args[@]}" -p arti
+    $CARGO test "${feat_args[@]}" -p arti -- cfg
+done
+

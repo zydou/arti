@@ -133,11 +133,13 @@
 //! assert_eq!{ builder.build().unwrap().values, &[27, 12] }
 //! ```
 
+use std::fmt;
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 use educe::Educe;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
 pub use crate::define_list_builder_accessors;
@@ -568,7 +570,7 @@ define_list_builder_helper! {
 /// let lc = lc.build().unwrap();
 /// assert_eq!{ lc.winners, [4,5,6] }
 /// ```
-#[derive(Clone, Debug, Educe, Serialize, Deserialize)]
+#[derive(Clone, Debug, Educe, Serialize)]
 #[serde(untagged)]
 #[educe(Default)]
 #[non_exhaustive]
@@ -604,6 +606,54 @@ pub struct MultilineListBuilderError<E: std::error::Error + Clone + Send + Sync>
     /// This is not a `source` because we want to include it in the `Display`
     /// implementation so that serde errors are useful.
     error: E,
+}
+
+// We could derive this with `#[serde(untagged)]` but that produces quite terrible error
+// messages, which do not reproduce the error messages from any of the variants.
+//
+// Instead, have a manual implementation, which can see whether the input is a list or a string.
+impl<'de, EB: Deserialize<'de>> Deserialize<'de> for MultilineListBuilder<EB> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_any(MllbVisitor::default())
+    }
+}
+
+/// Visitor for deserialize_any for [`MultilineListBuilder`]
+#[derive(Educe)]
+#[educe(Default)]
+struct MllbVisitor<EB> {
+    /// Variance: this visitor constructs `EB`s
+    ret: PhantomData<fn() -> EB>,
+}
+
+impl<'de, EB: Deserialize<'de>> serde::de::Visitor<'de> for MllbVisitor<EB> {
+    type Value = MultilineListBuilder<EB>;
+
+    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "list of items, or multi-line string")
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let mut v = vec![];
+        while let Some(e) = seq.next_element()? {
+            v.push(e);
+        }
+        Ok(MultilineListBuilder::List(v))
+    }
+
+    fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+        self.visit_string(v.to_owned())
+    }
+    fn visit_string<E: serde::de::Error>(self, v: String) -> Result<Self::Value, E> {
+        Ok(MultilineListBuilder::String(v))
+    }
+
+    fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+        Ok(MultilineListBuilder::Unspecified)
+    }
 }
 
 impl<EB> From<Option<Vec<EB>>> for MultilineListBuilder<EB> {
