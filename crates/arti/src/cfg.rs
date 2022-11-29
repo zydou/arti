@@ -569,6 +569,7 @@ mod test {
         // example present in ARTI_EXAMPLE_CONFIG.
         // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823#note_2854365
         // and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        #[cfg(feature = "pt-client")]
         "bridges.transports",
         "tor_network.authorities",
         "tor_network.fallback_caches",
