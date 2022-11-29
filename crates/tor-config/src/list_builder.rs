@@ -742,6 +742,7 @@ mod test {
     use derive_builder::Builder;
 
     #[derive(Eq, PartialEq, Builder)]
+    #[builder(derive(Deserialize))]
     struct Outer {
         #[builder(sub_builder, setter(custom))]
         list: List,
@@ -793,5 +794,49 @@ mod test {
         b.access().push(2);
         b.access().push(3);
         assert_eq!(b.build().unwrap(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn deser() {
+        let o: OuterBuilder = toml::from_str("list = ['x','y']").unwrap();
+        let o = o.build().unwrap();
+        assert_eq!(o.list, ['x', 'y']);
+
+        #[derive(Deserialize, Debug)]
+        struct OuterWithMllb {
+            #[serde(default)]
+            list: MultilineListBuilder<u32>,
+        }
+
+        let parse_ok = |s: &str| {
+            let o: OuterWithMllb = toml::from_str(s).unwrap();
+            let l: Option<Vec<_>> = o.list.try_into().unwrap();
+            l
+        };
+
+        let l = parse_ok("");
+        assert!(l.is_none());
+
+        let l = parse_ok("list = []");
+        assert!(l.unwrap().is_empty());
+
+        let l = parse_ok("list = [12,42]");
+        assert_eq!(l.unwrap(), [12, 42]);
+
+        let l = parse_ok(r#"list = """#);
+        assert!(l.unwrap().is_empty());
+
+        let l = parse_ok("list = \"\"\"\n12\n42\n\"\"\"\n");
+        assert_eq!(l.unwrap(), [12, 42]);
+
+        let e = toml::from_str::<OuterWithMllb>("list = [\"fail\"]")
+            .unwrap_err()
+            .to_string();
+        assert!(dbg!(e).contains(r#"invalid type: string "fail", expected u32"#));
+
+        let o = toml::from_str::<OuterWithMllb>("list = \"\"\"\nfail\n\"\"\"").unwrap();
+        let l: Result<Option<Vec<_>>, _> = o.list.try_into();
+        let e = l.unwrap_err().to_string();
+        assert_eq!(e, "multi-line string, line/item 1: could not parse \"fail\": invalid digit found in string");
     }
 }
