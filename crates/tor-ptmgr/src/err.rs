@@ -1,5 +1,6 @@
 //! Errors to do with pluggable transports.
 
+use futures::task::SpawnError;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tor_chanmgr::factory::AbstractPtError;
@@ -61,9 +62,15 @@ pub enum PtError {
         /// The error encountered parsing it.
         error: String,
     },
-    /// We couldn't create a temporary directory.
-    #[error("Failed to create a temporary directory: {0}")]
-    TempdirCreateFailed(#[source] Arc<std::io::Error>),
+    /// We couldn't create a state directory.
+    #[error("Failed to create a state directory at {}: {}", path.to_string_lossy(), error)]
+    StatedirCreateFailed {
+        /// The offending path.
+        path: PathBuf,
+        /// The error encountered.
+        #[source]
+        error: Arc<std::io::Error>,
+    },
     /// We couldn't expand a path.
     #[error("Failed to expand path {}: {}", path, error)]
     PathExpansionFailed {
@@ -73,6 +80,22 @@ pub enum PtError {
         #[source]
         error: CfgPathError,
     },
+    /// A binary path was a directory or something instead of a file.
+    #[error("Configured binary path {} isn't a file", path.to_string_lossy())]
+    NotAFile {
+        /// The offending path.
+        path: PathBuf,
+    },
+    /// Unable to spawn reactor task.
+    #[error("Unable to spawn reactor task.")]
+    Spawn {
+        /// What happened when we tried to spawn it.
+        #[source]
+        cause: Arc<SpawnError>,
+    },
+    /// The requested transport wasn't configured.
+    #[error("Transport not configured")]
+    UnconfiguredTransport,
     /// The pluggable transport reactor failed.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -94,9 +117,12 @@ impl HasKind for PtError {
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
             | E::ProxyError(_) => EK::ExternalToolFailed,
-            E::TempdirCreateFailed(_) => EK::FsPermissions,
+            E::StatedirCreateFailed { .. } => EK::FsPermissions,
+            E::UnconfiguredTransport => EK::InvalidConfig,
             E::PathExpansionFailed { .. } => EK::InvalidConfig,
+            E::NotAFile { .. } => EK::InvalidConfig,
             E::Internal(e) => e.kind(),
+            E::Spawn { cause, .. } => cause.kind(),
         }
     }
 }
@@ -110,10 +136,13 @@ impl HasRetryTime for PtError {
             | E::ChildProtocolViolation(_)
             | E::ProtocolViolation(_)
             | E::IpcParseFailed { .. }
+            | E::NotAFile { .. }
             | E::UnsupportedVersion
             | E::Internal(_)
+            | E::UnconfiguredTransport
+            | E::Spawn { .. }
             | E::PathExpansionFailed { .. } => RT::Never,
-            E::TempdirCreateFailed(_)
+            E::StatedirCreateFailed { .. }
             | E::ClientTransportGaveError { .. }
             | E::Timeout
             | E::ProxyError(_)

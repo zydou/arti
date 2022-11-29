@@ -46,15 +46,19 @@ pub mod ipc;
 use crate::config::ManagedTransportConfig;
 use crate::err::PtError;
 use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters};
-use crate::mpsc::Receiver;
-use futures::channel::mpsc::{self, UnboundedSender};
+use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use futures::channel::oneshot;
+use futures::stream::FuturesUnordered;
+use futures::task::SpawnExt;
+use futures::{select, FutureExt, StreamExt};
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::warn;
+use tracing::{debug, error, warn};
 #[cfg(feature = "tor-channel-factory")]
 use {
     async_trait::async_trait,
@@ -87,32 +91,187 @@ enum PtReactorMessage {
     },
 }
 
+/// The result of a spawn attempt: the list of transports the spawned binary covers, and the result.
+type SpawnResult = (Vec<PtTransportName>, err::Result<PluggableTransport>);
+
 /// Background reactor to handle managing pluggable transport binaries.
 struct PtReactor<R> {
     /// Runtime.
     rt: R,
     /// Currently running pluggable transport binaries.
     running: Vec<PluggableTransport>,
+    /// A map of asked-for transports.
+    ///
+    /// If a transport name has an entry, we will append any additional requests for that entry.
+    /// If no entry is present, we will start a request.
+    requests: HashMap<PtTransportName, Vec<oneshot::Sender<err::Result<PtClientMethod>>>>,
+    /// FuturesUnordered that spawned tasks get pushed on to.
+    ///
+    /// WARNING: This MUST always contain one "will never resolve" future!
+    spawning: FuturesUnordered<Pin<Box<dyn Future<Output = SpawnResult> + Send>>>,
     /// State for the corresponding PtMgr.
     state: Arc<RwLock<PtSharedState>>,
     /// PtMgr channel.
     /// (Unbounded so that we can reconfigure without blocking: we're unlikely to have the reactor
     /// get behind.)
-    rx: Receiver<PtReactorMessage>,
+    rx: UnboundedReceiver<PtReactorMessage>,
+    /// State directory.
+    state_dir: PathBuf,
 }
 
 impl<R: Runtime> PtReactor<R> {
-    /// XXX
-    async fn run_one_step(&mut self) -> err::Result<()> {
-        todo!()
+    /// Make a new reactor.
+    fn new(
+        rt: R,
+        state: Arc<RwLock<PtSharedState>>,
+        rx: UnboundedReceiver<PtReactorMessage>,
+        state_dir: PathBuf,
+    ) -> Self {
+        let spawning = FuturesUnordered::new();
+        spawning.push(Box::pin(futures::future::pending::<SpawnResult>())
+            as Pin<Box<dyn Future<Output = _> + Send>>);
+        Self {
+            rt,
+            running: vec![],
+            requests: Default::default(),
+            spawning,
+            state,
+            rx,
+            state_dir,
+        }
+    }
+
+    /// Called when a spawn request completes.
+    #[allow(clippy::needless_pass_by_value)]
+    fn handle_spawned(
+        &mut self,
+        covers: Vec<PtTransportName>,
+        result: err::Result<PluggableTransport>,
+    ) {
+        match result {
+            Err(e) => {
+                warn!("Spawning PT for {:?} failed: {}", covers, e);
+                // Go and tell all the transports about the bad news.
+                let senders = covers
+                    .iter()
+                    .flat_map(|x| self.requests.remove(x))
+                    .flatten();
+                for sender in senders {
+                    // We don't really care if the sender went away.
+                    let _ = sender.send(Err(e.clone()));
+                }
+            }
+            Ok(pt) => {
+                let mut state = self.state.write().expect("ptmgr state poisoned");
+                for (transport, method) in pt.transport_methods() {
+                    for sender in self.requests.remove(transport).into_iter().flatten() {
+                        let _ = sender.send(Ok(method.clone()));
+                        state.cmethods.insert(transport.clone(), method.clone());
+                    }
+                }
+            }
+        }
+    }
+    /// Called to remove a pluggable transport from the shared state.
+    fn remove_pt(&self, pt: PluggableTransport) {
+        let mut state = self.state.write().expect("ptmgr state poisoned");
+        for transport in pt.transport_methods().keys() {
+            state.cmethods.remove(transport);
+        }
+        // to satisfy clippy, and make it clear that this is a desired side-effect: doing this
+        // shuts down the PT (asynchronously).
+        drop(pt);
+    }
+
+    /// Run one step of the reactor. Returns true if the reactor should terminate.
+    async fn run_one_step(&mut self) -> err::Result<bool> {
+        // FIXME(eta): This allocates a lot, which is technically unnecessary but requires careful
+        //             engineering to get right. It's not really in the hot path, at least.
+        let mut all_next_messages = self
+            .running
+            .iter_mut()
+            // We could avoid the Box, but that'd require using unsafe to replicate what tokio::pin!
+            // does under the hood.
+            .map(|pt| Box::pin(pt.next_message()))
+            .collect::<Vec<_>>();
+        let mut next_message = futures::future::select_all(all_next_messages.iter_mut()).fuse();
+
+        select! {
+            (result, idx, _) = next_message => {
+                drop(all_next_messages); // no idea why NLL doesn't just infer this but sure
+
+                match result {
+                    Ok(m) => {
+                        // FIXME(eta): We should forward the Status messages onto API consumers.
+                        debug!("PT {} message: {:?}", self.running[idx].binary_path.to_string_lossy(), m);
+                    },
+                    Err(e) => {
+                        warn!("PT {} quit: {:?}", self.running[idx].binary_path.to_string_lossy(), e);
+                        let pt = self.running.remove(idx);
+                        self.remove_pt(pt);
+                    }
+                }
+            },
+            spawn_result = self.spawning.next() => {
+                drop(all_next_messages);
+                // See the Warning in this field's documentation.
+                let (covers, result) = spawn_result.expect("self.spawning should never dry up");
+                self.handle_spawned(covers, result);
+            }
+            internal = self.rx.next() => {
+                drop(all_next_messages);
+
+                match internal {
+                    Some(PtReactorMessage::Reconfigured) => {},
+                    Some(PtReactorMessage::Spawn { pt, result }) => {
+                        // Make sure we don't already have a running request.
+                        if let Some(requests) = self.requests.get_mut(&pt) {
+                            requests.push(result);
+                            return Ok(false);
+                        }
+                        // Make sure we don't already have a binary for this PT.
+                        for rpt in self.running.iter() {
+                            if let Some(cmethod) = rpt.transport_methods().get(&pt) {
+                                let _ = result.send(Ok(cmethod.clone()));
+                                return Ok(false);
+                            }
+                        }
+                        // We don't, so time to spawn one.
+                        let config = {
+                            let state = self.state.read().expect("ptmgr state poisoned");
+                            state.configured.get(&pt).cloned()
+                        };
+                        let config = match config {
+                            Some(v) => v,
+                            None => {
+                                let _ = result.send(Err(PtError::UnconfiguredTransport));
+                                return Ok(false);
+                            }
+                        };
+                        // Keep track of the request, and also fill holes in other protocols so
+                        // we don't try and run another spawn request for those.
+                        self.requests.entry(pt).or_default().push(result);
+                        for proto in config.protocols.iter() {
+                            self.requests.entry(proto.clone()).or_default();
+                        }
+
+                        // Add the spawn future to our pile of them.
+                        let spawn_fut = Box::pin(
+                            spawn_from_config(self.rt.clone(), self.state_dir.clone(), config.clone())
+                                .map(|result| (config.protocols, result))
+                        );
+                        self.spawning.push(spawn_fut);
+                    },
+                    None => return Ok(true)
+                }
+            }
+        }
+        Ok(false)
     }
 }
 
 /// A pluggable transport manager knows how to make different
 /// kinds of connections to the Tor network, for censorship avoidance.
-///
-/// Currently, we only support two kinds of pluggable transports: Those
-/// configured in a PtConfig object, and those added with PtMgr::register.
 pub struct PtMgr<R> {
     /// An underlying `Runtime`, used to spawn background tasks.
     #[allow(dead_code)]
@@ -155,7 +314,22 @@ impl<R: Runtime> PtMgr<R> {
             configured: Self::transform_config(transports),
         };
         let state = Arc::new(RwLock::new(state));
-        let (tx, _) = mpsc::unbounded();
+        let (tx, rx) = mpsc::unbounded();
+
+        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir.clone());
+        rt.spawn(async move {
+            loop {
+                match reactor.run_one_step().await {
+                    Ok(true) => return,
+                    Ok(false) => {}
+                    Err(e) => {
+                        error!("PtReactor failed: {}", e);
+                        return;
+                    }
+                }
+            }
+        })
+        .map_err(|e| PtError::Spawn { cause: Arc::new(e) })?;
 
         Ok(Self {
             runtime: rt,
@@ -192,18 +366,31 @@ async fn spawn_from_config<R: Runtime>(
     state_dir: PathBuf,
     cfg: ManagedTransportConfig,
 ) -> Result<PluggableTransport, PtError> {
-    // FIXME(eta): make the rest of these parameters configurable
-    let pt_params = PtParameters::builder()
-        .state_location(state_dir)
-        .transports(cfg.protocols)
-        .build()
-        .expect("PtParameters constructed incorrectly");
-
     // FIXME(eta): I really think this expansion should happen at builder validation time...
     let path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
         path: cfg.path,
         error: e,
     })?;
+
+    let filename = path
+        .file_name()
+        .ok_or_else(|| PtError::NotAFile { path: path.clone() })?;
+
+    // HACK(eta): Currently the state directory is named after the PT binary name. Maybe we should
+    //            invent a better way of doing this?
+    let new_state_dir = state_dir.join(filename);
+    std::fs::create_dir_all(&new_state_dir).map_err(|e| PtError::StatedirCreateFailed {
+        path: new_state_dir.clone(),
+        error: Arc::new(e),
+    })?;
+
+    // FIXME(eta): make the rest of these parameters configurable
+    let pt_params = PtParameters::builder()
+        .state_location(new_state_dir)
+        .transports(cfg.protocols)
+        .build()
+        .expect("PtParameters constructed incorrectly");
+
     let mut pt = PluggableTransport::new(path, cfg.arguments, pt_params);
     pt.launch(rt).await?;
     Ok(pt)
@@ -242,7 +429,7 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
         //            hold this lock for very long.
         let (mut cmethod, configured) = {
             let inner = self.state.read().expect("ptmgr poisoned");
-            let cmethod = inner.cmethods.get(transport).copied();
+            let cmethod = inner.cmethods.get(transport).cloned();
             let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
             (cmethod, configured)
         };
