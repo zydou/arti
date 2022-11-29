@@ -69,8 +69,10 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     protocol: &Protocol,
     target: &PtTargetAddr,
 ) -> Result<R::TcpStream, ProxyError> {
-    // a different error type would be better TODO pt-client
-    let mut stream = runtime.connect(proxy).await?;
+    let mut stream = runtime
+        .connect(proxy)
+        .await
+        .map_err(|e| ProxyError::ProxyConnect(Arc::new(e)))?;
 
     let Protocol::Socks(version, auth) = protocol;
 
@@ -161,7 +163,11 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ProxyError {
-    /// We had an IO error while talking to the proxy
+    /// We had an IO error while trying to open a connection to the proxy.
+    #[error("Problem while connecting to proxy")]
+    ProxyConnect(#[source] Arc<std::io::Error>),
+
+    /// We had an IO error while talking to the proxy.
     #[error("Problem while communicating with proxy")]
     ProxyIo(#[source] Arc<std::io::Error>),
 
@@ -214,7 +220,7 @@ impl tor_error::HasKind for ProxyError {
         use tor_error::ErrorKind as EK;
         use ProxyError as E;
         match self {
-            E::ProxyIo(_) => EK::LocalNetworkError,
+            E::ProxyConnect(_) | E::ProxyIo(_) => EK::LocalNetworkError,
             E::InvalidSocksAddr(_) | E::InvalidSocksRequest(_) => EK::BadApiUsage,
             E::UnrecognizedAddr => EK::NotImplemented,
             E::SocksProto(_) => EK::LocalProtocolViolation,
@@ -231,7 +237,7 @@ impl tor_error::HasRetryTime for ProxyError {
         use ProxyError as E;
         use SocksStatus as S;
         match self {
-            E::ProxyIo(_) => RT::AfterWaiting,
+            E::ProxyConnect(_) | E::ProxyIo(_) => RT::AfterWaiting,
             E::InvalidSocksAddr(_) => RT::Never,
             E::UnrecognizedAddr => RT::Never,
             E::InvalidSocksRequest(_) => RT::Never,
