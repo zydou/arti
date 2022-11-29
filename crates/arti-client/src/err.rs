@@ -198,6 +198,15 @@ enum ErrorDetail {
     #[error("Unable to change configuration")]
     Reconfigure(#[from] tor_config::ReconfigureError),
 
+    /// Problem creating or launching a pluggable transport.
+    #[cfg(feature="pt-client")]
+    #[error("Problem with a pluggable transport")]
+    PluggableTransport(#[from] tor_ptmgr::err::PtError),
+
+    /// We encountered a problem while inspecting or creating a directory.
+    #[error("Filesystem permissions problem")]
+    FsMistrust(#[from] fs_mistrust::Error),
+
     /// Unable to spawn task
     #[error("Unable to spawn {spawning}")]
     Spawn {
@@ -300,6 +309,8 @@ impl tor_error::HasKind for ErrorDetail {
             E::DirMgrSetup(e) => e.kind(),
             E::StateMgrSetup(e) => e.kind(),
             E::DirMgrBootstrap(e) => e.kind(),
+            #[cfg(feature = "pt-client")]
+            E::PluggableTransport(e) => e.kind(),
             E::StreamFailed { cause, .. } => cause.kind(),
             E::StateAccess(e) => e.kind(),
             E::Configuration(e) => e.kind(),
@@ -310,6 +321,7 @@ impl tor_error::HasKind for ErrorDetail {
             E::LocalAddress => EK::ForbiddenStreamTarget,
             E::ChanMgrSetup(e) => e.kind(),
             E::NoDir { error, .. } => error.kind(),
+            E::FsMistrust(_) => EK::FsPermissions,
             E::Bug(e) => e.kind(),
         }
     }

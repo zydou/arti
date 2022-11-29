@@ -341,6 +341,11 @@ pub enum ErrorKind {
     #[display(fmt = "local authentication refused.")]
     LocalProtocolFailed,
 
+    /// A problem occurred when launching or communicating with an external
+    /// process running on this computer.
+    #[display(fmt = "local plug-in tool failed")]
+    LocalPluginFailed,
+
     /// A relay had an identity other than the one we expected.
     ///
     /// This could indicate a MITM attack, but more likely indicates that the

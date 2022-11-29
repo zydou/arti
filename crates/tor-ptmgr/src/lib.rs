@@ -37,8 +37,7 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code)] // FIXME TODO pt-client: remove.
-#![allow(unused_imports)] // FIXME TODO pt-client: remove.
+#![allow(dead_code)] // FIXME TODO pt-client remove after implementing reactor.
 
 pub mod config;
 pub mod err;
@@ -46,26 +45,25 @@ pub mod ipc;
 
 use crate::config::ManagedTransportConfig;
 use crate::err::PtError;
-use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters, PtParametersBuilder};
+use crate::ipc::{PluggableTransport, PtClientMethod, PtParameters};
 use crate::mpsc::Receiver;
-use async_trait::async_trait;
-use futures::channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use futures::channel::mpsc::{self, UnboundedSender};
 use futures::channel::oneshot;
-use futures::StreamExt;
 use std::collections::HashMap;
-use std::mem;
-use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use tempfile::TempDir;
-use tor_chanmgr::builder::ChanBuilder;
-#[cfg(feature = "tor-channel-factory")]
-use tor_chanmgr::factory::ChannelFactory;
-use tor_chanmgr::factory::{AbstractPtError, AbstractPtMgr};
-use tor_chanmgr::transport::{ExternalProxyPlugin, TransportHelper};
-use tor_linkspec::{PtTransportName, TransportId};
+use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::{info, warn};
+use tracing::warn;
+#[cfg(feature = "tor-channel-factory")]
+use {
+    async_trait::async_trait,
+    tor_chanmgr::{
+        builder::ChanBuilder,
+        factory::{AbstractPtError, ChannelFactory},
+        transport::ExternalProxyPlugin,
+    },
+};
 
 /// Shared mutable state between the `PtReactor` and `PtMgr`.
 #[derive(Default, Debug)]
@@ -123,10 +121,8 @@ pub struct PtMgr<R> {
     state: Arc<RwLock<PtSharedState>>,
     /// PtReactor channel.
     tx: UnboundedSender<PtReactorMessage>,
-    /// Temporary directory to store PT state in.
-    //
-    // FIXME(eta): This should be configurable.
-    state_dir: TempDir,
+    /// Directory to store PT state in.
+    state_dir: PathBuf,
 }
 
 impl<R: Runtime> PtMgr<R> {
@@ -149,7 +145,11 @@ impl<R: Runtime> PtMgr<R> {
 
     /// Create a new PtMgr.
     // TODO pt-client: maybe don't have the Vec directly exposed?
-    pub fn new(transports: Vec<ManagedTransportConfig>, rt: R) -> Result<Self, PtError> {
+    pub fn new(
+        transports: Vec<ManagedTransportConfig>,
+        state_dir: PathBuf,
+        rt: R,
+    ) -> Result<Self, PtError> {
         let state = PtSharedState {
             cmethods: Default::default(),
             configured: Self::transform_config(transports),
@@ -161,18 +161,23 @@ impl<R: Runtime> PtMgr<R> {
             runtime: rt,
             state,
             tx,
-            state_dir: TempDir::new().map_err(|e| PtError::TempdirCreateFailed(Arc::new(e)))?,
+            state_dir,
         })
     }
 
     /// Reload the configuration
     pub fn reconfigure(
-        &mut self,
+        &self,
+        how: tor_config::Reconfigure,
         transports: Vec<ManagedTransportConfig>,
     ) -> Result<(), tor_config::ReconfigureError> {
+        let configured = Self::transform_config(transports);
+        if how == tor_config::Reconfigure::CheckAllOrNothing {
+            return Ok(());
+        }
         {
             let mut inner = self.state.write().expect("ptmgr poisoned");
-            inner.configured = Self::transform_config(transports);
+            inner.configured = configured;
         }
         // We don't have any way of propagating this sanely; the caller will find out the reactor
         // has died later on anyway.
@@ -251,11 +256,19 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
                         pt: transport.clone(),
                         result: tx,
                     })
-                    .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?;
+                    .map_err(|_| {
+                        Arc::new(PtError::Internal(tor_error::internal!(
+                            "PT reactor closed unexpectedly"
+                        ))) as Arc<dyn AbstractPtError>
+                    })?;
                 cmethod = Some(
                     // NOTE(eta): Could be improved with result flattening.
                     rx.await
-                        .map_err(|_| Arc::new(PtError::ReactorFailed) as Arc<dyn AbstractPtError>)?
+                        .map_err(|_| {
+                            Arc::new(PtError::Internal(tor_error::internal!(
+                                "PT reactor closed unexpectedly"
+                            ))) as Arc<dyn AbstractPtError>
+                        })?
                         .map_err(|x| Arc::new(x) as Arc<dyn AbstractPtError>)?,
                 );
             } else {

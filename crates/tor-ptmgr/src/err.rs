@@ -78,21 +78,55 @@ pub enum PtError {
         error: CfgPathError,
     },
     /// The pluggable transport reactor failed.
-    #[error("PT reactor failed")]
-    // TODO pt-client: This should just be a bug.
-    ReactorFailed,
+    #[error("Internal error")]
+    Internal(#[from] tor_error::Bug),
 }
 
-// TODO pt-client: implement.
 impl HasKind for PtError {
     fn kind(&self) -> ErrorKind {
-        todo!()
+        use ErrorKind as EK;
+        use PtError as E;
+        match self {
+            E::ClientTransportsUnsupported(_) => EK::InvalidConfig,
+            E::ChildProtocolViolation(_)
+            | E::ProtocolViolation(_)
+            | E::UnsupportedVersion
+            | E::IpcParseFailed { .. } => EK::LocalProtocolViolation,
+            E::Timeout
+            | E::ClientTransportFailed { .. }
+            | E::ChildGone
+            | E::ChildReadFailed(_)
+            | E::ChildSpawnFailed { .. }
+            | E::StdioUnavailable
+            | E::ProxyError(_) => EK::LocalPluginFailed,
+            E::TempdirCreateFailed(_) => EK::FsPermissions,
+            E::PathExpansionFailed { .. } => EK::InvalidConfig,
+            E::Internal(e) => e.kind(),
+        }
     }
 }
 
 impl HasRetryTime for PtError {
     fn retry_time(&self) -> RetryTime {
-        todo!()
+        use PtError as E;
+        use RetryTime as RT;
+        match self {
+            E::ClientTransportsUnsupported(_)
+            | E::ClientTransportFailed { .. }
+            | E::ChildProtocolViolation(_)
+            | E::ProtocolViolation(_)
+            | E::ChildSpawnFailed { .. }
+            | E::IpcParseFailed { .. }
+            | E::UnsupportedVersion
+            | E::Internal(_)
+            | E::PathExpansionFailed { .. } => RT::Never,
+            E::TempdirCreateFailed(_)
+            | E::StdioUnavailable
+            | E::Timeout
+            | E::ProxyError(_)
+            | E::ChildGone
+            | E::ChildReadFailed(_) => RT::AfterWaiting,
+        }
     }
 }
 

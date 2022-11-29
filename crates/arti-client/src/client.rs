@@ -89,6 +89,9 @@ pub struct TorClient<R: Runtime> {
     // which we can't do when the Arc is inside.
     #[cfg(feature = "bridge-client")]
     bridge_desc_mgr: Arc<Mutex<Option<Arc<BridgeDescMgr<R>>>>>,
+    /// Pluggable transport manager.
+    #[cfg(feature = "pt-client")]
+    pt_mgr: Arc<tor_ptmgr::PtMgr<R>>,
     /// Guard manager
     #[cfg_attr(not(feature = "bridge-client"), allow(dead_code))]
     guardmgr: GuardMgr<R>,
@@ -445,6 +448,23 @@ impl<R: Runtime> TorClient<R> {
         let guardmgr = tor_guardmgr::GuardMgr::new(runtime.clone(), statemgr.clone(), &config)
             .map_err(ErrorDetail::GuardMgrSetup)?;
 
+        #[cfg(feature = "pt-client")]
+        let pt_mgr = {
+            let mut pt_state_dir = config.storage.expand_state_dir()?;
+            pt_state_dir.push("pt_state");
+            config.storage.permissions().make_directory(&pt_state_dir)?;
+
+            let mgr = Arc::new(tor_ptmgr::PtMgr::new(
+                config.bridges.transports.clone(),
+                pt_state_dir,
+                runtime.clone(),
+            )?);
+
+            chanmgr.set_pt_mgr(mgr.clone());
+
+            mgr
+        };
+
         let circmgr = tor_circmgr::CircMgr::new(
             &config,
             statemgr.clone(),
@@ -484,6 +504,9 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
+        // TODO pt-client: We'll need to tell the ptmgr to launch any background
+        // tasks, if it has not already done so.
+
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
@@ -519,6 +542,8 @@ impl<R: Runtime> TorClient<R> {
             dirmgr,
             #[cfg(feature = "bridge-client")]
             bridge_desc_mgr,
+            #[cfg(feature = "pt-client")]
+            pt_mgr,
             guardmgr,
             statemgr,
             addrcfg: Arc::new(addr_cfg.into()),
@@ -708,6 +733,11 @@ impl<R: Runtime> TorClient<R> {
 
         self.chanmgr
             .reconfigure(&new_config.channel, how, netparams)
+            .map_err(wrap_err)?;
+
+        #[cfg(feature = "pt-client")]
+        self.pt_mgr
+            .reconfigure(how, new_config.bridges.transports.clone())
             .map_err(wrap_err)?;
 
         if how == tor_config::Reconfigure::CheckAllOrNothing {

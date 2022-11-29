@@ -277,21 +277,18 @@ impl<R: Runtime> ChanMgr<R> {
     /// This method can be used to e.g. tell Arti to use a proxy for
     /// outgoing connections.
     #[cfg(feature = "experimental-api")]
-    pub fn set_default_transport(&self, factory: impl factory::ChannelFactory + 'static) {
+    pub fn set_default_transport(&self, factory: Arc<dyn factory::ChannelFactory + 'static>) {
         // TODO pt-client: Perhaps we actually want to take this as part of the constructor instead?
         // TODO pt-client: It's not clear to me that we really need this method.
-        // TODO pt-client: Should this method take an ArcFactory instead?
         self.mgr
-            .with_mut_builder(|f| f.replace_default_factory(Arc::new(factory)));
+            .with_mut_builder(|f| f.replace_default_factory(factory));
     }
 
     /// Replace the transport registry with one that may know about
     /// more transports.
     #[cfg(feature = "pt-client")]
-    pub fn set_pt_mgr(&self, ptmgr: impl factory::AbstractPtMgr + 'static) {
-        // TODO pt-client: Should this method take an ArcPtMgr instead?
-        self.mgr
-            .with_mut_builder(|f| f.replace_ptmgr(Arc::new(ptmgr)));
+    pub fn set_pt_mgr(&self, ptmgr: Arc<dyn factory::AbstractPtMgr + 'static>) {
+        self.mgr.with_mut_builder(|f| f.replace_ptmgr(ptmgr));
     }
 
     /// Watch for things that ought to change the configuration of all channels in the client

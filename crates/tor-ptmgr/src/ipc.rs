@@ -47,10 +47,10 @@ pub struct PtStatus {
 /// A message sent from a pluggable transport child process.
 ///
 /// For more in-depth information about these messages, consult pt-spec.txt.
-// TODO pt-client: this shouldn't be `pub`
 #[derive(PartialEq, Eq, Debug, Clone)]
 #[non_exhaustive]
-pub enum PtMessage {
+#[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+pub(crate) enum PtMessage {
     /// `VERSION-ERROR`: No compatible pluggable transport specification version was provided.
     VersionError(String),
     /// `VERSION`: Specifies the version the binary is using for the IPC protocol.
@@ -589,6 +589,7 @@ impl PluggableTransport {
     ///
     /// If it hasn't been launched, the returned map will be empty.
     // TODO(eta): Actually figure out a way to expose this more stably.
+    #[allow(dead_code)] // TODO: remove unless this turns out to be useful.
     pub(crate) fn transport_methods(&self) -> &HashMap<PtTransportName, PtClientMethod> {
         &self.cmethods
     }
@@ -600,7 +601,8 @@ impl PluggableTransport {
     // FIXME(eta): This API will probably go away and get replaced with something better.
     //             In particular, we'd want to cache `Status` messages from before this method
     //             was called.
-    pub async fn next_message(&mut self) -> err::Result<PtMessage> {
+    #[cfg_attr(feature = "experimental-api", visibility::make(pub))]
+    pub(crate) async fn next_message(&mut self) -> err::Result<PtMessage> {
         let inner = self.inner.as_mut().ok_or(PtError::ChildGone)?;
         let ret = inner.recv().await;
         if let Err(PtError::ChildGone) | Err(PtError::ChildReadFailed { .. }) = ret {
@@ -622,6 +624,11 @@ impl PluggableTransport {
             );
             return Ok(());
         }
+        info!(
+            "Launching pluggable transport at {} for {:?}",
+            self.binary_path.display(),
+            self.params.transports
+        );
         let child = Command::new(&self.binary_path)
             .args(self.arguments.iter())
             .envs(self.params.environment_variables())
