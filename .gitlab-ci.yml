@@ -287,6 +287,12 @@ matrix-test:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/matrix_test
 
+matrix-test-cfg:
+  stage: test
+  image: rust:latest
+  script:
+    - ./maint/matrix_test_cfg
+
 
 coverage-aggregated:
   rules:
