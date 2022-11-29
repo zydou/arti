@@ -198,7 +198,7 @@ enum ErrorDetail {
     #[error("Unable to change configuration")]
     Reconfigure(#[from] tor_config::ReconfigureError),
 
-    /// Problem creating or launchign a pluggable transport.
+    /// Problem creating or launching a pluggable transport.
     #[cfg(feature="pt-client")]
     #[error("Problem with a pluggable transport")]
     PluggableTransport(#[from] tor_ptmgr::err::PtError),
