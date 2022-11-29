@@ -686,7 +686,7 @@ where
             Ok(Some(
                 iter.map(|(i, l)| {
                     l.parse().map_err(|error| MultilineListBuilderError {
-                        item_number: i,
+                        item_number: i + 1,
                         line: l.to_owned(),
                         error,
                     })
