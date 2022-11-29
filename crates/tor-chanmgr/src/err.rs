@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::factory::AbstractPtError;
 use tor_error::{internal, ErrorKind};
-use tor_linkspec::{ChanTarget, IntoOwnedChanTarget, LoggedChanTarget, PtTargetAddr};
+use tor_linkspec::{BridgeAddr, ChanTarget, IntoOwnedChanTarget, LoggedChanTarget};
 use tor_proto::ClockSkew;
 
 // We use "ChanSensitive" for values which are sensitive because they relate to
@@ -58,7 +58,7 @@ pub enum Error {
     #[error("Network IO error, or TLS error, in {action}, talking to {peer:?}")]
     Io {
         /// Who we were talking to
-        peer: Option<BoxChanSensitive<PtTargetAddr>>,
+        peer: Option<BoxChanSensitive<BridgeAddr>>,
 
         /// What we were doing
         action: &'static str,
