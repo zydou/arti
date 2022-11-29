@@ -720,7 +720,7 @@ impl PluggableTransport {
                     cmethods.insert(transport, method);
                 }
                 PtMessage::ClientTransportFailed { transport, message } => {
-                    return Err(PtError::ClientTransportFailed {
+                    return Err(PtError::ClientTransportGaveError {
                         transport: transport.to_string(),
                         message,
                     })

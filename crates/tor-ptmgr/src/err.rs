@@ -16,9 +16,10 @@ pub enum PtError {
     /// A PT binary does not support a set of pluggable transports.
     #[error("PT binary does not support transports: {0:?}")]
     ClientTransportsUnsupported(Vec<String>),
-    /// A PT binary failed to launch a pluggable transport.
-    #[error("Transport '{}' failed to launch: {}", transport, message)]
-    ClientTransportFailed {
+    /// A PT binary failed to launch a pluggable transport, and reported
+    /// an error message.
+    #[error("Transport '{}' failed to launch, saying: {:?}", transport, message)]
+    ClientTransportGaveError {
         /// The transport that failed.
         transport: String,
         /// The failure message.
@@ -88,7 +89,7 @@ impl HasKind for PtError {
             | E::UnsupportedVersion
             | E::IpcParseFailed { .. } => EK::LocalProtocolViolation,
             E::Timeout
-            | E::ClientTransportFailed { .. }
+            | E::ClientTransportGaveError { .. }
             | E::ChildGone
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
@@ -106,7 +107,6 @@ impl HasRetryTime for PtError {
         use RetryTime as RT;
         match self {
             E::ClientTransportsUnsupported(_)
-            | E::ClientTransportFailed { .. }
             | E::ChildProtocolViolation(_)
             | E::ProtocolViolation(_)
             | E::ChildSpawnFailed { .. }
@@ -115,6 +115,7 @@ impl HasRetryTime for PtError {
             | E::Internal(_)
             | E::PathExpansionFailed { .. } => RT::Never,
             E::TempdirCreateFailed(_)
+            | E::ClientTransportGaveError { .. }
             | E::Timeout
             | E::ProxyError(_)
             | E::ChildGone
