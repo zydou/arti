@@ -63,6 +63,18 @@ impl fmt::Debug for RsaIdentity {
     }
 }
 
+impl safelog::Redactable for RsaIdentity {
+    /// Warning: This displays 16 bits of the ed25519 identity, which is
+    /// enough to narrow down a public relay by a great deal.
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "${}…", hex::encode(&self.id[..1]))
+    }
+
+    fn debug_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "RsaIdentity {{ {} }}", self.redacted())
+    }
+}
+
 impl serde::Serialize for RsaIdentity {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

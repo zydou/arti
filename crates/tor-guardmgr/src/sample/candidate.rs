@@ -73,6 +73,8 @@ pub(crate) struct Candidate {
     /// Information about connecting to the candidate and using it to build
     /// a channel.
     pub(crate) owned_target: OwnedChanTarget,
+    /// How should we display information about this candidate if we select it?
+    pub(crate) sensitivity: crate::guard::DisplayRule,
 }
 
 /// Information about how much of the universe we are using in a guard sample,
@@ -107,6 +109,7 @@ impl Universe for NetDir {
                 is_dir_cache: relay.is_dir_cache(),
                 owned_target: OwnedChanTarget::from_chan_target(&relay),
                 full_dir_info: true,
+                sensitivity: crate::guard::DisplayRule::Sensitive,
             }),
             None => match NetDir::ids_listed(self, guard) {
                 Some(true) => panic!("ids_listed said true, but by_ids said none!"),
@@ -180,6 +183,7 @@ impl Universe for NetDir {
                     is_dir_cache: true,
                     full_dir_info: true,
                     owned_target: OwnedChanTarget::from_chan_target(relay),
+                    sensitivity: crate::guard::DisplayRule::Sensitive,
                 },
                 weight(self, relay).unwrap_or_else(|| RelayWeight::from(0)),
             )

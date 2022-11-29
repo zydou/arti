@@ -16,7 +16,9 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 [dependencies]
+derive_more = "0.99.3"
 educe = "0.4.6"
+either = "1"
 fluid-let = "1"
 serde = { version = "1.0.103", optional = true, features = ["derive"] }
 thiserror = "1"

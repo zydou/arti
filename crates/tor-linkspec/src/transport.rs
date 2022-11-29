@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use std::slice;
 use std::str::FromStr;
 
+use safelog::Redactable;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -286,6 +287,16 @@ impl Display for BridgeAddr {
         match self {
             BridgeAddr::IpPort(addr) => write!(f, "{}", addr),
             BridgeAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
+            BridgeAddr::None => write!(f, "{}", NONE_ADDR),
+        }
+    }
+}
+
+impl Redactable for BridgeAddr {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BridgeAddr::IpPort(a) => a.redacted().fmt(f),
+            BridgeAddr::HostPort(host, port) => write!(f, "{}…:{}", &host[..2], port),
             BridgeAddr::None => write!(f, "{}", NONE_ADDR),
         }
     }

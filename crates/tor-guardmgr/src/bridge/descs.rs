@@ -232,6 +232,7 @@ impl Universe for BridgeSet {
                 is_dir_cache: true, // all bridges are directory caches.
                 full_dir_info: bridge_relay.has_descriptor(),
                 owned_target: OwnedChanTarget::from_chan_target(&bridge_relay),
+                sensitivity: crate::guard::DisplayRule::Redacted,
             }),
             CandidateStatus::Absent => CandidateStatus::Absent,
             CandidateStatus::Uncertain => CandidateStatus::Uncertain,
@@ -291,6 +292,7 @@ impl Universe for BridgeSet {
                         is_dir_cache: true,
                         full_dir_info: relay.has_descriptor(),
                         owned_target: OwnedChanTarget::from_chan_target(&relay),
+                        sensitivity: crate::guard::DisplayRule::Redacted,
                     },
                     RelayWeight::from(0),
                 )
