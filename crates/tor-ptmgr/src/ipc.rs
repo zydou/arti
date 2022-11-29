@@ -365,12 +365,14 @@ impl FromStr for PtMessage {
 struct AsyncPtChild {
     /// Channel to receive lines from the child process stdout.
     stdout: Receiver<io::Result<String>>,
+    /// Identifier to put in logging messages.
+    identifier: String,
 }
 
 impl AsyncPtChild {
     /// Wrap an OS child process by spawning a worker thread to forward output from the child
     /// to the asynchronous runtime via use of a channel.
-    fn new(mut child: Child) -> Option<Self> {
+    fn new(mut child: Child, identifier: String) -> Option<Self> {
         let (stdin, stdout) = (child.stdin.take()?, child.stdout.take()?);
         let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
         thread::spawn(move || {
@@ -422,7 +424,10 @@ impl AsyncPtChild {
                 }
             }
         });
-        Some(AsyncPtChild { stdout: rx })
+        Some(AsyncPtChild {
+            stdout: rx,
+            identifier,
+        })
     }
 
     /// Receive a message from the pluggable transport binary asynchronously.
@@ -442,14 +447,13 @@ impl AsyncPtChild {
                     if let PtMessage::Log { severity, message } = line {
                         // FIXME(eta): I wanted to make this integrate with `tracing` more nicely,
                         //             but gave up after 15 minutes of clicking through spaghetti.
-                        //             It'd also be nice to log /which/ PT this is from here.
                         match &severity as &str {
-                            "error" => error!("[pt] {}", message),
-                            "warning" => warn!("[pt] {}", message),
-                            "notice" => info!("[pt] {}", message),
-                            "info" => debug!("[pt] {}", message),
-                            "debug" => trace!("[pt] {}", message),
-                            x => warn!("[pt {}] {}", x, message),
+                            "error" => error!("[pt {}] {}", self.identifier, message),
+                            "warning" => warn!("[pt {}] {}", self.identifier, message),
+                            "notice" => info!("[pt {}] {}", self.identifier, message),
+                            "info" => debug!("[pt {}] {}", self.identifier, message),
+                            "debug" => trace!("[pt {}] {}", self.identifier, message),
+                            x => warn!("[pt] {} {} {}", self.identifier, x, message),
                         }
                     } else {
                         return Ok(line);
@@ -532,7 +536,7 @@ impl PtParameters {
 }
 
 /// A SOCKS endpoint to connect through a pluggable transport.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PtClientMethod {
     /// The SOCKS protocol version to use.
     pub(crate) kind: SocksVersion,
@@ -561,7 +565,7 @@ pub struct PluggableTransport {
     /// The currently running child, if there is one.
     inner: Option<AsyncPtChild>,
     /// The path to the binary to run.
-    binary_path: PathBuf,
+    pub(crate) binary_path: PathBuf,
     /// Arguments to pass to the binary.
     arguments: Vec<String>,
     /// Configured parameters.
@@ -606,9 +610,9 @@ impl PluggableTransport {
         let inner = self.inner.as_mut().ok_or(PtError::ChildGone)?;
         let ret = inner.recv().await;
         if let Err(PtError::ChildGone) | Err(PtError::ChildReadFailed { .. }) = ret {
-            // Invalidate the stored methods, since the PT isn't running any more.
+            // FIXME(eta): Currently this lets the caller still think the methods work by calling
+            //             transport_methods.
             self.inner = None;
-            self.cmethods = Default::default();
         }
         ret
     }
@@ -640,9 +644,16 @@ impl PluggableTransport {
                 error: Arc::new(e),
             })?;
 
+        let identifier = self
+            .binary_path
+            .file_name()
+            .map(|x| x.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+
         // FIXME(eta): Arguably, this error should be a panic or bug. Not sure how frequent this
         //             failure case is.
-        let mut async_child = AsyncPtChild::new(child).ok_or(PtError::StdioUnavailable)?;
+        let mut async_child =
+            AsyncPtChild::new(child, identifier).ok_or(PtError::StdioUnavailable)?;
 
         let deadline = Instant::now() + self.params.timeout.unwrap_or(PT_START_TIMEOUT);
         let mut cmethods = HashMap::new();
