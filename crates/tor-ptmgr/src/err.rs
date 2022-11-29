@@ -60,11 +60,6 @@ pub enum PtError {
         /// The error encountered parsing it.
         error: String,
     },
-    /// The pluggable transport quit unexpectedly.
-    ///
-    /// We couldn't get stdio for a spawned child process for some reason.
-    #[error("PT stdio unavailable")]
-    StdioUnavailable,
     /// We couldn't create a temporary directory.
     #[error("Failed to create a temporary directory: {0}")]
     TempdirCreateFailed(#[source] Arc<std::io::Error>),
@@ -97,7 +92,6 @@ impl HasKind for PtError {
             | E::ChildGone
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
-            | E::StdioUnavailable
             | E::ProxyError(_) => EK::ExternalToolFailed,
             E::TempdirCreateFailed(_) => EK::FsPermissions,
             E::PathExpansionFailed { .. } => EK::InvalidConfig,
@@ -121,7 +115,6 @@ impl HasRetryTime for PtError {
             | E::Internal(_)
             | E::PathExpansionFailed { .. } => RT::Never,
             E::TempdirCreateFailed(_)
-            | E::StdioUnavailable
             | E::Timeout
             | E::ProxyError(_)
             | E::ChildGone

@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
 use tor_config::Itertools;
+use tor_error::internal;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_socksproto::SocksVersion;
@@ -370,8 +371,15 @@ struct AsyncPtChild {
 impl AsyncPtChild {
     /// Wrap an OS child process by spawning a worker thread to forward output from the child
     /// to the asynchronous runtime via use of a channel.
-    fn new(mut child: Child) -> Option<Self> {
-        let (stdin, stdout) = (child.stdin.take()?, child.stdout.take()?);
+    fn new(mut child: Child) -> Result<Self, PtError> {
+        let (stdin, stdout) = (
+            child.stdin.take().ok_or_else(|| {
+                PtError::Internal(internal!("Created child process without stdin"))
+            })?,
+            child.stdout.take().ok_or_else(|| {
+                PtError::Internal(internal!("Created child process without stdout"))
+            })?,
+        );
         let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
@@ -422,7 +430,7 @@ impl AsyncPtChild {
                 }
             }
         });
-        Some(AsyncPtChild { stdout: rx })
+        Ok(AsyncPtChild { stdout: rx })
     }
 
     /// Receive a message from the pluggable transport binary asynchronously.
@@ -642,7 +650,7 @@ impl PluggableTransport {
 
         // FIXME(eta): Arguably, this error should be a panic or bug. Not sure how frequent this
         //             failure case is.
-        let mut async_child = AsyncPtChild::new(child).ok_or(PtError::StdioUnavailable)?;
+        let mut async_child = AsyncPtChild::new(child)?;
 
         let deadline = Instant::now() + self.params.timeout.unwrap_or(PT_START_TIMEOUT);
         let mut cmethods = HashMap::new();
