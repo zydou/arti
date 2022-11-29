@@ -44,12 +44,6 @@ export RUSTFLAGS="-C target-cpu=westmere"
 cp -a "$here" /arti
 cd /arti
 
-## use tmpfs to store dependencies sources. It has been observed that what
-## filesystem these files reside on has an impact on the resulting binary.
-## We put these in a tmpfs as a way to stabilize the result.
-mkdir -p /dev/shm/registry /usr/local/cargo/registry
-ln -s /dev/shm/registry /usr/local/cargo/registry/src
-
 cargo_build () {
 	$CARGO build --locked "$@"
 }
