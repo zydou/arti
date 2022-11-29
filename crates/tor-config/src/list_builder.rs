@@ -741,31 +741,31 @@ mod test {
     use super::*;
     use derive_builder::Builder;
 
+    #[derive(Eq, PartialEq, Builder)]
+    struct Outer {
+        #[builder(sub_builder, setter(custom))]
+        list: List,
+    }
+
+    define_list_builder_accessors! {
+        struct OuterBuilder {
+            list: [char],
+        }
+    }
+
+    type List = Vec<char>;
+
+    define_list_builder_helper! {
+        struct ListBuilder {
+            list: [char],
+        }
+        built: List = list;
+        default = vec!['a'];
+        item_build: |&c| Ok(c);
+    }
+
     #[test]
     fn nonempty_default() {
-        #[derive(Eq, PartialEq, Builder)]
-        struct Outer {
-            #[builder(sub_builder, setter(custom))]
-            list: List,
-        }
-
-        define_list_builder_accessors! {
-            struct OuterBuilder {
-                list: [char],
-            }
-        }
-
-        type List = Vec<char>;
-
-        define_list_builder_helper! {
-            struct ListBuilder {
-                list: [char],
-            }
-            built: List = list;
-            default = vec!['a'];
-            item_build: |&c| Ok(c);
-        }
-
         let mut b = OuterBuilder::default();
         assert!(b.opt_list().is_none());
         assert_eq! { b.build().expect("build failed").list, ['a'] };
