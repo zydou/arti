@@ -810,6 +810,15 @@ mod test {
 
     #[test]
     fn addr() {
+        let chk_bridge_addr = |a: &PtTargetAddr, addr: &str| {
+            let ba: BridgeAddr = addr.parse().unwrap();
+            assert_eq!(&ba.to_string(), addr);
+
+            assert_eq!(&PtTargetAddr::from(Some(ba.clone())), a);
+            let reba: Option<BridgeAddr> = a.clone().into();
+            assert_eq!(reba.as_ref(), Some(&ba));
+        };
+
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
             let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
@@ -817,12 +826,7 @@ mod test {
             let sa: SocketAddr = addr.parse().unwrap();
             assert_eq!(a.addrs(), &[sa]);
 
-            let ba: BridgeAddr = addr.parse().unwrap();
-            assert_eq!(&ba.to_string(), addr);
-
-            assert_eq!(PtTargetAddr::from(Some(ba.clone())), a);
-            let reba: Option<BridgeAddr> = a.into();
-            assert_eq!(reba.as_ref(), Some(&ba));
+            chk_bridge_addr(&a, addr);
         }
 
         for addr in &["www.example.com:9100", "-"] {
@@ -834,12 +838,7 @@ mod test {
                 let e = BridgeAddr::from_str(addr).unwrap_err();
                 assert!(matches!(e, BridgeAddrError::BadAddress(_)));
             } else {
-                let ba: BridgeAddr = addr.parse().unwrap();
-                assert_eq!(&ba.to_string(), addr);
-
-                assert_eq!(PtTargetAddr::from(Some(ba.clone())), a);
-                let reba: Option<BridgeAddr> = a.into();
-                assert_eq!(reba.as_ref(), Some(&ba));
+                chk_bridge_addr(&a, addr);
             }
         }
 
