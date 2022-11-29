@@ -3,6 +3,139 @@
 This file describes changes in Arti through the current release.  Once Arti
 is more mature, we may switch to using a separate changelog for each crate.
 
+# Arti 1.1.0 — 30 November 2022
+
+Arti 1.1.0 adds support for Tor's anticensorship features: Bridges
+(unlisted relays), and Pluggable Transports (external tools to hide what
+protocol you're using).
+
+BLURB MORE XXXX
+
+### Breaking changes
+
+- Arti now requires Rust 1.60 or later. This allows us to use a few new
+  features, and to upgrade a few of our dependencies that had grown
+  stale. See ["Minimum supported Rust Version" in `README.md`] for more
+  information on our MSRV policy. ([#591], [#526], [#613], [#621], [!837])
+
+### Breaking changes in lower level crates
+
+- `SocksHandshake` has been renamed to `SocksProxyHandshake`, to
+  distinguish it from `SocksClientHandshake`. ([b08073c2d43d7be5])
+- Numerous changes to the bridge-related APIs introduced in 1.0.1.
+  ([!758], [#600], [!759]], [!780])
+- API changes to `tor-dirclient::Response`. ([!782])
+- Netinfo cell constructors have been renamed. ([!793])
+- The guard manager API no long accepts `NetDir` arguments to most of
+  its methods; instead, it expects to be given a `NetDirProvider`.
+  ([95a95076a77f4447])
+- Move the responsibility for creating a GuardMgr to the `arti-client`
+  crate. ([!850])
+- Numerous other changes to lower-level APIs.
+
+### New features
+
+- Arti can now connect to bridges when compiled with the `bridge-client`
+  feature.  (This is on by default in the `arti` binary.)
+  As part of this feature, we have had to implement:
+  - Configuration logic for bridges ([#599], [!744], [!745], [!767],
+    [!781], [!780], [!783], [!826], [!874], [!877], [!881])
+  - Data structures to keep track of relays based on possibly
+    non-overlapping sets of keys ([!747], [!774], [!797], [!806])
+  - Improved functionality for parsing router descriptors and integrating
+    them with our list of bridges ([!755])
+  - Large-scale refactoring of the channel-manager internals to handle
+    bridges and relays while treating them as distinct. ([!773])
+  - Code to download, store, and cache bridge descriptors. ([!782], [!795],
+    [!810], [!820], [!827], [!828], [!831], [!834], [!845], [!851],)
+  - Allow the guard manager to treat bridges as a kind of guard, and to
+    treat bridge-lists and network directories as two kinds of a "universe"
+    of possible guards.
+    ([!785], [!808], [!815], [!832], [!840])
+  - Support code to integrate directory management code with guard management
+    code. ([!847], [!852])
+  - More careful logging about changes in guard status. ([!869])
+  - Logic to retire circuits when the bridge configuration changes.
+    ([#650], [!880])
+
+- Arti can now connect via pluggable transports when compiled with the `pt-client`
+  feature.  (This is on by default in the `arti` binary.) This has
+  required us to implement:
+
+  - Configuration logic for pluggable transports ([!823])
+  - The client side of the SOCKS protocol ([!746])
+  - An abstraction mechanism to allow the `ChanMgr` code to delegate
+    channel construction to caller-provided code. ([!769], [!771], [!887],
+    [!888])
+  - Integrating the SOCKS client code into the `ChanMgr` code. ([!776])
+  - Launching pluggable transports and communicating with them using
+    Tor's pluggable transport IPC protocol. ([#394], [!779], [!813])
+  - Code to keep track of which pluggable transports are needed,
+    and launch them on demand. ([!886], [!893])
+  - Support code to integrate the pluggable transport manager with
+    `arti-client`. ([#659])
+
+- Paths in the configuration can now be configured using
+  `${PROGRAM_DIR}`, which means "the directory containing the current
+  executable".  ([#586], [!760])
+- Some objects can now be marked as "Redactable". A "Redactable" object
+  is one that can be displayed in the logs with some of its contents
+  suppressed. For example, whereas a full IP might be "192.0.2.7",
+  and a completely removed IP would be logged as "[scrubbed]",
+  a redacted IP might be displayed as "192.x.x.x". ([#648], [!882])
+
+### Testing
+
+- We now use the [Shadow] discrete event simulator to test Arti against a
+  simulated Tor network in our CI tests. ([#174], [!634])
+- Fuzzing for SOCKS client implementations. ([dc55272602cbc9ff])
+- Fuzzing for more types of cells ([c41305d1100d9685])
+- Fuzzing for pluggable transport IPC ([!814])
+- CI testing for more combinations of features. ([#303], [!775])
+- CI testing for more targets. ([#585], [!844])
+- Better reproducible builds, even on environments with small /dev/shm
+  configured. ([#614], [!818])
+
+
+### Cleanups, minor features, and bugfixes
+
+- We now use the [`hostname-validator`] crate to check hostnames for
+  correctness. ([!739])
+- Now that we require a more recent Rust, we no longer need to duplicate
+  all of our README.md files explicitly in our crate-level
+  documentation. ([#603], [!768])
+- A few small refactorings to avoid copying. ([!790], [!791])
+- Refactor guard-manager code to make it harder to become confused about
+  which sample a guard came from. ([19fdf196d89e670f])
+- More robust conversion to `u16` at some places in `tor-cell`, to avoid
+  future integer overflows. ([!803])
+- Refactor our "flag event" to make it easier to (eventually) use in other
+  crates. ([!804])
+- Significant refactoring of our file-change watching code. ([#562], [!819])
+- Upgrade to [`clap` v3] for our command-line option parsing. ([#616], [!830])
+- Fix documentation for starting Tor Browser with Arti on Windows. ([!849])
+- Allow empty lines at the end of a router descriptor. ([!857])
+- Improve some error messages while parsing directory documents.
+  ([#640], [!859])
+- Internal refactoring in `ChanMgr` to better match current design. ([#606],
+  [!864])
+- Improve display output for describing relays as channel targets, to provide
+  a more useful summary, and avoid displaying too much information about
+  guards. ([#647], [!868])
+- Better error reporting for some kinds of router descriptor parsing failures
+  ([!870])
+
+
+
+- Numerous typo and comment fixes.
+
+HAVE REVIEWED THROUGH: b36a23cfd331aa5b3527fc825e5c867b97da97ab
+
+
+
+
+
+
 # Arti 1.0.1 — 3 October  2022
 
 Arti 1.0.1 fixes a few bugs in our previous releases.
