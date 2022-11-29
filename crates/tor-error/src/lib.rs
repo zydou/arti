@@ -310,8 +310,11 @@ pub enum ErrorKind {
     /// implementation of the protocol, or in ours.  In any case, the problem
     /// is with software on the local system (or otherwise sharing a Tor client).
     ///
-    /// It might also occur if the local system has an incompatible combination of
+    /// It might also occur if the local system has an incompatible combination
+    /// of tools that we can't talk with.
     ///
+    /// This error kind does *not* include situations that are better explained
+    /// by a local program simply crashing or terminating unexpectedly.
     #[display(fmt = "local protocol violation (local bug or incompatibility)")]
     LocalProtocolViolation,
 
