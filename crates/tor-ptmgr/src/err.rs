@@ -109,7 +109,6 @@ impl HasRetryTime for PtError {
             E::ClientTransportsUnsupported(_)
             | E::ChildProtocolViolation(_)
             | E::ProtocolViolation(_)
-            | E::ChildSpawnFailed { .. }
             | E::IpcParseFailed { .. }
             | E::UnsupportedVersion
             | E::Internal(_)
@@ -120,6 +119,13 @@ impl HasRetryTime for PtError {
             | E::ProxyError(_)
             | E::ChildGone
             | E::ChildReadFailed(_) => RT::AfterWaiting,
+            E::ChildSpawnFailed { error, .. } => {
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    RT::Never
+                } else {
+                    RT::AfterWaiting
+                }
+            }
         }
     }
 }
