@@ -346,8 +346,8 @@ pub enum ErrorKind {
 
     /// A problem occurred when launching or communicating with an external
     /// process running on this computer.
-    #[display(fmt = "local plug-in tool failed")]
-    LocalPluginFailed,
+    #[display(fmt = "an externally launched plug-in tool failed")]
+    ExternalToolFailed,
 
     /// A relay had an identity other than the one we expected.
     ///

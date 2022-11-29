@@ -98,7 +98,7 @@ impl HasKind for PtError {
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
             | E::StdioUnavailable
-            | E::ProxyError(_) => EK::LocalPluginFailed,
+            | E::ProxyError(_) => EK::ExternalToolFailed,
             E::TempdirCreateFailed(_) => EK::FsPermissions,
             E::PathExpansionFailed { .. } => EK::InvalidConfig,
             E::Internal(e) => e.kind(),
