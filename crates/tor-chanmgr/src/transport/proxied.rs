@@ -448,7 +448,6 @@ mod test {
         );
     }
 
-    // TODO pt-client / FIXME(eta): make this test more complete
     #[cfg(feature = "pt-client")]
     #[test]
     fn split_settings() {
@@ -499,5 +498,11 @@ mod test {
 
         // Huge requests with "0" simply can't be encoded.
         assert!(settings_to_protocol(V5, "\0".to_owned().repeat(511)).is_err());
+
+        // Huge requests without "0" can't be encoded as V5
+        assert!(settings_to_protocol(V5, long_string[0..512].to_owned()).is_err());
+
+        // Requests with "0" can't be encoded as V4.
+        assert!(settings_to_protocol(V4, "\0".to_owned()).is_err());
     }
 }
