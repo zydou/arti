@@ -118,7 +118,7 @@ impl HasKind for PtError {
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
             | E::ProxyError(_) => EK::ExternalToolFailed,
-            E::StatedirCreateFailed { .. } => EK::FsPermissions,
+            E::StatedirCreateFailed { .. } => EK::PersistentStateAccessFailed,
             E::UnconfiguredTransport => EK::InvalidConfig,
             E::PathExpansionFailed { .. } => EK::InvalidConfig,
             E::NotAFile { .. } => EK::InvalidConfig,
