@@ -1,0 +1,23 @@
+[tor_network]
+fallback_caches = [
+    { rsa_identity = "A52CA5B56C64D864F6AE43E56F29ACBD5706DDA1", ed_identity = "4ngwAxQ6Zw2VJB241CenzfrVtT6omCDOf9yGB1XAqTs", orports = [ "100.0.0.1:9111" ] },
+]
+authorities = [
+    { name = "4uthority", v3ident = "604ED7BE52100945A47EAD301D45FADF493C6371" },
+]
+
+[bridges]
+enabled = true
+bridges = '''
+100.0.0.2:9111 CD3405C1A1C1C73E390C8DB910E0C7D93C90E564
+'''
+
+[path_rules]
+ipv4_subnet_family_prefix = 33
+ipv6_subnet_family_prefix = 129
+
+[application]
+# Disable process hardening, which interferes with shadow's process control
+# https://github.com/shadow/shadow/issues/2368
+permit_debugging = true
+allow_running_as_root = true
