@@ -433,6 +433,10 @@ impl<R: Runtime> TorClient<R> {
             config.storage.permissions(),
         )
         .map_err(ErrorDetail::StateMgrSetup)?;
+        // Try to take state ownership early, so we'll know if we have it.
+        // (At this point we don't yet care if we have it.)
+        let _ignore_status = statemgr.try_lock().map_err(ErrorDetail::StateMgrSetup)?;
+
         let addr_cfg = config.address_filter.clone();
 
         let (status_sender, status_receiver) = postage::watch::channel();
