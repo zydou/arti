@@ -455,7 +455,8 @@ mod test {
         use SocksVersion::*;
         let long_string = "examplestrg".to_owned().repeat(50);
         assert_eq!(long_string.len(), 550);
-        let s = |a, b| settings_to_protocol(V5, long_string[a..b].to_owned()).unwrap();
+        let sv = |v, a, b| settings_to_protocol(v, long_string[a..b].to_owned()).unwrap();
+        let s = |a, b| sv(V5, a, b);
         let v = |a, b| long_string.as_bytes()[a..b].to_vec();
 
         assert_eq!(s(0, 0), Protocol::Socks(V5, SocksAuth::NoAuth));
@@ -479,9 +480,12 @@ mod test {
             s(0, 510),
             Protocol::Socks(V5, SocksAuth::Username(v(0, 255), v(255, 510)))
         );
+
         // This one needs to use socks4, or it won't fit. :P
-        // FIXME FIXME FIXME
-        // assert_eq!(s(0, 511), Protocol::Socks(V4, SocksAuth::Socks4(v(0, 511))));
+        assert_eq!(
+            sv(V4, 0, 511),
+            Protocol::Socks(V4, SocksAuth::Socks4(v(0, 511)))
+        );
 
         // Small requests with "0" bytes work fine...
         assert_eq!(
