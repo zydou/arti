@@ -387,6 +387,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_redacted() {
         let localhost = std::net::Ipv4Addr::LOCALHOST;
         let closure = || format!("{}", localhost.redacted());
