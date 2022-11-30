@@ -193,6 +193,8 @@ impl<R: Runtime> PtReactor<R> {
 
     /// Run one step of the reactor. Returns true if the reactor should terminate.
     async fn run_one_step(&mut self) -> err::Result<bool> {
+        use futures::future::Either;
+
         // FIXME(eta): This allocates a lot, which is technically unnecessary but requires careful
         //             engineering to get right. It's not really in the hot path, at least.
         let mut all_next_messages = self
@@ -202,7 +204,13 @@ impl<R: Runtime> PtReactor<R> {
             // does under the hood.
             .map(|pt| Box::pin(pt.next_message()))
             .collect::<Vec<_>>();
-        let mut next_message = futures::future::select_all(all_next_messages.iter_mut()).fuse();
+
+        // We can't construct a select_all if all_next_messages is empty.
+        let mut next_message = if all_next_messages.is_empty() {
+            Either::Left(futures::future::pending())
+        } else {
+            Either::Right(futures::future::select_all(all_next_messages.iter_mut()).fuse())
+        };
 
         select! {
             (result, idx, _) = next_message => {
