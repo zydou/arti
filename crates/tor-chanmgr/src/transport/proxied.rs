@@ -108,9 +108,6 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     let mut inbuf = [0_u8; 1024];
     let mut n_read = 0;
     let reply = loop {
-        // Read some more stuff.
-        n_read += stream.read(&mut inbuf[n_read..]).await?;
-
         // try to advance the handshake to the next state.
         let action = match handshake.handshake(&inbuf[..n_read]) {
             Err(_) => {
@@ -142,6 +139,9 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
         if action.finished {
             break handshake.into_reply();
         }
+
+        // Read some more stuff.
+        n_read += stream.read(&mut inbuf[n_read..]).await?;
     };
 
     let status = reply
@@ -398,7 +398,8 @@ fn settings_to_protocol(vers: SocksVersion, s: String) -> Result<Protocol, Proxy
             Protocol::Socks(SocksVersion::V4, SocksAuth::Socks4(bytes))
         }
     } else if bytes.len() <= 255 {
-        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, vec![]))
+        // The [0] here is mandatory according to the pt-spec.
+        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, vec![0]))
     } else if bytes.len() <= (255 * 2) {
         let password = bytes.split_off(255);
         Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, password))
@@ -448,24 +449,24 @@ mod test {
         );
     }
 
-    // TODO pt-client / FIXME(eta): make this test more complete
     #[cfg(feature = "pt-client")]
     #[test]
     fn split_settings() {
         use SocksVersion::*;
         let long_string = "examplestrg".to_owned().repeat(50);
         assert_eq!(long_string.len(), 550);
-        let s = |a, b| settings_to_protocol(V5, long_string[a..b].to_owned()).unwrap();
+        let sv = |v, a, b| settings_to_protocol(v, long_string[a..b].to_owned()).unwrap();
+        let s = |a, b| sv(V5, a, b);
         let v = |a, b| long_string.as_bytes()[a..b].to_vec();
 
         assert_eq!(s(0, 0), Protocol::Socks(V5, SocksAuth::NoAuth));
         assert_eq!(
             s(0, 50),
-            Protocol::Socks(V5, SocksAuth::Username(v(0, 50), vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 50), vec![0]))
         );
         assert_eq!(
             s(0, 255),
-            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), vec![0]))
         );
         assert_eq!(
             s(0, 256),
@@ -479,14 +480,17 @@ mod test {
             s(0, 510),
             Protocol::Socks(V5, SocksAuth::Username(v(0, 255), v(255, 510)))
         );
+
         // This one needs to use socks4, or it won't fit. :P
-        // FIXME FIXME FIXME
-        // assert_eq!(s(0, 511), Protocol::Socks(V4, SocksAuth::Socks4(v(0, 511))));
+        assert_eq!(
+            sv(V4, 0, 511),
+            Protocol::Socks(V4, SocksAuth::Socks4(v(0, 511)))
+        );
 
         // Small requests with "0" bytes work fine...
         assert_eq!(
             settings_to_protocol(V5, "\0".to_owned()).unwrap(),
-            Protocol::Socks(V5, SocksAuth::Username(vec![0], vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(vec![0], vec![0]))
         );
         assert_eq!(
             settings_to_protocol(V5, "\0".to_owned().repeat(510)).unwrap(),
@@ -495,5 +499,11 @@ mod test {
 
         // Huge requests with "0" simply can't be encoded.
         assert!(settings_to_protocol(V5, "\0".to_owned().repeat(511)).is_err());
+
+        // Huge requests without "0" can't be encoded as V5
+        assert!(settings_to_protocol(V5, long_string[0..512].to_owned()).is_err());
+
+        // Requests with "0" can't be encoded as V4.
+        assert!(settings_to_protocol(V4, "\0".to_owned()).is_err());
     }
 }
