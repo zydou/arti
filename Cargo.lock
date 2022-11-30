@@ -4086,6 +4086,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "derive_builder_fork_arti",
+ "fs-mistrust",
  "futures",
  "serde",
  "thiserror",

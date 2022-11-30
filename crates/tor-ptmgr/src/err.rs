@@ -1,5 +1,6 @@
 //! Errors to do with pluggable transports.
 
+use fs_mistrust::anon_home::PathExt as _;
 use futures::task::SpawnError;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -46,7 +47,7 @@ pub enum PtError {
     #[error("Failed to read from PT binary: {0}")]
     ChildReadFailed(Arc<std::io::Error>),
     /// We couldn't spawn a pluggable transport binary as a child process.
-    #[error("Couldn't execute PT binary at {}: {}", path.to_string_lossy(), error)]
+    #[error("Couldn't execute PT binary at {}: {}", path.anonymize_home(), error)]
     ChildSpawnFailed {
         /// The binary path we tried to execute.
         path: PathBuf,
@@ -63,7 +64,7 @@ pub enum PtError {
         error: String,
     },
     /// We couldn't create a state directory.
-    #[error("Failed to create a state directory at {}: {}", path.to_string_lossy(), error)]
+    #[error("Failed to create a state directory at {}: {}", path.anonymize_home(), error)]
     StatedirCreateFailed {
         /// The offending path.
         path: PathBuf,
@@ -81,7 +82,7 @@ pub enum PtError {
         error: CfgPathError,
     },
     /// A binary path was a directory or something instead of a file.
-    #[error("Configured binary path {} isn't a file", path.to_string_lossy())]
+    #[error("Configured binary path {} isn't a file", path.anonymize_home())]
     NotAFile {
         /// The offending path.
         path: PathBuf,
