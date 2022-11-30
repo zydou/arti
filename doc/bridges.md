@@ -1,17 +1,18 @@
 # Using bridges with Arti
 
-This documentation will probably get folded somewhere elsewhere, and
+This documentation will probably get folded somewhere else, and
 should definitely get a quality improvement.  For now, I'm writing
 it as a quick-and-dirty introduction to how to actually set up
 bridges and pluggable transports with Arti.
 
 This document assumes that you already know how to set up bridges
-and pluggable transports with Tor, and that you know
+and pluggable transports with Tor.
 
 ## Configuring bridges
 
-To add a bridge to arti, you can add a section like this to your
-configuration
+To add a bridge to arti, you can add a section like this to your to your
+`arti.toml` configuration, or to a file in your `arti.d` configuration
+directory.
 
 ```
 [bridges]
