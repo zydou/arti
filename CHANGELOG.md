@@ -5,7 +5,7 @@ is more mature, we may switch to using a separate changelog for each crate.
 
 # Arti 1.1.0 — 30 November 2022
 
-Arti 1.1.0 adds support for Tor's anticensorship features: Bridges
+Arti 1.1.0 adds support for Tor's anti-censorship features: Bridges
 (unlisted relays), and Pluggable Transports (external tools to hide what
 protocol you're using).
 
@@ -22,7 +22,7 @@ we believe that the quality of these features is good enough to be used.
 
 - Arti now requires Rust 1.60 or later. This allows us to use a few new
   features, and to upgrade a few of our dependencies that had grown
-  stale. See ["Minimum supported Rust Version" in `README.md`] for more
+  stale. See ["Minimum Supported Rust Version" in `README.md`] for more
   information on our MSRV policy. ([#591], [#526], [#613], [#621], [!837])
 
 ### Breaking changes in lower level crates
@@ -260,7 +260,7 @@ Arti 1.0.1 fixes a few bugs in our previous releases.
 This is a fairly small release: Members of our team have spent a lot of
 September at a company meeting, on our vacations, and/or recovering from
 COVID-19. The feature work we have managed to get done is
-largely behind-the-scenes preparation for our anticensorship release,
+largely behind-the-scenes preparation for our anti-censorship release,
 which we now hope is coming in early November.
 
 ### Breaking changes
@@ -309,7 +309,7 @@ which we now hope is coming in early November.
 - The [`RouterDesc`] type now implements `Clone` and
   `Debug`. ([571e7f9556adf12d])
 - Preliminary internal API designs for most of the logic needed
-  to implement Tor's anticensorship features.  These APIs are unstable,
+  to implement Tor's anti-censorship features.  These APIs are unstable,
   and mostly not implemented yet, but they give us something to fill in.
   ([#543], [#558], [!740], [!743], [!748])
 
@@ -363,7 +363,7 @@ relatively confident that Arti has the security features that it
 needs for usage via the `arti` command-line proxy, or embedding via
 the `arti-client` API.
 
-In our next releases, we will focus on adding anticensorship
+In our next releases, we will focus on adding anti-censorship
 features similar to C tor, including support for connecting via
 bridges and pluggable transports.
 
