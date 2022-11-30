@@ -37,8 +37,6 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code)] // FIXME TODO pt-client remove after implementing reactor.
-
 pub mod config;
 pub mod err;
 pub mod ipc;
@@ -296,8 +294,6 @@ pub struct PtMgr<R> {
     state: Arc<RwLock<PtSharedState>>,
     /// PtReactor channel.
     tx: UnboundedSender<PtReactorMessage>,
-    /// Directory to store PT state in.
-    state_dir: PathBuf,
 }
 
 impl<R: Runtime> PtMgr<R> {
@@ -319,7 +315,7 @@ impl<R: Runtime> PtMgr<R> {
     }
 
     /// Create a new PtMgr.
-    // TODO pt-client: maybe don't have the Vec directly exposed?
+    // TODO: maybe don't have the Vec directly exposed?
     pub fn new(
         transports: Vec<ManagedTransportConfig>,
         state_dir: PathBuf,
@@ -332,7 +328,7 @@ impl<R: Runtime> PtMgr<R> {
         let state = Arc::new(RwLock::new(state));
         let (tx, rx) = mpsc::unbounded();
 
-        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir.clone());
+        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir);
         rt.spawn(async move {
             loop {
                 match reactor.run_one_step().await {
@@ -351,7 +347,6 @@ impl<R: Runtime> PtMgr<R> {
             runtime: rt,
             state,
             tx,
-            state_dir,
         })
     }
 
