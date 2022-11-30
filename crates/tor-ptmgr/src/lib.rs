@@ -252,7 +252,7 @@ impl<R: Runtime> PtReactor<R> {
                         let config = match config {
                             Some(v) => v,
                             None => {
-                                let _ = result.send(Err(PtError::UnconfiguredTransport));
+                                let _ = result.send(Err(PtError::UnconfiguredTransportDueToConcurrentReconfiguration));
                                 return Ok(false);
                             }
                         };
