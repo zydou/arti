@@ -601,7 +601,6 @@ impl PluggableTransport {
     ///
     /// If it hasn't been launched, the returned map will be empty.
     // TODO(eta): Actually figure out a way to expose this more stably.
-    #[allow(dead_code)] // TODO: remove unless this turns out to be useful.
     pub(crate) fn transport_methods(&self) -> &HashMap<PtTransportName, PtClientMethod> {
         &self.cmethods
     }

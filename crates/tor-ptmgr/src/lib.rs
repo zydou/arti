@@ -51,7 +51,7 @@ use futures::channel::oneshot;
 use futures::stream::FuturesUnordered;
 use futures::task::SpawnExt;
 use futures::{select, FutureExt, StreamExt};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -169,9 +169,17 @@ impl<R: Runtime> PtReactor<R> {
                         let _ = sender.send(Ok(method.clone()));
                     }
                 }
+
+                let requested: HashSet<_> = covers.iter().collect();
+                let found: HashSet<_> = pt.transport_methods().iter().map(|(t, _)| t).collect();
+                if requested != found {
+                    warn!("Bug: PT {} succeeded, but did not give the same transports we asked for. ({:?} vs {:?})",
+                          pt.identifier(), found, requested);
+                }
             }
         }
     }
+
     /// Called to remove a pluggable transport from the shared state.
     fn remove_pt(&self, pt: PluggableTransport) {
         let mut state = self.state.write().expect("ptmgr state poisoned");
