@@ -6,7 +6,7 @@ use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
-use crate::{BridgeAddr, ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
+use crate::{ChannelMethod, PtTargetAddr, RelayIdRef, RelayIdType, RelayIdTypeIter};
 
 /// Legacy implementation helper for HasRelayIds.
 ///
@@ -257,7 +257,7 @@ impl<'a, T: ChanTarget> DisplayChanTarget<'a, T> {
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(target) => {
                 match target.addr() {
-                    BridgeAddr::None => {}
+                    PtTargetAddr::None => {}
                     other => write!(f, "{} ", other.maybe_redacted(redact))?,
                 }
                 write!(f, "via {}", target.transport())?;

@@ -58,4 +58,6 @@ pub use traits::{
     HasRelayIdsLegacy,
 };
 pub use transport::{BridgeAddr, BridgeAddrError, ChannelMethod, TransportId, TransportIdError};
-pub use transport::{PtTarget, PtTargetInvalidSetting, PtTargetSettings, PtTransportName};
+pub use transport::{
+    PtTarget, PtTargetAddr, PtTargetInvalidSetting, PtTargetSettings, PtTransportName,
+};
