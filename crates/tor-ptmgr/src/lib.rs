@@ -203,10 +203,10 @@ impl<R: Runtime> PtReactor<R> {
                 match result {
                     Ok(m) => {
                         // FIXME(eta): We should forward the Status messages onto API consumers.
-                        debug!("PT {} message: {:?}", self.running[idx].binary_path.to_string_lossy(), m);
+                        debug!("PT {} message: {:?}", self.running[idx].identifier(), m);
                     },
                     Err(e) => {
-                        warn!("PT {} quit: {:?}", self.running[idx].binary_path.to_string_lossy(), e);
+                        warn!("PT {} quit: {:?}", self.running[idx].identifier(), e);
                         let pt = self.running.remove(idx);
                         self.remove_pt(pt);
                     }

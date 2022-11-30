@@ -606,6 +606,14 @@ impl PluggableTransport {
         &self.cmethods
     }
 
+    /// Return a loggable identifier for this transport.
+    pub(crate) fn identifier(&self) -> &str {
+        match &self.inner {
+            Some(child) => &child.identifier,
+            None => "<not yet launched>",
+        }
+    }
+
     /// Get the next [`PtMessage`] from the running transport. It is recommended to call this
     /// in a loop once a PT has been launched, in order to forward log messages and find out about
     /// status updates.
