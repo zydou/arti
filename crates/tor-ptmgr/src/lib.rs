@@ -164,9 +164,9 @@ impl<R: Runtime> PtReactor<R> {
             Ok(pt) => {
                 let mut state = self.state.write().expect("ptmgr state poisoned");
                 for (transport, method) in pt.transport_methods() {
+                    state.cmethods.insert(transport.clone(), method.clone());
                     for sender in self.requests.remove(transport).into_iter().flatten() {
                         let _ = sender.send(Ok(method.clone()));
-                        state.cmethods.insert(transport.clone(), method.clone());
                     }
                 }
             }
