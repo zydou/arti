@@ -81,8 +81,12 @@ pub enum PtError {
         #[source]
         error: CfgPathError,
     },
-    /// A binary path was a directory or something instead of a file.
-    #[error("Configured binary path {} isn't a file", path.anonymize_home())]
+    /// A binary path does not have the syntax of a *file* name.
+    ///
+    /// For example, it ends in a slash, indicating a diretory.
+    //
+    // TODO: this should be rejected at the configuration parsing level, and treated as a bug here.
+    #[error("Configured binary path {} doesn't have syntax of a file", path.anonymize_home())]
     NotAFile {
         /// The offending path.
         path: PathBuf,
@@ -94,9 +98,11 @@ pub enum PtError {
         #[source]
         cause: Arc<SpawnError>,
     },
-    /// The requested transport wasn't configured.
-    #[error("Transport not configured")]
-    UnconfiguredTransport,
+    /// The requested transport was found to be missing due to racing with reconfiguration
+    #[error("Transport not found due to concurrent reconfiguration")]
+    // TODO: That this can occur at all is a bug.
+    // See https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/901#note_2858455
+    UnconfiguredTransportDueToConcurrentReconfiguration,
     /// The pluggable transport reactor failed.
     #[error("Internal error")]
     Internal(#[from] tor_error::Bug),
@@ -118,8 +124,8 @@ impl HasKind for PtError {
             | E::ChildReadFailed(_)
             | E::ChildSpawnFailed { .. }
             | E::ProxyError(_) => EK::ExternalToolFailed,
-            E::StatedirCreateFailed { .. } => EK::FsPermissions,
-            E::UnconfiguredTransport => EK::InvalidConfig,
+            E::StatedirCreateFailed { .. } => EK::PersistentStateAccessFailed,
+            E::UnconfiguredTransportDueToConcurrentReconfiguration => EK::TransientFailure,
             E::PathExpansionFailed { .. } => EK::InvalidConfig,
             E::NotAFile { .. } => EK::InvalidConfig,
             E::Internal(e) => e.kind(),
@@ -140,12 +146,12 @@ impl HasRetryTime for PtError {
             | E::NotAFile { .. }
             | E::UnsupportedVersion
             | E::Internal(_)
-            | E::UnconfiguredTransport
             | E::Spawn { .. }
             | E::PathExpansionFailed { .. } => RT::Never,
             E::StatedirCreateFailed { .. }
             | E::ClientTransportGaveError { .. }
             | E::Timeout
+            | E::UnconfiguredTransportDueToConcurrentReconfiguration
             | E::ProxyError(_)
             | E::ChildGone
             | E::ChildReadFailed(_) => RT::AfterWaiting,
