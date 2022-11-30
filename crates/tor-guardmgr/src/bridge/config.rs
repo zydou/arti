@@ -245,8 +245,7 @@ impl BridgeConfigBuilder {
                             "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
                         ))
                     } else {
-                        // panic! causes a clippy complaint, so panic like this
-                        None.expect("BridgeAddr is neither addr nor named")
+                        unreachable!("BridgeAddr is neither addr nor named")
                     }
                 }).collect::<Result<Vec<SocketAddr>,&str>>().map_err(|problem| inconsist_transp(
                     "addrs",
