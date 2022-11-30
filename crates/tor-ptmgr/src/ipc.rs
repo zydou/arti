@@ -366,12 +366,14 @@ impl FromStr for PtMessage {
 struct AsyncPtChild {
     /// Channel to receive lines from the child process stdout.
     stdout: Receiver<io::Result<String>>,
+    /// Identifier to put in logging messages.
+    identifier: String,
 }
 
 impl AsyncPtChild {
     /// Wrap an OS child process by spawning a worker thread to forward output from the child
     /// to the asynchronous runtime via use of a channel.
-    fn new(mut child: Child) -> Result<Self, PtError> {
+    fn new(mut child: Child, identifier: String) -> Result<Self, PtError> {
         let (stdin, stdout) = (
             child.stdin.take().ok_or_else(|| {
                 PtError::Internal(internal!("Created child process without stdin pipe"))
@@ -430,7 +432,10 @@ impl AsyncPtChild {
                 }
             }
         });
-        Ok(AsyncPtChild { stdout: rx })
+        Ok(AsyncPtChild {
+            stdout: rx,
+            identifier,
+        })
     }
 
     /// Receive a message from the pluggable transport binary asynchronously.
@@ -450,14 +455,13 @@ impl AsyncPtChild {
                     if let PtMessage::Log { severity, message } = line {
                         // FIXME(eta): I wanted to make this integrate with `tracing` more nicely,
                         //             but gave up after 15 minutes of clicking through spaghetti.
-                        //             It'd also be nice to log /which/ PT this is from here.
                         match &severity as &str {
-                            "error" => error!("[pt] {}", message),
-                            "warning" => warn!("[pt] {}", message),
-                            "notice" => info!("[pt] {}", message),
-                            "info" => debug!("[pt] {}", message),
-                            "debug" => trace!("[pt] {}", message),
-                            x => warn!("[pt {}] {}", x, message),
+                            "error" => error!("[pt {}] {}", self.identifier, message),
+                            "warning" => warn!("[pt {}] {}", self.identifier, message),
+                            "notice" => info!("[pt {}] {}", self.identifier, message),
+                            "info" => debug!("[pt {}] {}", self.identifier, message),
+                            "debug" => trace!("[pt {}] {}", self.identifier, message),
+                            x => warn!("[pt] {} {} {}", self.identifier, x, message),
                         }
                     } else {
                         return Ok(line);
@@ -540,7 +544,7 @@ impl PtParameters {
 }
 
 /// A SOCKS endpoint to connect through a pluggable transport.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PtClientMethod {
     /// The SOCKS protocol version to use.
     pub(crate) kind: SocksVersion,
@@ -569,7 +573,7 @@ pub struct PluggableTransport {
     /// The currently running child, if there is one.
     inner: Option<AsyncPtChild>,
     /// The path to the binary to run.
-    binary_path: PathBuf,
+    pub(crate) binary_path: PathBuf,
     /// Arguments to pass to the binary.
     arguments: Vec<String>,
     /// Configured parameters.
@@ -597,9 +601,16 @@ impl PluggableTransport {
     ///
     /// If it hasn't been launched, the returned map will be empty.
     // TODO(eta): Actually figure out a way to expose this more stably.
-    #[allow(dead_code)] // TODO: remove unless this turns out to be useful.
     pub(crate) fn transport_methods(&self) -> &HashMap<PtTransportName, PtClientMethod> {
         &self.cmethods
+    }
+
+    /// Return a loggable identifier for this transport.
+    pub(crate) fn identifier(&self) -> &str {
+        match &self.inner {
+            Some(child) => &child.identifier,
+            None => "<not yet launched>",
+        }
     }
 
     /// Get the next [`PtMessage`] from the running transport. It is recommended to call this
@@ -614,9 +625,9 @@ impl PluggableTransport {
         let inner = self.inner.as_mut().ok_or(PtError::ChildGone)?;
         let ret = inner.recv().await;
         if let Err(PtError::ChildGone) | Err(PtError::ChildReadFailed { .. }) = ret {
-            // Invalidate the stored methods, since the PT isn't running any more.
+            // FIXME(eta): Currently this lets the caller still think the methods work by calling
+            //             transport_methods.
             self.inner = None;
-            self.cmethods = Default::default();
         }
         ret
     }
@@ -648,9 +659,9 @@ impl PluggableTransport {
                 error: Arc::new(e),
             })?;
 
-        // FIXME(eta): Arguably, this error should be a panic or bug. Not sure how frequent this
-        //             failure case is.
-        let mut async_child = AsyncPtChild::new(child)?;
+        let identifier = crate::pt_identifier(&self.binary_path)?;
+
+        let mut async_child = AsyncPtChild::new(child, identifier)?;
 
         let deadline = Instant::now() + self.params.timeout.unwrap_or(PT_START_TIMEOUT);
         let mut cmethods = HashMap::new();
