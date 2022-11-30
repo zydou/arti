@@ -267,9 +267,9 @@ impl<T: Redactable> Redacted<T> {
 impl<T: Redactable> std::fmt::Display for Redacted<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if flags::unsafe_logging_enabled() {
-            self.0.display_redacted(f)
-        } else {
             std::fmt::Display::fmt(&self.0, f)
+        } else {
+            self.0.display_redacted(f)
         }
     }
 }
@@ -277,9 +277,9 @@ impl<T: Redactable> std::fmt::Display for Redacted<T> {
 impl<T: Redactable> std::fmt::Debug for Redacted<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if flags::unsafe_logging_enabled() {
-            self.0.debug_redacted(f)
-        } else {
             std::fmt::Debug::fmt(&self.0, f)
+        } else {
+            self.0.debug_redacted(f)
         }
     }
 }
@@ -384,5 +384,14 @@ mod test {
         let s2 = with_safe_logging_suppressed(closure3);
         assert_eq!(s1, "[scrubbed], [scrubbed]");
         assert_eq!(s2, expect);
+    }
+
+    #[test]
+    fn test_redacted() {
+        let localhost = std::net::Ipv4Addr::LOCALHOST;
+        let closure = || format!("{}", localhost.redacted());
+
+        assert_eq!(closure(), "127.x.x.x");
+        assert_eq!(with_safe_logging_suppressed(closure), "127.0.0.1");
     }
 }
