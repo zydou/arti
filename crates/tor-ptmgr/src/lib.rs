@@ -53,7 +53,7 @@ use futures::task::SpawnExt;
 use futures::{select, FutureExt, StreamExt};
 use std::collections::HashMap;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tor_linkspec::PtTransportName;
@@ -367,14 +367,12 @@ async fn spawn_from_config<R: Runtime>(
     cfg: ManagedTransportConfig,
 ) -> Result<PluggableTransport, PtError> {
     // FIXME(eta): I really think this expansion should happen at builder validation time...
-    let path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
+    let binary_path = cfg.path.path().map_err(|e| PtError::PathExpansionFailed {
         path: cfg.path,
         error: e,
     })?;
 
-    let filename = path
-        .file_name()
-        .ok_or_else(|| PtError::NotAFile { path: path.clone() })?;
+    let filename = pt_identifier_as_path(&binary_path)?;
 
     // HACK(eta): Currently the state directory is named after the PT binary name. Maybe we should
     //            invent a better way of doing this?
@@ -391,7 +389,7 @@ async fn spawn_from_config<R: Runtime>(
         .build()
         .expect("PtParameters constructed incorrectly");
 
-    let mut pt = PluggableTransport::new(path, cfg.arguments, pt_params);
+    let mut pt = PluggableTransport::new(binary_path, cfg.arguments, pt_params);
     pt.launch(rt).await?;
     Ok(pt)
 }
@@ -469,4 +467,36 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
         // FIXME(eta): Should we track what transports are live somehow, so we can shut them down?
         Ok(Some(Arc::new(factory)))
     }
+}
+
+/// Given a path to a binary for a pluggable transport, return an identifier for
+/// that binary in a format that can be used as a path component.
+fn pt_identifier_as_path(binary_path: impl AsRef<Path>) -> Result<PathBuf, PtError> {
+    // Extract the final component.
+    let mut filename =
+        PathBuf::from(
+            binary_path
+                .as_ref()
+                .file_name()
+                .ok_or_else(|| PtError::NotAFile {
+                    path: binary_path.as_ref().to_path_buf(),
+                })?,
+        );
+
+    // Strip an "exe" off the end, if appropriate.
+    if let Some(ext) = filename.extension() {
+        if ext.eq_ignore_ascii_case(std::env::consts::EXE_EXTENSION) {
+            filename.set_extension("");
+        }
+    }
+
+    Ok(filename)
+}
+
+/// Given a path to a binary for a pluggable transport, return an identifier for
+/// that binary in human-readable form.
+fn pt_identifier(binary_path: impl AsRef<Path>) -> Result<String, PtError> {
+    Ok(pt_identifier_as_path(binary_path)?
+        .to_string_lossy()
+        .to_string())
 }

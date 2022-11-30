@@ -652,11 +652,7 @@ impl PluggableTransport {
                 error: Arc::new(e),
             })?;
 
-        let identifier = self
-            .binary_path
-            .file_name()
-            .map(|x| x.to_string_lossy().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+        let identifier = crate::pt_identifier(&self.binary_path)?;
 
         let mut async_child = AsyncPtChild::new(child, identifier)?;
 
