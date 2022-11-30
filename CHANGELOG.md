@@ -9,7 +9,13 @@ Arti 1.1.0 adds support for Tor's anticensorship features: Bridges
 (unlisted relays), and Pluggable Transports (external tools to hide what
 protocol you're using).
 
-BLURB MORE XXXX
+Use of these features can make Arti more effective at gaining access
+to Tor, in spite of censorship (or breakage) between you the wider
+public internet.
+
+These features are still very new, so there are likely to be bugs,
+and the user experience may not yet be optimal.  But we think the
+security of these features is good enough for a general release.
 
 ### Breaking changes
 
