@@ -319,7 +319,7 @@ impl<R: Runtime> PtMgr<R> {
     }
 
     /// Create a new PtMgr.
-    // TODO pt-client: maybe don't have the Vec directly exposed?
+    // TODO: maybe don't have the Vec directly exposed?
     pub fn new(
         transports: Vec<ManagedTransportConfig>,
         state_dir: PathBuf,
