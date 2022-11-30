@@ -122,7 +122,9 @@ where
         };
 
         {
-            // TODO pt-client: distinguish which transport just succeeded.
+            // TODO(nickm): At some point, it would be helpful to the
+            // bootstrapping logic if we could distinguish which
+            // transport just succeeded.
             event_sender
                 .lock()
                 .expect("Lock poisoned")
