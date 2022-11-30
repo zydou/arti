@@ -108,9 +108,6 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     let mut inbuf = [0_u8; 1024];
     let mut n_read = 0;
     let reply = loop {
-        // Read some more stuff.
-        n_read += stream.read(&mut inbuf[n_read..]).await?;
-
         // try to advance the handshake to the next state.
         let action = match handshake.handshake(&inbuf[..n_read]) {
             Err(_) => {
@@ -142,6 +139,9 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
         if action.finished {
             break handshake.into_reply();
         }
+
+        // Read some more stuff.
+        n_read += stream.read(&mut inbuf[n_read..]).await?;
     };
 
     let status = reply
