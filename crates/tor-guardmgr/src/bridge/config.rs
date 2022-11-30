@@ -370,6 +370,9 @@ impl FromStr for BridgeConfigBuilder {
                 let (transport, addr, settings) = target.into_parts();
                 let addr: Option<BridgeAddr> = addr.into();
                 let addrs = addr.into_iter().collect_vec();
+                // TODO transport.to_string() clones transport and then drops it
+                // PtTransportName::into_inner ought to exist but was deleted
+                // in 119e5f6f754251e0d2db7731f9a7044764f4653e
                 (transport.to_string(), addrs, settings.into_inner())
             }
             other => {
