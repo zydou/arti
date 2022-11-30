@@ -6,7 +6,7 @@
 //! transports", which use TLS over other protocols to avoid detection by
 //! censors.
 
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 use std::net::SocketAddr;
 use std::slice;
 use std::str::FromStr;
@@ -222,22 +222,118 @@ const NONE_ADDR: &str = "-";
 /// connect (typically, to a bridge).
 ///
 /// Not every transport accepts all kinds of addresses.
+///
+/// This is semantically very similar to `Option<BridgeAddr>`,
+/// but it has some of its own conversion methods and bespoke `FromStr` and `Display`.
+//
+// Implementations for `PtTargetAddr` are in terms of those for `BridgeAddr`
+// wheresoever possible, to ensure that they do not diverge in semantics.
 #[derive(
     Clone, Debug, PartialEq, Eq, Hash, serde_with::DeserializeFromStr, serde_with::SerializeDisplay,
 )]
 #[non_exhaustive]
-pub enum BridgeAddr {
+pub enum PtTargetAddr {
     /// An IP address and port for a Tor relay.
     ///
     /// This is the only address type supported by the BuiltIn transport.
-    IpPort(std::net::SocketAddr),
+    IpPort(SocketAddr),
     /// A hostname-and-port target address.  Some transports may support this.
     HostPort(String, u16),
     /// A completely absent target address.  Some transports support this.
     None,
 }
 
-/// An error from parsing a [`BridgeAddr`].
+/// An address of a bridge, for use in configuration.
+///
+/// Contains precisely, either:
+///  * A hostname (as a string), plus a `u16` port; or
+///  * An (IPv4 or IPv6) socket address including port - i.e., a `SocketAddr`,
+///    or to put it another way, an IP address (v4 or v6) plus a `u16` port.
+///
+/// Hostnames which are not syntactically invalid Internet hostnames,
+/// and a port value of zero,
+/// *can* be represented within a `BridgeAddr`.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    serde_with::DeserializeFromStr,
+    serde_with::SerializeDisplay,
+    derive_more::Display,
+)]
+pub struct BridgeAddr(BridgeAddrInner<SocketAddr, String>);
+
+/// `BridgeAddr` contents; type parameters allow use with references to avoid some copying
+///
+/// `SA` is always `SocketAddr` or `&SocketAddr`.
+///
+/// `HN` is always `String` or `&str`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum BridgeAddrInner<SA, HN> {
+    /// An IP address and port for a bridge
+    IpPort(SA),
+    /// A hostname-and-port target address
+    HostPort(HN, u16),
+}
+
+// These methods have long slightly awkward names because we think
+// we may want to change their names and types later, and/or deprecate them.
+// So let's not use up the nice names now.
+//
+// TODO: decide on, and implement, a nicer API, or functions with nicer names.
+// TODO: add From/Into conversions for SocketAddr and maybe (String, u16).
+// TODO: consider providing constructor/accessor/deconstructor to/from Either.
+impl BridgeAddr {
+    /// Create a new `BridgeAddr` referring to a numeric address and port
+    pub fn new_addr_from_sockaddr(sa: SocketAddr) -> Self {
+        BridgeAddr(BridgeAddrInner::IpPort(sa))
+    }
+
+    /// If this is a numeric address, return it as a `SocketAddr`
+    pub fn addr_as_sockaddr(&self) -> Option<&SocketAddr> {
+        match &self.0 {
+            BridgeAddrInner::IpPort(sa) => Some(sa),
+            BridgeAddrInner::HostPort(..) => None,
+        }
+    }
+
+    /// Create a new `BridgeAddr` referring to a numeric address and port
+    pub fn new_named_host_port(hostname: impl Into<String>, port: u16) -> Self {
+        BridgeAddr(BridgeAddrInner::HostPort(hostname.into(), port))
+    }
+
+    /// If this is a named host and port, return it as hostname string and port
+    pub fn named_as_host_port(&self) -> Option<(&str, u16)> {
+        match &self.0 {
+            BridgeAddrInner::IpPort(..) => None,
+            BridgeAddrInner::HostPort(hn, port) => Some((hn, *port)),
+        }
+    }
+}
+
+impl From<PtTargetAddr> for Option<BridgeAddr> {
+    fn from(pt: PtTargetAddr) -> Option<BridgeAddr> {
+        match pt {
+            PtTargetAddr::IpPort(sa) => Some(BridgeAddrInner::IpPort(sa)),
+            PtTargetAddr::HostPort(hn, p) => Some(BridgeAddrInner::HostPort(hn, p)),
+            PtTargetAddr::None => None,
+        }
+        .map(BridgeAddr)
+    }
+}
+impl From<Option<BridgeAddr>> for PtTargetAddr {
+    fn from(pt: Option<BridgeAddr>) -> PtTargetAddr {
+        match pt.map(|ba| ba.0) {
+            Some(BridgeAddrInner::IpPort(sa)) => PtTargetAddr::IpPort(sa),
+            Some(BridgeAddrInner::HostPort(hn, p)) => PtTargetAddr::HostPort(hn, p),
+            None => PtTargetAddr::None,
+        }
+    }
+}
+
+/// An error from parsing a [`BridgeAddr`] or [`PtTargetAddr`].
 #[derive(Clone, Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BridgeAddrError {
@@ -253,38 +349,90 @@ impl FromStr for BridgeAddr {
     type Err = BridgeAddrError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(addr) = s.parse() {
-            Ok(BridgeAddr::IpPort(addr))
+        Ok(BridgeAddr(if let Ok(addr) = s.parse() {
+            BridgeAddrInner::IpPort(addr)
         } else if let Some((name, port)) = s.rsplit_once(':') {
             let port = port
                 .parse()
                 .map_err(|_| BridgeAddrError::BadAddress(s.to_string()))?;
 
-            Ok(Self::HostPort(name.to_string(), port))
-        } else if s == NONE_ADDR {
-            Ok(Self::None)
+            BridgeAddrInner::HostPort(name.to_string(), port)
         } else {
-            Err(BridgeAddrError::BadAddress(s.to_string()))
+            return Err(BridgeAddrError::BadAddress(s.to_string()));
+        }))
+    }
+}
+
+impl FromStr for PtTargetAddr {
+    type Err = BridgeAddrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(if s == NONE_ADDR {
+            PtTargetAddr::None
+        } else {
+            Some(BridgeAddr::from_str(s)?).into()
+        })
+    }
+}
+
+impl PtTargetAddr {
+    /// Obtain an `Option<BridgeAddrInner>` containing references
+    ///
+    /// This is a useful helper for display-like implementations,
+    /// which can then implement for `PtTargetAddr` in terms of the impls for `BridgeAddrInner`.
+    ///
+    /// (See the code comment for `PtTargetAddr`.)
+    fn as_bridge_ref(&self) -> Option<BridgeAddrInner<&SocketAddr, &str>> {
+        match self {
+            PtTargetAddr::IpPort(addr) => Some(BridgeAddrInner::IpPort(addr)),
+            PtTargetAddr::HostPort(host, port) => Some(BridgeAddrInner::HostPort(host, *port)),
+            PtTargetAddr::None => None,
         }
     }
 }
 
-impl Display for BridgeAddr {
+impl<SA: Display, HN: Display> Display for BridgeAddrInner<SA, HN> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BridgeAddr::IpPort(addr) => write!(f, "{}", addr),
-            BridgeAddr::HostPort(host, port) => write!(f, "{}:{}", host, port),
-            BridgeAddr::None => write!(f, "{}", NONE_ADDR),
+            BridgeAddrInner::IpPort(addr) => write!(f, "{}", addr),
+            BridgeAddrInner::HostPort(host, port) => write!(f, "{}:{}", host, port),
+        }
+    }
+}
+
+// impl Display for BridgeAddr is done with derive_more, on the struct definition.
+
+impl Display for PtTargetAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.as_bridge_ref() {
+            Some(b) => write!(f, "{}", b),
+            None => write!(f, "{}", NONE_ADDR),
+        }
+    }
+}
+
+impl<SA: Debug + Redactable, HN: Debug + Display + AsRef<str>> Redactable
+    for BridgeAddrInner<SA, HN>
+{
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BridgeAddrInner::IpPort(a) => a.display_redacted(f),
+            BridgeAddrInner::HostPort(host, port) => write!(f, "{}…:{}", &host.as_ref()[..2], port),
         }
     }
 }
 
 impl Redactable for BridgeAddr {
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BridgeAddr::IpPort(a) => a.redacted().fmt(f),
-            BridgeAddr::HostPort(host, port) => write!(f, "{}…:{}", &host[..2], port),
-            BridgeAddr::None => write!(f, "{}", NONE_ADDR),
+        self.0.display_redacted(f)
+    }
+}
+
+impl Redactable for PtTargetAddr {
+    fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.as_bridge_ref() {
+            Some(b) => b.display_redacted(f),
+            None => write!(f, "{}", NONE_ADDR),
         }
     }
 }
@@ -364,7 +512,7 @@ pub struct PtTarget {
     /// The transport to be used.
     transport: PtTransportName,
     /// The address of the bridge relay, if any.
-    addr: BridgeAddr,
+    addr: PtTargetAddr,
     /// Any additional settings used by the transport.
     #[serde(default)]
     settings: PtTargetSettings,
@@ -391,7 +539,7 @@ pub enum PtTargetInvalidSetting {
 
 impl PtTarget {
     /// Create a new `PtTarget` (with no settings)
-    pub fn new(transport: PtTransportName, addr: BridgeAddr) -> Self {
+    pub fn new(transport: PtTransportName, addr: PtTargetAddr) -> Self {
         PtTarget {
             transport,
             addr,
@@ -414,7 +562,7 @@ impl PtTarget {
     }
 
     /// Get the transport target address (or host and port)
-    pub fn addr(&self) -> &BridgeAddr {
+    pub fn addr(&self) -> &PtTargetAddr {
         &self.addr
     }
 
@@ -435,7 +583,7 @@ impl PtTarget {
     pub fn socket_addrs(&self) -> Option<&[std::net::SocketAddr]> {
         match self {
             PtTarget {
-                addr: BridgeAddr::IpPort(addr),
+                addr: PtTargetAddr::IpPort(addr),
                 ..
             } => Some(std::slice::from_ref(addr)),
 
@@ -444,7 +592,7 @@ impl PtTarget {
     }
 
     /// Consume the `PtTarget` and return the component parts
-    pub fn into_parts(self) -> (PtTransportName, BridgeAddr, PtTargetSettings) {
+    pub fn into_parts(self) -> (PtTransportName, PtTargetAddr, PtTargetSettings) {
         (self.transport, self.addr, self.settings)
     }
 }
@@ -485,9 +633,11 @@ impl ChannelMethod {
     }
 
     /// Return a BridgeAddr that this ChannelMethod uses.
-    pub fn target_addr(&self) -> Option<BridgeAddr> {
+    //
+    // TODO this is kind of weird, what does Some(PtTargetAddr::None) mean?
+    pub fn target_addr(&self) -> Option<PtTargetAddr> {
         match self {
-            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(BridgeAddr::IpPort(addr[0])),
+            ChannelMethod::Direct(addr) if !addr.is_empty() => Some(PtTargetAddr::IpPort(addr[0])),
 
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(PtTarget { addr, .. }) => Some(addr.clone()),
@@ -522,7 +672,7 @@ impl ChannelMethod {
         P: Fn(&std::net::SocketAddr) -> bool,
     {
         #[cfg(feature = "pt-client")]
-        use BridgeAddr as Pt;
+        use PtTargetAddr as Pt;
 
         match self {
             ChannelMethod::Direct(d) if d.is_empty() => {}
@@ -571,11 +721,11 @@ pub enum RetainAddrsError {
     NoAddrsLeft,
 }
 
-impl HasAddrs for BridgeAddr {
+impl HasAddrs for PtTargetAddr {
     fn addrs(&self) -> &[SocketAddr] {
         match self {
-            BridgeAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
-            BridgeAddr::HostPort(..) | BridgeAddr::None => &[],
+            PtTargetAddr::IpPort(sockaddr) => slice::from_ref(sockaddr),
+            PtTargetAddr::HostPort(..) | PtTargetAddr::None => &[],
         }
     }
 }
@@ -661,20 +811,42 @@ mod test {
     #[test]
     fn addr() {
         for addr in &["1.2.3.4:555", "[::1]:9999"] {
-            let a: BridgeAddr = addr.parse().unwrap();
+            let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
 
             let sa: SocketAddr = addr.parse().unwrap();
             assert_eq!(a.addrs(), &[sa]);
+
+            let ba: BridgeAddr = addr.parse().unwrap();
+            assert_eq!(&ba.to_string(), addr);
+
+            assert_eq!(PtTargetAddr::from(Some(ba.clone())), a);
+            let reba: Option<BridgeAddr> = a.into();
+            assert_eq!(reba.as_ref(), Some(&ba));
         }
 
         for addr in &["www.example.com:9100", "-"] {
-            let a: BridgeAddr = addr.parse().unwrap();
+            let a: PtTargetAddr = addr.parse().unwrap();
             assert_eq!(&a.to_string(), addr);
             assert_eq!(a.addrs(), &[]);
+
+            if a == PtTargetAddr::None {
+                let e = BridgeAddr::from_str(addr).unwrap_err();
+                assert!(matches!(e, BridgeAddrError::BadAddress(_)));
+            } else {
+                let ba: BridgeAddr = addr.parse().unwrap();
+                assert_eq!(&ba.to_string(), addr);
+
+                assert_eq!(PtTargetAddr::from(Some(ba.clone())), a);
+                let reba: Option<BridgeAddr> = a.into();
+                assert_eq!(reba.as_ref(), Some(&ba));
+            }
         }
 
         for addr in &["foobar", "<<<>>>"] {
+            let e = PtTargetAddr::from_str(addr).unwrap_err();
+            assert!(matches!(e, BridgeAddrError::BadAddress(_)));
+
             let e = BridgeAddr::from_str(addr).unwrap_err();
             assert!(matches!(e, BridgeAddrError::BadAddress(_)));
         }
@@ -734,7 +906,7 @@ mod test {
 
         let m = ChannelMethod::Direct(vec![a1, a2]);
         assert_eq!(m.socket_addrs(), Some(&[a1, a2][..]));
-        assert_eq!((m.target_addr()), Some(BridgeAddr::IpPort(a1)));
+        assert_eq!((m.target_addr()), Some(PtTargetAddr::IpPort(a1)));
         assert!(m.is_direct());
         assert_eq!(m.transport_id(), TransportId::default());
 
@@ -755,15 +927,15 @@ mod test {
         use itertools::Itertools;
 
         let transport = "giraffe".parse().unwrap();
-        let addr1 = BridgeAddr::HostPort("pt.example.com".into(), 1234);
+        let addr1 = PtTargetAddr::HostPort("pt.example.com".into(), 1234);
         let target1 = PtTarget::new("giraffe".parse().unwrap(), addr1.clone());
         let m1 = ChannelMethod::Pluggable(target1);
 
-        let addr2 = BridgeAddr::IpPort("127.0.0.1:567".parse().unwrap());
+        let addr2 = PtTargetAddr::IpPort("127.0.0.1:567".parse().unwrap());
         let target2 = PtTarget::new("giraffe".parse().unwrap(), addr2.clone());
         let m2 = ChannelMethod::Pluggable(target2);
 
-        let addr3 = BridgeAddr::None;
+        let addr3 = PtTargetAddr::None;
         let target3 = PtTarget::new("giraffe".parse().unwrap(), addr3.clone());
         let m3 = ChannelMethod::Pluggable(target3);
 

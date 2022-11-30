@@ -9,7 +9,7 @@ use crate::{event::ChanMgrEventSender, Error};
 
 use std::time::Duration;
 use tor_error::internal;
-use tor_linkspec::{HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
+use tor_linkspec::{BridgeAddr, HasChanMethod, IntoOwnedChanTarget, OwnedChanTarget};
 use tor_proto::channel::params::ChannelPaddingInstructionsUpdates;
 use tor_rtcompat::{tls::TlsConnector, Runtime, TlsProvider};
 
@@ -110,9 +110,13 @@ where
         let peer_ref = &peer;
 
         let map_ioe = |action: &'static str| {
+            let peer: Option<BridgeAddr> = peer_ref.as_ref().and_then(|peer| {
+                let peer: Option<BridgeAddr> = peer.clone().into();
+                peer
+            });
             move |ioe: io::Error| Error::Io {
                 action,
-                peer: peer_ref.clone().map(Into::into),
+                peer: peer.map(Into::into),
                 source: ioe.into(),
             }
         };

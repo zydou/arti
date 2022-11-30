@@ -15,7 +15,7 @@ use tor_config::{impl_standard_builder, ConfigBuildError};
 use tor_linkspec::RelayId;
 use tor_linkspec::TransportId;
 use tor_linkspec::{ChanTarget, ChannelMethod, HasChanMethod};
-use tor_linkspec::{HasAddrs, HasRelayIds, RelayIdRef, RelayIdType};
+use tor_linkspec::{HasAddrs, HasRelayIds, PtTargetAddr, RelayIdRef, RelayIdType};
 use tor_llcrypto::pk::{ed25519::Ed25519Identity, rsa::RsaIdentity};
 
 use tor_linkspec::BridgeAddr;
@@ -236,19 +236,22 @@ impl BridgeConfigBuilder {
                         "Specified `settings` for a direct bridge connection",
                     ));
                 }
-                let addrs = addrs.iter().filter_map(|pta| match pta {
-                BridgeAddr::IpPort(sa) => Some(Ok(*sa)),
-                BridgeAddr::HostPort(..) => Some(Err(
-                    "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
-                )),
-                BridgeAddr::None => None,
-                _ => Some(Err(
-                    "`addrs` contains unspported target address type, but only numeric addresses are supported for a direct bridge connection"
-                )),
-            }).collect::<Result<Vec<SocketAddr>,&str>>().map_err(|problem| inconsist_transp(
-                "addrs",
-                problem,
-            ))?;
+                let addrs = addrs.iter().filter_map(|ba| {
+                    #[allow(clippy::redundant_pattern_matching)] // for consistency
+                    if let Some(sa) = ba.addr_as_sockaddr() {
+                        Some(Ok(*sa))
+                    } else if let Some(_) = ba.named_as_host_port() {
+                        Some(Err(
+                            "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
+                        ))
+                    } else {
+                        // panic! causes a clippy complaint, so panic like this
+                        None.expect("BridgeAddr is neither addr nor named")
+                    }
+                }).collect::<Result<Vec<SocketAddr>,&str>>().map_err(|problem| inconsist_transp(
+                    "addrs",
+                    problem,
+                ))?;
                 if addrs.is_empty() {
                     return Err(inconsist_transp(
                         "addrs",
@@ -263,8 +266,8 @@ impl BridgeConfigBuilder {
                 let transport = transp.into_pluggable().expect("became not pluggable!");
                 let addr =
                     match addrs {
-                        [] => BridgeAddr::None,
-                        [addr] => addr.clone(),
+                        [] => PtTargetAddr::None,
+                        [addr] => Some(addr.clone()).into(),
                         [_, _, ..] => return Err(inconsist_transp(
                             "addrs",
                             "Transport (non-direct bridge) only supports a single nominal address",
@@ -357,13 +360,18 @@ impl FromStr for BridgeConfigBuilder {
         let (transport, addrs, settings) = match bridge.addrs {
             ChannelMethod::Direct(addrs) => (
                 "".into(),
-                addrs.into_iter().map(BridgeAddr::IpPort).collect(),
+                addrs
+                    .into_iter()
+                    .map(BridgeAddr::new_addr_from_sockaddr)
+                    .collect(),
                 vec![],
             ),
             #[cfg(feature = "pt-client")]
             ChannelMethod::Pluggable(target) => {
                 let (transport, addr, settings) = target.into_parts();
-                (transport.to_string(), vec![addr], settings.into_inner())
+                let addr: Option<BridgeAddr> = addr.into();
+                let addrs = addr.into_iter().collect_vec();
+                (transport.to_string(), addrs, settings.into_inner())
             }
             other => {
                 return Err(BridgeParseError::UnsupportedChannelMethod {
@@ -455,7 +463,7 @@ impl FromStr for Inner {
                             word: word.to_string(),
                             source,
                         })?
-                        .unwrap_or(BridgeAddr::None);
+                        .unwrap_or(PtTargetAddr::None);
                     ChannelMethod::Pluggable(PtTarget::new(pt_name, addr))
                 }
             }
@@ -605,7 +613,7 @@ mod test {
     use super::*;
 
     #[cfg(feature = "pt-client")]
-    fn mk_pt_target(name: &str, addr: BridgeAddr, params: &[(&str, &str)]) -> ChannelMethod {
+    fn mk_pt_target(name: &str, addr: PtTargetAddr, params: &[(&str, &str)]) -> ChannelMethod {
         let mut target = PtTarget::new(name.parse().unwrap(), addr);
         for &(k, v) in params {
             target.push_setting(k, v).unwrap();
@@ -667,7 +675,7 @@ mod test {
         ], Inner {
             addrs: mk_pt_target(
                 "obfs4",
-                BridgeAddr::IpPort("38.229.33.83:80".parse().unwrap()),
+                PtTargetAddr::IpPort("38.229.33.83:80".parse().unwrap()),
                 &[
                     ("cert", "VwEFpk9F/UN9JED7XpG1XOjm/O8ZCXK80oPecgWnNDZDv5pdkhq1Op" ),
                     ("iat-mode", "1"),
@@ -684,7 +692,7 @@ mod test {
         ], Inner {
             addrs: mk_pt_target(
                 "obfs4",
-                BridgeAddr::HostPort("some-host".into(), 80),
+                PtTargetAddr::HostPort("some-host".into(), 80),
                 &[
                     ("iat-mode", "1"),
                 ],

@@ -21,7 +21,7 @@ use std::{
 
 use futures::{AsyncReadExt, AsyncWriteExt};
 use tor_error::internal;
-use tor_linkspec::BridgeAddr;
+use tor_linkspec::PtTargetAddr;
 use tor_rtcompat::TcpProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
@@ -67,7 +67,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     runtime: &R,
     proxy: &SocketAddr,
     protocol: &Protocol,
-    target: &BridgeAddr,
+    target: &PtTargetAddr,
 ) -> Result<R::TcpStream, ProxyError> {
     let mut stream = runtime
         .connect(proxy)
@@ -77,9 +77,9 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     let Protocol::Socks(version, auth) = protocol;
 
     let (target_addr, target_port): (tor_socksproto::SocksAddr, u16) = match target {
-        BridgeAddr::IpPort(a) => (SocksAddr::Ip(a.ip()), a.port()),
+        PtTargetAddr::IpPort(a) => (SocksAddr::Ip(a.ip()), a.port()),
         #[cfg(feature = "pt-client")]
-        BridgeAddr::HostPort(host, port) => (
+        PtTargetAddr::HostPort(host, port) => (
             SocksAddr::Hostname(
                 host.clone()
                     .try_into()
@@ -88,7 +88,7 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
             *port,
         ),
         #[cfg(feature = "pt-client")]
-        BridgeAddr::None => (SocksAddr::Ip(NO_ADDR), 1),
+        PtTargetAddr::None => (SocksAddr::Ip(NO_ADDR), 1),
         _ => return Err(ProxyError::UnrecognizedAddr),
     };
 
