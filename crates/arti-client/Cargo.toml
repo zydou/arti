@@ -39,7 +39,8 @@ native-tls = ["tor-rtcompat/native-tls"]
 pt-client = ["bridge-client", "tor-chanmgr/pt-client", "tor-guardmgr/pt-client", "tor-ptmgr"]
 rustls = ["tor-rtcompat/rustls"]
 
-static = ["static-sqlite", "static-native-tls"]
+# depends directly on tor-rtcompat/static so native-tls doesn't get automatically included
+static = ["static-sqlite", "tor-rtcompat/static"]
 static-sqlite = ["tor-dirmgr/static"]
 static-native-tls = ["tor-rtcompat/static", "native-tls"]
 
