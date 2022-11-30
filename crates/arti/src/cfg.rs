@@ -565,10 +565,9 @@ mod test {
     ///
     /// Used by `exhaustive_1`.
     const CONFIG_KEYS_EXPECT_NO_EXAMPLE: &[&str] = &[
-        // TODO pt-client: Provide a test case that parses the (more complicated)
-        // example present in ARTI_EXAMPLE_CONFIG.
-        // https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823#note_2854365
-        // and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        // TODO: Provide a test case that parses the `[bridges.transports]` example.
+        // See and bullet points 2 and 3 in the doc for `exhaustive_1`, below.
+        // https://gitlab.torproject.org/tpo/core/arti/-/issues/674
         #[cfg(feature = "pt-client")]
         "bridges.transports",
         "tor_network.authorities",
