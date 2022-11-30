@@ -81,8 +81,12 @@ pub enum PtError {
         #[source]
         error: CfgPathError,
     },
-    /// A binary path was a directory or something instead of a file.
-    #[error("Configured binary path {} isn't a file", path.anonymize_home())]
+    /// A binary path does not have the syntax of a *file* name.
+    ///
+    /// For example, it ends in a slash, indicating a diretory.
+    //
+    // TODO: this should be rejected at the configuration parsing level, and treated as a bug here.
+    #[error("Configured binary path {} doesn't have syntax of a file", path.anonymize_home())]
     NotAFile {
         /// The offending path.
         path: PathBuf,
