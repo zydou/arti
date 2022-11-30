@@ -91,7 +91,7 @@ we believe that the quality of these features is good enough to be used.
 - Some objects can now be marked as "Redactable". A "Redactable" object
   is one that can be displayed in the logs with some of its contents
   suppressed. For example, whereas a full IP might be "192.0.2.7",
-  and a completely removed IP would be logged as "[scrubbed]",
+  and a completely removed IP would be logged as "`[scrubbed]`",
   a redacted IP might be displayed as "192.x.x.x". ([#648], [!882])
 
 ### Testing
@@ -143,6 +143,112 @@ Trinity Pointard.
 
 Also, our deep thanks to [Zcash Community Grants] for funding the
 development of Arti 1.1.0!
+
+[!634]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/634
+[!739]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/739
+[!744]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/744
+[!745]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/745
+[!746]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/746
+[!747]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/747
+[!755]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/755
+[!758]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/758
+[!759]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/759
+[!760]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/760
+[!767]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/767
+[!768]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/768
+[!769]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/769
+[!771]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/771
+[!773]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/773
+[!774]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/774
+[!775]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/775
+[!776]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/776
+[!779]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/779
+[!780]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/780
+[!781]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/781
+[!782]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/782
+[!783]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/783
+[!785]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/785
+[!790]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/790
+[!791]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/791
+[!793]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/793
+[!795]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/795
+[!797]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/797
+[!803]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/803
+[!804]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/804
+[!806]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/806
+[!808]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/808
+[!810]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/810
+[!813]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/813
+[!814]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/814
+[!815]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/815
+[!818]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/818
+[!819]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/819
+[!820]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/820
+[!823]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/823
+[!826]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/826
+[!827]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/827
+[!828]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/828
+[!830]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/830
+[!831]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/831
+[!832]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/832
+[!834]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/834
+[!837]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/837
+[!840]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/840
+[!844]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/844
+[!845]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845
+[!847]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/847
+[!849]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/849
+[!850]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/850
+[!851]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/851
+[!852]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/852
+[!857]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/857
+[!859]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/859
+[!864]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/864
+[!868]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/868
+[!869]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/869
+[!870]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/870
+[!874]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/874
+[!877]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/877
+[!880]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/880
+[!881]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/881
+[!882]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/882
+[!886]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/886
+[!887]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/887
+[!888]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/888
+[!893]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/893
+[!901]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/901
+[!903]: https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/903
+[#174]: https://gitlab.torproject.org/tpo/core/arti/-/issues/174
+[#303]: https://gitlab.torproject.org/tpo/core/arti/-/issues/303
+[#394]: https://gitlab.torproject.org/tpo/core/arti/-/issues/394
+[#526]: https://gitlab.torproject.org/tpo/core/arti/-/issues/526
+[#562]: https://gitlab.torproject.org/tpo/core/arti/-/issues/562
+[#585]: https://gitlab.torproject.org/tpo/core/arti/-/issues/585
+[#586]: https://gitlab.torproject.org/tpo/core/arti/-/issues/586
+[#591]: https://gitlab.torproject.org/tpo/core/arti/-/issues/591
+[#599]: https://gitlab.torproject.org/tpo/core/arti/-/issues/599
+[#600]: https://gitlab.torproject.org/tpo/core/arti/-/issues/600
+[#603]: https://gitlab.torproject.org/tpo/core/arti/-/issues/603
+[#606]: https://gitlab.torproject.org/tpo/core/arti/-/issues/606
+[#613]: https://gitlab.torproject.org/tpo/core/arti/-/issues/613
+[#614]: https://gitlab.torproject.org/tpo/core/arti/-/issues/614
+[#616]: https://gitlab.torproject.org/tpo/core/arti/-/issues/616
+[#621]: https://gitlab.torproject.org/tpo/core/arti/-/issues/621
+[#640]: https://gitlab.torproject.org/tpo/core/arti/-/issues/640
+[#647]: https://gitlab.torproject.org/tpo/core/arti/-/issues/647
+[#648]: https://gitlab.torproject.org/tpo/core/arti/-/issues/648
+[#650]: https://gitlab.torproject.org/tpo/core/arti/-/issues/650
+[#659]: https://gitlab.torproject.org/tpo/core/arti/-/issues/659
+[19fdf196d89e670f]: https://gitlab.torproject.org/tpo/core/arti/-/commit/19fdf196d89e670f3487caa756a8194076f9226b
+[95a95076a77f4447]: https://gitlab.torproject.org/tpo/core/arti/-/commit/95a95076a77f44478736464a6249bee345713ecc
+[b08073c2d43d7be5]: https://gitlab.torproject.org/tpo/core/arti/-/commit/b08073c2d43d7be58db62d6c6a51721dc6f797f1
+[c41305d1100d9685]: https://gitlab.torproject.org/tpo/core/arti/-/commit/c41305d1100d96854707eef988380e01ad2a5782
+[dc55272602cbc9ff]: https://gitlab.torproject.org/tpo/core/arti/-/commit/dc55272602cbc9ff3b792a9e4231533d4a12e007
+["Minimum supported Rust Version" in `README.md`]: https://gitlab.torproject.org/tpo/core/arti/-/blob/main/README.md#minimum-supported-rust-version
+[Shadow]: https://shadow.github.io
+[Zcash Community Grants]: https://zcashcommunitygrants.org/
+[`clap` v3]: https://docs.rs/clap/3.2.23/clap/index.html
+[`hostname-validator`]: https://crates.io/crates/hostname-validator
 
 
 
