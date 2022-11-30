@@ -296,8 +296,6 @@ pub struct PtMgr<R> {
     state: Arc<RwLock<PtSharedState>>,
     /// PtReactor channel.
     tx: UnboundedSender<PtReactorMessage>,
-    /// Directory to store PT state in.
-    state_dir: PathBuf,
 }
 
 impl<R: Runtime> PtMgr<R> {
@@ -332,7 +330,7 @@ impl<R: Runtime> PtMgr<R> {
         let state = Arc::new(RwLock::new(state));
         let (tx, rx) = mpsc::unbounded();
 
-        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir.clone());
+        let mut reactor = PtReactor::new(rt.clone(), state.clone(), rx, state_dir);
         rt.spawn(async move {
             loop {
                 match reactor.run_one_step().await {
@@ -351,7 +349,6 @@ impl<R: Runtime> PtMgr<R> {
             runtime: rt,
             state,
             tx,
-            state_dir,
         })
     }
 
