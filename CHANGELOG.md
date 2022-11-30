@@ -10,12 +10,13 @@ Arti 1.1.0 adds support for Tor's anticensorship features: Bridges
 protocol you're using).
 
 Use of these features can make Arti more effective at gaining access
-to Tor, in spite of censorship (or breakage) between you the wider
+to Tor, in spite of censorship (or breakage) between you and the wider
 public internet.
 
-These features are still very new, so there are likely to be bugs,
-and the user experience may not yet be optimal.  But we think the
-security of these features is good enough for a general release.
+These features are still very new, so there are likely to be bugs, and
+the user experience may not yet be optimal. (In particular, there are a
+bunch of spurious warnings and error messages in the logs.) Nonetheless,
+we believe that the quality of these features is good enough to be used.
 
 ### Breaking changes
 
@@ -44,6 +45,7 @@ security of these features is good enough for a general release.
 - Arti can now connect to bridges when compiled with the `bridge-client`
   feature.  (This is on by default in the `arti` binary.)
   As part of this feature, we have had to implement:
+
   - Configuration logic for bridges ([#599], [!744], [!745], [!767],
     [!781], [!780], [!783], [!826], [!874], [!877], [!881])
   - Data structures to keep track of relays based on possibly
@@ -80,6 +82,8 @@ security of these features is good enough for a general release.
     and launch them on demand. ([!886], [!893])
   - Support code to integrate the pluggable transport manager with
     `arti-client`. ([#659])
+  - A "reactor" task to monitor PT status and launch pluggable transports
+    as needed. ([!901], [!903])
 
 - Paths in the configuration can now be configured using
   `${PROGRAM_DIR}`, which means "the directory containing the current
@@ -130,14 +134,15 @@ security of these features is good enough for a general release.
   guards. ([#647], [!868])
 - Better error reporting for some kinds of router descriptor parsing failures
   ([!870])
-
-
-
 - Numerous typo and comment fixes.
 
-HAVE REVIEWED THROUGH: b36a23cfd331aa5b3527fc825e5c867b97da97ab
+Thanks to everyone who has contributed to this release, including
+Alexander Færøy, arnabanimesh, breezykermo, Dimitris Apostolou,
+EliTheCoder, Emil Engler, Gabriel de Perthuis, Jim Newsome, Reylaba, and
+Trinity Pointard.
 
-
+Also, our deep thanks to [Zcash Community Grants] for funding the
+development of Arti 1.1.0!
 
 
 
