@@ -31,7 +31,7 @@ impl<R: Runtime> DefaultTransport<R> {
 }
 
 #[async_trait]
-impl<R: Runtime> crate::transport::TransportHelper for DefaultTransport<R> {
+impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
     type Stream = <R as TcpProvider>::TcpStream;
 
     /// Implements the transport: makes a TCP connection (possibly

@@ -25,14 +25,14 @@ pub use proxied::ProxyError;
 /// TLS over some stream-like type, and you only want to define the stream-like
 /// type.
 ///
-/// To convert a [`TransportHelper`] into a
+/// To convert a [`TransportImplHelper`] into a
 /// [`ChannelFactory`](crate::factory::ChannelFactory), wrap it in a
 /// `ChanBuilder`.
 //
 // TODO: Maybe move this to a separate crate so that tor-ptmgr can be
 // used without having to depend on chanmgr.
 #[async_trait]
-pub trait TransportHelper {
+pub trait TransportImplHelper {
     /// The type of the resulting stream.
     type Stream: AsyncRead + AsyncWrite + Send + Sync + 'static;
 

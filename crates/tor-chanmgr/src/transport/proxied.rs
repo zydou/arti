@@ -28,7 +28,7 @@ use tor_socksproto::{
 };
 
 #[cfg(feature = "pt-client")]
-use super::TransportHelper;
+use super::TransportImplHelper;
 #[cfg(feature = "pt-client")]
 use async_trait::async_trait;
 #[cfg(feature = "pt-client")]
@@ -285,7 +285,7 @@ impl<R: TcpProvider + Send + Sync> ExternalProxyPlugin<R> {
 
 #[cfg(feature = "pt-client")]
 #[async_trait]
-impl<R: TcpProvider + Send + Sync> TransportHelper for ExternalProxyPlugin<R> {
+impl<R: TcpProvider + Send + Sync> TransportImplHelper for ExternalProxyPlugin<R> {
     type Stream = R::TcpStream;
 
     async fn connect(

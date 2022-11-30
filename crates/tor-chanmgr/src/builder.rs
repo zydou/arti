@@ -4,7 +4,7 @@ use std::io;
 use std::sync::{Arc, Mutex};
 
 use crate::factory::{BootstrapReporter, ChannelFactory};
-use crate::transport::TransportHelper;
+use crate::transport::TransportImplHelper;
 use crate::{event::ChanMgrEventSender, Error};
 
 use std::time::Duration;
@@ -28,7 +28,7 @@ use futures::task::SpawnExt;
 ///
 /// This channel builder does not retry on failure, but it _does_ implement a
 /// time-out.
-pub struct ChanBuilder<R: Runtime, H: TransportHelper>
+pub struct ChanBuilder<R: Runtime, H: TransportImplHelper>
 where
     R: tor_rtcompat::TlsProvider<H::Stream>,
 {
@@ -40,7 +40,7 @@ where
     tls_connector: <R as TlsProvider<H::Stream>>::Connector,
 }
 
-impl<R: Runtime, H: TransportHelper> ChanBuilder<R, H>
+impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
 where
     R: TlsProvider<H::Stream>,
 {
@@ -55,7 +55,7 @@ where
     }
 }
 #[async_trait]
-impl<R: Runtime, H: TransportHelper> ChannelFactory for ChanBuilder<R, H>
+impl<R: Runtime, H: TransportImplHelper> ChannelFactory for ChanBuilder<R, H>
 where
     R: tor_rtcompat::TlsProvider<H::Stream> + Send + Sync,
     H: Send + Sync,
@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<R: Runtime, H: TransportHelper> ChanBuilder<R, H>
+impl<R: Runtime, H: TransportImplHelper> ChanBuilder<R, H>
 where
     R: tor_rtcompat::TlsProvider<H::Stream> + Send + Sync,
     H: Send + Sync,

@@ -34,7 +34,7 @@ impl BootstrapReporter {
 /// construct all of its channels.
 ///
 /// A `ChannelFactory` can be implemented in terms of a
-/// [`TransportHelper`](crate::transport::TransportHelper), by wrapping it in a
+/// [`TransportImplHelper`](crate::transport::TransportImplHelper), by wrapping it in a
 /// `ChanBuilder`.
 ///
 // FIXME(eta): Rectify the below situation.
