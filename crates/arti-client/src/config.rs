@@ -210,14 +210,6 @@ impl StorageConfig {
 
 /// Configuration for bridges and pluggable transports
 //
-// TODO pt-client: This type is too high up the stack:
-// It is likely that this type will want to move much lower down in the crate
-// stack so that (eg) guardmgr can actually do something useful with the `BridgeList`
-// and resolve the situation with `enabled` and so on.
-//
-// Possibly guardmgr will want to take an `Arc<dyn AsRef<BridgesConfig>>` or something;
-// that would enable passing it an "extract" from the config without actually copying it.
-//
 // We leave this as an empty struct even when bridge support is disabled,
 // as otherwise the default config file would generate an unknown section warning.
 #[derive(Debug, Clone, Builder, Eq, PartialEq)]

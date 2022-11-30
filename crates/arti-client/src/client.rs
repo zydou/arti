@@ -508,9 +508,6 @@ impl<R: Runtime> TorClient<R> {
         #[cfg(feature = "bridge-client")]
         let bridge_desc_mgr = Arc::new(Mutex::new(None));
 
-        // TODO pt-client: We'll need to tell the ptmgr to launch any background
-        // tasks, if it has not already done so.
-
         runtime
             .spawn(tasks_monitor_dormant(
                 dormant_recv,
