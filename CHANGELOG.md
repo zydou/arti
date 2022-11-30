@@ -22,7 +22,7 @@ we believe that the quality of these features is good enough to be used.
 
 - Arti now requires Rust 1.60 or later. This allows us to use a few new
   features, and to upgrade a few of our dependencies that had grown
-  stale. See ["Minimum supported Rust Version" in `README.md`] for more
+  stale. See ["Minimum Supported Rust Version" in `README.md`] for more
   information on our MSRV policy. ([#591], [#526], [#613], [#621], [!837])
 
 ### Breaking changes in lower level crates
