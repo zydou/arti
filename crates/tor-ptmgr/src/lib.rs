@@ -37,8 +37,6 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
-#![allow(dead_code)] // FIXME TODO pt-client remove after implementing reactor.
-
 pub mod config;
 pub mod err;
 pub mod ipc;
