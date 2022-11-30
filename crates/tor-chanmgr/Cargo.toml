@@ -1,6 +1,6 @@
 [package]
 name = "tor-chanmgr"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -28,22 +28,22 @@ educe = "0.4.6"
 futures = "0.3.14"
 postage = { version = "0.5.0", default-features = false, features = ["futures-traits"] }
 rand = "0.8"
-safelog = { path = "../safelog", version = "0.1.2" }
+safelog = { path = "../safelog", version = "0.2.0" }
 serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.0" }
-tor-cell = { path = "../tor-cell", version = "0.6.1" }
-tor-config = { path = "../tor-config", version = "0.6.0" }
-tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.5.1" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
-tor-netdir = { path = "../tor-netdir", version = "0.6.0" }
-tor-proto = { path = "../tor-proto", version = "0.7.0" }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0" }
-tor-socksproto = { path = "../tor-socksproto", version = "0.5.1", default-features = false, features = [
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
+tor-cell = { path = "../tor-cell", version = "0.7.0" }
+tor-config = { path = "../tor-config", version = "0.7.0" }
+tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
+tor-netdir = { path = "../tor-netdir", version = "0.7.0" }
+tor-proto = { path = "../tor-proto", version = "0.8.0" }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.0" }
+tor-socksproto = { path = "../tor-socksproto", version = "0.6.0", default-features = false, features = [
     "client-handshake",
 ] }
-tor-units = { path = "../tor-units", version = "0.3.1" }
+tor-units = { path = "../tor-units", version = "0.4.0" }
 tracing = "0.1.18"
 void = "1"
 
@@ -52,11 +52,11 @@ float_eq = "1.0.0"
 futures-await-test = "0.3.0"
 hex-literal = "0.3"
 itertools = "0.10.1"
-tor-cell = { path = "../tor-cell", version = "0.6.1", features = ["testing"] }
-tor-netdir = { path = "../tor-netdir", version = "0.6.0", features = ["testing"] }
-tor-proto = { path = "../tor-proto", version = "0.7.0", features = ["testing"] }
-tor-rtcompat = { path = "../tor-rtcompat", version = "0.7.0", features = ["tokio", "native-tls"] }
-tor-rtmock = { path = "../tor-rtmock", version = "0.6.0" }
+tor-cell = { path = "../tor-cell", version = "0.7.0", features = ["testing"] }
+tor-netdir = { path = "../tor-netdir", version = "0.7.0", features = ["testing"] }
+tor-proto = { path = "../tor-proto", version = "0.8.0", features = ["testing"] }
+tor-rtcompat = { path = "../tor-rtcompat", version = "0.8.0", features = ["tokio", "native-tls"] }
+tor-rtmock = { path = "../tor-rtmock", version = "0.7.0" }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
