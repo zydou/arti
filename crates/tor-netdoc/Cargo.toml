@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdoc"
-version = "0.5.2"
+version = "0.6.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -60,12 +60,12 @@ signature = "1"
 thiserror = "1"
 time = { version = "0.3", features = ["std", "parsing", "macros"] }
 tinystr = "0.7.0"
-tor-bytes = { path = "../tor-bytes", version = "0.5.1" }
-tor-cert = { path = "../tor-cert", version = "0.5.0" }
-tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
-tor-protover = { path = "../tor-protover", version = "0.3.0" }
+tor-bytes = { path = "../tor-bytes", version = "0.6.0" }
+tor-cert = { path = "../tor-cert", version = "0.6.0" }
+tor-checkable = { path = "../tor-checkable", version = "0.4.0" }
+tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
+tor-protover = { path = "../tor-protover", version = "0.4.0" }
 visibility = { version = "0.0.1", optional = true }
 visible = { version = "0.0.1", optional = true }
 weak-table = "0.3.0"

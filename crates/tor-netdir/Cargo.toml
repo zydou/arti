@@ -1,6 +1,6 @@
 [package]
 name = "tor-netdir"
-version = "0.6.1"
+version = "0.7.0"
 authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
 edition = "2021"
 rust-version = "1.60"
@@ -39,22 +39,22 @@ signature = "1"
 static_assertions = "1"
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1"
-tor-checkable = { path = "../tor-checkable", version = "0.3.0" }
-tor-config = { path = "../tor-config", version = "0.6.0" }
-tor-error = { path = "../tor-error", version = "0.3.2" }
-tor-linkspec = { path = "../tor-linkspec", version = "0.5.1" }
-tor-llcrypto = { path = "../tor-llcrypto", version = "0.3.5" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.5.2" }
-tor-protover = { path = "../tor-protover", version = "0.3.0" }
-tor-units = { path = "../tor-units", version = "0.3.1" }
+tor-checkable = { path = "../tor-checkable", version = "0.4.0" }
+tor-config = { path = "../tor-config", version = "0.7.0" }
+tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-linkspec = { path = "../tor-linkspec", version = "0.6.0" }
+tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.0" }
+tor-protover = { path = "../tor-protover", version = "0.4.0" }
+tor-units = { path = "../tor-units", version = "0.4.0" }
 tracing = "0.1.18"
 
 [dev-dependencies]
 float_eq = "1.0.0"
 hex = "0.4"
 rand_chacha = "0.3"
-tor-basic-utils = { path = "../tor-basic-utils", version = "0.4.0" }
-tor-netdoc = { path = "../tor-netdoc", version = "0.5.2", features = ["build_docs"] }
+tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
+tor-netdoc = { path = "../tor-netdoc", version = "0.6.0", features = ["build_docs"] }
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
