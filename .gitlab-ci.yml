@@ -199,7 +199,7 @@ integration-shadow:
   variables:
     JOB_SHADOW_REPO: "https://github.com/shadow/shadow.git"
     JOB_SHADOW_BRANCH: "main"
-    JOB_SHADOW_COMMIT: "v2.2.0"
+    JOB_SHADOW_COMMIT: "v2.3.0"
 
     JOB_TGEN_REPO: "https://github.com/shadow/tgen.git"
     JOB_TGEN_BRANCH: "main"
@@ -215,6 +215,7 @@ integration-shadow:
   image: debian:11-slim
   script:
     - ./maint/preserve -u
+    - echo -e "\e[0Ksection_start:`date +%s`:shadow_install_deps[collapsed=true]\r\e[0KInstalling shadow and tgen"
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
 
@@ -267,6 +268,9 @@ integration-shadow:
 
     # Ensure newly installed executables can be found
     - hash -r
+
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
+    - echo -e "\e[0Ksection_end:`date +%s`:shadow_install_deps\r\e[0K"
 
     # Run tests
     - pushd tests/shadow
