@@ -190,12 +190,6 @@ impl CompoundFactory {
         }
     }
 
-    /// Replace the default factory in this object.
-    #[cfg(feature = "experimental-api")]
-    pub(crate) fn replace_default_factory(&mut self, factory: Arc<dyn ChannelFactory + 'static>) {
-        self.default_factory = factory;
-    }
-
     #[cfg(feature = "pt-client")]
     /// Replace the PtMgr in this object.
     pub(crate) fn replace_ptmgr(&mut self, ptmgr: Arc<dyn AbstractPtMgr + 'static>) {

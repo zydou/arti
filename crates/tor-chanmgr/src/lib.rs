@@ -271,19 +271,6 @@ impl<R: Runtime> ChanMgr<R> {
         Ok(r?)
     }
 
-    /// Replace the channel factory that we use for making regular
-    /// channels to the Tor network.
-    ///
-    /// This method can be used to e.g. tell Arti to use a proxy for
-    /// outgoing connections.
-    #[cfg(feature = "experimental-api")]
-    pub fn set_default_transport(&self, factory: Arc<dyn factory::ChannelFactory + 'static>) {
-        // TODO pt-client: Perhaps we actually want to take this as part of the constructor instead?
-        // TODO pt-client: It's not clear to me that we really need this method.
-        self.mgr
-            .with_mut_builder(|f| f.replace_default_factory(factory));
-    }
-
     /// Replace the transport registry with one that may know about
     /// more transports.
     #[cfg(feature = "pt-client")]
