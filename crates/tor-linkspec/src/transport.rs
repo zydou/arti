@@ -292,7 +292,7 @@ impl BridgeAddr {
     }
 
     /// If this is a numeric address, return it as a `SocketAddr`
-    pub fn addr_as_sockaddr(&self) -> Option<&SocketAddr> {
+    pub fn as_socketaddr(&self) -> Option<&SocketAddr> {
         match &self.0 {
             BridgeAddrInner::IpPort(sa) => Some(sa),
             BridgeAddrInner::HostPort(..) => None,
@@ -305,7 +305,7 @@ impl BridgeAddr {
     }
 
     /// If this is a named host and port, return it as hostname string and port
-    pub fn named_as_host_port(&self) -> Option<(&str, u16)> {
+    pub fn as_host_port(&self) -> Option<(&str, u16)> {
         match &self.0 {
             BridgeAddrInner::IpPort(..) => None,
             BridgeAddrInner::HostPort(hn, port) => Some((hn, *port)),

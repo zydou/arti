@@ -238,9 +238,9 @@ impl BridgeConfigBuilder {
                 }
                 let addrs = addrs.iter().filter_map(|ba| {
                     #[allow(clippy::redundant_pattern_matching)] // for consistency
-                    if let Some(sa) = ba.addr_as_sockaddr() {
+                    if let Some(sa) = ba.as_socketaddr() {
                         Some(Ok(*sa))
-                    } else if let Some(_) = ba.named_as_host_port() {
+                    } else if let Some(_) = ba.as_host_port() {
                         Some(Err(
                             "`addrs` contains hostname and port, but only numeric addresses are supported for a direct bridge connection",
                         ))
