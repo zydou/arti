@@ -1708,7 +1708,7 @@ impl FirstHop {
             && matches!(self.inner, FirstHopInner::Chan(_))
         {
             if let Present(bridge_relay) = bridges.bridge_relay_by_guard(self) {
-                if let Some(circ_target) = bridge_relay.for_circuit_usage() {
+                if let Some(circ_target) = bridge_relay.as_relay_with_desc() {
                     self.inner =
                         FirstHopInner::Circ(OwnedCircTarget::from_circ_target(&circ_target));
                 }
