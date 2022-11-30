@@ -174,6 +174,7 @@ impl<R: Runtime> PtReactor<R> {
                     warn!("Bug: PT {} succeeded, but did not give the same transports we asked for. ({:?} vs {:?})",
                           pt.identifier(), found, requested);
                 }
+                self.running.push(pt);
             }
         }
     }
