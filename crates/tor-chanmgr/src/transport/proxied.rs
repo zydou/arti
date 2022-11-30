@@ -398,7 +398,8 @@ fn settings_to_protocol(vers: SocksVersion, s: String) -> Result<Protocol, Proxy
             Protocol::Socks(SocksVersion::V4, SocksAuth::Socks4(bytes))
         }
     } else if bytes.len() <= 255 {
-        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, vec![]))
+        // The [0] here is mandatory according to the pt-spec.
+        Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, vec![0]))
     } else if bytes.len() <= (255 * 2) {
         let password = bytes.split_off(255);
         Protocol::Socks(SocksVersion::V5, SocksAuth::Username(bytes, password))
@@ -461,11 +462,11 @@ mod test {
         assert_eq!(s(0, 0), Protocol::Socks(V5, SocksAuth::NoAuth));
         assert_eq!(
             s(0, 50),
-            Protocol::Socks(V5, SocksAuth::Username(v(0, 50), vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 50), vec![0]))
         );
         assert_eq!(
             s(0, 255),
-            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(v(0, 255), vec![0]))
         );
         assert_eq!(
             s(0, 256),
@@ -489,7 +490,7 @@ mod test {
         // Small requests with "0" bytes work fine...
         assert_eq!(
             settings_to_protocol(V5, "\0".to_owned()).unwrap(),
-            Protocol::Socks(V5, SocksAuth::Username(vec![0], vec![]))
+            Protocol::Socks(V5, SocksAuth::Username(vec![0], vec![0]))
         );
         assert_eq!(
             settings_to_protocol(V5, "\0".to_owned().repeat(510)).unwrap(),
