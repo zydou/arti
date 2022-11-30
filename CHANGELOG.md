@@ -13,6 +13,10 @@ Use of these features can make Arti more effective at gaining access
 to Tor, in spite of censorship (or breakage) between you the wider
 public internet.
 
+These features are still very new, so there are likely to be bugs,
+and the user experience may not yet be optimal.  But we think the
+security of these features is good enough for a general release.
+
 ### Breaking changes
 
 - Arti now requires Rust 1.60 or later. This allows us to use a few new
