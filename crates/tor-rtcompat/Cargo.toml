@@ -18,9 +18,7 @@ full = ["async-std", "tokio", "native-tls"]
 
 async-std = ["async-std-crate", "async-io", "async_executors/async_std"]
 tokio = ["tokio-crate", "tokio-util", "async_executors/tokio_tp"]
-# TODO: This feature makes us link native-tls statically even if we
-# don't want to use native-tls in the first place.  That's not so clever!
-static = ["native-tls-crate/vendored"]
+static = ["native-tls-crate?/vendored"]
 native-tls = ["native-tls-crate", "async-native-tls"]
 rustls = ["rustls-crate", "async-rustls", "x509-signature"]
 
