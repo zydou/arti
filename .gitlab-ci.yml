@@ -215,7 +215,7 @@ integration-shadow:
   image: debian:11-slim
   script:
     - ./maint/preserve -u
-    - echo -e "\e[0Ksection_start:`date +%s`:shadow_install_deps[collapsed=true]\r\e[0KInstalling shadow and tgen"
+    - ./maint/ci_log_span start "shadow_install_deps[collapsed=true]" "Installing shadow and tgen"
     # We're going to install binaries to $HOME/.local/bin
     - 'export PATH=$HOME/.local/bin:$PATH'
 
@@ -270,7 +270,7 @@ integration-shadow:
     - hash -r
 
     - DEBIAN_FRONTEND=noninteractive apt-get install -y tshark
-    - echo -e "\e[0Ksection_end:`date +%s`:shadow_install_deps\r\e[0K"
+    - ./maint/ci_log_span end "shadow_install_deps"
 
     # Run tests
     - pushd tests/shadow
