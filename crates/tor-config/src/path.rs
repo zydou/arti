@@ -172,7 +172,9 @@ fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
 /// Shellexpand helper: return the user's home directory if we can.
 #[cfg(feature = "expand-paths")]
 fn get_home() -> Option<&'static Path> {
-    base_dirs().ok().map(BaseDirs::home_dir)
+    base_dirs()
+        .ok()
+        .map(BaseDirs::home_dir)
 }
 
 /// Shellexpand helper: return the directory holding the the currently executing program.
