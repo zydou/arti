@@ -50,4 +50,15 @@ See the
 [`tor_config::load` module-level documentation](load).
 for an example.
 
+## Facilities and approaches for particular situations
+
+### Lists
+
+When the configuration contains a list of items
+which the user is likely to want to add entries to piecemeal,
+modify, filter, and so on,
+use the list builder helper facilities
+in the [list_builder] module.
+
+---
 License: MIT OR Apache-2.0
