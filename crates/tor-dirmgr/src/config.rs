@@ -178,7 +178,7 @@ impl DirTolerance {
             .extend_pre_tolerance(self.pre_valid_tolerance)
     }
 
-    /// Return a new consensus [`Lifetime`] that extgends the validity intervals
+    /// Return a new consensus [`Lifetime`] that extends the validity intervals
     /// of `lifetime` according to this configuration.
     pub(crate) fn extend_lifetime(&self, lifetime: &Lifetime) -> Lifetime {
         Lifetime::new(
@@ -207,7 +207,7 @@ impl DirTolerance {
 //
 // However, here, the DirMgrConfig is just a subset of the fields of a
 // TorClientConfig, and it is important that all its fields are
-// initialised by arti-client.
+// initialized by arti-client.
 //
 // If it grows a field, arti-client ought not to compile any more.
 #[derive(Debug, Clone)]

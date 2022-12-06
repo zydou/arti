@@ -51,7 +51,7 @@ type BridgeKey = BridgeConfig;
 /// whether `TorClient::bootstrap()` has been called, etc.
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-// TODO: These proliferating `Dormancy` enums should be centralised and unified with `TaskHandle`
+// TODO: These proliferating `Dormancy` enums should be centralized and unified with `TaskHandle`
 //     https://gitlab.torproject.org/tpo/core/arti/-/merge_requests/845#note_2853190
 pub enum Dormancy {
     /// Dormant (inactive)
@@ -335,7 +335,7 @@ struct State {
     /// Bridges that we have a descriptor for,
     /// and when they should be refetched due to validity expiry.
     ///
-    /// This is indexed by `SystemTime` because that helps avoids undesirable behaviours
+    /// This is indexed by `SystemTime` because that helps avoids undesirable behaviors
     /// when the system clock changes.
     refetch_schedule: BinaryHeap<RefetchEntry<SystemTime, ()>>,
 
@@ -430,7 +430,7 @@ struct QueuedEntry {
 /// Entry in one of the `*_schedule`s
 ///
 /// Implements `Ord` and `Eq` but *only looking at the refetch time*.
-/// So don't dedupe by `[Partial]Eq`, or use as a key in a map.
+/// So don't deduplicate by `[Partial]Eq`, or use as a key in a map.
 #[derive(Debug)]
 struct RefetchEntry<TT, RD> {
     /// When should we requeued this bridge for fetching
@@ -645,7 +645,7 @@ impl<R: Runtime, M: Mockable<R>> BridgeDescProvider for BridgeDescMgr<R, M> {
 
         // Is there anything in `current` that ought to be deleted?
         if state.current.keys().any(|b| !new_bridges.contains(b)) {
-            // Found a brridge In `current` but not `new`
+            // Found a bridge In `current` but not `new`
             // We need to remove it (and any others like it) from `current`.
             //
             // Disturbs the invariant *Schedules*:
@@ -794,7 +794,7 @@ impl State {
         }
 
         // Restore liveness property *Timeout**
-        // postage::watch will tell up the timeout task about the new wakeup time.
+        // postage::watch will tell up the timeout task about the new wake-up time.
         let new_earliest_timeout = [
             // First retry.  These are std Instant.
             self.retry_schedule.peek().map(|re| re.when),
@@ -847,7 +847,7 @@ impl State {
                                 .catch_unwind()
                                 .await
                                 .unwrap_or_else(|_| {
-                                    Err(internal!("download descriptor task paniced!").into())
+                                    Err(internal!("download descriptor task panicked!").into())
                                 });
                         match &got {
                             Ok(_) => debug!(r#"download succeeded for "{}""#, bridge),
@@ -872,7 +872,7 @@ impl State {
                     // And we're going to do that without notifying anyone.
                     // We *do* want to remove it from `current` because simply forgetting
                     // about a refetch could leave expired data there.
-                    // We amortise this, so we don't do a lot of O(n^2) work on shutdown.
+                    // We amortize this, so we don't do a lot of O(n^2) work on shutdown.
                     to_remove.push(bridge);
                 }
             }
@@ -893,7 +893,7 @@ impl State {
     /// it is the caller's responsibility to ensure that the invariants are upheld.
     ///
     /// The implementation actually involves cloning `current`,
-    /// so it is best to amortise calls to this function.
+    /// so it is best to amortize calls to this function.
     fn modify_current<T, F: FnOnce(&mut BridgeDescList) -> T>(&mut self, f: F) -> T {
         let mut current = (*self.current).clone();
         let r = f(&mut current);
@@ -932,7 +932,7 @@ impl<R: Runtime, M: Mockable<R>> StateGuard<'_, R, M> {
         let RunningInfo { retry_delay, .. } = match self.running.remove(&bridge) {
             Some(ri) => ri,
             None => {
-                debug!("bridge descriptor download completed for deconfigured bridge");
+                debug!("bridge descriptor download completed for no-longer-configured bridge");
                 return;
             }
         };
@@ -1044,7 +1044,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
                         // But how long ago did we fetch it?
                         // We need to enforce max_refresh even for still-valid documents.
                         if now.duration_since(cached.fetched).ok() <= Some(config.max_refetch) {
-                            // Was fetchd recently, too.  We can just reuse it.
+                            // Was fetched recently, too.  We can just reuse it.
                             return Ok(got);
                         }
                         Some(got)
@@ -1385,7 +1385,7 @@ impl HasRetryTime for Error {
             // Errors with their own retry times
             E::CircuitFailed(e) => e.retry_time(),
 
-            // Remote misbehaviour, maybe the network is being strange?
+            // Remote misbehavior, maybe the network is being strange?
             E::StreamFailed(..) => R::AfterWaiting,
             E::RequestFailed(..) => R::AfterWaiting,
 
