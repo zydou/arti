@@ -390,9 +390,21 @@ mod test {
     #[serial]
     fn test_redacted() {
         let localhost = std::net::Ipv4Addr::LOCALHOST;
-        let closure = || format!("{}", localhost.redacted());
+        let closure = || format!("{} {:?}", localhost.redacted(), localhost.redacted());
 
-        assert_eq!(closure(), "127.x.x.x");
-        assert_eq!(with_safe_logging_suppressed(closure), "127.0.0.1");
+        assert_eq!(closure(), "127.x.x.x 127.x.x.x");
+        assert_eq!(with_safe_logging_suppressed(closure), "127.0.0.1 127.0.0.1");
+
+        let closure = |b| {
+            format!(
+                "{} {:?}",
+                localhost.maybe_redacted(b),
+                localhost.maybe_redacted(b)
+            )
+        };
+        assert_eq!(closure(true), "127.x.x.x 127.x.x.x");
+        assert_eq!(closure(false), "127.0.0.1 127.0.0.1");
+
+        assert_eq!(Redacted::new(localhost).unwrap(), localhost);
     }
 }

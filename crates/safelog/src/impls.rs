@@ -46,3 +46,38 @@ impl Redactable for std::net::SocketAddr {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    #![allow(clippy::unwrap_used)]
+
+    use std::{
+        net::{IpAddr, SocketAddr},
+        str::FromStr,
+    };
+
+    use crate::Redactable;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn ip() {
+        let r = |s| IpAddr::from_str(s).unwrap().redacted().to_string();
+
+        assert_eq!(&r("127.0.0.1"), "127.x.x.x");
+        assert_eq!(&r("::1"), "0:x:x:…");
+        assert_eq!(&r("192.0.2.55"), "192.x.x.x");
+        assert_eq!(&r("2001:db8::f00d"), "2001:x:x:…");
+    }
+
+    #[test]
+    #[serial]
+    fn sockaddr() {
+        let r = |s| SocketAddr::from_str(s).unwrap().redacted().to_string();
+
+        assert_eq!(&r("127.0.0.1:55"), "127.x.x.x:55");
+        assert_eq!(&r("[::1]:443"), "[0:x:x:…]:443");
+        assert_eq!(&r("192.0.2.55:80"), "192.x.x.x:80");
+        assert_eq!(&r("[2001:db8::f00d]:9001"), "[2001:x:x:…]:9001");
+    }
+}
