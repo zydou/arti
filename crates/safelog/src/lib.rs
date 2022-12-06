@@ -388,6 +388,23 @@ mod test {
 
     #[test]
     #[serial]
+    fn box_sensitive() {
+        let b: BoxSensitive<_> = "hello world".into();
+
+        assert_eq!(b.clone().into_inner(), "hello world");
+
+        let closure = || format!("{} {:?}", b, b);
+        assert_eq!(closure(), "[scrubbed] [scrubbed]");
+        assert_eq!(
+            with_safe_logging_suppressed(closure),
+            r#"hello world "hello world""#
+        );
+
+        assert_eq!(b.len(), 11);
+    }
+
+    #[test]
+    #[serial]
     fn test_redacted() {
         let localhost = std::net::Ipv4Addr::LOCALHOST;
         let closure = || format!("{} {:?}", localhost.redacted(), localhost.redacted());
