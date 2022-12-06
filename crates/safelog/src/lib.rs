@@ -334,6 +334,8 @@ mod test {
 
         assert!(!flags::unsafe_logging_enabled());
         assert_eq!(format!("{:?}", &sv), "[scrubbed]");
+        assert_eq!(format!("{:?}", sv.as_ref()), "[scrubbed]");
+        assert_eq!(format!("{:?}", sv.as_inner()), "[104, 49]");
         let normal = with_safe_logging_suppressed(|| format!("{:?}", &sv));
         assert_eq!(normal, "[104, 49]");
 
