@@ -26,6 +26,7 @@ use tor_rtcompat::TcpProvider;
 use tor_socksproto::{
     SocksAddr, SocksAuth, SocksClientHandshake, SocksCmd, SocksRequest, SocksStatus, SocksVersion,
 };
+use tracing::trace;
 
 #[cfg(feature = "pt-client")]
 use super::TransportImplHelper;
@@ -69,6 +70,12 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     protocol: &Protocol,
     target: &PtTargetAddr,
 ) -> Result<R::TcpStream, ProxyError> {
+    trace!(
+        "Launching a proxied connection to {} via proxy at {} using {:?}",
+        target,
+        proxy,
+        protocol
+    );
     let mut stream = runtime
         .connect(proxy)
         .await
@@ -147,6 +154,11 @@ pub(crate) async fn connect_via_proxy<R: TcpProvider + Send + Sync>(
     let status = reply
         .ok_or_else(|| internal!("SOCKS protocol finished, but gave no status!"))?
         .status();
+    trace!(
+        "SOCKS handshake with {} succeeded, with status {:?}",
+        proxy,
+        status
+    );
 
     if status != SocksStatus::SUCCEEDED {
         return Err(ProxyError::SocksError(status));
