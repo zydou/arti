@@ -171,10 +171,14 @@ fn expand(s: &str) -> Result<PathBuf, CfgPathError> {
 
 /// Shellexpand helper: return the user's home directory if we can.
 #[cfg(feature = "expand-paths")]
-fn get_home() -> Option<&'static Path> {
+fn get_home() -> Option<&'static str> {
     base_dirs()
         .ok()
         .map(BaseDirs::home_dir)
+        // If user's home directory contains invalid unicode, fail to substitute it.
+        // This isn't great, but the alternative is to do *everything* with Path rather
+        // than String and that's a total pain.
+        .and_then(Path::to_str)
 }
 
 /// Shellexpand helper: return the directory holding the the currently executing program.
