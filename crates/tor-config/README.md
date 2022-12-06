@@ -60,5 +60,54 @@ modify, filter, and so on,
 use the list builder helper facilities
 in the [list_builder] module.
 
+### Configuration items which are conditionally compiled
+
+If the user requests, via the configuration,
+a feature which is compiled out (due to the non-selection of cargo features),
+it is usually right to have the code simply ignore it.
+
+This can be achieved by applying the appropriate `#[cfg]`
+to configuration fields and structs.
+The result is that if the user *does* specify the relevant options,
+Arti will generate an "unknown configuration item" warning.
+(In the future it might be nice to
+provide a message saying what feature was missing.)
+
+#### Config items which must be detected and rejected even when compiled out
+
+For example, if Arti is compiled without bridge support,
+a configuration specifying use of bridges should result in failure,
+rather than a direct connection.
+
+In those cases, you should 
+*unconditionally include* the configuration fields
+which must be detected and rejected.
+
+Then provide alternative "when-compiled-out" versions of the types for those fields.
+(If the field is a list which, when enabled, uses [`list_builder`],
+provide alternative "when-compiled-out" versions of the *entry* types.)
+
+The *built* form of the configuration (`Field` or `Entry` in the case of a list),
+should be a `#[non_exhaustive]` empty enum.
+It should implement all the same standard traits as the compiled-in version.
+So everything will compile.
+But, since it is an uninhabited type, no such value can ever actually appear.
+
+The *builder* form (`FieldBuilder` or `EntryBuilder`)
+should be an empty `#[non_exhaustive]` struct.
+It should have a trivial `Deserialize` impl which always returns successfully,
+and a derived `Serialize` impl (and the usual traits).
+This will allow configurations which attempt to specify such a value
+to be recognised.
+
+To get this to compile, naturally,
+the builder will have to have a `.build()` method.
+This should return [`ConfigBuildError::Invalid`].
+(it can't return the uninhabited built type, obviously.)
+The configuration resolution arrangements are set up to call this,
+and will report the error.
+
+For an example, see `crates/tor-guardmgr/src/bridge_disabled.rs`.
+
 ---
 License: MIT OR Apache-2.0
