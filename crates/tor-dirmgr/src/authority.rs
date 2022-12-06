@@ -64,7 +64,7 @@ pub(crate) fn default_authorities() -> Vec<AuthorityBuilder> {
         auth("gabelmoo", "ED03BB616EB2F60BEC80151114BB25CEF515B226"),
         auth("longclaw", "23D15D965BC35114467363C165C4F724B64B4F66"),
         auth("maatuska", "49015F787433103580E3B66A1707A00E60F2D15B"),
-        auth("moria1", "D586D18309DED4CD6D57C18FDB97EFA96D330566"),
+        auth("moria1", "F533C81CEF0BC0267857C99B2F471ADF249FA232"),
         auth("tor26", "14C131DFC5C6F93646BE72FA1401C02A8DF2E8B4"),
     ]
 }
