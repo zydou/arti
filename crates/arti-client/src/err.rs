@@ -126,7 +126,7 @@ enum ErrorDetail {
     CircMgrSetup(#[source] tor_circmgr::Error),
 
     /// Error setting up the bridge descriptor manager
-    #[error("Error setting up the bridge descriptor managerr")]
+    #[error("Error setting up the bridge descriptor manager")]
     #[cfg(feature = "bridge-client")]
     BridgeDescMgrSetup(#[from] tor_dirmgr::bridgedesc::StartupError),
 
