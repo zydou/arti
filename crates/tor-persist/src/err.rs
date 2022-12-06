@@ -67,7 +67,7 @@ pub enum ErrorSource {
 
     /// Permissions on a file or path were incorrect
     #[error("Invalid permissions")]
-    Permissions(#[from] fs_mistrust::Error),
+    Permissions(#[source] fs_mistrust::Error),
 
     /// Tried to save without holding an exclusive lock.
     //
@@ -144,5 +144,14 @@ impl From<std::io::Error> for ErrorSource {
 impl From<serde_json::Error> for ErrorSource {
     fn from(e: serde_json::Error) -> ErrorSource {
         ErrorSource::Serde(Arc::new(e))
+    }
+}
+
+impl From<fs_mistrust::Error> for ErrorSource {
+    fn from(e: fs_mistrust::Error) -> ErrorSource {
+        match e {
+            fs_mistrust::Error::Io { err, .. } => ErrorSource::IoError(err),
+            other => ErrorSource::Permissions(other),
+        }
     }
 }
