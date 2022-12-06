@@ -383,22 +383,33 @@ impl AsyncPtChild {
             })?,
         );
         let (mut tx, rx) = mpsc::channel(PT_STDIO_BUFFER);
+        let ident = identifier.clone();
         thread::spawn(move || {
             let reader = BufReader::new(stdout);
             let _stdin = stdin;
+            let mut noted_full = false;
             // Forward lines from the blocking reader to the async channel.
             for line in reader.lines() {
                 let err = line.is_err();
-                if let Ok(ref l) = line {
-                    trace!("<-- PT: {}", l);
+                match &line {
+                    Ok(l) => trace!("<-- PT {}: {:?}", ident, l),
+                    Err(e) => trace!("<-- PT {}: Error: {:?}", ident, e),
                 }
                 if let Err(e) = tx.try_send(line) {
                     if e.is_disconnected() {
+                        debug!("PT {} is disconnected; shutting it down.", ident);
                         // Channel dropped, so shut down the pluggable transport process.
                         break;
                     }
-                    // The other kind of error is "full", which we can't do anything about
-                    // (and logging would be spammy). Just throw the line away.
+                    // The other kind of error is "full", which we can't do anything about.
+                    // Just throw the line away.
+                    if !noted_full {
+                        noted_full = true; // warn only once per PT.
+                        warn!(
+                            "Bug: Message queue for PT {} became full; dropping message",
+                            ident
+                        );
+                    }
                 }
                 if err {
                     // Encountered an error reading, so ensure the process is shut down (it's
@@ -411,24 +422,29 @@ impl AsyncPtChild {
             if let Ok(Some(_)) = child.try_wait() {
                 // FIXME(eta): We currently throw away the exit code, which might be useful
                 //             for debugging purposes!
+                debug!("PT {} has exited.", ident);
                 return;
             }
             // Otherwise, tell it to exit.
             // Dropping stdin should tell the PT to exit, since we set the correct environment
             // variable for that to happen.
+            trace!("Asking PT {} to exit, nicely.", ident);
             drop(_stdin);
             // Give it some time to exit.
             thread::sleep(GRACEFUL_EXIT_TIME);
             match child.try_wait() {
                 Ok(None) => {
                     // Kill it.
+                    debug!("Sending kill signal to PT {}", ident);
                     if let Err(e) = child.kill() {
-                        warn!("Failed to kill() spawned PT: {}", e);
+                        warn!("Failed to kill() spawned PT {}: {}", ident, e);
                     }
                 }
-                Ok(Some(_)) => {} // It exited.
+                Ok(Some(_)) => {
+                    debug!("PT {} shut down successfully.", ident);
+                } // It exited.
                 Err(e) => {
-                    warn!("Failed to call try_wait() on spawned PT: {}", e);
+                    warn!("Failed to call try_wait() on spawned PT {}: {}", ident, e);
                 }
             }
         });
@@ -624,9 +640,14 @@ impl PluggableTransport {
     pub(crate) async fn next_message(&mut self) -> err::Result<PtMessage> {
         let inner = self.inner.as_mut().ok_or(PtError::ChildGone)?;
         let ret = inner.recv().await;
-        if let Err(PtError::ChildGone) | Err(PtError::ChildReadFailed { .. }) = ret {
+        if let Err(PtError::ChildGone) | Err(PtError::ChildReadFailed { .. }) = &ret {
             // FIXME(eta): Currently this lets the caller still think the methods work by calling
             //             transport_methods.
+            debug!(
+                "PT {}: Received {:?}; shutting down.",
+                self.identifier(),
+                ret
+            );
             self.inner = None;
         }
         ret
@@ -731,10 +752,14 @@ impl PluggableTransport {
                     cmethods.insert(transport, method);
                 }
                 PtMessage::ClientTransportFailed { transport, message } => {
+                    warn!(
+                        "PT {} unable to launch {}. It said: {:?}",
+                        async_child.identifier, transport, message
+                    );
                     return Err(PtError::ClientTransportGaveError {
                         transport: transport.to_string(),
                         message,
-                    })
+                    });
                 }
                 PtMessage::ClientTransportsDone => {
                     let unsupported = self
