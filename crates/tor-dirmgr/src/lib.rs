@@ -120,7 +120,7 @@ pub struct DirMgrStore<R: Runtime> {
     /// The actual store
     pub(crate) store: Arc<Mutex<crate::DynStore>>,
 
-    /// Be parameterised by Runtime even though we don't use it right now
+    /// Be parameterized by Runtime even though we don't use it right now
     pub(crate) runtime: PhantomData<R>,
 }
 
