@@ -56,7 +56,7 @@ use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, trace, warn};
 #[cfg(feature = "tor-channel-factory")]
 use {
     async_trait::async_trait,
@@ -443,34 +443,56 @@ impl<R: Runtime> tor_chanmgr::factory::AbstractPtMgr for PtMgr<R> {
             let configured = cmethod.is_some() || inner.configured.get(transport).is_some();
             (cmethod, configured)
         };
-        if cmethod.is_none() {
-            if configured {
-                // Tell the reactor to spawn the PT, and wait for it.
-                // (The reactor will handle coalescing multiple requests.)
-                let (tx, rx) = oneshot::channel();
-                self.tx
-                    .unbounded_send(PtReactorMessage::Spawn {
-                        pt: transport.clone(),
-                        result: tx,
-                    })
-                    .map_err(|_| {
-                        Arc::new(PtError::Internal(tor_error::internal!(
-                            "PT reactor closed unexpectedly"
-                        ))) as Arc<dyn AbstractPtError>
-                    })?;
-                cmethod = Some(
-                    // NOTE(eta): Could be improved with result flattening.
-                    rx.await
+
+        match &cmethod {
+            None => {
+                if configured {
+                    // Tell the reactor to spawn the PT, and wait for it.
+                    // (The reactor will handle coalescing multiple requests.)
+                    info!("Got a request for transport {}, which is not currently running. Launching it.", 
+                          transport
+                        );
+                    let (tx, rx) = oneshot::channel();
+                    self.tx
+                        .unbounded_send(PtReactorMessage::Spawn {
+                            pt: transport.clone(),
+                            result: tx,
+                        })
                         .map_err(|_| {
                             Arc::new(PtError::Internal(tor_error::internal!(
                                 "PT reactor closed unexpectedly"
                             ))) as Arc<dyn AbstractPtError>
-                        })?
-                        .map_err(|x| Arc::new(x) as Arc<dyn AbstractPtError>)?,
-                );
-            } else {
-                return Ok(None);
+                        })?;
+                    let method =
+                        // NOTE(eta): Could be improved with result flattening.
+                        rx.await
+                            .map_err(|_| {
+                                Arc::new(PtError::Internal(tor_error::internal!(
+                                    "PT reactor closed unexpectedly"
+                                ))) as Arc<dyn AbstractPtError>
+                            })?
+                            .map_err(|x| {
+                                warn!("PT for {} failed to launch: {}", transport, x);
+                                Arc::new(x) as Arc<dyn AbstractPtError>
+                            })?;
+                    info!(
+                        "Successfully launched PT for {} at {:?}.",
+                        transport, &method
+                    );
+                    cmethod = Some(method);
+                } else {
+                    trace!(
+                        "Got a request for transport {}, which is not configured.",
+                        transport
+                    );
+                    return Ok(None);
+                }
             }
+            Some(cmethod) => trace!(
+                "Found configured transport {} accessible via {:?}",
+                transport,
+                cmethod
+            ),
         }
         let cmethod = cmethod.expect("impossible");
         let proxy = ExternalProxyPlugin::new(self.runtime.clone(), cmethod.endpoint, cmethod.kind);
