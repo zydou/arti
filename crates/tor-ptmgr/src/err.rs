@@ -83,7 +83,7 @@ pub enum PtError {
     },
     /// A binary path does not have the syntax of a *file* name.
     ///
-    /// For example, it ends in a slash, indicating a diretory.
+    /// For example, it ends in a slash, indicating a directory.
     //
     // TODO: this should be rejected at the configuration parsing level, and treated as a bug here.
     #[error("Configured binary path {} doesn't have syntax of a file", path.anonymize_home())]

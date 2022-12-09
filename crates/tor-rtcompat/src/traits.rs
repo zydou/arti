@@ -195,7 +195,7 @@ pub trait UdpProvider: Clone + Send + Sync + 'static {
     async fn bind(&self, addr: &SocketAddr) -> IoResult<Self::UdpSocket>;
 }
 
-/// Trait for a localy bound Udp socket that can send and receive datagrams.
+/// Trait for a locally bound Udp socket that can send and receive datagrams.
 ///
 /// These objects are returned by instances of [`UdpProvider`].
 //

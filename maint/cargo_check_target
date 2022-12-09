@@ -65,8 +65,8 @@ SUPPORTTARGETED_PLATFORMS=(
 function usage()
 {
     cat <<EOF
-${SCRIPT_NAME}: Check arti for many targets, with parameters minimising dependancies
-on platform dependant tooling.
+${SCRIPT_NAME}: Check arti for many targets, with parameters minimizing dependencies
+on platform dependent tooling.
    Usage:
   cargo_check_target [opts] : Run cargo check for many targets.
 
