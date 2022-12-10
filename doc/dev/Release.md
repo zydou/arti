@@ -55,3 +55,5 @@
 7. We tag the repository with arti-v0.0.1
 
 8. Remove all of the semver.md files.
+
+9. Update the origin/pages branch to refer to the new version.
