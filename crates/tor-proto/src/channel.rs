@@ -71,6 +71,7 @@ use crate::util::err::ChannelClosed;
 use crate::util::ts::OptTimestamp;
 use crate::{circuit, ClockSkew};
 use crate::{Error, Result};
+use safelog::sv;
 use std::pin::Pin;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -650,7 +651,8 @@ where
             Some(actual) => {
                 return Err(Error::ChanMismatch(format!(
                     "Identity {} does not match target {}",
-                    actual, desired
+                    sv(actual),
+                    sv(desired)
                 )));
             }
             None => {
