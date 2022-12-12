@@ -960,7 +960,8 @@ pub(super) mod test {
         let re = Regex::new(
             // identities might be scrubbed by safelog
             r"Identity .* does not match target .*",
-        ).unwrap();
+        )
+        .unwrap();
         assert!(re.is_match(&format!("{}", err)));
 
         let err = certs_test(
