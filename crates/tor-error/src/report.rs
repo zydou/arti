@@ -1,5 +1,6 @@
 //! The Report type which reports errors nicely
 
+use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display};
 
 /// Wraps any Error, providing a nicely-reporting Display impl
@@ -7,15 +8,15 @@ use std::fmt::{self, Debug, Display};
 #[allow(clippy::exhaustive_structs)] // this is a transparent wrapper
 pub struct Report<E>(pub E)
 where
-    E: AsRef<dyn std::error::Error>;
+    E: AsRef<dyn StdError>;
 
 impl<E> Display for Report<E>
 where
-    E: AsRef<dyn std::error::Error>,
+    E: AsRef<dyn StdError>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Non-generic inner function avoids code bloat
-        fn inner(mut e: &dyn std::error::Error, f: &mut fmt::Formatter) -> fmt::Result {
+        fn inner(mut e: &dyn StdError, f: &mut fmt::Formatter) -> fmt::Result {
             write!(f, "error")?;
             let mut last = String::new();
             loop {
@@ -44,7 +45,7 @@ where
 #[allow(clippy::print_stderr)] // this is the point of this function
 pub fn report_and_exit<E, R>(e: E) -> R
 where
-    E: AsRef<dyn std::error::Error>,
+    E: AsRef<dyn StdError>,
 {
     /// Non-generic inner function avoids code bloat
     fn eprint_progname() {
@@ -61,7 +62,6 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::error::Error as StdError;
     use std::io;
     use thiserror::Error;
 
