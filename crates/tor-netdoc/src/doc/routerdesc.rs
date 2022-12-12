@@ -934,7 +934,7 @@ mod test {
         );
         assert_eq!(
             rd.published(),
-            time::SystemTime::UNIX_EPOCH + time::Duration::new(1668455932, 0)
+            humantime::parse_rfc3339("2022-11-14T19:58:52Z").unwrap()
         );
         assert_eq!(
             rd.or_ports().collect::<Vec<_>>(),

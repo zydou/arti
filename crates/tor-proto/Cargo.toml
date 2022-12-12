@@ -62,6 +62,7 @@ zeroize = "1"
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
+humantime = "2"
 itertools = "0.10.1"
 regex = { version = "1", default-features = false, features = ["std"] }
 statrs = "0.16.0"
