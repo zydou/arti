@@ -5,6 +5,7 @@
 //! so that Rust's typesafety can help enforce protocol properties.
 
 use crate::{Error, Result};
+use std::fmt::{self, Display};
 use tor_cell::chancell::msg::{self as chanmsg, ChanMsg};
 
 /// A subclass of ChanMsg that can arrive in response to a CREATE* cell
@@ -20,6 +21,17 @@ pub enum CreateResponse {
     CreatedFast(chanmsg::CreatedFast),
     /// Created2: good response to a CREATE2 cell.
     Created2(chanmsg::Created2),
+}
+
+impl Display for CreateResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use CreateResponse as CR;
+        match self {
+            CR::Destroy(destroy) => write!(f, "DESTROY({})", destroy.reason()),
+            CR::CreatedFast(_) => Display::fmt("CREATED_FAST", f),
+            CR::Created2(_) => Display::fmt("CREATED2", f),
+        }
+    }
 }
 
 impl TryFrom<ChanMsg> for CreateResponse {
