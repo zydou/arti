@@ -135,16 +135,18 @@ impl<T> crate::Timebound<T> for TimerangeBound<T> {
 mod test {
     use super::*;
     use crate::{TimeValidityError, Timebound};
+    use humantime::parse_rfc3339;
     use std::time::{Duration, SystemTime};
 
     #[test]
     fn test_bounds() {
+        #![allow(clippy::unwrap_used)]
         let one_day = Duration::new(86400, 0);
-        let mixminion_v0_0_1 = SystemTime::UNIX_EPOCH + 12059 * one_day; //2003-01-07
-        let tor_v0_0_2pre13 = SystemTime::UNIX_EPOCH + 12344 * one_day; //2003-10-19
-        let cussed_nougat = SystemTime::UNIX_EPOCH + 14093 * one_day; //2008-08-02
-        let tor_v0_4_4_5 = SystemTime::UNIX_EPOCH + 18520 * one_day; //2020-09-15
-        let today = SystemTime::UNIX_EPOCH + 18527 * one_day; //2020-09-22
+        let mixminion_v0_0_1 = parse_rfc3339("2003-01-07T00:00:00Z").unwrap();
+        let tor_v0_0_2pre13 = parse_rfc3339("2003-10-19T00:00:00Z").unwrap();
+        let cussed_nougat = parse_rfc3339("2008-08-02T00:00:00Z").unwrap();
+        let tor_v0_4_4_5 = parse_rfc3339("2020-09-15T00:00:00Z").unwrap();
+        let today = parse_rfc3339("2020-09-22T00:00:00Z").unwrap();
 
         let tr = TimerangeBound::new((), ..tor_v0_4_4_5);
         assert_eq!(tr.start, None);
