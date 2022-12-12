@@ -86,10 +86,14 @@ impl<T> Sensitive<T> {
     }
 
     /// Extract the inner value from this `Sensitive<T>`.
-    //
-    // TODO(Diziet) shouldn't this be called `into_inner` ?
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+
+    /// Extract the inner value from this `Sensitive<T>`.
+    #[deprecated = "Use the new into_inner method instead"]
     pub fn unwrap(sensitive: Sensitive<T>) -> T {
-        sensitive.0
+        sensitive.into_inner()
     }
 
     /// Converts `&Sensitive<T>` to `Sensitive<&T>`
@@ -171,7 +175,7 @@ impl<T> BoxSensitive<T> {
     pub fn into_inner(self) -> T {
         // TODO want unstable Box::into_inner(self.0) rust-lang/rust/issues/80437
         let unboxed = *self.0;
-        Sensitive::unwrap(unboxed)
+        unboxed.into_inner()
     }
 }
 
@@ -343,8 +347,18 @@ mod test {
         assert_eq!(format!("{:?}", &sv), "[104, 49]");
 
         assert_eq!(sv, SVec::from(vec![104, 49]));
-        assert_eq!(SVec::unwrap(sv.clone()), vec![104, 49]);
+        assert_eq!(sv.clone().into_inner(), vec![104, 49]);
         assert_eq!(*sv, vec![104, 49]);
+    }
+
+    #[test]
+    #[serial]
+    #[allow(deprecated)]
+    fn deprecated() {
+        type SVec = Sensitive<Vec<u32>>;
+        let sv = Sensitive(vec![104, 49]);
+
+        assert_eq!(SVec::unwrap(sv), vec![104, 49]);
     }
 
     #[test]
