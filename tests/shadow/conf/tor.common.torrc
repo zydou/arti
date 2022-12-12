@@ -1,7 +1,7 @@
 DataDirectory .
 BandwidthRate 1024000
 BandwidthBurst 1024000
-DirServer 4uthority bridge v3ident=604ED7BE52100945A47EAD301D45FADF493C6371 orport=9111 100.0.0.1:9112 A52C A5B5 6C64 D864 F6AE 43E5 6F29 ACBD 5706 DDA1
+DirAuthority 4uthority v3ident=604ED7BE52100945A47EAD301D45FADF493C6371 orport=9111 100.0.0.1:9112 A52C A5B5 6C64 D864 F6AE 43E5 6F29 ACBD 5706 DDA1
 TestingTorNetwork 1
 ServerDNSResolvConfFile ../../../conf/shadowresolv.conf
 ServerDNSTestAddresses 4uthority

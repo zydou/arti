@@ -19,6 +19,10 @@ network:
           packet_loss 0.0
         ]
       ]
+host_defaults:
+  # a way to only capture pcap for selected nodes instead would save a bit on artifact size,
+  # sadly I couldn't find one.
+  pcap_directory: .
 hosts:
   fileserver:
     network_node_id: 0
@@ -63,7 +67,28 @@ hosts:
       args: --Address relay2 --Nickname relay2
             --defaults-torrc torrc-defaults -f torrc
       start_time: 60
+  bridge:
+    ip_addr: 100.0.0.2
+    network_node_id: 0
+    processes:
+    - path: /usr/sbin/tor
+      args: --Address bridge --Nickname bridge
+            --defaults-torrc torrc-defaults -f torrc
+      start_time: 60
   articlient:
+    network_node_id: 0
+    options:
+      log_level: trace
+    processes:
+    - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
+      args: proxy -c arti.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
+      environment: RUST_BACKTRACE=1;HOME=./home
+      start_time: 15m
+    - path: ~/.local/bin/tgen
+      environment: OPENBLAS_NUM_THREADS=1
+      args: ../../../conf/tgen.torclient.graphml.xml
+      start_time: 25m
+  articlient_bridge:
     network_node_id: 0
     options:
       log_level: trace
