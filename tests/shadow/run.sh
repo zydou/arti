@@ -21,7 +21,7 @@ shadow \
 successes="$(grep -c stream-success shadow.data/hosts/articlient/articlient.tgen.1001.stdout || true)"
 if [ "$successes" = 10 ]
 then
-  echo "Simulation successfull"
+  echo "Simulation successful"
 else
   echo "Failed. Only got $successes successful streams."
 fi
