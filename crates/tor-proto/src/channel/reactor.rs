@@ -495,7 +495,7 @@ pub(crate) mod test {
             .build()
             .unwrap();
         let send1 = send1.sink_map_err(|e| {
-            trace!("got sink error: {}", e);
+            trace!("got sink error: {:?}", e);
             CodecError::DecCell(tor_cell::Error::ChanProto("dummy message".into()))
         });
         let (chan, reactor) = crate::channel::Channel::new(

@@ -291,6 +291,17 @@ mod test {
         assert!(s.contains("Couldn't wobble the wobbling device."));
         #[cfg(feature = "backtrace")]
         assert!(s.contains("internal_macro_test"));
+
+        #[derive(thiserror::Error, Debug)]
+        enum Wrap {
+            #[error("Internal error")]
+            Internal(#[from] Bug),
+        }
+
+        let w: Wrap = e.into();
+        let s = format!("Got: {}", w.report());
+        dbg!(&s);
+        assert!(s.contains("Couldn't wobble the wobbling device."));
     }
 
     #[test]

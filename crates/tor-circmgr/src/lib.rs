@@ -39,6 +39,7 @@
 
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChanMgr;
+use tor_error::ErrorReport;
 use tor_linkspec::ChanTarget;
 use tor_netdir::{DirEvent, NetDir, NetDirProvider, Timeliness};
 use tor_proto::circuit::{CircParameters, ClientCirc, UniqId};
@@ -642,7 +643,7 @@ impl<R: Runtime> CircMgr<R> {
 
                 match statemgr.try_lock() {
                     Err(e) => {
-                        error!("Problem with state lock file: {}", e);
+                        error!("Problem with state lock file: {}", e.report());
                         break;
                     }
                     Ok(NewlyAcquired) => {
