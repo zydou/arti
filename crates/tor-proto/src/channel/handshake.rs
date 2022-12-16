@@ -832,7 +832,8 @@ pub(super) mod test {
 
     // Timestamp when the example certificates were all valid.
     fn cert_timestamp() -> SystemTime {
-        SystemTime::UNIX_EPOCH + Duration::new(1601143280, 0)
+        use humantime::parse_rfc3339;
+        parse_rfc3339("2020-09-26T18:01:20Z").unwrap()
     }
 
     fn certs_test<R>(
