@@ -641,11 +641,12 @@ mod test {
 
     #[test]
     fn time() -> Result<()> {
-        use std::time::{Duration, SystemTime};
+        use humantime::parse_rfc3339;
+        use std::time::SystemTime;
 
         let t = "2020-09-29 13:36:33".parse::<Iso8601TimeSp>()?;
         let t: SystemTime = t.into();
-        assert_eq!(t, SystemTime::UNIX_EPOCH + Duration::new(1601386593, 0));
+        assert_eq!(t, parse_rfc3339("2020-09-29T13:36:33Z").unwrap());
 
         assert!("2020-FF-29 13:36:33".parse::<Iso8601TimeSp>().is_err());
         assert!("2020-09-29Q13:99:33".parse::<Iso8601TimeSp>().is_err());
