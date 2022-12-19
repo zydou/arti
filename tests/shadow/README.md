@@ -14,9 +14,9 @@ instructions](https://shadow.github.io/docs/guide/supported_platforms.html).
 Next you'll need to install executables that will run inside the simulation, in the
 locations where [`shadow.yaml`](./shadow.yaml) expects to find them.
 
-* Install [`tgen`](https://github.com/shadow/tgen/) in `~/.local`.
+* Ensure [`tgen`](https://github.com/shadow/tgen/) is on your PATH.
 
-* Install [`tor`](https://gitlab.torproject.org/tpo/core/tor) in `/usr/sbin`.
+* Ensure [`tor`](https://gitlab.torproject.org/tpo/core/tor) is on your PATH.
   Typically you can install it using your host system's package manager.
 
 * Build the `arti` client for target `x86_64-unknown-linux-gnu`, so that the
