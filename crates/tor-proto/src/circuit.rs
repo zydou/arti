@@ -592,7 +592,7 @@ impl CreateHandshakeWrap for CreateFastWrap {
     fn decode_chanmsg(&self, msg: CreateResponse) -> Result<Vec<u8>> {
         use CreateResponse::*;
         match msg {
-            CreatedFast(m) => Ok(m.into_body()),
+            CreatedFast(m) => Ok(m.into_handshake()),
             Destroy(_) => Err(Error::CircRefused(
                 "Relay replied to CREATE_FAST with DESTROY.",
             )),
@@ -769,7 +769,7 @@ mod test {
                     ChanMsg::CreateFast(cf) => cf,
                     _ => panic!(),
                 };
-                let (_, rep) = CreateFastServer::server(&mut rng, &[()], cf.body()).unwrap();
+                let (_, rep) = CreateFastServer::server(&mut rng, &[()], cf.handshake()).unwrap();
                 CreateResponse::CreatedFast(CreatedFast::new(rep))
             } else {
                 let c2 = match create_cell.msg() {
