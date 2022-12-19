@@ -19,10 +19,6 @@ network:
           packet_loss 0.0
         ]
       ]
-host_defaults:
-  # a way to only capture pcap for selected nodes instead would save a bit on artifact size,
-  # sadly I couldn't find one.
-  pcap_directory: .
 hosts:
   fileserver:
     network_node_id: 0
@@ -92,6 +88,8 @@ hosts:
     network_node_id: 0
     options:
       log_level: trace
+      # Enable pcap capture so we can check for leaks
+      pcap_directory: .
     processes:
     - path: ../../target/x86_64-unknown-linux-gnu/debug/arti
       args: proxy -c arti.toml -o proxy.socks_port=9000 --disable-fs-permission-checks -l debug,tor_proto=trace
