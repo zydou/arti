@@ -186,7 +186,7 @@ fn test_create_fast() {
 
     fbody(cmd, body, &msg::CreateFast::new(handshake.clone()).into());
     let create_fast = msg::CreateFast::new(handshake.clone());
-    assert_eq!(create_fast.body(), &handshake[..]);
+    assert_eq!(create_fast.handshake(), &handshake[..]);
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn test_created_fast() {
 
     fbody(cmd, body, &msg::CreatedFast::new(handshake.clone()).into());
     let created_fast = msg::CreatedFast::new(handshake.clone());
-    assert_eq!(created_fast.into_body(), handshake);
+    assert_eq!(created_fast.into_handshake(), handshake);
 }
 
 #[test]

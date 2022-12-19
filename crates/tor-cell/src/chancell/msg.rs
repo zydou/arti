@@ -302,7 +302,7 @@ fixed_len_handshake! {
 }
 impl CreateFast {
     /// Return the content of this handshake
-    pub fn body(&self) -> &[u8] {
+    pub fn handshake(&self) -> &[u8] {
         &self.handshake
     }
 }
@@ -315,7 +315,7 @@ fixed_len_handshake! {
 }
 impl CreatedFast {
     /// Consume this message and return the content of this handshake
-    pub fn into_body(self) -> Vec<u8> {
+    pub fn into_handshake(self) -> Vec<u8> {
         self.handshake
     }
 }
