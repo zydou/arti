@@ -111,7 +111,7 @@ link to your forked arti repository at:
 
 You might want to begin by looking around the
 [codebase](https://gitlab.torproject.org/tpo/core/arti/), or getting to
-know our [architecture](./doc/Architecture.md).
+know our [architecture](./doc/dev/Architecture.md).
 
 More tests would always be great. You can look at the [coverage reports](https://tpo.pages.torproject.net/core/arti/coverage/)
 to find out what parts need the more love.
