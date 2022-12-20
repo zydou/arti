@@ -1,6 +1,6 @@
 # tor-consdiff
 
-`tor-consdiff`: Restricted ed diff and patch formats for Tor.
+Restricted ed diff and patch formats for Tor.
 
 ## Overview
 

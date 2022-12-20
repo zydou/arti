@@ -1,6 +1,6 @@
 # caret
 
-`caret`: Integers with some named values.
+Integers with some named values.
 
 ## Crikey! Another Rust Enum Tool?
 

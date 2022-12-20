@@ -1,6 +1,6 @@
 # tor-persist
 
-`tor-persist`: Persistent data storage for use with Tor.
+Persistent data storage for use with Tor.
 
 This crate is part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to

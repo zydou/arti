@@ -1,6 +1,6 @@
 # tor-units
 
-`tor-units` -- Safe wrappers for primitive numeric types.
+Safe wrappers for primitive numeric types.
 
 ## Overview
 

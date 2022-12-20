@@ -20,95 +20,43 @@ lot by the time we're done.
 
 The current crates are:
 
-`caret`: A utility for generating enumerations with helpful trait
-implementations
-
-`retry-error`: A utility type for handling errors from operations that are
-tried multiple times, and which can fail differently each time.
-
-`tor-units`: Utilities for wrapping bounded and/or meaningful numeric types.
-
-`tor-llcrypto`: Wrappers and re-exports of cryptographic code that Tor needs in
-various ways.  Other crates should use this crate, and not actually
-use any crypto implementation crates directly.  (It's okay to use crates that
-define cryptographic traits.)
-
-`tor-error`: Declare a general `ErrorKind` implementation used to hide the
-details for the errors in higher-level Arti crates.
-
-`tor-persist`: Types and traits for handling persistent data in Arti.
-
-`tor-rtcompat`: Traits to expose a common interface for asynchronous runtime
-code. Currently it supports async-std and tokio.
-
-`tor-rtmock`: Implementations of the traits in `tor-rtcompat` to support
-testing.
-
-`tor-bytes`: Byte-by-byte encoder and decoder functions and traits.  We use
-this to safely parse cells, certs, and other byte-oriented things.
-
-`tor-cert`: Decoding and checking signatures on Tor's ed25519 certificates.
-
-`tor-protover`: Minimal implementation of the Tor subprotocol versioning
-system.  Less complete than the one in Tor's current src/rust, but more
-simple.
-
-`tor-socksproto`: Implements the server side of the SOCKS protocol, along
-with Tor-specific extensions.
-
-`tor-checkable`: Defines traits and types used to represent things that you
-can't use until verifying their signatures and checking their timeliness.
-
-`tor-consdiff`: Implements the client side of Tor's consensus-diff algorithm.
-
-`tor-netdoc`: Parsing for Tor's network documents.  Underdocumented and too
-big.
-
-`tor-linkspec`: Traits and types for connecting and extending to Tor relays.
-
-`tor-cell`: Encoding and decoding for Tor cells.
-
-`tor-proto`: Functions to work with handshakes, channels, circuits, streams,
-and other aspects of the Tor protocol.  This crate is NOT ALLOWED to have any
-dependencies on specific TLS libraries or specific async environments; those
-have to happen at a higher level.  (Perhaps this crate should be split into a
-cell handling API and a network API.  The division point would fairly
-logical.)
-
-`tor-netdir`: Wraps tor-netdoc to expose a "tor network directory" interface.
-Doesn't touch the network itself.  Right now it only handles microdesc-based
-directories.
-
-`tor-chanmgr`: Creates channels as necessary, returning existing channels
-when they already exist.
-
-`tor-guardmgr`: Manage a set of "guard nodes" that clients can use for
-connecting to the first relays on their circuit.
-
-`tor-circmgr`: Creates circuits as requested, returning existing circuits
-when they already exist.
-
-`tor-dirclient`: Downloads directory information over a one-hop circuit.
-
-`tor-dirmgr`: Uses `tor-dirclient` to fetch directory information as needed
-to download, cache, and maintain an up-to-date network view. Exposes the
-network view as an instance of `tor-netdir::NetDir`.
-
-`tor-config`: Support for loading and managing configuration files.
-
-`arti-client`: A client library that can be used to connect to the Tor network
-and make connections.
-
-`arti-config`: Support for working with Arti's configuration file format.
-This is likely to move to a lower level and get refactored significantly
-before Arti 1.0.0.
-
-`arti`:  A simple command-line client program that can run as a SOCKS proxy.
-
-`arti-bench`: A testing crate for running performance tests.
-
-`arti-hyper`: Adaptation layer for using `arti_client` as a backend for the
-`hyper` HTTP library.
+* [`arti-bench`](../../crates/arti-bench/README.md) -- A simple benchmarking utility for Arti.
+* [`arti-client`](../../crates/arti-client/README.md) -- High-level functionality for accessing the Tor network as a client.
+* [`arti-config`](../../crates/arti-config/README.md) -- Removed crate.  (Tools for configuration management in Arti)
+* [`arti-hyper`](../../crates/arti-hyper/README.md) -- High-level layer for making http(s) requests the Tor network as a client.
+* [`arti`](../../crates/arti/README.md) -- A minimal command line program for connecting to the Tor network
+* [`arti-testing`](../../crates/arti-testing/README.md) -- Tool for running an Arti client with unusual behavior or limitations.
+* [`caret`](../../crates/caret/README.md) -- Integers with some named values.
+* [`fs-mistrust`](../../crates/fs-mistrust/README.md) -- Check whether file permissions are private.
+* [`retry-error`](../../crates/retry-error/README.md) -- An error attempt to represent multiple failures.
+* [`safelog`](../../crates/safelog/README.md) -- Mark data as sensitive for logging purposes.
+* [`tor-basic-utils`](../../crates/tor-basic-utils/README.md) -- Utilities (low-level) for Tor
+* [`tor-bytes`](../../crates/tor-bytes/README.md) -- Utilities to decode/encode things into bytes.
+* [`tor-cell`](../../crates/tor-cell/README.md) -- Coding and decoding for the cell types that make up Tor's protocol
+* [`tor-cert`](../../crates/tor-cert/README.md) -- Implementation for Tor certificates
+* [`tor-chanmgr`](../../crates/tor-chanmgr/README.md) -- Manage a set of channels on the Tor network.
+* [`tor-checkable`](../../crates/tor-checkable/README.md) -- Traits for wrapping up signed and/or time-bound objects
+* [`tor-circmgr`](../../crates/tor-circmgr/README.md) -- circuits through the Tor network on demand.
+* [`tor-config`](../../crates/tor-config/README.md) -- Tools for configuration management in Arti
+* [`tor-congestion`](../../crates/tor-congestion/README.md) -- Algorithms for congestion control on the Tor network
+* [`tor-consdiff`](../../crates/tor-consdiff/README.md) -- Restricted ed diff and patch formats for Tor.
+* [`tor-dirclient`](../../crates/tor-dirclient/README.md) -- Implements a minimal directory client for Tor.
+* [`tor-dirmgr`](../../crates/tor-dirmgr/README.md) -- Code to fetch, store, and update Tor directory information.
+* [`tor-error`](../../crates/tor-error/README.md) -- Support for error handling in Tor and Arti
+* [`tor-events`](../../crates/tor-events/README.md) -- Tools for generating a stream of structured events, similar to C tor's `ControlPort`.
+* [`tor-guardmgr`](../../crates/tor-guardmgr/README.md) -- Guard node selection for Tor network clients.
+* [`tor-linkspec`](../../crates/tor-linkspec/README.md) -- Descriptions of Tor relays, as used to connect to them.
+* [`tor-llcrypto`](../../crates/tor-llcrypto/README.md) -- Low-level cryptographic implementations for Tor.
+* [`tor-netdir`](../../crates/tor-netdir/README.md) -- Represents a clients'-eye view of the Tor network.
+* [`tor-netdoc`](../../crates/tor-netdoc/README.md) -- Parse and represent directory objects used in Tor.
+* [`tor-persist`](../../crates/tor-persist/README.md) -- Persistent data storage for use with Tor.
+* [`tor-proto`](../../crates/tor-proto/README.md) -- Implementations for the core Tor protocol
+* [`tor-protover`](../../crates/tor-protover/README.md) -- Implementation of Tor's "subprotocol versioning" feature.
+* [`tor-ptmgr`](../../crates/tor-ptmgr/README.md) -- Manage a set of anti-censorship pluggable transports.
+* [`tor-rtcompat`](../../crates/tor-rtcompat/README.md) -- Compatibility between different async runtimes for Arti.
+* [`tor-rtmock`](../../crates/tor-rtmock/README.md) -- Support for mocking with `tor-rtcompat` asynchronous runtimes.
+* [`tor-socksproto`](../../crates/tor-socksproto/README.md) -- Implements SOCKS in the flavors provided by Tor.
+* [`tor-units`](../../crates/tor-units/README.md) -- Safe wrappers for primitive numeric types.
 
 ## Design considerations, privacy considerations.
 

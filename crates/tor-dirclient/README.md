@@ -1,6 +1,6 @@
 # tor-dirclient
 
-`tor-dirclient`: Implements a minimal directory client for Tor.
+Implements a minimal directory client for Tor.
 
 ## Overview
 

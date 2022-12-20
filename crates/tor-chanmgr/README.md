@@ -1,6 +1,6 @@
 # tor-chanmgr
 
-`tor-chanmgr`: Manage a set of channels on the Tor network.
+Manage a set of channels on the Tor network.
 
 ## Overview
 
