@@ -20,14 +20,18 @@ use crate::util::ct::CtByteArray;
 /// The length of an ED25519 identity, in bytes.
 pub const ED25519_ID_LEN: usize = 32;
 
-/// A relay's identity, as an unchecked, unvalidated Ed25519 key.
+/// An unchecked, unvalidated Ed25519 key.
+///
+/// This key is an "identity" in the sense that it identifies (up to) one
+/// Ed25519 key.  It may also represent the identity for a particular entity,
+/// such as a relay or an onion service.
 ///
 /// This type is distinct from an Ed25519 [`PublicKey`] for several reasons:
 ///  * We're storing it in a compact format, whereas the public key
 ///    implementation might want an expanded form for more efficient key
 ///    validation.
-///  * This type hasn't checked whether the bytes here actually _are_ a
-///    valid Ed25519 public key.
+///  * This type hasn't checked whether the bytes here actually _are_ a valid
+///    Ed25519 public key.
 #[derive(Clone, Copy, Hash, PartialOrd, Ord, Eq, PartialEq)]
 pub struct Ed25519Identity {
     /// A raw unchecked Ed25519 public key.
