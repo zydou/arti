@@ -14,7 +14,7 @@ of the [Tor](https://www.torproject.org/) anonymity protocols in the
 
    * [Guidelines for contributors](./CONTRIBUTING.md)
 
-   * [Architectural overview](./doc/Architecture.md)
+   * [Architectural overview](./doc/dev/Architecture.md)
 
    * [Compatibility guide](./doc/Compatibility.md)
 
