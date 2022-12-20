@@ -1,6 +1,6 @@
 # tor-congestion
 
-`tor-congestion`: algorithms for congestion control on the Tor network
+Algorithms for congestion control on the Tor network
 
 ## Overview
 

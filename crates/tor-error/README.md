@@ -1,6 +1,6 @@
 # tor-error
 
-`tor-error` -- Support for error handling in Tor and Arti
+Support for error handling in Tor and Arti
 
 Primarily, this crate provides the [`ErrorKind`] enum,
 and associated [`HasKind`] trait.

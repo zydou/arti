@@ -1,6 +1,6 @@
 # tor-guardmgr
 
-`tor-guardmgr`: guard node selection for Tor network clients.
+Guard node selection for Tor network clients.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # safelog
 
-## `safelog`: Mark data as sensitive for logging purposes.
+Mark data as sensitive for logging purposes.
 
 Some information is too sensitive to routinely write to system logs, but
 must nonetheless sometimes be displayed.  This crate provides a way to mark

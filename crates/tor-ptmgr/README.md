@@ -1,6 +1,6 @@
 # tor-ptmgr
 
-`tor-ptmgr`: Manage a set of anti-censorship pluggable transports.
+Manage a set of anti-censorship pluggable transports.
 
 ## Overview
 

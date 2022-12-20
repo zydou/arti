@@ -1,6 +1,6 @@
 # arti-config
 
-`arti-config`: Removed crate.  (Tools for configuration management in Arti)
+Removed crate.  (Tools for configuration management in Arti)
 
 This crate was part of
 [Arti](https://gitlab.torproject.org/tpo/core/arti/), a project to

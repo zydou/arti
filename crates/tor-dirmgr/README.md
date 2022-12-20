@@ -1,6 +1,6 @@
 # tor-dirmgr
 
-`tor-dirmgr`: Code to fetch, store, and update Tor directory information.
+Code to fetch, store, and update Tor directory information.
 
 ## Overview
 

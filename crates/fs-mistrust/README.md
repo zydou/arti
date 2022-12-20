@@ -1,6 +1,6 @@
 # fs-mistrust
 
-## `fs-mistrust`: check whether file permissions are private.
+Check whether file permissions are private.
 
 This crate provides a set of functionality to check the permissions on files
 and directories to ensure that they are effectively private—that is, that

@@ -1,6 +1,6 @@
 # tor-llcrypto
 
-`tor-llcrypto`: Low-level cryptographic implementations for Tor.
+Low-level cryptographic implementations for Tor.
 
 ## Overview
 

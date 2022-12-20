@@ -1,6 +1,6 @@
 # tor-linkspec
 
-`tor-linkspec`: Descriptions of Tor relays, as used to connect to them.
+Descriptions of Tor relays, as used to connect to them.
 
 ## Overview
 

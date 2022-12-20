@@ -1,6 +1,6 @@
 # tor-bytes
 
-`tor-bytes`: Utilities to decode/encode things into bytes.
+Utilities to decode/encode things into bytes.
 
 ## Overview
 
