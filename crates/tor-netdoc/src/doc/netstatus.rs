@@ -292,8 +292,12 @@ pub struct SignatureGroup {
     signatures: Vec<Signature>,
 }
 
+// TODO hs: Lower this type to tor-llcrypto: It is relied upon by various crypto
+// things in onion services, and may later be used elsewhere too.
+//
 /// A shared-random value produced by the directory authorities.
 #[allow(dead_code)]
+// TODO hs: This should have real accessors, not this 'visible/visibility' hack.
 #[cfg_attr(
     feature = "dangerous-expose-struct-fields",
     visible::StructFields(pub),
@@ -311,6 +315,8 @@ struct SharedRandVal {
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
+    //
+    // TODO hs-client: This should become [u8; 32] if we get approval to nail it down in the spec.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     value: Vec<u8>,
 }
