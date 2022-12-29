@@ -32,6 +32,8 @@
 use crate::util::intern::InternCache;
 
 pub mod authcert;
+#[cfg(feature = "onion-common")]
+pub mod hsdesc;
 pub mod microdesc;
 pub mod netstatus;
 

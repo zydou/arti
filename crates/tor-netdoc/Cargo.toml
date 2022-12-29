@@ -15,7 +15,7 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 full = ["routerdesc", "ns_consensus"]
-experimental = ["build_docs", "experimental-api"]
+experimental = ["build_docs", "experimental-api", "onion-client", "onion-service"]
 
 # Enable code to build the objects that represent different network documents.
 build_docs = ["rand"]
@@ -26,6 +26,13 @@ routerdesc = []
 
 # Enable the "ns consensus" document type, which some relays cache and serve.
 ns_consensus = []
+
+# Client-side and service-side support for onion services. 
+# Experimental: not covered by semver guarantees.
+# TODO hs: mark these as part of "full" once they are done and stable.
+onion-client = ["onion-common"]
+onion-service = ["onion-common", "rand"]
+onion-common = ["tor-hscrypto", "tor-linkspec"]
 
 # Enable experimental APIs that are not yet officially supported.
 #
@@ -64,6 +71,8 @@ tor-bytes = { path = "../tor-bytes", version = "0.6.0" }
 tor-cert = { path = "../tor-cert", version = "0.6.0" }
 tor-checkable = { path = "../tor-checkable", version = "0.4.0" }
 tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.0", optional = true } 
+tor-linkspec = { path = "../tor-linkspec", version = "0.6.0", optional = true }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
 tor-protover = { path = "../tor-protover", version = "0.4.0" }
 visibility = { version = "0.0.1", optional = true }
