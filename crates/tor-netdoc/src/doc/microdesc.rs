@@ -479,7 +479,7 @@ mod test {
 
     #[test]
     fn parse_multi() -> Result<()> {
-        use std::time::{Duration, SystemTime};
+        use humantime::parse_rfc3339;
         let mds: Result<Vec<_>> =
             MicrodescReader::new(TESTDATA2, &AllowAnnotations::AnnotationsAllowed).collect();
         let mds = mds?;
@@ -487,7 +487,7 @@ mod test {
 
         assert_eq!(
             mds[0].ann.last_listed.unwrap(),
-            SystemTime::UNIX_EPOCH + Duration::new(1580151129, 0)
+            parse_rfc3339("2020-01-27T18:52:09Z").unwrap()
         );
         assert_eq!(
             mds[0].md().digest(),
