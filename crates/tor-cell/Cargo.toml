@@ -13,10 +13,12 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 
 [features]
 default = []
-experimental = ["experimental-udp"]
+
+experimental = ["experimental-udp", "onion-service"]
 # Enable experimental UDP support.
 experimental-udp = []
-onion-service = []
+onion-service = ["tor-hscrypto"] #TODO hs: rename this feature, it is not service-specific.
+
 # Enable testing only API
 testing = ["experimental-udp"]
 
@@ -32,6 +34,7 @@ tor-basic-utils = { path = "../tor-basic-utils", version = "0.5.0" }
 tor-bytes = { path = "../tor-bytes", version = "0.6.0" }
 tor-cert = { path = "../tor-cert", version = "0.6.0" }
 tor-error = { path = "../tor-error", version = "0.4.0" }
+tor-hscrypto = { path = "../tor-hscrypto", version = "0.1.0", optional = true }
 tor-linkspec = { path = "../tor-linkspec", version = "0.6.0" }
 tor-llcrypto = { path = "../tor-llcrypto", version = "0.4.0" }
 tor-units = { path = "../tor-units", version = "0.4.0" }

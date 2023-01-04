@@ -65,19 +65,34 @@ pub enum RelayMsg {
     /// UDP stream data
     #[cfg(feature = "experimental-udp")]
     Datagram(udp::Datagram),
-    // No hs for now.
+
     /// Establish Introduction
     #[cfg(feature = "onion-service")]
     EstablishIntro(onion_service::EstablishIntro),
     /// Establish Rendezvous
     #[cfg(feature = "onion-service")]
     EstablishRendezvous(onion_service::EstablishRendezvous),
-    /// Introduce1
+    /// Introduce1 (client to introduction point)
     #[cfg(feature = "onion-service")]
     Introduce1(onion_service::Introduce1),
-    /// Introduce2
+    /// Introduce2 (introduction point to service)
     #[cfg(feature = "onion-service")]
     Introduce2(onion_service::Introduce2),
+    /// Rendezvous1 (service to rendezvous point)
+    #[cfg(feature = "onion-service")]
+    Rendezvous1(onion_service::Rendezvous1),
+    /// Rendezvous2 (rendezvous point to client)
+    #[cfg(feature = "onion-service")]
+    Rendezvous2(onion_service::Rendezvous2),
+    /// Acknowledgement for EstablishIntro.
+    #[cfg(feature = "onion-service")]
+    IntroEstablished(onion_service::IntroEstablished),
+    /// Acknowledgment for EstalishRendezvous.
+    #[cfg(feature = "onion-service")]
+    RendEstablished,
+    /// Acknowledgement for Introduce1.
+    #[cfg(feature = "onion-service")]
+    IntroduceAck(onion_service::IntroduceAck),
 
     /// An unrecognized command.
     Unrecognized(Unrecognized),
@@ -133,6 +148,17 @@ impl RelayMsg {
             Introduce1(_) => RelayCmd::INTRODUCE1,
             #[cfg(feature = "onion-service")]
             Introduce2(_) => RelayCmd::INTRODUCE2,
+            #[cfg(feature = "onion-service")]
+            Rendezvous1(_) => RelayCmd::RENDEZVOUS1,
+            #[cfg(feature = "onion-service")]
+            Rendezvous2(_) => RelayCmd::RENDEZVOUS2,
+            #[cfg(feature = "onion-service")]
+            IntroEstablished(_) => RelayCmd::INTRO_ESTABLISHED,
+            #[cfg(feature = "onion-service")]
+            RendEstablished => RelayCmd::RENDEZVOUS_ESTABLISHED,
+            #[cfg(feature = "onion-service")]
+            IntroduceAck(_) => RelayCmd::INTRODUCE_ACK,
+
             Unrecognized(u) => u.cmd(),
         }
     }
@@ -174,10 +200,24 @@ impl RelayMsg {
             RelayCmd::INTRODUCE1 => {
                 RelayMsg::Introduce1(onion_service::Introduce1::decode_from_reader(r)?)
             }
+
+            // TODO hs
+            // #[cfg(feature = "onion-service")]
+            // RelayCmd::RENDEZVOUS1 => todo!(),
+            // #[cfg(feature = "onion-service")]
+            // RelayCmd::RENDEZVOUS2 => todo!(),
+            // #[cfg(feature = "onion-service")]
+            // RelayCmd::INTRO_ESTABLISHED => todo!(),
+            // #[cfg(feature = "onion-service")]
+            // RelayCmd::RENDEZVOUS_ESTABLISHED => todo!(),
+            // #[cfg(feature = "onion-service")]
+            // RelayCmd::INTRODUCE_ACK => todo!(),
             _ => RelayMsg::Unrecognized(Unrecognized::decode_with_cmd(c, r)?),
         })
     }
+
     /// Encode the body of this message, not including command or length
+    #[allow(clippy::missing_panics_doc)] // TODO hs
     pub fn encode_onto(self, w: &mut Vec<u8>) -> EncodeResult<()> {
         use RelayMsg::*;
         match self {
@@ -210,6 +250,17 @@ impl RelayMsg {
             Introduce1(b) => b.encode_onto(w),
             #[cfg(feature = "onion-service")]
             Introduce2(b) => b.encode_onto(w),
+            #[cfg(feature = "onion-service")]
+            Rendezvous1(_) => todo!(), // TODO hs
+            #[cfg(feature = "onion-service")]
+            Rendezvous2(_) => todo!(), // TODO hs
+            #[cfg(feature = "onion-service")]
+            IntroEstablished(_) => todo!(), // TODO hs
+            #[cfg(feature = "onion-service")]
+            RendEstablished => todo!(), // TODO hs
+            #[cfg(feature = "onion-service")]
+            IntroduceAck(_) => todo!(), // TODO hs
+
             Unrecognized(b) => b.encode_onto(w),
         }
     }
