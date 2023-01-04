@@ -60,8 +60,8 @@ fn timeouts() {
 }
 
 fn start() -> SystemTime {
-    // Yes this is a homestuck reference
-    SystemTime::UNIX_EPOCH + Duration::from_secs(1239657180)
+    use humantime::parse_rfc3339;
+    parse_rfc3339("2009-04-13T09:13:00Z").unwrap()
 }
 const ONE_DAY: Duration = Duration::from_secs(86400);
 
