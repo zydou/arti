@@ -15,6 +15,8 @@ use subtle::{Choice, ConstantTimeEq};
 
 pub use ed25519_dalek::{ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Signer};
 
+use crate::util::ct::CtByteArray;
+
 /// The length of an ED25519 identity, in bytes.
 pub const ED25519_ID_LEN: usize = 32;
 
@@ -26,11 +28,10 @@ pub const ED25519_ID_LEN: usize = 32;
 ///    validation.
 ///  * This type hasn't checked whether the bytes here actually _are_ a
 ///    valid Ed25519 public key.
-#[derive(Clone, Copy, Hash, PartialOrd, Ord)]
-#[allow(clippy::derive_hash_xor_eq)]
+#[derive(Clone, Copy, Hash, PartialOrd, Ord, Eq, PartialEq)]
 pub struct Ed25519Identity {
     /// A raw unchecked Ed25519 public key.
-    id: [u8; ED25519_ID_LEN],
+    id: CtByteArray<ED25519_ID_LEN>,
 }
 
 impl Ed25519Identity {
@@ -52,7 +53,7 @@ impl Ed25519Identity {
     /// assert!(pk.is_err());
     /// ```
     pub fn new(id: [u8; 32]) -> Self {
-        Ed25519Identity { id }
+        Ed25519Identity { id: id.into() }
     }
     /// If `id` is of the correct length, wrap it in an Ed25519Identity.
     pub fn from_bytes(id: &[u8]) -> Option<Self> {
@@ -64,7 +65,7 @@ impl Ed25519Identity {
     }
     /// Return a reference to the bytes in this key.
     pub fn as_bytes(&self) -> &[u8] {
-        &self.id[..]
+        &self.id.as_ref()[..]
     }
 }
 
@@ -91,7 +92,7 @@ impl From<&PublicKey> for Ed25519Identity {
 impl TryFrom<&Ed25519Identity> for PublicKey {
     type Error = ed25519_dalek::SignatureError;
     fn try_from(id: &Ed25519Identity) -> Result<PublicKey, Self::Error> {
-        PublicKey::from_bytes(&id.id[..])
+        PublicKey::from_bytes(&id.id.as_ref()[..])
     }
 }
 
@@ -108,20 +109,12 @@ impl ConstantTimeEq for Ed25519Identity {
     }
 }
 
-impl PartialEq<Ed25519Identity> for Ed25519Identity {
-    fn eq(&self, rhs: &Ed25519Identity) -> bool {
-        self.ct_eq(rhs).unwrap_u8() == 1
-    }
-}
-
-impl Eq for Ed25519Identity {}
-
 impl Display for Ed25519Identity {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
-            base64::encode_config(self.id, base64::STANDARD_NO_PAD)
+            base64::encode_config(self.id.as_ref(), base64::STANDARD_NO_PAD)
         )
     }
 }
@@ -139,7 +132,7 @@ impl safelog::Redactable for Ed25519Identity {
         write!(
             f,
             "{}…",
-            &base64::encode_config(self.id, base64::STANDARD_NO_PAD)[..2]
+            &base64::encode_config(self.id.as_ref(), base64::STANDARD_NO_PAD)[..2]
         )
     }
 
@@ -154,9 +147,12 @@ impl serde::Serialize for Ed25519Identity {
         S: serde::Serializer,
     {
         if serializer.is_human_readable() {
-            serializer.serialize_str(&base64::encode_config(self.id, base64::STANDARD_NO_PAD))
+            serializer.serialize_str(&base64::encode_config(
+                self.id.as_ref(),
+                base64::STANDARD_NO_PAD,
+            ))
         } else {
-            serializer.serialize_bytes(&self.id[..])
+            serializer.serialize_bytes(&self.id.as_ref()[..])
         }
     }
 }
