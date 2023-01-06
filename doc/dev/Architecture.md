@@ -18,11 +18,9 @@ As a naming convention, crates that are user-facing start with "arti", crates
 that are tor-specific start with "tor-", and crates that aren't tor-specific
 have more general names.
 
+### Simplified module diagram
 
 ```mermaid
----
-Title: Simplified module diagram
----
    graph TD
 
    subgraph Application
@@ -78,6 +76,7 @@ Title: Simplified module diagram
    tor-cert & tor-linkspec --> tor-bytes
 ```
 
+### List of crates
 
 The current crates are:
 
