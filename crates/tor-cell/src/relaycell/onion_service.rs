@@ -1,12 +1,23 @@
-//! Encoding and decoding for relay messages
-//!
-//! Relay messages are sent along circuits, inside RELAY or RELAY_EARLY
-//! cells.
+//! Encoding and decoding for relay messages related to onion services.
+
+#![allow(dead_code)] // TODO hs: remove.
+
+// TODO hs design: We need to discuss how we want to handle extensions in these
+// cells: extensions are used all over the protocol, and it would be nice to be
+// more clever about them.
+//
+// It would be neat if recognized extension types were decoded into recognized
+// structures. On the other hand, it would be good to retain unrecognized
+// extension types, so that other code  can use them in the future without having to
+// add support here.
+
+// TODO hs: we'll neeed accessors for the useful fields in all these types.
 
 use super::msg;
 use caret::caret_int;
 use tor_bytes::{EncodeError, EncodeResult, Error as BytesError, Readable, Result, Writeable};
 use tor_bytes::{Reader, Writer};
+use tor_hscrypto::RendCookie;
 use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_units::BoundedInt32;
 
@@ -134,6 +145,9 @@ pub struct EstablishIntro {
     /// The public introduction point auth key.
     auth_key: Vec<u8>,
     /// An optional denial-of-service extension.
+    //
+    // TODO hs: we may want to consider making this a vector of extensions instead,
+    // to allow unrecognized extensions?
     extension_dos: Option<EstIntroExtDoS>,
     /// the MAC of all earlier fields in the cell.
     handshake_auth: [u8; 32],
@@ -221,6 +235,11 @@ impl EstablishIntro {
     pub fn set_extension_dos(&mut self, extension_dos: EstIntroExtDoS) {
         self.extension_dos = Some(extension_dos);
     }
+
+    // TODO hs: we'll neeed accessors.
+    //
+    // TODO hs: we will need some way to ensure that the mac is valid and well-signed.  Possibly
+    // we should look into using a SignatureGated (if we can reasonably do so?)
 }
 
 /// A message sent from client to rendezvous point.
@@ -228,7 +247,7 @@ impl EstablishIntro {
 pub struct EstablishRendezvous {
     /// A rendezvous cookie is an arbitrary 20-byte value,
     /// chosen randomly by the client.
-    cookie: [u8; EstablishRendezvous::COOKIE_LEN],
+    cookie: [u8; EstablishRendezvous::COOKIE_LEN], // TODO hs: Make this a RendCookie.
 }
 impl EstablishRendezvous {
     /// The only acceptable length of a rendezvous cookie.
@@ -355,4 +374,50 @@ impl Introduce {
         w.write_all(&self.encrypted[..]);
         Ok(())
     }
+}
+
+/// A message sent from an onion service to a rendezvous point, telling it to
+/// make a connection to the client.
+#[derive(Debug, Clone)]
+pub struct Rendezvous1 {
+    /// The cookie originally sent by the client in its ESTABLISH_REND message.
+    cookie: RendCookie,
+    /// The message to send the client.
+    message: Vec<u8>,
+}
+/// A message sent from the rendezvous point to the client, telling it about the
+/// onion service's message.
+#[derive(Debug, Clone)]
+pub struct Rendezvous2 {
+    /// The message from the onion service.
+    message: Vec<u8>,
+}
+
+/// Reply sent from the introduction point to the onion service, telling it that
+/// an introduction point is now established.
+#[derive(Debug, Clone)]
+pub struct IntroEstablished {
+    /// The extensions included in this cell.
+    //
+    // TODO hs: we should extract this with any DOS related extensions, depending on what we
+    // decide to do with extension in general.
+    extensions: Vec<IntroEstExtension>,
+}
+
+/// An extension included in an [`IntroEstablished`] message.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum IntroEstExtension {
+    /// An unrecognized exension.
+    Unrecognized(Vec<u8>),
+}
+
+/// A reply from the introduction point to the client, telling it that its
+/// introduce1 was received.
+#[derive(Clone, Debug)]
+pub struct IntroduceAck {
+    // TODO hs: use a caret enum for this.
+    /// The status reported for the Introduce1 message.
+    status_code: u16,
+    // TODO hs: add extensions.
 }

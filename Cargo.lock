@@ -3581,6 +3581,7 @@ dependencies = [
  "tor-bytes",
  "tor-cert",
  "tor-error",
+ "tor-hscrypto",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-units",
@@ -3886,6 +3887,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-hscrypto"
+version = "0.1.0"
+dependencies = [
+ "rand_core 0.6.4",
+ "thiserror",
+ "tor-llcrypto",
+]
+
+[[package]]
 name = "tor-linkspec"
 version = "0.6.0"
 dependencies = [
@@ -4004,6 +4014,8 @@ dependencies = [
  "tor-cert",
  "tor-checkable",
  "tor-error",
+ "tor-hscrypto",
+ "tor-linkspec",
  "tor-llcrypto",
  "tor-protover",
  "visibility",

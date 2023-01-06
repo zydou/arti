@@ -27,12 +27,17 @@ use crate::util::ct::CtByteArray;
 /// of its RSA public identity key.)
 pub const RSA_ID_LEN: usize = 20;
 
-/// An identifier for a Tor relay, based on its legacy RSA identity
-/// key.  These are used all over the Tor protocol.
+/// An identifier for an RSA key, based on SHA1 and DER.
 ///
-/// Note that for modern purposes, you should almost always identify a
-/// relay by its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity)
-/// instead of by this kind of identity key.
+/// These are used (for legacy purposes) all over the Tor protocol.
+///
+/// This object is an "identity" in the sense that it identifies (up to) one RSA
+/// key.  It may also represent the identity for a particular entity, such as a
+/// relay or a directory authority.
+///
+/// Note that for modern purposes, you should almost always identify a relay by
+/// its [`Ed25519Identity`](crate::pk::ed25519::Ed25519Identity) instead of by
+/// this kind of identity key.
 #[derive(Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct RsaIdentity {
     /// SHA1 digest of a DER encoded public key.
@@ -57,7 +62,7 @@ impl fmt::Debug for RsaIdentity {
 }
 
 impl safelog::Redactable for RsaIdentity {
-    /// Warning: This displays 16 bits of the ed25519 identity, which is
+    /// Warning: This displays 16 bits of the RSA identity, which is
     /// enough to narrow down a public relay by a great deal.
     fn display_redacted(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "${}…", hex::encode(&self.id.as_ref()[..1]))

@@ -13,6 +13,7 @@ pub mod extend;
 pub mod msg;
 #[cfg(feature = "onion-service")]
 pub mod onion_service;
+pub mod restrict;
 #[cfg(feature = "experimental-udp")]
 pub mod udp;
 
