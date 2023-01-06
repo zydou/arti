@@ -9,6 +9,7 @@ use safelog::sensitive as sv;
 use tor_error::bad_api_usage;
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{Runtime, TcpProvider};
+use tracing::trace;
 
 use crate::Error;
 
@@ -49,6 +50,8 @@ impl<R: Runtime> crate::transport::TransportImplHelper for DefaultTransport<R> {
                 )))
             }
         };
+
+        trace!("Launching direct connection for {}", target);
 
         let (stream, addr) = connect_to_one(&self.runtime, &direct_addrs).await?;
         let mut using_target = target.clone();
