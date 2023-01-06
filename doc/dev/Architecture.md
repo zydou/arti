@@ -10,13 +10,73 @@ exist.  I hope this will make everything easier to test.
 
 ## Structure
 
-To try to keep dependency relationships reasonable, and to follow
-what I imagine to be best practice, I'm splitting this
-implementation into a bunch of little crates within a workspace.
-Crates that are tor-specific start with "tor-"; others don't.
+Here follows a rough outline of our current crate dependency diagram.  (Not all
+crates and not all dependencies are shown; this diagram is simplified in order to 
+try to give a better understanding of the code structure.)
 
-I expect that the list of crates will have to be reorganized quite a
-lot by the time we're done.
+As a naming convention, crates that are user-facing start with "arti", crates
+that are tor-specific start with "tor-", and crates that aren't tor-specific
+have more general names.
+
+### Simplified module diagram
+
+```mermaid
+   graph TD
+
+   subgraph Application
+        arti --> tor-socksproto
+   end
+   
+   subgraph Async Tor implementation
+        arti-client --> tor-dirmgr
+        arti-client --> tor-circmgr
+        tor-dirmgr --> tor-circmgr
+        tor-dirmgr --> tor-dirclient 
+        tor-circmgr --> tor-chanmgr
+        tor-chanmgr --> tor-ptmgr
+        tor-circmgr --> tor-guardmgr
+   end
+
+   arti --> arti-client
+
+   subgraph Core Tor protocol
+     tor-proto --> tor-cell
+   end
+
+   tor-dirmgr & tor-circmgr & tor-guardmgr --> tor-netdir
+
+   subgraph Mid-level Tor functionality
+      tor-netdir --> tor-netdoc
+      tor-netdir --> tor-linkspec
+      tor-linkspec & tor-netdoc --> tor-protover
+      tor-netdoc --> tor-cert
+      tor-consdiff
+      tor-persist
+   end
+
+   tor-circmgr & tor-guardmgr --> tor-persist
+
+   subgraph Generic functionality
+      tor-bytes --> tor-llcrypto
+      tor-checkable --> tor-llcrypto
+   end
+
+   subgraph Rust async runtime
+      tor-rtcompat
+   end
+
+   arti-client & tor-dirmgr & tor-circmgr & tor-chanmgr & tor-guardmgr --> tor-rtcompat
+
+   tor-dirclient --> tor-proto
+   tor-dirmgr --> tor-consdiff
+
+   tor-circmgr & tor-chanmgr & arti-client --> tor-proto
+   tor-cell --> tor-bytes & tor-cert & tor-linkspec
+   tor-consdiff --> tor-llcrypto
+   tor-cert & tor-linkspec --> tor-bytes
+```
+
+### List of crates
 
 The current crates are:
 
@@ -73,4 +133,57 @@ Privacy isn't just a drop-in feature, however.  There are still
 plenty of ways to accidentally leak information, even if you're
 anonymizing your connections over Tor.  We'll try to document
 those in a user's guide at some point as Arti becomes more mature.
+
+## Object dependencies and handling dependency inversion.
+
+(Or, "Why so much `Weak<>`?")
+
+Sometimes we need to add a circular dependency in our object graph. For example,
+the directory manager (`DirMgr`) needs a circuit manager (`CircMgr`) in order to
+contact directory services, but the `CircMgr` needs to ask the `DirMgr` for a
+list of relays on the network, in order to build circuits.
+
+We handle this situation by having the lower-level type (in this case the
+`CircMgr`) keep a weak reference to the higher-level object, via a `Weak<dyn
+Trait>` pointer.  Using a `dyn Trait` here allows the lower-level crate to
+define the API that it wants to use, while not introducing a dependency on the
+higher-level crate.  Using a `Weak` pointer ensures that the lower-level object
+won't keep the higher level object alive: thus when the last strong reference to the
+higher-level object is dropped, it can get cleaned up correctly.
+
+Below is a rough diagram of how our high-level "manager" objects fit together.
+**Bold** lines indicate a direct, no-abstraction ownership relationship.  Thin
+lines indicate ownership for a single purpose, or via a limited API.  Dotted
+lines indicate a dependency inversion as described above, implemented with a 
+`Weak<dyn Trait>`.
+
+```mermaid
+   graph TD
+
+   TorClient ==> DirMgr & CircMgr
+   TorClient --> |C| ChanMgr & GuardMgr
+   DirMgr ==> CircMgr
+   CircMgr ==> GuardMgr & ChanMgr
+   CircMgr -.-> |W| DirMgr
+   GuardMgr -.-> |W| DirMgr
+   ChanMgr --> |As a ChannelFactory| PtMgr
+```
+
+We also use `Weak<>` references to these manager objects when implementing
+**background tasks** that need to run on a schedule.  We don't want the
+background tasks to keep the managers alive if there are no other references to
+the `TorClient`, so we tend to structure them more or less as follows:
+
+```
+async fn run_background_task(mgr: Weak<FooMgr>, schedule: ScheduleObject) {
+    while schedule.await {
+        if let Some(mgr) = Weak::upgrade(&mgr) {
+            // Use mgr for background task
+            // ...
+        } else {
+            break;
+        }
+    }
+```
+
 
