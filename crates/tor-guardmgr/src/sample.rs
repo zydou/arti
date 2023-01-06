@@ -1017,7 +1017,15 @@ impl<'a> From<GuardSample<'a>> for GuardSet {
 
 #[cfg(test)]
 mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdir::{NetDir, Relay};
     use tor_netdoc::doc::netstatus::{RelayFlags, RelayWeight};

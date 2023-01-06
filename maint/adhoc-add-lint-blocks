@@ -1,0 +1,26 @@
+#!/usr/bin/perl -i -p
+
+# adhoc script for adding lint blocks to mod test everywhere
+#
+# git-grep -l 'cfg(test)' | xargs git-grep -L 'begin test lint list maintained by maint/add_warning' | xargs maint/adhoc-add-lint-blocks 
+#
+# TODO: this script should probably be deleted at some point, if we find we
+# don't need to run it again.
+
+next unless m{^mod test \{$} ... !m{^    \S};
+
+if (m{^mod}) {
+	$_ .= <<'END';
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+END
+}
+
+s{^    \#\!\[allow\(clippy::.*\n}{};
