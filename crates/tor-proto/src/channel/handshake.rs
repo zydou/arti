@@ -958,8 +958,10 @@ pub(super) mod test {
         .unwrap();
 
         let re = Regex::new(
-            r"Identity .* does not match target ed25519:EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA",
-        ).unwrap();
+            // identities might be scrubbed by safelog
+            r"Identity .* does not match target .*",
+        )
+        .unwrap();
         assert!(re.is_match(&format!("{}", err)));
 
         let err = certs_test(
@@ -974,7 +976,8 @@ pub(super) mod test {
         .unwrap();
 
         let re = Regex::new(
-            r"Identity .* does not match target \$9999999999999999999999999999999999999999",
+            // identities might be scrubbed by safelog
+            r"Identity .* does not match target .*",
         )
         .unwrap();
         assert!(re.is_match(&format!("{}", err)));

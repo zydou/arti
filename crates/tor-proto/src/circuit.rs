@@ -597,7 +597,7 @@ impl CreateHandshakeWrap for CreateFastWrap {
                 "Relay replied to CREATE_FAST with DESTROY.",
             )),
             _ => Err(Error::CircProto(format!(
-                "Relay replied to CREATE_FAST with unexpected cell: {:?}",
+                "Relay replied to CREATE_FAST with unexpected cell: {}",
                 msg
             ))),
         }
@@ -619,7 +619,7 @@ impl CreateHandshakeWrap for Create2Wrap {
             Created2(m) => Ok(m.into_body()),
             Destroy(_) => Err(Error::CircRefused("Relay replied to CREATE2 with DESTROY.")),
             _ => Err(Error::CircProto(format!(
-                "Relay replied to CREATE2 with unexpected cell {:?}",
+                "Relay replied to CREATE2 with unexpected cell {}",
                 msg
             ))),
         }
