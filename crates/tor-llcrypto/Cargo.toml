@@ -21,6 +21,8 @@ relay = []
 
 # Enable support for cryptography needed to be an onion service v3 client.
 hsv3-client = []
+# Enable support for cryptography needed to be an onion service v3 service.
+hsv3-service = []
 
 [dependencies]
 aes = { version = "0.8", features = ["zeroize"] }
