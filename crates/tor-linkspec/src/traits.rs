@@ -6,7 +6,10 @@ use std::{fmt, iter::FusedIterator, net::SocketAddr};
 use strum::IntoEnumIterator;
 use tor_llcrypto::pk;
 
-use crate::{ChannelMethod, PtTargetAddr, RelayIdRef, RelayIdType, RelayIdTypeIter};
+use crate::{ChannelMethod, RelayIdRef, RelayIdType, RelayIdTypeIter};
+
+#[cfg(feature = "pt-client")]
+use crate::PtTargetAddr;
 
 /// Legacy implementation helper for HasRelayIds.
 ///
