@@ -66,3 +66,14 @@ codegen-units = 1
 # Optimize for size.  [Actually this is even smaller than 'z' on rust
 # 1.56.  It saves about 11% download size over the default value of '3'.]
 opt-level = 's'
+
+[profile.quicktest]
+# This profile is meant to be a compromise between "release" (which
+# takes a long time to build) and "dev" (which can be too slow to acutally
+# use when connecting over the Tor network).
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+opt-level = 2
+incremental = true
+
