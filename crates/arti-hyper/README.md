@@ -12,7 +12,7 @@ to connect to Tor and make a single HTTP\[S] request.
 
 ## Warning 
 
-On `aarch64-apple-darwin` targets only the `tls-api-openssl` tls implementation is working.
+On `apple-darwin` targets only the `tls-api-openssl` tls implementation is working.
 If you get a issue related to tls failure, please refer to issue [#715](https://gitlab.torproject.org/tpo/core/arti/-/issues/715).
 
 License: MIT OR Apache-2.0

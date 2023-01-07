@@ -15,13 +15,13 @@ use arti_client::{TorClient, TorClientConfig};
 use hyper::Body;
 use tls_api::{TlsConnector as TlsConnectorTrait, TlsConnectorBuilder};
 
-// On aarch64-apple-darwin targets there is an issue with the native and rustls
+// On apple-darwin targets there is an issue with the native and rustls
 // tls implementation so this makes it fall back to the openssl variant.
 //
 // https://gitlab.torproject.org/tpo/core/arti/-/issues/715
-#[cfg(not(all(target_vendor = "apple", target_arch = "aarch64")))]
+#[cfg(not(target_vendor = "apple"))]
 use tls_api_native_tls::TlsConnector;
-#[cfg(all(target_vendor = "apple", target_arch = "aarch64"))]
+#[cfg(target_vendor = "apple")]
 use tls_api_openssl::TlsConnector;
 
 #[tokio::main]
