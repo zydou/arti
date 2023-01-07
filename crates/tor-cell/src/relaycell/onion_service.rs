@@ -11,7 +11,7 @@
 // extension types, so that other code  can use them in the future without having to
 // add support here.
 
-// TODO hs: we'll neeed accessors for the useful fields in all these types.
+// TODO hs: we'll need accessors for the useful fields in all these types.
 
 use super::msg;
 use caret::caret_int;
@@ -54,7 +54,7 @@ caret_int! {
 #[derive(Debug, Clone)]
 pub struct EstIntroExtDoS {
     /// An optional parameter indicates the rate per second of
-    /// INTRODUCE2 cell relayed to theservice.
+    /// INTRODUCE2 cell relayed to the service.
     ///
     /// Min: 0, Max: 2147483647
     rate_per_sec: Option<BoundedInt32<0, { i32::MAX }>>,
@@ -236,7 +236,7 @@ impl EstablishIntro {
         self.extension_dos = Some(extension_dos);
     }
 
-    // TODO hs: we'll neeed accessors.
+    // TODO hs: we'll need accessors.
     //
     // TODO hs: we will need some way to ensure that the mac is valid and well-signed.  Possibly
     // we should look into using a SignatureGated (if we can reasonably do so?)
@@ -408,7 +408,7 @@ pub struct IntroEstablished {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum IntroEstExtension {
-    /// An unrecognized exension.
+    /// An unrecognized extension.
     Unrecognized(Vec<u8>),
 }
 
