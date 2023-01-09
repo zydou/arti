@@ -6,6 +6,7 @@ use std::time::{Duration, SystemTime};
 ///
 /// These time periods are used to derive a different `BlindedOnionIdKey`
 /// during each period from each `OnionIdKey`.
+#[derive(Copy, Clone, Debug)]
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
     interval_num: u64,

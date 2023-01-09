@@ -11,6 +11,7 @@ pub mod time;
 
 /// The information that a client needs to know about an onion service in
 /// order to connect to it.
+#[derive(Copy, Clone, Debug)]
 pub struct Credential {
     /// Representation for the onion service's public ID.
     ///
@@ -26,6 +27,7 @@ pub struct Credential {
 /// the current time period.
 ///
 /// Given this piece of information, the original credential cannot be re-derived.
+#[derive(Copy, Clone, Debug)]
 pub struct Subcredential([u8; 32]);
 
 /// Counts which revision of an onion service descriptor is which, within a
@@ -33,11 +35,12 @@ pub struct Subcredential([u8; 32]);
 ///
 /// There can be gaps in this numbering. A descriptor with a higher-valued
 /// revision counter supersedes one with a lower revision counter.
+#[derive(Copy, Clone, Debug)]
 pub struct RevisionCounter(u64);
 
 /// An opaque value used by an onion service
 // TODO hs: these values should only permit constant-time comparison.
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct RendCookie([u8; 20]);
 
 /// A position within the onion service directory hash ring.
