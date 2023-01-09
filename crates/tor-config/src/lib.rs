@@ -179,7 +179,7 @@ where
 
 /// Helper for resolving a config item which can be specified in multiple ways
 ///
-/// Useable when a single configuration item can be specified
+/// Usable when a single configuration item can be specified
 /// via multiple (alternative) input fields;
 /// Each input field which is actually present
 /// should be converted to the common output type,

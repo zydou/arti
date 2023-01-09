@@ -164,7 +164,7 @@ pub(crate) struct ChannelDetails {
     /// Mutable state used by the `Channel` (frontend)
     ///
     /// The reactor (hot code) ought to avoid acquiring this lock.
-    /// (It doesn't currently have a useable reference to it.)
+    /// (It doesn't currently have a usable reference to it.)
     mutable: Mutex<MutableDetails>,
 }
 

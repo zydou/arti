@@ -100,7 +100,7 @@ library (and its dependencies).
 
 That library's API will allow you to
 make connections over the Tor network,
-and obtain streams/sinks useable from async Rust.
+and obtain streams/sinks usable from async Rust.
 
 ## Minimum supported Rust Version
 

@@ -62,7 +62,7 @@ where
 /// Helper type for reporting errors that are concrete implementors of `StdError`
 ///
 /// This is an opaque type, only constructable via the `ErrorExt` helper trait
-/// and only useable via its `AsRef` implementation.
+/// and only usable via its `AsRef` implementation.
 //
 // We need this because Rust's trait object handling rules, and provided AsRef impls,
 // are rather anaemic.  We cannot simply put a &dyn Error into Report, because

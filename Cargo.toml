@@ -69,7 +69,7 @@ opt-level = 's'
 
 [profile.quicktest]
 # This profile is meant to be a compromise between "release" (which
-# takes a long time to build) and "dev" (which can be too slow to acutally
+# takes a long time to build) and "dev" (which can be too slow to actually
 # use when connecting over the Tor network).
 inherits = "release"
 lto = "thin"
