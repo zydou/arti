@@ -38,6 +38,8 @@
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
 mod err;
+#[cfg(feature = "hs-common")]
+mod hsdir_ring;
 pub mod params;
 mod weight;
 
@@ -46,6 +48,8 @@ pub mod testnet;
 #[cfg(feature = "testing")]
 pub mod testprovider;
 
+#[cfg(feature = "hs-common")]
+use hsdir_ring::HsDirRing;
 use static_assertions::const_assert;
 use tor_linkspec::{
     ChanTarget, DirectChanMethodsHelper, HasAddrs, HasRelayIds, RelayIdRef, RelayIdType,
@@ -65,6 +69,9 @@ use std::ops::Deref;
 use std::sync::Arc;
 use strum::{EnumCount, EnumIter};
 use tracing::warn;
+
+#[cfg(feature = "hs-common")]
+use {std::time::SystemTime, tor_hscrypto::pk::BlindedOnionId};
 
 pub use err::Error;
 pub use weight::WeightRole;
@@ -203,6 +210,18 @@ impl From<u64> for RelayWeight {
     }
 }
 
+/// An operation for which we might be requesting an onion service directory.
+#[derive(Copy, Clone, Debug)]
+#[non_exhaustive]
+pub enum OnionServiceDirOp {
+    /// Uploading an onion service descriptor to the current ring.
+    Upload,
+    /// Uploading an onion service descriptor to the previous ring.
+    UploadPrevious,
+    /// Downloading an onion service descriptor.
+    Download,
+}
+
 /// A view of the Tor directory, suitable for use in building circuits.
 ///
 /// Abstractly, a [`NetDir`] is a set of usable public [`Relay`]s, each of which
@@ -258,6 +277,38 @@ pub struct NetDir {
     /// This is constructed at the same time as the NetDir object, so it
     /// can be immutable.
     rs_idx_by_rsa: Arc<HashMap<RsaIdentity, usize>>,
+
+    /// A hash ring describing the onion service directory.
+    ///
+    /// This is empty in a PartialNetDir, and is filled in before the NetDir is
+    /// built.
+    //
+    // TODO hs: It is ugly to have this be Option.
+    #[cfg(feature = "hs-common")]
+    #[allow(dead_code)]
+    hsdir_ring: Option<HsDirRing>,
+
+    /// A hash ring describing the onion service directory based on the
+    /// parameters for the previous (or next) time period.
+    ///
+    /// Onion services upload to positions in this ring as well, based on how
+    /// far into the current time period this directory is, so that
+    /// not-synchronized clients can still find their descriptor.
+    ///
+    /// This is None in a PartialNetDir, and None if this ring should not be
+    /// used.
+    //
+    // TODO hs: It is ugly to have this be Option.
+    //
+    // TODO hs: hs clients never need this; maybe it could be optional? Or does
+    // that risk too much?
+    //
+    // TODO hs spec: Despite the confidence in the above comment, I am not sure
+    // that I really get how this secondary ring works.  I need to re-read that
+    // part of the spec carefully; we might find a better way to implement this.
+    #[cfg(feature = "hs-common")]
+    #[allow(dead_code)]
+    hsdir_secondary_ring: Option<HsDirRing>,
 
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
@@ -494,6 +545,10 @@ impl PartialNetDir {
             rs_idx_by_missing,
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
+            #[cfg(feature = "hs-common")]
+            hsdir_ring: None,
+            #[cfg(feature = "hs-common")]
+            hsdir_secondary_ring: None,
             weights,
         };
 
@@ -514,7 +569,30 @@ impl PartialNetDir {
                 loaded.push(md.digest());
             }
         }
+
+        #[cfg(feature = "hs-common")]
+        {
+            // TODO hs: cache the values for the hash rings if possible, maybe
+            // in the PartialNetDir, since we will want to use them in computing
+            // hash indices for the new hash ring.  This can let us save some
+            // computation?  Alternatively, we could compute the new rings at
+            // this point, but that could make this operation a bit expensive.
+        }
+
         loaded
+    }
+
+    /// Compute the hash ring for this NetDir, if one is not already computed.
+    #[cfg(feature = "hs-common")]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn compute_ring(&mut self) {
+        // TODO hs: compute the ring based on the time period and shared random
+        // value of the consensus.
+        //
+        // The ring itself can be a bit expensive to compute, so maybe we should
+        // make sure this happens in a separate task or something, and expose a
+        // way to do that?
+        todo!()
     }
 
     /// Return true if this are enough information in this directory
@@ -526,6 +604,7 @@ impl PartialNetDir {
     /// circuits, return it.
     pub fn unwrap_if_sufficient(self) -> std::result::Result<NetDir, PartialNetDir> {
         if self.netdir.have_enough_paths() {
+            //  self.compute_ring(); // TODO hs
             Ok(self.netdir)
         } else {
             Err(self)
@@ -999,6 +1078,41 @@ impl NetDir {
             self.by_rsa_id(other_rsa_id)
                 .filter(|other_relay| other_relay.md.family().contains(relay_rsa_id))
         })
+    }
+
+    /// Return the relays in this network directory that will be used to store a
+    /// given onion service's descriptor at a given time.
+    #[cfg(feature = "hs-common")]
+    #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
+    pub fn onion_service_dirs(
+        &self,
+        id: BlindedOnionId,
+        op: OnionServiceDirOp,
+        when: SystemTime,
+    ) -> Vec<Relay<'_>> {
+        // Algorithm:
+        //
+        // 1. Use the time period length from our parameters to determine what
+        //    TimePeriod contains `when`.
+        // 1b. If fetching, use the current ring.
+        //    If uploading, determine whether to use the current or secondary ring
+        //    based on the time period.
+        // 2. Use `when` to determine whether to use current or previous shared
+        //    random value.
+        // 3. Choose spread = the parameter `hsdir_spread_store` or
+        //    `hsdir_spread_fetch` based on `op`.
+        // 4. Let n_replicas = the parameter `hsdir_n_replicas`.
+        // 5. Initialize Dirs = []
+        // 6. for idx in 0..n_replicas:
+        //       - let H = hsdir_ring::onion_service_index(id, replica, rand,
+        //         period).
+        //       - Find the position of H within hsdir_ring.
+        //       - Take elements from hsdir_ring starting at that position,
+        //         adding them to Dirs until we have added `spread` new elements
+        //         that were not there before.
+        // 7. return Dirs.
+
+        todo!() // TODO hs
     }
 }
 

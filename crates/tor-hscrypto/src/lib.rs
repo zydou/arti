@@ -42,7 +42,3 @@ pub struct RevisionCounter(u64);
 // TODO hs: these values should only permit constant-time comparison.
 #[derive(Copy, Clone, Debug)]
 pub struct RendCookie([u8; 20]);
-
-/// A position within the onion service directory hash ring.
-// TODO: these should move to tor-netdir, I think?
-pub struct HsRingIndex([u8; 32]);
