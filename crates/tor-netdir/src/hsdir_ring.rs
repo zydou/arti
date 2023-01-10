@@ -45,7 +45,7 @@ pub(crate) struct HsDirRing {
     /// The time period for which the ring is valid.
     period: TimePeriod,
 
-    /// The shared random value for which the ring is valid.
+    /// The shared random value that applies to the ring.
     shared_rand: SharedRandVal,
 
     /// The ring itself.
