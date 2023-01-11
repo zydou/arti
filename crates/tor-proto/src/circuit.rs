@@ -282,6 +282,32 @@ impl ClientCirc {
         todo!() // TODO hs implement.
     }
 
+    /// Tell this circuit to begin allowing the final hop of the circuit to try
+    /// to create new Tor streams, and to return those pending requests in an
+    /// asynchronous stream.
+    ///
+    /// Ordinarily, these requests are rejected.  
+    ///
+    /// There can only be one stream of this type created on a given circuit at
+    /// a time. If a such a stream already exists, this method will return an
+    /// error.
+    ///
+    /// (This function is not yet implemented; right now, it will always panic.)
+    ///
+    /// Only onion services (and eventually) exit relays should call this
+    /// method.
+    #[cfg(feature = "onion-service")]
+    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
+    pub fn allow_stream_requests(
+        &self,
+        allow_commands: &[tor_cell::relaycell::RelayCmd],
+    ) -> Result<impl futures::Stream<Item = crate::stream::IncomingStream>> {
+        if false {
+            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+        }
+        todo!() // TODO hs implement.
+    }
+
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
     pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
