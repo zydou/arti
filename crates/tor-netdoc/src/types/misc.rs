@@ -72,6 +72,15 @@ mod b64impl {
                 Err(EK::BadObjectVal.with_msg("Invalid length on base64 data"))
             }
         }
+
+        /// Try to convert this object into an array of N bytes.
+        ///
+        /// Return an error if the length is wrong.
+        pub(crate) fn into_array<const N: usize>(self) -> Result<[u8; N]> {
+            self.0
+                .try_into()
+                .map_err(|_| EK::BadObjectVal.with_msg("Invalid length on base64 data"))
+        }
     }
 
     impl From<B64> for Vec<u8> {

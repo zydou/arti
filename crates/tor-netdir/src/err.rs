@@ -32,3 +32,26 @@ impl HasKind for Error {
         }
     }
 }
+
+/// An error returned when looking up onion service directories.
+#[derive(Error, Clone, Debug)]
+#[cfg(feature = "onion-common")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-common")))]
+#[non_exhaustive]
+pub enum OnionDirLookupError {
+    /// We tried to look up an onion service directory for a time period that
+    /// did not correspond to one of our hash rings.
+    #[error("Tried to look up an onion service directory for an invalid time period.")]
+    WrongTimePeriod,
+}
+
+#[cfg(feature = "onion-common")]
+impl HasKind for OnionDirLookupError {
+    fn kind(&self) -> tor_error::ErrorKind {
+        use tor_error::ErrorKind as EK;
+        use OnionDirLookupError as E;
+        match self {
+            E::WrongTimePeriod => EK::BadApiUsage,
+        }
+    }
+}

@@ -292,10 +292,13 @@ pub struct SignatureGroup {
     signatures: Vec<Signature>,
 }
 
-// TODO hs: Lower this type to tor-llcrypto: It is relied upon by various crypto
-// things in onion services, and may later be used elsewhere too.
-//
-/// A shared-random value produced by the directory authorities.
+/// A shared random value produced by the directory authorities.
+#[derive(Debug, Clone, Copy)]
+// TODO: needs accessors.
+pub struct SharedRandVal([u8; 32]);
+
+/// A shared-random value produced by the directory authorities,
+/// along with meta-information about that value.
 #[allow(dead_code)]
 // TODO hs: This should have real accessors, not this 'visible/visibility' hack.
 #[cfg_attr(
@@ -305,7 +308,7 @@ pub struct SignatureGroup {
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct SharedRandVal {
+struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     n_reveals: u8,
@@ -315,10 +318,8 @@ struct SharedRandVal {
     /// that this value isn't predictable before it first becomes
     /// live, and that a hostile party could not have forced it to
     /// have any more than a small number of possible random values.
-    //
-    // TODO hs-client: This should become [u8; 32] if we get approval to nail it down in the spec.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    value: Vec<u8>,
+    value: SharedRandVal,
 }
 
 /// Parts of the networkstatus header that are present in every networkstatus.
@@ -385,10 +386,10 @@ struct ConsensusHeader {
     consensus_method: u32,
     /// Global shared-random value for the previous shared-random period.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    shared_rand_prev: Option<SharedRandVal>,
+    shared_rand_prev: Option<SharedRandStatus>,
     /// Global shared-random value for the current shared-random period.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
-    shared_rand_cur: Option<SharedRandVal>,
+    shared_rand_cur: Option<SharedRandStatus>,
 }
 
 /// Description of an authority's identity and address.
@@ -985,7 +986,7 @@ impl CommonHeader {
     }
 }
 
-impl SharedRandVal {
+impl SharedRandStatus {
     /// Parse a current or previous shared rand value from a given
     /// SharedRandPreviousValue or SharedRandCurrentValue.
     fn from_item(item: &Item<'_, NetstatusKwd>) -> Result<Self> {
@@ -1001,8 +1002,8 @@ impl SharedRandVal {
         }
         let n_reveals: u8 = item.parse_arg(0)?;
         let val: B64 = item.parse_arg(1)?;
-        let value = val.into();
-        Ok(SharedRandVal { n_reveals, value })
+        let value = SharedRandVal(val.into_array()?);
+        Ok(SharedRandStatus { n_reveals, value })
     }
 }
 
@@ -1024,12 +1025,12 @@ impl ConsensusHeader {
 
         let shared_rand_prev = sec
             .get(SHARED_RAND_PREVIOUS_VALUE)
-            .map(SharedRandVal::from_item)
+            .map(SharedRandStatus::from_item)
             .transpose()?;
 
         let shared_rand_cur = sec
             .get(SHARED_RAND_CURRENT_VALUE)
-            .map(SharedRandVal::from_item)
+            .map(SharedRandStatus::from_item)
             .transpose()?;
 
         Ok(ConsensusHeader {
@@ -1939,16 +1940,16 @@ mod test {
         let sr =
             gettok("shared-rand-previous-value 9 5LodY4yWxFhTKtxpV9wAgNA9N8flhUCH0NqQv1/05y4\n")
                 .unwrap();
-        let sr = SharedRandVal::from_item(&sr).unwrap();
+        let sr = SharedRandStatus::from_item(&sr).unwrap();
 
         assert_eq!(sr.n_reveals, 9);
         assert_eq!(
-            sr.value,
+            sr.value.0,
             hex!("e4ba1d638c96c458532adc6957dc0080d03d37c7e5854087d0da90bf5ff4e72e")
         );
 
         let sr = gettok("foo bar\n").unwrap();
-        let sr = SharedRandVal::from_item(&sr);
+        let sr = SharedRandStatus::from_item(&sr);
         assert!(sr.is_err());
     }
 }

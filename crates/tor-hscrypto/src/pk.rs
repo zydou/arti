@@ -23,6 +23,7 @@ use crate::time::TimePeriod;
 /// This is the decoded and validated ed25519 public key that is encoded as a
 /// `${base32}.onion` address.  When expanded, it is a public key whose
 /// corresponding secret key is controlled by the onion service.
+#[derive(Copy, Clone, Debug)]
 pub struct OnionId([u8; 32]);
 
 /// The identity of a v3 onion service, expanded into a public key.
@@ -38,6 +39,7 @@ pub struct OnionId([u8; 32]);
 //
 // NOTE: This is a separate type from OnionId because it is about 6x larger.  It
 // is an expanded form, used for doing actual cryptography.
+#[derive(Clone, Debug)]
 pub struct OnionIdKey(ed25519::PublicKey);
 
 // TODO hs: implement TryFrom<OnionId> for OnionIdKey, and From<OnionIdKey> for OnionId.
@@ -59,9 +61,11 @@ impl OnionIdKey {
 ///
 /// It is used for two purposes: first, to compute an index into the HSDir
 /// ring, and second, to sign a `DescSigningKey`.
+#[derive(Clone, Debug)]
 pub struct BlindedOnionIdKey(ed25519::PublicKey);
 
 /// A blinded onion service identity, repreesented in a compact format.
+#[derive(Copy, Clone, Debug)]
 pub struct BlindedOnionId([u8; 32]);
 
 // TODO hs: implement TryFrom<BlindedOnionId> for BlinedOnionIdKey, and
@@ -80,6 +84,7 @@ pub struct BlindedOnionId([u8; 32]);
 /// Note: we use a separate signing key here, rather than using the
 /// BlidedOnionIdKey directly, so that the secret key for the BlindedOnionIdKey
 /// can be kept offline.
+#[derive(Clone, Debug)]
 pub struct DescSigningKey(ed25519::PublicKey);
 
 /// A key used to identify and authenticate an onion service at a single
@@ -89,6 +94,7 @@ pub struct DescSigningKey(ed25519::PublicKey);
 /// used at each introduction point.  Introduction points don't know the
 /// relation of this key to the onion service: they only recognize the same key
 /// when they see it again.
+#[derive(Clone, Debug)]
 pub struct IntroPtAuthKey(ed25519::PublicKey);
 
 /// A key used in the HsNtor handshake between the client and the onion service.
@@ -96,12 +102,14 @@ pub struct IntroPtAuthKey(ed25519::PublicKey);
 /// The onion service chooses a different one of these to use with each
 /// introduction point, though it does not need to tell the introduction points
 /// about these keys.
+#[derive(Clone, Debug)]
 pub struct IntroPtEncKey(curve25519::PublicKey);
 
 /// First type of client authorization key, used for the introduction protocol.
 ///
 /// This is used to sign a nonce included in an extension in the encrypted
 /// portion of an introduce cell.
+#[derive(Clone, Debug)]
 pub struct ClientIntroAuthKey(ed25519::PublicKey);
 
 /// Second type of client authorization key, used for onion descryptor
@@ -109,6 +117,7 @@ pub struct ClientIntroAuthKey(ed25519::PublicKey);
 ///
 /// Any client who knows the secret key corresponding to this key can decrypt
 /// the inner layer of the onion service descriptor.
+#[derive(Clone, Debug)]
 pub struct ClientDescAuthKey(curve25519::PublicKey);
 
 // TODO hs: For each of the above key types, we should have a correspondingly
