@@ -14,9 +14,12 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 [features]
 default = []
 full = ["tokio"]
-experimental = ["hs", "ntor_v3"]
-hs = []
+
+experimental = ["onion-client", "onion-service", "ntor_v3"]
 ntor_v3 = []
+onion-client = ["onion-common"]
+onion-service = ["onion-common"]
+onion-common = []
 # Enable testing-only APIs.  APIs under this feature are not
 # covered by semver.
 testing = []

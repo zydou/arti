@@ -11,7 +11,7 @@
 //! Currently, this module implements only the "ntor" handshake used
 //! for circuits on today's Tor.
 pub(crate) mod fast;
-#[cfg(feature = "hs")]
+#[cfg(feature = "onion-common")]
 pub(crate) mod hs_ntor;
 pub(crate) mod ntor;
 #[cfg(feature = "ntor_v3")]
