@@ -41,6 +41,8 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+#[cfg(feature = "onion-common")]
+pub mod handshake;
 mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
@@ -316,6 +318,32 @@ impl ClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
         Ok(())
+    }
+
+    /// Extend this circuit by a single, "virtual" hop.
+    ///
+    /// This is used to implement onion services: the client and the service
+    /// both build a circuit to a single rendezvous point, and tell the
+    /// rendezvous point to relay traffic between their two circuits.  Having
+    /// completed a [`handshake`] out of band[^1], the parties each extend their
+    /// circuits by a single "virtual" encryption hop that represents their
+    /// shared cryptographic context.
+    ///
+    /// Once a circuit has been extended in this way, it is an error to try to
+    /// extend it in any other way.
+    ///
+    /// [^1]: Technically, the handshake is only _mostly_ out of band: the
+    ///     client sends their half of the handshake in an ` message, and the
+    ///     service's response is inline in its `RENDEZVOUS2` message.
+    #[cfg(feature = "onion-common")]
+    #[allow(clippy::missing_panics_doc, unused_variables)]
+    pub async fn extend_virtual(
+        &self,
+        protocol: handshake::RelayProtocol,
+        role: handshake::HandshakeRole,
+        seed: impl handshake::KeyGenerator,
+    ) -> Result<()> {
+        todo!() // TODO hs implement
     }
 
     /// Helper, used to begin a stream.

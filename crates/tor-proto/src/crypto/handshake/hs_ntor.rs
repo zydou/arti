@@ -15,14 +15,14 @@
 //! This module is a work in progress, and is not actually used anywhere yet
 //! or tested: please expect the API to change.
 //!
-//! This module is available only when the `hs` feature is enabled.
+//! This module is available only when the `onion-common` feature is enabled.
+//
+// TODO hs: go  through this code carefully and make sure that its APIs and
+// behavior are still what we want.
 
 // We want to use the exact variable names from the rend-spec-v3.txt proposal.
 // This means that we allow variables to be named x (privkey) and X (pubkey).
 #![allow(non_snake_case)]
-// This module is still unused: so allow some dead code for now.
-#![allow(dead_code)]
-#![allow(unreachable_pub)]
 
 use crate::crypto::handshake::KeyGenerator;
 use crate::crypto::ll::kdf::{Kdf, ShakeKdf};
@@ -52,7 +52,7 @@ type MacTag = [u8; 32];
 /// The AUTH_INPUT_MAC from the HS Ntor protocol
 type AuthInputMac = MacTag;
 /// The Service's subcredential
-pub type Subcredential = [u8; 32];
+pub type Subcredential = [u8; 32]; // TODO hs: use tor-hscrypto version instead.
 
 /// The key generator used by the HS ntor handshake.  Implements the simple key
 /// expansion protocol specified in section "Key expansion" of rend-spec-v3.txt .
@@ -82,24 +82,24 @@ impl KeyGenerator for HsNtorHkdfKeyGenerator {
 pub struct HsNtorClientInput {
     /// Introduction point encryption key (aka B)
     /// (found in the HS descriptor)
-    pub B: curve25519::PublicKey,
+    B: curve25519::PublicKey,
 
     /// Introduction point authentication key (aka AUTH_KEY)
     /// (found in the HS descriptor)
-    pub auth_key: ed25519::PublicKey,
+    auth_key: ed25519::PublicKey,
 
     /// Service subcredential
-    pub subcredential: Subcredential,
+    subcredential: Subcredential,
 
     /// The plaintext that should be encrypted into ENCRYPTED_DATA It's
     /// structure is irrelevant for this crate, but can be found in section
     /// \[PROCESS_INTRO2\] of the spec
-    pub plaintext: Vec<u8>,
+    plaintext: Vec<u8>,
 
     /// The data of the INTRODUCE1 cell from the beginning and up to the start
     /// of the ENCRYPTED_DATA. It's used to compute the MAC at the end of the
     /// INTRODUCE1 cell.
-    pub intro_cell_data: Vec<u8>,
+    intro_cell_data: Vec<u8>,
 }
 
 impl HsNtorClientInput {
@@ -259,20 +259,20 @@ where
 /// The input required to enter the HS Ntor protocol as a service
 pub struct HsNtorServiceInput {
     /// Introduction point encryption privkey
-    pub b: curve25519::StaticSecret,
+    b: curve25519::StaticSecret,
     /// Introduction point encryption pubkey
-    pub B: curve25519::PublicKey,
+    B: curve25519::PublicKey,
 
     /// Introduction point authentication key (aka AUTH_KEY)
-    pub auth_key: ed25519::PublicKey,
+    auth_key: ed25519::PublicKey,
 
     /// Our subcredential
-    pub subcredential: Subcredential,
+    subcredential: Subcredential,
 
     /// The data of the INTRODUCE1 cell from the beginning and up to the start
     /// of the ENCRYPTED_DATA. Will be used to verify the MAC at the end of the
     /// INTRODUCE1 cell.
-    pub intro_cell_data: Vec<u8>,
+    intro_cell_data: Vec<u8>,
 }
 
 impl HsNtorServiceInput {
