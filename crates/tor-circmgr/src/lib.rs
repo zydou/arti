@@ -456,7 +456,8 @@ impl<R: Runtime> CircMgr<R> {
         // delegate to our OnionServiceConnector to build it.
     }
 
-    /// Return a circuit to a specific relay, suitable for using for directory downloads.
+    /// Return a circuit to a specific relay, suitable for using for direct
+    /// (one-hop) directory downloads.
     ///
     /// This could be used, for example, to download a descriptor for a bridge.
     #[cfg_attr(docsrs, doc(cfg(feature = "specific-relay")))]
@@ -471,6 +472,28 @@ impl<R: Runtime> CircMgr<R> {
             .get_or_launch(&usage, DirInfo::Nothing)
             .await
             .map(|(c, _)| c)
+    }
+
+    /// Create and return a new (typically anonymous) circuit whose last hop is
+    /// `target`.
+    ///
+    /// This circuit is guaranteed not to have been used for any traffic
+    /// previously, and it will not be given out for any other requests in the
+    /// future unless explicitly re-registered with a circuit manager.
+    ///
+    /// Used to implement onion service clients and services.
+    #[cfg(feature = "onion-common")]
+    #[allow(unused_variables, clippy::missing_panics_doc)]
+    pub async fn launch_specific_isolated(
+        &self,
+        target: tor_linkspec::OwnedCircTarget,
+        // TODO hs: this should at least be an enum to define what kind of
+        // circuit we want, in case we have different rules for different types.
+        // It might also need to include a "anonymous?" flag for supporting
+        // single onion services.
+        preferences: (),
+    ) -> Result<ClientCirc> {
+        todo!() // TODO hs implement.
     }
 
     /// Launch circuits preemptively, using the preemptive circuit predictor's
