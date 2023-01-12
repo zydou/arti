@@ -1,0 +1,30 @@
+[package]
+name = "tor-hsclient"
+version = "0.1.0"
+authors = ["The Tor Project, Inc.", "Nick Mathewson <nickm@torproject.org>"]
+edition = "2021"
+rust-version = "1.60"
+license = "MIT OR Apache-2.0"
+homepage = "https://gitlab.torproject.org/tpo/core/arti/-/wikis/home"
+description = "Arti's implementation of an onion service client"
+keywords = ["tor", "arti", "cryptography"]
+categories = ["cryptography"]
+repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
+
+publish = false
+
+[features]
+default = []
+
+[dependencies]
+async-trait = "0.1.2"
+rand_core = "0.6.2"
+thiserror = "1"
+tor-circmgr = { version = "0.7.0", path = "../tor-circmgr", features = ["onion-client"] }
+tor-hscrypto = { version = "0.1.0", path = "../tor-hscrypto" }
+tor-llcrypto = { version = "0.4.0", path = "../tor-llcrypto" }
+tor-netdir = { version = "0.7.0", path = "../tor-netdir" }
+tor-proto = { version = "0.8.0", path = "../tor-proto" }
+tor-rtcompat = { version = "0.8.0", path = "../tor-rtcompat" }
+
+[dev-dependencies]
