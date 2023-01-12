@@ -208,6 +208,9 @@ implementation with another.
 * `error_detail` -- expose the `arti_client::Error` inner error type.
 * `dirfilter` -- expose the `DirFilter` API, which lets you modify a network
   directory before it is used.
+* `onion-client` -- build with non-working stub APIs to support connecting to
+  onion services.  (These do not work yet, and will just cause your code to
+  panic.)
 
 * `experimental` -- Build with all experimental features above, along with
   all experimental features from other arti crates.

@@ -168,6 +168,10 @@ pub struct StreamPrefs {
     isolation: StreamIsolationPreference,
     /// Whether to return the stream optimistically.
     optimistic_stream: bool,
+    /// Whether to try to make connections to onion services.
+    #[cfg(feature = "onion-client")]
+    #[allow(dead_code)]
+    connect_to_onion_services: bool, // TODO hs: this should default to "true".
 }
 
 /// Record of how we are isolating connections
@@ -262,6 +266,8 @@ impl StreamPrefs {
         self.optimistic_stream = true;
         self
     }
+
+    // TODO hs: make setters for the `connect_to_onion_services` field.
 
     /// Return a TargetPort to describe what kind of exit policy our
     /// target circuit needs to support.

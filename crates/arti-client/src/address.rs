@@ -179,6 +179,7 @@ impl TorAddr {
                 return Err(ErrorDetail::InvalidHostname);
             }
             if addr.to_lowercase().ends_with(".onion") {
+                // TODO hs: Allow this in some cases instead.
                 return Err(ErrorDetail::OnionAddressNotSupported);
             }
         }
@@ -219,6 +220,15 @@ enum Host {
     Hostname(String),
     /// An IP address.
     Ip(IpAddr),
+    // /// The address of an onion service.
+    //
+    // TODO hs possibly we should just have this be another type of "hostname".
+    //
+    // TODO hs possibly the contents of this enum should be a String rather than
+    // an OnionId.
+    //
+    // #[cfg(feature = "onion-client")]
+    // OnionService(OnionId),
 }
 
 impl FromStr for Host {
