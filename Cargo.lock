@@ -3673,6 +3673,7 @@ dependencies = [
  "tor-config",
  "tor-error",
  "tor-guardmgr",
+ "tor-hscrypto",
  "tor-linkspec",
  "tor-llcrypto",
  "tor-netdir",

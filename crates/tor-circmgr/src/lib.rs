@@ -60,6 +60,8 @@ mod err;
 mod impls;
 pub mod isolation;
 mod mgr;
+#[cfg(feature = "onion-client")]
+mod onion_connector;
 pub mod path;
 mod preemptive;
 mod timeouts;
@@ -67,6 +69,9 @@ mod usage;
 
 pub use err::Error;
 pub use isolation::IsolationToken;
+#[cfg(feature = "onion-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-client")))]
+pub use onion_connector::{OnionConnectError, OnionServiceConnector};
 use tor_guardmgr::fallback::FallbackList;
 pub use tor_guardmgr::{ClockSkewEvents, GuardMgrConfig, SkewEstimate};
 pub use usage::{TargetPort, TargetPorts};
@@ -204,6 +209,20 @@ impl<R: Runtime> CircMgr<R> {
         });
 
         Ok(circmgr)
+    }
+
+    /// Install a given [`OnionServiceConnector`] object to be used when making
+    /// connections to an onion service.
+    ///
+    /// (This cannot be done at construction time, since the
+    /// OnionServiceConnector will have to keep a reference to this `CircMgr`.)
+    #[cfg(feature = "onion-client")]
+    #[allow(unused_variables, clippy::missing_panics_doc)]
+    pub fn install_onion_service_connector(
+        &self,
+        connector: &Arc<dyn OnionServiceConnector>,
+    ) -> Result<()> {
+        todo!() // TODO hs
     }
 
     /// Launch the periodic daemon tasks required by the manager to function properly.
@@ -408,6 +427,33 @@ impl<R: Runtime> CircMgr<R> {
         let ports = ports.iter().map(Clone::clone).collect();
         let usage = TargetCircUsage::Exit { ports, isolation };
         self.mgr.get_or_launch(&usage, netdir).await.map(|(c, _)| c)
+    }
+
+    /// Try to connect to an onion service via this circuit manager.
+    ///
+    /// If `using_keys` is provided, then we will use those keys, in addition to
+    /// any configured in our `OnionServiceConnector`, to connect to the
+    /// service.
+    ///
+    /// If we already have an existing circuit with the appropriate isolation,
+    /// we will return that circuit regardless of the content of `using_keys`.
+    ///
+    /// Requires that an `OnionServiceConnector` has been installed.  If it
+    /// hasn't, then we return an error.
+    #[cfg(feature = "onion-client")]
+    #[allow(clippy::missing_panics_doc, unused_variables)]
+    pub async fn get_or_launch_onion_client(
+        &self,
+        service_id: tor_hscrypto::pk::OnionId,
+        using_keys: Option<tor_hscrypto::pk::ClientSecretKeys>,
+        isolation: StreamIsolation,
+    ) -> Result<ClientCirc> {
+        todo!() // TODO hs
+
+        // The implementation should look up whether we have an appropriate
+        // connected rendezvous circuit built or in progress in our CircMgr.  If
+        // we do, we should return it or wait for it.  Otherwise we should
+        // delegate to our OnionServiceConnector to build it.
     }
 
     /// Return a circuit to a specific relay, suitable for using for directory downloads.

@@ -127,7 +127,16 @@ pub struct ClientDescAuthKey(curve25519::PublicKey);
 // The names should be something like these:
 pub struct OnionIdSecretKey(ed25519::SecretKey);
 pub struct ClientDescAuthSecretKey(curve25519::StaticSecret);
+pub struct ClientIntroAuthSecretKey(ed25519::SecretKey);
 // ... and so on.
 //
 // NOTE: We'll have to use ExpandedSecretKey as the secret key
 // for BlindedOnionIdSecretKey.
+
+/// A set of keys to tell the client to use when connecting to an onion service.
+//
+// TODO hs
+pub struct ClientSecretKeys {
+    desc_auth: Option<ClientDescAuthSecretKey>,
+    intro_auth: Option<ClientIntroAuthSecretKey>,
+}
