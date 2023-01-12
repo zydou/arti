@@ -3909,6 +3909,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor-hsservice"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "rand_core 0.6.4",
+ "thiserror",
+ "tor-circmgr",
+ "tor-hscrypto",
+ "tor-llcrypto",
+ "tor-netdir",
+ "tor-proto",
+ "tor-rtcompat",
+]
+
+[[package]]
 name = "tor-linkspec"
 version = "0.6.0"
 dependencies = [
