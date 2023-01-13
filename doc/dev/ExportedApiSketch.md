@@ -100,6 +100,10 @@ environments prefer to poll and drain a queue of events, but many
 polling systems rely on fd-based notification, or behave badly if the
 queue isn't drained fast enough.
 
+Again, it might be best to offer the application a way to get a socket
+which arti writes the information to in some kind of structured way
+using serde.  (serde makes it easy to support a variety of formats
+including (say) JSON and messagepack.)
 ## Thoughts on particular options
 
 
