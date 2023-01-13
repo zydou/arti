@@ -16,7 +16,7 @@ I propose to not reuse `SectionRules`.
 ## Proposed internal API
 
 ```rust
-pub(crate) struct NetdocBuilder<K> {
+pub(crate) struct NetdocEncoder<K> {
     // Err means bad values passed to some builder function
     built: Result<String, Bug>,
 }
@@ -25,15 +25,15 @@ pub(crate) struct NetdocBuilder<K> {
 // because otherwise args and objects can't be specified in any order
 // and we'd need a typestate, and also there's the newline after the
 // args
-struct ItemBuilder<'n, K> {
+struct ItemEncoder<'n, K> {
     keyword: K,
     /// `None` after `drop`, or if an error occurred
-    doc: Option<&'mut NetdocBuilder<K>>,
+    doc: Option<&'mut NetdocEncoder<K>>,
     args: Vec<String>,
     objects: String,
 }
 
-impl Drop for ItemBuilder<'_> {
+impl Drop for ItemEncoder<'_> {
     fn drop(&mut self) {
         // actually adds the item to self.doc.built.
     }
@@ -45,23 +45,28 @@ struct Cursor<K> {
     marker: PhantomData<*const K>,
 }
 
-impl NetdocBuilder<K> {
+impl NetdocEncoder<K> {
     /// Adds an item to the being-build document
     ///
     /// The item can be further extended with arguments or objects,
-    /// using the returned `ItemBuilder`.
+    /// using the returned `ItemEncoder`.
     //
-    // Actually, we defer adding the item until `ItemBuilder` is dropped.
-    pub fn item(&mut self, keyword: K) -> &mut ItemBuilder<K>;
+    // Actually, we defer adding the item until `ItemEncoder` is dropped.
+    pub fn item(&mut self, keyword: K) -> &mut ItemEncoder<K>;
 
     pub fn cursor(&self) -> Cursor<K>;
 
     // useful for making a signature
+    //
+    // Q. Should this return `&str` or `NetdocText<'self>` ?
+    // (`NetdocText would have to then contain `Cow`, which is fine.)
     pub fn slice(&self, begin: Cursor<K>, end: Cursor<K>)
         -> Result<&str, Bug>;
+
+    pub(crate) fn finish() -> Result<NetdocText<Self>, Bug>;
 }
 
-impl ItemBuilder<'n, K> {
+impl ItemEncoder<'n, K> {
     // This is not a hot path.  `dyn` for smaller code size.
     //
     // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
@@ -77,7 +82,7 @@ impl ItemBuilder<'n, K> {
 // Alternative to the `Bug` above.
 // I think all of these are programming errors.
 //
-// If we don't have `Bug` in `NetdocBuilder`, we may want to have
+// If we don't have `Bug` in `NetdocEncoder`, we may want to have
 // `.arg()` and `.object()` return `Result` but deferring the errors
 // seems more ergonomic.
 enum BuildError {
@@ -97,7 +102,7 @@ enum BuildError {
 ```
 use OnionServiceKeyword as K;
 
-    let mut document = NetDocBuilder::new();
+    let mut document = NetDocEncoder::new();
     let beginning = document.marker();
     document.item(K::HsDescriptor).arg(3);
     document.item(K::DescriptorLifetime).arg(&self.lifetime);
@@ -152,10 +157,6 @@ pub struct NetdocText<Builder> {
     text: String,
     // variance: this somehow came from a T (not that we expect this to matter)
     kind: PhantomData<Builder>,
-}
-
-impl NetdocBuilder {
-    pub(crate) fn finish() -> Result<NetdocText<Self>, Bug>;
 }
 
 impl Deref<Target=str> for NetdocText<_> { ... }
