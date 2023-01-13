@@ -17,7 +17,8 @@ I propose to not reuse `SectionRules`.
 
 ```rust
 pub(crate) struct NetdocBuilder<K> {
-    built: String,
+    // Err means bad values passed to some builder function
+    built: Result<String, Bug>,
 }
 
 // we need to accumulate these in pieces, and put them in doc later,
@@ -26,14 +27,15 @@ pub(crate) struct NetdocBuilder<K> {
 // args
 struct ItemBuilder<'n, K> {
     keyword: K,
-    doc: &'mut NetdocBuilder<K>,
+    /// `None` after `drop`, or if an error occurred
+    doc: Option<&'mut NetdocBuilder<K>>,
     args: Vec<String>,
     objects: String,
 }
 
 impl Drop for ItemBuilder<'_> {
     fn drop(&mut self) {
-        // actually adds the item to *self.doc.
+        // actually adds the item to self.doc.built.
     }
 }
 
@@ -44,14 +46,51 @@ struct Cursor<K> {
 }
 
 impl NetdocBuilder<K> {
+    /// Adds an item to the being-build document
+    ///
+    /// The item can be further extended with arguments or objects,
+    /// using the returned `ItemBuilder`.
+    //
+    // Actually, we defer adding the item until `ItemBuilder` is dropped.
     pub fn item(&mut self, keyword: K) -> &mut ItemBuilder<K>;
 
     pub fn cursor(&self) -> Cursor<K>;
 
     // useful for making a signature
-    pub fn slice(&self, begin: Cursor<K>, end: Cursor<K>) -> &str;
+    pub fn slice(&self, begin: Cursor<K>, end: Cursor<K>)
+        -> Result<&str, Bug>;
 }
-impl Extend<Item<K>> for NetdocBuilder<K> { ... }
+
+impl ItemBuilder<'n, K> {
+    // This is not a hot path.  `dyn` for smaller code size.
+    //
+    // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
+    fn arg(&mut self, arg: &dyn Display) -> &mut self;
+
+    // If keyword is not in the correct syntax,
+    // or data fails to be written, a `Bug` is stored in self.doc.
+    fn object(&mut self, keyword: &str,
+               // Writeable isn't dyn-compatible
+               data: impl tor_bytes::WriteableOnce) -> &mut self;
+}
+
+// Alternative to the `Bug` above.
+// I think all of these are programming errors.
+//
+// If we don't have `Bug` in `NetdocBuilder`, we may want to have
+// `.arg()` and `.object()` return `Result` but deferring the errors
+// seems more ergonomic.
+enum BuildError {
+    /// Argument contained other than printing ASCII
+    BadArgument { item_keyword: String, argument: String }
+
+    /// Object keyword had bad syntax
+    BadObjectKeyword { item_keyword: String, object_keyword: String }
+
+    /// Object's `Writeable` implementation failed
+    Encode { item_keyword: String, object_keyword: String,
+             #[fsource] error: tor_bytes::Err::EncodeError, },
+}
 ```
 
 ### Example of use:
@@ -116,7 +155,7 @@ pub struct NetdocText<Builder> {
 }
 
 impl NetdocBuilder {
-    pub(crate) fn finish() -> NetdocText<Self>;
+    pub(crate) fn finish() -> Result<NetdocText<Self>, Bug>;
 }
 
 impl Deref<Target=str> for NetdocText<_> { ... }
