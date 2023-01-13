@@ -161,6 +161,10 @@ interface.  That might be cleaner than a control port clone.  But as
 above, we'd need to translate more than the API:
 `get_config("SocksPort")` would need a compatibility layer too.)
 
+With an appropriate implementation strategy, it might be possible to
+implement a subset of the C Tor control port protocol *in terms of*
+a new protocol based on a sensible RPC framework.
+
 
 ### Arti via FFI
 
