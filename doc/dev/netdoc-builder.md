@@ -17,13 +17,39 @@ I propose to not reuse `SectionRules`.
 
 ```rust
 pub(crate) struct NetdocBuilder<K> {
-    items: Vec<Item<K>>,
+    built: String,
+}
+
+// we need to accumulate these in pieces, and put them in doc later,
+// because otherwise args and objects can't be specified in any order
+// and we'd need a typestate, and also there's the newline after the
+// args
+struct ItemBuilder<'n, K> {
+    keyword: K,
+    doc: &'mut NetdocBuilder<K>,
+    args: Vec<String>,
+    objects: String,
+}
+
+impl Drop for ItemBuilder<'_> {
+    fn drop(&mut self) {
+        // actually adds the item to *self.doc.
+    }
+}
+
+struct Cursor<K> {
+    offset: usize,
+    // Variance: notionally refers to a keyword K
+    marker: PhantomData<*const K>,
 }
 
 impl NetdocBuilder<K> {
-    pub fn push(&mut self, item: Item<K>);
-    // do we need this to be generic over the key type?
-    pub fn sign(&mut self, k: &ed25519::ExpandedSecretKey);
+    pub fn item(&mut self, keyword: K) -> &mut ItemBuilder<K>;
+
+    pub fn cursor(&self) -> Cursor<K>;
+
+    // useful for making a signature
+    pub fn slice(&self, begin: Cursor<K>, end: Cursor<K>) -> &str;
 }
 impl Extend<Item<K>> for NetdocBuilder<K> { ... }
 ```
