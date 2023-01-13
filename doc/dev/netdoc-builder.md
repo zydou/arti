@@ -84,11 +84,12 @@ impl Deref<Target=str> for NetdocText<_> { ... }
 impl NetdocBuilder for HsDescriptorBuilder {
     fn build_sign(self /* or &self? */) -> Result<NetdocText<Self>, > {
         construct the L2 plaintext with NetdocBuilder
-        sign it with NetdocBuilder::sign
         construct the encryption key (using fields from swlf)
         encrypt
         construct the L1 plaintext with NetdocBuilder
-        etc. etc.
+        encrypt
+        Construct the L0 plaintext.
+        sign it with the provided key.
         eventually return the final NetdocText from NetdocBuilder.finish()
     }
 }
