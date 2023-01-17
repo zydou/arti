@@ -35,7 +35,8 @@ struct ItemEncoder<'n, K> {
 
 impl Drop for ItemEncoder<'_> {
     fn drop(&mut self) {
-        // actually adds the item to self.doc.built.
+        // actually add any not-yet-flushed parts of the item
+        // to self.doc.built.
     }
 }
 
