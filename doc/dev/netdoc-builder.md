@@ -51,7 +51,7 @@ struct Cursor<K> {
 }
 
 impl NetdocEncoder<K> {
-    /// Adds an item to the being-build document
+    /// Adds an item to the being-built document
     ///
     /// The item can be further extended with arguments or objects,
     /// using the returned `ItemEncoder`.
