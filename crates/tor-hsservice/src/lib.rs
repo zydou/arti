@@ -27,6 +27,12 @@ pub trait StreamHandler {
     // who they are.  Or it might have information about how many requests
     // (and/or failed requests) we've gotten on the circuit.
     //
+    // TODO hs: The `circ_info` argument should at a minimum include the
+    // circuit; ideally in a form that we can get a weak reference to it, and
+    // use it in the key of a `PtrWeakKeyHashMap`.  (Or we could stick the info
+    // in the circuit itself somehow, and access it as a Box<dyn Any>, but
+    // that's a bit sketchy type-wise.)
+    //
     // TODO hs: the `stream` argument should be an IncomingStream from
     // tor-proto, but that branch is not yet merged as of this writing.
     async fn handle_request(&self, circ_info: &(), stream: ());
