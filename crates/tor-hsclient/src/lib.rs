@@ -47,6 +47,12 @@ impl<R: Runtime> HsClientConnector<R> {
     // TODO hs: Need a way to manage the set of keys.
 
     // TODO hs: need a constructor here.
+
+    // TODO hs: need a function to clear our StateMap, or to create a new
+    // isolated StateMap.
+    //
+    // TODO hs: Also, we need to expose that function from `TorClient`, possibly
+    // in the existing isolation API, possibly in something new.
 }
 
 #[async_trait]
