@@ -59,6 +59,18 @@ impl NetdocEncoder<K> {
     // Actually, we defer adding the item until `ItemEncoder` is dropped.
     pub fn item(&mut self, keyword: K) -> &mut ItemEncoder<K>;
 
+    /// Adds raw text to the being-built document
+    ///
+    /// `s` is added as raw text, after the newline ending the previous item.
+    /// If `item` is subsequently called, the start of that item
+    /// will immediately follow `s`.
+    ///
+    /// It is the responsibility of the caller to obey the metadocument syntax.
+    /// In particular, `s` should end with a newline.
+    /// No checks are performed.
+    /// Incorrect use might lead to malformed documents, or later errors.
+    pub fn push_raw_string(&mut self, s: &dyn Display);
+
     pub fn cursor(&self) -> Cursor<K>;
 
     // useful for making a signature
@@ -72,10 +84,25 @@ impl NetdocEncoder<K> {
 }
 
 impl ItemEncoder<'n, K> {
+    /// Add a single argument.
+    ///
+    /// If the argument is not in the correct syntax, a `Bug`
+    /// error will be reported (later).
     // This is not a hot path.  `dyn` for smaller code size.
     //
     // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
     fn arg(&mut self, arg: &dyn Display) -> &mut self;
+
+    /// Add zero or more arguments, supplied as a single string.
+    ///
+    /// `args` should zero or more valid argument strings,
+    /// separated by (single) spaces.
+    /// This is not (properly) checked.
+    /// Incorrect use might lead to malformed documents, or later errors.
+    //
+    // (The string will in fact be checked for newlines or nul bytes,
+    // but this is not guaranteed as part of the API.)
+    fn args_raw_string(&mut self, args: &dyn Display) -> &mut self;
 
     // If keyword is not in the correct syntax,
     // or data fails to be written, a `Bug` is stored in self.doc.
