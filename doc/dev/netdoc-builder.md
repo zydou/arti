@@ -22,7 +22,7 @@ pub(crate) struct NetdocEncoder<K> {
 }
 
 // we need to accumulate these in pieces, and put them in doc later,
-// because otherwise args and objects can't be specified in any order
+// because otherwise args and object can't be specified in any order
 // and we'd need a typestate, and also there's the newline after the
 // args
 struct ItemEncoder<'n, K> {
@@ -30,11 +30,11 @@ struct ItemEncoder<'n, K> {
     /// `None` after `drop`, or if an error occurred
     doc: Option<&'mut NetdocEncoder<K>>,
     args: Vec<String>,
-    /// Encoded form of the zero or more Objects
+    /// Encoded form of the zero or one Object
     ///
     /// Includes all necessary framing includng trailing newlines.
-    /// Empty if there are no objects.
-    objects: String,
+    /// Empty if there is no object.
+    object: String,
 }
 
 impl Drop for ItemEncoder<'_> {
@@ -53,7 +53,7 @@ struct Cursor<K> {
 impl NetdocEncoder<K> {
     /// Adds an item to the being-built document
     ///
-    /// The item can be further extended with arguments or objects,
+    /// The item can be further extended with arguments or an object,
     /// using the returned `ItemEncoder`.
     //
     // Actually, we defer adding the item until `ItemEncoder` is dropped.
