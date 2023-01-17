@@ -30,6 +30,10 @@ struct ItemEncoder<'n, K> {
     /// `None` after `drop`, or if an error occurred
     doc: Option<&'mut NetdocEncoder<K>>,
     args: Vec<String>,
+    /// Encoded form of the zero or more Objects
+    ///
+    /// Includes all necessary framing includng trailing newlines.
+    /// Empty if there are no objects.
     objects: String,
 }
 
