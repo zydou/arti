@@ -7,7 +7,9 @@ Onion service clients need to remember and configure the following private
 keys:
 
   * For a given onion service:
-     * Any authentication keys in use with that onion service.
+     * Any authentication keys in use with that onion
+       service. (`KS_hs_client_desc_auth` or `KS_hs_client_intro_auth`)
+
 
 The keys above can be provisioned offline and generated offline.
 The public keys associated with them need to be encoded and transferred
@@ -24,44 +26,49 @@ It either needs to generate them online, or get provisioned with them from
 some offline process.
 They can be regenerated as needed, if the identity key is available.
 
-  * For each time period: 
-    * A private descriptor signing key,
+  * For each time period:
+    * A private descriptor signing key (`KS_hs_desc_sign`),
     * A certificate for that signing key, signed with the `BlindedOnionId`
-      for that time period.
+      for that time period (`KP_blind_id`).
 
 To generate those certificates (online or offline), each onion service needs
 these keys:
 
-  * A secret identity key.
+  * A secret identity key (`KS_hs_id`).
     If it is kept offline, then some process needs to provision the service
     with the descriptor signing key and certificate.
 
 To operate, an onion service needs these secret keys, which do not have to be
 persistent.
 The corresponding public keys are published in the service descriptor:
-  * A ntor key for its cryptographic handshake.
+  * A ntor key for its cryptographic handshake (`KS_hs_intro_ntor`).
   * A signing key associated with each active introduction point.
+    (`KS_hs_intro_auth`)
 
 For client authorization, the onion service needs to have:
-  * **a list of authorized keys**
+  * **a list of authorized keys**  (`KS_hs_client_desc_auth` or
+    `KS_hs_client_intro_auth`)
 
 ----
 
 # What C tor does
 
 A client has a directory of private keys, called its `ClientOnionAuthDir`.
-It contains a list of files, each containing a single private key and a
-single associated authentiation key.
-Filenames are ignored so long as they end with `auth_private`.
+It contains a list of files, each containing a singleonion ID (KP_hs_id), and
+a single associated authentication key (`KP_hs_client_intro_auth`).
+Only files that end with `.auth_private` are considered; others are
+ignored.
 
 
 An onion service stores all of its material in a single directory, called its
 `HiddenServiceDir`.  That directory contains:
   * `authorized_keys` -- a directory containing a list of authorized client
-    keys, one per file. Filenames are ignored.
+    keys (`KP_hs_client_intro_auth`), one per file. Filenames are ignored.
   * `hostname` -- A file containing the `.onion` address for this service
-  * `private_key` -- The secret identity key.
-  * `client_keys` -- an under-specified store for client keys of another kind.
+  * `private_key` -- The secret identity key. (`KS_hs_id`)
+  * `client_keys` -- an under-specified store for client keys of another
+    kind.
+    (`KP_hs_client_desc_auth`)
   * `onion_service_non_anonymous` -- a file generated for single onion
     services.
 
