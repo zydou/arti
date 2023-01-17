@@ -81,6 +81,9 @@ string-based tree structure, rather than as a separate function per
 option.  We can also use string-based or object-based properties to
 configure streams, rather than exposing every option as a new function.
 
+(Our use of the `serde` crate might make this easier to solve, since we
+already have access to our configuration as a structured tree of strings.)
+
 ### Problem 4: We want to expose asynchronous events
 
 Many of the things that we want to tell applications about happen
@@ -180,7 +183,7 @@ This API would have to work by launching our async runtime in a separate
 thread, and communicating with it either via function calls or via
 messages over some kind of queue.
 
-Every `async` API that we provide from TorClient would need to either
+Every `async` API that we want to re-export from TorClient would need to either
 get a blocking equivalent, a polling equivalent, or a callback-based
 equivalent.
 
@@ -198,13 +201,15 @@ Some applications already have support for multiple networking
 backends.  With this in mind, we could expose Arti as one of those.
 
 For example, there's some interest in having Arti expose a
-`libp2p` interface.  If
+`libp2p` interface.
 
 
 ## Where to start?
 
-I think our first steps here would be to approach the problem from two
-ends:
+### Selecting APIs
+
+I think our first steps here would be to approach the question of APIs from
+two ends.
 
 1. What APIs do current applications use in C tor?
 
@@ -225,4 +230,12 @@ The very simplest useful API is probably something like:
 
 We could begin by implementing that, and then add other functionality as
 needed.
+
+### Picking our tooling
+
+We'll need to do a survey of RPC options (including rust tooling) and see
+whether they provide a feasible way to support async events and/or proxying.
+
+We should see whether cbindgen can help us with our FFI needs.
+
 
