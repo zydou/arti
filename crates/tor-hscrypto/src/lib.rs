@@ -13,7 +13,7 @@ pub mod time;
 /// order to connect to it.
 #[derive(Copy, Clone, Debug)]
 pub struct Credential {
-    /// Representation for the onion service's public ID.
+    /// Representation for the onion service's public ID. (`N_hs_cred`)
     ///
     /// This is the same value as is expanded to an OnionIdKey.
     id: [u8; 32],
@@ -21,7 +21,7 @@ pub struct Credential {
     // implementation; it's not clear to me that we should build it in either?
 }
 
-/// A value to identify an onion service during a given period.
+/// A value to identify an onion service during a given period. (`N_hs_subcred`)
 ///
 /// This is computed from the onion service's public ID and the blinded ID for
 /// the current time period.
