@@ -68,7 +68,7 @@ pub struct BlindedOnionIdKey(ed25519::PublicKey);
 #[derive(Copy, Clone, Debug)]
 pub struct BlindedOnionId([u8; 32]);
 
-// TODO hs: implement TryFrom<BlindedOnionId> for BlinedOnionIdKey, and
+// TODO hs: implement TryFrom<BlindedOnionId> for BlindedOnionIdKey, and
 // From<BlindedOnionIdKey> for BlindedOnionId.
 
 /// A key used to sign onion service descriptors. (`KP_desc_sign`)
@@ -82,7 +82,7 @@ pub struct BlindedOnionId([u8; 32]);
 /// from being linkable to those made in another.
 ///
 /// Note: we use a separate signing key here, rather than using the
-/// BlidedOnionIdKey directly, so that the secret key for the BlindedOnionIdKey
+/// BlindedOnionIdKey directly, so that the secret key for the BlindedOnionIdKey
 /// can be kept offline.
 #[derive(Clone, Debug)]
 pub struct DescSigningKey(ed25519::PublicKey);
