@@ -40,7 +40,11 @@ define_pk_keypair! {
 //
 // NOTE: This is a separate type from OnionId because it is about 6x larger.  It
 // is an expanded form, used for doing actual cryptography.
-pub struct OnionIdKey(ed25519::PublicKey) / OnionIdSecretKey(ed25519::ExpandedSecretKey);
+pub struct OnionIdKey(ed25519::PublicKey) /
+    ///
+    /// This is stored as an expanded secret key, for compatibility with the C
+    /// tor implementation, and with custom-generated addresses.
+    OnionIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
 impl OnionIdKey {

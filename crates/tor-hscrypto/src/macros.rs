@@ -6,7 +6,7 @@
 /// Define a public key type and a private key type to wrap a given inner key.
 macro_rules! define_pk_keypair {
     {
-        $(#[$meta:meta])* pub struct $pk:ident($pkt:ty) / $sk:ident($skt:ty);
+        $(#[$meta:meta])* pub struct $pk:ident($pkt:ty) / $(#[$sk_meta:meta])* $sk:ident($skt:ty);
     } => {
         paste::paste!{
             $(#[$meta])*
@@ -30,6 +30,7 @@ macro_rules! define_pk_keypair {
             }
 
             #[doc = concat!("The private counterpart of a [`", stringify!($pk), "Key'].")]
+            $(#[$sk_meta])*
             pub struct $sk ($skt);
 
             impl AsRef<$skt> for $sk {
