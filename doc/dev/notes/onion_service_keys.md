@@ -1,5 +1,15 @@
 Here are some keys that we need to store for onion services.
 
+Below, we label some keys as "offline" keys, meaning that they are not
+strictly necessary for running an onion service or client minute-by-minute,
+and that it might be desirable to store them in a more secure environment.
+We label some processes as "offline" processes, meaning that they can happen
+infrequently in the background, and that it might be desirable to perform
+them in a more secure environment.
+
+As a convenience feature, it _should_ be possible to store these keys and
+perform these processes online, if a more secure environment is not desired.
+
 
 # Clients
 
@@ -10,8 +20,9 @@ keys:
      * Any authentication keys in use with that onion
        service. (`KS_hs_client_desc_auth` or `KS_hs_client_intro_auth`)
 
+The keys above are generated offline; their public keys are given to the
+onion service operator offline.  They need to be available at runtime.
 
-The keys above can be provisioned offline and generated offline.
 The public keys associated with them need to be encoded and transferred
 textually or in a file, for use by onion service providers.
 There is a passwd-style format for these, described in the C tor manual page,
@@ -21,22 +32,17 @@ AUTHORIZATION`.
 
 # Services
 
-Each onion service need these keys to operate.
-It either needs to generate them online, or get provisioned with them from
-some offline process.
-They can be regenerated as needed, if the identity key is available.
+Each onion service need these keys to operate:
 
   * For each time period:
     * A private descriptor signing key (`KS_hs_desc_sign`),
     * A certificate for that signing key, signed with the `BlindedOnionId`
       for that time period (`KP_blind_id`).
 
-To generate those certificates (online or offline), each onion service needs
-these keys:
+To generate those certificates, each onion service needs
+these offline keys:
 
   * A secret identity key (`KS_hs_id`).
-    If it is kept offline, then some process needs to provision the service
-    with the descriptor signing key and certificate.
 
 To operate, an onion service needs these secret keys, which do not have to be
 persistent.
