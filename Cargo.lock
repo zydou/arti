@@ -3903,7 +3903,9 @@ dependencies = [
 name = "tor-hscrypto"
 version = "0.1.0"
 dependencies = [
+ "paste",
  "rand_core 0.6.4",
+ "serde",
  "thiserror",
  "tor-llcrypto",
 ]

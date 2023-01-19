@@ -15,9 +15,10 @@ repository = "https://gitlab.torproject.org/tpo/core/arti.git/"
 default = []
 
 [dependencies]
+paste = "1"
 rand_core = "0.6.2"
+serde = { version = "1.0.103", features = ["derive"] }
 thiserror = "1"
 tor-llcrypto = { version = "0.4.0", path = "../tor-llcrypto" }
 
 [dev-dependencies]
-

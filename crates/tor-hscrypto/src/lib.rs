@@ -5,6 +5,7 @@
 
 // TODO hs: Throughout this crate, only permit constant-time comparison functions.
 
+mod macros;
 pub mod ops;
 pub mod pk;
 pub mod time;
