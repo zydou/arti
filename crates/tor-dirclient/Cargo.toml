@@ -20,7 +20,7 @@ routerdesc = []
 
 [dependencies]
 async-compression = { version = "0.3.14", features = ["futures-io", "zlib"] }
-base64 = "0.13.0"
+base64ct = "1.5.1"
 derive_more = "0.99.3"
 futures = "0.3.14"
 hex = "0.4"

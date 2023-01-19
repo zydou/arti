@@ -12,6 +12,7 @@
 
 mod set;
 
+use base64ct::{Base64Unpadded, Encoding as _};
 use derive_builder::Builder;
 use tor_config::ConfigBuildError;
 use tor_config::{define_list_builder_accessors, impl_standard_builder, list_builder::VecBuilder};
@@ -96,8 +97,7 @@ pub(crate) fn default_fallbacks() -> Vec<FallbackDirBuilder> {
     /// Build a fallback directory; panic if input is bad.
     fn fallback(rsa: &str, ed: &str, ports: &[&str]) -> FallbackDirBuilder {
         let rsa = RsaIdentity::from_hex(rsa).expect("Bad hex in built-in fallback list");
-        let ed = base64::decode_config(ed, base64::STANDARD_NO_PAD)
-            .expect("Bad hex in built-in fallback list");
+        let ed = Base64Unpadded::decode_vec(ed).expect("Bad hex in built-in fallback list");
         let ed = Ed25519Identity::from_bytes(&ed).expect("Wrong length in built-in fallback list");
         let mut bld = FallbackDir::builder();
         bld.rsa_identity(rsa).ed_identity(ed);

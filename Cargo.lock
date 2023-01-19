@@ -3608,7 +3608,7 @@ dependencies = [
 name = "tor-cert"
 version = "0.6.0"
 dependencies = [
- "base64",
+ "base64ct",
  "caret",
  "derive_builder_fork_arti",
  "digest 0.10.6",
@@ -3760,7 +3760,7 @@ name = "tor-dirclient"
 version = "0.6.0"
 dependencies = [
  "async-compression",
- "base64",
+ "base64ct",
  "derive_more",
  "futures",
  "futures-await-test",
@@ -3788,7 +3788,7 @@ version = "0.9.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64",
+ "base64ct",
  "derive_builder_fork_arti",
  "derive_more",
  "digest 0.10.6",
@@ -3867,7 +3867,7 @@ dependencies = [
 name = "tor-guardmgr"
 version = "0.8.0"
 dependencies = [
- "base64",
+ "base64ct",
  "derive_builder_fork_arti",
  "derive_more",
  "dyn-clone",
@@ -3944,7 +3944,7 @@ version = "0.4.0"
 dependencies = [
  "aes",
  "arrayref",
- "base64",
+ "base64ct",
  "cipher",
  "ctr",
  "curve25519-dalek",

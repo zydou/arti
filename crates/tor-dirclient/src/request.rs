@@ -12,6 +12,7 @@ use tor_proto::circuit::ClientCirc;
 /// Alias for a result with a `RequestError`.
 type Result<T> = std::result::Result<T, crate::err::RequestError>;
 
+use base64ct::{Base64Unpadded, Encoding as _};
 use std::borrow::Cow;
 use std::iter::FromIterator;
 use std::time::{Duration, SystemTime};
@@ -340,7 +341,7 @@ impl MicrodescRequest {
 
 impl Requestable for MicrodescRequest {
     fn make_request(&self) -> Result<http::Request<()>> {
-        let d_encode_b64 = |d| base64::encode_config(d, base64::STANDARD_NO_PAD);
+        let d_encode_b64 = |d: &[u8; 32]| Base64Unpadded::encode_string(&d[..]);
         let ids = digest_list_stringify(&self.digests, d_encode_b64, "-")
             .ok_or(RequestError::EmptyRequest)?;
         let uri = format!("/tor/micro/d/{}.z", &ids);
