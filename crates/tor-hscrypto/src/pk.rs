@@ -9,7 +9,9 @@
 // only in a single module somewhere else, it would make sense to just use the
 // underlying type.
 
-use tor_llcrypto::pk::{curve25519, ed25519};
+use digest::Digest;
+use tor_llcrypto::d::Sha3_256;
+use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
 
 use crate::macros::{define_bytes, define_pk_keypair};
 use crate::time::TimePeriod;
@@ -38,18 +40,122 @@ define_pk_keypair! {
 //
 // NOTE: This is a separate type from OnionId because it is about 6x larger.  It
 // is an expanded form, used for doing actual cryptography.
-pub struct OnionIdKey(ed25519::PublicKey) / OnionIdSecretKey(ed25519::SecretKey);
+pub struct OnionIdKey(ed25519::PublicKey) / OnionIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
-// TODO hs: implement TryFrom<OnionId> for OnionIdKey, and From<OnionIdKey> for OnionId.
+impl OnionIdKey {
+    /// Return a representation of this key as an [`OnionId`].
+    ///
+    /// ([`OnionId`] is much smaller, and easier to store.)
+    pub fn id(&self) -> OnionId {
+        OnionId(self.0.to_bytes().into())
+    }
+}
+impl TryFrom<OnionId> for OnionIdKey {
+    type Error = signature::Error;
+
+    fn try_from(value: OnionId) -> Result<Self, Self::Error> {
+        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(OnionIdKey)
+    }
+}
+impl From<OnionIdKey> for OnionId {
+    fn from(value: OnionIdKey) -> Self {
+        value.id()
+    }
+}
 
 impl OnionIdKey {
     /// Derive the blinded key and subcredential for this identity during `cur_period`.
     pub fn compute_blinded_key(
         &self,
-        cur_period: &TimePeriod,
-    ) -> (BlindedOnionIdKey, crate::Subcredential) {
-        todo!() // TODO hs.  The underlying crypto is already done in tor_llcrypto::pk::keymanip
+        cur_period: TimePeriod,
+    ) -> Result<(BlindedOnionIdKey, crate::Subcredential), keymanip::BlindingError> {
+        // TODO hs: decide whether we want to support this kind of shared secret; C Tor does not.
+        let secret = b"";
+        let param = self.blinding_parameter(secret, cur_period);
+
+        let blinded_key = keymanip::blind_pubkey(&self.0, param)?;
+        let subcredential_bytes: [u8; 32] = {
+            // N_hs_subcred = H("subcredential" | N_hs_cred | blinded-public-key).
+            // where
+            //    N_hs_cred = H("credential" | public-identity-key)
+            let n_hs_cred: [u8; 32] = {
+                let mut h = Sha3_256::new();
+                h.update(b"credential");
+                h.update(self.0.as_bytes());
+                h.finalize().into()
+            };
+            let mut h = Sha3_256::new();
+            h.update(b"subcredential");
+            h.update(n_hs_cred);
+            h.update(blinded_key.as_bytes());
+            h.finalize().into()
+        };
+
+        Ok((blinded_key.into(), subcredential_bytes.into()))
+    }
+
+    /// Compute the 32-byte "blinding parameters" used to compute blinded public
+    /// (and secret) keys.
+    fn blinding_parameter(&self, secret: &[u8], cur_period: TimePeriod) -> [u8; 32] {
+        // We generate our key blinding parameter as
+        //    h = H(BLIND_STRING | A | s | B | N)
+        // Where:
+        //    H is SHA3-256.
+        //    A is this public key.
+        //    BLIND_STRING = "Derive temporary signing key" | INT_1(0)
+        //    s is an optional secret (not implemented here.)
+        //    B is the ed25519 basepoint.
+        //    N = "key-blind" || INT_8(period_num) || INT_8(period_length).
+
+        /// String used as part of input to blinding hash.
+        const BLIND_STRING: &[u8] = b"Derive temporary signing key\0";
+        /// String representation of our Ed25519 basepoint.
+        const ED25519_BASEPOINT: &[u8] =
+            b"(15112221349535400772501151409588531511454012693041857206046113283949847762202, \
+               46316835694926478169428394003475163141307993866256225615783033603165251855960)";
+
+        let mut h = Sha3_256::new();
+        h.update(BLIND_STRING);
+        h.update(self.0.as_bytes());
+        h.update(secret);
+        h.update(ED25519_BASEPOINT);
+        h.update(b"key-blind");
+        h.update(cur_period.interval_num.to_be_bytes());
+        h.update(u64::from(cur_period.length_in_sec).to_be_bytes());
+
+        h.finalize().into()
+    }
+}
+
+impl OnionIdSecretKey {
+    /// Derive the blinded key and subcredential for this identity during `cur_period`.
+    pub fn compute_blinded_key(
+        &self,
+        cur_period: TimePeriod,
+    ) -> Result<
+        (
+            BlindedOnionIdKey,
+            BlindedOnionIdSecretKey,
+            crate::Subcredential,
+        ),
+        keymanip::BlindingError,
+    > {
+        // TODO hs: as above, decide if we want this.
+        let secret = b"";
+
+        // Note: This implementation is somewhat inefficient, as it recomputes
+        // the PublicKey, and computes our blinding parameters twice.  But we
+        // only do this on an onion service once per time period: the
+        // performance does not matter.
+
+        let public_key: OnionIdKey = ed25519::PublicKey::from(&self.0).into();
+        let (blinded_public_key, subcredential) = public_key.compute_blinded_key(cur_period)?;
+
+        let param = public_key.blinding_parameter(secret, cur_period);
+        let blinded_secret_key = keymanip::blind_seckey(&self.0, param)?;
+
+        Ok((blinded_public_key, blinded_secret_key.into(), subcredential))
     }
 }
 
@@ -70,8 +176,33 @@ define_bytes! {
 pub struct BlindedOnionId([u8; 32]);
 }
 
-// TODO hs: implement TryFrom<BlindedOnionId> for BlindedOnionIdKey, and
-// From<BlindedOnionIdKey> for BlindedOnionId.
+impl BlindedOnionIdKey {
+    /// Return a representation of this key as a [`BlindedOnionId`].
+    ///
+    /// ([`BlindedOnionId`] is much smaller, and easier to store.)
+    pub fn id(&self) -> BlindedOnionId {
+        BlindedOnionId(self.0.to_bytes().into())
+    }
+}
+impl TryFrom<BlindedOnionId> for BlindedOnionIdKey {
+    type Error = signature::Error;
+
+    fn try_from(value: BlindedOnionId) -> Result<Self, Self::Error> {
+        ed25519::PublicKey::from_bytes(value.0.as_ref()).map(BlindedOnionIdKey)
+    }
+}
+impl From<BlindedOnionIdKey> for BlindedOnionId {
+    fn from(value: BlindedOnionIdKey) -> Self {
+        value.id()
+    }
+}
+
+impl BlindedOnionIdSecretKey {
+    /// Compute a signature of `message` with this key, using the corresponding `public_key`.
+    pub fn sign(&self, message: &[u8], public_key: &BlindedOnionIdKey) -> ed25519::Signature {
+        self.0.sign(message, &public_key.0)
+    }
+}
 
 define_pk_keypair! {
 /// A key used to sign onion service descriptors. (`KP_desc_sign`)
@@ -135,4 +266,88 @@ pub struct ClientDescAuthKey(curve25519::PublicKey) / ClientDescAuthSecretKey(cu
 pub struct ClientSecretKeys {
     desc_auth: Option<ClientDescAuthSecretKey>,
     intro_auth: Option<ClientIntroAuthSecretKey>,
+}
+
+#[cfg(test)]
+mod test {
+    use hex_literal::hex;
+    use signature::Verifier;
+    use std::time::{Duration, SystemTime};
+    use tor_basic_utils::test_rng::testing_rng;
+    use tor_llcrypto::util::rand_compat::RngCompatExt as _;
+
+    use super::*;
+
+    #[test]
+    fn key_blinding_blackbox() {
+        let mut rng = testing_rng().rng_compat();
+        let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now()).unwrap();
+        let keypair = ed25519::Keypair::generate(&mut rng);
+        let id_pub = OnionIdKey::from(keypair.public);
+        let id_sec = OnionIdSecretKey::from(ed25519::ExpandedSecretKey::from(&keypair.secret));
+
+        let (blinded_pub, subcred1) = id_pub.compute_blinded_key(when).unwrap();
+        let (blinded_pub2, blinded_sec, subcred2) = id_sec.compute_blinded_key(when).unwrap();
+
+        assert_eq!(subcred1.as_ref(), subcred2.as_ref());
+        assert_eq!(blinded_pub.0.to_bytes(), blinded_pub2.0.to_bytes());
+        assert_eq!(blinded_pub.id(), blinded_pub2.id());
+
+        let message = b"Here is a terribly important string to authenticate.";
+        let other_message = b"Hey, that is not what I signed!";
+        let sign = blinded_sec.sign(message, &blinded_pub2);
+
+        assert!(blinded_pub.as_ref().verify(message, &sign).is_ok());
+        assert!(blinded_pub.as_ref().verify(other_message, &sign).is_err());
+    }
+
+    #[test]
+    fn key_blinding_testvec() {
+        // Test vectors generated with C tor.
+        let id = OnionId::from(hex!(
+            "833990B085C1A688C1D4C8B1F6B56AFAF5A2ECA674449E1D704F83765CCB7BC6"
+        ));
+        let id_pubkey = OnionIdKey::try_from(id).unwrap();
+        let id_seckey = OnionIdSecretKey::from(
+            ed25519::ExpandedSecretKey::from_bytes(&hex!(
+                "D8C7FF0E31295B66540D789AF3E3DF992038A9592EEA01D8B7CBA06D6E66D159
+                 4D6167696320576F7264733A20737065697373636F62616C742062697669756D"
+            ))
+            .unwrap(),
+        );
+        let time_period = TimePeriod::new(
+            Duration::from_secs(1440),
+            humantime::parse_rfc3339("1970-01-22T01:50:33Z").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(time_period.interval_num, 1234);
+
+        let param = id_pubkey.blinding_parameter(b"", time_period);
+        assert_eq!(
+            param,
+            hex!("379E50DB31FEE6775ABD0AF6FB7C371E060308F4F847DB09FE4CFE13AF602287")
+        );
+
+        let (blinded_pub1, subcred1) = id_pubkey.compute_blinded_key(time_period).unwrap();
+        assert_eq!(
+            blinded_pub1.0.to_bytes(),
+            hex!("3A50BF210E8F9EE955AE0014F7A6917FB65EBF098A86305ABB508D1A7291B6D5")
+        );
+        assert_eq!(
+            subcred1.as_ref(),
+            &hex!("635D55907816E8D76398A675A50B1C2F3E36B42A5CA77BA3A0441285161AE07D")
+        );
+
+        let (blinded_pub2, blinded_sec, subcred2) =
+            id_seckey.compute_blinded_key(time_period).unwrap();
+        assert_eq!(blinded_pub1.0.to_bytes(), blinded_pub2.0.to_bytes());
+        assert_eq!(subcred1.as_ref(), subcred2.as_ref());
+        assert_eq!(
+            blinded_sec.0.to_bytes(),
+            hex!(
+                "A958DC83AC885F6814C67035DE817A2C604D5D2F715282079448F789B656350B
+                 4540FE1F80AA3F7E91306B7BF7A8E367293352B14A29FDCC8C19F3558075524B"
+            )
+        );
+    }
 }

@@ -3909,7 +3909,9 @@ dependencies = [
  "paste",
  "rand_core 0.6.4",
  "serde",
+ "signature 1.6.4",
  "thiserror",
+ "tor-basic-utils",
  "tor-llcrypto",
 ]
 

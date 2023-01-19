@@ -21,9 +21,9 @@ use std::time::{Duration, SystemTime};
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TimePeriod {
     /// Index of the time periods that have passed since the unix epoch.
-    interval_num: u64,
+    pub(crate) interval_num: u64,
     /// The length of a time period, in seconds.
-    length_in_sec: u32,
+    pub(crate) length_in_sec: u32,
 }
 
 /// The difference between the Unix epoch and our starting time.
