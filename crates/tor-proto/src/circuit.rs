@@ -237,6 +237,10 @@ impl ClientCirc {
     /// to implement most of the onion service handshake.
     ///
     /// (This function is not yet implemented. Right now it will always panic.)
+    //
+    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
+    //   "control" for a lot of other things. We say "meta" elsewhere in the
+    //   reactor code, but "meta messages" just sounds odd.
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     #[cfg(feature = "experimental-api")]
     pub async fn send_control_message(&self, msg: RelayMsg) -> Result<()> {
@@ -271,6 +275,10 @@ impl ClientCirc {
     //
     // TODO hs: Perhaps the stream here should yield a different type. Ian
     // thinks maybe we should store a callback instead.
+    //
+    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
+    //   "control" for a lot of other things. We say "meta" elsewhere in the
+    //   reactor code, but "meta messages" just sounds odd.
     #[cfg(feature = "experimental-api")]
     #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
     pub fn receive_control_messages(
@@ -361,6 +369,10 @@ impl ClientCirc {
     /// [^1]: Technically, the handshake is only _mostly_ out of band: the
     ///     client sends their half of the handshake in an ` message, and the
     ///     service's response is inline in its `RENDEZVOUS2` message.
+    //
+    // TODO hs: let's try to enforce the "you can't extend a circuit again once
+    // it has been extended this way" property.  We could do that with internal
+    // state, or some kind of a type state pattern.
     #[cfg(feature = "onion-common")]
     #[allow(clippy::missing_panics_doc, unused_variables)]
     pub async fn extend_virtual(

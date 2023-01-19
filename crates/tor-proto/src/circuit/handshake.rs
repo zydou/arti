@@ -1,7 +1,7 @@
 //! Features for manual invocation of Tor's cryptographic circuit handshakes.
 //!
 //! These features are used to implement onion services, by giving the onion
-//! service code more direct control over the
+//! service code more direct control over the lower-level pieces of the protocol.
 
 // Here we re-export some key types from our cryptographic code, for use when we
 // implement our onion handshake.
@@ -14,7 +14,11 @@
 pub use crate::crypto::handshake::hs_ntor;
 pub use crate::crypto::handshake::KeyGenerator;
 
-/// The relay protocol to use when extending a
+/// The relay protocol to use when extending a circuit manually with
+/// [`Circuit::extend_virtual`](crate::circuit::ClientCirc::extend_virtual).
+//
+// NOTE: These correspond internally to implementations of
+// crate::crypto::cell::ClientLayer.
 #[derive(Copy, Clone, Debug)]
 #[non_exhaustive]
 pub enum RelayProtocol {
