@@ -1,4 +1,57 @@
+//! Mid-level cryptographic operations used in the onion service protocol.
+
+use tor_llcrypto::d::Sha3_256;
+use tor_llcrypto::util::ct::CtByteArray;
+
+use digest::Digest;
+
 /// Compute the lightweight MAC function used in the onion service protocol.
-pub fn hs_mac(key: &[u8], msg: &[u8]) -> [u8; 32] {
-    todo!() // TODO hs
+pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<32> {
+    // rend-spec-v3 says: "Instantiate H with SHA3-256... Instantiate MAC(key=k,
+    // message=m) with H(k_len | k | m), where k_len is htonll(len(k))."
+
+    let mut hasher = Sha3_256::new();
+    let klen = key.len() as u64;
+    hasher.update(klen.to_be_bytes());
+    hasher.update(key);
+    hasher.update(msg);
+    let a: [u8; 32] = hasher.finalize().into();
+    a.into()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use hex_literal::hex;
+
+    /// Helper: just call Sha3_256 and return the result as a CtByteArray.
+    fn d(s: &[u8]) -> CtByteArray<32> {
+        let a: [u8; 32] = Sha3_256::digest(s).into();
+        a.into()
+    }
+
+    #[test]
+    fn mac_from_definition() {
+        assert_eq!(hs_mac(b"", b""), d(&[0; 8]));
+        assert_eq!(
+            hs_mac(b"hello", b"world"),
+            d(b"\0\0\0\0\0\0\0\x05helloworld")
+        );
+        assert_eq!(
+            hs_mac(b"helloworl", b"d"),
+            d(b"\0\0\0\0\0\0\0\x09helloworld")
+        );
+    }
+
+    #[test]
+    fn mac_testvec() {
+        // From C Tor; originally generated in Python.
+        let msg = b"i am in a library somewhere using my computer";
+        let key = b"i'm from the past talking to the future.";
+
+        assert_eq!(
+            hs_mac(key, msg).as_ref(),
+            &hex!("753fba6d87d49497238a512a3772dd291e55f7d1cd332c9fb5c967c7a10a13ca")
+        );
+    }
 }
