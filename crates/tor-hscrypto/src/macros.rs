@@ -58,4 +58,37 @@ macro_rules! define_pk_keypair {
     };
 }
 
-pub(crate) use define_pk_keypair;
+/// Define a wrapper type around a byte array of fixed length.
+///
+/// (Internally, it uses a [`CtByteArray`](tor_llcrypto::util::ct::CtByteArray),
+/// so it's safe to derive Ord, Eq, etc.)
+macro_rules! define_bytes {
+{ $(#[$meta:meta])* pub struct $name:ident([u8 ; $n:expr]); } =>
+{
+    $(#[$meta])*
+    pub struct $name(tor_llcrypto::util::ct::CtByteArray<$n>);
+
+    impl $name {
+        fn new(inp: [u8;$n]) -> Self {
+            Self(inp.into())
+        }
+    }
+    impl AsRef<[u8;$n]> for $name {
+        fn as_ref(&self) -> &[u8;$n] {
+            self.0.as_ref()
+        }
+    }
+    impl From<[u8;$n]> for $name {
+        fn from(inp: [u8;$n]) -> Self {
+            Self::new(inp)
+        }
+    }
+    impl From<$name> for [u8;$n] {
+        fn from(inp: $name) -> [u8;$n] {
+            inp.0.into()
+        }
+    }
+}
+}
+
+pub(crate) use {define_bytes, define_pk_keypair};

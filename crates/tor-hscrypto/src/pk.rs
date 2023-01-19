@@ -11,16 +11,18 @@
 
 use tor_llcrypto::pk::{curve25519, ed25519};
 
-use crate::macros::define_pk_keypair;
+use crate::macros::{define_bytes, define_pk_keypair};
 use crate::time::TimePeriod;
 
+define_bytes! {
 /// The identity of a v3 onion service. (KP_hs_id)
 ///
 /// This is the decoded and validated ed25519 public key that is encoded as a
 /// `${base32}.onion` address.  When expanded, it is a public key whose
 /// corresponding secret key is controlled by the onion service.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct OnionId([u8; 32]);
+}
 
 define_pk_keypair! {
 /// The identity of a v3 onion service, expanded into a public key. (KP_hs_id)
@@ -62,9 +64,11 @@ define_pk_keypair! {
 pub struct BlindedOnionIdKey(ed25519::PublicKey) / BlindedOnionIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
+define_bytes! {
 /// A blinded onion service identity, represented in a compact format. (`KP_hs_blind_id`)
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct BlindedOnionId([u8; 32]);
+}
 
 // TODO hs: implement TryFrom<BlindedOnionId> for BlindedOnionIdKey, and
 // From<BlindedOnionIdKey> for BlindedOnionId.
