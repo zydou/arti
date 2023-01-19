@@ -48,7 +48,11 @@ pub struct Subcredential([u8; 32]);
 pub struct RevisionCounter(u64);
 
 define_bytes! {
-/// An opaque value used by an onion service
+/// An opaque value used at a rendezvous point to match clients and services.
+///
+/// The client includes this value to the rendezvous point in its
+/// `ESTABLISH_RENDEZVOUS` message; the service later provides the same value in its
+/// `RENDEZVOUS1` message.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct RendCookie([u8; 20]);
 }
