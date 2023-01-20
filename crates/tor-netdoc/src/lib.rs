@@ -37,6 +37,8 @@
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
 
+#[cfg(feature = "onion-service")]
+pub(crate) mod build;
 #[macro_use]
 pub(crate) mod parse;
 pub mod doc;
@@ -45,6 +47,9 @@ pub mod types;
 mod util;
 
 pub use err::{BuildError, Error, ParseErrorKind, Pos};
+
+#[cfg(feature = "onion-service")]
+pub use build::NetdocText;
 
 /// Alias for the Result type returned by most objects in this module.
 pub type Result<T> = std::result::Result<T, Error>;
