@@ -138,7 +138,18 @@ impl<'n, K> ItemEncoder<'n, K> {
     // This is not a hot path.  `dyn` for smaller code size.
     //
     // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
-    pub(crate) fn arg(&mut self, arg: &dyn Display) -> &mut Self {
+    pub(crate) fn arg(mut self, arg: &dyn Display) -> Self {
+        self.add_arg(arg);
+        self
+    }
+
+    /// Add a single argument, to a borrowed `ItemEncoder`
+    ///
+    /// If the argument is not in the correct syntax, a `Bug`
+    /// error will be reported (later).
+    //
+    // Needed for implementing `ItemArgument`
+    pub(crate) fn add_arg(&mut self, arg: &dyn Display) {
         todo!()
     }
 
@@ -151,7 +162,7 @@ impl<'n, K> ItemEncoder<'n, K> {
     //
     // (The string will in fact be checked for newlines or nul bytes,
     // but this is not guaranteed as part of the API.)
-    pub(crate) fn args_raw_string(&mut self, args: &dyn Display) -> &mut Self {
+    pub(crate) fn args_raw_string(self, args: &dyn Display) -> Self {
         todo!()
     }
 
