@@ -16,6 +16,16 @@ I propose to not reuse `SectionRules`.
 ## Proposed internal API
 
 ```rust
+///
+///
+/// This facility proces output that complies with the meta-document format,
+/// (`dir-spec.txt` section 1.2) -
+/// unless `raw` methods are called with improper input.
+///
+/// However, no checks are done on keyword presence/absence, multiplicity, or ordering,
+/// so the output may not necessarily conform to the format of the particular intended document.
+/// It is the caller's responsibility to call `.item()` in the right order,
+/// with the right keywords and arguments.
 pub(crate) struct NetdocEncoder<K> {
     // Err means bad values passed to some builder function
     built: Result<String, Bug>,
