@@ -220,27 +220,3 @@ impl NetdocBuilder for HsDescriptorBuilder {
     }
 }
 ```
-
-## `Item` type
-
-Currently there is an `Item<'borrowed, K: Keyword>`.
-
-The scheme abouve needs something similar.
-
-The required contents of the builder's `Item` is a little different to
-the parser's, but similar enough that we problably want to reuse it.
-
-I propose:
-
- * Change `Item` and `Object` to contain `Cow`
- * Move them out of `tor_netdoc::parse` into a private module at the toplevel
- * Change the contents of `Item` so that it can contain at least one of `args`
-   and `split_args` and maybe both.  `args` will go into the `RefCell`.
-   Thus args can be built up.
-
- * Provide an `ItemBuilder` with the appropriate setters and a build method.
-
-An alternative design would be to have completely separate `Item` for
-netdoc construction as for parsing.  But we will probably in the
-future want to be able to (for example) add our own signatures to
-someone else's netdoc.
