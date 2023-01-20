@@ -106,9 +106,9 @@ impl ItemEncoder<'n, K> {
 
     // If keyword is not in the correct syntax,
     // or data fails to be written, a `Bug` is stored in self.doc.
-    fn object(&mut self, keyword: &str,
+    fn object(self, keyword: &str,
                // Writeable isn't dyn-compatible
-               data: impl tor_bytes::WriteableOnce) -> &mut self;
+               data: impl tor_bytes::WriteableOnce);
 }
 
 // Alternative to the `Bug` above.
@@ -138,7 +138,7 @@ use OnionServiceKeyword as K;
     let beginning = document.marker();
     document.item(K::HsDescriptor).arg(3);
     document.item(K::DescriptorLifetime).arg(&self.lifetime);
-    document.item(K::DescriptorSigningKeyCert).object("ED25519 CERT", &self.cert[..])
+    document.item(K::DescriptorSigningKeyCert).object("ED25519 CERT", &self.cert[..]);
     document.item(K::RevisionCounter).arg(&self.counter);
     document.item(K::Superencrypted).object("MESSAGE", inner_text);
     let end = document.marker();
