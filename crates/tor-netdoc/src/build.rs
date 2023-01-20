@@ -120,11 +120,9 @@ impl NetdocEncoder {
     //
     // Q. Should this return `&str` or `NetdocText<'self>` ?
     // (`NetdocText would have to then contain `Cow`, which is fine.)
-    pub(crate) fn slice(&self, begin: Cursor, end: Cursor)
-                        -> Result<&str, Bug> {
+    pub(crate) fn slice(&self, begin: Cursor, end: Cursor) -> Result<&str, Bug> {
         todo!()
     }
-    
 
     /// Build the document into textual form
     pub(crate) fn finish() -> Result<NetdocText<Self>, Bug> {
@@ -159,9 +157,12 @@ impl<'n, K> ItemEncoder<'n, K> {
 
     // If keyword is not in the correct syntax,
     // or data fails to be written, a `Bug` is stored in self.doc.
-    pub(crate) fn object(self, keyword: &str,
-                         // Writeable isn't dyn-compatible
-                         data: impl tor_bytes::WriteableOnce) {
+    pub(crate) fn object(
+        self,
+        keyword: &str,
+        // Writeable isn't dyn-compatible
+        data: impl tor_bytes::WriteableOnce,
+    ) {
         todo!()
     }
 }
