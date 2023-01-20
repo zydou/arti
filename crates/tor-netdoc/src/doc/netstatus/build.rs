@@ -14,6 +14,7 @@ use tor_llcrypto::pk::rsa::RsaIdentity;
 use tor_protover::Protocols;
 
 use std::net::IpAddr;
+use std::time::SystemTime;
 
 /// A builder object used to construct a consensus.
 ///
@@ -147,15 +148,33 @@ impl<RS> ConsensusBuilder<RS> {
     /// Set the previous day's shared-random value for this consensus.
     ///
     /// This value is optional.
-    pub fn shared_rand_prev(&mut self, n_reveals: u8, value: SharedRandVal) -> &mut Self {
-        self.shared_rand_prev = Some(SharedRandStatus { n_reveals, value });
+    pub fn shared_rand_prev(
+        &mut self,
+        n_reveals: u8,
+        value: SharedRandVal,
+        timestamp: Option<SystemTime>,
+    ) -> &mut Self {
+        self.shared_rand_prev = Some(SharedRandStatus {
+            n_reveals,
+            value,
+            timestamp,
+        });
         self
     }
     /// Set the current day's shared-random value for this consensus.
     ///
     /// This value is optional.
-    pub fn shared_rand_cur(&mut self, n_reveals: u8, value: SharedRandVal) -> &mut Self {
-        self.shared_rand_cur = Some(SharedRandStatus { n_reveals, value });
+    pub fn shared_rand_cur(
+        &mut self,
+        n_reveals: u8,
+        value: SharedRandVal,
+        timestamp: Option<SystemTime>,
+    ) -> &mut Self {
+        self.shared_rand_cur = Some(SharedRandStatus {
+            n_reveals,
+            value,
+            timestamp,
+        });
         self
     }
     /// Set a named weight parameter for this consensus.
@@ -403,8 +422,8 @@ mod test {
             .param("knish", 1212)
             .voting_delay(7, 8)
             .consensus_method(32)
-            .shared_rand_prev(1, SharedRandVal([b'x'; 32]))
-            .shared_rand_cur(1, SharedRandVal([b'y'; 32]))
+            .shared_rand_prev(1, SharedRandVal([b'x'; 32]), None)
+            .shared_rand_cur(1, SharedRandVal([b'y'; 32]), None)
             .weight("Wxy", 303)
             .weight("Wow", 999);
 

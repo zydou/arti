@@ -320,6 +320,12 @@ struct SharedRandStatus {
     /// have any more than a small number of possible random values.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     value: SharedRandVal,
+
+    /// The time when this SharedRandVal becomes (or became) the latest.
+    ///
+    /// (This is added per proposal 342, assuming that gets accepted.)
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
+    timestamp: Option<time::SystemTime>,
 }
 
 /// Parts of the networkstatus header that are present in every networkstatus.
@@ -1003,7 +1009,15 @@ impl SharedRandStatus {
         let n_reveals: u8 = item.parse_arg(0)?;
         let val: B64 = item.parse_arg(1)?;
         let value = SharedRandVal(val.into_array()?);
-        Ok(SharedRandStatus { n_reveals, value })
+        // Added in proposal 342
+        let timestamp = item
+            .parse_optional_arg::<Iso8601TimeNoSp>(2)?
+            .map(Into::into);
+        Ok(SharedRandStatus {
+            n_reveals,
+            value,
+            timestamp,
+        })
     }
 }
 
@@ -1947,6 +1961,20 @@ mod test {
         assert_eq!(
             sr.value.0,
             hex!("e4ba1d638c96c458532adc6957dc0080d03d37c7e5854087d0da90bf5ff4e72e")
+        );
+        assert!(sr.timestamp.is_none());
+
+        let sr2 = gettok(
+            "shared-rand-current-value 6 \
+                    5LodY4yWxFhTKtxpV9wAgNA9N8flhUCH0NqQv1/05y4 2022-01-20T12:34:56\n",
+        )
+        .unwrap();
+        let sr2 = SharedRandStatus::from_item(&sr2).unwrap();
+        assert_eq!(sr2.n_reveals, sr2.n_reveals);
+        assert_eq!(sr2.value.0, sr2.value.0);
+        assert_eq!(
+            sr2.timestamp.unwrap(),
+            humantime::parse_rfc3339("2022-01-20T12:34:56Z").unwrap()
         );
 
         let sr = gettok("foo bar\n").unwrap();
