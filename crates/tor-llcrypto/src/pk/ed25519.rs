@@ -10,6 +10,7 @@
 //! protocol to uniquely identify a relay.
 
 use arrayref::array_ref;
+use base64ct::{Base64Unpadded, Encoding as _};
 use std::fmt::{self, Debug, Display, Formatter};
 use subtle::{Choice, ConstantTimeEq};
 
@@ -115,11 +116,7 @@ impl ConstantTimeEq for Ed25519Identity {
 
 impl Display for Ed25519Identity {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            base64::encode_config(self.id.as_ref(), base64::STANDARD_NO_PAD)
-        )
+        write!(f, "{}", Base64Unpadded::encode_string(self.id.as_ref()))
     }
 }
 
@@ -136,7 +133,7 @@ impl safelog::Redactable for Ed25519Identity {
         write!(
             f,
             "{}…",
-            &base64::encode_config(self.id.as_ref(), base64::STANDARD_NO_PAD)[..2]
+            &Base64Unpadded::encode_string(self.id.as_ref())[..2]
         )
     }
 
@@ -151,10 +148,7 @@ impl serde::Serialize for Ed25519Identity {
         S: serde::Serializer,
     {
         if serializer.is_human_readable() {
-            serializer.serialize_str(&base64::encode_config(
-                self.id.as_ref(),
-                base64::STANDARD_NO_PAD,
-            ))
+            serializer.serialize_str(&Base64Unpadded::encode_string(self.id.as_ref()))
         } else {
             serializer.serialize_bytes(&self.id.as_ref()[..])
         }
@@ -178,8 +172,7 @@ impl<'de> serde::Deserialize<'de> for Ed25519Identity {
                 where
                     E: serde::de::Error,
                 {
-                    let bytes =
-                        base64::decode_config(s, base64::STANDARD_NO_PAD).map_err(E::custom)?;
+                    let bytes = Base64Unpadded::decode_vec(s).map_err(E::custom)?;
                     Ed25519Identity::from_bytes(&bytes)
                         .ok_or_else(|| E::custom("wrong length for Ed25519 public key"))
                 }

@@ -27,7 +27,7 @@ hsv3-service = []
 [dependencies]
 aes = { version = "0.8", features = ["zeroize"] }
 arrayref = "0.3"
-base64 = "0.13.0"
+base64ct = "1.5.1"
 cipher = { version = "0.4.3", optional = true, features = ["zeroize"] }
 ctr = { version = "0.9", features = ["zeroize"] }
 curve25519-dalek = "3.2"
@@ -37,7 +37,7 @@ hex = "0.4"
 old_rand_core = { package = "rand_core", version = "0.5.1" }
 openssl = { version = "0.10.30", optional = true }
 rand_core = "0.6.2"
-rsa = "0.7.1"
+rsa = "0.8.0"
 safelog = { version = "0.2.0", path = "../safelog" }
 serde = "1.0.103"
 sha1 = "0.10.0"

@@ -1675,7 +1675,8 @@ mod test {
                 )
             }
             fn d64(s: &str) -> MdDigest {
-                base64::decode(s).unwrap().try_into().unwrap()
+                use base64ct::{Base64Unpadded, Encoding as _};
+                Base64Unpadded::decode_vec(s).unwrap().try_into().unwrap()
             }
 
             // If we start from scratch and reset, we're back in GetConsensus.

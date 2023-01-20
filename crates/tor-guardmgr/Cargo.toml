@@ -28,7 +28,7 @@ pt-client = ["bridge-client", "tor-linkspec/pt-client"]
 testing = []
 
 [dependencies]
-base64 = "0.13.0"
+base64ct = "1.5.1"
 derive_builder = { version = "0.11", package = "derive_builder_fork_arti" }
 derive_more = "0.99.3"
 dyn-clone = "1.0.4"

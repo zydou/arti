@@ -1,3 +1,4 @@
+use base64ct::{Base64Unpadded, Encoding as _};
 use cipher::{KeyIvInit, StreamCipher};
 use digest::{self, Digest, ExtendableOutput};
 use hex_literal::hex;
@@ -510,11 +511,11 @@ LnZEGsos1BCJkS31lYl7Jae1QVooa6522Rz8ORo+GfbZ";
     let pk_pem = "
 MIGJAoGBANUntsY9boHTnDKKlM4VfczcBE6xrYwhDJyeIkh7TPrebUBBvRBGmmV+
 PYK8AM9irDtqmSR+VztUwQxH9dyEmwrM2gMeym9uXchWd/dt7En/JNL8srWIf7El
-qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE=";
+qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
     fn to_der(s: &str) -> Vec<u8> {
         let mut r = Vec::new();
         for line in s.lines() {
-            r.extend(base64::decode(line).unwrap());
+            r.extend(Base64Unpadded::decode_vec(line).unwrap());
         }
         r
     }
@@ -561,7 +562,7 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE=";
     let sig = "
 i7BWpY6EgPCYQQQRL8yIba+2C/sASVWMmcD5x/aSlGVeuwna4h15SrOKAMZUBecE
 JtAqSDuSzXGn6FP9WXNdi+xe5GQznb1D3wjParTno1y/kYtJiRA5MrJ0E1cWhLl5
-rI2rzhqqBIhzFFaYuxyRAhkSBxCKTdl6X0k74ahT3MM=
+rI2rzhqqBIhzFFaYuxyRAhkSBxCKTdl6X0k74ahT3MM
 ";
 
     assert!(public.verify(&digest, &to_der(sig)).is_ok());

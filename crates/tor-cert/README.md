@@ -31,7 +31,7 @@ certificates when authenticating relays.
 Parsing, validating, and inspecting a certificate:
 
 ```rust
-use base64::decode;
+use base64ct::{Base64, Encoding as _};
 use tor_cert::*;
 use tor_checkable::*;
 // Taken from a random relay on the Tor network.
@@ -42,7 +42,7 @@ let cert_base64 =
 // Remove the whitespace, so base64 doesn't choke on it.
 let cert_base64: String = cert_base64.split_whitespace().collect();
 // Decode the base64.
-let cert_bin = base64::decode(cert_base64).unwrap();
+let cert_bin = Base64::decode_vec(&cert_base64).unwrap();
 
 // Decode the cert and check its signature.
 let cert = Ed25519Cert::decode(&cert_bin).unwrap()
