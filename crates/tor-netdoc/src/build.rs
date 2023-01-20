@@ -159,9 +159,6 @@ impl<'n, K> ItemEncoder<'n, K> {
     /// separated by (single) spaces.
     /// This is not (properly) checked.
     /// Incorrect use might lead to malformed documents, or later errors.
-    //
-    // (The string will in fact be checked for newlines or nul bytes,
-    // but this is not guaranteed as part of the API.)
     pub(crate) fn args_raw_string(self, args: &dyn Display) -> Self {
         todo!()
     }
