@@ -79,10 +79,6 @@ pub(crate) struct NetdocEncoder {
 /// Encoder for an individual item within a being-built document
 ///
 /// Returned by [`NetdocEncoder::item()`].
-// we need to accumulate these in pieces, and put them in doc later,
-// because otherwise args and object can't be specified in any order
-// and we'd need a typestate, and also there's the newline after the
-// args
 #[derive(Debug)]
 pub(crate) struct ItemEncoder<'n> {
     /// The document including the partial item that we're building
@@ -104,9 +100,6 @@ pub(crate) struct Cursor {
     ///
     /// Can be out of range if the corresponding `NetdocEncoder` is contains an `Err`.
     offset: usize,
-    // Actually, we don't want cursors to be statically typed by keyword, so K generic dropped
-    // Variance: notionally refers to a keyword K
-    // marker: PhantomData<*const K>,
 }
 
 /// Types that can be added as argument(s) to item keyword lines
@@ -133,8 +126,6 @@ impl NetdocEncoder {
     ///
     /// The item can be further extended with arguments or an object,
     /// using the returned `ItemEncoder`.
-    //
-    // Actually, we defer adding the item until `ItemEncoder` is dropped.
     pub(crate) fn item(&mut self, keyword: impl Keyword) -> ItemEncoder {
         self.raw(&keyword.to_str());
         ItemEncoder { doc: self }
@@ -232,8 +223,6 @@ impl<'n> ItemEncoder<'n> {
     /// error will be reported (later).
     //
     // This is not a hot path.  `dyn` for smaller code size.
-    //
-    // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
     pub(crate) fn arg(mut self, arg: &dyn ItemArgument) -> Self {
         self.add_arg(arg);
         self
