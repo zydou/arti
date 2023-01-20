@@ -21,7 +21,10 @@
 //! Recommend more standardized ways to do these things.
 
 // Ideally there would be a feature that we would use in the CI, rather than this ad-hoc list.
-#![cfg_attr(not(all(test, feature = "hsv3-service", feature = "relay")), allow(unused_imports))]
+#![cfg_attr(
+    not(all(test, feature = "hsv3-service", feature = "relay")),
+    allow(unused_imports)
+)]
 
 use crate::{d, pk};
 use digest::Digest;
