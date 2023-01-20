@@ -206,6 +206,7 @@ mod timeimpl {
     /// space between the date and time.
     ///
     /// (Example: "2020-10-09 17:38:12")
+    #[derive(derive_more::Into, derive_more::From)]
     pub(crate) struct Iso8601TimeSp(SystemTime);
 
     /// Formatting object for parsing the space-separated Iso8601 format.
@@ -224,9 +225,26 @@ mod timeimpl {
         }
     }
 
-    impl From<Iso8601TimeSp> for SystemTime {
-        fn from(t: Iso8601TimeSp) -> SystemTime {
-            t.0
+    /// A wall-clock time, encoded in ISO8601 format without an intervening
+    /// space.
+    ///
+    /// (Example: "2020-10-09T17:38:12")
+    #[derive(derive_more::Into, derive_more::From)]
+    pub(crate) struct Iso8601TimeNoSp(SystemTime);
+
+    /// Formatting object for parsing the space-separated Iso8601 format.
+    const ISO_8601NOSP_FMT: &[FormatItem] =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+
+    impl std::str::FromStr for Iso8601TimeNoSp {
+        type Err = Error;
+        fn from_str(s: &str) -> Result<Iso8601TimeNoSp> {
+            let d = PrimitiveDateTime::parse(s, &ISO_8601NOSP_FMT).map_err(|e| {
+                EK::BadArgument
+                    .at_pos(Pos::at(s))
+                    .with_msg(format!("invalid time: {}", e))
+            })?;
+            Ok(Iso8601TimeNoSp(d.assume_utc().into()))
         }
     }
 }
@@ -670,6 +688,15 @@ mod test {
         assert!("2020-09-29Q13:99:33".parse::<Iso8601TimeSp>().is_err());
         assert!("2020-09-29".parse::<Iso8601TimeSp>().is_err());
         assert!("too bad, waluigi time".parse::<Iso8601TimeSp>().is_err());
+
+        let t = "2020-09-29T13:36:33".parse::<Iso8601TimeNoSp>()?;
+        let t: SystemTime = t.into();
+        assert_eq!(t, parse_rfc3339("2020-09-29T13:36:33Z").unwrap());
+
+        assert!("2020-09-29 13:36:33".parse::<Iso8601TimeNoSp>().is_err());
+        assert!("2020-09-29Q13:99:33".parse::<Iso8601TimeNoSp>().is_err());
+        assert!("2020-09-29".parse::<Iso8601TimeNoSp>().is_err());
+        assert!("too bad, waluigi time".parse::<Iso8601TimeNoSp>().is_err());
 
         Ok(())
     }
