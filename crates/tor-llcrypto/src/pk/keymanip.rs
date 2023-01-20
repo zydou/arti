@@ -20,6 +20,9 @@
 //!
 //! Recommend more standardized ways to do these things.
 
+// Ideally there would be a feature that we would use in the CI, rather than this ad-hoc list.
+#![cfg_attr(not(all(test, feature = "hsv3-service", feature = "relay")), allow(unused_imports))]
+
 use crate::{d, pk};
 use digest::Digest;
 use thiserror::Error;
@@ -123,6 +126,7 @@ impl From<ed25519_dalek::SignatureError> for BlindingError {
 /// Helper: clamp a blinding parameter and use it to compute a blinding factor.
 ///
 /// This is a common step for public-key and private-key blinding.
+#[cfg(any(feature = "hsv3-client", feature = "hsv3-service"))]
 fn blinding_factor(mut param: [u8; 32]) -> Scalar {
     // Clamp the blinding parameter
     param[0] &= 248;
