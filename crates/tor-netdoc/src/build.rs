@@ -327,3 +327,50 @@ impl Drop for ItemEncoder<'_> {
         self.doc.raw(&'\n');
     }
 }
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use humantime::parse_rfc3339;
+
+    fn time(s: &str) -> SystemTime {
+        parse_rfc3339(s).unwrap()
+    }
+
+    #[test]
+    fn authcert() {
+        use crate::doc::authcert::AuthCertKwd as ACK;
+
+        let mut encode = NetdocEncoder::new();
+        encode.item(ACK::DIR_KEY_CERTIFICATE_VERSION).arg(&3);
+        encode
+            .item(ACK::FINGERPRINT)
+            .arg(&"ED03BB616EB2F60BEC80151114BB25CEF515B226");
+        encode
+            .item(ACK::DIR_KEY_PUBLISHED)
+            .arg(&time("2020-04-18T08:36:57Z"));
+        encode
+            .item(ACK::DIR_KEY_EXPIRES)
+            .arg(&time("2021-04-18T08:36:57Z"));
+        let doc = encode.finish().unwrap();
+        eprintln!("{}", &*doc);
+        assert_eq!(
+            &*doc,
+            r"dir-key-certificate-version 3
+fingerprint ED03BB616EB2F60BEC80151114BB25CEF515B226
+dir-key-published 2020-04-18 08:36:57
+dir-key-expires 2021-04-18 08:36:57
+"
+        );
+    }
+}
