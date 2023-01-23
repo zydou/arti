@@ -124,6 +124,13 @@ pub(crate) trait ItemArgument {
 }
 
 impl NetdocEncoder {
+    /// Start encoding a document
+    pub(crate) fn new() -> Self {
+        NetdocEncoder {
+            built: Ok(String::new()),
+        }
+    }
+
     /// Adds an item to the being-built document
     ///
     /// The item can be further extended with arguments or an object,
