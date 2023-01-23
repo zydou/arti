@@ -49,8 +49,22 @@ impl<B> Deref for NetdocText<B> {
 ///
 /// # Example
 ///
-/// ```ignore
-/// # TODO hs
+/// # TODO hs, actually fix and test this example
+/// ```rust,ignore
+/// use OnionServiceKeyword as K;
+///
+/// let mut document = NetDocEncoder::new();
+/// let beginning = document.marker();
+/// document.item(K::HsDescriptor).arg(3);
+/// document.item(K::DescriptorLifetime).arg(&self.lifetime);
+/// document.item(K::DescriptorSigningKeyCert).object("ED25519 CERT", &self.cert[..]);
+/// document.item(K::RevisionCounter).arg(&self.counter);
+/// document.item(K::Superencrypted).object("MESSAGE", inner_text);
+/// let end = document.marker();
+/// let signature = key.sign(document.slice(begining, end));
+/// document.item(K::Signature).arg(B64(signature));
+///
+/// let text = document.finish()?;
 /// ```
 #[derive(Debug, Clone)]
 pub(crate) struct NetdocEncoder {
