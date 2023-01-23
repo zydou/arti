@@ -87,6 +87,25 @@ pub(crate) struct Cursor {
     // marker: PhantomData<*const K>,
 }
 
+/// Types that can be added as argument(s) to item keyword lines
+///
+/// Implemented for strings, and various other types.
+///
+/// This is a separate trait so we can control the formatting of (eg) [`SystemTime`],
+/// without having a method on `ItemEncoder` for each argument type.
+pub(crate) trait ItemArgument {
+    /// Format as a string suitable for including as a netdoc keyword line argument
+    ///
+    /// The implementation is responsible for checking that the syntax is legal.
+    /// For example, if `self` is a string, it must check that the string is
+    /// in legal as a single argument.
+    ///
+    /// Some netdoc values (eg times) turn into several arguments; in that case,
+    /// one `ItemArgument` may format into multiple arguments, and this method
+    /// is responsible for writing them all, with the necessary spaces.
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug>;
+}
+
 impl NetdocEncoder {
     /// Adds an item to the being-built document
     ///
@@ -132,6 +151,17 @@ impl NetdocEncoder {
     }
 }
 
+impl ItemArgument for str {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        todo!()
+    }
+}
+
+// TODO hs:
+// impl<T: ItemArgument + ?Sized> ItemArgument for &'_ T
+// impl ItemArgument for usize, etc.
+// impl ItemArgument for SystemTime
+
 impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
     ///
@@ -140,7 +170,7 @@ impl<'n> ItemEncoder<'n> {
     // This is not a hot path.  `dyn` for smaller code size.
     //
     // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
-    pub(crate) fn arg(mut self, arg: &dyn Display) -> Self {
+    pub(crate) fn arg(mut self, arg: &dyn ItemArgument) -> Self {
         self.add_arg(arg);
         self
     }
@@ -151,7 +181,7 @@ impl<'n> ItemEncoder<'n> {
     /// error will be reported (later).
     //
     // Needed for implementing `ItemArgument`
-    pub(crate) fn add_arg(&mut self, arg: &dyn Display) {
+    pub(crate) fn add_arg(&mut self, arg: &dyn ItemArgument) {
         todo!()
     }
 
