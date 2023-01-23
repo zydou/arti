@@ -22,7 +22,9 @@
 use std::fmt::{self, Display, Write};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::time::SystemTime;
 
+use humantime::format_rfc3339;
 use tor_error::{internal, into_internal, Bug};
 
 use crate::parse::keyword::Keyword;
@@ -207,14 +209,51 @@ impl NetdocEncoder {
 
 impl ItemArgument for str {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
-        todo!()
+        // Implements this
+        // https://gitlab.torproject.org/tpo/core/torspec/-/merge_requests/106
+        if self.is_empty() || self.chars().any(|c| !c.is_ascii_graphic()) {
+            return Err(internal!("invalid keyword argument syntax {:?}", self));
+        }
+        out.args_raw_nonempty(&self);
+        Ok(())
     }
 }
 
-// TODO hs:
-// impl<T: ItemArgument + ?Sized> ItemArgument for &'_ T
-// impl ItemArgument for usize, etc.
-// impl ItemArgument for SystemTime
+impl<T: ItemArgument + ?Sized> ItemArgument for &'_ T {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        <T as ItemArgument>::write_onto(self, out)
+    }
+}
+
+/// Implement [`ItemArgument`] for `$ty` in terms of `<$ty as Display>`
+///
+/// Checks that the syntax is acceptable.
+macro_rules! impl_item_argument_as_display { { $( $ty:ty $(,)? )* } => { $(
+    impl ItemArgument for $ty {
+        fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+            let arg = self.to_string();
+            out.add_arg(&arg.as_str());
+            Ok(())
+        }
+    }
+)* } }
+
+impl_item_argument_as_display! { usize, u8, u16, u32, u64, u128 }
+impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
+
+impl ItemArgument for SystemTime {
+    fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
+        out.args_raw_nonempty(
+            // There are two needless allocations here.  A mutating-on-the-fly
+            // struct impl fmt::Write could be used instead, but it's not clear it's worth it.
+            &format_rfc3339(*self)
+                .to_string()
+                .replace('T', " ")
+                .trim_end_matches('Z'),
+        );
+        Ok(())
+    }
+}
 
 impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
