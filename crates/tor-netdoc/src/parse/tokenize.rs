@@ -13,6 +13,16 @@ use std::cell::{Ref, RefCell};
 use std::str::FromStr;
 use tor_error::internal;
 
+/// Useful constants for netdoc object syntax
+pub(crate) mod object {
+    /// indicates the start of an object
+    pub(crate) const BEGIN_STR: &str = "-----BEGIN ";
+    /// indicates the end of an object
+    pub(crate) const END_STR: &str = "-----END ";
+    /// indicates the end of a begin or end tag.
+    pub(crate) const TAG_END: &str = "-----";
+}
+
 /// Return true iff a given character is "space" according to the rules
 /// of dir-spec.txt
 pub(crate) fn is_sp(c: char) -> bool {
@@ -190,12 +200,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     /// found, Ok(None) if no object is found, and Err only if a
     /// corrupt object is found.
     fn object(&mut self) -> Result<Option<Object<'a>>> {
-        /// indicates the start of an object
-        const BEGIN_STR: &str = "-----BEGIN ";
-        /// indicates the end of an object
-        const END_STR: &str = "-----END ";
-        /// indicates the end of a begin or end tag.
-        const TAG_END: &str = "-----";
+        use object::*;
 
         let pos = self.off;
         if !self.starts_with(BEGIN_STR) {
