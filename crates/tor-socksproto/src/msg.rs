@@ -179,6 +179,18 @@ caret_int! {
         COMMAND_NOT_SUPPORTED = 0x07,
         /// RFC 1929: "Address type not supported"
         ADDRTYPE_NOT_SUPPORTED = 0x08,
+        /// Prop304: "Onion Service Descriptor Can Not be Found"
+        HS_DESC_NOT_FOUND = 0xF0,
+        /// Prop304: "Onion Service Descriptor Is Invalid"
+        HS_DESC_INVALID = 0xF1,
+        /// Prop304: "Onion Service Introduction Failed"
+        HS_INTRO_FAILED = 0xF2,
+        /// Prop304: "Onion Service Rendezvous Failed"
+        HS_REND_FAILED = 0xF3,
+        /// Prop304: "Onion Service Missing Client Authorization"
+        HS_MISSING_CLIENT_AUTH = 0xF4,
+        /// Prop304: "Onion Service Wrong Client Authorization"
+        HS_WRONG_CLIENT_AUTH = 0xF5,
     }
 }
 
