@@ -294,8 +294,18 @@ pub struct SignatureGroup {
 
 /// A shared random value produced by the directory authorities.
 #[derive(Debug, Clone, Copy)]
-// TODO: needs accessors.
 pub struct SharedRandVal([u8; 32]);
+
+impl AsRef<[u8; 32]> for SharedRandVal {
+    fn as_ref(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+impl From<[u8; 32]> for SharedRandVal {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
@@ -308,7 +318,7 @@ pub struct SharedRandVal([u8; 32]);
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct SharedRandStatus {
+pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     n_reveals: u8,
@@ -649,6 +659,18 @@ impl<RS> Consensus<RS> {
     /// Return the map of network parameters that this consensus advertises.
     pub fn params(&self) -> &NetParams<i32> {
         &self.header.hdr.params
+    }
+
+    /// Return the latest shared random value, if the consensus
+    /// contains one.
+    pub fn shared_rand_cur(&self) -> Option<&SharedRandStatus> {
+        self.header.shared_rand_cur.as_ref()
+    }
+
+    /// Return the previous shared random value, if the consensus
+    /// contains one.
+    pub fn shared_rand_prev(&self) -> Option<&SharedRandStatus> {
+        self.header.shared_rand_prev.as_ref()
     }
 }
 
@@ -1018,6 +1040,16 @@ impl SharedRandStatus {
             value,
             timestamp,
         })
+    }
+
+    /// Return the actual shared random value.
+    pub fn value(&self) -> &SharedRandVal {
+        &self.value
+    }
+
+    /// Return the timestamp (if any) associated with this `SharedRandValue`.
+    pub fn timestamp(&self) -> Option<std::time::SystemTime> {
+        self.timestamp
     }
 }
 
