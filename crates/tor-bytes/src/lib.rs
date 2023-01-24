@@ -109,6 +109,12 @@ impl<W: Writeable + Sized> WriteableOnce for W {
     }
 }
 
+impl<W: Writeable + ?Sized> Writeable for &W {
+    fn write_onto<B: Writer + ?Sized>(&self, b: &mut B) -> EncodeResult<()> {
+        (*self).write_onto(b)
+    }
+}
+
 // ----------------------------------------------------------------------
 
 /// Trait for an object that can be extracted from a Reader.
