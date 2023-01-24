@@ -10,11 +10,16 @@
 //! There is no fairness, rate-limiting, or flow control.
 
 mod data;
+#[cfg(feature = "onion-service")]
+mod incoming;
 mod params;
 mod raw;
 mod resolve;
 
 pub use data::{DataReader, DataStream, DataWriter};
+#[cfg(feature = "onion-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
+pub use incoming::{IncomingStream, IncomingStreamRequest};
 pub use params::StreamParameters;
 pub use raw::StreamReader;
 pub use resolve::ResolveStream;

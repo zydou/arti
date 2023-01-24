@@ -41,6 +41,8 @@
 pub(crate) mod celltypes;
 pub(crate) mod halfcirc;
 mod halfstream;
+#[cfg(feature = "onion-common")]
+pub mod handshake;
 mod path;
 pub(crate) mod reactor;
 pub(crate) mod sendme;
@@ -228,6 +230,92 @@ impl ClientCirc {
         &self.channel
     }
 
+    /// Send a control message to the final hop on this circuit.
+    ///
+    /// Note that it is quite possible to use this function to violate the tor
+    /// protocol; most users of this API will not need to call it.  It is used
+    /// to implement most of the onion service handshake.
+    ///
+    /// (This function is not yet implemented. Right now it will always panic.)
+    //
+    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
+    //   "control" for a lot of other things. We say "meta" elsewhere in the
+    //   reactor code, but "meta messages" just sounds odd.
+    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
+    #[cfg(feature = "experimental-api")]
+    pub async fn send_control_message(&self, msg: RelayMsg) -> Result<()> {
+        todo!() // TODO hs
+    }
+
+    /// Begin accepting 'control' messages from the final hop on this circuit,
+    /// and return an asynchronous stream of any such messages that arrive.
+    ///
+    /// A "control" message is a message without a stream ID that `tor-proto`
+    /// does not handle on its own.  (The messages that `tor-proto` can handle
+    /// are DESTROY, DATA, SENDME, ...)  Ordinarily, any unexpected control
+    /// message will cause the circuit to exit with an error.
+    ///
+    /// There can only be one stream of this type created on a given circuit at
+    /// a time. If a such a stream already exists, this method will return an
+    /// error.
+    ///
+    /// The caller should be sure to close the circuit if a command that _it_
+    /// doesn't recognize shows up.
+    ///
+    /// (This function is not yet implemented; right now, it will always panic.)
+    //
+    // TODO hs: Possibly this function (and send_control_message) should use
+    // HopNum or similar to indicate which hop we're talking to, rather than
+    // just doing "the last hop".
+    //
+    // TODO hs: There is possibly some kind of type trickery we could do here so
+    // that the stream would return a chosen type that implements
+    // `TryFrom<RelayMsg>` or something like that. Not sure whether that's a
+    // good idea.
+    //
+    // TODO hs: Perhaps the stream here should yield a different type. Ian
+    // thinks maybe we should store a callback instead.
+    //
+    // TODO hs: rename this. "control_messages" is kind of ambiguous; we use
+    //   "control" for a lot of other things. We say "meta" elsewhere in the
+    //   reactor code, but "meta messages" just sounds odd.
+    #[cfg(feature = "experimental-api")]
+    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
+    pub fn receive_control_messages(
+        &self,
+    ) -> Result<impl futures::Stream<Item = Box<chancell::RawCellBody>>> {
+        if false {
+            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+        }
+        todo!() // TODO hs implement.
+    }
+
+    /// Tell this circuit to begin allowing the final hop of the circuit to try
+    /// to create new Tor streams, and to return those pending requests in an
+    /// asynchronous stream.
+    ///
+    /// Ordinarily, these requests are rejected.  
+    ///
+    /// There can only be one stream of this type created on a given circuit at
+    /// a time. If a such a stream already exists, this method will return an
+    /// error.
+    ///
+    /// (This function is not yet implemented; right now, it will always panic.)
+    ///
+    /// Only onion services (and eventually) exit relays should call this
+    /// method.
+    #[cfg(feature = "onion-service")]
+    #[allow(clippy::missing_panics_doc, unused_variables)] // TODO hs remove
+    pub fn allow_stream_requests(
+        &self,
+        allow_commands: &[tor_cell::relaycell::RelayCmd],
+    ) -> Result<impl futures::Stream<Item = crate::stream::IncomingStream>> {
+        if false {
+            return Ok(futures::stream::empty()); // TODO hs remove; this is just here for type inference.
+        }
+        todo!() // TODO hs implement.
+    }
+
     /// Extend the circuit via the ntor handshake to a new target last
     /// hop.
     pub async fn extend_ntor<Tg>(&self, target: &Tg, params: &CircParameters) -> Result<()>
@@ -264,6 +352,36 @@ impl ClientCirc {
         rx.await.map_err(|_| Error::CircuitClosed)??;
 
         Ok(())
+    }
+
+    /// Extend this circuit by a single, "virtual" hop.
+    ///
+    /// This is used to implement onion services: the client and the service
+    /// both build a circuit to a single rendezvous point, and tell the
+    /// rendezvous point to relay traffic between their two circuits.  Having
+    /// completed a [`handshake`] out of band[^1], the parties each extend their
+    /// circuits by a single "virtual" encryption hop that represents their
+    /// shared cryptographic context.
+    ///
+    /// Once a circuit has been extended in this way, it is an error to try to
+    /// extend it in any other way.
+    ///
+    /// [^1]: Technically, the handshake is only _mostly_ out of band: the
+    ///     client sends their half of the handshake in an ` message, and the
+    ///     service's response is inline in its `RENDEZVOUS2` message.
+    //
+    // TODO hs: let's try to enforce the "you can't extend a circuit again once
+    // it has been extended this way" property.  We could do that with internal
+    // state, or some kind of a type state pattern.
+    #[cfg(feature = "onion-common")]
+    #[allow(clippy::missing_panics_doc, unused_variables)]
+    pub async fn extend_virtual(
+        &self,
+        protocol: handshake::RelayProtocol,
+        role: handshake::HandshakeRole,
+        seed: impl handshake::KeyGenerator,
+    ) -> Result<()> {
+        todo!() // TODO hs implement
     }
 
     /// Helper, used to begin a stream.

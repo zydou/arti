@@ -11,8 +11,8 @@
 //! Currently, this module implements only the "ntor" handshake used
 //! for circuits on today's Tor.
 pub(crate) mod fast;
-#[cfg(feature = "hs")]
-pub(crate) mod hs_ntor;
+#[cfg(feature = "onion-common")]
+pub mod hs_ntor;
 pub(crate) mod ntor;
 #[cfg(feature = "ntor_v3")]
 pub(crate) mod ntor_v3;
@@ -72,7 +72,8 @@ pub(crate) trait ServerHandshake {
 /// Typically, it wraps a KDF function, and some seed key material.
 ///
 /// It can only be used once.
-pub(crate) trait KeyGenerator {
+#[allow(unreachable_pub)] // This is only exported depending on enabled features.
+pub trait KeyGenerator {
     /// Consume the key
     fn expand(self, keylen: usize) -> Result<SecretBuf>;
 }
