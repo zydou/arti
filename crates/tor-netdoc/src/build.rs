@@ -25,6 +25,8 @@ use std::ops::Deref;
 
 use tor_error::Bug;
 
+use crate::parse::keyword::Keyword;
+
 /// Network document text according to dir-spec.txt s1.2 and maybe s1.3
 ///
 /// Contains just the text, but marked with the type of the builder
@@ -61,8 +63,8 @@ pub(crate) struct NetdocEncoder {
 // because otherwise args and object can't be specified in any order
 // and we'd need a typestate, and also there's the newline after the
 // args
-pub(crate) struct ItemEncoder<'n, K> {
-    keyword: K,
+pub(crate) struct ItemEncoder<'n> {
+    // keyword: K, // TODO hs: remove this
     /// `None` after `drop`, or if an error occurred
     doc: Option<&'n mut NetdocEncoder>,
     args: Vec<String>,
@@ -92,7 +94,7 @@ impl NetdocEncoder {
     /// using the returned `ItemEncoder`.
     //
     // Actually, we defer adding the item until `ItemEncoder` is dropped.
-    pub(crate) fn item<K>(&mut self, keyword: K) -> &mut ItemEncoder<K> {
+    pub(crate) fn item(&mut self, keyword: impl Keyword) -> &mut ItemEncoder {
         todo!()
     }
 
@@ -130,7 +132,7 @@ impl NetdocEncoder {
     }
 }
 
-impl<'n, K> ItemEncoder<'n, K> {
+impl<'n> ItemEncoder<'n> {
     /// Add a single argument.
     ///
     /// If the argument is not in the correct syntax, a `Bug`
@@ -175,7 +177,7 @@ impl<'n, K> ItemEncoder<'n, K> {
     }
 }
 
-impl<K> Drop for ItemEncoder<'_, K> {
+impl Drop for ItemEncoder<'_> {
     fn drop(&mut self) {
         // actually add any not-yet-flushed parts of the item
         // to self.doc.built.
