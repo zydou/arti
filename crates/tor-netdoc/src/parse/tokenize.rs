@@ -21,6 +21,9 @@ pub(crate) mod object {
     pub(crate) const END_STR: &str = "-----END ";
     /// indicates the end of a begin or end tag.
     pub(crate) const TAG_END: &str = "-----";
+    /// Maximum PEM base64 line length (not enforced during parsing)
+    #[allow(dead_code)] // TOOD HS
+    pub(crate) const BASE64_PEM_MAX_LINE: usize = 64;
 }
 
 /// Return true iff a given character is "space" according to the rules
