@@ -94,7 +94,7 @@ impl NetdocEncoder {
     /// using the returned `ItemEncoder`.
     //
     // Actually, we defer adding the item until `ItemEncoder` is dropped.
-    pub(crate) fn item(&mut self, keyword: impl Keyword) -> &mut ItemEncoder {
+    pub(crate) fn item(&mut self, keyword: impl Keyword) -> ItemEncoder {
         todo!()
     }
 
