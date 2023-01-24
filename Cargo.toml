@@ -38,6 +38,8 @@ members = [
     "crates/tor-circmgr",
     "crates/tor-dirclient",
     "crates/tor-dirmgr",
+    "crates/tor-hsclient",
+    "crates/tor-hsservice",
     "crates/arti-client",
     "crates/arti-config",
     "crates/arti-hyper",
