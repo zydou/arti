@@ -49,6 +49,7 @@ mod util;
 pub use err::{BuildError, Error, ParseErrorKind, Pos};
 
 #[cfg(feature = "onion-service")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onion-service")))]
 pub use build::NetdocText;
 
 /// Alias for the Result type returned by most objects in this module.
