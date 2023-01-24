@@ -380,6 +380,7 @@ mod test {
     #[test]
     fn authcert() {
         use crate::doc::authcert::AuthCertKwd as ACK;
+        use crate::doc::authcert::{AuthCert, UncheckedAuthCert};
 
         // c&p from crates/tor-llcrypto/tests/testvec.rs
         let pk_rsa = {
@@ -394,7 +395,7 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
         encode.item(ACK::DIR_KEY_CERTIFICATE_VERSION).arg(&3);
         encode
             .item(ACK::FINGERPRINT)
-            .arg(&"ED03BB616EB2F60BEC80151114BB25CEF515B226");
+            .arg(&"9367f9781da8eabbf96b691175f0e701b43c602e");
         encode
             .item(ACK::DIR_KEY_PUBLISHED)
             .arg(&time("2020-04-18T08:36:57Z"));
@@ -404,13 +405,22 @@ qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
         encode
             .item(ACK::DIR_IDENTITY_KEY)
             .object("RSA PUBLIC KEY", &*pk_rsa);
+        encode
+            .item(ACK::DIR_SIGNING_KEY)
+            .object("RSA PUBLIC KEY", &*pk_rsa);
+        encode
+            .item(ACK::DIR_KEY_CROSSCERT)
+            .object("ID SIGNATURE", []);
+        encode
+            .item(ACK::DIR_KEY_CERTIFICATION)
+            .object("SIGNATURE", []);
 
         let doc = encode.finish().unwrap();
         eprintln!("{}", &*doc);
         assert_eq!(
             &*doc,
             r"dir-key-certificate-version 3
-fingerprint ED03BB616EB2F60BEC80151114BB25CEF515B226
+fingerprint 9367f9781da8eabbf96b691175f0e701b43c602e
 dir-key-published 2020-04-18 08:36:57
 dir-key-expires 2021-04-18 08:36:57
 dir-identity-key
@@ -419,7 +429,21 @@ MIGJAoGBANUntsY9boHTnDKKlM4VfczcBE6xrYwhDJyeIkh7TPrebUBBvRBGmmV+
 PYK8AM9irDtqmSR+VztUwQxH9dyEmwrM2gMeym9uXchWd/dt7En/JNL8srWIf7El
 qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE=
 -----END RSA PUBLIC KEY-----
+dir-signing-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBANUntsY9boHTnDKKlM4VfczcBE6xrYwhDJyeIkh7TPrebUBBvRBGmmV+
+PYK8AM9irDtqmSR+VztUwQxH9dyEmwrM2gMeym9uXchWd/dt7En/JNL8srWIf7El
+qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE=
+-----END RSA PUBLIC KEY-----
+dir-key-crosscert
+-----BEGIN ID SIGNATURE-----
+-----END ID SIGNATURE-----
+dir-key-certification
+-----BEGIN SIGNATURE-----
+-----END SIGNATURE-----
 "
         );
+
+        let _: UncheckedAuthCert = AuthCert::parse(&doc).unwrap();
     }
 }
