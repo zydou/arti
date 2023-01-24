@@ -1,6 +1,7 @@
 //! Internal: Declare an Error type for tor-bytes
 
 use thiserror::Error;
+use tor_error::{into_internal, Bug};
 
 /// Error type for decoding Tor objects from bytes.
 //
@@ -62,5 +63,19 @@ pub enum EncodeError {
     /// We use this variant instead of calling assert() and expect() and
     /// unwrap() from within encoding implementations.
     #[error("Internal error")]
-    Bug(#[from] tor_error::Bug),
+    Bug(#[from] Bug),
+}
+
+impl EncodeError {
+    /// Converts this error into a [`Bug`]
+    ///
+    /// Use when any encoding error is a bug.
+    //
+    // TODO: should this be a `From` impl or would that be too error-prone?
+    pub fn always_bug(self) -> Bug {
+        match self {
+            EncodeError::Bug(bug) => bug,
+            EncodeError::BadLengthValue => into_internal!("EncodingError")(self),
+        }
+    }
 }
