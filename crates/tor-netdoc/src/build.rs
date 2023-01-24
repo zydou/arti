@@ -24,10 +24,13 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::time::SystemTime;
 
+use base64ct::{Base64, Encoding};
 use humantime::format_rfc3339;
+use tor_bytes::EncodeError;
 use tor_error::{internal, into_internal, Bug};
 
 use crate::parse::keyword::Keyword;
+use crate::parse::tokenize::tag_keywords_ok;
 
 /// Network document text according to dir-spec.txt s1.2 and maybe s1.3
 ///
@@ -318,7 +321,33 @@ impl<'n> ItemEncoder<'n> {
         // Writeable isn't dyn-compatible
         data: impl tor_bytes::WriteableOnce,
     ) {
-        todo!()
+        use crate::parse::tokenize::object::*;
+
+        self.doc.write_with(|out| {
+            if keywords.is_empty() || !tag_keywords_ok(keywords) {
+                return Err(internal!("bad object keywords string {:?}", keywords));
+            }
+            let data = {
+                let mut bytes = vec![];
+                data.write_into(&mut bytes)
+                    .map_err(EncodeError::always_bug)?;
+                Base64::encode_string(&bytes)
+            };
+            let mut data = &data[..];
+            writeln!(out, "\n{BEGIN_STR}{keywords}{TAG_END}").expect("write!");
+            while !data.is_empty() {
+                let (l, r) = if data.len() > BASE64_PEM_MAX_LINE {
+                    data.split_at(BASE64_PEM_MAX_LINE)
+                } else {
+                    (data, "")
+                };
+                writeln!(out, "{l}").expect("write!");
+                data = r;
+            }
+            // final newline will be written by Drop impl
+            write!(out, "{END_STR}{keywords}{TAG_END}").expect("write!");
+            Ok(())
+        });
     }
 }
 
@@ -341,6 +370,7 @@ mod test {
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 
+    use base64ct::{Base64Unpadded, Encoding};
     use humantime::parse_rfc3339;
 
     fn time(s: &str) -> SystemTime {
@@ -350,6 +380,15 @@ mod test {
     #[test]
     fn authcert() {
         use crate::doc::authcert::AuthCertKwd as ACK;
+
+        // c&p from crates/tor-llcrypto/tests/testvec.rs
+        let pk_rsa = {
+            let pem = "
+MIGJAoGBANUntsY9boHTnDKKlM4VfczcBE6xrYwhDJyeIkh7TPrebUBBvRBGmmV+
+PYK8AM9irDtqmSR+VztUwQxH9dyEmwrM2gMeym9uXchWd/dt7En/JNL8srWIf7El
+qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE";
+            Base64Unpadded::decode_vec(&pem.replace('\n', "")).unwrap()
+        };
 
         let mut encode = NetdocEncoder::new();
         encode.item(ACK::DIR_KEY_CERTIFICATE_VERSION).arg(&3);
@@ -362,6 +401,10 @@ mod test {
         encode
             .item(ACK::DIR_KEY_EXPIRES)
             .arg(&time("2021-04-18T08:36:57Z"));
+        encode
+            .item(ACK::DIR_IDENTITY_KEY)
+            .object("RSA PUBLIC KEY", &*pk_rsa);
+
         let doc = encode.finish().unwrap();
         eprintln!("{}", &*doc);
         assert_eq!(
@@ -370,6 +413,12 @@ mod test {
 fingerprint ED03BB616EB2F60BEC80151114BB25CEF515B226
 dir-key-published 2020-04-18 08:36:57
 dir-key-expires 2021-04-18 08:36:57
+dir-identity-key
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBANUntsY9boHTnDKKlM4VfczcBE6xrYwhDJyeIkh7TPrebUBBvRBGmmV+
+PYK8AM9irDtqmSR+VztUwQxH9dyEmwrM2gMeym9uXchWd/dt7En/JNL8srWIf7El
+qiBHRBGbtkF/Re5pb438HC/CGyuujp43oZ3CUYosJOfY/X+sD0aVAgMBAAE=
+-----END RSA PUBLIC KEY-----
 "
         );
     }
