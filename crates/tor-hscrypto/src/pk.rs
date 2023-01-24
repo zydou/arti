@@ -268,7 +268,10 @@ pub struct ClientDescAuthKey(curve25519::PublicKey) / ClientDescAuthSecretKey(cu
 //
 // TODO hs
 pub struct ClientSecretKeys {
+    /// Possibly, a key that is used to decrypt a descriptor.
     desc_auth: Option<ClientDescAuthSecretKey>,
+    /// Possibly, a key that is used to authenticate while
+    /// introducing.
     intro_auth: Option<ClientIntroAuthSecretKey>,
 }
 
