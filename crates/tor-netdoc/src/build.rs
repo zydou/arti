@@ -195,11 +195,16 @@ impl<'n> ItemEncoder<'n> {
         todo!()
     }
 
-    // If keyword is not in the correct syntax,
-    // or data fails to be written, a `Bug` is stored in self.doc.
+    /// Add an object to the item
+    ///
+    /// Checks that `keywords` is in the correct syntax.
+    /// Doesn't check that it makes semantic sense for the position of the document.
+    /// `data` will be PEM (base64) encoded.
+    //
+    // If keyword is not in the correct syntax, a `Bug` is stored in self.doc.
     pub(crate) fn object(
         self,
-        keyword: &str,
+        keywords: &str,
         // Writeable isn't dyn-compatible
         data: impl tor_bytes::WriteableOnce,
     ) {
