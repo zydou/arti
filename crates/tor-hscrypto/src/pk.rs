@@ -298,7 +298,8 @@ mod test {
     #[test]
     fn key_blinding_blackbox() {
         let mut rng = testing_rng().rng_compat();
-        let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now()).unwrap();
+        let offset = Duration::new(12 * 60 * 60, 0);
+        let when = TimePeriod::new(Duration::from_secs(3600), SystemTime::now(), offset).unwrap();
         let keypair = ed25519::Keypair::generate(&mut rng);
         let id_pub = OnionIdKey::from(keypair.public);
         let id_sec = OnionIdSecretKey::from(ed25519::ExpandedSecretKey::from(&keypair.secret));
@@ -332,9 +333,11 @@ mod test {
             ))
             .unwrap(),
         );
+        let offset = Duration::new(12 * 60 * 60, 0);
         let time_period = TimePeriod::new(
             Duration::from_secs(1440),
             humantime::parse_rfc3339("1970-01-22T01:50:33Z").unwrap(),
+            offset,
         )
         .unwrap();
         assert_eq!(time_period.interval_num, 1234);
