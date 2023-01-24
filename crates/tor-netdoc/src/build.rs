@@ -19,11 +19,11 @@
 #![allow(clippy::missing_docs_in_private_items)] // TODO hs
 #![allow(clippy::needless_pass_by_value)] // TODO hs
 
-use std::fmt::Display;
+use std::fmt::{self, Display, Write};
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use tor_error::Bug;
+use tor_error::{internal, into_internal, Bug};
 
 use crate::parse::keyword::Keyword;
 
@@ -32,8 +32,9 @@ use crate::parse::keyword::Keyword;
 /// Contains just the text, but marked with the type of the builder
 /// for clarity in function signatures etc.
 pub struct NetdocText<Builder> {
+    /// The actual document
     text: String,
-    // variance: this somehow came from a T (not that we expect this to matter)
+    /// Marker.  Variance: this somehow came from a T (not that we expect this to matter)
     kind: PhantomData<Builder>,
 }
 
@@ -51,8 +52,13 @@ impl<B> Deref for NetdocText<B> {
 /// ```ignore
 /// # TODO hs
 /// ```
+#[derive(Debug, Clone)]
 pub(crate) struct NetdocEncoder {
-    // Err means bad values passed to some builder function
+    /// The being-built document, with everything accumulated so far
+    ///
+    /// If an [`ItemEncoder`] exists, it will add a newline when it's dropped.
+    ///
+    /// `Err` means bad values passed to some builder function
     built: Result<String, Bug>,
 }
 
@@ -63,16 +69,12 @@ pub(crate) struct NetdocEncoder {
 // because otherwise args and object can't be specified in any order
 // and we'd need a typestate, and also there's the newline after the
 // args
+#[derive(Debug)]
 pub(crate) struct ItemEncoder<'n> {
-    // keyword: K, // TODO hs: remove this
-    /// `None` after `drop`, or if an error occurred
-    doc: Option<&'n mut NetdocEncoder>,
-    args: Vec<String>,
-    /// Encoded form of the zero or one Object
+    /// The document including the partial item that we're building
     ///
-    /// Includes all necessary framing includng trailing newlines.
-    /// Empty if there is no object.
-    object: String,
+    /// We will always add a newline when we're dropped
+    doc: &'n mut NetdocEncoder,
 }
 
 /// Position within a (perhaps partially-) built document
@@ -80,7 +82,13 @@ pub(crate) struct ItemEncoder<'n> {
 /// This is provided mainly to allow the caller to perform signature operations
 /// on the part of the document that is to be signed.
 /// (Sometimes this is only part of it.)
+///
+/// There is no enforced linkage between this and the document it refers to.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct Cursor {
+    /// The offset (in bytes, as for `&str`)
+    ///
+    /// Can be out of range if the corresponding `NetdocEncoder` is contains an `Err`.
     offset: usize,
     // Actually, we don't want cursors to be statically typed by keyword, so K generic dropped
     // Variance: notionally refers to a keyword K
@@ -114,7 +122,35 @@ impl NetdocEncoder {
     //
     // Actually, we defer adding the item until `ItemEncoder` is dropped.
     pub(crate) fn item(&mut self, keyword: impl Keyword) -> ItemEncoder {
-        todo!()
+        self.raw(&keyword.to_str());
+        ItemEncoder { doc: self }
+    }
+
+    /// Internal name for `push_raw_string()`
+    fn raw(&mut self, s: &dyn Display) {
+        self.write_with(|b| {
+            write!(b, "{}", s).expect("write! failed on String");
+            Ok(())
+        });
+    }
+
+    /// Extend the being-built document with a fallible function `f`
+    ///
+    /// Doesn't call `f` if the building has already failed,
+    /// and handles the error if `f` fails.
+    fn write_with(&mut self, f: impl FnOnce(&mut String) -> Result<(), Bug>) {
+        // MSRV 1.65.0: change to let ... else
+        let build = if let Ok(b) = &mut self.built {
+            b
+        } else {
+            return;
+        };
+        match f(build) {
+            Ok(()) => (),
+            Err(e) => {
+                self.built = Err(e);
+            }
+        }
     }
 
     /// Adds raw text to the being-built document
@@ -128,11 +164,16 @@ impl NetdocEncoder {
     /// No checks are performed.
     /// Incorrect use might lead to malformed documents, or later errors.
     pub(crate) fn push_raw_string(&mut self, s: &dyn Display) {
-        todo!()
+        self.raw(s);
     }
 
+    /// Return a cursor, pointing to just after the last item (if any)
     pub(crate) fn cursor(&self) -> Cursor {
-        todo!()
+        let offset = match &self.built {
+            Ok(b) => b.len(),
+            Err(_) => usize::MAX,
+        };
+        Cursor { offset }
     }
 
     /// Obtain the text of a section of the document
@@ -142,12 +183,20 @@ impl NetdocEncoder {
     // Q. Should this return `&str` or `NetdocText<'self>` ?
     // (`NetdocText would have to then contain `Cow`, which is fine.)
     pub(crate) fn slice(&self, begin: Cursor, end: Cursor) -> Result<&str, Bug> {
-        todo!()
+        self.built
+            .as_ref()
+            .map_err(Clone::clone)?
+            .get(begin.offset..end.offset)
+            .ok_or_else(|| internal!("NetdocEncoder::slice out of bounds, Cursor mismanaged"))
     }
 
     /// Build the document into textual form
-    pub(crate) fn finish() -> Result<NetdocText<Self>, Bug> {
-        todo!()
+    pub(crate) fn finish(self) -> Result<NetdocText<Self>, Bug> {
+        let text = self.built?;
+        Ok(NetdocText {
+            text,
+            kind: PhantomData,
+        })
     }
 }
 
@@ -167,6 +216,7 @@ impl<'n> ItemEncoder<'n> {
     ///
     /// If the argument is not in the correct syntax, a `Bug`
     /// error will be reported (later).
+    //
     // This is not a hot path.  `dyn` for smaller code size.
     //
     // If arg is not in the correct syntax, a `Bug` is stored in self.doc.
@@ -182,7 +232,9 @@ impl<'n> ItemEncoder<'n> {
     //
     // Needed for implementing `ItemArgument`
     pub(crate) fn add_arg(&mut self, arg: &dyn ItemArgument) {
-        todo!()
+        let () = arg
+            .write_onto(self)
+            .unwrap_or_else(|err| self.doc.built = Err(err));
     }
 
     /// Add zero or more arguments, supplied as a single string.
@@ -191,8 +243,17 @@ impl<'n> ItemEncoder<'n> {
     /// separated by (single) spaces.
     /// This is not (properly) checked.
     /// Incorrect use might lead to malformed documents, or later errors.
-    pub(crate) fn args_raw_string(self, args: &dyn Display) -> Self {
-        todo!()
+    pub(crate) fn args_raw_string(mut self, args: &dyn Display) -> Self {
+        let args = args.to_string();
+        if !args.is_empty() {
+            self.args_raw_nonempty(&args);
+        }
+        self
+    }
+
+    /// Add one or more arguments, supplied as a single string, without any checking
+    fn args_raw_nonempty(&mut self, args: &dyn Display) {
+        self.doc.raw(&format_args!(" {}", args));
     }
 
     /// Add an object to the item
@@ -214,7 +275,6 @@ impl<'n> ItemEncoder<'n> {
 
 impl Drop for ItemEncoder<'_> {
     fn drop(&mut self) {
-        // actually add any not-yet-flushed parts of the item
-        // to self.doc.built.
+        self.doc.raw(&'\n');
     }
 }
