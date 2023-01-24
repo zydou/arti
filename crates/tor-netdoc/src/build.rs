@@ -36,6 +36,8 @@ use crate::parse::tokenize::tag_keywords_ok;
 ///
 /// Contains just the text, but marked with the type of the builder
 /// for clarity in function signatures etc.
+//
+// TODO hs: Is this type carrying its weight, or should we just replace it with String ?
 pub struct NetdocText<Builder> {
     /// The actual document
     text: String,
@@ -250,6 +252,10 @@ macro_rules! impl_item_argument_as_display { { $( $ty:ty $(,)? )* } => { $(
 
 impl_item_argument_as_display! { usize, u8, u16, u32, u64, u128 }
 impl_item_argument_as_display! { isize, i8, i16, i32, i64, i128 }
+// TODO: should we implement ItemArgument for, say, tor_llcrypto::pk::rsa::RsaIdentity ?
+// It's not clear whether it's always formatted the same way in all parts of the spec.
+// The Display impl of RsaIdentity adds a `$` which is not supposed to be present
+// in (for example) an authority certificate (authcert)'s "fingerprint" line.
 
 impl ItemArgument for SystemTime {
     fn write_onto(&self, out: &mut ItemEncoder<'_>) -> Result<(), Bug> {
