@@ -40,6 +40,8 @@
 
 mod err;
 #[cfg(feature = "onion-common")]
+mod hsdir_params;
+#[cfg(feature = "onion-common")]
 mod hsdir_ring;
 pub mod params;
 mod weight;
@@ -292,10 +294,10 @@ pub struct NetDir {
     /// This is the hash ring that we should use whenever we are fetching an
     /// onion service descriptor.
     //
-    // TODO hs: It is ugly to have this be Option.
+    // TODO hs: It is ugly to have this exist in a partially constructed state
+    // in a PartialNetDir.
     #[cfg(feature = "onion-common")]
-    #[allow(dead_code)]
-    hsdir_ring: Option<HsDirRing>,
+    hsdir_ring: HsDirRing,
 
     /// A hash ring describing the onion service directory based on the
     /// parameters for the previous and next time periods.
@@ -304,29 +306,23 @@ pub struct NetDir {
     /// far into the current time period this directory is, so that
     /// not-synchronized clients can still find their descriptor.
     ///
-    /// Each of these rings is None in a PartialNetDir, and None if this ring
-    /// should not be used.
-    ///
     /// Note that with the current (2023) network parameters, with
     /// `hsdir_interval = SRV lifetime = 24 hours` at most one of these
     /// secondary rings will be active at a time.  We have two here in order
     /// to conform with a more flexible regime in proposal 342.
     //
-    // TODO hs: It is sort of ugly to have these be Option.
+    // TODO hs: It is sort of ugly to have these be partially constructed in a
+    // PartialNetDir.
     //
     // TODO hs: hs clients never need this; so I've made it not-present for thm.
     // But does that risk too much with respect to side channels?
-    //
-    // TODO hs: Perhaps we should refactor this so that there is just one
-    // Vec<HsDirRing> (or SmallVec<>); or so that there are `current`, `next`,
-    // and `previous`.
     //
     // TODO hs: Perhaps we should refactor this so that it is clear that these
     // are immutable?  On the other hand, the documentation for this type
     // declares that it is immutable, so we are likely okay.
     #[cfg(feature = "onion-service")]
     #[allow(dead_code)]
-    hsdir_secondary_rings: (Option<HsDirRing>, Option<HsDirRing>),
+    hsdir_secondary_rings: Vec<HsDirRing>,
 
     /// Weight values to apply to a given relay when deciding how frequently
     /// to choose it for a given role.
@@ -556,6 +552,28 @@ impl PartialNetDir {
             .map(|(rs_idx, rs)| (*rs.rsa_identity(), rs_idx))
             .collect();
 
+        #[cfg(feature = "onion-service")]
+        let hsdir_secondary_rings;
+        #[cfg(feature = "onion-common")]
+        let hsdir_ring = {
+            let (cur_hsparams, secondary_hsparams) =
+                hsdir_params::compute_ring_parameters(&consensus, &params)
+                    .expect("Invalid consensus!");
+            // TODO HS: I dislike using expect above, but this function does not
+            // return a Result. Perhaps we should change it so that it can?  Or as an alternative
+            // we could let this object exist in a state without any HsDir rings.
+
+            #[cfg(feature = "onion-service")]
+            {
+                hsdir_secondary_rings = secondary_hsparams
+                    .iter()
+                    .map(HsDirRing::empty_from_params)
+                    .collect();
+            }
+
+            HsDirRing::empty_from_params(&cur_hsparams)
+        };
+
         let netdir = NetDir {
             consensus: Arc::new(consensus),
             params,
@@ -564,9 +582,9 @@ impl PartialNetDir {
             rs_idx_by_rsa: Arc::new(rs_idx_by_rsa),
             rs_idx_by_ed: HashMap::with_capacity(n_relays),
             #[cfg(feature = "onion-common")]
-            hsdir_ring: None,
+            hsdir_ring,
             #[cfg(feature = "onion-service")]
-            hsdir_secondary_rings: (None, None),
+            hsdir_secondary_rings,
             weights,
         };
 
@@ -1104,9 +1122,8 @@ impl NetDir {
     /// of the validity period of this `NetDir`'s consensus.  That time period
     /// is the one we use when acting as an onion service client.
     #[cfg(feature = "onion-common")]
-    #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
     pub fn onion_service_time_period(&self) -> TimePeriod {
-        todo!() // TODO hs
+        self.hsdir_ring.time_period()
     }
 
     /// Return the secondary onion service directory "time periods".
@@ -1114,9 +1131,11 @@ impl NetDir {
     /// These are additional time periods that we publish descriptors for when we are
     /// acting as an onion service.
     #[cfg(feature = "onion-service")]
-    #[allow(unused, clippy::missing_panics_doc)] // TODO hs: remove.
     pub fn onion_service_secondary_time_periods(&self) -> Vec<TimePeriod> {
-        todo!()
+        self.hsdir_secondary_rings
+            .iter()
+            .map(HsDirRing::time_period)
+            .collect()
     }
 
     /// Return the relays in this network directory that will be used to store a

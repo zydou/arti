@@ -19,6 +19,9 @@ pub enum Error {
     /// We have directory information, but it is too expired to use.
     #[error("Directory is published too far in the future: Your clock is probably wrong")]
     DirNotYetValid,
+    /// We received a consensus document that should be impossible.
+    #[error("Invalid information from consensus document: {0}")]
+    InvalidConsensus(&'static str),
 }
 
 impl HasKind for Error {
@@ -29,6 +32,7 @@ impl HasKind for Error {
             E::DirExpired => EK::DirectoryExpired,
             E::DirNotYetValid => EK::ClockSkew,
             E::NotEnoughInfo | E::NoInfo => EK::BootstrapRequired,
+            E::InvalidConsensus(_) => EK::TorProtocolViolation,
         }
     }
 }

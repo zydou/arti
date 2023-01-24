@@ -19,6 +19,8 @@ use tor_hscrypto::{pk::BlindedOnionId, time::TimePeriod};
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 use tor_netdoc::doc::netstatus::SharedRandVal;
 
+use crate::hsdir_params::HsRingParams;
+
 /// A sort key determining a position in the onion service directory ring.
 ///
 /// This is either the sort key of a given relay at a given time period, or the
@@ -98,6 +100,15 @@ pub(crate) fn service_index(
 }
 
 impl HsDirRing {
+    /// Return a new empty HsDirRing from a given set of parameters.
+    pub(crate) fn empty_from_params(params: &HsRingParams) -> Self {
+        Self {
+            period: params.time_period,
+            shared_rand: params.shared_rand,
+            ring: Vec::new(),
+        }
+    }
+
     /// Find the location or (notional) insertion point for `idx` within `ring`.
     fn find_pos(&self, idx: HsDirIndex) -> usize {
         // TODO hs implement this
@@ -112,5 +123,10 @@ impl HsDirRing {
     ) -> impl Iterator<Item = &(HsDirIndex, usize)> {
         let idx = self.find_pos(idx);
         self.ring[idx..].iter().chain(&self.ring[..idx])
+    }
+
+    /// Return the time period for which this ring applies.
+    pub(crate) fn time_period(&self) -> TimePeriod {
+        self.period
     }
 }
