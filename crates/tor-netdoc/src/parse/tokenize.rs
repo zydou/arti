@@ -211,7 +211,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
             return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let tag = &line[BEGIN_STR.len()..(line.len() - TAG_END.len())];
-        if !tag_keyword_ok(tag) {
+        if !tag_keywords_ok(tag) {
             return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let datapos = self.off;
@@ -284,8 +284,8 @@ fn keyword_ok(mut s: &str, anno_ok: bool) -> bool {
     s.chars().all(kwd_char_ok)
 }
 
-/// Return true iff 's' is a valid keyword for a BEGIN/END tag.
-fn tag_keyword_ok(s: &str) -> bool {
+/// Return true iff 's' is a valid keywords string for a BEGIN/END tag.
+pub(crate) fn tag_keywords_ok(s: &str) -> bool {
     s.split(' ').all(|w| keyword_ok(w, false))
 }
 
