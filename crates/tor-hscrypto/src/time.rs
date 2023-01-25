@@ -62,6 +62,9 @@ impl TimePeriod {
     // duration, since these values are restricted. Or perhaps we should give an
     // error if the Duration doesn't divide evenly by seconds as
     // appropriate.
+    //
+    // TODO hs: conceivably this should take a voting interval instead of an
+    // epoch offset.
     pub fn new(length: Duration, when: SystemTime, epoch_offset: Duration) -> Option<Self> {
         // The algorithm here is specified in rend-spec-v3 section 2.2.1
         let length_in_sec = u32::try_from(length.as_secs()).ok()?;
