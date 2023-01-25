@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # Use BeautifulSoup to deduplicate functions in a grov XML (cobertura)
 # output file.

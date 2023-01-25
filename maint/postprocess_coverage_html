@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # Use BeautifulSoup to mangle a grov HTML output file and insert other
 # things we care about.

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 #
 # Helper script: makes sure that the crates as listed in Cargo.toml are
 # topologically sorted from lowest-level to highest level.

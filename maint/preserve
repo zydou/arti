@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 # This script is meant to preserve and restore CI artifacts so they can be passed from job to job.
 # See arti!786 for why it is done this way, and what could be done better.

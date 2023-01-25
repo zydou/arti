@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Use cargo-tree to check our dependencies for crates which we must
 # not depend on unconditionally.

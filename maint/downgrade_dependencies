@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Downgrades every one of our dependencies in Cargo.lock to the
 # earliest version listed in our Cargo.toml files.  (And then
