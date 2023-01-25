@@ -57,6 +57,11 @@ impl TimePeriod {
     // TODO hs: Make this, and other functions in this module, return a Result
     // instead of an Option. (I'll do that after we merge the pending code in
     // !987, since otherwise the change would break that code. -nickm)
+    //
+    // TODO hs: perhaps we should take an IntegerSeconds or such rathe than a
+    // duration, since these values are restricted. Or perhaps we should give an
+    // error if the Duration doesn't divide evenly by seconds as
+    // appropriate.
     pub fn new(length: Duration, when: SystemTime, epoch_offset: Duration) -> Option<Self> {
         // The algorithm here is specified in rend-spec-v3 section 2.2.1
         let length_in_sec = u32::try_from(length.as_secs()).ok()?;
