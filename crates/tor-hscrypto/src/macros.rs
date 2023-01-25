@@ -10,44 +10,14 @@ macro_rules! define_pk_keypair {
     } => {
         paste::paste!{
             $(#[$meta])*
-            #[derive(Clone,Debug)]
+            #[derive(Clone,Debug,derive_more::From,derive_more::Deref,derive_more::Into,derive_more::AsRef)]
             pub struct $pk ($pkt);
-
-            impl AsRef<$pkt> for $pk {
-                fn as_ref(&self) -> &$pkt {
-                    &self.0
-                }
-            }
-            impl From<$pkt> for $pk {
-                fn from(inp: $pkt) -> Self {
-                    Self(inp)
-                }
-            }
-            impl From<$pk> for $pkt {
-                fn from(inp: $pk) -> Self {
-                    inp.0
-                }
-            }
 
             #[doc = concat!("The private counterpart of a [`", stringify!($pk), "Key'].")]
             $(#[$sk_meta])*
+            #[derive(derive_more::From,derive_more::Into,derive_more::AsRef)]
             pub struct $sk ($skt);
 
-            impl AsRef<$skt> for $sk {
-                fn as_ref(&self) -> &$skt {
-                    &self.0
-                }
-            }
-            impl From<$skt> for $sk {
-                fn from(inp: $skt) -> Self {
-                    Self(inp)
-                }
-            }
-            impl From<$sk> for $skt {
-                fn from(inp: $sk) -> $skt {
-                    inp.0
-                }
-            }
             impl std::fmt::Debug for $sk
             {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
