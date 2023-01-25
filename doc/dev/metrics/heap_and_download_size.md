@@ -77,6 +77,13 @@ Bootstrapping: 18.2 MiB
 Cached: 13.6 MiB
 ```
 
+The results for  25 January 2023 were (Arti: 3b2848f904):
+
+```
+Bootstrapping: 20.7 MiB
+Cachjed: 14.0 MiB
+```
+
 To simulate (almost) the same process with C Tor, run Tor under `massif`
 with a new data directory, then kill it with ctrl-C:
 
@@ -200,6 +207,12 @@ Results as of 25 October 2022 (Arti: 547d476e0e):
 
 ```
    "arti.gz": 3937197 bytes
+```
+
+Results as of 25 January 2023 (Arti: 3b2848f904):
+
+```
+   "arti.gz": 3668559 bytes
 ```
 
 ### Process with C Tor
