@@ -293,7 +293,9 @@ pub struct SignatureGroup {
 }
 
 /// A shared random value produced by the directory authorities.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+// TODO hs: Use CtBytes for this.  I don't think it actually mattes, but it
+// seems like a good idea.
 pub struct SharedRandVal([u8; 32]);
 
 impl AsRef<[u8; 32]> for SharedRandVal {
