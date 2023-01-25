@@ -45,31 +45,14 @@ pub mod time;
 
 use macros::define_bytes;
 
-/// The information that a client needs to know about an onion service in
-/// order to connect to it.
-#[derive(Copy, Clone, Debug)]
-pub struct Credential {
-    /// Representation for the onion service's public ID. (`N_hs_cred`)
-    ///
-    /// This is the same value as is expanded to an OnionIdKey.
-    id: pk::OnionId,
-    // secret: Vec<u8> // This is not well-supported in the C Tor
-    // implementation; it's not clear to me that we should build it in either?
-}
-
-impl From<pk::OnionId> for Credential {
-    fn from(id: pk::OnionId) -> Self {
-        Self { id }
-    }
-}
-
 define_bytes! {
 /// A value to identify an onion service during a given period. (`N_hs_subcred`)
 ///
 /// This is computed from the onion service's public ID and the blinded ID for
 /// the current time period.
 ///
-/// Given this piece of information, the original credential cannot be re-derived.
+/// Given this piece of information, the original public ID and blinded ID cannot
+/// be re-derived.
 #[derive(Copy, Clone, Debug)]
 pub struct Subcredential([u8; 32]);
 }
