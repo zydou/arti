@@ -46,7 +46,17 @@ define_pk_keypair! {
 pub struct OnionIdKey(ed25519::PublicKey) /
     ///
     /// This is stored as an expanded secret key, for compatibility with the C
-    /// tor implementation, and with custom-generated addresses.
+    /// tor implementation, and in order to support custom-generated addresses.
+    ///
+    /// (About custom generated addresses: When making a vanity onion address,
+    /// it is inefficient to search for a compact secret key `s` and compute
+    /// `SHA512(s)=(a,r)` and `A=aB` until you find an `s` that produces an `A`
+    /// that you like.  Instead, most folks use the algorithm of
+    /// rend-spec-v3.txt appendix C, wherein you search for a good `a` directly
+    /// by repeatedly adding `8B` to A until you find an `A` you like.  The only
+    /// major drawback is that once you have found a good `a`, you can't get an
+    /// `s` for it, since you presumably can't find SHA512 preimages.  And that
+    /// is why we store the private key in (a,r) form.)
     OnionIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
