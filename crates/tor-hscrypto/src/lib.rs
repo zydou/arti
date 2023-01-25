@@ -83,7 +83,9 @@ pub struct Subcredential([u8; 32]);
 pub struct RevisionCounter(u64);
 
 define_bytes! {
-/// An opaque value used at a rendezvous point to match clients and services.
+/// An opaque value `RENDEZVOUS_COOKIE` used at a rendezvous point to match clients and services.
+///
+/// See rend-spec-v3 s4.1.
 ///
 /// The client includes this value to the rendezvous point in its
 /// `ESTABLISH_RENDEZVOUS` message; the service later provides the same value in its

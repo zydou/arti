@@ -79,6 +79,7 @@ impl OnionIdKey {
         let param = self.blinding_parameter(secret, cur_period);
 
         let blinded_key = keymanip::blind_pubkey(&self.0, param)?;
+        // rend-spec-v3 section 2.1
         let subcredential_bytes: [u8; 32] = {
             // N_hs_subcred = H("subcredential" | N_hs_cred | blinded-public-key).
             // where
@@ -102,6 +103,7 @@ impl OnionIdKey {
     /// Compute the 32-byte "blinding parameters" used to compute blinded public
     /// (and secret) keys.
     fn blinding_parameter(&self, secret: &[u8], cur_period: TimePeriod) -> [u8; 32] {
+        // rend-spec-v3 appendix A.2
         // We generate our key blinding parameter as
         //    h = H(BLIND_STRING | A | s | B | N)
         // Where:

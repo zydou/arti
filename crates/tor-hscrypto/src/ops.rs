@@ -6,6 +6,8 @@ use tor_llcrypto::util::ct::CtByteArray;
 use digest::Digest;
 
 /// Compute the lightweight MAC function used in the onion service protocol.
+///
+/// (rend-spec-v3 section 0.3 `MAC`)
 pub fn hs_mac(key: &[u8], msg: &[u8]) -> CtByteArray<32> {
     // rend-spec-v3 says: "Instantiate H with SHA3-256... Instantiate MAC(key=k,
     // message=m) with H(k_len | k | m), where k_len is htonll(len(k))."
