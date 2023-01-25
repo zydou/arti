@@ -22,6 +22,9 @@ define_bytes! {
 /// This is the decoded and validated ed25519 public key that is encoded as a
 /// `${base32}.onion` address.  When expanded, it is a public key whose
 /// corresponding secret key is controlled by the onion service.
+///
+/// Note: This is a separate type from [`OnionIdKey`] because it is about 6x
+/// smaller.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct OnionId([u8; 32]);
 }
@@ -34,12 +37,12 @@ define_pk_keypair! {
 ///
 /// This key is not used to sign or validate anything on its own; instead, it is
 /// used to derive a `BlindedOnionIdKey`.
+///
+/// Note: This is a separate type from [`OnionId`] because it is about 6x
+/// larger.  It is an expanded form, used for doing actual cryptography.
 //
 // NOTE: This is called the "master" key in rend-spec-v3, but we're deprecating
 // that vocabulary generally.
-//
-// NOTE: This is a separate type from OnionId because it is about 6x larger.  It
-// is an expanded form, used for doing actual cryptography.
 pub struct OnionIdKey(ed25519::PublicKey) /
     ///
     /// This is stored as an expanded secret key, for compatibility with the C
@@ -173,11 +176,17 @@ define_pk_keypair! {
 ///
 /// It is used for two purposes: first, to compute an index into the HSDir
 /// ring, and second, to sign a `DescSigningKey`.
+///
+/// Note: This is a separate type from [`BlindedOnionId`] because it is about 6x
+/// larger.  It is an expanded form, used for doing actual cryptography.
 pub struct BlindedOnionIdKey(ed25519::PublicKey) / BlindedOnionIdSecretKey(ed25519::ExpandedSecretKey);
 }
 
 define_bytes! {
 /// A blinded onion service identity, represented in a compact format. (`KP_hs_blind_id`)
+///
+/// Note: This is a separate type from [`BlindedOnionIdKey`] because it is about
+/// 6x smaller.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct BlindedOnionId([u8; 32]);
 }
