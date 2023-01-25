@@ -53,6 +53,10 @@ impl TimePeriod {
     ///
     /// Return None if the Duration is too large or too small, or if `when`
     /// cannot be represented as a time period.
+    //
+    // TODO hs: Make this, and other functions in this module, return a Result
+    // instead of an Option. (I'll do that after we merge the pending code in
+    // !987, since otherwise the change would break that code. -nickm)
     pub fn new(length: Duration, when: SystemTime, epoch_offset: Duration) -> Option<Self> {
         // The algorithm here is specified in rend-spec-v3 section 2.2.1
         let length_in_sec = u32::try_from(length.as_secs()).ok()?;
