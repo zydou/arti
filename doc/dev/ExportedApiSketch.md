@@ -169,6 +169,18 @@ implement a subset of the C Tor control port protocol *in terms of*
 a new protocol based on a sensible RPC framework.
 
 
+#### A note about HTTP and RPC
+
+Many popular RPC protocols are based upon HTTP.  This creates a
+challenge if we use them: specifically, that your local web browser
+makes a decent attack vector against any local HTTP service.  We'll
+need to make sure that any HTTP-based RPC system we build can resist the
+usual attacks, of course. But also we'll need to make sure that that
+it's hard to trick any plausible client implementation holding the
+credentials for the RPC system into accidentally leaking them our using
+them for something else.
+
+
 ### Arti via FFI
 
 We probably don't want to just expose all our Rust APIs unthinkingly,
