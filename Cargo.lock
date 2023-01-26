@@ -3903,8 +3903,16 @@ dependencies = [
 name = "tor-hscrypto"
 version = "0.1.0"
 dependencies = [
+ "derive_more",
+ "digest 0.10.6",
+ "hex-literal",
+ "humantime 2.1.0",
+ "paste",
  "rand_core 0.6.4",
+ "serde",
+ "signature 1.6.4",
  "thiserror",
+ "tor-basic-utils",
  "tor-llcrypto",
 ]
 
