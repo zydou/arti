@@ -45,25 +45,36 @@ impl CmdLine {
     }
     /// Try to adjust the contents of a toml deserialization error so
     /// that instead it refers to a single command-line argument.
-    fn convert_toml_error(&self, s: &str, pos: Option<(usize, usize)>) -> String {
-        /// Regex to match an error message from the toml crate.
-        static RE: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r"^(.*?) at line [0-9]+ column [0-9]+$").expect("Can't compile regex")
-        });
-        let cap = RE.captures(s);
-        let msg = match cap {
-            Some(c) => c.get(1).expect("mismatch regex: no capture group").as_str(),
-            None => s,
-        };
+    fn convert_toml_error(
+        &self,
+        toml_str: &str,
+        error_message: &str,
+        span: &Option<std::ops::Range<usize>>,
+    ) -> String {
+        // Function to translate a string index to a 0-offset line number.
+        let linepos = |idx| toml_str.bytes().take(idx).filter(|b| *b == b'\n').count();
 
-        let location = match pos {
-            Some((line, _col)) if line < self.contents.len() => {
-                format!(" in {:?}", self.contents[line])
+        // Find the source position as a line within toml_str, and convert that
+        // to an index into self.contents.
+        let source_line = span
+            .as_ref()
+            .and_then(|range| {
+                let startline = linepos(range.start);
+                let endline = linepos(range.end);
+                (startline == endline).then(|| startline)
+            })
+            .and_then(|pos| self.contents.get(pos));
+
+        match (source_line, span.as_ref()) {
+            (Some(source), _) => {
+                format!("Couldn't parse command line: {error_message} in {source:?}")
             }
-            _ => " on command line".to_string(),
-        };
-
-        format!("{}{}", msg, location)
+            (None, Some(range)) if toml_str.get(range.clone()).is_some() => format!(
+                "Couldn't parse command line: {error_message} within {:?}",
+                &toml_str[range.clone()]
+            ),
+            _ => format!("Couldn't parse command line: {error_message}"),
+        }
     }
 
     /// Compose elements of this cmdline into a single toml string.
@@ -86,9 +97,11 @@ impl Source for CmdLine {
         let toml_s = self.build_toml();
         let toml_v: toml::Value = match toml::from_str(&toml_s) {
             Err(e) => {
-                return Err(ConfigError::Message(
-                    self.convert_toml_error(&e.to_string(), e.line_col()),
-                ))
+                return Err(ConfigError::Message(self.convert_toml_error(
+                    &toml_s,
+                    e.message(),
+                    &e.span(),
+                )))
             }
             Ok(v) => v,
         };
@@ -161,20 +174,21 @@ mod test {
         cl.push_toml_line("Hello=world".to_string());
         cl.push_toml_line("Hola=mundo".to_string());
         cl.push_toml_line("Bonjour=monde".to_string());
+        let toml_s = cl.build_toml();
 
         assert_eq!(
-            &cl.convert_toml_error("Nice greeting at line 1 column 1", Some((0, 1))),
-            "Nice greeting in \"Hello=world\""
+            &cl.convert_toml_error(&toml_s, "Nice greeting", &Some(0..13)),
+            "Couldn't parse command line: Nice greeting in \"Hello=world\""
         );
 
         assert_eq!(
-            &cl.convert_toml_error("Nice greeting at line 1 column 1", Some((7, 1))),
-            "Nice greeting on command line"
+            &cl.convert_toml_error(&toml_s, "Nice greeting", &Some(99..333)),
+            "Couldn't parse command line: Nice greeting"
         );
 
         assert_eq!(
-            &cl.convert_toml_error("Nice greeting with a thing", Some((0, 1))),
-            "Nice greeting with a thing in \"Hello=world\""
+            &cl.convert_toml_error(&toml_s, "Nice greeting with a thing", &Some(0..13)),
+            "Couldn't parse command line: Nice greeting with a thing in \"Hello=world\""
         );
     }
 
