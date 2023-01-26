@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 """
 Given some markdown text of the general kind we use in Arti changelogs,

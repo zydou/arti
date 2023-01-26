@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Run cargo check and cargo test with various featuresets relevant to configuration
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This script runs as the top level of our reproducible build process.
 # It launches the actual build script inside a docker container.

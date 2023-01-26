@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # binary_size: Build arti with a given set of options, and
 # dump the binary size in a json format.

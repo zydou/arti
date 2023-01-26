@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # usage: $0 <start|end> <section_identifier+config> "<human section name>"
 # eg: $0 start 'my_section[collapsed=true]' "My collapsed section"
