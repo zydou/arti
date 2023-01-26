@@ -30,7 +30,7 @@ mod build;
 pub use build::AuthCertBuilder;
 
 decl_keyword! {
-    AuthCertKwd {
+    pub(crate) AuthCertKwd {
         "dir-key-certificate-version" => DIR_KEY_CERTIFICATE_VERSION,
         "dir-address" => DIR_ADDRESS,
         "fingerprint" => FINGERPRINT,

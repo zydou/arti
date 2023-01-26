@@ -13,6 +13,18 @@ use std::cell::{Ref, RefCell};
 use std::str::FromStr;
 use tor_error::internal;
 
+/// Useful constants for netdoc object syntax
+pub(crate) mod object {
+    /// indicates the start of an object
+    pub(crate) const BEGIN_STR: &str = "-----BEGIN ";
+    /// indicates the end of an object
+    pub(crate) const END_STR: &str = "-----END ";
+    /// indicates the end of a begin or end tag.
+    pub(crate) const TAG_END: &str = "-----";
+    /// Maximum PEM base64 line length (not enforced during parsing)
+    pub(crate) const BASE64_PEM_MAX_LINE: usize = 64;
+}
+
 /// Return true iff a given character is "space" according to the rules
 /// of dir-spec.txt
 pub(crate) fn is_sp(c: char) -> bool {
@@ -190,12 +202,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
     /// found, Ok(None) if no object is found, and Err only if a
     /// corrupt object is found.
     fn object(&mut self) -> Result<Option<Object<'a>>> {
-        /// indicates the start of an object
-        const BEGIN_STR: &str = "-----BEGIN ";
-        /// indicates the end of an object
-        const END_STR: &str = "-----END ";
-        /// indicates the end of a begin or end tag.
-        const TAG_END: &str = "-----";
+        use object::*;
 
         let pos = self.off;
         if !self.starts_with(BEGIN_STR) {
@@ -206,7 +213,7 @@ impl<'a, K: Keyword> NetDocReaderBase<'a, K> {
             return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let tag = &line[BEGIN_STR.len()..(line.len() - TAG_END.len())];
-        if !tag_keyword_ok(tag) {
+        if !tag_keywords_ok(tag) {
             return Err(EK::BadObjectBeginTag.at_pos(self.pos(pos)));
         }
         let datapos = self.off;
@@ -279,8 +286,8 @@ fn keyword_ok(mut s: &str, anno_ok: bool) -> bool {
     s.chars().all(kwd_char_ok)
 }
 
-/// Return true iff 's' is a valid keyword for a BEGIN/END tag.
-fn tag_keyword_ok(s: &str) -> bool {
+/// Return true iff 's' is a valid keywords string for a BEGIN/END tag.
+pub(crate) fn tag_keywords_ok(s: &str) -> bool {
     s.split(' ').all(|w| keyword_ok(w, false))
 }
 
