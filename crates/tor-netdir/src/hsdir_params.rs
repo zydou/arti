@@ -64,7 +64,7 @@ impl HsRingParams {
     /// rend-spec-v3 section 2.2.1 et seq
     ///
     /// Return the ring parameters for the current period (which clients use when
-    /// fetching onion service descriptors), along with a  of ring
+    /// fetching onion service descriptors), along with a Vec of ring
     /// parameters for any secondary periods that onion services should additionally
     /// use when publishing their descriptors.
     ///

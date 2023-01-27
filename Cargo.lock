@@ -4063,7 +4063,6 @@ dependencies = [
  "rand_chacha 0.3.1",
  "serde",
  "signature 1.6.4",
- "smallvec",
  "static_assertions",
  "strum",
  "thiserror",
