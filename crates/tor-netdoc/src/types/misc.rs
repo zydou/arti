@@ -228,6 +228,11 @@ mod timeimpl {
     /// A wall-clock time, encoded in ISO8601 format without an intervening
     /// space.
     ///
+    /// This represents a specific UTC instant (ie an instant in global civil time).
+    /// But it may not be able to represent leap seconds.
+    ///
+    /// The timezone is not included in the string representation; `+0000` is implicit.
+    ///
     /// (Example: "2020-10-09T17:38:12")
     #[derive(derive_more::Into, derive_more::From)]
     pub(crate) struct Iso8601TimeNoSp(SystemTime);

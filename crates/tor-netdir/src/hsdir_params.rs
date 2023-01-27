@@ -60,6 +60,8 @@ const ONE_DAY: Duration = Duration::new(86400, 0);
 /// Compute the `HsRingParams` for the current time period, according to a given
 /// consensus.
 ///
+/// rend-spec-v3 section 2.2.1 et seq
+///
 /// Return the ring parameters for the current period (which clients use when
 /// fetching onion service descriptors), along with a SmallVec of ring
 /// parameters for any secondary periods that onion services should additionally

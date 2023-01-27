@@ -1999,13 +1999,13 @@ mod test {
         assert!(sr.timestamp.is_none());
 
         let sr2 = gettok(
-            "shared-rand-current-value 6 \
+            "shared-rand-current-value 9 \
                     5LodY4yWxFhTKtxpV9wAgNA9N8flhUCH0NqQv1/05y4 2022-01-20T12:34:56\n",
         )
         .unwrap();
         let sr2 = SharedRandStatus::from_item(&sr2).unwrap();
-        assert_eq!(sr2.n_reveals, sr2.n_reveals);
-        assert_eq!(sr2.value.0, sr2.value.0);
+        assert_eq!(sr2.n_reveals, sr.n_reveals);
+        assert_eq!(sr2.value.0, sr.value.0);
         assert_eq!(
             sr2.timestamp.unwrap(),
             humantime::parse_rfc3339("2022-01-20T12:34:56Z").unwrap()
