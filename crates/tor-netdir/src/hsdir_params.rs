@@ -57,61 +57,67 @@ const VOTING_PERIODS_IN_SRV_ROUND: u32 = 24;
 /// One day.
 const ONE_DAY: Duration = Duration::new(86400, 0);
 
-/// Compute the `HsRingParams` for the current time period, according to a given
-/// consensus.
-///
-/// rend-spec-v3 section 2.2.1 et seq
-///
-/// Return the ring parameters for the current period (which clients use when
-/// fetching onion service descriptors), along with a SmallVec of ring
-/// parameters for any secondary periods that onion services should additionally
-/// use when publishing their descriptors.
-///
-/// Note that "current" here is always relative to a given consensus, not the
-/// current wall-clock time.
-///
-/// (This function's return type is a bit cumbersome; these parameters are
-/// bundled together because it is efficient to compute them all at once.)
-pub(crate) fn compute_ring_parameters(
-    consensus: &MdConsensus,
-    params: &NetParameters,
-) -> Result<(HsRingParams, Vec<HsRingParams>)> {
-    let srvs = extract_srvs(consensus)?;
-    let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
-        Error::InvalidConsensus("Minutes in hsdir timeperiod could not be converted to a Duration")
-    })?;
-    let offset = voting_period(consensus.lifetime())? * VOTING_PERIODS_IN_OFFSET;
-    let cur_period = TimePeriod::new(tp_length, consensus.lifetime().valid_after(), offset)
-        .expect("Consensus valid-after did not fall in a time period");
-    let cur_period_start = cur_period
-        .range()
-        .ok_or(Error::InvalidConsensus(
-            "HsDir time period in consensus could not be represented as a SystemTime range.",
-        ))?
-        .start;
+impl HsRingParams {
+    /// Compute the `HsRingParams` for the current time period, according to a given
+    /// consensus.
+    ///
+    /// rend-spec-v3 section 2.2.1 et seq
+    ///
+    /// Return the ring parameters for the current period (which clients use when
+    /// fetching onion service descriptors), along with a  of ring
+    /// parameters for any secondary periods that onion services should additionally
+    /// use when publishing their descriptors.
+    ///
+    /// Note that "current" here is always relative to a given consensus, not the
+    /// current wall-clock time.
+    ///
+    /// (This function's return type is a bit cumbersome; these parameters are
+    /// bundled together because it is efficient to compute them all at once.)
+    pub(crate) fn compute(
+        consensus: &MdConsensus,
+        params: &NetParameters,
+    ) -> Result<(HsRingParams, Vec<HsRingParams>)> {
+        let srvs = extract_srvs(consensus)?;
+        let tp_length: Duration = params.hsdir_timeperiod_length.try_into().map_err(|_| {
+            Error::InvalidConsensus(
+                "Minutes in hsdir timeperiod could not be converted to a Duration",
+            )
+        })?;
+        let offset = voting_period(consensus.lifetime())? * VOTING_PERIODS_IN_OFFSET;
+        let cur_period = TimePeriod::new(tp_length, consensus.lifetime().valid_after(), offset)
+            .ok_or(Error::InvalidConsensus(
+                "Consensus valid-after did not fall in a time period",
+            ))?;
+        let cur_period_start = cur_period
+            .range()
+            .ok_or(Error::InvalidConsensus(
+                "HsDir time period in consensus could not be represented as a SystemTime range.",
+            ))?
+            .start;
 
-    let cur_srv =
-        find_srv_for_time(&srvs[..], cur_period_start).unwrap_or_else(|| disaster_srv(cur_period));
-    let main_ring = HsRingParams {
-        time_period: cur_period,
-        shared_rand: cur_srv,
-    };
+        let cur_srv = find_srv_for_time(&srvs[..], cur_period_start)
+            .unwrap_or_else(|| disaster_srv(cur_period));
+        let main_ring = HsRingParams {
+            time_period: cur_period,
+            shared_rand: cur_srv,
+        };
 
-    // When computing secondary rings, we don't try so many fallback operations:
-    // if they aren't available, they aren't available.
-    let mut other_rings = Vec::new();
-    for period in [cur_period.prev(), cur_period.next()].iter().flatten() {
-        if let Some(period_range) = period.range() {
-            if let Some(srv) = find_srv_for_time(&srvs[..], period_range.start) {
-                other_rings.push(HsRingParams {
-                    time_period: *period,
-                    shared_rand: srv,
-                });
+        // When computing secondary rings, we don't try so many fallback operations:
+        // if they aren't available, they aren't available.
+        let mut other_rings = Vec::new();
+        for period in [cur_period.prev(), cur_period.next()].iter().flatten() {
+            if let Some(period_range) = period.range() {
+                if let Some(srv) = find_srv_for_time(&srvs[..], period_range.start) {
+                    other_rings.push(HsRingParams {
+                        time_period: *period,
+                        shared_rand: srv,
+                    });
+                }
             }
         }
-    }
 
-    Ok((main_ring, other_rings))
+        Ok((main_ring, other_rings))
+    }
 }
 
 /// Compute the "Disaster SRV" for a given time period.
@@ -413,7 +419,7 @@ mod test {
         // 12 hours.
         let consensus = example_consensus_builder().testing_consensus().unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = compute_ring_parameters(&consensus, &netparams).unwrap();
+        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             cur.time_period,
@@ -442,7 +448,7 @@ mod test {
             .testing_consensus()
             .unwrap();
         let netparams = NetParameters::from_map(consensus.params());
-        let (cur, secondary) = compute_ring_parameters(&consensus, &netparams).unwrap();
+        let (cur, secondary) = HsRingParams::compute(&consensus, &netparams).unwrap();
 
         assert_eq!(
             cur.time_period,

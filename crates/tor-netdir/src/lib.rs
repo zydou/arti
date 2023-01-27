@@ -557,7 +557,7 @@ impl PartialNetDir {
         #[cfg(feature = "onion-common")]
         let hsdir_ring = {
             let (cur_hsparams, secondary_hsparams) =
-                hsdir_params::compute_ring_parameters(&consensus, &params)
+                hsdir_params::HsRingParams::compute(&consensus, &params)
                     .expect("Invalid consensus!");
             // TODO HS: I dislike using expect above, but this function does not
             // return a Result. Perhaps we should change it so that it can?  Or as an alternative
