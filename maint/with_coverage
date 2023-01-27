@@ -23,7 +23,7 @@ Options:
   -o <path>: set the output path for the coverage report (default "coverage")
 
 Notes:
-  You need to have grcov and llvm-tools-preview installed.
+  You need to have grcov and llvm-tools installed.
 EOF
 }
 
@@ -77,9 +77,9 @@ if [ "$(command -v grcov 2>/dev/null)" = "" ]; then
     exit 1
 fi
 
-# Validate that llvm-tools-preview is installed.
-if [ "$(rustup "+${RUST_COVERAGE_TOOLCHAIN}" component list --installed | grep llvm-tools-preview)" = "" ]; then
-   echo "llvm-tools-preview appears not to be installed. Try 'rustup +${RUST_COVERAGE_TOOLCHAIN} component add llvm-tools-preview'." >&2
+# Validate that llvm-tools is installed.
+if [ "$(rustup "+${RUST_COVERAGE_TOOLCHAIN}" component list --installed | grep llvm-tools)" = "" ]; then
+   echo "llvm-tools appears not to be installed. Try 'rustup +${RUST_COVERAGE_TOOLCHAIN} component add llvm-tools'." >&2
    exit 1
 fi
 

@@ -17,7 +17,7 @@ Suites:
   "all": enables all suites.
 
 Notes:
-  You need to have grcov and llvm-tools-preview installed.
+  You need to have grcov and llvm-tools installed.
   For integration tests, you'll need chutney and tor.
 EOF
 }
