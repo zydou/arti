@@ -293,21 +293,12 @@ pub struct SignatureGroup {
 }
 
 /// A shared random value produced by the directory authorities.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-// TODO hs: Use CtBytes for this.  I don't think it actually mattes, but it
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, derive_more::From, derive_more::Into, derive_more::AsRef,
+)]
+// TODO hs: Use CtBytes for this.  I don't think it actually matters, but it
 // seems like a good idea.
 pub struct SharedRandVal([u8; 32]);
-
-impl AsRef<[u8; 32]> for SharedRandVal {
-    fn as_ref(&self) -> &[u8; 32] {
-        &self.0
-    }
-}
-impl From<[u8; 32]> for SharedRandVal {
-    fn from(value: [u8; 32]) -> Self {
-        Self(value)
-    }
-}
 
 /// A shared-random value produced by the directory authorities,
 /// along with meta-information about that value.
