@@ -58,6 +58,7 @@ TEST_LINTS = """
 #![allow(clippy::print_stdout)]
 #![allow(clippy::single_char_pattern)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::unchecked_duration_subtraction)]
 """
 
 # ---------- some notes about lints we might use - NOT USED by any code here ----------

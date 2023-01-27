@@ -6,6 +6,7 @@
 #![allow(clippy::print_stdout)]
 #![allow(clippy::single_char_pattern)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::unchecked_duration_subtraction)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
 // This example showcase how to use the trait IsolationHelper to build complex isolation rules.
