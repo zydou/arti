@@ -4,7 +4,7 @@
 //! [dir-spec.txt](https://spec.torproject.org/dir-spec).
 //! section 1.2 and 1.3.
 //!
-//! This facility proces output that complies with the meta-document format,
+//! This facility processes output that complies with the meta-document format,
 //! (`dir-spec.txt` section 1.2) -
 //! unless `raw` methods are called with improper input.
 //!
@@ -68,7 +68,7 @@ impl<B> Deref for NetdocText<B> {
 /// document.item(K::RevisionCounter).arg(&self.counter);
 /// document.item(K::Superencrypted).object("MESSAGE", inner_text);
 /// let end = document.marker();
-/// let signature = key.sign(document.slice(begining, end));
+/// let signature = key.sign(document.slice(beginning, end));
 /// document.item(K::Signature).arg(B64(signature));
 ///
 /// let text = document.finish()?;
