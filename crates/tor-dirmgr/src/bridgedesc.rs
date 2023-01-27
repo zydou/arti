@@ -1530,7 +1530,9 @@ impl State {
             if let Ok(ahead) = wallclock.duration_since(now_wall) {
                 now_mono + ahead
             } else if let Ok(behind) = now_wall.duration_since(wallclock) {
-                now_mono - behind
+                now_mono
+                    .checked_sub(behind)
+                    .expect("time subtraction underflow")
             } else {
                 panic!("times should be totally ordered!")
             }
