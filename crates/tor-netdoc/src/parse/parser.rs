@@ -212,7 +212,7 @@ impl<T: Keyword> SectionRules<T> {
 
     /// Check whether the tokens in a section we've parsed conform to
     /// these rules.
-    fn validate<'a>(&self, s: &Section<'a, T>) -> Result<()> {
+    fn validate(&self, s: &Section<'_, T>) -> Result<()> {
         // These vectors are both generated from T::n_vals().
         assert_eq!(s.v.len(), self.rules.len());
 
@@ -246,7 +246,7 @@ impl<T: Keyword> SectionRules<T> {
     ///
     /// We use this to validate objects on unrecognized items, since
     /// otherwise nothing would check that they are well-formed.
-    fn validate_objects<'a>(&self, s: &Section<'a, T>, kwd: T) -> Result<()> {
+    fn validate_objects(&self, s: &Section<'_, T>, kwd: T) -> Result<()> {
         for item in s.slice(kwd).iter() {
             let _ = item.obj_raw()?;
         }
