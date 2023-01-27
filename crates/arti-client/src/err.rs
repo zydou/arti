@@ -337,10 +337,10 @@ impl From<TorAddrError> for Error {
 /// for user-facing errors, rather than the normal short message for
 /// developer-facing errors.
 ///
-/// User-facing code may attempt to produce this by calling `ErrorHint::try_from(Error)`.
-/// Not all errors may wish to provide verbose messages. Ok(ErrorHint) will be
+/// User-facing code may attempt to produce this by calling [`Error::hint`].
+/// Not all errors may wish to provide verbose messages. `Some(ErrorHint)` will be
 /// returned if hinting is supported for the error. Err(()) will be returned otherwise.
-/// Which errors support hinting, and the hint content, has no SemVer warranty and may
+/// Which errors support hinting, and the hint content, have no SemVer warranty and may
 /// change in patch versions without warning. Callers should handle both cases,
 /// falling back on the original error message in case of Err.
 ///
@@ -358,18 +358,18 @@ pub struct ErrorHint {
 
 impl ErrorHint {
     /// construct from supported `fs_mistrust::Error` variants
-    fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Result<ErrorHint, ()> {
+    fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Option<ErrorHint> {
         use fs_mistrust::Error as E;
         match src {
             E::BadPermission(buf, bits, badbits) => {
-                Ok(ErrorHint::from_badpermission(buf, *bits, *badbits))
+                Some(ErrorHint::from_badpermission(buf, *bits, *badbits))
             }
-            _ => Err(()),
+            _ => None,
         }
     }
     /// construct from supported `tor_persist::Error` variants
-    fn tryfrom_torpersist(_src: &tor_persist::Error) -> Result<ErrorHint, ()> {
-        Err(())
+    fn tryfrom_torpersist(_src: &tor_persist::Error) -> Option<ErrorHint> {
+        None // TODO
     }
 
     /// inform user of overpermission risks
@@ -433,14 +433,20 @@ impl From<&'static str> for ErrorHintPart {
     }
 }
 
-impl TryFrom<&Error> for ErrorHint {
-    type Error = ();
-    fn try_from(src: &Error) -> Result<Self, Self::Error> {
+impl Error {
+    /// Return a hint object explaining how to solve this error, if we have one.
+    ///
+    /// Most errors won't have obvious hints, but some do.  For the ones that
+    /// do, we can return an [`ErrorHint`].
+    ///
+    /// Right now, `ErrorHint` is completely opaque: the only supported option
+    /// is to format it for human consumption.
+    pub fn hint(&self) -> Option<ErrorHint> {
         use tor_circmgr::Error as CircE;
         use tor_dirmgr::Error as DirE;
         use tor_guardmgr::GuardMgrError as GuardE;
         use ErrorDetail as E;
-        match &(*src.detail) {
+        match &(*self.detail) {
             // fs_mistrust errors, possibly nonexhaustive
             E::DirMgrSetup(DirE::CachePermissions(e)) => ErrorHint::tryfrom_fsmistrust(e),
             // tor_persist errors, possibly nonexhaustive
@@ -450,7 +456,7 @@ impl TryFrom<&Error> for ErrorHint {
             | E::CircMgrSetup(CircE::GuardMgr(GuardE::State(e))) => {
                 ErrorHint::tryfrom_torpersist(e)
             }
-            _ => Err(()),
+            _ => None,
         }
     }
 }
