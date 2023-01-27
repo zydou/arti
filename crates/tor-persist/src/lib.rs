@@ -51,7 +51,7 @@ use std::sync::Arc;
 /// Wrapper type for Results returned from this crate.
 type Result<T> = std::result::Result<T, crate::Error>;
 
-pub use err::Error;
+pub use err::{Error, ErrorSource};
 #[cfg(not(target_arch = "wasm32"))]
 pub use fs::FsStateMgr;
 pub use handle::{DynStorageHandle, StorageHandle};

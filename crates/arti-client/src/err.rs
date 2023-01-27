@@ -381,8 +381,12 @@ impl<'a> ErrorHint<'a> {
         }
     }
     /// construct from supported `tor_persist::Error` variants
-    fn tryfrom_torpersist(_src: &tor_persist::Error) -> Option<ErrorHint> {
-        None // TODO
+    fn tryfrom_torpersist(src: &tor_persist::Error) -> Option<ErrorHint> {
+        use tor_persist::ErrorSource as ES;
+        match src.source() {
+            ES::Permissions(e) => Self::tryfrom_fsmistrust(e),
+            _ => None,
+        }
     }
 
     /// inform user of overpermission risks
