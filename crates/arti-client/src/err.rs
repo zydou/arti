@@ -347,16 +347,29 @@ impl From<TorAddrError> for Error {
 /// Since the internal machinery for constructing and displaying hints may change over time,
 /// no data members are currently exposed. In the future we may wish to offer an unstable
 /// API locked behind a feature, like we do with ErrorDetail.
-#[derive(Clone)]
-pub struct ErrorHint {
+#[derive(Clone, Debug)]
+pub struct ErrorHint<'a> {
     /// The pieces of the message to display to the user
-    /// Error hints may be fairly complicated in some cases, such as bad permissions
-    /// maintaining a list of parts instead of one big `String` lets us avoid a lot of
-    /// `push_str`s when building incrementally
-    parts: Vec<ErrorHintPart>,
+    inner: ErrorHintInner<'a>,
 }
 
-impl ErrorHint {
+/// An inner enumeration, describing different kinds of error hint that we know how to give.
+#[derive(Clone, Debug)]
+enum ErrorHintInner<'a> {
+    /// There is a misconfigured filesystem permission, reported by `fs-mistrust`.
+    ///
+    /// Tell the user to make their file more private, or to disable `fs-mistrust`.
+    BadPermission {
+        /// The location of the file.
+        filename: &'a std::path::Path,
+        /// The access bits set on the file.
+        bits: u32,
+        /// The access bits that, according to fs-mistrust, should not be set.
+        badbits: u32,
+    },
+}
+
+impl<'a> ErrorHint<'a> {
     /// construct from supported `fs_mistrust::Error` variants
     fn tryfrom_fsmistrust(src: &fs_mistrust::Error) -> Option<ErrorHint> {
         use fs_mistrust::Error as E;
@@ -374,62 +387,50 @@ impl ErrorHint {
 
     /// inform user of overpermission risks
     /// provide chmod to fix it, or options to mute the error if they accept the risk
-    fn from_badpermission(buf: &std::path::Path, bits: u32, badbits: u32) -> ErrorHint {
-        let mut parts: Vec<ErrorHintPart> = Vec::with_capacity(1);
-        parts.push(
-            format!(
-                "Permissions are set too permissively on {}: currently {}\n",
-                buf.display(),
-                fs_mistrust::format_access_bits(bits, '=')
-            )
-            .into(),
-        );
-        if 0 != badbits & 0o222 {
-            parts.push(
-                "* Untrusted users could modify its contents and override our behavior.\n".into(),
-            );
+    fn from_badpermission(filename: &std::path::Path, bits: u32, badbits: u32) -> ErrorHint<'_> {
+        ErrorHint {
+            inner: ErrorHintInner::BadPermission {
+                filename,
+                bits,
+                badbits,
+            },
         }
-        if 0 != badbits & 0o444 {
-            parts.push("* Untrusted users could read its contents.\n".into());
-        }
-        parts.push(
-            "You can fix this by further restricting the permissions of your filesystem,\nusing: "
-                .into(),
-        );
-        parts.push(
-            format!(
-                "chmod {} {}\n\n",
-                fs_mistrust::format_access_bits(badbits, '-'),
-                buf.display()
-            )
-            .into(),
-        );
-        parts.push("You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
-            or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.\n".into());
-
-        ErrorHint { parts }
     }
 }
 
-/// A piece of the message which will be displayed by an ErrorHint
-#[derive(Clone, Debug)]
-enum ErrorHintPart {
-    /// when cloning an error message, or using format!
-    String(String),
-    /// for string literals
-    Str(&'static str),
-}
-
-// boilerplate-y, but there are only 2. we can later fix this with a macro, if we care enough to
-impl From<String> for ErrorHintPart {
-    fn from(src: String) -> ErrorHintPart {
-        ErrorHintPart::String(src)
-    }
-}
-
-impl From<&'static str> for ErrorHintPart {
-    fn from(src: &'static str) -> ErrorHintPart {
-        ErrorHintPart::Str(src)
+impl<'a> Display for ErrorHint<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inner {
+            ErrorHintInner::BadPermission {
+                filename,
+                bits,
+                badbits,
+            } => {
+                writeln!(
+                    f,
+                    "Permissions are set too permissively on {}: currently {}",
+                    filename.display(), // TODO security
+                    fs_mistrust::format_access_bits(bits, '=')
+                )?;
+                if 0 != badbits & 0o222 {
+                    writeln!(
+                        f,
+                        "* Untrusted users could modify its contents and override our behavior.",
+                    )?;
+                }
+                if 0 != badbits & 0o444 {
+                    writeln!(f, "* Untrusted users could read its contents.")?;
+                }
+                writeln!(f,
+                    "You can fix this by further restricting the permissions of your filesystem, using:\n\
+                         chmod {} {}",
+                        fs_mistrust::format_access_bits(badbits, '-'),
+                        filename.display())?;
+                writeln!(f, "You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
+                    or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.")?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -458,22 +459,6 @@ impl Error {
             }
             _ => None,
         }
-    }
-}
-
-impl Display for ErrorHint {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for part in &self.parts {
-            let _ = write!(
-                f,
-                "{}",
-                match part {
-                    ErrorHintPart::String(s) => s.as_str(),
-                    ErrorHintPart::Str(s) => s,
-                }
-            )?;
-        }
-        Ok(())
     }
 }
 
