@@ -115,6 +115,13 @@ Bootstrapping: 18.4 MiB
 Cached: 19.9 MiB
 ```
 
+The results for 25 January 2023 were (Tor: 21109ba5d):
+
+```
+Bootstrapping: 18.5 MiB
+Cached: 19.8 MiB
+```
+
 (This does not yet take into account making a request, but again, the
 memory requirements there are negligible in comparison to loading the
 directory.)
@@ -254,6 +261,12 @@ Results (25 October 2022) with Tor: 2033cc7b5e:
 
 ```
 3648355 bytes
+```
+
+Results (25 January 2023) with Tor: 21109ba5d:
+
+```
+3647837 bytes
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
