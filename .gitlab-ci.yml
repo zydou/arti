@@ -123,7 +123,7 @@ coverage:
   script:
     - apt-get update && apt-get install -y python3-pip python3-setuptools
     - pip3 install beautifulsoup4 lxml
-    - rustup component add llvm-tools-preview
+    - rustup component add llvm-tools
     - ./maint/via-cargo-install-in-ci grcov
     # Generate report
     - ./maint/with_coverage -f cobertura -o coverage.xml cargo test --verbose --all-features
@@ -308,7 +308,7 @@ coverage-aggregated:
     - apt update && apt install -y tor python3 python3-pip python3-setuptools curl
     # install deps for report generation
     - pip3 install beautifulsoup4 lxml
-    - rustup component add llvm-tools-preview
+    - rustup component add llvm-tools
     - cp grcov $CARGO_HOME/bin/ || cargo install grcov
     - cp $CARGO_HOME/bin/grcov .
     # Generate report
