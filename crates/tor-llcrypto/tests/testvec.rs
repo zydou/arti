@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use base64ct::{Base64Unpadded, Encoding as _};
 use cipher::{KeyIvInit, StreamCipher};
 use digest::{self, Digest, ExtendableOutput};

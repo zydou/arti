@@ -43,8 +43,8 @@ fn test_str_ops() {
 
     let other: Demo = 33.into();
     assert_eq!(other.to_str(), None);
-    assert_eq!(format!("Hello {}", other), "Hello 33");
-    assert_eq!(format!("Hello {:?}", other), "Hello Demo(33)");
+    assert_eq!(format!("Hello {other}"), "Hello 33");
+    assert_eq!(format!("Hello {other:?}"), "Hello Demo(33)");
 
     assert_eq!(Demo::from_name("A"), Some(Demo::A));
     assert_eq!(Demo::from_name("Apricot"), None);

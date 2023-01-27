@@ -192,11 +192,7 @@ async fn main() -> Result<()> {
 async fn send_request(stream: &mut arti_client::DataStream, host: &str) -> Result<()> {
     stream
         .write_all(
-            format!(
-                "GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
-                host
-            )
-            .as_bytes(),
+            format!("GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes(),
         )
         .await?;
     stream.flush().await?;

@@ -132,7 +132,7 @@ where
     {
         // Use the underlying TCP provider implementation to do the connection, and
         // return our wrapper around it once done.
-        println!("tcp connect to {}", addr);
+        println!("tcp connect to {addr}");
         self.inner
             .connect(addr)
             .map(move |r| {
@@ -157,7 +157,7 @@ where
     {
         // Use the underlying TCP provider implementation to make the listener, and
         // return our wrapper around it once done.
-        println!("tcp listen on {}", addr);
+        println!("tcp listen on {addr}");
         self.inner
             .listen(addr)
             .map(|l| l.map(|listener| CustomTcpListener { inner: listener }))
@@ -300,7 +300,7 @@ where
             .accept()
             .inspect(|r| {
                 if let Ok((_, addr)) = r {
-                    println!("accepted connection from {}", addr)
+                    println!("accepted connection from {addr}");
                 }
             })
             .map(|r| {

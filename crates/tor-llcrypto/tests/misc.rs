@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use hex_literal::hex;
 use tor_llcrypto as ll;
 

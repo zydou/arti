@@ -8,6 +8,8 @@
 #![allow(clippy::unwrap_used)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
+#![allow(clippy::uninlined_format_args)]
+
 use arti_hyper::*;
 
 use anyhow::Result;
