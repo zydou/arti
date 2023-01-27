@@ -1,4 +1,5 @@
 // Tests for encoding/decoding relay messages into relay cell bodies.
+#![allow(clippy::uninlined_format_args)]
 
 use tor_bytes::Error;
 use tor_cell::relaycell::{msg, msg::RelayMsg, RelayCell, RelayCmd, StreamId};

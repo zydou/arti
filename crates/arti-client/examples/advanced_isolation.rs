@@ -6,6 +6,7 @@
 #![allow(clippy::print_stdout)]
 #![allow(clippy::single_char_pattern)]
 #![allow(clippy::unwrap_used)]
+#![allow(clippy::unchecked_duration_subtraction)]
 //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
 
 // This example showcase how to use the trait IsolationHelper to build complex isolation rules.
@@ -192,11 +193,7 @@ async fn main() -> Result<()> {
 async fn send_request(stream: &mut arti_client::DataStream, host: &str) -> Result<()> {
     stream
         .write_all(
-            format!(
-                "GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
-                host
-            )
-            .as_bytes(),
+            format!("GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes(),
         )
         .await?;
     stream.flush().await?;

@@ -814,7 +814,9 @@ impl GuardSet {
         // _rather_ use are either down, or have had their circuit
         // attempts pending for too long.
 
-        let cutoff = now - params.np_connect_timeout;
+        let cutoff = now
+            .checked_sub(params.np_connect_timeout)
+            .expect("Can't subtract connect timeout from now.");
 
         for (src, guard) in self.preference_order() {
             if guard.guard_id() == guard_id {
@@ -1025,6 +1027,7 @@ mod test {
     #![allow(clippy::print_stdout)]
     #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use tor_linkspec::{HasRelayIds, RelayIdType};
     use tor_netdir::{NetDir, Relay};

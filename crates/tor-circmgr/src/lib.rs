@@ -33,6 +33,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+#![allow(clippy::uninlined_format_args)]
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
@@ -620,7 +621,10 @@ impl<R: Runtime> CircMgr<R> {
             let dirinfo = netdir.into();
             let mgr = Arc::clone(&self.mgr);
             debug!("Launching a circuit to test build times.");
-            let _ = mgr.launch_by_usage(&usage, dirinfo)?;
+            let receiver = mgr.launch_by_usage(&usage, dirinfo)?;
+            // We don't actually care when this circuit is done,
+            // so it's okay to drop the Receiver without awaiting it.
+            drop(receiver);
         }
 
         Ok(())
@@ -859,6 +863,7 @@ mod test {
     #![allow(clippy::print_stdout)]
     #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
 

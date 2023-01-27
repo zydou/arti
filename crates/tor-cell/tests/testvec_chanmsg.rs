@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use tor_bytes::Error as BytesError;
 /// Example channel messages to encode and decode.
 ///

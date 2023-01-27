@@ -33,6 +33,7 @@
 #![warn(clippy::unseparated_literal_suffix)]
 #![deny(clippy::unwrap_used)]
 #![allow(clippy::let_unit_value)] // This can reasonably be done for explicitness
+#![allow(clippy::uninlined_format_args)]
 #![allow(clippy::significant_drop_in_scrutinee)] // arti/-/merge_requests/588/#note_2812945
 #![allow(clippy::result_large_err)] // temporary workaround for arti#587
 //! <!-- @@ end lint list maintained by maint/add_warning @@ -->
@@ -1206,7 +1207,7 @@ impl<'a> Relay<'a> {
     /// Return true if this relay and `other` seem to be the same relay.
     ///
     /// (Two relays are the same if they have the same identity.)
-    pub fn same_relay<'b>(&self, other: &Relay<'b>) -> bool {
+    pub fn same_relay(&self, other: &Relay<'_>) -> bool {
         self.id() == other.id() && self.rsa_id() == other.rsa_id()
     }
     /// Return true if this relay allows exiting to `port` on IPv4.
@@ -1233,13 +1234,13 @@ impl<'a> Relay<'a> {
     /// have IPv4 addresses with the same `subnets_family_v4`-bit
     /// prefix, or if they have IPv6 addresses with the same
     /// `subnets_family_v6`-bit prefix.
-    pub fn in_same_subnet<'b>(&self, other: &Relay<'b>, subnet_config: &SubnetConfig) -> bool {
+    pub fn in_same_subnet(&self, other: &Relay<'_>, subnet_config: &SubnetConfig) -> bool {
         subnet_config.any_addrs_in_same_subnet(self, other)
     }
     /// Return true if both relays are in the same family.
     ///
     /// (Every relay is considered to be in the same family as itself.)
-    pub fn in_same_family<'b>(&self, other: &Relay<'b>) -> bool {
+    pub fn in_same_family(&self, other: &Relay<'_>) -> bool {
         if self.same_relay(other) {
             return true;
         }
@@ -1370,6 +1371,7 @@ mod test {
     #![allow(clippy::print_stdout)]
     #![allow(clippy::single_char_pattern)]
     #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     #![allow(clippy::cognitive_complexity)]
     use super::*;

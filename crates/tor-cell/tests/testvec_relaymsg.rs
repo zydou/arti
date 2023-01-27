@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use tor_basic_utils::test_rng::testing_rng;
 use tor_bytes::Error as BytesError;
 /// Example relay messages to encode and decode.
