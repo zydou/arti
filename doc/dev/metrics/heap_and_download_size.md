@@ -81,7 +81,7 @@ The results for  25 January 2023 were (Arti: 3b2848f904):
 
 ```
 Bootstrapping: 20.7 MiB
-Cachjed: 14.0 MiB
+Cached: 14.0 MiB
 ```
 
 To simulate (almost) the same process with C Tor, run Tor under `massif`
