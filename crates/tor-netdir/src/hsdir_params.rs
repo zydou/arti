@@ -88,35 +88,27 @@ impl HsRingParams {
             .ok_or(Error::InvalidConsensus(
                 "Consensus valid-after did not fall in a time period",
             ))?;
-        let cur_period_start = cur_period
-            .range()
-            .ok_or(Error::InvalidConsensus(
-                "HsDir time period in consensus could not be represented as a SystemTime range.",
-            ))?
-            .start;
 
-        let cur_srv = find_srv_for_time(&srvs[..], cur_period_start)
-            .unwrap_or_else(|| disaster_srv(cur_period));
-        let main_ring = HsRingParams {
-            time_period: cur_period,
-            shared_rand: cur_srv,
-        };
+        let main_ring = find_params_for_time(&srvs[..], cur_period)?
+            .unwrap_or_else(|| disaster_params(cur_period));
 
         // When computing secondary rings, we don't try so many fallback operations:
         // if they aren't available, they aren't available.
-        let mut other_rings = Vec::new();
-        for period in [cur_period.prev(), cur_period.next()].iter().flatten() {
-            if let Some(period_range) = period.range() {
-                if let Some(srv) = find_srv_for_time(&srvs[..], period_range.start) {
-                    other_rings.push(HsRingParams {
-                        time_period: *period,
-                        shared_rand: srv,
-                    });
-                }
-            }
-        }
+        let other_rings = [cur_period.prev(), cur_period.next()]
+            .iter()
+            .flatten()
+            .flat_map(|period| find_params_for_time(&srvs[..], *period).ok().flatten())
+            .collect();
 
         Ok((main_ring, other_rings))
+    }
+}
+
+/// Compute ring parameters using a Disaster SRV for this period.
+fn disaster_params(period: TimePeriod) -> HsRingParams {
+    HsRingParams {
+        time_period: period,
+        shared_rand: disaster_srv(period),
     }
 }
 
@@ -138,6 +130,22 @@ fn disaster_srv(period: TimePeriod) -> SharedRandVal {
 /// Helper type: A `SharedRandVal`, and the time range over which it is the most
 /// recent.
 type SrvInfo = (SharedRandVal, std::ops::Range<SystemTime>);
+
+/// Given a list of SrvInfo, return an HsRingParames instance for a given time
+/// period, if possible.
+fn find_params_for_time(info: &[SrvInfo], period: TimePeriod) -> Result<Option<HsRingParams>> {
+    let start = period
+        .range()
+        .ok_or(Error::InvalidConsensus(
+            "HsDir time period in consensus could not be represented as a SystemTime range.",
+        ))?
+        .start;
+
+    Ok(find_srv_for_time(info, start).map(|srv| HsRingParams {
+        time_period: period,
+        shared_rand: srv,
+    }))
+}
 
 /// Given a list of SrvInfo, return the SharedRandVal (if any) that is the most
 /// recent SRV at `when`.
