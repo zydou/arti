@@ -402,6 +402,10 @@ impl<'a> ErrorHint<'a> {
     }
 }
 
+// TODO: Perhaps we want to lower this logic to fs_mistrust crate, and have a
+// separate `ErrorHint` type for each crate that can originate a hint.  But I'd
+// rather _not_ have that turn into something that forces us to give a Hint for
+// every intermediate crate.
 impl<'a> Display for ErrorHint<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use fs_mistrust::anon_home::PathExt as _;
