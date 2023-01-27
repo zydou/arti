@@ -81,7 +81,7 @@ The results for  25 January 2023 were (Arti: 3b2848f904):
 
 ```
 Bootstrapping: 20.7 MiB
-Cachjed: 14.0 MiB
+Cached: 14.0 MiB
 ```
 
 To simulate (almost) the same process with C Tor, run Tor under `massif`
@@ -113,6 +113,13 @@ The results for 25 October 2022 were (Tor: 2033cc7b5e):
 ```
 Bootstrapping: 18.4 MiB
 Cached: 19.9 MiB
+```
+
+The results for 25 January 2023 were (Tor: 21109ba5d):
+
+```
+Bootstrapping: 18.5 MiB
+Cached: 19.8 MiB
 ```
 
 (This does not yet take into account making a request, but again, the
@@ -254,6 +261,12 @@ Results (25 October 2022) with Tor: 2033cc7b5e:
 
 ```
 3648355 bytes
+```
+
+Results (25 January 2023) with Tor: 21109ba5d:
+
+```
+3647837 bytes
 ```
 
 [^LTO]: Link-time optimization: a technique where the compiler optimizes
