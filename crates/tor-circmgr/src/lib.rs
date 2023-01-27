@@ -621,7 +621,10 @@ impl<R: Runtime> CircMgr<R> {
             let dirinfo = netdir.into();
             let mgr = Arc::clone(&self.mgr);
             debug!("Launching a circuit to test build times.");
-            let _ = mgr.launch_by_usage(&usage, dirinfo)?;
+            let receiver = mgr.launch_by_usage(&usage, dirinfo)?;
+            // We don't actually care when this circuit is done,
+            // so it's okay to drop the Receiver without awaiting it.
+            drop(receiver);
         }
 
         Ok(())
