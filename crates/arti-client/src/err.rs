@@ -404,6 +404,8 @@ impl<'a> ErrorHint<'a> {
 
 impl<'a> Display for ErrorHint<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use fs_mistrust::anon_home::PathExt as _;
+
         match self.inner {
             ErrorHintInner::BadPermission {
                 filename,
@@ -413,7 +415,7 @@ impl<'a> Display for ErrorHint<'a> {
                 writeln!(
                     f,
                     "Permissions are set too permissively on {}: currently {}",
-                    filename.display(), // TODO security
+                    filename.anonymize_home(),
                     fs_mistrust::format_access_bits(bits, '=')
                 )?;
                 if 0 != badbits & 0o222 {
@@ -429,7 +431,7 @@ impl<'a> Display for ErrorHint<'a> {
                     "You can fix this by further restricting the permissions of your filesystem, using:\n\
                          chmod {} {}",
                         fs_mistrust::format_access_bits(badbits, '-'),
-                        filename.display())?;
+                        filename.anonymize_home())?;
                 writeln!(f, "You can suppress this message by setting storage.permissions.dangerously_trust_everyone=true,\n\
                     or setting ARTI_FS_DISABLE_PERMISSION_CHECKS=yes in your environment.")?;
             }
