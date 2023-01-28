@@ -293,8 +293,11 @@ pub struct SignatureGroup {
 }
 
 /// A shared random value produced by the directory authorities.
-#[derive(Debug, Clone, Copy)]
-// TODO: needs accessors.
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, derive_more::From, derive_more::Into, derive_more::AsRef,
+)]
+// TODO hs: Use CtBytes for this.  I don't think it actually matters, but it
+// seems like a good idea.
 pub struct SharedRandVal([u8; 32]);
 
 /// A shared-random value produced by the directory authorities,
@@ -308,7 +311,7 @@ pub struct SharedRandVal([u8; 32]);
     non_exhaustive
 )]
 #[derive(Debug, Clone)]
-struct SharedRandStatus {
+pub struct SharedRandStatus {
     /// How many authorities revealed shares that contributed to this value.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     n_reveals: u8,
@@ -320,6 +323,12 @@ struct SharedRandStatus {
     /// have any more than a small number of possible random values.
     #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
     value: SharedRandVal,
+
+    /// The time when this SharedRandVal becomes (or became) the latest.
+    ///
+    /// (This is added per proposal 342, assuming that gets accepted.)
+    #[cfg_attr(docsrs, doc(cfg(feature = "dangerous-expose-struct-fields")))]
+    timestamp: Option<time::SystemTime>,
 }
 
 /// Parts of the networkstatus header that are present in every networkstatus.
@@ -643,6 +652,18 @@ impl<RS> Consensus<RS> {
     /// Return the map of network parameters that this consensus advertises.
     pub fn params(&self) -> &NetParams<i32> {
         &self.header.hdr.params
+    }
+
+    /// Return the latest shared random value, if the consensus
+    /// contains one.
+    pub fn shared_rand_cur(&self) -> Option<&SharedRandStatus> {
+        self.header.shared_rand_cur.as_ref()
+    }
+
+    /// Return the previous shared random value, if the consensus
+    /// contains one.
+    pub fn shared_rand_prev(&self) -> Option<&SharedRandStatus> {
+        self.header.shared_rand_prev.as_ref()
     }
 }
 
@@ -1003,7 +1024,25 @@ impl SharedRandStatus {
         let n_reveals: u8 = item.parse_arg(0)?;
         let val: B64 = item.parse_arg(1)?;
         let value = SharedRandVal(val.into_array()?);
-        Ok(SharedRandStatus { n_reveals, value })
+        // Added in proposal 342
+        let timestamp = item
+            .parse_optional_arg::<Iso8601TimeNoSp>(2)?
+            .map(Into::into);
+        Ok(SharedRandStatus {
+            n_reveals,
+            value,
+            timestamp,
+        })
+    }
+
+    /// Return the actual shared random value.
+    pub fn value(&self) -> &SharedRandVal {
+        &self.value
+    }
+
+    /// Return the timestamp (if any) associated with this `SharedRandValue`.
+    pub fn timestamp(&self) -> Option<std::time::SystemTime> {
+        self.timestamp
     }
 }
 
@@ -1947,6 +1986,20 @@ mod test {
         assert_eq!(
             sr.value.0,
             hex!("e4ba1d638c96c458532adc6957dc0080d03d37c7e5854087d0da90bf5ff4e72e")
+        );
+        assert!(sr.timestamp.is_none());
+
+        let sr2 = gettok(
+            "shared-rand-current-value 9 \
+                    5LodY4yWxFhTKtxpV9wAgNA9N8flhUCH0NqQv1/05y4 2022-01-20T12:34:56\n",
+        )
+        .unwrap();
+        let sr2 = SharedRandStatus::from_item(&sr2).unwrap();
+        assert_eq!(sr2.n_reveals, sr.n_reveals);
+        assert_eq!(sr2.value.0, sr.value.0);
+        assert_eq!(
+            sr2.timestamp.unwrap(),
+            humantime::parse_rfc3339("2022-01-20T12:34:56Z").unwrap()
         );
 
         let sr = gettok("foo bar\n").unwrap();

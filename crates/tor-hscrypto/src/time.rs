@@ -125,6 +125,22 @@ impl TimePeriod {
             (SystemTime::UNIX_EPOCH + epoch_offset).checked_add(Duration::from_secs(end_sec))?;
         Some(start..end)
     }
+
+    /// Return the numeric index of this time period.
+    ///
+    /// This function should only be used when encoding the time period for
+    /// cryptographic purposes.
+    pub fn interval_num(&self) -> u64 {
+        self.interval_num
+    }
+
+    /// Return the length of this time period as a number of seconds.
+    ///
+    /// This function should only be used when encoding the time period for
+    /// cryptographic purposes.
+    pub fn length_in_sec(&self) -> u64 {
+        self.length_in_sec.into()
+    }
 }
 
 #[cfg(test)]
