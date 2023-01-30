@@ -55,6 +55,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
+use tor_error::ErrorReport;
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::Runtime;
 use tracing::{debug, error, info, trace, warn};
@@ -337,7 +338,7 @@ impl<R: Runtime> PtMgr<R> {
                     Ok(true) => return,
                     Ok(false) => {}
                     Err(e) => {
-                        error!("PtReactor failed: {}", e);
+                        error!("PtReactor failed: {}", e.report());
                         return;
                     }
                 }
