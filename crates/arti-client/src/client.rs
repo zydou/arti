@@ -15,7 +15,7 @@ use tor_config::MutCfg;
 #[cfg(feature = "bridge-client")]
 use tor_dirmgr::bridgedesc::BridgeDescMgr;
 use tor_dirmgr::{DirMgrStore, Timeliness};
-use tor_error::{internal, Bug};
+use tor_error::{internal, Bug, ErrorReport};
 use tor_guardmgr::GuardMgr;
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_persist::{FsStateMgr, StateMgr};
@@ -1101,7 +1101,7 @@ async fn tasks_monitor_dormant<R: Runtime>(
 
         chanmgr
             .set_dormancy(mode.into(), netparams)
-            .unwrap_or_else(|e| error!("set dormancy: {}", e));
+            .unwrap_or_else(|e| error!("set dormancy: {}", e.report()));
 
         // IEFI simplifies handling of exceptional cases, as "never mind, then".
         #[cfg(feature = "bridge-client")]
