@@ -5,11 +5,15 @@ use tor_cert::Ed25519Cert;
 use tor_checkable::signed::SignatureGated;
 use tor_checkable::timed::TimerangeBound;
 use tor_checkable::Timebound;
+use tor_hscrypto::pk::BlindedOnionId;
+use tor_hscrypto::{RevisionCounter, Subcredential};
 use tor_llcrypto::pk::ed25519::{self, ValidatableEd25519Signature};
 
 use crate::parse::{keyword::Keyword, parser::SectionRules, tokenize::NetDocReader};
 use crate::types::misc::{UnvalidatedEdCert, B64};
 use crate::{Pos, Result};
+
+use super::desc_enc;
 
 /// A more-or-less verbatim representation of the outermost layer of an onion
 /// service descriptor.
@@ -37,10 +41,36 @@ pub(super) struct HsDescOuter {
     pub(super) encrypted_body: Vec<u8>,
 }
 
-/// An `HsDescOuter` whose signatures have all been verified, but which has not
-/// been checked for timeliness.
-#[derive(Clone, Debug)]
-pub(super) struct HsDescOuterSigChecked(HsDescOuter);
+impl HsDescOuter {
+    /// Return the blinded Id for this onion service descriptor.
+    pub(super) fn blinded_id(&self) -> BlindedOnionId {
+        let ident = self
+            .desc_signing_key_cert
+            .signing_key()
+            .expect("signing key was absent!?");
+        (*ident).into()
+    }
+
+    /// Decrypt and return the encrypted (middle-layer) body of this onion
+    /// service descriptor.
+    pub(super) fn decrypt_body(
+        &self,
+        subcredential: &Subcredential,
+    ) -> std::result::Result<Vec<u8>, desc_enc::DecryptionError> {
+        let decrypt = desc_enc::HsDescEncryption {
+            blinded_id: &self.blinded_id(),
+            encryption_cookie: None,
+            subcredential,
+            revision: self.revision_counter,
+            string_const: b"hsdir-superencrypted-data",
+        };
+
+        let mut body = decrypt.decrypt(&self.encrypted_body[..])?;
+        let n_padding = body.iter().rev().take_while(|n| **n == 0).count();
+        body.truncate(body.len() - n_padding);
+        Ok(body)
+    }
+}
 
 /// An `HsDescOuter` whose signatures have not yet been verified, and whose
 /// timeliness has not been checked.
@@ -248,6 +278,15 @@ mod test {
 
         // TODO HS: Add checks for the specific fields here once I'm more
         // confident that this is the example descriptor I'm using.
+
+        let subcred: tor_hscrypto::Subcredential =
+            hex_literal::hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37")
+                .into();
+        let inner = desc.decrypt_body(&subcred).unwrap();
+
+        assert!(std::str::from_utf8(&inner)
+            .unwrap()
+            .starts_with("desc-auth-type"));
 
         Ok(())
     }

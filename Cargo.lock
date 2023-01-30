@@ -4068,8 +4068,10 @@ dependencies = [
 name = "tor-netdoc"
 version = "0.6.1"
 dependencies = [
+ "arrayref",
  "base64ct",
  "bitflags",
+ "cipher",
  "derive_more",
  "digest 0.10.6",
  "educe",
@@ -4087,6 +4089,7 @@ dependencies = [
  "thiserror",
  "time",
  "tinystr",
+ "tor-basic-utils",
  "tor-bytes",
  "tor-cert",
  "tor-checkable",
@@ -4098,6 +4101,7 @@ dependencies = [
  "visibility",
  "visible",
  "weak-table",
+ "zeroize",
 ]
 
 [[package]]
