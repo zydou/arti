@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
 use tor_config::Itertools;
-use tor_error::internal;
+use tor_error::{internal, ErrorReport};
 use tor_linkspec::PtTransportName;
 use tor_rtcompat::{Runtime, SleepProviderExt};
 use tor_socksproto::SocksVersion;
@@ -437,14 +437,14 @@ impl AsyncPtChild {
                     // Kill it.
                     debug!("Sending kill signal to PT {}", ident);
                     if let Err(e) = child.kill() {
-                        warn!("Failed to kill() spawned PT {}: {}", ident, e);
+                        warn!("Failed to kill() spawned PT {}: {}", ident, e.report());
                     }
                 }
                 Ok(Some(_)) => {
                     debug!("PT {} shut down successfully.", ident);
                 } // It exited.
                 Err(e) => {
-                    warn!("Failed to call try_wait() on spawned PT {}: {}", ident, e);
+                    warn!("Failed to call try_wait() on spawned PT {}: {}", ident, e.report());
                 }
             }
         });
