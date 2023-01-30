@@ -497,7 +497,10 @@ impl<R: Runtime> DirMgr<R> {
                 {
                     match e {
                         Error::ManagerDropped => {}
-                        _ => warn!("Unrecovered error while waiting for bootstrap: {}", e.report()),
+                        _ => warn!(
+                            "Unrecovered error while waiting for bootstrap: {}",
+                            e.report()
+                        ),
                     }
                 } else if let Err(e) =
                     Self::download_forever(dirmgr_weak.clone(), &mut schedule, attempt_id, sender)
@@ -687,7 +690,8 @@ impl<R: Runtime> DirMgr<R> {
                     let delay = retry_delay.next_delay(&mut rand::thread_rng());
                     warn!(
                         "Unable to download a usable directory: {}.  We will restart in {:?}.",
-                        err.report(), delay,
+                        err.report(),
+                        delay,
                     );
                     {
                         let dirmgr = upgrade_weak_ref(&weak)?;

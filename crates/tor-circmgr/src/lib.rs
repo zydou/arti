@@ -677,7 +677,10 @@ impl<R: Runtime> CircMgr<R> {
             if let (Some(cm), Some(dm)) = (Weak::upgrade(&circmgr), Weak::upgrade(&dirmgr)) {
                 if let Ok(netdir) = dm.netdir(Timeliness::Unchecked) {
                     if let Err(e) = cm.launch_timeout_testing_circuit_if_appropriate(&netdir) {
-                        warn!("Problem launching a timeout testing circuit: {}", e.report());
+                        warn!(
+                            "Problem launching a timeout testing circuit: {}",
+                            e.report()
+                        );
                     }
                     let delay = netdir
                         .params()
@@ -848,7 +851,10 @@ impl<R: Runtime> Drop for CircMgr<R> {
         match self.store_persistent_state() {
             Ok(true) => info!("Flushed persistent state at exit."),
             Ok(false) => debug!("Lock not held; no state to flush."),
-            Err(e) => error!("Unable to flush state on circuit manager drop: {}", e.report()),
+            Err(e) => error!(
+                "Unable to flush state on circuit manager drop: {}",
+                e.report()
+            ),
         }
     }
 }

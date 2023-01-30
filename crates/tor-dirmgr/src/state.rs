@@ -627,7 +627,11 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     newcerts.push((cert, cert_text));
                 }
                 Err(e) => {
-                    warn!("Problem with certificate received from {}: {}", &source, e.report());
+                    warn!(
+                        "Problem with certificate received from {}: {}",
+                        &source,
+                        e.report()
+                    );
                     nonfatal_error.get_or_insert(e);
                 }
             }

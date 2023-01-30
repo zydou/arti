@@ -444,7 +444,11 @@ impl AsyncPtChild {
                     debug!("PT {} shut down successfully.", ident);
                 } // It exited.
                 Err(e) => {
-                    warn!("Failed to call try_wait() on spawned PT {}: {}", ident, e.report());
+                    warn!(
+                        "Failed to call try_wait() on spawned PT {}: {}",
+                        ident,
+                        e.report()
+                    );
                 }
             }
         });

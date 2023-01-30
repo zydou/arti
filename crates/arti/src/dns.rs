@@ -221,7 +221,11 @@ where
                 // might well do so too.  (Many variants of trust_dns_proto's ProtoErrorKind
                 // contain domain names.)  Digging into these to be more useful is tiresome,
                 // so just mark the whole response message, and error, as sensitive.
-                error!("Failed to serialize DNS packet: {:?}: {}", sv(&response), sv(e.report()));
+                error!(
+                    "Failed to serialize DNS packet: {:?}: {}",
+                    sv(&response),
+                    sv(e.report())
+                );
                 continue;
             }
         };

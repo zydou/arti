@@ -29,7 +29,7 @@ use retry_error::RetryError;
 use tor_basic_utils::retry::RetryDelay;
 use tor_chanmgr::ChannelUsage;
 use tor_config::MutCfg;
-use tor_error::{internal, AbsRetryTime, HasRetryTime, ErrorReport};
+use tor_error::{internal, AbsRetryTime, ErrorReport, HasRetryTime};
 use tor_rtcompat::{Runtime, SleepProviderExt};
 
 use async_trait::async_trait;
@@ -877,7 +877,8 @@ impl<B: AbstractCircBuilder + 'static, R: Runtime> AbstractCircMgr<B, R> {
                     // We couldn't pick the action!
                     info!(
                         "Couldn't pick action for circuit attempt {}: {}",
-                        attempt_num, e.report(),
+                        attempt_num,
+                        e.report(),
                     );
                     e
                 }

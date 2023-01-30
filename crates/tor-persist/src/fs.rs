@@ -142,7 +142,11 @@ impl FsStateMgr {
         for fname in clean::files_to_delete(self.inner.statepath.as_path(), now) {
             info!("Deleting obsolete file {}", fname.anonymize_home());
             if let Err(e) = std::fs::remove_file(&fname) {
-                warn!("Unable to delete {}: {}", fname.anonymize_home(), e.report());
+                warn!(
+                    "Unable to delete {}: {}",
+                    fname.anonymize_home(),
+                    e.report()
+                );
             }
         }
     }
