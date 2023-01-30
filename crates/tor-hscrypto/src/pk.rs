@@ -12,6 +12,7 @@
 use digest::Digest;
 use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::{curve25519, ed25519, keymanip};
+use tor_llcrypto::util::ct::CtByteArray;
 
 use crate::macros::{define_bytes, define_pk_keypair};
 use crate::time::TimePeriod;
@@ -219,6 +220,11 @@ impl TryFrom<BlindedOnionId> for BlindedOnionIdKey {
 impl From<BlindedOnionIdKey> for BlindedOnionId {
     fn from(value: BlindedOnionIdKey) -> Self {
         value.id()
+    }
+}
+impl From<ed25519::Ed25519Identity> for BlindedOnionId {
+    fn from(value: ed25519::Ed25519Identity) -> Self {
+        Self(CtByteArray::from(<[u8; 32]>::from(value)))
     }
 }
 
