@@ -17,6 +17,7 @@ use trust_dns_proto::rr::{DNSClass, Name, RData, Record, RecordType};
 use trust_dns_proto::serialize::binary::{BinDecodable, BinEncodable};
 
 use arti_client::{Error, HasKind, StreamPrefs, TorClient};
+use tor_error::ErrorReport;
 use tor_rtcompat::{Runtime, UdpSocket};
 
 use anyhow::{anyhow, Result};
@@ -245,7 +246,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                 info!("Listening on {:?}.", addr);
                 listeners.push(listener);
             }
-            Err(e) => warn!("Can't listen on {}: {}", addr, e),
+            Err(e) => warn!("Can't listen on {}: {}", addr, e.report()),
         }
     }
     // We weren't able to bind any ports: There's nothing to do.
@@ -279,7 +280,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
             Ok(packet) => packet,
             Err(err) => {
                 // TODO move crate::socks::accept_err_is_fatal somewhere else and use it here?
-                warn!("Incoming datagram failed: {}", err);
+                warn!("Incoming datagram failed: {}", err.report());
                 continue;
             }
         };
@@ -298,7 +299,7 @@ pub(crate) async fn run_dns_resolver<R: Runtime>(
                 )
                 .await;
                 if let Err(e) = res {
-                    warn!("connection exited with error: {}", e);
+                    warn!("connection exited with error: {}", tor_error::Report(e));
                 }
             }
         })?;

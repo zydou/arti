@@ -133,7 +133,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
                             watcher = None;
                         }
                     }
-                    Err(e) => warn!("Couldn't reload configuration: {}", e),
+                    Err(e) => warn!("Couldn't reload configuration: {}", tor_error::Report(e)),
                 }
             }
             Ok(())
