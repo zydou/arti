@@ -80,6 +80,12 @@ impl From<[u8; ED25519_ID_LEN]> for Ed25519Identity {
     }
 }
 
+impl From<Ed25519Identity> for [u8; ED25519_ID_LEN] {
+    fn from(value: Ed25519Identity) -> Self {
+        value.id.into()
+    }
+}
+
 impl From<PublicKey> for Ed25519Identity {
     fn from(pk: PublicKey) -> Self {
         (&pk).into()
