@@ -6,7 +6,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryFutureExt};
 use safelog::sensitive as sv;
-use tor_error::bad_api_usage;
+use tor_error::{bad_api_usage, ErrorReport};
 use tor_linkspec::{ChannelMethod, HasChanMethod, OwnedChanTarget};
 use tor_rtcompat::{Runtime, TcpProvider};
 use tracing::trace;
@@ -112,7 +112,7 @@ async fn connect_to_one<R: Runtime>(
             Err((e, a)) => {
                 // We got a failure on one of the streams. Store the error.
                 // TODO(eta): ideally we'd start the next connection attempt immediately.
-                tracing::warn!("Connection to {} failed: {}", sv(a), e);
+                tracing::warn!("Connection to {} failed: {}", sv(a), e.report());
                 errors.push((e, a));
             }
         }
