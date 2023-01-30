@@ -51,6 +51,11 @@ impl HsDescOuter {
         (*ident).into()
     }
 
+    /// Return the revision counter for this descriptor.
+    pub(super) fn revision_counter(&self) -> RevisionCounter {
+        self.revision_counter
+    }
+
     /// Decrypt and return the encrypted (middle-layer) body of this onion
     /// service descriptor.
     pub(super) fn decrypt_body(

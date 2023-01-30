@@ -10,6 +10,7 @@
 
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
+mod middle_layer;
 mod outer_layer;
 
 use std::time::SystemTime;
