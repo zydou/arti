@@ -56,6 +56,7 @@ use std::result::Result as StdResult;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tor_config::ReconfigureError;
+use tor_error::ErrorReport;
 use tor_linkspec::{ChanTarget, OwnedChanTarget};
 use tor_netdir::{params::NetParameters, NetDirProvider};
 use tor_proto::channel::Channel;
@@ -306,8 +307,8 @@ impl<R: Runtime> ChanMgr<R> {
                         let netdir = netdir.upgrade().ok_or("netdir gone away")?;
                         let netparams = netdir.params();
                         self_.mgr.update_netparams(netparams).map_err(|e| {
-                            error!("continually_update_channels_config: failed to process! {} {:?}",
-                                   &e, &e);
+                            error!("continually_update_channels_config: failed to process! {}",
+                                   e.report());
                             "error processing netdir"
                         })?;
                     }
