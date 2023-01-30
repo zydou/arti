@@ -35,6 +35,16 @@ maint-checks:
     - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_toposort
     - ./maint/add_warning --check
+
+# non-blocking for now, see
+#      https://gitlab.torproject.org/tpo/core/arti/-/issues/581
+#      https://gitlab.torproject.org/tpo/core/arti/-/issues/601
+doc-features:
+  stage: check
+  image: debian:stable-slim
+  allow_failure: true
+  script:
+    - apt-get update && apt-get install -y python3-toml python-is-python3
     - ./maint/check_doc_features
 
 rust-checks:
