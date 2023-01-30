@@ -506,11 +506,12 @@ impl tor_checkable::SelfSigned<SigCheckedCert> for UncheckedCert {
     }
 }
 
-impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
+impl tor_checkable::Timebound<Ed25519Cert> for Ed25519Cert {
     type Error = tor_checkable::TimeValidityError;
-    fn is_valid_at(&self, t: &time::SystemTime) -> std::result::Result<(), Self::Error> {
-        if self.cert.is_expired_at(*t) {
-            let expiry = self.cert.expiry();
+
+    fn is_valid_at(&self, t: &time::SystemTime) -> Result<(), Self::Error> {
+        if self.is_expired_at(*t) {
+            let expiry = self.expiry();
             Err(Self::Error::Expired(
                 t.duration_since(expiry)
                     .expect("certificate expiry time inconsistent"),
@@ -518,6 +519,17 @@ impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
         } else {
             Ok(())
         }
+    }
+
+    fn dangerously_assume_timely(self) -> Ed25519Cert {
+        self
+    }
+}
+
+impl tor_checkable::Timebound<Ed25519Cert> for SigCheckedCert {
+    type Error = tor_checkable::TimeValidityError;
+    fn is_valid_at(&self, t: &time::SystemTime) -> std::result::Result<(), Self::Error> {
+        self.cert.is_valid_at(t)
     }
 
     fn dangerously_assume_timely(self) -> Ed25519Cert {
