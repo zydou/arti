@@ -140,7 +140,7 @@ pub(crate) fn watch_for_config_changes<R: Runtime>(
         };
         match iife() {
             Ok(()) => debug!("Thread exiting"),
-            Err(e) => error!("Config reload thread exiting: {}", e),
+            Err(e) => error!("Config reload thread exiting: {}", tor_error::Report(e)),
         }
     });
 
