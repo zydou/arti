@@ -190,7 +190,7 @@ pub(crate) fn make_consensus_request(
         }
         latest => {
             if let Err(e) = latest {
-                warn!("Error loading directory metadata: {}", e);
+                warn!("Error loading directory metadata: {}", e.report());
             }
             // If we don't have a consensus, then request one that's
             // "reasonably new".  That way, our clock is set far in the
@@ -326,7 +326,7 @@ async fn fetch_multiple<R: Runtime>(
                     );
                 }
             }
-            Err(e) => warn!("error while downloading: {:?}", e),
+            Err(e) => warn!("error while downloading: {}", e.report()),
         }
     }
 
@@ -477,12 +477,12 @@ async fn download_attempt<R: Runtime>(
 
                 if let Err(e) = &outcome {
                     dirmgr.note_errors(attempt_id, 1);
-                    warn!("error while adding directory info: {}", e);
+                    warn!("error while adding directory info: {}", e.report());
                 }
                 propagate_fatal_errors!(outcome);
             }
             Err(e) => {
-                warn!("Error when expanding directory text: {}", e);
+                warn!("Error when expanding directory text: {}", e.report());
                 if let Some(source) = source {
                     n_errors += 1;
                     note_cache_error(dirmgr.circmgr()?.deref(), &source, &e);
@@ -594,7 +594,7 @@ pub(crate) async fn download<R: Runtime>(
                 futures::select_biased! {
                     outcome = download_attempt(&dirmgr, state, parallelism.into(), attempt_id).fuse() => {
                         if let Err(e) = outcome {
-                            warn!("Error while downloading: {}", e);
+                            warn!("Error while downloading: {}", e.report());
                             propagate_fatal_errors!(Err(e));
                             continue 'next_attempt;
                         }

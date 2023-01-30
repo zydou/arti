@@ -17,7 +17,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use time::OffsetDateTime;
-use tor_error::internal;
+use tor_error::{internal, ErrorReport};
 use tor_netdir::{MdReceiver, NetDir, PartialNetDir};
 use tor_netdoc::doc::authcert::UncheckedAuthCert;
 use tor_netdoc::doc::netstatus::Lifetime;
@@ -627,7 +627,7 @@ impl<R: Runtime> DirState for GetCertsState<R> {
                     newcerts.push((cert, cert_text));
                 }
                 Err(e) => {
-                    warn!("Problem with certificate received from {}: {}", &source, &e);
+                    warn!("Problem with certificate received from {}: {}", &source, e.report());
                     nonfatal_error.get_or_insert(e);
                 }
             }
