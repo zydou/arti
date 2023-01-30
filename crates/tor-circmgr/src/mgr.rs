@@ -1501,7 +1501,7 @@ fn spawn_expiration_task<B, R>(
             };
             cm.expire_circ(&circ_id, exp_inst);
         }) {
-            warn!("Unable to launch expiration task: {}", e);
+            warn!("Unable to launch expiration task: {}", e.report());
         }
     }
 }
