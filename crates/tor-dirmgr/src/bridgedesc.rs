@@ -26,7 +26,7 @@ use tor_basic_utils::BinaryHeapExt as _;
 use tor_checkable::{SelfSigned, Timebound};
 use tor_circmgr::CircMgr;
 use tor_error::{internal, ErrorKind, HasKind};
-use tor_error::{AbsRetryTime, HasRetryTime, RetryTime};
+use tor_error::{AbsRetryTime, ErrorReport, HasRetryTime, RetryTime};
 use tor_guardmgr::bridge::{BridgeConfig, BridgeDesc};
 use tor_guardmgr::bridge::{BridgeDescError, BridgeDescEvent, BridgeDescList, BridgeDescProvider};
 use tor_netdoc::doc::routerdesc::RouterDesc;
@@ -1015,7 +1015,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
                 error!(
                     r#"bridge descriptor cache lookup failed, for "{}": {}"#,
                     sensitive(bridge),
-                    tor_error::Report(&err)
+                    err.report(),
                 );
                 None
             });
@@ -1114,7 +1114,7 @@ impl<R: Runtime, M: Mockable<R>> Manager<R, M> {
         .unwrap_or_else(|err: crate::Error| {
             error!(
                 "failed to cache downloaded bridge descriptor: {}",
-                tor_error::Report(err),
+                err.report(),
             );
         });
 
