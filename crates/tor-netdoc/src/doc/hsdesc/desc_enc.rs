@@ -33,8 +33,8 @@ pub(super) struct HsDescEncryption<'a> {
 
 /// A value used in deriving the encryption key for the inner layer of onion
 /// service encryption.
-#[derive(derive_more::AsRef)]
-pub(super) struct DescEncryptionCookie([u8; 32]);
+#[derive(derive_more::AsRef, derive_more::From)]
+pub(super) struct DescEncryptionCookie([u8; 16]);
 
 /// Length of our cryptographic salt.
 const SALT_LEN: usize = 16;
