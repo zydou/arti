@@ -22,6 +22,7 @@ use futures::channel::oneshot;
 use futures::FutureExt;
 use futures::StreamExt;
 use tor_dirclient::DirResponse;
+use tor_error::ErrorReport;
 use tor_rtcompat::scheduler::TaskSchedule;
 use tor_rtcompat::Runtime;
 use tracing::{debug, info, trace, warn};
@@ -143,7 +144,7 @@ fn note_cache_error<R: Runtime>(
         _ => source,
     };
 
-    info!("Marking {:?} as failed: {}", real_source, problem);
+    info!("Marking {:?} as failed: {}", real_source, problem.report());
     circmgr.note_external_failure(real_source.cache_id(), ExternalActivity::DirCache);
     circmgr.retire_circ(source.unique_circ_id());
 }
