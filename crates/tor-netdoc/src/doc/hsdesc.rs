@@ -188,3 +188,12 @@ impl EncryptedHsDesc {
 //     Instead, it should make something that is _like_ an HsDesc but with extra client keys,
 //     full certificates and so on.  Then, define a function taking the correct set of private
 //     keys and using them to encode, encrypt, and sign the built HsDesc.
+
+#[cfg(test)]
+mod test {
+    use hex_literal::hex;
+
+    pub(super) const TEST_DATA: &str = include_str!("../../testdata/hsdesc1.txt");
+    pub(super) const TEST_SUBCREDENTIAL: [u8; 32] =
+        hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37");
+}

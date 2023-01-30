@@ -263,13 +263,12 @@ mod test {
     #![allow(clippy::unchecked_duration_subtraction)]
     //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
     use super::*;
+    use crate::doc::hsdesc::test::{TEST_DATA, TEST_SUBCREDENTIAL};
     use tor_checkable::SelfSigned;
-
-    const TESTDATA: &str = include_str!("../../../testdata/hsdesc1.txt");
 
     #[test]
     fn parse_good() -> Result<()> {
-        let desc = HsDescOuter::parse(TESTDATA)?;
+        let desc = HsDescOuter::parse(TEST_DATA)?;
 
         let desc = desc
             .check_signature()?
@@ -279,9 +278,7 @@ mod test {
         // TODO HS: Add checks for the specific fields here once I'm more
         // confident that this is the example descriptor I'm using.
 
-        let subcred: tor_hscrypto::Subcredential =
-            hex_literal::hex!("78210A0D2C72BB7A0CAF606BCD938B9A3696894FDDDBC3B87D424753A7E3DF37")
-                .into();
+        let subcred: tor_hscrypto::Subcredential = TEST_SUBCREDENTIAL.into();
         let inner = desc.decrypt_body(&subcred).unwrap();
 
         assert!(std::str::from_utf8(&inner)
