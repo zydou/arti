@@ -143,12 +143,12 @@ impl<'a> HsDescEncryption<'a> {
     }
 }
 
-/// An error that occurs when decrypting an onion service decryptor.
+/// An error that occurs when decrypting an onion service descriptor.
 ///
 /// This error is deliberately uninformative, to avoid side channels.
 #[non_exhaustive]
 #[derive(Clone, Debug, Default, thiserror::Error)]
-#[error("Unable to decrypt onion service decryptor.")]
+#[error("Unable to decrypt onion service descriptor.")]
 pub struct DecryptionError {}
 
 #[cfg(test)]

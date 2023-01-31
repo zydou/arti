@@ -121,7 +121,7 @@ pub struct IntroPointDesc {
     // TODO hs: perhaps it would be better to have this be a lazily parsed Vec<u8>
     link_specifiers: Vec<LinkSpec>,
 
-    /// The key used to extand a circuit to the introduction point, using the
+    /// The key used to extend a circuit to the introduction point, using the
     /// ntor or ntor3 handshakes.
     ntor_onion_key: curve25519::PublicKey,
 
@@ -129,7 +129,7 @@ pub struct IntroPointDesc {
     auth_key: IntroPtAuthKey,
 
     /// The key used to encrypt a handshake _to the onion service_ when using this
-    /// introdution point.
+    /// introduction point.
     hs_enc_key: IntroPtEncKey,
 }
 
@@ -233,7 +233,7 @@ impl EncryptedHsDesc {
 
         // TODO hs: if we decide that we need to verify and time-check the
         // certificates in the inner layer, we need to return a
-        // SignatureGated<TimrangeBound<HsDesc>> instead.
+        // SignatureGated<TimerangeBound<HsDesc>> instead.
 
         // Construct the HsDesc!
         Ok(HsDesc {
@@ -263,7 +263,7 @@ impl IndexInfo {
 }
 
 impl StoredHsDescMeta {
-    /// Create a new `StoredHsDescMeta` from the outer layer of an onion service desciptor.
+    /// Create a new `StoredHsDescMeta` from the outer layer of an onion service descriptor.
     fn from_outer_layer(outer: &outer_layer::HsDescOuter) -> Self {
         let blinded_id = outer.blinded_id();
         let idx_info = IndexInfo::from_outer_layer(outer);
