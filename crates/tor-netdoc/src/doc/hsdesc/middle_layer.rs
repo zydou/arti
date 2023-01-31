@@ -233,8 +233,7 @@ mod test {
             .dangerously_assume_wellsigned()
             .dangerously_assume_timely();
         let subcred = TEST_SUBCREDENTIAL.into();
-        let mut body = desc.decrypt_body(&subcred).unwrap();
-        body.push(b'\n'); // XXXX BUG in C tor: this \n is really supposed to be there!
+        let body = desc.decrypt_body(&subcred).unwrap();
         let body = std::str::from_utf8(&body[..]).unwrap();
 
         let middle = HsDescMiddle::parse(body)?;

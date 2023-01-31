@@ -73,6 +73,11 @@ impl HsDescOuter {
         let mut body = decrypt.decrypt(&self.encrypted_body[..])?;
         let n_padding = body.iter().rev().take_while(|n| **n == 0).count();
         body.truncate(body.len() - n_padding);
+        // Work around a bug in the C tor implementation: it doesn't
+        // NL-terminate the final line of the middle layer.
+        if !body.ends_with(b"\n") {
+            body.push(b'\n');
+        }
         Ok(body)
     }
 }
