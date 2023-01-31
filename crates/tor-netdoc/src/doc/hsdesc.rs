@@ -48,6 +48,7 @@ pub type UncheckedStoredHsDescMeta =
 
 /// Information about how long to hold a given onion service descriptor, and
 /// when to replace it.
+#[derive(Debug, Clone)]
 struct IndexInfo {
     /// The lifetime in minutes that this descriptor should be held after it is
     /// received.
@@ -66,6 +67,7 @@ struct IndexInfo {
 /// the descriptor, and the inner (encrypted) layers.  It tells the client the
 /// information it needs to contact the onion service, including necessary
 /// introduction points and public keys.
+#[derive(Debug, Clone)]
 pub struct HsDesc {
     /// The real onion identity for this onion service.
     id: OnionId,
@@ -97,6 +99,7 @@ pub type UncheckedHsDesc = timed::TimerangeBound<signed::SignatureGated<HsDesc>>
 
 /// Information in an onion service descriptor about a single
 /// introduction point.
+#[derive(Debug, Clone)]
 pub struct IntroPointDesc {
     /// A list of link specifiers needed to extend a circuit to the introduction point.
     ///
