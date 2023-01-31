@@ -1,6 +1,6 @@
 //! Code to handle the inner layer of an onion service descriptor.
 
-use super::IntroPointDesc;
+use super::{IntroAuthType, IntroPointDesc};
 use crate::parse::tokenize::{ItemResult, NetDocReader};
 use crate::parse::{keyword::Keyword, parser::SectionRules};
 use crate::types::misc::{UnvalidatedEdCert, B64};
@@ -16,24 +16,14 @@ use tor_llcrypto::pk::{curve25519, ed25519};
 pub(super) struct HsDescInner {
     /// The authentication types that this onion service accepts when
     /// connecting.
-    authtypes: Option<SmallVec<[IntroAuthType; 2]>>,
+    pub(super) authtypes: Option<SmallVec<[IntroAuthType; 2]>>,
     /// Is this onion service a "single onion service?"
     ///
     /// (A "single onion service" is one that is not attempting to anonymize
     /// itself.)
-    is_single_onion_service: bool,
+    pub(super) is_single_onion_service: bool,
     /// A list of advertised introduction points and their contact info.
-    intro_points: Vec<IntroPointDesc>,
-}
-
-/// A type of authentication that is required when introducing to an onion
-/// service.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum IntroAuthType {
-    /// Password (or rather, shared-secret) authentication is required.
-    Passwd,
-    /// Ed25519 authentication is required.
-    Ed25519,
+    pub(super) intro_points: Vec<IntroPointDesc>,
 }
 
 decl_keyword! {
