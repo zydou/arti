@@ -10,6 +10,7 @@
 
 #![allow(dead_code, unused_variables, clippy::missing_panics_doc)] // TODO hs: remove.
 mod desc_enc;
+mod inner_layer;
 mod middle_layer;
 mod outer_layer;
 
@@ -109,6 +110,8 @@ pub struct IntroPointDesc {
     //
     // TODO hs: perhaps we should make certain link specifiers mandatory? That
     // would make it possible for IntroPointDesc to implement CircTarget.
+    //
+    // TODO hs: perhaps it would be better to have this be a lazily parsed Vec<u8>
     link_specifiers: Vec<LinkSpec>,
 
     /// The key used to extand a circuit to the introduction point, using the

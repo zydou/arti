@@ -4086,6 +4086,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "signature 1.6.4",
+ "smallvec",
  "thiserror",
  "time",
  "tinystr",
