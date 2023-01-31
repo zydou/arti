@@ -535,10 +535,11 @@ impl RouterDesc {
             let signed_end = ed_sig_pos + b"router-sig-ed25519 ".len();
             d.update(&s[start_offset..signed_end]);
             let d = d.finalize();
-            let sig: B64 = ed_sig.parse_arg(0)?;
-            let sig = ll::pk::ed25519::Signature::from_bytes(sig.as_bytes())
+            let sig: [u8; 64] = ed_sig
+                .parse_arg::<B64>(0)?
+                .into_array()
                 .map_err(|_| EK::BadSignature.at_pos(ed_sig.pos()))?;
-
+            let sig = ll::pk::ed25519::Signature::from(sig);
             ll::pk::ed25519::ValidatableEd25519Signature::new(ed25519_signing_key, sig, &d)
         };
 

@@ -226,8 +226,12 @@ impl HsDescOuter {
         // Parse remaining fields, which are nice and simple.
         let revision_counter = body.required(REVISION_COUNTER)?.parse_arg::<u64>(0)?.into();
         let encrypted_body: Vec<u8> = body.required(SUPERENCRYPTED)?.obj("MESSAGE")?;
-        let signature = body.required(SIGNATURE)?.parse_arg::<B64>(0)?;
-        let signature = ed25519::Signature::from_bytes(signature.as_bytes())?;
+        let signature = body
+            .required(SIGNATURE)?
+            .parse_arg::<B64>(0)?
+            .into_array()
+            .map_err(|_| EK::BadSignature.with_msg("Bad signature object length"))?;
+        let signature = ed25519::Signature::from(signature);
 
         // Split apart the unchecked certificate: its constraints will become
         // our own.
