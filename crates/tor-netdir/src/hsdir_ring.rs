@@ -16,8 +16,10 @@
 #![allow(unused_variables, dead_code)] //TODO hs: remove
 
 use derive_more::AsRef;
+use digest::Digest;
 
 use tor_hscrypto::{pk::HsBlindId, time::TimePeriod};
+use tor_llcrypto::d::Sha3_256;
 use tor_llcrypto::pk::ed25519::Ed25519Identity;
 
 use crate::hsdir_params::HsDirParams;
@@ -62,10 +64,10 @@ pub(crate) struct HsDirRing {
 
 /// Compute the [`HsDirIndex`] for a given relay.
 pub(crate) fn relay_index(
-    id: Ed25519Identity,
+    kp_relayid_ed: &Ed25519Identity,
     params: &HsDirParams,
 ) -> HsDirIndex {
-    //  TODO hs implement this.
+    // rend-spec-v3 2.2.3 "hsdir_index(node)"
     //
     // hsdir_index(node) = H("node-idx" | node_identity |
     //      shared_random_value |
@@ -74,16 +76,22 @@ pub(crate) fn relay_index(
     //
     // Note that INT_8 means "u64" and H is sha3-256.
 
-    todo!()
+    let mut h = Sha3_256::default();
+    h.update(b"node-idx");
+    h.update(kp_relayid_ed.as_bytes());
+    h.update(params.shared_rand.as_ref());
+    h.update(params.time_period.interval_num().to_be_bytes());
+    h.update(u64::from(params.time_period.length().as_minutes()).to_be_bytes());
+    HsDirIndex(h.finalize().into())
 }
 
 /// Compute the starting [`HsDirIndex`] for a given descriptor replica.
 pub(crate) fn service_index(
-    id: HsBlindId,
+    kp_hs_blind_id: &HsBlindId,
     replica: u8,
     params: &HsDirParams,
 ) -> HsDirIndex {
-    // TODO hs implement this
+    // rend-spec-v3 2.2.3 "hs_index(replicanum)"
     //
     // hs_index(replicanum) = H("store-at-idx" |
     //      blinded_public_key |
@@ -93,7 +101,13 @@ pub(crate) fn service_index(
     //
     // Note that INT_8 means "u64" and H is sha3-256
 
-    todo!()
+    let mut h = Sha3_256::new();
+    h.update(b"store-at-idx");
+    h.update(kp_hs_blind_id.as_ref());
+    h.update(u64::from(replica).to_be_bytes());
+    h.update(u64::from(params.time_period.length().as_minutes()).to_be_bytes());
+    h.update(params.time_period.interval_num().to_be_bytes());
+    HsDirIndex(h.finalize().into())
 }
 
 impl HsDirRing {
@@ -124,5 +138,65 @@ impl HsDirRing {
     /// Return the time period for which this ring applies.
     pub(crate) fn time_period(&self) -> TimePeriod {
         self.params.time_period
+    }
+}
+
+#[cfg(test)]
+mod test {
+    // @@ begin test lint list maintained by maint/add_warning @@
+    #![allow(clippy::bool_assert_comparison)]
+    #![allow(clippy::clone_on_copy)]
+    #![allow(clippy::dbg_macro)]
+    #![allow(clippy::print_stderr)]
+    #![allow(clippy::print_stdout)]
+    #![allow(clippy::single_char_pattern)]
+    #![allow(clippy::unwrap_used)]
+    #![allow(clippy::unchecked_duration_subtraction)]
+    //! <!-- @@ end test lint list maintained by maint/add_warning @@ -->
+    use super::*;
+
+    use std::time::Duration;
+
+    // mirrors C Tor src/test/test_hs_common.c:test_hs_indexes
+    #[test]
+    fn test_hs_indexes() {
+        // C Tor test vector simply has
+        //    uint64_t period_num = 42;
+        let time_period = TimePeriod::new(
+            Duration::from_secs(24 * 3600),
+            // ~43 days from the Unix epoch
+            humantime::parse_rfc3339("1970-02-13T01:00:00Z").unwrap(),
+            Duration::from_secs(12 * 3600),
+        )
+        .unwrap();
+        assert_eq!(time_period.interval_num(), 42);
+
+        let shared_rand = [0x43; 32].into();
+
+        let params = HsDirParams {
+            time_period,
+            shared_rand,
+        };
+
+        // service_index AKA hs_index
+        {
+            let kp_hs_blind_id = [0x42; 32].into();
+            let replica = 1;
+            let got = service_index(&kp_hs_blind_id, replica, &params);
+            assert_eq!(
+                hex::encode(got.as_ref()),
+                "37e5cbbd56a22823714f18f1623ece5983a0d64c78495a8cfab854245e5f9a8a",
+            );
+        }
+
+        // relay_index AKA hsdir_index
+        {
+            let kp_relayid_ed = [0x42; 32].into();
+            let got = relay_index(&kp_relayid_ed, &params);
+            assert_eq!(
+                hex::encode(got.as_ref()),
+                "db475361014a09965e7e5e4d4a25b8f8d4b8f16cb1d8a7e95eed50249cc1a2d5",
+            );
+        }
     }
 }
